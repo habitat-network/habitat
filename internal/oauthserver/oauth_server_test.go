@@ -17,9 +17,9 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/core"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -109,6 +109,10 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 
 	t.Run("CanHandle returns true for oauth header", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{}).
+			SignedString(secret)
+		require.NoError(t, err)
+		r.Header.Set("Authorization", "Bearer "+token)
 		r.Header.Set("Habitat-Auth-Method", "oauth")
 		require.True(t, oauthSrv.CanHandle(r))
 	})
@@ -320,6 +324,7 @@ func TestOAuthServerE2E(t *testing.T) {
 			oauthServer.HandleToken(w, r)
 			return
 		case "/resource":
+			require.True(t, oauthServer.CanHandle(r))
 			credInfo, ok := oauthServer.Validate(w, r)
 			require.True(t, ok, "failed to validate token")
 			require.Equal(t, syntax.DID("did:web:example.did.com"), credInfo.Subject)
@@ -740,13 +745,13 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 // testIsMemberStore wraps an org.Store and overrides GetOrgByDID.
 type testIsMemberStore struct {
 	org.Store
-	fn func(ctx context.Context, did syntax.DID) (core.Org, error)
+	fn func(ctx context.Context, did syntax.DID) (org.Org, error)
 }
 
 func (s *testIsMemberStore) GetOrgForDID(
 	ctx context.Context,
 	did syntax.DID,
-) (core.Org, bool, error) {
+) (org.Org, bool, error) {
 	o, err := s.fn(ctx, did)
 	return o, false, err
 }
@@ -914,7 +919,7 @@ func TestValidate(t *testing.T) {
 	t.Run("GetOrgForDID error returns !ok with 401", func(t *testing.T) {
 		srv := newSrv(&testIsMemberStore{
 			Store: testStore(t),
-			fn: func(_ context.Context, _ syntax.DID) (core.Org, error) {
+			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
 				return nil, errors.New("simulated database failure")
 			},
 		})
@@ -926,7 +931,7 @@ func TestValidate(t *testing.T) {
 	t.Run("non-member returns !ok with 401", func(t *testing.T) {
 		srv := newSrv(&testIsMemberStore{
 			Store: testStore(t),
-			fn: func(_ context.Context, _ syntax.DID) (core.Org, error) {
+			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
 				return nil, org.ErrMemberNotFound
 			},
 		})

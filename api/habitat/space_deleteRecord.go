@@ -5,10 +5,9 @@ package habitat
 // NetworkHabitatSpaceDeleteRecordInput represents the input for network.habitat.space.deleteRecord
 type NetworkHabitatSpaceDeleteRecordInput struct {
 	Collection string `json:"collection"`
+	Repo       string `json:"repo"`
 	Rkey       string `json:"rkey"`
 	Space      string `json:"space"`
-	SwapCommit string `json:"swapCommit,omitempty"`
-	SwapRecord string `json:"swapRecord,omitempty"`
 }
 
 // NetworkHabitatSpaceDeleteRecordOutput represents the output for network.habitat.space.deleteRecord

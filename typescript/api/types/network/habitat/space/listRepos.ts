@@ -1,7 +1,7 @@
 /**
  * GENERATED CODE - DO NOT MODIFY
  */
-import { HeadersMap, XRPCError } from '@atproto/xrpc'
+import { type HeadersMap, XRPCError } from '@atproto/xrpc'
 import { type ValidationResult, BlobRef } from '@atproto/lexicon'
 import { CID } from 'multiformats/cid'
 import { validate as _validate } from '../../../../lexicons.js'
@@ -13,24 +13,20 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.space.getRepoOplog'
+const id = 'network.habitat.space.listRepos'
 
 export type QueryParams = {
   /** Reference to the space. */
   space: string
-  /** The DID of the member whose records to track. */
-  repo: string
-  /** Return records with revisions after this value (exclusive). */
-  since?: string
-  /** Maximum number of records to return. */
+  /** Maximum number of repos to return. */
   limit?: number
+  cursor?: string
 }
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  records: Record[]
-  /** The revision of the last returned record. Use as `since` in the next poll. */
   cursor?: string
+  repos: Repo[]
 }
 
 export interface CallOptions {
@@ -58,23 +54,22 @@ export function toKnownErr(e: any) {
   return e
 }
 
-export interface Record {
-  $type?: 'network.habitat.space.getRepoOplog#record'
-  /** Revision (TID) of this record. */
-  rev: string
-  collection: string
-  rkey: string
-  cid?: string
-  /** The record value. */
-  value: { [_ in string]: unknown }
+export interface Repo {
+  $type?: 'network.habitat.space.listRepos#repo'
+  /** The DID of a repo that holds data in the space. */
+  did: string
+  /** The repo's current revision (TID), as last reported to the authority. May lag the repo host, which is the source of truth. */
+  rev?: string
+  /** The repo's current commit hash (sha256 of the LtHash state), as last reported to the authority. */
+  hash?: Uint8Array
 }
 
-const hashRecord = 'record'
+const hashRepo = 'repo'
 
-export function isRecord<V>(v: V) {
-  return is$typed(v, id, hashRecord)
+export function isRepo<V>(v: V) {
+  return is$typed(v, id, hashRepo)
 }
 
-export function validateRecord<V>(v: V) {
-  return validate<Record & V>(v, id, hashRecord)
+export function validateRepo<V>(v: V) {
+  return validate<Repo & V>(v, id, hashRepo)
 }

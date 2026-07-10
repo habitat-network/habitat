@@ -1,7 +1,7 @@
 /**
  * GENERATED CODE - DO NOT MODIFY
  */
-import { HeadersMap, XRPCError } from '@atproto/xrpc'
+import { type HeadersMap, XRPCError } from '@atproto/xrpc'
 import { type ValidationResult, BlobRef } from '@atproto/lexicon'
 import { CID } from 'multiformats/cid'
 import { validate as _validate } from '../../../../lexicons.js'
@@ -18,8 +18,8 @@ const id = 'network.habitat.space.getRecord'
 export type QueryParams = {
   /** Reference to the space. */
   space: string
-  /** The DID of the member whose repo to read from. If omitted, defaults to the authenticated user. */
-  repo?: string
+  /** The DID of the account whose repo to read from. */
+  repo: string
   /** The NSID of the record collection. */
   collection: string
   /** The Record Key. */
@@ -28,7 +28,6 @@ export type QueryParams = {
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  /** URI of the record. */
   uri: string
   cid: string
   value: { [_ in string]: unknown }
@@ -51,9 +50,37 @@ export class RecordNotFoundError extends XRPCError {
   }
 }
 
+export class SpaceNotFoundError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
+export class RepoTakendownError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
+export class RepoSuspendedError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
+export class RepoDeactivatedError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
 export function toKnownErr(e: any) {
   if (e instanceof XRPCError) {
     if (e.error === 'RecordNotFound') return new RecordNotFoundError(e)
+    if (e.error === 'SpaceNotFound') return new SpaceNotFoundError(e)
+    if (e.error === 'RepoTakendown') return new RepoTakendownError(e)
+    if (e.error === 'RepoSuspended') return new RepoSuspendedError(e)
+    if (e.error === 'RepoDeactivated') return new RepoDeactivatedError(e)
   }
 
   return e

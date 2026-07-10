@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 )
@@ -273,10 +274,7 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func writeJSON(w http.ResponseWriter, r *http.Request, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		slog.ErrorContext(r.Context(), "encode response", "err", err)
-	}
+	httpx.WriteJSON(r.Context(), w, v)
 }
 
 func writeXRPCError(w http.ResponseWriter, status int, name, message string) {

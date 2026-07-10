@@ -1,7 +1,7 @@
 /**
  * GENERATED CODE - DO NOT MODIFY
  */
-import { HeadersMap, XRPCError } from '@atproto/xrpc'
+import { type HeadersMap, XRPCError } from '@atproto/xrpc'
 import { type ValidationResult, BlobRef } from '@atproto/lexicon'
 import { CID } from 'multiformats/cid'
 import { validate as _validate } from '../../../../lexicons.js'
@@ -13,21 +13,29 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.space.getMembers'
+const id = 'network.habitat.space.registerNotify'
 
-export type QueryParams = {
+export type QueryParams = {}
+
+export interface InputSchema {
   /** Reference to the space. */
   space: string
+  /** The DID of a specific repo to subscribe to (repo host). Omit to subscribe to the whole space (space host). */
+  repo?: string
+  /** The endpoint to which notifyWrite events should be delivered. */
+  endpoint: string
 }
-export type InputSchema = undefined
 
 export interface OutputSchema {
-  members: Member[]
+  /** When the registration expires. */
+  expiresAt: string
 }
 
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
+  qp?: QueryParams
+  encoding?: 'application/json'
 }
 
 export interface Response {
@@ -48,21 +56,4 @@ export function toKnownErr(e: any) {
   }
 
   return e
-}
-
-export interface Member {
-  $type?: 'network.habitat.space.getMembers#member'
-  did: string
-  access?: 'read' | 'write'
-  addedAt?: string
-}
-
-const hashMember = 'member'
-
-export function isMember<V>(v: V) {
-  return is$typed(v, id, hashMember)
-}
-
-export function validateMember<V>(v: V) {
-  return validate<Member & V>(v, id, hashMember)
 }

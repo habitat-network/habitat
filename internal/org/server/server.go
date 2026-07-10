@@ -1,4 +1,4 @@
-package org
+package server
 
 import (
 	"context"
@@ -15,8 +15,9 @@ import (
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/core"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/instance"
+	orgpkg "github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -24,10 +25,8 @@ import (
 
 var errNotMemberOfOrg = errors.New("not a member of an organization")
 
-// Serve org-specific APIs
-// Server does both authn and authz for these routes
 type Server struct {
-	store          Store
+	store          orgpkg.Store
 	auth           authn.Method
 	pear           pear.Pear
 	domain         string
@@ -37,7 +36,7 @@ type Server struct {
 }
 
 func NewServer(
-	store Store,
+	store orgpkg.Store,
 	auth authn.Method,
 	p pear.Pear,
 	domain string,
@@ -55,7 +54,6 @@ func NewServer(
 	}, nil
 }
 
-// IsMember checks if the given DID is a member of any org on this instance.
 func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) {
 	_, _, err := s.store.GetOrgForDID(ctx, member)
 	if err != nil {
@@ -68,13 +66,12 @@ func (s *Server) validateOrgToken(
 	ctx context.Context,
 	orgID string,
 	token string,
-) (core.Org, error) {
+) (orgpkg.Org, error) {
 	org, err := s.store.GetOrg(ctx, syntax.DID(orgID))
 	if err != nil {
 		return nil, err
 	}
 
-	// Org found, validate token.
 	if err := s.store.ValidateAdminSignedToken(ctx, syntax.DID(orgID), token); err != nil {
 		return nil, err
 	}
@@ -91,8 +88,7 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	orgID := params.OrgId
-	var org core.Org
-	// Either orgID is supplied in query params and the signed token is passed up for authn method
+	var org orgpkg.Org
 	if orgID != "" {
 		org, err = s.validateOrgToken(
 			r.Context(),
@@ -104,14 +100,13 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Or regular authn via authenticated credInfo.Subject
 		credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.auth)).Validate(w, r)
 		if !ok {
 			return
 		}
 
 		org, _, err = s.store.GetOrgForDID(r.Context(), credInfo.Subject)
-		if errors.Is(err, ErrMemberNotFound) {
+		if errors.Is(err, orgpkg.ErrMemberNotFound) {
 			utils.LogAndHTTPError(
 				r.Context(),
 				w,
@@ -134,26 +129,15 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	meta := org.GetMetadata(r.Context(), s.domain)
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(meta); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, meta)
 }
 
-// Org APIs
 func (s *Server) BootstrapAdmin(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("unimplemented"))
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
-	// no auth: bootstrapping a new org
 	var req habitat.NetworkHabitatOrgCreateInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
@@ -226,7 +210,7 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, identity.ErrInvalidHandle) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
-	} else if errors.Is(err, ErrOrgAlreadyExists) {
+	} else if errors.Is(err, orgpkg.ErrOrgAlreadyExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	} else if err != nil {
@@ -240,10 +224,6 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The org now exists. If an invite gated this creation, mark it used now
-	// (not before creation) so a failed attempt doesn't permanently burn a
-	// single-use invite. If marking-used fails here, the org was still
-	// created successfully, so we log but do not fail the response.
 	if inviteOnly {
 		if err := s.instancePolicy.MarkInviteUsed(r.Context(), req.InviteToken); err != nil {
 			slog.ErrorContext(
@@ -260,16 +240,7 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		AdminHandle: id.Handle.String(),
 		Name:        req.Name,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
@@ -323,18 +294,9 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatOrgGetAdminsOutput{
+	httpx.WriteJSON(r.Context(), w, &habitat.NetworkHabitatOrgGetAdminsOutput{
 		Admins: admins,
-	}); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	})
 }
 
 func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
@@ -388,18 +350,9 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatOrgGetMembersOutput{
+	httpx.WriteJSON(r.Context(), w, &habitat.NetworkHabitatOrgGetMembersOutput{
 		Members: members,
-	}); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	})
 }
 
 func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
@@ -669,7 +622,6 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// authz: calelr must be admin
 	if ok, err := org.IsAdmin(r.Context(), credInfo.Subject); !ok {
 		utils.LogAndHTTPError(r.Context(), w, err, "not authorized", http.StatusUnauthorized)
 		return
@@ -722,20 +674,10 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatOrgIssueInviteTokenOutput{
 		Token: token,
 	}
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
-	// no authn/authz: this is called by new members who don't exist yet
 	var req habitat.NetworkHabitatOrgMintMemberIdentityInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
@@ -747,15 +689,8 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgDid, err := syntax.ParseDID(req.OrgId)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"parsing org did",
-			http.StatusBadRequest,
-		)
+	orgDid, ok := httpx.ParseDIDInput(r.Context(), w, req.OrgId, "orgId")
+	if !ok {
 		return
 	}
 
@@ -767,7 +702,7 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		req.Password,
 		req.LoginID,
 	)
-	if errors.Is(err, ErrInvalidToken) {
+	if errors.Is(err, orgpkg.ErrInvalidToken) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	} else if err != nil {
@@ -781,7 +716,6 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create a minimal app.bsky.actor.profile record so the identity is usable by atproto apps
 	if s.pear != nil {
 		profile := map[string]any{
 			"$type":  "app.bsky.actor.profile",
@@ -813,15 +747,5 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		Did:    id.DID.String(),
 		Handle: id.Handle.String(),
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }

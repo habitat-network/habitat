@@ -3905,6 +3905,48 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceDefs: {
+    lexicon: 1,
+    id: 'network.habitat.space.defs',
+    defs: {
+      signedCommit: {
+        type: 'object',
+        description:
+          'A signed commit over the current state of a permissioned repo.',
+        required: ['ver', 'hash', 'mac', 'ikm', 'sig', 'rev'],
+        properties: {
+          ver: {
+            type: 'integer',
+            description:
+              'Commit format version, currently 1. Corresponds to the version in the ctx protocol tag (atproto-space-v1).',
+          },
+          hash: {
+            type: 'bytes',
+            description: 'sha256 digest of the LtHash state (32 bytes).',
+          },
+          ikm: {
+            type: 'bytes',
+            description:
+              'Per-signature input keying material (32 random bytes)',
+          },
+          sig: {
+            type: 'bytes',
+            description:
+              "Signature over ctx (space, author DID, rev, ikm) by the user's atproto signing key. Does not cover the repo hash.",
+          },
+          mac: {
+            type: 'bytes',
+            description:
+              "HMAC-SHA256 over hash, keyed by HKDF-SHA256(ikm, info=ctx). Binds the repo hash to this commit's context.",
+          },
+          rev: {
+            type: 'string',
+            description: 'Commit revision (TID), also bound into ctx.',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatSpaceDeleteRecord: {
     lexicon: 1,
     id: 'network.habitat.space.deleteRecord',
@@ -3912,18 +3954,23 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          "Delete a record in a space, or ensure it doesn't exist. Caller must have can_delete on the space.",
+          "Delete a record in a permissioned space, or ensure it doesn't exist. Requires auth, implemented by PDS.",
         input: {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['space', 'collection', 'rkey'],
-            nullable: ['swapRecord', 'swapCommit'],
+            required: ['space', 'repo', 'collection', 'rkey'],
             properties: {
               space: {
                 type: 'string',
-                format: 'uri',
+                format: 'at-uri',
                 description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'The DID of the repo to delete from (the authenticated member).',
               },
               collection: {
                 type: 'string',
@@ -3934,18 +3981,6 @@ export const schemaDict = {
                 type: 'string',
                 format: 'record-key',
                 description: 'The Record Key.',
-              },
-              swapRecord: {
-                type: 'string',
-                format: 'cid',
-                description:
-                  'Compare and swap with the previous record by CID.',
-              },
-              swapCommit: {
-                type: 'string',
-                format: 'cid',
-                description:
-                  'Compare and swap with the previous commit by CID.',
               },
             },
           },
@@ -3959,7 +3994,7 @@ export const schemaDict = {
         },
         errors: [
           {
-            name: 'InvalidSwap',
+            name: 'SpaceNotFound',
           },
         ],
       },
@@ -3996,68 +4031,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatSpaceGetMembers: {
-    lexicon: 1,
-    id: 'network.habitat.space.getMembers',
-    defs: {
-      main: {
-        type: 'query',
-        description:
-          'Get the list of members in a space. Callable by any member of the space.',
-        parameters: {
-          type: 'params',
-          required: ['space'],
-          properties: {
-            space: {
-              type: 'string',
-              format: 'uri',
-              description: 'Reference to the space.',
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['members'],
-            properties: {
-              members: {
-                type: 'array',
-                items: {
-                  type: 'ref',
-                  ref: 'lex:network.habitat.space.getMembers#member',
-                },
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceNotFound',
-            description: 'The specified space does not exist.',
-          },
-        ],
-      },
-      member: {
-        type: 'object',
-        required: ['did'],
-        properties: {
-          did: {
-            type: 'string',
-            format: 'did',
-          },
-          access: {
-            type: 'string',
-            enum: ['read', 'write'],
-          },
-          addedAt: {
-            type: 'string',
-            format: 'datetime',
-          },
-        },
-      },
-    },
-  },
   NetworkHabitatSpaceGetRecord: {
     lexicon: 1,
     id: 'network.habitat.space.getRecord',
@@ -4065,21 +4038,20 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'Get a single record from a permissioned space. Callable by any space member.',
+          "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
         parameters: {
           type: 'params',
-          required: ['space', 'collection', 'rkey'],
+          required: ['space', 'repo', 'collection', 'rkey'],
           properties: {
             space: {
               type: 'string',
-              format: 'uri',
+              format: 'at-uri',
               description: 'Reference to the space.',
             },
             repo: {
               type: 'string',
               format: 'did',
-              description:
-                'The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.',
+              description: 'The DID of the account whose repo to read from.',
             },
             collection: {
               type: 'string',
@@ -4101,7 +4073,7 @@ export const schemaDict = {
             properties: {
               uri: {
                 type: 'string',
-                description: 'URI of the record.',
+                format: 'at-uri',
               },
               cid: {
                 type: 'string',
@@ -4117,43 +4089,46 @@ export const schemaDict = {
           {
             name: 'RecordNotFound',
           },
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
         ],
       },
     },
   },
-  NetworkHabitatSpaceGetRepoOplog: {
+  NetworkHabitatSpaceGetSpaceCredential: {
     lexicon: 1,
-    id: 'network.habitat.space.getRepoOplog',
+    id: 'network.habitat.space.getSpaceCredential',
     defs: {
       main: {
-        type: 'query',
+        type: 'procedure',
         description:
-          'Get records modified since a given revision for a member in a space. Used for incremental sync. Callable by any member of the space.',
-        parameters: {
-          type: 'params',
-          required: ['space', 'repo'],
-          properties: {
-            space: {
-              type: 'string',
-              format: 'uri',
-              description: 'Reference to the space.',
-            },
-            repo: {
-              type: 'string',
-              format: 'did',
-              description: 'The DID of the member whose records to track.',
-            },
-            since: {
-              type: 'string',
-              description:
-                'Return records with revisions after this value (exclusive).',
-            },
-            limit: {
-              type: 'integer',
-              minimum: 1,
-              maximum: 1000,
-              default: 100,
-              description: 'Maximum number of records to return.',
+          "Exchange a delegation token for a space credential. Called on the space authority, with the delegation token as the request's authorization token. The resulting space credential reads repos across the space. Requires a delegation token, plus a client attestation when the space gates on app identity.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              clientAttestation: {
+                type: 'string',
+                description:
+                  "Optional client attestation JWT establishing the app's identity. Required only when the space gates on app identity.",
+              },
             },
           },
         },
@@ -4161,19 +4136,11 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['records'],
+            required: ['credential'],
             properties: {
-              records: {
-                type: 'array',
-                items: {
-                  type: 'ref',
-                  ref: 'lex:network.habitat.space.getRepoOplog#record',
-                },
-              },
-              cursor: {
+              credential: {
                 type: 'string',
-                description:
-                  'The revision of the last returned record. Use as `since` in the next poll.',
+                description: 'A signed JWT space credential.',
               },
             },
           },
@@ -4182,33 +4149,29 @@ export const schemaDict = {
           {
             name: 'SpaceNotFound',
           },
+          {
+            name: 'SpaceDeleted',
+          },
+          {
+            name: 'UserNotAuthorized',
+            description: 'Refused on the basis of the requesting user.',
+          },
+          {
+            name: 'AppNotAuthorized',
+            description: 'Refused on the basis of the requesting app.',
+          },
+          {
+            name: 'NotAuthorized',
+            description:
+              'Refused for a reason not attributable to a single axis.',
+          },
+          {
+            name: 'InvalidDelegationToken',
+          },
+          {
+            name: 'InvalidClientAttestation',
+          },
         ],
-      },
-      record: {
-        type: 'object',
-        required: ['rev', 'collection', 'rkey', 'value'],
-        properties: {
-          rev: {
-            type: 'string',
-            description: 'Revision (TID) of this record.',
-          },
-          collection: {
-            type: 'string',
-            format: 'nsid',
-          },
-          rkey: {
-            type: 'string',
-            format: 'record-key',
-          },
-          cid: {
-            type: 'string',
-            format: 'cid',
-          },
-          value: {
-            type: 'unknown',
-            description: 'The record value.',
-          },
-        },
       },
     },
   },
@@ -4219,32 +4182,33 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'List records in a permissioned space, matching a specific collection. Callable by any member of the space.',
+          "List the records in an account's repo within a permissioned space, optionally filtered by collection. By default each record's value is inlined; set excludeValues for a metadata-only listing (collection, rkey, cid). Used for full-state recovery. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
         parameters: {
           type: 'params',
-          required: ['space'],
+          required: ['space', 'repo'],
           properties: {
             space: {
               type: 'string',
-              format: 'uri',
+              format: 'at-uri',
               description: 'Reference to the space.',
             },
             repo: {
               type: 'string',
               format: 'did',
-              description:
-                'The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.',
+              description: 'The DID of the account whose repo to list.',
             },
             collection: {
               type: 'string',
               format: 'nsid',
-              description: 'The NSID of the record type.',
+              description:
+                'The NSID of the record collection. If omitted, lists records across all collections.',
             },
             limit: {
               type: 'integer',
               minimum: 1,
               maximum: 100,
               default: 50,
+              description: 'The number of records to return.',
             },
             cursor: {
               type: 'string',
@@ -4252,6 +4216,12 @@ export const schemaDict = {
             reverse: {
               type: 'boolean',
               description: 'Flag to reverse the order of the returned records.',
+            },
+            excludeValues: {
+              type: 'boolean',
+              default: false,
+              description:
+                'If true, omit inlined record values and return only metadata (collection, rkey, cid).',
             },
           },
         },
@@ -4274,6 +4244,20 @@ export const schemaDict = {
             },
           },
         },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
+        ],
       },
       record: {
         type: 'object',
@@ -4291,12 +4275,203 @@ export const schemaDict = {
             type: 'string',
             format: 'cid',
           },
-          updatedAt: {
+          value: {
+            type: 'unknown',
+            description:
+              "The record's value. Inlined by default; omitted when excludeValues is set.",
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceListRepoOps: {
+    lexicon: 1,
+    id: 'network.habitat.space.listRepoOps',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        parameters: {
+          type: 'params',
+          required: ['space', 'repo'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            repo: {
+              type: 'string',
+              format: 'did',
+              description: 'The DID of the account whose oplog to retrieve.',
+            },
+            since: {
+              type: 'string',
+              description: 'Return operations after this revision.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 1000,
+              default: 100,
+              description: 'Maximum number of operations to return.',
+            },
+            excludeValues: {
+              type: 'boolean',
+              default: false,
+              description:
+                'If true, omit inlined record values and return only operation metadata.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['ops'],
+            properties: {
+              ops: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.space.listRepoOps#opEntry',
+                },
+              },
+              commit: {
+                type: 'ref',
+                ref: 'lex:network.habitat.space.defs#signedCommit',
+                description:
+                  "The account's current signed commit. Included when the response reaches the head of the oplog; omitted on backfill responses.",
+              },
+              cursor: {
+                type: 'string',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
+        ],
+      },
+      opEntry: {
+        type: 'object',
+        description:
+          "A single operation in a permissioned repo's oplog. cid is null for deletes; prev is null for creates. Operations sharing the same rev belong to the same batch. value carries the record's current value for creates and updates, unless excludeValues was set or the value is stale (superseded by a later operation).",
+        required: ['rev', 'collection', 'rkey', 'cid', 'prev'],
+        nullable: ['cid', 'prev'],
+        properties: {
+          rev: {
             type: 'string',
-            format: 'datetime',
+          },
+          collection: {
+            type: 'string',
+            format: 'nsid',
+          },
+          rkey: {
+            type: 'string',
+            format: 'record-key',
+          },
+          cid: {
+            type: 'string',
+            format: 'cid',
+          },
+          prev: {
+            type: 'string',
+            format: 'cid',
           },
           value: {
             type: 'unknown',
+            description:
+              "The record's current value, inlined for create and update operations. Omitted when excludeValues is set, for deletes, or when the value has been superseded by a later operation.",
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceListRepos: {
+    lexicon: 1,
+    id: 'network.habitat.space.listRepos',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the known repos that hold data in a space (the writer set), with each repo's current rev and commit hash. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth.",
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 1000,
+              default: 100,
+              description: 'Maximum number of repos to return.',
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['repos'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              repos: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.space.listRepos#repo',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
+      },
+      repo: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+            description: 'The DID of a repo that holds data in the space.',
+          },
+          rev: {
+            type: 'string',
+            description:
+              "The repo's current revision (TID), as last reported to the authority. May lag the repo host, which is the source of truth.",
+          },
+          hash: {
+            type: 'bytes',
+            description:
+              "The repo's current commit hash (sha256 of the LtHash state), as last reported to the authority.",
           },
         },
       },
@@ -4379,6 +4554,70 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceNotifySpaceDeleted: {
+    lexicon: 1,
+    id: 'network.habitat.space.notifySpaceDeleted',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Notify a repo host or syncing service that a space has been deleted. Sent by the space authority, best-effort. Authenticated with service auth.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the deleted space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceNotifyWrite: {
+    lexicon: 1,
+    id: 'network.habitat.space.notifyWrite',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Notify that a repo in a space has advanced to a new revision. Sent by a repo host to the space host, and forwarded to registered syncers. Best-effort. Authenticated with service auth.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'repo', 'rev', 'hash'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the account whose repo advanced.',
+              },
+              rev: {
+                type: 'string',
+                description: 'The revision of the write.',
+              },
+              hash: {
+                type: 'bytes',
+                description:
+                  "The repo's current commit hash (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's hash for listRepos.",
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatSpacePutRecord: {
     lexicon: 1,
     id: 'network.habitat.space.putRecord',
@@ -4391,12 +4630,18 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['collection', 'record'],
+            required: ['space', 'repo', 'collection', 'record'],
             properties: {
               space: {
                 type: 'string',
-                format: 'uri',
+                format: 'at-uri',
                 description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'The DID of the repo to write to (the authenticated member).',
               },
               collection: {
                 type: 'string',
@@ -4406,8 +4651,13 @@ export const schemaDict = {
               rkey: {
                 type: 'string',
                 format: 'record-key',
-                maxLength: 512,
                 description: 'The Record Key.',
+                maxLength: 512,
+              },
+              validate: {
+                type: 'boolean',
+                description:
+                  "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons.",
               },
               record: {
                 type: 'unknown',
@@ -4420,20 +4670,85 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['uri'],
+            required: ['uri', 'cid'],
             properties: {
               uri: {
                 type: 'string',
+                format: 'at-uri',
                 description: 'URI of the written record.',
               },
               cid: {
                 type: 'string',
                 format: 'cid',
               },
+              validationStatus: {
+                type: 'string',
+                knownValues: ['valid', 'unknown'],
+              },
             },
           },
         },
-        errors: [],
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSpaceRegisterNotify: {
+    lexicon: 1,
+    id: 'network.habitat.space.registerNotify',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Register an endpoint to be notified of writes. On a space host, subscribes to all repos in the space; on a repo host with a `repo`, subscribes to that repo only. Authenticated with a space credential.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'endpoint'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'The DID of a specific repo to subscribe to (repo host). Omit to subscribe to the whole space (space host).',
+              },
+              endpoint: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'The endpoint to which notifyWrite events should be delivered.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['expiresAt'],
+            properties: {
+              expiresAt: {
+                type: 'string',
+                format: 'datetime',
+                description: 'When the registration expires.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
       },
     },
   },
@@ -4603,13 +4918,20 @@ export const ids = {
   NetworkHabitatSearchQuery: 'network.habitat.search.query',
   NetworkHabitatSpaceAddMember: 'network.habitat.space.addMember',
   NetworkHabitatSpaceCreateSpace: 'network.habitat.space.createSpace',
+  NetworkHabitatSpaceDefs: 'network.habitat.space.defs',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
-  NetworkHabitatSpaceGetMembers: 'network.habitat.space.getMembers',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
-  NetworkHabitatSpaceGetRepoOplog: 'network.habitat.space.getRepoOplog',
+  NetworkHabitatSpaceGetSpaceCredential:
+    'network.habitat.space.getSpaceCredential',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',
+  NetworkHabitatSpaceListRepoOps: 'network.habitat.space.listRepoOps',
+  NetworkHabitatSpaceListRepos: 'network.habitat.space.listRepos',
   NetworkHabitatSpaceListSpaces: 'network.habitat.space.listSpaces',
+  NetworkHabitatSpaceNotifySpaceDeleted:
+    'network.habitat.space.notifySpaceDeleted',
+  NetworkHabitatSpaceNotifyWrite: 'network.habitat.space.notifyWrite',
   NetworkHabitatSpacePutRecord: 'network.habitat.space.putRecord',
+  NetworkHabitatSpaceRegisterNotify: 'network.habitat.space.registerNotify',
   NetworkHabitatSpaceRemoveMember: 'network.habitat.space.removeMember',
 } as const

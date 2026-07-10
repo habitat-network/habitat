@@ -108,7 +108,7 @@ type Server struct {
 	registry *peerRegistry
 
 	// For authn/authz
-	serviceAuth authn.Method
+	serviceAuth authn.RawMethod
 	pear        pear.Pear
 
 	// Count the open conns on this server
@@ -120,7 +120,7 @@ var _ io.Closer = (*Server)(nil)
 
 func NewServer(
 	ctx context.Context,
-	serviceAuth authn.Method,
+	serviceAuth authn.RawMethod,
 	pear pear.Pear,
 	meter metric.Meter,
 ) (*Server, error) {

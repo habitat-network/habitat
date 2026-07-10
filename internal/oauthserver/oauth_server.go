@@ -5,20 +5,22 @@ package oauthserver
 import (
 	"context"
 	"encoding/gob"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/ory/fosite"
@@ -514,10 +516,18 @@ func logError(ctx context.Context, err error) {
 var _ authn.Method = (*OAuthServer)(nil)
 
 func (o *OAuthServer) CanHandle(r *http.Request) bool {
+	tokenStr := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	token, err := jwt.ParseSigned(tokenStr)
+	if err != nil {
+		return false
+	}
+	if token.Headers[0].ExtraHeaders["typ"] == "oauth+JWT" {
+		return true
+	}
 	return r.Header.Get("Habitat-Auth-Method") == "oauth"
 }
 
-// Validate's the given token and writes an error response to w if validation fails
+// Validate validates the given token and writes an error response to w if validation fails
 func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -539,7 +549,7 @@ func (o *OAuthServer) Validate(
 	return credInfo, true
 }
 
-// Validate's the given token and writes an error response to w if validation fails
+// ValidateRaw validates the given token and writes an error response to w if validation fails
 func (o *OAuthServer) ValidateRaw(
 	ctx context.Context,
 	token string,
@@ -549,7 +559,7 @@ func (o *OAuthServer) ValidateRaw(
 		ctx,
 		token,
 		fosite.AccessToken,
-		&oauth2.JWTSession{},
+		newSession(),
 		scopes...,
 	)
 	if err != nil {
@@ -568,19 +578,15 @@ func (o *OAuthServer) ValidateRaw(
 
 	credInfo := &authn.CredentialInfo{Subject: syntax.DID(did)}
 
-	if did == "" {
-		credInfo.Type = authn.InstanceCredential
+	org, isMember, err := o.orgStore.GetOrgForDID(ctx, syntax.DID(did))
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get org for DID: %w", err)
+	}
+	credInfo.Org = org
+	if isMember {
+		credInfo.Type = authn.UserCredential
 	} else {
-		org, isMember, err := o.orgStore.GetOrgForDID(ctx, syntax.DID(did))
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to get org for DID: %w", err)
-		}
-		credInfo.Org = org
-		if isMember {
-			credInfo.Type = authn.UserCredential
-		} else {
-			credInfo.Type = authn.OrgCredential
-		}
+		credInfo.Type = authn.OrgCredential
 	}
 
 	return credInfo, true, nil
@@ -589,13 +595,13 @@ func (o *OAuthServer) ValidateRaw(
 // HandleAuthServerMetadata serves the OAuth 2.0 Authorization Server Metadata
 // document at /.well-known/oauth-authorization-server.
 func (o *OAuthServer) HandleAuthServerMetadata(w http.ResponseWriter, r *http.Request) {
-	writeMetadataJSON(w, buildAuthServerMetadata(o.issuer))
+	writeMetadataJSON(r.Context(), w, buildAuthServerMetadata(o.issuer))
 }
 
 // HandleProtectedResourceMetadata serves the OAuth 2.0 Protected Resource
 // Metadata document at /.well-known/oauth-protected-resource.
 func (o *OAuthServer) HandleProtectedResourceMetadata(w http.ResponseWriter, r *http.Request) {
-	writeMetadataJSON(w, buildProtectedResourceMetadata(o.issuer))
+	writeMetadataJSON(r.Context(), w, buildProtectedResourceMetadata(o.issuer))
 }
 
 func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) {
@@ -644,15 +650,5 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 			LogoUri:   c.LogoUri,
 		}
 	}
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }

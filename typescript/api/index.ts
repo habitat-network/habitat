@@ -90,14 +90,19 @@ import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uplo
 import * as NetworkHabitatSearchQuery from './types/network/habitat/search/query.js'
 import * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
 import * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
+import * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 import * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
-import * as NetworkHabitatSpaceGetMembers from './types/network/habitat/space/getMembers.js'
 import * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
-import * as NetworkHabitatSpaceGetRepoOplog from './types/network/habitat/space/getRepoOplog.js'
+import * as NetworkHabitatSpaceGetSpaceCredential from './types/network/habitat/space/getSpaceCredential.js'
 import * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
+import * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
+import * as NetworkHabitatSpaceListRepos from './types/network/habitat/space/listRepos.js'
 import * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
+import * as NetworkHabitatSpaceNotifySpaceDeleted from './types/network/habitat/space/notifySpaceDeleted.js'
+import * as NetworkHabitatSpaceNotifyWrite from './types/network/habitat/space/notifyWrite.js'
 import * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
+import * as NetworkHabitatSpaceRegisterNotify from './types/network/habitat/space/registerNotify.js'
 import * as NetworkHabitatSpaceRemoveMember from './types/network/habitat/space/removeMember.js'
 
 export * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
@@ -181,14 +186,19 @@ export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uplo
 export * as NetworkHabitatSearchQuery from './types/network/habitat/search/query.js'
 export * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
 export * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
+export * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 export * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
-export * as NetworkHabitatSpaceGetMembers from './types/network/habitat/space/getMembers.js'
 export * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
-export * as NetworkHabitatSpaceGetRepoOplog from './types/network/habitat/space/getRepoOplog.js'
+export * as NetworkHabitatSpaceGetSpaceCredential from './types/network/habitat/space/getSpaceCredential.js'
 export * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
+export * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
+export * as NetworkHabitatSpaceListRepos from './types/network/habitat/space/listRepos.js'
 export * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
+export * as NetworkHabitatSpaceNotifySpaceDeleted from './types/network/habitat/space/notifySpaceDeleted.js'
+export * as NetworkHabitatSpaceNotifyWrite from './types/network/habitat/space/notifyWrite.js'
 export * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
+export * as NetworkHabitatSpaceRegisterNotify from './types/network/habitat/space/registerNotify.js'
 export * as NetworkHabitatSpaceRemoveMember from './types/network/habitat/space/removeMember.js'
 
 export const COMMUNITY_LEXICON_CALENDAR = {
@@ -1907,17 +1917,6 @@ export class NetworkHabitatSpaceNS {
       })
   }
 
-  getMembers(
-    params?: NetworkHabitatSpaceGetMembers.QueryParams,
-    opts?: NetworkHabitatSpaceGetMembers.CallOptions,
-  ): Promise<NetworkHabitatSpaceGetMembers.Response> {
-    return this._client
-      .call('network.habitat.space.getMembers', params, undefined, opts)
-      .catch((e) => {
-        throw NetworkHabitatSpaceGetMembers.toKnownErr(e)
-      })
-  }
-
   getRecord(
     params?: NetworkHabitatSpaceGetRecord.QueryParams,
     opts?: NetworkHabitatSpaceGetRecord.CallOptions,
@@ -1929,14 +1928,14 @@ export class NetworkHabitatSpaceNS {
       })
   }
 
-  getRepoOplog(
-    params?: NetworkHabitatSpaceGetRepoOplog.QueryParams,
-    opts?: NetworkHabitatSpaceGetRepoOplog.CallOptions,
-  ): Promise<NetworkHabitatSpaceGetRepoOplog.Response> {
+  getSpaceCredential(
+    data?: NetworkHabitatSpaceGetSpaceCredential.InputSchema,
+    opts?: NetworkHabitatSpaceGetSpaceCredential.CallOptions,
+  ): Promise<NetworkHabitatSpaceGetSpaceCredential.Response> {
     return this._client
-      .call('network.habitat.space.getRepoOplog', params, undefined, opts)
+      .call('network.habitat.space.getSpaceCredential', opts?.qp, data, opts)
       .catch((e) => {
-        throw NetworkHabitatSpaceGetRepoOplog.toKnownErr(e)
+        throw NetworkHabitatSpaceGetSpaceCredential.toKnownErr(e)
       })
   }
 
@@ -1944,12 +1943,33 @@ export class NetworkHabitatSpaceNS {
     params?: NetworkHabitatSpaceListRecords.QueryParams,
     opts?: NetworkHabitatSpaceListRecords.CallOptions,
   ): Promise<NetworkHabitatSpaceListRecords.Response> {
-    return this._client.call(
-      'network.habitat.space.listRecords',
-      params,
-      undefined,
-      opts,
-    )
+    return this._client
+      .call('network.habitat.space.listRecords', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceListRecords.toKnownErr(e)
+      })
+  }
+
+  listRepoOps(
+    params?: NetworkHabitatSpaceListRepoOps.QueryParams,
+    opts?: NetworkHabitatSpaceListRepoOps.CallOptions,
+  ): Promise<NetworkHabitatSpaceListRepoOps.Response> {
+    return this._client
+      .call('network.habitat.space.listRepoOps', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceListRepoOps.toKnownErr(e)
+      })
+  }
+
+  listRepos(
+    params?: NetworkHabitatSpaceListRepos.QueryParams,
+    opts?: NetworkHabitatSpaceListRepos.CallOptions,
+  ): Promise<NetworkHabitatSpaceListRepos.Response> {
+    return this._client
+      .call('network.habitat.space.listRepos', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceListRepos.toKnownErr(e)
+      })
   }
 
   listSpaces(
@@ -1964,16 +1984,50 @@ export class NetworkHabitatSpaceNS {
     )
   }
 
-  putRecord(
-    data?: NetworkHabitatSpacePutRecord.InputSchema,
-    opts?: NetworkHabitatSpacePutRecord.CallOptions,
-  ): Promise<NetworkHabitatSpacePutRecord.Response> {
+  notifySpaceDeleted(
+    data?: NetworkHabitatSpaceNotifySpaceDeleted.InputSchema,
+    opts?: NetworkHabitatSpaceNotifySpaceDeleted.CallOptions,
+  ): Promise<NetworkHabitatSpaceNotifySpaceDeleted.Response> {
     return this._client.call(
-      'network.habitat.space.putRecord',
+      'network.habitat.space.notifySpaceDeleted',
       opts?.qp,
       data,
       opts,
     )
+  }
+
+  notifyWrite(
+    data?: NetworkHabitatSpaceNotifyWrite.InputSchema,
+    opts?: NetworkHabitatSpaceNotifyWrite.CallOptions,
+  ): Promise<NetworkHabitatSpaceNotifyWrite.Response> {
+    return this._client.call(
+      'network.habitat.space.notifyWrite',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  putRecord(
+    data?: NetworkHabitatSpacePutRecord.InputSchema,
+    opts?: NetworkHabitatSpacePutRecord.CallOptions,
+  ): Promise<NetworkHabitatSpacePutRecord.Response> {
+    return this._client
+      .call('network.habitat.space.putRecord', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpacePutRecord.toKnownErr(e)
+      })
+  }
+
+  registerNotify(
+    data?: NetworkHabitatSpaceRegisterNotify.InputSchema,
+    opts?: NetworkHabitatSpaceRegisterNotify.CallOptions,
+  ): Promise<NetworkHabitatSpaceRegisterNotify.Response> {
+    return this._client
+      .call('network.habitat.space.registerNotify', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceRegisterNotify.toKnownErr(e)
+      })
   }
 
   removeMember(

@@ -11,7 +11,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -27,19 +29,25 @@ func effectiveHost(r *http.Request) string {
 	return r.Host
 }
 
-// Serve DID docs and handle --> did mappings.
+// Server serves DID docs and handle --> did mappings.
 // Does not serve the MintIdentity endpoint.
 type Server struct {
-	hive     hive.Hive
-	oauth    authn.Method
-	orgStore org.Store
+	hive          hive.Hive
+	oauth         authn.Method
+	orgStore      org.Store
+	pdsForwarding *forwarding.PDSForwarding
 }
 
 // NewServer constructs the hive HTTP server. The OAuth method is required to
 // authenticate the caller for endpoints that mint things using the identity's
 // signing key (e.g. com.atproto.server.getServiceAuth).
-func NewServer(hive hive.Hive, oauth authn.Method, orgStore org.Store) (*Server, error) {
-	return &Server{hive: hive, oauth: oauth, orgStore: orgStore}, nil
+func NewServer(
+	hive hive.Hive,
+	oauth authn.Method,
+	orgStore org.Store,
+	pdsForwarding *forwarding.PDSForwarding,
+) (*Server, error) {
+	return &Server{hive: hive, oauth: oauth, orgStore: orgStore, pdsForwarding: pdsForwarding}, nil
 }
 
 type didDocWithContext struct {
@@ -59,9 +67,9 @@ var didCtx = []string{
 // auth JWTs. Downstream services verify the token by resolving the DID and
 // fetching the same signing key, with no changes needed on their end.
 func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth),
-		authn.WithRequiredSubject(),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -69,69 +77,46 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 
 	aud := r.URL.Query().Get("aud")
 	if aud == "" {
-		utils.WriteHTTPError(
-			w,
-			errors.New("missing required parameter: aud"),
-			http.StatusBadRequest,
-		)
+		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: aud", nil)
 		return
 	}
 
-	// exp is the unix-seconds expiration. Default to 60s to match the lexicon
-	// default; cap at 30min to limit blast radius if a token leaks.
-	const defaultTTL = 60 * time.Second
-	const maxTTL = 30 * time.Minute
-	ttl := defaultTTL
+	var ttl *time.Duration
 	if expStr := r.URL.Query().Get("exp"); expStr != "" {
 		expUnix, err := strconv.ParseInt(expStr, 10, 64)
 		if err != nil {
-			utils.WriteHTTPError(w, fmt.Errorf("parsing exp: %w", err), http.StatusBadRequest)
+			httpx.WriteInvalidRequest(ctx, w, "invalid exp", err)
 			return
 		}
-		ttl = time.Until(time.Unix(expUnix, 0))
-		if ttl <= 0 {
-			utils.WriteHTTPError(w, errors.New("exp is in the past"), http.StatusBadRequest)
-			return
-		}
-		if ttl > maxTTL {
-			ttl = maxTTL
-		}
+		ttl = new(time.Until(time.Unix(expUnix, 0)))
 	}
 
 	var lxm *syntax.NSID
 	if lxmStr := r.URL.Query().Get("lxm"); lxmStr != "" {
-		parsed, err := syntax.ParseNSID(lxmStr)
-		if err != nil {
-			utils.WriteHTTPError(w, fmt.Errorf("parsing lxm: %w", err), http.StatusBadRequest)
+		parsed, ok := httpx.ParseNSIDInput(ctx, w, lxmStr, "lxm")
+		if !ok {
 			return
 		}
 		lxm = &parsed
 	}
 
-	token, err := s.hive.SignServiceAuth(r.Context(), credInfo.Subject, aud, ttl, lxm)
+	privKey, err := s.hive.PrivateKeyForDID(ctx, credInfo.Subject)
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		s.pdsForwarding.ServeHTTP(w, r)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("fetching signing key: %w", err))
+		return
+	}
+	token, err := utils.ServiceAuthToken(privKey, credInfo.Subject, aud, lxm, ttl)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"signing service auth",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("signing service auth: %w", err))
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(struct {
+	httpx.WriteJSON(ctx, w, struct {
 		Token string `json:"token"`
-	}{Token: token}); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	}{Token: token})
 }
 
 // For now, DIDs and handles are public. Eventually, we can make them private behind an

@@ -2,11 +2,12 @@ package hive
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
-	"github.com/bluesky-social/indigo/atproto/auth"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	_ "github.com/bluesky-social/indigo/atproto/auth" // register signing methods
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db"
@@ -25,17 +26,7 @@ type Hive interface {
 	MintOrgIdentity(ctx context.Context, subdomain string) (*identity.Identity, error)
 	// Minting new identities for members
 	MintIdentity(ctx context.Context, handle string, subdomain string) (*identity.Identity, error)
-	// SignServiceAuth mints an atproto-compatible service auth JWT signed by the
-	// identity's signing key (the same key registered in its did:web doc). It is
-	// the habitat-side replacement for the PDS's com.atproto.server.getServiceAuth:
-	// since habitat owns the signing key, it must be the issuer of these tokens.
-	SignServiceAuth(
-		ctx context.Context,
-		iss syntax.DID,
-		aud string,
-		ttl time.Duration,
-		lxm *syntax.NSID,
-	) (string, error)
+	PrivateKeyForDID(ctx context.Context, did syntax.DID) (atcrypto.PrivateKey, error)
 	// FUTURE METHODS:
 	// Updating a handle
 	// UpdateHandle(ctx context.Context, did string, oldHandle string, newHandle string)
@@ -144,25 +135,22 @@ func (h *hive) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 	return nil
 }
 
-// SignServiceAuth implements Hive.
-func (h *hive) SignServiceAuth(
+// PrivateKeyForDID implements Hive.
+func (h *hive) PrivateKeyForDID(
 	ctx context.Context,
-	iss syntax.DID,
-	aud string,
-	ttl time.Duration,
-	lxm *syntax.NSID,
-) (string, error) {
+	did syntax.DID,
+) (atcrypto.PrivateKey, error) {
 	// Validate the DID belongs to this hive and extract the opaque ID.
-	content := strings.TrimPrefix(iss.String(), "did:web:")
+	content := strings.TrimPrefix(did.String(), "did:web:")
 	opaqueID, after, ok := strings.Cut(content, ".")
 	if !ok || after != h.memberDomain {
-		return "", identity.ErrDIDNotFound
+		return nil, identity.ErrDIDNotFound
 	}
 	priv, err := h.store.getSigningPrivateKeyByID(ctx, opaqueID)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("failed to get signing private key: %w", err)
 	}
-	return auth.SignServiceAuth(iss, aud, ttl, lxm, priv)
+	return priv, nil
 }
 
 // MintOrgIdentity implements [Hive].

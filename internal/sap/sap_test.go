@@ -6,11 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -19,12 +17,13 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/spaces/testutil"
 	"github.com/habitat-network/habitat/internal/sync"
 
-	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
-	"github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/authn"
+	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
@@ -86,7 +85,7 @@ func TestSap(t *testing.T) {
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
 
-	db := testutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
@@ -239,7 +238,7 @@ func setupPear(
 
 	fgaStore, err := fgastore.NewSQLite(t.Context(), t.TempDir()+"/pear.fga.db")
 	require.NoError(t, err)
-	db := testutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
@@ -274,31 +273,23 @@ func setupPear(
 	)
 	require.NoError(t, err)
 
-	eventStore, err := events.NewStore(db)
-	if err != nil {
-		slog.ErrorContext(t.Context(), "unable to setup event store", "err", err)
-		os.Exit(1)
-	}
+	spacesStore := testutil.NewTestStore(t)
 
-	syncServer := sync.NewServer(eventStore)
-
-	spacesStore, err := spaces.NewStore(db, fgaStore, eventStore)
-	if err != nil {
-		slog.ErrorContext(t.Context(), "unable to setup spaces store", "err", err)
-		os.Exit(1)
-	}
+	syncServer := sync.NewServer(spacesStore.EventStore)
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
 		oauthServer,
-		authntest.NewFailMethod(),
+		authn_testutil.NewFailMethod(),
+		authn.NewDelegationTokenAuthMethod(nil, nil),
 		orgStore,
+		orgHive,
 	)
 
 	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
-	mux.HandleFunc("/xrpc/network.habitat.space.getMembers", spacesServer.GetMembers)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
+	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
+	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
@@ -315,10 +306,8 @@ func setupPear(
 	)
 	require.NoError(t, err)
 
-	// Start sequencer after backfill data is created so that there's no
-	// concurrent write contention on the Pear DB during backfill.
 	go func() {
-		require.ErrorIs(t, eventStore.StartSequencer(t.Context()), context.Canceled)
+		require.ErrorIs(t, spacesStore.EventStore.StartSequencer(t.Context()), context.Canceled)
 	}()
 
 	return server, orgId, adminId, spacesStore, orgHive

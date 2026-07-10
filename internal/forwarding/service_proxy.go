@@ -2,18 +2,21 @@ package forwarding
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -27,10 +30,11 @@ var hopByHopHeaders = []string{
 // session and forwards the request to the specified service using a service
 // auth JWT signed on the caller's behalf.
 type serviceProxy struct {
-	oauth      authn.Method
-	hive       hive.Hive
-	dir        identity.Directory
-	httpClient *http.Client
+	oauth            authn.Method
+	hive             hive.Hive
+	dir              identity.Directory
+	httpClient       *http.Client
+	pdsClientFactory pdsclient.HttpClientFactory
 }
 
 // NewServiceProxy constructs a ServiceProxy, which is a MiddlewareFunc and intercepts requests that have atproto-proxy in the headers.
@@ -41,12 +45,14 @@ func NewServiceProxy(
 	oauth authn.Method,
 	hive hive.Hive,
 	dir identity.Directory,
+	clientFactory pdsclient.HttpClientFactory,
 ) func(http.Handler) http.Handler /* type of mux.MiddlewareFunc */ {
 	sp := &serviceProxy{
-		oauth:      oauth,
-		hive:       hive,
-		dir:        dir,
-		httpClient: &http.Client{},
+		oauth:            oauth,
+		hive:             hive,
+		dir:              dir,
+		httpClient:       &http.Client{},
+		pdsClientFactory: clientFactory,
 	}
 
 	// Requests carrying an Atproto-Proxy header on an XRPC path are intercepted and
@@ -65,6 +71,7 @@ func NewServiceProxy(
 }
 
 func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader string) {
+	ctx := r.Context()
 	// Validate the caller's OAuth session before acting on their behalf.
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth),
@@ -77,21 +84,12 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	// Parse "did#serviceId" — the "#" separator is required by the AT Protocol spec.
 	rawDID, serviceID, ok := strings.Cut(proxyHeader, "#")
 	if !ok {
-		utils.WriteHTTPError(
-			w,
-			fmt.Errorf("malformed Atproto-Proxy header: missing '#'"),
-			http.StatusBadRequest,
-		)
+		httpx.WriteInvalidRequest(ctx, w, "malformed Atproto-Proxy header: missing #", nil)
 		return
 	}
 
-	targetDID, err := syntax.ParseDID(rawDID)
-	if err != nil {
-		utils.WriteHTTPError(
-			w,
-			fmt.Errorf("invalid DID in Atproto-Proxy header: %w", err),
-			http.StatusBadRequest,
-		)
+	targetDID, ok := httpx.ParseDIDInput(ctx, w, rawDID, "service did")
+	if !ok {
 		return
 	}
 
@@ -100,7 +98,7 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	id, err := s.dir.LookupDID(context.Background(), targetDID)
 	if err != nil {
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"[service proxy]: failed to resolve proxy target DID",
@@ -119,66 +117,49 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 		return
 	}
 
-	nsidStr := strings.TrimPrefix(r.URL.Path, "/xrpc/")
-	nsid, err := syntax.ParseNSID(nsidStr)
-	if err != nil {
-		utils.WriteHTTPError(w, fmt.Errorf("invalid NSID in path: %w", err), http.StatusBadRequest)
+	nsid, ok := httpx.ParseNSIDInput(ctx, w, strings.TrimPrefix(r.URL.Path, "/xrpc/"), "nsid")
+	if !ok {
 		return
 	}
 
 	// Habitat owns user signing keys, so it signs service auth tokens on behalf
 	// of users — the same role a PDS fills when calling com.atproto.server.getServiceAuth.
-	jwt, err := s.hive.SignServiceAuth(
-		r.Context(),
-		credInfo.Subject,
-		targetDID.String(),
-		60*time.Second,
-		&nsid,
-	)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"[service proxy]: failed to sign service auth",
-			http.StatusInternalServerError,
-		)
+	var token string
+	privKey, err := s.hive.PrivateKeyForDID(ctx, credInfo.Subject)
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		token, err = s.fetchRemoteServiceAuth(ctx, credInfo, proxyHeader, nsid)
+		if err != nil {
+			httpx.WriteServerError(ctx, w,
+				fmt.Errorf("failed to fetch remote service auth: %w", err))
+			return
+		}
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign service auth: %w", err))
 		return
+	} else {
+		token, err = utils.ServiceAuthToken(privKey, credInfo.Subject, proxyHeader, &nsid, nil)
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign service auth: %w", err))
+			return
+		}
 	}
 
 	base, err := url.Parse(svc.URL)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"[service proxy]: invalid service URL in DID document",
-			http.StatusBadGateway,
-		)
+		httpx.WriteInvalidRequest(ctx, w, "invalid service URL in aud DID document", err)
 		return
 	}
-	requestURI, err := url.Parse(r.URL.RequestURI())
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"[service proxy]: failed to parse request URI",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-	forwardURL := base.ResolveReference(requestURI)
+	forwardURL := base.ResolveReference(r.URL)
 
 	var body io.Reader
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
 		body = r.Body
 	}
 
-	outReq, err := http.NewRequestWithContext(r.Context(), r.Method, forwardURL.String(), body)
+	outReq, err := http.NewRequestWithContext(ctx, r.Method, forwardURL.String(), body)
 	if err != nil {
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"[service proxy]: failed to build forwarded request",
@@ -196,7 +177,7 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	for _, h := range hopByHopHeaders {
 		outReq.Header.Del(h)
 	}
-	outReq.Header.Set("Authorization", "Bearer "+jwt)
+	outReq.Header.Set("Authorization", "Bearer "+token)
 	// DPoP proofs are bound to Habitat's endpoint and must not be forwarded.
 	outReq.Header.Del("DPoP")
 	// Strip Atproto-Proxy to prevent the target from attempting further proxying.
@@ -205,7 +186,7 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	resp, err := s.httpClient.Do(outReq)
 	if err != nil {
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"[service proxy]: forwarded request failed",
@@ -224,11 +205,58 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		if utils.ShouldLog(err) {
 			slog.ErrorContext(
-				r.Context(),
+				ctx,
 				"[service proxy]: failed to copy response body",
 				"err",
 				err,
 			)
 		}
 	}
+}
+
+func (s *serviceProxy) fetchRemoteServiceAuth(
+	ctx context.Context,
+	credInfo *authn.CredentialInfo,
+	proxyHeader string, nsid syntax.NSID,
+) (string, error) {
+	slog.WarnContext(ctx, "fetching remove service auth", "proxy", proxyHeader, "nsid", nsid)
+	pdsClient, err := s.pdsClientFactory.NewClient(ctx, credInfo.Subject)
+	if err != nil {
+		return "", fmt.Errorf("failed to create PDS client: %w", err)
+	}
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		"/xrpc/com.atproto.server.getServiceAuth?"+url.Values{
+			"aud": {proxyHeader},
+			"lxm": {nsid.String()},
+		}.Encode(),
+		nil,
+	)
+	slog.WarnContext(ctx, "fetching remove service auth", "req", req.URL.String())
+	if err != nil {
+		return "", fmt.Errorf("failed to build service auth request: %w", err)
+	}
+	resp, err := pdsClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to get service auth: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var serviceAuth struct {
+		Token   string
+		Error   string
+		Message string
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&serviceAuth); err != nil {
+		return "", fmt.Errorf("failed to decode service auth: %w", err)
+	}
+	if serviceAuth.Token == "" {
+		return "", fmt.Errorf(
+			"failed to fetch remove service auth: %s %s",
+			serviceAuth.Error,
+			serviceAuth.Message,
+		)
+	}
+	slog.WarnContext(ctx, "fetched remove service auth", "token", serviceAuth.Token)
+	return serviceAuth.Token, nil
 }

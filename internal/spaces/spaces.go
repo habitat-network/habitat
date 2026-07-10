@@ -48,11 +48,11 @@ type SpaceView struct {
 	MemberCount int
 }
 
-// MemberInfo holds a member's DID and when they were added
-type MemberInfo struct {
-	Did     syntax.DID
-	Access  SpaceAccess
-	AddedAt time.Time
+// RepoInfo holds a repo's DID and latest rev within a space
+type RepoInfo struct {
+	DID  syntax.DID
+	Rev  string
+	Hash []byte
 }
 
 // Record is a single record within a space
@@ -111,11 +111,10 @@ type Store interface {
 		access SpaceAccess,
 	) error
 	RemoveMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
-	GetMembers(
+	ListRepos(
 		ctx context.Context,
-		org syntax.DID,
 		space habitat_syntax.SpaceURI,
-	) ([]MemberInfo, error)
+	) ([]RepoInfo, error)
 	IsMember(
 		ctx context.Context,
 		org syntax.DID,
@@ -154,7 +153,10 @@ type Store interface {
 	DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error
 
 	// Oplog operations
-	GetRepoOplog(
+	//
+	// ListRepoOps returns a repo's operations within a space after a given
+	// revision, ordered by revision ascending, for incremental sync.
+	ListRepoOps(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
@@ -167,6 +169,20 @@ type Store interface {
 	// transactional with the DB, but callers run them inside the same closure so
 	// a DB rollback follows an FGA failure.
 	db.Store[Store]
+}
+
+// Notifier is notified when a space changes so it can deliver events to
+// registered syncers. Implementations must be non-blocking and best-effort.
+type Notifier interface {
+	// NotifyWrite reports that a repo advanced to a new revision within a space.
+	NotifyWrite(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		rev syntax.TID,
+	)
+	// NotifySpaceDeleted reports that a space was deleted.
+	NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI)
 }
 
 var (
@@ -185,15 +201,29 @@ type store struct {
 	fga        fgastore.Store
 	clock      *syntax.TIDClock
 	eventStore events.Store
+	notifier   Notifier
 }
 
 var _ Store = &store{}
 
-func NewStore(db *gorm.DB, fga fgastore.Store, eventStore events.Store) (*store, error) {
+// NewStore creates a spaces store. notifier may be nil to disable notifyWrite
+// delivery.
+func NewStore(
+	db *gorm.DB,
+	fga fgastore.Store,
+	eventStore events.Store,
+	notifier Notifier,
+) (*store, error) {
 	if err := db.AutoMigrate(&space{}, &spaceRecord{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
-	return &store{db: db, fga: fga, clock: syntax.NewTIDClock(0), eventStore: eventStore}, nil
+	return &store{
+		db:         db,
+		fga:        fga,
+		clock:      syntax.NewTIDClock(0),
+		eventStore: eventStore,
+		notifier:   notifier,
+	}, nil
 }
 
 // WithTx implements [Store], returning a store whose DB operations run on tx.
@@ -203,6 +233,7 @@ func (s *store) WithTx(tx *gorm.DB) Store {
 		fga:        s.fga,
 		clock:      s.clock,
 		eventStore: s.eventStore,
+		notifier:   s.notifier,
 	}
 }
 
@@ -324,11 +355,10 @@ func (s *store) ListSpaces(
 	return views, nil
 }
 
-func (s *store) GetMembers(
+func (s *store) ListRepos(
 	ctx context.Context,
-	org syntax.DID,
 	uri habitat_syntax.SpaceURI,
-) ([]MemberInfo, error) {
+) ([]RepoInfo, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
@@ -339,46 +369,29 @@ func (s *store) GetMembers(
 		return nil, err
 	}
 
-	readerStrs, err := s.fga.ListUsers(
-		ctx,
-		fgastore.SpaceObjectKey(uri),
-		"can_read",
-		ownerContextualTuple(uri),
-		fgastore.OrgMemberContextualTuple(org),
-	)
-	if err != nil {
+	type repoRev struct {
+		Repo syntax.DID
+		Rev  syntax.TID
+	}
+	var results []repoRev
+	if err := s.db.WithContext(ctx).
+		Model(&spaceRecord{}).
+		Select("repo, MAX(rev) as rev").
+		Where("space = ?", uri).
+		Group("repo").
+		Find(&results).Error; err != nil {
 		return nil, err
 	}
 
-	writerStrs, err := s.fga.ListUsers(
-		ctx,
-		fgastore.SpaceObjectKey(uri),
-		"can_write",
-		ownerContextualTuple(uri),
-		fgastore.OrgMemberContextualTuple(org),
-	)
-	if err != nil {
-		return nil, err
-	}
-	writerSet := make(map[string]struct{}, len(writerStrs))
-	for _, w := range writerStrs {
-		writerSet[w] = struct{}{}
-	}
-
-	members := make([]MemberInfo, 0, len(readerStrs))
-	for _, userStr := range readerStrs {
-		did, err := fgastore.MemberUserToDID(userStr)
-		if err != nil {
-			continue
+	repos := make([]RepoInfo, len(results))
+	for i, r := range results {
+		repos[i] = RepoInfo{
+			DID:  r.Repo,
+			Rev:  string(r.Rev),
+			Hash: nil,
 		}
-		access := SpaceAccessRead
-		if _, ok := writerSet[userStr]; ok {
-			access = SpaceAccessWrite
-		}
-		members = append(members, MemberInfo{Did: did, Access: access})
 	}
-
-	return members, nil
+	return repos, nil
 }
 
 func (s *store) IsMember(
@@ -535,6 +548,7 @@ func (s *store) PutRecord(
 	}
 
 	var recordUri habitat_syntax.SpaceRecordURI
+	var newRev syntax.TID
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if tx.Name() == "postgres" {
 			// acquire lock on permissioned repo within space
@@ -559,6 +573,7 @@ func (s *store) PutRecord(
 			return err
 		}
 		tid := s.clock.Next()
+		newRev = tid
 		if rkey == "" {
 			rkey = syntax.RecordKey(tid)
 		}
@@ -594,6 +609,8 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
 	s.eventStore.NotifyEvent(ctx)
+	// Best-effort: notify registered syncers that this repo advanced.
+	s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev)
 	return recordUri, &cid, nil
 }
 
@@ -678,7 +695,7 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 	}
 
 	// everything after this point is idempotent — use a transaction
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		deleteSpace := tx.
 			Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
 			Delete(&space{})
@@ -712,9 +729,15 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	// Best-effort: tell registered syncers the space is gone.
+	s.notifier.NotifySpaceDeleted(ctx, uri)
+	return nil
 }
 
-func (s *store) GetRepoOplog(
+func (s *store) ListRepoOps(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 	repo syntax.DID,
@@ -735,7 +758,7 @@ func (s *store) GetRepoOplog(
 
 	var rows []spaceRecord
 	if err := query.Order("rev ASC").Limit(limit).Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("get repo oplog: %w", err)
+		return nil, fmt.Errorf("list repo ops: %w", err)
 	}
 
 	records := make([]Record, len(rows))

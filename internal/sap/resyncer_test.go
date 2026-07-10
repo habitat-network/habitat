@@ -27,12 +27,12 @@ func TestResyncer_SyncRepo(t *testing.T) {
 	rev2 := clock.Next().String()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/xrpc/network.habitat.space.getRepoOplog", r.URL.Path)
+		require.Equal(t, "/xrpc/network.habitat.space.listRepoOps", r.URL.Path)
 		since := r.URL.Query().Get("since")
 		switch since {
 		case "":
-			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetRepoOplogOutput{
-				Records: []habitat.NetworkHabitatSpaceGetRepoOplogRecord{
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{
+				Ops: []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{
 					{
 						Rev:        rev1,
 						Collection: "network.habitat.note",
@@ -49,8 +49,8 @@ func TestResyncer_SyncRepo(t *testing.T) {
 				Cursor: rev2,
 			})
 		default:
-			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetRepoOplogOutput{
-				Records: []habitat.NetworkHabitatSpaceGetRepoOplogRecord{},
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{
+				Ops: []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{},
 			})
 		}
 	}))
@@ -106,9 +106,9 @@ func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
 	t.Parallel()
 	clock := syntax.NewTIDClock(0)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/xrpc/network.habitat.space.getRepoOplog", r.URL.Path)
-		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetRepoOplogOutput{
-			Records: []habitat.NetworkHabitatSpaceGetRepoOplogRecord{
+		require.Equal(t, "/xrpc/network.habitat.space.listRepoOps", r.URL.Path)
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{
+			Ops: []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{
 				{
 					Rev:        clock.Next().String(),
 					Collection: "network.habitat.note",
@@ -169,9 +169,9 @@ func TestResyncer_Dispatcher(t *testing.T) {
 	t.Parallel()
 	clock := syntax.NewTIDClock(0)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/xrpc/network.habitat.space.getRepoOplog", r.URL.Path)
-		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetRepoOplogOutput{
-			Records: []habitat.NetworkHabitatSpaceGetRepoOplogRecord{
+		require.Equal(t, "/xrpc/network.habitat.space.listRepoOps", r.URL.Path)
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{
+			Ops: []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{
 				{
 					Rev:        clock.Next().String(),
 					Collection: "network.habitat.note",

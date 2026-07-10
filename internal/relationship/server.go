@@ -12,6 +12,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -104,9 +105,8 @@ func (s *Server) WriteTuple(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	object, err := habitat_syntax.ParseSpaceURI(input.Object.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse object space", http.StatusBadRequest)
+	object, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Object.Space, "object space")
+	if !ok {
 		return
 	}
 
@@ -194,9 +194,8 @@ func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	space, err := habitat_syntax.ParseSpaceURI(params.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	space, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	if !ok {
 		return
 	}
 
@@ -250,9 +249,8 @@ func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	space, err := habitat_syntax.ParseSpaceURI(params.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	space, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	if !ok {
 		return
 	}
 
@@ -301,9 +299,8 @@ func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	space, err := habitat_syntax.ParseSpaceURI(params.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	space, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	if !ok {
 		return
 	}
 
@@ -349,17 +346,15 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	did, err := syntax.ParseDID(params.Did)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse did", http.StatusBadRequest)
+	did, ok := httpx.ParseDIDInput(r.Context(), w, params.Did, "did")
+	if !ok {
 		return
 	}
 
 	var filterType *syntax.NSID
 	if params.Type != "" {
-		t, err := syntax.ParseNSID(params.Type)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse type filter", http.StatusBadRequest)
+		t, ok := httpx.ParseNSIDInput(r.Context(), w, params.Type, "type filter")
+		if !ok {
 			return
 		}
 		filterType = &t
@@ -444,14 +439,5 @@ func parseListTuplesFilter(
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, r *http.Request, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(body); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, body)
 }

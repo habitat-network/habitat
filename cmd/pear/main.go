@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -33,11 +32,14 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
+	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/habitat-network/habitat/internal/sync"
 	"go.opentelemetry.io/otel/trace"
 
@@ -52,7 +54,6 @@ import (
 	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
-	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
 
@@ -278,7 +279,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
-	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir))
+	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir, pdsClientFactory))
 
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
@@ -291,18 +292,27 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	syncServer := sync.NewServer(eventStore)
 
-	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore, eventStore)
+	notifyStore, err := notify.NewStore(db.WithContext(startupCtx))
+	if err != nil {
+		return fmt.Errorf("setup notify store: %w", err)
+	}
+	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, hive)
+
+	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore, eventStore, notifier)
 	if err != nil {
 		return fmt.Errorf("setup spaces store: %w", err)
 	}
-	serviceAuth := authn.NewServiceAuthMethod(defaultDir)
+	serviceAuth := authn.NewServiceAuthMethod(defaultDir, fmt.Sprintf("did:web:%s#habitat", domain))
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
 		oauthServer,
 		serviceAuth,
+		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore),
 		orgStore,
+		hive,
 	)
+	notifyServer := notify.NewServer(notifyStore, authn.NewSpaceCredentialAuthMethod(defaultDir))
 
 	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
@@ -324,7 +334,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	pear := pear.NewPear(hiveDir, permissions, repo)
 	// Server for org management routes
-	orgServer, err := org.NewServer(
+	orgServer, err := org_server.NewServer(
 		orgStore,
 		oauthServer,
 		pear,
@@ -357,8 +367,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup p2p server: %w", err)
 	}
+	pdsForwarding := forwarding.NewPDSForwarding(
+		pdsCredStore,
+		oauthServer,
+		pdsClientFactory,
+		defaultDir,
+	)
 
-	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore)
+	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore, pdsForwarding)
 	if err != nil {
 		return fmt.Errorf("setup hive server: %w", err)
 	}
@@ -446,13 +462,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
 	mux.HandleFunc("/xrpc/network.habitat.space.addMember", spacesServer.AddMember)
 	mux.HandleFunc("/xrpc/network.habitat.space.removeMember", spacesServer.RemoveMember)
-	mux.HandleFunc("/xrpc/network.habitat.space.getMembers", spacesServer.GetMembers)
+	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
 	mux.HandleFunc("/xrpc/network.habitat.space.putRecord", spacesServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRecord", spacesServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
+	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
+	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
 
 	mux.HandleFunc(
 		"/xrpc/network.habitat.relationship.writeTuple",
@@ -474,50 +491,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
-	pdsForwarding := forwarding.NewPDSForwarding(
-		pdsCredStore,
-		oauthServer,
-		pdsClientFactory,
-		defaultDir,
-	)
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
 
-	mux.HandleFunc(
-		"/xrpc/com.atproto.server.getServiceAuth",
-		func(w http.ResponseWriter, r *http.Request) {
-			credInfo, ok := oauthServer.Validate(w, r)
-			if !ok {
-				return
-			}
-			id, err := hiveDir.LookupDID(r.Context(), credInfo.Subject)
-			if err != nil {
-				utils.LogAndHTTPError(
-					r.Context(),
-					w,
-					err,
-					"[getServiceAuth dispatch]: looking up caller DID",
-					http.StatusBadGateway,
-				)
-				return
-			}
-			if _, ok := id.Services["atproto_pds"]; ok {
-				pdsForwarding.ServeHTTP(w, r)
-				return
-			}
-			if _, ok := id.Services["habitat"]; ok {
-				idServer.GetServiceAuth(w, r)
-				return
-			}
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				fmt.Errorf("no atproto_pds or habitat service in DID doc for %s", id.DID),
-				"[getServiceAuth dispatch]: no usable service in DID doc",
-				http.StatusBadGateway,
-			)
-		},
-	)
+	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", idServer.GetServiceAuth)
 
 	uiHandler, err := webui.New(cmd.String(fUiDevProxy))
 	if err != nil {
@@ -599,10 +576,7 @@ func serveDid(domain string) http.HandlerFunc {
 func serveClientMetadata(oauthClient pdsclient.PdsOAuthClient) http.HandlerFunc {
 	metadata := oauthClient.ClientMetadata()
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(metadata); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		httpx.WriteJSON(r.Context(), w, metadata)
 	}
 }
 

@@ -6151,7 +6151,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.deleteRecord",
-        "description": "Delete a record in a space, or ensure it doesn't exist. Caller must have can_delete on the space.",
+        "description": "Delete a record in a permissioned space, or ensure it doesn't exist. Requires auth, implemented by PDS.",
         "operationId": "network.habitat.space.deleteRecord",
         "security": [
           {
@@ -6166,6 +6166,7 @@
                 "type": "object",
                 "required": [
                   "space",
+                  "repo",
                   "collection",
                   "rkey"
                 ],
@@ -6173,7 +6174,12 @@
                   "space": {
                     "type": "string",
                     "description": "Reference to the space.",
-                    "format": "uri"
+                    "format": "at-uri"
+                  },
+                  "repo": {
+                    "type": "string",
+                    "description": "The DID of the repo to delete from (the authenticated member).",
+                    "format": "did"
                   },
                   "collection": {
                     "type": "string",
@@ -6184,16 +6190,6 @@
                     "type": "string",
                     "description": "The Record Key.",
                     "format": "record-key"
-                  },
-                  "swapRecord": {
-                    "type": "string",
-                    "description": "Compare and swap with the previous record by CID.",
-                    "format": "cid"
-                  },
-                  "swapCommit": {
-                    "type": "string",
-                    "description": "Compare and swap with the previous commit by CID.",
-                    "format": "cid"
                   }
                 }
               }
@@ -6236,7 +6232,7 @@
                           "const": "InvalidToken"
                         },
                         {
-                          "const": "InvalidSwap"
+                          "const": "SpaceNotFound"
                         }
                       ]
                     },
@@ -6371,122 +6367,13 @@
         }
       }
     },
-    "/network.habitat.space.getMembers": {
-      "get": {
-        "tags": [
-          "network.habitat.space"
-        ],
-        "summary": "network.habitat.space.getMembers",
-        "description": "Get the list of members in a space. Callable by any member of the space.",
-        "operationId": "network.habitat.space.getMembers",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "space",
-            "in": "query",
-            "description": "Reference to the space.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Reference to the space.",
-              "format": "uri"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "members"
-                  ],
-                  "properties": {
-                    "members": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.space.getMembers.member"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "SpaceNotFound"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.space.getRecord": {
       "get": {
         "tags": [
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getRecord",
-        "description": "Get a single record from a permissioned space. Callable by any space member.",
+        "description": "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
         "operationId": "network.habitat.space.getRecord",
         "security": [
           {
@@ -6502,17 +6389,17 @@
             "schema": {
               "type": "string",
               "description": "Reference to the space.",
-              "format": "uri"
+              "format": "at-uri"
             }
           },
           {
             "name": "repo",
             "in": "query",
-            "description": "The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.",
-            "required": false,
+            "description": "The DID of the account whose repo to read from.",
+            "required": true,
             "schema": {
               "type": "string",
-              "description": "The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.",
+              "description": "The DID of the account whose repo to read from.",
               "format": "did"
             }
           },
@@ -6554,7 +6441,7 @@
                   "properties": {
                     "uri": {
                       "type": "string",
-                      "description": "URI of the record."
+                      "format": "at-uri"
                     },
                     "cid": {
                       "type": "string",
@@ -6591,6 +6478,18 @@
                         },
                         {
                           "const": "RecordNotFound"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "RepoTakendown"
+                        },
+                        {
+                          "const": "RepoSuspended"
+                        },
+                        {
+                          "const": "RepoDeactivated"
                         }
                       ]
                     },
@@ -6627,65 +6526,43 @@
         }
       }
     },
-    "/network.habitat.space.getRepoOplog": {
-      "get": {
+    "/network.habitat.space.getSpaceCredential": {
+      "post": {
         "tags": [
           "network.habitat.space"
         ],
-        "summary": "network.habitat.space.getRepoOplog",
-        "description": "Get records modified since a given revision for a member in a space. Used for incremental sync. Callable by any member of the space.",
-        "operationId": "network.habitat.space.getRepoOplog",
+        "summary": "network.habitat.space.getSpaceCredential",
+        "description": "Exchange a delegation token for a space credential. Called on the space authority, with the delegation token as the request's authorization token. The resulting space credential reads repos across the space. Requires a delegation token, plus a client attestation when the space gates on app identity.",
+        "operationId": "network.habitat.space.getSpaceCredential",
         "security": [
           {
             "Bearer": []
           }
         ],
-        "parameters": [
-          {
-            "name": "space",
-            "in": "query",
-            "description": "Reference to the space.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Reference to the space.",
-              "format": "uri"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "query",
-            "description": "The DID of the member whose records to track.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "The DID of the member whose records to track.",
-              "format": "did"
-            }
-          },
-          {
-            "name": "since",
-            "in": "query",
-            "description": "Return records with revisions after this value (exclusive).",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Return records with revisions after this value (exclusive)."
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Maximum number of records to return.",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000,
-              "default": 100
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the space.",
+                    "format": "at-uri"
+                  },
+                  "clientAttestation": {
+                    "type": "string",
+                    "description": "Optional client attestation JWT establishing the app's identity. Required only when the space gates on app identity."
+                  }
+                }
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -6694,18 +6571,12 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "records"
+                    "credential"
                   ],
                   "properties": {
-                    "records": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.space.getRepoOplog.record"
-                      }
-                    },
-                    "cursor": {
+                    "credential": {
                       "type": "string",
-                      "description": "The revision of the last returned record. Use as `since` in the next poll."
+                      "description": "A signed JWT space credential."
                     }
                   }
                 }
@@ -6737,6 +6608,24 @@
                         },
                         {
                           "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "SpaceDeleted"
+                        },
+                        {
+                          "const": "UserNotAuthorized"
+                        },
+                        {
+                          "const": "AppNotAuthorized"
+                        },
+                        {
+                          "const": "NotAuthorized"
+                        },
+                        {
+                          "const": "InvalidDelegationToken"
+                        },
+                        {
+                          "const": "InvalidClientAttestation"
                         }
                       ]
                     },
@@ -6779,7 +6668,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.listRecords",
-        "description": "List records in a permissioned space, matching a specific collection. Callable by any member of the space.",
+        "description": "List the records in an account's repo within a permissioned space, optionally filtered by collection. By default each record's value is inlined; set excludeValues for a metadata-only listing (collection, rkey, cid). Used for full-state recovery. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
         "operationId": "network.habitat.space.listRecords",
         "security": [
           {
@@ -6795,34 +6684,35 @@
             "schema": {
               "type": "string",
               "description": "Reference to the space.",
-              "format": "uri"
+              "format": "at-uri"
             }
           },
           {
             "name": "repo",
             "in": "query",
-            "description": "The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.",
-            "required": false,
+            "description": "The DID of the account whose repo to list.",
+            "required": true,
             "schema": {
               "type": "string",
-              "description": "The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.",
+              "description": "The DID of the account whose repo to list.",
               "format": "did"
             }
           },
           {
             "name": "collection",
             "in": "query",
-            "description": "The NSID of the record type.",
+            "description": "The NSID of the record collection. If omitted, lists records across all collections.",
             "required": false,
             "schema": {
               "type": "string",
-              "description": "The NSID of the record type.",
+              "description": "The NSID of the record collection. If omitted, lists records across all collections.",
               "format": "nsid"
             }
           },
           {
             "name": "limit",
             "in": "query",
+            "description": "The number of records to return.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -6847,6 +6737,16 @@
             "schema": {
               "type": "boolean",
               "description": "Flag to reverse the order of the returned records."
+            }
+          },
+          {
+            "name": "excludeValues",
+            "in": "query",
+            "description": "If true, omit inlined record values and return only metadata (collection, rkey, cid).",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If true, omit inlined record values and return only metadata (collection, rkey, cid)."
             }
           }
         ],
@@ -6897,6 +6797,317 @@
                         },
                         {
                           "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "RepoTakendown"
+                        },
+                        {
+                          "const": "RepoSuspended"
+                        },
+                        {
+                          "const": "RepoDeactivated"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.space.listRepoOps": {
+      "get": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.listRepoOps",
+        "description": "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        "operationId": "network.habitat.space.listRepoOps",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Reference to the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Reference to the space.",
+              "format": "at-uri"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "description": "The DID of the account whose oplog to retrieve.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The DID of the account whose oplog to retrieve.",
+              "format": "did"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Return operations after this revision.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Return operations after this revision."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of operations to return.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "excludeValues",
+            "in": "query",
+            "description": "If true, omit inlined record values and return only operation metadata.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If true, omit inlined record values and return only operation metadata."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ops"
+                  ],
+                  "properties": {
+                    "ops": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.space.listRepoOps.opEntry"
+                      }
+                    },
+                    "commit": {
+                      "$ref": "#/components/schemas/network.habitat.space.defs.signedCommit"
+                    },
+                    "cursor": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "RepoTakendown"
+                        },
+                        {
+                          "const": "RepoSuspended"
+                        },
+                        {
+                          "const": "RepoDeactivated"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.space.listRepos": {
+      "get": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.listRepos",
+        "description": "List the known repos that hold data in a space (the writer set), with each repo's current rev and commit hash. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth.",
+        "operationId": "network.habitat.space.listRepos",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Reference to the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Reference to the space.",
+              "format": "at-uri"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of repos to return.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "repos"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "repos": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.space.listRepos.repo"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
                         }
                       ]
                     },
@@ -7072,6 +7283,213 @@
         }
       }
     },
+    "/network.habitat.space.notifySpaceDeleted": {
+      "post": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.notifySpaceDeleted",
+        "description": "Notify a repo host or syncing service that a space has been deleted. Sent by the space authority, best-effort. Authenticated with service auth.",
+        "operationId": "network.habitat.space.notifySpaceDeleted",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the deleted space.",
+                    "format": "at-uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.space.notifyWrite": {
+      "post": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.notifyWrite",
+        "description": "Notify that a repo in a space has advanced to a new revision. Sent by a repo host to the space host, and forwarded to registered syncers. Best-effort. Authenticated with service auth.",
+        "operationId": "network.habitat.space.notifyWrite",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space",
+                  "repo",
+                  "rev",
+                  "hash"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the space.",
+                    "format": "at-uri"
+                  },
+                  "repo": {
+                    "type": "string",
+                    "description": "The DID of the account whose repo advanced.",
+                    "format": "did"
+                  },
+                  "rev": {
+                    "type": "string",
+                    "description": "The revision of the write."
+                  },
+                  "hash": {
+                    "type": "string",
+                    "format": "byte",
+                    "description": "The repo's current commit hash (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's hash for listRepos."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.putRecord": {
       "post": {
         "tags": [
@@ -7092,6 +7510,8 @@
               "schema": {
                 "type": "object",
                 "required": [
+                  "space",
+                  "repo",
                   "collection",
                   "record"
                 ],
@@ -7099,7 +7519,12 @@
                   "space": {
                     "type": "string",
                     "description": "Reference to the space.",
-                    "format": "uri"
+                    "format": "at-uri"
+                  },
+                  "repo": {
+                    "type": "string",
+                    "description": "The DID of the repo to write to (the authenticated member).",
+                    "format": "did"
                   },
                   "collection": {
                     "type": "string",
@@ -7111,6 +7536,10 @@
                     "description": "The Record Key.",
                     "format": "record-key",
                     "maxLength": 512
+                  },
+                  "validate": {
+                    "type": "boolean",
+                    "description": "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."
                   },
                   "record": {}
                 }
@@ -7126,16 +7555,25 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "uri"
+                    "uri",
+                    "cid"
                   ],
                   "properties": {
                     "uri": {
                       "type": "string",
-                      "description": "URI of the written record."
+                      "description": "URI of the written record.",
+                      "format": "at-uri"
                     },
                     "cid": {
                       "type": "string",
                       "format": "cid"
+                    },
+                    "validationStatus": {
+                      "type": "string",
+                      "enum": [
+                        "valid",
+                        "unknown"
+                      ]
                     }
                   }
                 }
@@ -7164,6 +7602,135 @@
                         },
                         {
                           "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.space.registerNotify": {
+      "post": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.registerNotify",
+        "description": "Register an endpoint to be notified of writes. On a space host, subscribes to all repos in the space; on a repo host with a `repo`, subscribes to that repo only. Authenticated with a space credential.",
+        "operationId": "network.habitat.space.registerNotify",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space",
+                  "endpoint"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the space.",
+                    "format": "at-uri"
+                  },
+                  "repo": {
+                    "type": "string",
+                    "description": "The DID of a specific repo to subscribe to (repo host). Omit to subscribe to the whole space (space host).",
+                    "format": "did"
+                  },
+                  "endpoint": {
+                    "type": "string",
+                    "description": "The endpoint to which notifyWrite events should be delivered.",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "expiresAt"
+                  ],
+                  "properties": {
+                    "expiresAt": {
+                      "type": "string",
+                      "description": "When the registration expires.",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
                         }
                       ]
                     },
@@ -7989,51 +8556,45 @@
           }
         }
       },
-      "network.habitat.space.getMembers.member": {
+      "network.habitat.space.defs.signedCommit": {
         "type": "object",
+        "description": "A signed commit over the current state of a permissioned repo.",
         "required": [
-          "did"
+          "ver",
+          "hash",
+          "mac",
+          "ikm",
+          "sig",
+          "rev"
         ],
         "properties": {
-          "did": {
-            "type": "string",
-            "format": "did"
+          "ver": {
+            "type": "integer"
           },
-          "access": {
-            "type": "string"
-          },
-          "addedAt": {
+          "hash": {
             "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "network.habitat.space.getRepoOplog.record": {
-        "type": "object",
-        "required": [
-          "rev",
-          "collection",
-          "rkey",
-          "value"
-        ],
-        "properties": {
+            "format": "byte",
+            "description": "sha256 digest of the LtHash state (32 bytes)."
+          },
+          "ikm": {
+            "type": "string",
+            "format": "byte",
+            "description": "Per-signature input keying material (32 random bytes)"
+          },
+          "sig": {
+            "type": "string",
+            "format": "byte",
+            "description": "Signature over ctx (space, author DID, rev, ikm) by the user's atproto signing key. Does not cover the repo hash."
+          },
+          "mac": {
+            "type": "string",
+            "format": "byte",
+            "description": "HMAC-SHA256 over hash, keyed by HKDF-SHA256(ikm, info=ctx). Binds the repo hash to this commit's context."
+          },
           "rev": {
             "type": "string",
-            "description": "Revision (TID) of this record."
-          },
-          "collection": {
-            "type": "string",
-            "format": "nsid"
-          },
-          "rkey": {
-            "type": "string",
-            "format": "record-key"
-          },
-          "cid": {
-            "type": "string",
-            "format": "cid"
-          },
-          "value": {}
+            "description": "Commit revision (TID), also bound into ctx."
+          }
         }
       },
       "network.habitat.space.listRecords.record": {
@@ -8056,11 +8617,62 @@
             "type": "string",
             "format": "cid"
           },
-          "updatedAt": {
+          "value": {}
+        }
+      },
+      "network.habitat.space.listRepoOps.opEntry": {
+        "type": "object",
+        "description": "A single operation in a permissioned repo's oplog. cid is null for deletes; prev is null for creates. Operations sharing the same rev belong to the same batch. value carries the record's current value for creates and updates, unless excludeValues was set or the value is stale (superseded by a later operation).",
+        "required": [
+          "rev",
+          "collection",
+          "rkey",
+          "cid",
+          "prev"
+        ],
+        "properties": {
+          "rev": {
+            "type": "string"
+          },
+          "collection": {
             "type": "string",
-            "format": "date-time"
+            "format": "nsid"
+          },
+          "rkey": {
+            "type": "string",
+            "format": "record-key"
+          },
+          "cid": {
+            "type": "string",
+            "format": "cid"
+          },
+          "prev": {
+            "type": "string",
+            "format": "cid"
           },
           "value": {}
+        }
+      },
+      "network.habitat.space.listRepos.repo": {
+        "type": "object",
+        "required": [
+          "did"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "description": "The DID of a repo that holds data in the space.",
+            "format": "did"
+          },
+          "rev": {
+            "type": "string",
+            "description": "The repo's current revision (TID), as last reported to the authority. May lag the repo host, which is the source of truth."
+          },
+          "hash": {
+            "type": "string",
+            "format": "byte",
+            "description": "The repo's current commit hash (sha256 of the LtHash state), as last reported to the authority."
+          }
         }
       },
       "network.habitat.space.listSpaces.spaceView": {

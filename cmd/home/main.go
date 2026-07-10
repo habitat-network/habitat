@@ -99,7 +99,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	indexer := NewIndexer(store, s.Outbox)
 	server := NewServer(
 		domain, cmd.String(fOrgHandle), groups, collections, oauthApp, s, store,
-		authn.NewServiceAuthMethod(dir),
+		authn.NewServiceAuthMethod(dir, "did:web:"+domain+"#"+serviceID),
 	)
 
 	mux := http.NewServeMux()

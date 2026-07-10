@@ -46,13 +46,15 @@ func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
 		}
 	case Sqlite:
 		path := strings.TrimPrefix(dsn, "sqlite://")
-		db, err = gorm.Open(sqlite.Open(path), gormConfig)
+		db, err = gorm.Open(
+			sqlite.Open(
+				path+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=10000&_txlock=immediate",
+			),
+			gormConfig,
+		)
 		if err != nil {
 			return nil, err
 		}
-		db.Exec("PRAGMA journal_mode=WAL;")
-		db.Exec("PRAGMA synchronous=NORMAL;")
-		db.Exec("PRAGMA busy_timeout=10000;")
 	default:
 		return nil, fmt.Errorf("unsupported database: %s", dsn)
 	}

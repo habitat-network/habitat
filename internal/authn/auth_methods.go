@@ -2,31 +2,34 @@ package authn
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"slices"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/core"
+	"github.com/habitat-network/habitat/internal/org"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 type CredentialType int
 
 const (
-	InstanceCredential CredentialType = iota
-	OrgCredential
+	OrgCredential CredentialType = iota
 	UserCredential
 )
 
 type CredentialInfo struct {
 	Subject syntax.DID
-	Org     core.Org
+	Org     org.Org
+	Space   habitat_syntax.SpaceURI
 	Type    CredentialType
 }
 
 type Method interface {
 	CanHandle(r *http.Request) bool
 	Validate(w http.ResponseWriter, r *http.Request, scopes ...string) (*CredentialInfo, bool)
+}
+
+type RawMethod interface {
 	ValidateRaw(ctx context.Context, token string, scopes ...string) (*CredentialInfo, bool, error)
 }
 
@@ -57,12 +60,6 @@ func WithSupportedCredentials(supportedCredentials ...CredentialType) ValidatorO
 	}
 }
 
-func WithRequiredSubject() ValidatorOption {
-	return func(v *Validator) {
-		v.supportedCredentials = []CredentialType{UserCredential, OrgCredential}
-	}
-}
-
 func (v *Validator) Validate(w http.ResponseWriter, r *http.Request) (*CredentialInfo, bool) {
 	for _, method := range v.authMethods {
 		if method.CanHandle(r) {
@@ -79,23 +76,4 @@ func (v *Validator) Validate(w http.ResponseWriter, r *http.Request) (*Credentia
 	}
 	w.WriteHeader(http.StatusUnauthorized)
 	return nil, false
-}
-
-func (v *Validator) ValidateRaw(
-	ctx context.Context,
-	token string,
-	/* TODO: take in scopes here */
-) (*CredentialInfo, bool, error) {
-	var err error
-	var did *CredentialInfo
-	var ok bool
-	for _, method := range v.authMethods {
-		did, ok, err = method.ValidateRaw(ctx, token /* TODO: scopes */)
-		// Allow first pass through
-		if ok && err == nil {
-			return did, true, nil
-		}
-	}
-	// Return the last error
-	return did, ok, fmt.Errorf("no auth method passed; latest err: %w", err)
 }
