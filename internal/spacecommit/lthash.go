@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"lukechampine.com/blake3"
 )
 
@@ -28,8 +29,8 @@ type LtHash struct {
 
 // RecordElement is the LtHash element for a record: the UTF-8 bytes of
 // "{collection}/{rkey}/{cid}".
-func RecordElement(collection, rkey, recordCID string) string {
-	return collection + "/" + rkey + "/" + recordCID
+func RecordElement(collection syntax.NSID, rkey syntax.RecordKey, recordCID string) string {
+	return collection.String() + "/" + rkey.String() + "/" + recordCID
 }
 
 // Add folds an element into the state.

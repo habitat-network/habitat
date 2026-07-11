@@ -41,14 +41,14 @@ type spaceRecord struct {
 	UpdatedAt  time.Time
 }
 
-// repoHashState caches a permissioned repo's LtHash so reads (listRepos,
+// spaceRepo caches a permissioned repo's LtHash so reads (listRepos,
 // listRepoOps commit) don't rescan every record. State is the 2048-byte LtHash
 // buffer, maintained incrementally in the write path (folded in on put, out on
 // delete). Rev tracks the repo's latest write revision.
-type repoHashState struct {
+type spaceRepo struct {
 	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	Repo      syntax.DID              `gorm:"primaryKey"`
-	State     []byte
+	Hash      []byte
 	Rev       syntax.TID
 	UpdatedAt time.Time
 }
@@ -236,7 +236,7 @@ func NewStore(
 	eventStore events.Store,
 	notifier Notifier,
 ) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &repoHashState{}); err != nil {
+	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceRepo{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
 	return &store{
@@ -384,7 +384,7 @@ func loadRepoHash(
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
 ) (spacecommit.LtHash, syntax.TID, bool, error) {
-	var row repoHashState
+	var row spaceRepo
 	err := tx.Where("space = ? AND repo = ?", space, repo).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return spacecommit.LtHash{}, "", false, nil
@@ -392,7 +392,7 @@ func loadRepoHash(
 	if err != nil {
 		return spacecommit.LtHash{}, "", false, err
 	}
-	return spacecommit.Load(row.State), row.Rev, true, nil
+	return spacecommit.Load(row.Hash), row.Rev, true, nil
 }
 
 // saveRepoHash persists a repo's LtHash state and rev.
@@ -403,10 +403,10 @@ func saveRepoHash(
 	h spacecommit.LtHash,
 	rev syntax.TID,
 ) error {
-	return tx.Save(&repoHashState{
+	return tx.Save(&spaceRepo{
 		Space: space,
 		Repo:  repo,
-		State: h.State(),
+		Hash:  h.State(),
 		Rev:   rev,
 	}).Error
 }
@@ -427,7 +427,7 @@ func (s *store) ListRepos(
 
 	// The writer set and each repo's hash come straight from the cached hash
 	// table, maintained incrementally by the write path — no record rescan.
-	var rows []repoHashState
+	var rows []spaceRepo
 	if err := s.db.WithContext(ctx).
 		Where("space = ?", uri).
 		Order("repo ASC").
@@ -437,7 +437,7 @@ func (s *store) ListRepos(
 
 	repos := make([]RepoInfo, len(rows))
 	for i, row := range rows {
-		h := spacecommit.Load(row.State)
+		h := spacecommit.Load(row.Hash)
 		repos[i] = RepoInfo{
 			DID:  row.Repo,
 			Rev:  string(row.Rev),
@@ -664,9 +664,9 @@ func (s *store) PutRecord(
 			return err
 		}
 		if existErr == nil {
-			h.Remove(spacecommit.RecordElement(collection.String(), rkey.String(), existing.Cid))
+			h.Remove(spacecommit.RecordElement(collection, rkey, existing.Cid))
 		}
-		h.Add(spacecommit.RecordElement(collection.String(), rkey.String(), cid.String()))
+		h.Add(spacecommit.RecordElement(collection, rkey, cid.String()))
 		if err := saveRepoHash(tx, spaceUri, repo, h, tid); err != nil {
 			return err
 		}
@@ -912,7 +912,7 @@ func (s *store) DeleteRecord(
 			return err
 		}
 		for _, row := range rows {
-			h.Remove(spacecommit.RecordElement(row.Collection.String(), row.Rkey.String(), row.Cid))
+			h.Remove(spacecommit.RecordElement(row.Collection, row.Rkey, row.Cid))
 		}
 
 		// Drop the hash row entirely once the repo holds no more records, so it
@@ -924,7 +924,7 @@ func (s *store) DeleteRecord(
 			return err
 		}
 		if remaining == 0 {
-			return tx.Where("space = ? AND repo = ?", uri, repo).Delete(&repoHashState{}).Error
+			return tx.Where("space = ? AND repo = ?", uri, repo).Delete(&spaceRepo{}).Error
 		}
 		return saveRepoHash(tx, uri, repo, h, rev)
 	})
