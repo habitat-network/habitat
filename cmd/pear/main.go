@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -307,11 +308,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Habitat's single host signing key signs permissioned-repo commits for repo
 	// owners on external PDSes (habitat-managed owners sign with their own hive
 	// key instead). Optional: if unset, host-signed commits are omitted.
-	var hostSigner spaces.CommitSigner
+	var hostKey atcrypto.PrivateKey
 	if k := cmd.String(fSpaceSigningKey); k != "" {
-		hostSigner, err = spaces.NewHostSigner(k)
+		hostKey, err = atcrypto.ParsePrivateMultibase(k)
 		if err != nil {
-			return fmt.Errorf("setup space-host signing key: %w", err)
+			return fmt.Errorf("parse space-host signing key: %w", err)
 		}
 	}
 	spacesServer := spaces.NewServer(
@@ -321,7 +322,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		serviceAuth,
 		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore),
 		orgStore,
-		hostSigner,
+		hostKey,
 		hive,
 	)
 	notifyServer := notify.NewServer(notifyStore, authn.NewSpaceCredentialAuthMethod(defaultDir))

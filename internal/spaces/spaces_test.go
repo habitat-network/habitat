@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	"github.com/stretchr/testify/require"
@@ -166,7 +167,7 @@ func TestListRepos_WithRecords(t *testing.T) {
 // TestListRepos_HashMatchesLtHash verifies the reported repo hash equals an
 // independently computed LtHash over the repo's (collection/rkey/cid) elements.
 func TestListRepos_HashMatchesLtHash(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
 	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
@@ -181,10 +182,10 @@ func TestListRepos_HashMatchesLtHash(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, repos, 1)
 
-	var expected ltHash
-	expected.add(recordElement(coll.String(), "k1", cid1.String()))
-	expected.add(recordElement(coll.String(), "k2", cid2.String()))
-	require.Equal(t, expected.sum(), repos[0].Hash)
+	var expected spacecommit.LtHash
+	expected.Add(spacecommit.RecordElement(coll.String(), "k1", cid1.String()))
+	expected.Add(spacecommit.RecordElement(coll.String(), "k2", cid2.String()))
+	require.Equal(t, expected.Sum(), repos[0].Hash)
 }
 
 func TestListRepos_SpaceNotFound(t *testing.T) {
@@ -424,29 +425,29 @@ func TestDeleteRecord(t *testing.T) {
 // maintained in the write path: an update folds the old cid out (not just the
 // new one in), and deleting the last record drops the repo from the writer set.
 func TestRepoHash_IncrementalOnUpdateAndDelete(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 	coll := syntax.NSID("network.habitat.note")
 
 	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
 	require.NoError(t, err)
-	var want1 ltHash
-	want1.add(recordElement(coll.String(), "k1", cid1.String()))
+	var want1 spacecommit.LtHash
+	want1.Add(spacecommit.RecordElement(coll.String(), "k1", cid1.String()))
 	_, hash, found, err := s.RepoHead(t.Context(), uri, owner)
 	require.NoError(t, err)
 	require.True(t, found)
-	require.Equal(t, want1.sum(), hash)
+	require.Equal(t, want1.Sum(), hash)
 
 	// Update the same rkey: the old element must be folded out and the new in.
 	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 2})
 	require.NoError(t, err)
 	require.NotEqual(t, cid1.String(), cid2.String())
-	var want2 ltHash
-	want2.add(recordElement(coll.String(), "k1", cid2.String()))
+	var want2 spacecommit.LtHash
+	want2.Add(spacecommit.RecordElement(coll.String(), "k1", cid2.String()))
 	_, hash, _, err = s.RepoHead(t.Context(), uri, owner)
 	require.NoError(t, err)
-	require.Equal(t, want2.sum(), hash, "update must not leave the old cid folded in")
+	require.Equal(t, want2.Sum(), hash, "update must not leave the old cid folded in")
 
 	// Delete the last record: the repo leaves the writer set.
 	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))

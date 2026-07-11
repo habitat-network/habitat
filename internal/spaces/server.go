@@ -19,9 +19,14 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
+
+// errEmptyRepo signals that a repo holds no records, so there is nothing to
+// commit over. It is handled internally and never returned to clients.
+var errEmptyRepo = errors.New("repo has no records")
 
 type Server struct {
 	store       Store
@@ -31,7 +36,7 @@ type Server struct {
 	delegation  authn.Method
 	decoder     *schema.Decoder
 	orgStore    org.Store
-	commit      *commitAuthority
+	commit      *spacecommit.Authority
 	hive        hive.Hive
 }
 
@@ -57,7 +62,7 @@ func NewServer(
 		serviceAuth: serviceAuth,
 		decoder:     schema.NewDecoder(),
 		orgStore:    orgStore,
-		commit:      &commitAuthority{host: hostPrivateKey, member: hive},
+		commit:      spacecommit.NewAuthority(hostPrivateKey, hive),
 		hive:        hive,
 		delegation:  delegation,
 	}
@@ -722,8 +727,8 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case err == nil:
 			output.Commit = commit
-		case errors.Is(err, errEmptyRepo):
-			// Repo holds no records; nothing to commit over.
+		case errors.Is(err, errEmptyRepo), errors.Is(err, spacecommit.ErrNoSigner):
+			// Repo holds no records, or no signer covers the owner; omit the commit.
 		default:
 			httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))
 			return
@@ -747,12 +752,9 @@ func (s *Server) buildRepoCommit(
 	if !found {
 		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, errEmptyRepo
 	}
-	commit, err := buildSignedCommit(ctx, s.commit, spaceURI, repo, rev, hash)
+	commit, err := s.commit.Build(ctx, spaceURI, repo, rev, hash)
 	if err != nil {
-		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, fmt.Errorf(
-			"build signed commit: %w",
-			err,
-		)
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, err
 	}
 	return habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(commit.Ver),
