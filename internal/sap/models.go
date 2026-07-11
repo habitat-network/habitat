@@ -59,6 +59,11 @@ type managedRepo struct {
 	Rev   syntax.TID
 	State repoState `gorm:"index"`
 
+	// Hash is the repo's LtHash state (spacecommit.LtHashStateBytes) as last
+	// verified against a signed commit at the head of a full pull. It stays nil
+	// until a full sync's folded hash matches the host's committed hash.
+	Hash []byte
+
 	ErrorMsg   string
 	RetryCount int   `gorm:"not null;default:0"`
 	RetryAfter int64 `gorm:"not null;default:0;index"`

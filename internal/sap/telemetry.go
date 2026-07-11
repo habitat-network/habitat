@@ -34,6 +34,7 @@ type metrics struct {
 	resyncJobsProcessed    metric.Int64Counter
 	resyncJobDuration      metric.Float64Histogram
 	dispatchDuration       metric.Float64Histogram
+	repoVerifications      metric.Int64Counter
 }
 
 func newMetrics(meter metric.Meter, tracer trace.Tracer) (*metrics, error) {
@@ -126,6 +127,14 @@ func newMetrics(meter metric.Meter, tracer trace.Tracer) (*metrics, error) {
 	if err != nil {
 		return nil, err
 	}
+	repoVerifications, err := meter.Int64Counter(
+		"sap.resyncer.verifications",
+		metric.WithUnit("item"),
+		metric.WithDescription("number of repo hash verifications at head of a full pull, by result"),
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	return &metrics{
 		tracer:                 tracer,
@@ -139,6 +148,7 @@ func newMetrics(meter metric.Meter, tracer trace.Tracer) (*metrics, error) {
 		resyncJobsProcessed:    resyncJobsProcessed,
 		resyncJobDuration:      resyncJobDuration,
 		dispatchDuration:       dispatchDuration,
+		repoVerifications:      repoVerifications,
 	}, nil
 }
 
@@ -189,6 +199,12 @@ func (m *metrics) resyncJobFinished(ctx context.Context, start time.Time, status
 
 func (m *metrics) dispatchFinished(ctx context.Context, start time.Time) {
 	m.dispatchDuration.Record(ctx, time.Since(start).Seconds())
+}
+
+func (m *metrics) repoVerified(ctx context.Context, result string) {
+	m.repoVerifications.Add(ctx, 1, metric.WithAttributeSet(
+		attribute.NewSet(attribute.String("result", result)),
+	))
 }
 
 // detachSpan returns a context that carries the trace span from ctx as a

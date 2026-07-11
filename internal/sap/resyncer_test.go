@@ -1,6 +1,7 @@
 package sap
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,9 +13,11 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -100,6 +103,132 @@ func TestResyncer_SyncRepo(t *testing.T) {
 	require.NoError(t, db.Where("space = ? AND did = ?", space, repoDID).First(&repo).Error)
 	require.Equal(t, RepoStateActive, repo.State)
 	require.Equal(t, syntax.TID(rev2), repo.Rev)
+}
+
+// setupResyncerFor wires a resyncer with an oauth session for did:plc:testorg
+// pointing at srvURL, plus a matching managedOrg. It returns the resyncer and db.
+func setupResyncerFor(t *testing.T, srvURL string) (*resyncer, *gorm.DB) {
+	t.Helper()
+	db := openTestDB(t)
+	resyncNotif := utils.NewPollNotifier()
+	outboxNotif := utils.NewPollNotifier()
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauthclient.NewApp(&cfg, store)
+	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
+	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1, newTestMetrics(t))
+
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srvURL,
+		AccessToken: testJWT(t),
+	}))
+	require.NoError(t, db.Create(&managedOrg{DID: "did:plc:testorg", SessionID: "sess1"}).Error)
+	return resyncer, db
+}
+
+// TestResyncer_VerifiesHeadCommit checks that a full pull whose folded LtHash
+// matches the signed commit at head reaches active and persists the hash state.
+func TestResyncer_VerifiesHeadCommit(t *testing.T) {
+	t.Parallel()
+
+	spaceURI := "ats://did:plc:testorg/network.habitat.space/my-space"
+	clock := syntax.NewTIDClock(0)
+	rev1 := clock.Next().String()
+	rev2 := clock.Next().String()
+
+	ops := []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{
+		{Rev: rev1, Collection: "network.habitat.note", Rkey: "k1", Cid: "bafyreiaaa", Value: map[string]any{"text": "hello"}},
+		{Rev: rev2, Collection: "network.habitat.note", Rkey: "k2", Cid: "bafyreibbb", Value: map[string]any{"text": "world"}},
+	}
+	var lt spacecommit.LtHash
+	require.NoError(t, foldOps(&lt, ops))
+	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
+		Ver:  int64(spacecommit.Version),
+		Rev:  rev2,
+		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/xrpc/network.habitat.space.listRepoOps", r.URL.Path)
+		if r.URL.Query().Get("since") == "" {
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{Ops: ops, Cursor: rev2})
+			return
+		}
+		// Head of the oplog: no further ops, signed commit included.
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{
+			Ops:    []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{},
+			Commit: commit,
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	resyncer, db := setupResyncerFor(t, srv.URL)
+	space := habitat_syntax.SpaceURI(spaceURI)
+	repoDID := syntax.DID("did:plc:member1")
+	require.NoError(t, db.Create(&managedRepo{Space: space, DID: repoDID, State: RepoStateResyncing}).Error)
+
+	require.NoError(t, resyncer.syncRepo(t.Context(), space, repoDID))
+
+	var repo managedRepo
+	require.NoError(t, db.Where("space = ? AND did = ?", space, repoDID).First(&repo).Error)
+	require.Equal(t, RepoStateActive, repo.State)
+	require.Equal(t, syntax.TID(rev2), repo.Rev)
+	require.Equal(t, lt.State(), repo.Hash)
+}
+
+// TestResyncer_HashMismatchMarksDesynced checks that a full pull whose folded
+// LtHash disagrees with the signed commit is rejected: the repo is reset to
+// desynced (rev and hash cleared) for a fresh full pull rather than going active.
+func TestResyncer_HashMismatchMarksDesynced(t *testing.T) {
+	t.Parallel()
+
+	spaceURI := "ats://did:plc:testorg/network.habitat.space/my-space"
+	clock := syntax.NewTIDClock(0)
+	rev1 := clock.Next().String()
+
+	ops := []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{
+		{Rev: rev1, Collection: "network.habitat.note", Rkey: "k1", Cid: "bafyreiaaa", Value: map[string]any{"text": "hello"}},
+	}
+	// A commit hash that does not match the folded ops (a dropped/mutated op).
+	var wrong spacecommit.LtHash
+	wrong.Add(spacecommit.RecordElement("network.habitat.note", "k1", "bafyreidifferent"))
+	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
+		Ver:  int64(spacecommit.Version),
+		Rev:  rev1,
+		Hash: base64.StdEncoding.EncodeToString(wrong.Sum()),
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("since") == "" {
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{Ops: ops, Cursor: rev1})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{
+			Ops:    []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{},
+			Commit: commit,
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	resyncer, db := setupResyncerFor(t, srv.URL)
+	space := habitat_syntax.SpaceURI(spaceURI)
+	repoDID := syntax.DID("did:plc:member1")
+	require.NoError(t, db.Create(&managedRepo{Space: space, DID: repoDID, State: RepoStateResyncing}).Error)
+
+	require.NoError(t, resyncer.syncRepo(t.Context(), space, repoDID))
+
+	var repo managedRepo
+	require.NoError(t, db.Where("space = ? AND did = ?", space, repoDID).First(&repo).Error)
+	require.Equal(t, RepoStateDesynced, repo.State)
+	require.Equal(t, syntax.TID(""), repo.Rev)
+	require.Nil(t, repo.Hash)
 }
 
 func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
