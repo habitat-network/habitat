@@ -168,6 +168,16 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 		}
 
 		for _, space := range listSpacesOutput.Spaces {
+			// Record that this managed account can access the space, so the
+			// resyncer can later use its credentials to pull the space's repos.
+			if err := c.db.WithContext(ctx).
+				Clauses(clause.OnConflict{DoNothing: true}).
+				Create(&managedSpace{
+					Space: habitat_syntax.SpaceURI(space.Uri),
+					DID:   org.DID,
+				}).Error; err != nil {
+				return fmt.Errorf("record managed space %s: %w", space.Uri, err)
+			}
 			if err := c.enumerateSpaceRepos(ctx, client, space.Uri); err != nil {
 				return fmt.Errorf("enumerate space repos for %s: %w", space.Uri, err)
 			}

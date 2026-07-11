@@ -10,8 +10,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // resyncBuffer processes events from the subscriber before sending to the outbox.
@@ -163,10 +165,34 @@ func (rb *resyncBuffer) drainRepo(
 	return nil
 }
 
+// spacesForAccount returns the spaces a managed account can access, as recorded
+// during crawl.
+func (rb *resyncBuffer) spacesForAccount(
+	ctx context.Context,
+	did syntax.DID,
+) ([]habitat_syntax.SpaceURI, error) {
+	var assocs []managedSpace
+	if err := rb.db.WithContext(ctx).Where("did = ?", did).Find(&assocs).Error; err != nil {
+		return nil, err
+	}
+	spaces := make([]habitat_syntax.SpaceURI, len(assocs))
+	for i, a := range assocs {
+		spaces[i] = a.Space
+	}
+	return spaces, nil
+}
+
 func (rb *resyncBuffer) drainOrg(ctx context.Context, orgDID syntax.DID) error {
+	spaces, err := rb.spacesForAccount(ctx, orgDID)
+	if err != nil {
+		return fmt.Errorf("load account spaces: %w", err)
+	}
+	if len(spaces) == 0 {
+		return nil
+	}
 	var repos []managedRepo
 	if err := rb.db.WithContext(ctx).
-		Where("space LIKE ? AND state = ?", "ats://"+orgDID.String()+"/%", RepoStateActive).
+		Where("space IN ? AND state = ?", spaces, RepoStateActive).
 		Find(&repos).Error; err != nil {
 		return fmt.Errorf("load active repos: %w", err)
 	}
@@ -188,8 +214,15 @@ func (rb *resyncBuffer) drainOrg(ctx context.Context, orgDID syntax.DID) error {
 }
 
 func (rb *resyncBuffer) clearOrg(ctx context.Context, orgDID syntax.DID) error {
+	spaces, err := rb.spacesForAccount(ctx, orgDID)
+	if err != nil {
+		return fmt.Errorf("load account spaces: %w", err)
+	}
+	if len(spaces) == 0 {
+		return nil
+	}
 	return rb.db.WithContext(ctx).
-		Where("space LIKE ?", "ats://"+orgDID.String()+"/%").
+		Where("space IN ?", spaces).
 		Delete(&bufferedEvent{}).Error
 }
 
@@ -198,6 +231,15 @@ func (rb *resyncBuffer) handleSpaceEvent(
 	org *managedOrg,
 	event events.Event,
 ) error {
+	// Record that the subscribing account can access this space, so the
+	// resyncer can use its credentials to pull the space's repos even for
+	// spaces first seen via a live event.
+	if err := rb.db.WithContext(ctx).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		Create(&managedSpace{Space: event.Space, DID: org.DID}).Error; err != nil {
+		return fmt.Errorf("record managed space %s: %w", event.Space, err)
+	}
+
 	var repo managedRepo
 	err := rb.db.WithContext(ctx).
 		Where("space = ? AND did = ?", event.Space, event.Repo).

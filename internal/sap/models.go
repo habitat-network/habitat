@@ -17,6 +17,10 @@ const (
 	crawlStateErrored  crawlState = "errored"
 )
 
+// managedOrg is a managed account sap holds credentials for and syncs on behalf
+// of. Despite the name it is any user/account (not only orgs): sap authenticates
+// to a host as this account via OAuth. Multiple managed accounts may be able to
+// see the same space; which repos they surface is deduped by managedRepo.
 type managedOrg struct {
 	DID       syntax.DID `gorm:"column:did;primaryKey"`
 	SessionID string     // OAuth session ID, keys the oauth_client session store
@@ -27,6 +31,15 @@ type managedOrg struct {
 	CrawlState      *crawlState
 	SubscribeCursor string
 	CrawlCursor     string
+}
+
+// managedSpace associates a space with a managed account that can access it
+// (discovered when that account's listSpaces returned the space). A space may
+// have several such accounts; the resyncer uses any one of them's OAuth
+// credentials to pull the space's repos.
+type managedSpace struct {
+	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	DID   syntax.DID              `gorm:"column:did;primaryKey"` // managed account DID
 }
 
 type repoState string
@@ -71,6 +84,7 @@ type bufferedEvent struct {
 func autoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&managedOrg{},
+		&managedSpace{},
 		&managedRepo{},
 		&outbox{},
 		&bufferedEvent{},

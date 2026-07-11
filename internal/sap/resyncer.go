@@ -203,17 +203,59 @@ func (r *resyncer) runJob(ctx context.Context, logger *slog.Logger, job resyncJo
 	}
 }
 
+// clientForSpace returns an OAuth http.Client for any managed account that can
+// access the space (as recorded during crawl), so the resyncer isn't tied to
+// the space owner being managed. It tries each associated account until one
+// yields a working client.
+func (r *resyncer) clientForSpace(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) (*http.Client, error) {
+	var assocs []managedSpace
+	if err := r.db.WithContext(ctx).
+		Where("space = ?", space).
+		Find(&assocs).Error; err != nil {
+		return nil, fmt.Errorf("load managed accounts for space: %w", err)
+	}
+
+	// Candidate accounts: everyone recorded as able to access the space, plus the
+	// space owner (which is often — but not always — a managed account itself).
+	seen := make(map[syntax.DID]struct{})
+	var candidates []syntax.DID
+	for _, a := range assocs {
+		if _, ok := seen[a.DID]; !ok {
+			seen[a.DID] = struct{}{}
+			candidates = append(candidates, a.DID)
+		}
+	}
+	if owner := space.SpaceOwner(); owner != "" {
+		if _, ok := seen[owner]; !ok {
+			candidates = append(candidates, owner)
+		}
+	}
+
+	var errs []error
+	for _, did := range candidates {
+		var org managedOrg
+		if err := r.db.WithContext(ctx).First(&org, "did = ?", did).Error; err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		client, err := r.oauthClient.GetClient(ctx, org.DID, org.SessionID)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		return client, nil
+	}
+	return nil, fmt.Errorf("no working client for space %s: %w", space, errors.Join(errs...))
+}
+
 func (r *resyncer) syncRepo(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 	repoDID syntax.DID,
 ) error {
-	orgDID := space.SpaceOwner()
-	var org managedOrg
-	if err := r.db.WithContext(ctx).First(&org, "did = ?", orgDID).Error; err != nil {
-		return fmt.Errorf("load org: %w", err)
-	}
-
 	var repo managedRepo
 	err := r.db.WithContext(ctx).
 		Where("space = ? AND did = ?", space, repoDID).
@@ -226,9 +268,9 @@ func (r *resyncer) syncRepo(
 		since = repo.Rev.String()
 	}
 
-	client, err := r.oauthClient.GetClient(ctx, org.DID, org.SessionID)
+	client, err := r.clientForSpace(ctx, space)
 	if err != nil {
-		return fmt.Errorf("get oauth client: %w", err)
+		return fmt.Errorf("get client for space: %w", err)
 	}
 	for {
 		select {
