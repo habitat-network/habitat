@@ -28,6 +28,9 @@ import (
 type resyncJob struct {
 	Space habitat_syntax.SpaceURI
 	DID   syntax.DID
+	// Recover routes the job to a full getRepo CAR recovery (for desynced repos)
+	// instead of an incremental listRepoOps pull.
+	Recover bool
 }
 
 // resyncer schedules resync workers to backfill repos
@@ -101,38 +104,56 @@ func (r *resyncer) dispatch(ctx context.Context) {
 	}()
 
 	slog.InfoContext(ctx, "resync dispatch called")
+	total := 0
+	// Sync pending and newly-errored repos incrementally via listRepoOps,
+	// prioritizing freshly-discovered (pending) repos over retries (error).
+	total += r.claimAndQueue(ctx, span,
+		"state IN ('pending', 'error')",
+		"CASE state WHEN 'pending' THEN 1 WHEN 'error' THEN 2 END",
+		false)
+	// Recover desynced repos from a full getRepo CAR snapshot.
+	total += r.claimAndQueue(ctx, span, "state = 'desynced'", "space", true)
+	span.SetAttributes(attribute.Int("sap.jobs_claimed", total))
+}
+
+// claimAndQueue atomically claims repos matching whereStates (a constant SQL
+// predicate) into the resyncing state and queues them as jobs, in batches until
+// none remain. priority is a constant SQL ORDER BY expression. recover tags the
+// queued jobs for getRepo recovery. It returns the number of repos claimed.
+func (r *resyncer) claimAndQueue(
+	ctx context.Context,
+	span trace.Span,
+	whereStates string,
+	priority string,
+	recover bool,
+) int {
 	now := time.Now().Unix()
-	totalClaimed := 0
+	claimed := 0
+	query := fmt.Sprintf(`
+		UPDATE managed_repos SET state = 'resyncing'
+		WHERE (space, did) IN (
+			SELECT space, did FROM managed_repos
+			WHERE (%s) AND (retry_after = 0 OR retry_after < ?)
+			ORDER BY %s, space, did
+			LIMIT ?
+		)
+		RETURNING space, did
+	`, whereStates, priority)
 	for {
-		rows, err := r.db.WithContext(ctx).Raw(`
-			UPDATE managed_repos SET state = 'resyncing'
-			WHERE (space, did) IN (
-				SELECT space, did FROM managed_repos
-				WHERE state IN ('pending', 'desynced', 'error') AND (retry_after = 0 OR retry_after < ?)
-				ORDER BY
-					CASE state
-						WHEN 'pending' THEN 1
-						WHEN 'desynced' THEN 2
-						WHEN 'error' THEN 3
-					END,
-					space, did
-				LIMIT ?
-			)
-			RETURNING space, did
-		`, now, 100).Rows()
+		rows, err := r.db.WithContext(ctx).Raw(query, now, 100).Rows()
 		if err != nil {
 			slog.ErrorContext(ctx, "claim batch", "err", err)
 			span.RecordError(err)
-			return
+			return claimed
 		}
 		var jobs []resyncJob
 		for rows.Next() {
-			var j resyncJob
+			j := resyncJob{Recover: recover}
 			if err := rows.Scan(&j.Space, &j.DID); err != nil {
 				_ = rows.Close()
 				slog.ErrorContext(ctx, "scan job", "err", err)
 				span.RecordError(err)
-				return
+				return claimed
 			}
 			jobs = append(jobs, j)
 		}
@@ -140,24 +161,21 @@ func (r *resyncer) dispatch(ctx context.Context) {
 		if err := rows.Err(); err != nil {
 			slog.ErrorContext(ctx, "rows err", "err", err)
 			span.RecordError(err)
-			return
+			return claimed
 		}
 		if len(jobs) == 0 {
-			span.SetAttributes(attribute.Int("sap.jobs_claimed", totalClaimed))
-			return
+			return claimed
 		}
-		totalClaimed += len(jobs)
+		claimed += len(jobs)
 		for _, j := range jobs {
 			select {
 			case r.jobs <- j:
 			case <-ctx.Done():
-				span.SetAttributes(attribute.Int("sap.jobs_claimed", totalClaimed))
-				return
+				return claimed
 			}
 		}
 		if len(jobs) < 100 {
-			span.SetAttributes(attribute.Int("sap.jobs_claimed", totalClaimed))
-			return
+			return claimed
 		}
 	}
 }
@@ -190,9 +208,15 @@ func (r *resyncer) runJob(ctx context.Context, logger *slog.Logger, job resyncJo
 		span.End()
 	}()
 
-	if err := r.syncRepo(ctx, job.Space, job.DID); err != nil {
+	var syncErr error
+	if job.Recover {
+		syncErr = r.recoverRepo(ctx, job.Space, job.DID)
+	} else {
+		syncErr = r.syncRepo(ctx, job.Space, job.DID)
+	}
+	if syncErr != nil {
 		status = "error"
-		span.RecordError(err)
+		span.RecordError(syncErr)
 		logger.ErrorContext(
 			ctx,
 			"resync failed",
@@ -200,8 +224,10 @@ func (r *resyncer) runJob(ctx context.Context, logger *slog.Logger, job resyncJo
 			job.Space,
 			"repo",
 			job.DID,
+			"recover",
+			job.Recover,
 			"err",
-			err,
+			syncErr,
 		)
 	}
 }
@@ -417,6 +443,106 @@ func (r *resyncer) syncRepo(
 			return errors.Join(err, markErr)
 		}
 		return fmt.Errorf("drain repo after sync: %w", err)
+	}
+	return nil
+}
+
+// recoverRepo rebuilds a desynced repo from a full com.atproto.space.getRepo
+// CAR snapshot: it fetches the CAR, recomputes the repo's LtHash from the
+// recovered records, verifies it against the CAR's signed commit, then emits the
+// records to the outbox and marks the repo active in a single transaction. This
+// is the canonical recovery path for repos that fell out of sync (a rev-chain
+// gap or a hash mismatch during an incremental pull).
+func (r *resyncer) recoverRepo(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	repoDID syntax.DID,
+) error {
+	client, err := r.clientForSpace(ctx, space)
+	if err != nil {
+		return fmt.Errorf("get client for space: %w", err)
+	}
+
+	params := url.Values{
+		"space": []string{space.String()},
+		"repo":  []string{repoDID.String()},
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		"/xrpc/com.atproto.space.getRepo?"+params.Encode(), nil)
+	if err != nil {
+		return r.handleSyncError(ctx, space, repoDID, fmt.Errorf("create request: %w", err))
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return r.handleSyncError(ctx, space, repoDID, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return r.handleSyncError(ctx, space, repoDID, fmt.Errorf("getRepo: %s", resp.Status))
+	}
+
+	recovered, err := parseRepoCAR(resp.Body)
+	if err != nil {
+		return r.handleSyncError(ctx, space, repoDID, fmt.Errorf("parse repo car: %w", err))
+	}
+
+	// Recompute the LtHash from the recovered record set and verify it against
+	// the signed commit carried in the CAR.
+	var lt spacecommit.LtHash
+	for _, rec := range recovered.Records {
+		lt.Add(spacecommit.RecordElement(rec.Collection, rec.Rkey, rec.Cid.String()))
+	}
+	if !bytes.Equal(lt.Sum(), recovered.Commit.Hash) {
+		r.metrics.repoVerified(ctx, "mismatch")
+		return r.handleSyncError(ctx, space, repoDID,
+			errors.New("recovered repo hash mismatch against signed commit"))
+	}
+	r.metrics.repoVerified(ctx, "verified")
+
+	// Emit the recovered records and mark the repo active atomically.
+	hashState := lt.State()
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, rec := range recovered.Records {
+			value, err := json.Marshal(rec.Value)
+			if err != nil {
+				return fmt.Errorf("marshal record %s/%s: %w", rec.Collection, rec.Rkey, err)
+			}
+			uri := habitat_syntax.ConstructSpaceRecordURI(space, repoDID, rec.Collection, rec.Rkey)
+			if err := tx.Create(&outbox{URI: uri, Value: value}).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Model(&managedRepo{}).
+			Where("space = ? AND did = ?", space, repoDID).
+			Updates(map[string]any{
+				"state":       RepoStateActive,
+				"rev":         syntax.TID(recovered.Commit.Rev),
+				"hash":        hashState,
+				"error_msg":   "",
+				"retry_count": 0,
+				"retry_after": 0,
+			}).Error
+	})
+	if err != nil {
+		return r.handleSyncError(ctx, space, repoDID, fmt.Errorf("apply recovered repo: %w", err))
+	}
+	r.outboxNotif.Notify()
+
+	// Drain any events buffered while the repo was being recovered.
+	var repo managedRepo
+	if err := r.db.WithContext(ctx).
+		Where("space = ? AND did = ?", space, repoDID).
+		First(&repo).Error; err != nil {
+		return err
+	}
+	if err := r.resyncBuf.drainRepo(ctx, &repo); err != nil {
+		if markErr := r.db.WithContext(ctx).
+			Model(&managedRepo{}).
+			Where("space = ? AND did = ?", space, repoDID).
+			Update("state", RepoStateDesynced).Error; markErr != nil {
+			return errors.Join(err, markErr)
+		}
+		return fmt.Errorf("drain repo after recovery: %w", err)
 	}
 	return nil
 }

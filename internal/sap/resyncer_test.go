@@ -14,6 +14,8 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/spacecommit"
+	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
@@ -229,6 +231,114 @@ func TestResyncer_HashMismatchMarksDesynced(t *testing.T) {
 	require.Equal(t, RepoStateDesynced, repo.State)
 	require.Equal(t, syntax.TID(""), repo.Rev)
 	require.Nil(t, repo.Hash)
+}
+
+// TestResyncer_RecoverRepo checks that a desynced repo is rebuilt from a full
+// com.atproto.space.getRepo CAR: the recovered records reach the outbox and the
+// repo goes active with the verified hash. The CAR is produced by the host's own
+// spaces.SerializeRepoCAR so the parser is exercised against the real format.
+func TestResyncer_RecoverRepo(t *testing.T) {
+	t.Parallel()
+
+	// Build a real host-format getRepo CAR from a spaces store.
+	spacesStore := testutil.NewTestStore(t)
+	owner := syntax.DID("did:plc:testorg")
+	groupType := syntax.NSID("network.habitat.group")
+	uri, err := spacesStore.CreateSpace(t.Context(), owner, owner, groupType, "recover-space")
+	require.NoError(t, err)
+	collection := syntax.NSID("network.habitat.test")
+	for j := range 3 {
+		_, _, err := spacesStore.PutRecord(
+			t.Context(), uri, owner, collection,
+			syntax.RecordKey(fmt.Sprintf("k%d", j)), map[string]any{"n": int64(j)},
+		)
+		require.NoError(t, err)
+	}
+	blocks, err := spacesStore.ListRecordBlocks(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.Len(t, blocks, 3)
+
+	rev, hash, found, err := spacesStore.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.True(t, found)
+	commit := spacecommit.SignedCommit{Ver: spacecommit.Version, Hash: hash, Rev: rev}
+	carBytes, err := spaces.SerializeRepoCAR(commit, blocks)
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/xrpc/com.atproto.space.getRepo", r.URL.Path)
+		w.Header().Set("Content-Type", "application/vnd.ipld.car")
+		_, _ = w.Write(carBytes)
+	}))
+	t.Cleanup(srv.Close)
+
+	resyncer, db := setupResyncerFor(t, srv.URL)
+	require.NoError(t, db.Create(&managedRepo{
+		Space: uri, DID: owner, State: RepoStateDesynced, Rev: syntax.TID("stalerev"),
+	}).Error)
+
+	require.NoError(t, resyncer.recoverRepo(t.Context(), uri, owner))
+
+	var repo managedRepo
+	require.NoError(t, db.Where("space = ? AND did = ?", uri, owner).First(&repo).Error)
+	require.Equal(t, RepoStateActive, repo.State)
+	require.Equal(t, syntax.TID(rev), repo.Rev)
+	require.NotNil(t, repo.Hash)
+
+	var records []outbox
+	require.NoError(t, db.Find(&records).Error)
+	require.Len(t, records, 3)
+}
+
+// TestResyncer_RecoverRepoHashMismatch checks that a getRepo CAR whose commit
+// hash disagrees with its records is rejected: the repo is left non-active and
+// scheduled for retry rather than being trusted.
+func TestResyncer_RecoverRepoHashMismatch(t *testing.T) {
+	t.Parallel()
+
+	spacesStore := testutil.NewTestStore(t)
+	owner := syntax.DID("did:plc:testorg")
+	groupType := syntax.NSID("network.habitat.group")
+	uri, err := spacesStore.CreateSpace(t.Context(), owner, owner, groupType, "recover-space")
+	require.NoError(t, err)
+	collection := syntax.NSID("network.habitat.test")
+	_, _, err = spacesStore.PutRecord(
+		t.Context(), uri, owner, collection, "k0", map[string]any{"n": int64(0)},
+	)
+	require.NoError(t, err)
+	blocks, err := spacesStore.ListRecordBlocks(t.Context(), uri, owner)
+	require.NoError(t, err)
+
+	// A commit hash that does not match the records in the CAR.
+	var wrong spacecommit.LtHash
+	wrong.Add(spacecommit.RecordElement(collection, "k0", "bafyreidifferent"))
+	rev, _, _, err := spacesStore.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	commit := spacecommit.SignedCommit{Ver: spacecommit.Version, Hash: wrong.Sum(), Rev: rev}
+	carBytes, err := spaces.SerializeRepoCAR(commit, blocks)
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/vnd.ipld.car")
+		_, _ = w.Write(carBytes)
+	}))
+	t.Cleanup(srv.Close)
+
+	resyncer, db := setupResyncerFor(t, srv.URL)
+	require.NoError(t, db.Create(&managedRepo{
+		Space: uri, DID: owner, State: RepoStateDesynced,
+	}).Error)
+
+	require.NoError(t, resyncer.recoverRepo(t.Context(), uri, owner))
+
+	var repo managedRepo
+	require.NoError(t, db.Where("space = ? AND did = ?", uri, owner).First(&repo).Error)
+	require.NotEqual(t, RepoStateActive, repo.State)
+	require.Positive(t, repo.RetryAfter)
+
+	var records []outbox
+	require.NoError(t, db.Find(&records).Error)
+	require.Empty(t, records)
 }
 
 func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
