@@ -587,7 +587,7 @@ func (s *store) PutRecord(
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil, ErrSpaceNotFound
 	} else if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("failed to get space: %w", err)
 	}
 
 	bytes, err := atdata.MarshalCBOR(value)
@@ -610,7 +610,7 @@ func (s *store) PutRecord(
 				spaceUri,
 				repo,
 			).Error; err != nil {
-				return err
+				return fmt.Errorf("failed to acquire lock: %w", err)
 			}
 		}
 		action := "update"
@@ -623,7 +623,7 @@ func (s *store) PutRecord(
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			action = "create"
 		} else if err != nil {
-			return err
+			return fmt.Errorf("failed to get previous record: %w", err)
 		}
 		tid := s.clock.Next()
 		newRev = tid
@@ -646,29 +646,28 @@ func (s *store) PutRecord(
 				},
 			},
 		); err != nil {
-			return err
+			return fmt.Errorf("failed to append event: %w", err)
 		}
 
+		h, _, _, err := loadRepoHash(tx, spaceUri, repo)
+		if err != nil {
+			return fmt.Errorf("failed to load repo hash: %w", err)
+		}
 		// Maintain the cached LtHash: fold out this record's previous element (if
 		// it already existed) and fold in the new one, then advance the rev.
 		var existing spaceRecord
-		existErr := tx.
+		err = tx.
 			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
 				spaceUri, repo, collection, rkey).
 			First(&existing).Error
-		if existErr != nil && !errors.Is(existErr, gorm.ErrRecordNotFound) {
-			return existErr
-		}
-		h, _, _, err := loadRepoHash(tx, spaceUri, repo)
-		if err != nil {
-			return err
-		}
-		if existErr == nil {
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to get existing record: %w", err)
+		} else if err == nil {
 			h.Remove(spacecommit.RecordElement(collection, rkey, existing.Cid))
 		}
 		h.Add(spacecommit.RecordElement(collection, rkey, cid.String()))
 		if err := saveRepoHash(tx, spaceUri, repo, h, tid); err != nil {
-			return err
+			return fmt.Errorf("failed to save repo hash: %w", err)
 		}
 
 		return tx.Save(&spaceRecord{
