@@ -1,9 +1,4 @@
-import {
-  Button,
-  Field,
-  FieldLabel,
-  Input,
-} from "internal/components/ui";
+import { Button, Field, FieldLabel, Input } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
 
 // OAuth disambiguation page. pear's authorization endpoint redirects here when
@@ -26,12 +21,7 @@ function DisambiguatePage() {
         <fieldset className="flex flex-col gap-4">
           <Field>
             <FieldLabel>Handle</FieldLabel>
-            <Input
-              placeholder="handle"
-              autoFocus
-              name="handle"
-              required
-            />
+            <Input placeholder="handle" autoFocus name="handle" required />
           </Field>
           <Button type="submit">Continue</Button>
         </fieldset>
