@@ -1,11 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
-	altsrc "github.com/urfave/cli-altsrc/v3"
-	yaml "github.com/urfave/cli-altsrc/v3/yaml"
 	"github.com/urfave/cli/v3"
 )
 
@@ -13,159 +10,131 @@ var (
 	fDebug              = "debug"
 	fDomain             = "domain"
 	fServiceName        = "service_name"
-	fDb                 = "db"
+	fDB                 = "db"
 	fPort               = "port"
 	fHttpsCerts         = "httpscerts"
-	fPgUrl              = "pgurl"
 	fPdsCredEncryptKey  = "pds_cred_encrypt_key"
+	fSpaceSigningKey    = "space_signing_key"
 	fOauthServerSecret  = "oauth_server_secret"
 	fOauthClientSecret  = "oauth_client_secret"
-	fFrontendDomain     = "frontend_domain"
 	fHiveDomain         = "hive_domain"
 	fGoogleClientID     = "google_client_id"
 	fGoogleClientSecret = "google_client_secret"
-	fPrettyLogs         = "pretty_logs"
 	fPdsOauthClientUri  = "pds_oauth_client_uri"
+	fAdminPassword      = "admin_password"
+	fUiDevProxy         = "ui_dev_proxy"
+	fBuiltinApps        = "builtin_app"
 )
+
 var profiles []string
 
-func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
+func getFlags() []cli.Flag {
 	return []cli.Flag{
-			&cli.BoolFlag{
-				Name:    fDebug,
-				Usage:   "Enable debug mode",
-				Sources: getSources(fDebug),
-			},
-			&cli.StringSliceFlag{
-				Name:        "profile",
-				Usage:       "YAML profile files that specify flags. Can be stacked from highest precedence to lowest.",
-				TakesFile:   true,
-				Destination: &profiles,
-			},
-			&cli.StringFlag{
-				Name:     fDomain,
-				Required: true,
-				Usage:    "The publicly available domain at which the server can be found",
-				Sources:  getSources(fDomain),
-			},
-			&cli.StringFlag{
-				Name:        fServiceName,
-				Usage:       "The service name of habitat that should be looked up in users' DID doc services list",
-				DefaultText: "habitat",
-				Sources:     getSources(fServiceName),
-			},
-			&cli.StringFlag{
-				Name:    fPort,
-				Usage:   "The port on which to run the server",
-				Value:   "8000",
-				Sources: getSources(fPort),
-			},
-			&cli.StringFlag{
-				Name:    fHttpsCerts,
-				Usage:   "The directory in which TLS certs can be found. Should contain fullchain.pem and privkey.pem",
-				Sources: getSources(fHttpsCerts),
-			},
-			&cli.StringFlag{
-				Name:     fPdsCredEncryptKey,
-				Usage:    "32-byte base64-encoded encryption key for PDS credentials. Can use cmd/keygen to generate",
-				Required: true,
-				Sources:  getSources(fPdsCredEncryptKey),
-			},
-			&cli.StringFlag{
-				Name:     fOauthServerSecret,
-				Usage:    "32-byte base64-encoded secret for the OAuth server. Can use cmd/keygen to generate",
-				Required: true,
-				Sources:  getSources(fOauthServerSecret),
-			},
-			&cli.StringFlag{
-				Name:     fOauthClientSecret,
-				Usage:    "32-byte base64-encoded secret for the OAuth client. Can use cmd/keygen to generate",
-				Required: true,
-				Sources:  getSources(fOauthClientSecret),
-			},
-			&cli.StringFlag{
-				Name:     fFrontendDomain,
-				Usage:    "The publicly available domain at which the habitat frontend can be found",
-				Required: true,
-				Sources:  getSources(fFrontendDomain),
-			},
-			&cli.StringFlag{
-				Name:    fHiveDomain,
-				Usage:   "The domain at which the hive hosts identities",
-				Sources: getSources(fHiveDomain),
-			},
-			&cli.StringFlag{
-				Name:    fGoogleClientID,
-				Usage:   "Google OAuth client ID for Google Sign-In login method",
-				Sources: getSources(fGoogleClientID),
-			},
-			&cli.StringFlag{
-				Name:    fGoogleClientSecret,
-				Usage:   "Google OAuth client secret for Google Sign-In login method",
-				Sources: getSources(fGoogleClientSecret),
-			},
-			&cli.BoolFlag{
-				Name:    fPrettyLogs,
-				Usage:   "Enable pretty logs",
-				Sources: getSources(fPrettyLogs),
-			},
-			&cli.StringFlag{
-				Name:    fPdsOauthClientUri,
-				Usage:   "PDS OAuth client ID for PDS login method",
-				Sources: getSources(fPdsOauthClientUri),
-			},
-		}, []cli.MutuallyExclusiveFlags{
-			{
-				Flags: [][]cli.Flag{
-					{
-						&cli.StringFlag{
-							Name:    fDb,
-							Usage:   "The path to the sqlite file to use as the backing database for this server",
-							Value:   "./repo.db",
-							Sources: getSources(fDb),
-						},
-					},
-					{
-						&cli.StringFlag{
-							Name:    fPgUrl,
-							Usage:   "The postgres connection string",
-							Sources: getSources(fPgUrl),
-						},
-					},
-				},
-			},
-		}
+		&cli.BoolFlag{
+			Name:    fDebug,
+			Usage:   "Enable debug mode",
+			Sources: getSources(fDebug),
+		},
+		&cli.StringSliceFlag{
+			Name:        "profile",
+			Usage:       "YAML profile files that specify flags. Can be stacked from highest precedence to lowest.",
+			TakesFile:   true,
+			Destination: &profiles,
+		},
+		&cli.StringFlag{
+			Name:     fDomain,
+			Required: true,
+			Usage:    "The publicly available domain at which the server can be found",
+			Sources:  getSources(fDomain),
+		},
+		&cli.StringFlag{
+			Name:        fServiceName,
+			Usage:       "The service name of habitat that should be looked up in users' DID doc services list",
+			DefaultText: "habitat",
+			Sources:     getSources(fServiceName),
+		},
+		&cli.StringFlag{
+			Name:    fPort,
+			Usage:   "The port on which to run the server",
+			Value:   "8000",
+			Sources: getSources(fPort),
+		},
+		&cli.StringFlag{
+			Name:    fHttpsCerts,
+			Usage:   "The directory in which TLS certs can be found. Should contain fullchain.pem and privkey.pem",
+			Sources: getSources(fHttpsCerts),
+		},
+		&cli.StringFlag{
+			Name:     fPdsCredEncryptKey,
+			Usage:    "32-byte base64-encoded encryption key for PDS credentials. Can use cmd/keygen to generate",
+			Required: true,
+			Sources:  getSources(fPdsCredEncryptKey),
+		},
+		&cli.StringFlag{
+			Name:     fSpaceSigningKey,
+			Usage:    "Multibase-encoded P-256 private key for the single space-host identity. Signs permissioned-repo commits for repo owners on external PDSes",
+			Sources:  getSources(fSpaceSigningKey),
+			Required: true,
+		},
+		&cli.StringFlag{
+			Name:     fOauthServerSecret,
+			Usage:    "32-byte base64-encoded secret for the OAuth server. Can use cmd/keygen to generate",
+			Required: true,
+			Sources:  getSources(fOauthServerSecret),
+		},
+		&cli.StringFlag{
+			Name:     fOauthClientSecret,
+			Usage:    "32-byte base64-encoded secret for the OAuth client. Can use cmd/keygen to generate",
+			Required: true,
+			Sources:  getSources(fOauthClientSecret),
+		},
+		&cli.StringFlag{
+			Name:    fHiveDomain,
+			Usage:   "The domain at which the hive hosts identities",
+			Sources: getSources(fHiveDomain),
+		},
+		&cli.StringFlag{
+			Name:    fGoogleClientID,
+			Usage:   "Google OAuth client ID for Google Sign-In login method",
+			Sources: getSources(fGoogleClientID),
+		},
+		&cli.StringFlag{
+			Name:    fGoogleClientSecret,
+			Usage:   "Google OAuth client secret for Google Sign-In login method",
+			Sources: getSources(fGoogleClientSecret),
+		},
+		&cli.StringFlag{
+			Name:    fPdsOauthClientUri,
+			Usage:   "PDS OAuth client ID for PDS login method",
+			Sources: getSources(fPdsOauthClientUri),
+		},
+		&cli.StringFlag{
+			Name:    fAdminPassword,
+			Usage:   "Preset password for the instance admin account; if unset, a random password is generated on every boot and printed once. Not persisted - kept in memory only",
+			Sources: getSources(fAdminPassword),
+		},
+		&cli.StringFlag{
+			Name:    fUiDevProxy,
+			Usage:   "If set, reverse-proxy the embedded /ui/ pages to this URL (the pear-pages dev server) instead of serving the embedded build. Used in development.",
+			Sources: getSources(fUiDevProxy),
+		},
+		&cli.StringSliceFlag{
+			Name:    fBuiltinApps,
+			Usage:   "Builtin clients that can retrieve instance token using jwt bearer grants",
+			Sources: getSources(fBuiltinApps),
+		},
+
+		&cli.StringFlag{
+			Name:    fDB,
+			Usage:   "Database connection string",
+			Value:   "sqlite://repo.db",
+			Sources: getSources(fDB),
+		},
+	}
 }
 
 func getSources(name string) cli.ValueSourceChain {
 	return cli.NewValueSourceChain(
-		cli.EnvVar("HABITAT_"+strings.ToUpper(name)),
-		&profilesSource{name: name},
+		cli.EnvVar("HABITAT_" + strings.ToUpper(name)),
 	)
-}
-
-type profilesSource struct {
-	name string
-}
-
-// GoString implements cli.ValueSource.
-func (ps *profilesSource) GoString() string {
-	return fmt.Sprintf("&profilesSource{name:%[1]q}", ps.name)
-}
-
-func (ps *profilesSource) String() string {
-	return strings.Join(profiles, ",")
-}
-
-func (ps *profilesSource) Lookup() (string, bool) {
-	sources := cli.ValueSourceChain{
-		Chain: []cli.ValueSource{},
-	}
-	for i := range profiles {
-		sources.Chain = append(
-			sources.Chain,
-			yaml.YAML(ps.name, altsrc.NewStringPtrSourcer(&profiles[i])),
-		)
-	}
-	return sources.Lookup()
 }

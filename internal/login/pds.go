@@ -2,76 +2,60 @@ package login
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 )
 
+// pdsProvider logs members in against their ATProto PDS using an OAuth client.
+// Session credentials are persisted by the underlying pdsclient (indigo OAuth
+// client store), so this provider is a thin adapter onto the login.Provider
+// interface.
 type pdsProvider struct {
 	client pdsclient.PdsOAuthClient
-	dir    identity.Directory
 }
 
-type pdsProviderState struct {
-	OAuthState string `json:"oauth_state"`
+func NewPDSProvider(client pdsclient.PdsOAuthClient) Provider {
+	return &pdsProvider{client: client}
 }
-
-func NewPDSProvider(client pdsclient.PdsOAuthClient, dir identity.Directory) Provider {
-	return &pdsProvider{client: client, dir: dir}
-}
-
-func (p *pdsProvider) LoginMethod() org.LoginMethod { return org.LoginMethodAtproto }
 
 func (p *pdsProvider) Authorize(
 	ctx context.Context,
-	id *identity.Identity,
-	loginID string,
+	loginHint string,
 ) (string, []byte, error) {
 	if p.client == nil {
 		return "", nil, fmt.Errorf("oauth client not configured")
 	}
-	identifier := id.DID.String()
-	if loginID != "" {
-		publicDID, err := syntax.ParseDID(loginID)
-		if err == nil {
-			publicID, err := p.dir.LookupDID(ctx, publicDID)
-			if err == nil {
-				id = publicID
-			}
-			identifier = publicDID.String()
-		}
+	// loginHint is the member's LoginID (a DID or handle). The OAuth client
+	// resolves it to the right PDS and starts the auth flow. An empty hint
+	// (e.g. authing an org where any admin will do) can't be resolved to a PDS.
+	// TODO: redirect empty hints to a page that collects the user's handle.
+	if loginHint == "" {
+		return "", nil, fmt.Errorf("atproto login requires a handle")
 	}
 
-	redirect, err := p.client.Authorize(ctx, identifier)
+	redirect, err := p.client.Authorize(ctx, loginHint)
 	if err != nil {
 		return "", nil, fmt.Errorf("start auth flow: %w", err)
 	}
-
-	stateBytes, err := json.Marshal(pdsProviderState{OAuthState: ""})
-	if err != nil {
-		return "", nil, fmt.Errorf("marshal state: %w", err)
-	}
-
-	return redirect, stateBytes, nil
+	// The OAuth client persists the pending auth request keyed by the OAuth
+	// state param, so no provider-specific flash state is needed.
+	return redirect, nil, nil
 }
 
 func (p *pdsProvider) Exchange(
 	ctx context.Context,
-	did syntax.DID,
 	code string,
 	issuer string,
 	oauthState string,
-	stateBytes []byte,
-) error {
+	_ []byte,
+) (loginID string, err error) {
 	if p.client == nil {
-		return fmt.Errorf("oauth client not configured")
+		return "", fmt.Errorf("oauth client not configured")
 	}
-	if err := p.client.ExchangeCode(ctx, code, issuer, oauthState); err != nil {
-		return fmt.Errorf("exchange code: %w", err)
+	did, err := p.client.ExchangeCode(ctx, code, issuer, oauthState)
+	if err != nil {
+		return "", fmt.Errorf("exchange code: %w", err)
 	}
-	return nil
+	return did.String(), nil
 }

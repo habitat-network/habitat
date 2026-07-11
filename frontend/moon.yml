@@ -9,11 +9,14 @@ tasks:
     env:
       HABITAT_DOMAIN: pear.local.habitat.network
       DOMAIN: frontend.local.habitat.network
+      # DID of the home server; injected as the __HOME_SERVER_DID__ Vite define
+      # so the groups UI can target it via the Atproto-Proxy header.
+      HOME_SERVER_DID: did:web:home.local.habitat.network
     deps:
-      - target: pear:dev
-        env:
-          HABITAT_FRONTEND_DOMAIN: frontend.local.habitat.network
+      - pear:dev
       - root:caddy
+      - search:dev
+      - home:dev
   docker-build:
     deps:
       - target: build
@@ -25,8 +28,6 @@ tasks:
   dev-all:
     deps:
       - target: ~:dev
-      - target: greensky:dev
-      - target: calendar:dev
       - target: docs:dev
     options:
       persistent: true
@@ -34,14 +35,6 @@ tasks:
   gh-pages:
     deps:
       - target: ~:build
-      - target: calendar:build
-        env:
-          DOMAIN: ${DOMAIN}/calendar
-          OUT_DIR: $projectRoot/dist/calendar
-      - target: greensky:build
-        env:
-          DOMAIN: ${DOMAIN}/greensky
-          OUT_DIR: $projectRoot/dist/greensky
       - target: docs:build
         env:
           DOMAIN: ${DOMAIN}/docs

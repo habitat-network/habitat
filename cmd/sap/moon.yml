@@ -1,0 +1,7 @@
+tasks:
+  dev:
+    deps:
+      - root:caddy
+      - pear:dev
+    env:
+      SAP_SECRET: 'z42tt1ZWxkfKn5ujwLsELfY7191h4q6UCFjeRGf6tKXaMCnX'

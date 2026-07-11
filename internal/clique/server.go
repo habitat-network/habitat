@@ -10,6 +10,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/utils"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -32,7 +33,11 @@ func NewServer(store Store, oauth authn.Method, serviceAuth authn.Method) *Serve
 }
 
 func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth)
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -46,21 +51,14 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 
 	dids := make([]syntax.DID, len(input.Members))
 	for i, m := range input.Members {
-		did, err := syntax.ParseDID(m)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"decode members field of input",
-				http.StatusBadRequest,
-			)
+		did, ok := httpx.ParseDIDInput(ctx, w, m, "member")
+		if !ok {
 			return
 		}
 		dids[i] = did
 	}
 
-	clique, err := s.store.CreateClique(r.Context(), callerDID, dids)
+	clique, err := s.store.CreateClique(r.Context(), credInfo.Subject, dids)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -75,15 +73,14 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatCliqueCreateCliqueOutput{
 		Clique: string(clique),
 	}
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "json encoding", http.StatusInternalServerError)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -97,15 +94,8 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 
 	dids := make([]syntax.DID, len(input.Members))
 	for i, m := range input.Members {
-		did, err := syntax.ParseDID(m)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"decode members field of input",
-				http.StatusBadRequest,
-			)
+		did, ok := httpx.ParseDIDInput(r.Context(), w, m, "member")
+		if !ok {
 			return
 		}
 		dids[i] = did
@@ -117,7 +107,7 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if callerDID != clique.Authority() {
+	if credInfo.Subject != clique.Authority() {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -136,7 +126,10 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -150,15 +143,8 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 
 	dids := make([]syntax.DID, len(input.Members))
 	for i, m := range input.Members {
-		did, err := syntax.ParseDID(m)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"decode members field of input",
-				http.StatusBadRequest,
-			)
+		did, ok := httpx.ParseDIDInput(r.Context(), w, m, "member")
+		if !ok {
 			return
 		}
 		dids[i] = did
@@ -170,7 +156,7 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if callerDID != clique.Authority() {
+	if credInfo.Subject != clique.Authority() {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -189,7 +175,10 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -213,7 +202,7 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isMember, err := s.store.IsMember(r.Context(), clique, callerDID)
+	isMember, err := s.store.IsMember(r.Context(), clique, credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -248,15 +237,14 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 		Members: members,
 	}
 
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "json encoding", http.StatusInternalServerError)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -280,7 +268,7 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isMember, err := s.store.IsMember(r.Context(), clique, callerDID)
+	isMember, err := s.store.IsMember(r.Context(), clique, credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -296,15 +284,8 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	did, err := syntax.ParseDID(params.Did)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"decode did from url param",
-			http.StatusBadRequest,
-		)
+	did, ok := httpx.ParseDIDInput(r.Context(), w, params.Did, "did")
+	if !ok {
 		return
 	}
 
@@ -323,9 +304,5 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatCliqueIsMemberOutput{
 		Found: found,
 	}
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "json encoding", http.StatusInternalServerError)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }

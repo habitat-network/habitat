@@ -201,16 +201,17 @@ func (p *PDSForwarding) serveTargetPDS(
 }
 
 func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
-	did, ok := p.oauth.Validate(w, r)
+	credInfo, ok := p.oauth.Validate(w, r)
 	if !ok {
 		return
 	}
+	// Only pass body for methods that support it
 	var body io.Reader
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
 		body = r.Body
 	}
 
-	fwdReq, err := http.NewRequestWithContext(r.Context(), r.Method, r.URL.RequestURI(), body)
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, r.URL.RequestURI(), body)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -221,20 +222,28 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	fwdReq.Header = r.Header.Clone()
-	for _, h := range strings.Split(fwdReq.Header.Get("Connection"), ",") {
-		fwdReq.Header.Del(strings.TrimSpace(h))
+	// Copy headers from original request, stripping hop-by-hop headers that
+	// must not be forwarded (e.g. Connection: upgrade, which HTTP/2 rejects).
+	req.Header = r.Header.Clone()
+	for _, h := range strings.Split(req.Header.Get("Connection"), ",") {
+		req.Header.Del(strings.TrimSpace(h))
 	}
-	fwdReq.Header.Del("Connection")
-	fwdReq.Header.Del("Upgrade")
-	fwdReq.Header.Del("Keep-Alive")
-	fwdReq.Header.Del("Transfer-Encoding")
-	fwdReq.Header.Del("Te")
-	fwdReq.Header.Del("Authorization")
-	fwdReq.Header.Del("DPoP")
+	req.Header.Del("Connection")
+	req.Header.Del("Upgrade")
+	req.Header.Del("Keep-Alive")
+	req.Header.Del("Transfer-Encoding")
+	req.Header.Del("Te")
+	// The OAuth client sets its own DPoP-bound Authorization on the caller's
+	// behalf; drop any inbound auth so it can't leak to the PDS.
+	req.Header.Del("Authorization")
+	req.Header.Del("DPoP")
 
-	resp, err := p.client.Do(r.Context(), did, fwdReq)
+	// Forward the request using the caller's OAuth session against their PDS.
+	resp, err := p.client.Do(r.Context(), credInfo.Subject, req)
 	if err != nil {
+		// client.Do only returns an error for transport-level failures (network
+		// errors, signing errors, etc.) — never for PDS auth failures, which come
+		// back as valid HTTP responses. So always return 502 here.
 		utils.LogAndHTTPError(
 			r.Context(),
 			w,
@@ -245,14 +254,17 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
-
+	// Copy response headers
 	for key, values := range resp.Header {
 		for _, value := range values {
 			w.Header().Set(key, value)
 		}
 	}
+	// Set the status code
 	w.WriteHeader(resp.StatusCode)
+	// Copy response body
 	if _, err := io.Copy(w, resp.Body); err != nil {
+		// Log error but can't change status code at this point
 		if utils.ShouldLog(err) {
 			slog.ErrorContext(
 				r.Context(),
@@ -261,5 +273,6 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 				err,
 			)
 		}
+		return
 	}
 }

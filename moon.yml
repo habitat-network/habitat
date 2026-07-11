@@ -1,18 +1,31 @@
 layer: library
+fileGroups:
+  internal_src:
+    - internal/**/*.go
+    - '!internal/**/*_test.go'
+  internal_test:
+    - internal/**/*.go
 tasks:
-  format-check:
-    command: golangci-lint fmt -d
+  build:
     inputs:
-    - /**/*.go
+      - '@group(mod)'
+      - '@group(internal_src)'
+  test:
+    inputs:
+      - '@group(mod)'
+      - '@group(internal_test)'
   format:
-    command: golangci-lint fmt
     inputs:
-    - /**/*.go
-    preset: server
+      - '@group(internal_test)'
+  format-check:
+    inputs:
+      - '@group(internal_test)'
+  lint:
+    inputs:
+      - '@group(internal_test)'
   lint-check:
-    command: golangci-lint run
     inputs:
-    - /**/*.go
+      - '@group(internal_test)'
   caddy:
     command: caddy
     args:

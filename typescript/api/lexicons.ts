@@ -881,6 +881,103 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatAdminGetSettings: {
+    lexicon: 1,
+    id: 'network.habitat.admin.getSettings',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Get this instance's admin-configurable settings. Requires an authenticated instance admin session.",
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['instanceName', 'orgCreationPolicy'],
+            properties: {
+              instanceName: {
+                type: 'string',
+                description: "This instance's display name.",
+              },
+              orgCreationPolicy: {
+                type: 'string',
+                description: "'open' or 'invite_only'.",
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatAdminIssueInvite: {
+    lexicon: 1,
+    id: 'network.habitat.admin.issueInvite',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Issue a single-use invite token for creating an org on this instance. Requires an authenticated instance admin session.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['token'],
+            properties: {
+              token: {
+                type: 'string',
+                description:
+                  'Signed, single-use invite token to embed in an org-creation link.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatAdminUpdateSettings: {
+    lexicon: 1,
+    id: 'network.habitat.admin.updateSettings',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Update this instance's admin-configurable settings. Requires an authenticated instance admin session.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              instanceName: {
+                type: 'string',
+                description:
+                  "This instance's display name. Omit to leave unchanged.",
+              },
+              orgCreationPolicy: {
+                type: 'string',
+                description:
+                  "'open' or 'invite_only'. Omit to leave unchanged.",
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['instanceName', 'orgCreationPolicy'],
+            properties: {
+              instanceName: {
+                type: 'string',
+              },
+              orgCreationPolicy: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatClique: {
     lexicon: 1,
     id: 'network.habitat.clique',
@@ -1073,33 +1170,307 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatDocs: {
+  NetworkHabitatCollectionsDefs: {
     lexicon: 1,
-    id: 'network.habitat.docs',
+    id: 'network.habitat.collections.defs',
+    defs: {
+      collectionView: {
+        type: 'object',
+        description:
+          "A record collection (lexicon type) present in the org's synced data, with a count of the records in it the calling user can see. A record scoped to more than one readable space is counted once per space, since each space holds its own version.",
+        required: ['collection', 'recordCount'],
+        properties: {
+          collection: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the record collection.',
+          },
+          recordCount: {
+            type: 'integer',
+            description:
+              'Number of records in this collection the calling user can see, counted across all spaces they can read (once per space a record belongs to).',
+          },
+        },
+      },
+      recordView: {
+        type: 'object',
+        description:
+          'A single record scoped to one space. The same repo/collection/rkey in a different space is a distinct record with its own version, so it appears as its own recordView. The record body is not included; fetch it on demand from pear using the space, repo, collection and rkey.',
+        required: ['uri', 'space', 'repo', 'collection', 'rkey'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+            description:
+              'The space-record URI (spaceUri/repo/collection/rkey), unique to this record in this space.',
+          },
+          space: {
+            type: 'string',
+            format: 'uri',
+            description: 'URI of the space this record belongs to.',
+          },
+          repo: {
+            type: 'string',
+            format: 'did',
+            description: 'DID of the repo the record lives in.',
+          },
+          collection: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the record collection.',
+          },
+          rkey: {
+            type: 'string',
+            format: 'record-key',
+            description: 'The record key.',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCollectionsListCollections: {
+    lexicon: 1,
+    id: 'network.habitat.collections.listCollections',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the record collections (lexicon types) present in the org's synced data, each with a count of the distinct records the calling user can see. Only collections with at least one visible record are returned. Implemented by the home server and reached via pear service proxying.",
+        parameters: {
+          type: 'params',
+          properties: {},
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['collections'],
+            properties: {
+              collections: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.collections.defs#collectionView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCollectionsListRecords: {
+    lexicon: 1,
+    id: 'network.habitat.collections.listRecords',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List the records in a collection the calling user can see, each with the spaces it belongs to that the user can read. The record body is not included; fetch it on demand from pear. Implemented by the home server and reached via pear service proxying.',
+        parameters: {
+          type: 'params',
+          required: ['collection'],
+          properties: {
+            collection: {
+              type: 'string',
+              format: 'nsid',
+              description: 'The NSID of the record collection to list.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['records'],
+            properties: {
+              records: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.collections.defs#recordView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsCrdt: {
+    lexicon: 1,
+    id: 'network.habitat.docs.crdt',
     defs: {
       main: {
         type: 'record',
-        description: 'A collaborative document.',
-        key: 'tid',
+        description:
+          "The CRDT (Yjs) state of a collaborative document. Each document is its own space; this record holds the canonical document state under the literal key 'self'.",
+        key: 'literal:self',
         record: {
           type: 'object',
-          required: ['name', 'blob'],
+          required: ['blob'],
           properties: {
-            name: {
-              type: 'string',
-              description:
-                'The name of the document, derived from the first heading.',
-            },
             blob: {
               type: 'string',
               description:
                 'Base64-encoded Yjs state update representing the document content.',
             },
-            editorClique: {
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsCreateDoc: {
+    lexicon: 1,
+    id: 'network.habitat.docs.createDoc',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Create a new collaborative document. Implemented by the docs server, which writes the canonical record into the org's docs space using the org credential.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri', 'docId'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the created document record.',
+              },
+              docId: {
+                type: 'string',
+                description:
+                  'The record key identifying the document, used in subsequent updateDoc calls.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsListDocs: {
+    lexicon: 1,
+    id: 'network.habitat.docs.listDocs',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List all documents in the org, with titles. Implemented by the docs server, which lists the doc spaces from pear using the org credential and reads each space's markdown 'self' record for the title.",
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['docs'],
+            properties: {
+              docs: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.docs.listDocs#docView',
+                },
+              },
+            },
+          },
+        },
+      },
+      docView: {
+        type: 'object',
+        required: ['docId', 'uri', 'title'],
+        properties: {
+          docId: {
+            type: 'string',
+            description:
+              "The doc's space key, used as the document identifier in updateDoc and routing.",
+          },
+          uri: {
+            type: 'string',
+            description: "URI of the doc's space.",
+          },
+          title: {
+            type: 'string',
+            description: "The document title, from its markdown 'self' record.",
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsMarkdown: {
+    lexicon: 1,
+    id: 'network.habitat.docs.markdown',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "The rendered markdown of a collaborative document, derived from its CRDT state by the docs server. One per doc space, under the literal key 'self'.",
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['title', 'content'],
+          properties: {
+            title: {
               type: 'string',
-              format: 'uri',
               description:
-                'URI of the clique whose members may edit this document.',
+                'The document title, derived from the first heading or line.',
+            },
+            content: {
+              type: 'string',
+              description: 'The rendered markdown content of the document.',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsUpdateDoc: {
+    lexicon: 1,
+    id: 'network.habitat.docs.updateDoc',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Apply a CRDT update to a collaborative document. Implemented by the docs server, which merges the update into the canonical document and writes it back using the org credential.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['docId', 'update'],
+            properties: {
+              docId: {
+                type: 'string',
+                description:
+                  'The record key identifying the document to update.',
+              },
+              update: {
+                type: 'string',
+                description:
+                  'Base64-encoded Yjs update to merge into the document.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the updated document record.',
+              },
+              cid: {
+                type: 'string',
+                format: 'cid',
+                description: 'CID of the updated record.',
+              },
             },
           },
         },
@@ -1129,6 +1500,447 @@ export const schemaDict = {
         properties: {
           clique: {
             type: 'string',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatGroupProfile: {
+    lexicon: 1,
+    id: 'network.habitat.group.profile',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "Metadata for a group. A group is a space of type `network.habitat.group`; this profile record is the group-space's metadata record, holding its display name and description. Group membership is expressed as roles on the group-space (at least writer role implies membership), and the group can be used as a grantee elsewhere via a network.habitat.relationship.defs#spaceRoleSubject that references the group-space with role 'writer'.",
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: {
+              type: 'string',
+              maxLength: 256,
+            },
+            description: {
+              type: 'string',
+              maxLength: 2048,
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatGroupsAddMember: {
+    lexicon: 1,
+    id: 'network.habitat.groups.addMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Add a member to a group. The member is either an individual user (subjectDid) or another group whose members are inherited (subjectGroup). The home server writes the backing relationship tuple using the org credential. Caller must be able to manage the group.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['group'],
+            properties: {
+              group: {
+                type: 'string',
+                format: 'uri',
+                description: 'URI of the group-space to add the member to.',
+              },
+              subjectDid: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'DID of the user to add as a member. Mutually exclusive with subjectGroup.',
+              },
+              subjectGroup: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'URI of another group-space whose members this group should inherit. Mutually exclusive with subjectDid.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the written relationship tuple.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'GroupNotFound',
+            description: 'No group with the given URI is indexed.',
+          },
+          {
+            name: 'Forbidden',
+            description: 'The caller is not allowed to manage this group.',
+          },
+          {
+            name: 'InvalidSubject',
+            description:
+              'Exactly one of subjectDid or subjectGroup must be provided.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatGroupsCreateGroup: {
+    lexicon: 1,
+    id: 'network.habitat.groups.createGroup',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Create a new group. The home server creates a network.habitat.group space using the org credential, writes a network.habitat.group.profile self record, and grants the calling user the manager role so they are both a member and able to manage the group.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['name'],
+            properties: {
+              name: {
+                type: 'string',
+                maxLength: 256,
+              },
+              description: {
+                type: 'string',
+                maxLength: 2048,
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                format: 'uri',
+                description: 'URI of the created group-space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatGroupsDefs: {
+    lexicon: 1,
+    id: 'network.habitat.groups.defs',
+    defs: {
+      groupView: {
+        type: 'object',
+        description:
+          'A group, backed by a network.habitat.group space, with its membership resolved. Membership is the set of users holding at least the writer role on the group-space, expanded through inherited groups.',
+        required: ['uri', 'name', 'isMember', 'canManage'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+            description: 'URI of the group-space.',
+          },
+          name: {
+            type: 'string',
+          },
+          description: {
+            type: 'string',
+          },
+          createdAt: {
+            type: 'string',
+            format: 'datetime',
+          },
+          memberCount: {
+            type: 'integer',
+            description:
+              'Number of distinct members after expanding inherited groups.',
+          },
+          isMember: {
+            type: 'boolean',
+            description: 'Whether the calling user is a member of this group.',
+          },
+          canManage: {
+            type: 'boolean',
+            description:
+              'Whether the calling user can manage this group (add members, edit it).',
+          },
+          members: {
+            type: 'array',
+            items: {
+              type: 'ref',
+              ref: 'lex:network.habitat.groups.defs#memberView',
+            },
+          },
+          inheritedGroups: {
+            type: 'array',
+            description: 'Other groups this group inherits members from.',
+            items: {
+              type: 'ref',
+              ref: 'lex:network.habitat.groups.defs#groupRef',
+            },
+          },
+        },
+      },
+      memberView: {
+        type: 'object',
+        required: ['did', 'direct'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+          role: {
+            type: 'string',
+            description:
+              'Role held on the group-space (owner|manager|writer|reader).',
+          },
+          direct: {
+            type: 'boolean',
+            description:
+              'True if the member is granted a role directly on this group, false if the membership is inherited from another group.',
+          },
+          viaGroup: {
+            type: 'string',
+            format: 'uri',
+            description:
+              'If inherited, the URI of the group-space the membership came from.',
+          },
+        },
+      },
+      groupRef: {
+        type: 'object',
+        required: ['uri', 'name'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+          },
+          name: {
+            type: 'string',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatGroupsDeleteMember: {
+    lexicon: 1,
+    id: 'network.habitat.groups.deleteMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Remove a member from a group. The member is either an individual user (subjectDid) or an inherited group (subjectGroup). The home server deletes the backing relationship tuple using the org credential. Caller must be able to manage the group.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['group'],
+            properties: {
+              group: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'URI of the group-space to remove the member from.',
+              },
+              subjectDid: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'DID of the user to remove. Mutually exclusive with subjectGroup.',
+              },
+              subjectGroup: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'URI of an inherited group-space to stop inheriting. Mutually exclusive with subjectDid.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'GroupNotFound',
+            description: 'No group with the given URI is indexed.',
+          },
+          {
+            name: 'Forbidden',
+            description: 'The caller is not allowed to manage this group.',
+          },
+          {
+            name: 'InvalidSubject',
+            description:
+              'Exactly one of subjectDid or subjectGroup must be provided.',
+          },
+          {
+            name: 'MemberNotFound',
+            description: 'The subject is not a direct member of the group.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatGroupsGetGroup: {
+    lexicon: 1,
+    id: 'network.habitat.groups.getGroup',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Fetch a single group with its full membership expanded, including which other groups it inherits members from. Implemented by the home server and reached via pear service proxying.',
+        parameters: {
+          type: 'params',
+          required: ['group'],
+          properties: {
+            group: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the group-space.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'ref',
+            ref: 'lex:network.habitat.groups.defs#groupView',
+          },
+        },
+        errors: [
+          {
+            name: 'GroupNotFound',
+            description: 'No group with the given URI is indexed.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatGroupsListGroups: {
+    lexicon: 1,
+    id: 'network.habitat.groups.listGroups',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List the groups visible to the calling user: groups they are a member of (directly or through inherited groups) and groups they can manage. Implemented by the home server and reached via pear service proxying.',
+        parameters: {
+          type: 'params',
+          properties: {},
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['groups'],
+            properties: {
+              groups: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.groups.defs#groupView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatGroupsUpdateGroup: {
+    lexicon: 1,
+    id: 'network.habitat.groups.updateGroup',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Update a group's profile (name and/or description). Caller must be able to manage the group.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['group'],
+            properties: {
+              group: {
+                type: 'string',
+                format: 'uri',
+                description: 'URI of the group-space.',
+              },
+              name: {
+                type: 'string',
+                maxLength: 256,
+              },
+              description: {
+                type: 'string',
+                maxLength: 2048,
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                format: 'uri',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'GroupNotFound',
+            description: 'No group with the given URI is indexed.',
+          },
+          {
+            name: 'Forbidden',
+            description: 'The caller is not allowed to manage this group.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatInstanceDescribeInstance: {
+    lexicon: 1,
+    id: 'network.habitat.instance.describeInstance',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get public info about this instance. Modeled on com.atproto.server.describeServer. No authentication required.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['name', 'inviteRequired'],
+            properties: {
+              name: {
+                type: 'string',
+                description: "This instance's manager-configured display name.",
+              },
+              inviteRequired: {
+                type: 'boolean',
+                description:
+                  'Whether creating an org on this instance requires an invite token.',
+              },
+            },
           },
         },
       },
@@ -1287,12 +2099,17 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['admin_handle'],
+            required: ['admin_handle', 'contact_email'],
             properties: {
               admin_handle: {
                 type: 'string',
                 description:
                   'Internal handle for the bootstrap admin (alphanumeric, 1-50 chars).',
+              },
+              contact_email: {
+                type: 'string',
+                description:
+                  'Email address for contacting the org about its account (not used for login).',
               },
               admin_password: {
                 type: 'string',
@@ -1318,6 +2135,11 @@ export const schemaDict = {
                 type: 'string',
                 description:
                   "Provider-specific identifier (public ATProto DID for 'atproto', email for 'google'). Ignored for 'password'.",
+              },
+              invite_token: {
+                type: 'string',
+                description:
+                  "Single-use invite token from an instance admin, required when the instance's org creation policy is invite_only.",
               },
             },
           },
@@ -1392,11 +2214,24 @@ export const schemaDict = {
               admins: {
                 type: 'array',
                 items: {
-                  type: 'string',
-                  format: 'did',
+                  type: 'ref',
+                  ref: 'lex:network.habitat.org.getAdmins#member',
                 },
               },
             },
+          },
+        },
+      },
+      member: {
+        type: 'object',
+        required: ['did', 'handle'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+          handle: {
+            type: 'string',
           },
         },
       },
@@ -1419,11 +2254,24 @@ export const schemaDict = {
               members: {
                 type: 'array',
                 items: {
-                  type: 'string',
-                  format: 'did',
+                  type: 'ref',
+                  ref: 'lex:network.habitat.org.getMembers#member',
                 },
               },
             },
+          },
+        },
+      },
+      member: {
+        type: 'object',
+        required: ['did', 'handle'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+          handle: {
+            type: 'string',
           },
         },
       },
@@ -1436,17 +2284,22 @@ export const schemaDict = {
       main: {
         type: 'query',
         description: 'Get general info about this organization.',
+        parameters: {
+          type: 'params',
+          properties: {
+            orgId: {
+              type: 'string',
+              description:
+                "The orge ID of the organization to look up. If not specified, defaults to the authenticated caller's org.",
+            },
+          },
+        },
         output: {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['domain'],
+            required: ['loginMethod', 'handleSubdomain', 'orgId'],
             properties: {
-              domain: {
-                type: 'string',
-                description:
-                  'The domain where habitat is hosted for this organization.',
-              },
               name: {
                 type: 'string',
                 description: 'The name of this organization.',
@@ -1454,6 +2307,19 @@ export const schemaDict = {
               description: {
                 type: 'string',
                 description: 'A description for this organization.',
+              },
+              loginMethod: {
+                type: 'string',
+                description:
+                  "Login method for the org: 'password', 'atproto', or 'google'.",
+              },
+              handleSubdomain: {
+                type: 'string',
+                description: 'The subdomain used for all org member handles.',
+              },
+              orgId: {
+                type: 'string',
+                description: 'The unique ID of this organization.',
               },
             },
           },
@@ -1558,7 +2424,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['token', 'handle', 'password'],
+            required: ['token', 'handle'],
             properties: {
               orgId: {
                 type: 'string',
@@ -1572,11 +2438,17 @@ export const schemaDict = {
               token: {
                 type: 'string',
                 description:
-                  'The token that was issued by an org admin to allow members to join the organization..',
+                  'The token that was issued by an org admin to allow members to join the organization.',
               },
               password: {
                 type: 'string',
-                description: "The password for the new member's account.",
+                description:
+                  "The password for the new member's account (required for 'password' login method).",
+              },
+              loginID: {
+                type: 'string',
+                description:
+                  "Provider-specific identifier (AT Protocol handle for 'atproto', email for 'google'). Required for non-password login methods.",
               },
             },
           },
@@ -1816,6 +2688,410 @@ export const schemaDict = {
             },
           },
         },
+      },
+    },
+  },
+  NetworkHabitatRelationshipCheck: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.check',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Check whether a subject holds a role on a space. The subject is either a user (DID) or a space-role userset (a space URI plus subjectRole), resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
+        parameters: {
+          type: 'params',
+          required: ['subject', 'relation', 'space'],
+          properties: {
+            subject: {
+              type: 'string',
+              description:
+                'The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required.',
+            },
+            subjectRole: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID.',
+            },
+            relation: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description: 'The role to check for on the space.',
+            },
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the space.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['allowed'],
+            properties: {
+              allowed: {
+                type: 'boolean',
+                description: 'Whether the subject holds the role on the space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipDefs: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.defs',
+    defs: {
+      spaceObject: {
+        type: 'object',
+        description: 'A space that a role is granted on.',
+        required: ['space'],
+        properties: {
+          space: {
+            type: 'string',
+            format: 'uri',
+            description: 'URI of the space.',
+          },
+        },
+      },
+      userSubject: {
+        type: 'object',
+        description: 'An individual user, identified by DID.',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+        },
+      },
+      spaceRoleSubject: {
+        type: 'object',
+        description:
+          "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB.",
+        required: ['space', 'role'],
+        properties: {
+          space: {
+            type: 'string',
+            format: 'uri',
+            description: 'URI of the space (or group-space).',
+          },
+          role: {
+            type: 'string',
+            enum: ['owner', 'manager', 'writer', 'reader'],
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipDeleteTuple: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.deleteTuple',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Delete a relationship tuple by its record URI. Caller must have the manager role on the tuple's governing space.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the tuple record to delete.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'TupleNotFound',
+            description: 'No tuple record exists at the given URI.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatRelationshipListObjects: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.listObjects',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List the spaces on which a user holds a role, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.',
+        parameters: {
+          type: 'params',
+          required: ['did', 'relation'],
+          properties: {
+            did: {
+              type: 'string',
+              format: 'did',
+              description: 'DID of the user.',
+            },
+            relation: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description: 'The role to query for.',
+            },
+            type: {
+              type: 'string',
+              format: 'nsid',
+              description: 'Filter to spaces of this type.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['spaces'],
+            properties: {
+              spaces: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'uri',
+                },
+                description: 'URIs of spaces where the user holds the role.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipListSubjects: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.listSubjects',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List the user DIDs that hold a role on a space, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.',
+        parameters: {
+          type: 'params',
+          required: ['space', 'relation'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the space.',
+            },
+            relation: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description: 'The role to expand.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['dids'],
+            properties: {
+              dids: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+                description: 'DIDs of users holding the role on the space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipListTuples: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.listTuples',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List relationship tuples governing a space, optionally filtered by object, subject, subject type, or relation. Caller must have the reader role on the space. This is the interoperable read surface other apps use to understand the permission structure.',
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the governing space whose tuples to list.',
+            },
+            object: {
+              type: 'string',
+              format: 'uri',
+              description:
+                'Optional. Restrict to tuples whose object is this space or group URI.',
+            },
+            subjectDid: {
+              type: 'string',
+              format: 'did',
+              description:
+                'Optional. Restrict to tuples whose subject is this user DID.',
+            },
+            subjectType: {
+              type: 'string',
+              enum: ['user', 'space'],
+              description:
+                'Optional. Restrict to tuples whose subject is a user (userSubject) or a space userset (spaceRoleSubject).',
+            },
+            relation: {
+              type: 'string',
+              description: 'Optional. Restrict to tuples with this relation.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['tuples'],
+            properties: {
+              tuples: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.relationship.listTuples#tupleView',
+                },
+              },
+            },
+          },
+        },
+      },
+      tupleView: {
+        type: 'object',
+        required: ['uri', 'subject', 'relation', 'object'],
+        properties: {
+          uri: {
+            type: 'string',
+            description: 'URI of the tuple record.',
+          },
+          subject: {
+            type: 'union',
+            refs: [
+              'lex:network.habitat.relationship.defs#userSubject',
+              'lex:network.habitat.relationship.defs#spaceRoleSubject',
+            ],
+          },
+          relation: {
+            type: 'string',
+          },
+          object: {
+            type: 'ref',
+            ref: 'lex:network.habitat.relationship.defs#spaceObject',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipTuple: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.tuple',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          'A relationship tuple (subject, relation, object) defining one access-control relationship. The object is always a space; groups are spaces too, so granting a role on a group-space is just an ordinary tuple. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.',
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['subject', 'relation', 'object'],
+          properties: {
+            subject: {
+              type: 'union',
+              refs: [
+                'lex:network.habitat.relationship.defs#userSubject',
+                'lex:network.habitat.relationship.defs#spaceRoleSubject',
+              ],
+            },
+            relation: {
+              type: 'string',
+              knownValues: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'Role granted on the object space (owner|manager|writer|reader).',
+            },
+            object: {
+              type: 'ref',
+              ref: 'lex:network.habitat.relationship.defs#spaceObject',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipWriteTuple: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.writeTuple',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Write a relationship tuple, creating it if it does not already exist. The tuple record is owned by the org repo within its governing space. Caller must have the manager role on the object space.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['subject', 'relation', 'object'],
+            properties: {
+              subject: {
+                type: 'union',
+                refs: [
+                  'lex:network.habitat.relationship.defs#userSubject',
+                  'lex:network.habitat.relationship.defs#spaceRoleSubject',
+                ],
+              },
+              relation: {
+                type: 'string',
+                knownValues: ['owner', 'manager', 'writer', 'reader'],
+                description:
+                  'Role granted on the object space (owner|manager|writer|reader).',
+              },
+              object: {
+                type: 'ref',
+                ref: 'lex:network.habitat.relationship.defs#spaceObject',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the written tuple record.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+            description: 'The object space does not exist.',
+          },
+          {
+            name: 'InvalidTuple',
+            description:
+              'The subject, relation, and object combination is not valid.',
+          },
+        ],
       },
     },
   },
@@ -2447,6 +3723,83 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSearchQuery: {
+    lexicon: 1,
+    id: 'network.habitat.search.query',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Full-text search over records the caller's org has indexed.",
+        parameters: {
+          type: 'params',
+          properties: {
+            q: {
+              type: 'string',
+              description: 'The search query text.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 25,
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+          required: ['q'],
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['results'],
+            properties: {
+              results: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.search.query#resultView',
+                },
+              },
+              cursor: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      },
+      resultView: {
+        type: 'object',
+        required: ['uri', 'spaceUri', 'recordType'],
+        properties: {
+          uri: {
+            type: 'string',
+            description: 'URI of the matched record.',
+          },
+          spaceUri: {
+            type: 'string',
+            description: 'URI of the space the record belongs to.',
+          },
+          recordType: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the record type.',
+          },
+          snippet: {
+            type: 'string',
+            description: 'A highlighted excerpt of the matching content.',
+          },
+          rank: {
+            type: 'integer',
+            description:
+              'Relevance score scaled by 1,000,000, higher is more relevant.',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatSpaceAddMember: {
     lexicon: 1,
     id: 'network.habitat.space.addMember',
@@ -2552,6 +3905,48 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceDefs: {
+    lexicon: 1,
+    id: 'network.habitat.space.defs',
+    defs: {
+      signedCommit: {
+        type: 'object',
+        description:
+          'A signed commit over the current state of a permissioned repo.',
+        required: ['ver', 'hash', 'mac', 'ikm', 'sig', 'rev'],
+        properties: {
+          ver: {
+            type: 'integer',
+            description:
+              'Commit format version, currently 1. Corresponds to the version in the ctx protocol tag (atproto-space-v1).',
+          },
+          hash: {
+            type: 'bytes',
+            description: 'sha256 digest of the LtHash state (32 bytes).',
+          },
+          ikm: {
+            type: 'bytes',
+            description:
+              'Per-signature input keying material (32 random bytes)',
+          },
+          sig: {
+            type: 'bytes',
+            description:
+              "Signature over ctx (space, author DID, rev, ikm) by the user's atproto signing key. Does not cover the repo hash.",
+          },
+          mac: {
+            type: 'bytes',
+            description:
+              "HMAC-SHA256 over hash, keyed by HKDF-SHA256(ikm, info=ctx). Binds the repo hash to this commit's context.",
+          },
+          rev: {
+            type: 'string',
+            description: 'Commit revision (TID), also bound into ctx.',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatSpaceDeleteRecord: {
     lexicon: 1,
     id: 'network.habitat.space.deleteRecord',
@@ -2559,18 +3954,23 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          "Delete a record in a space, or ensure it doesn't exist. Caller must have can_delete on the space.",
+          "Delete a record in a permissioned space, or ensure it doesn't exist. Requires auth, implemented by PDS.",
         input: {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['space', 'collection', 'rkey'],
-            nullable: ['swapRecord', 'swapCommit'],
+            required: ['space', 'repo', 'collection', 'rkey'],
             properties: {
               space: {
                 type: 'string',
-                format: 'uri',
+                format: 'at-uri',
                 description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'The DID of the repo to delete from (the authenticated member).',
               },
               collection: {
                 type: 'string',
@@ -2581,18 +3981,6 @@ export const schemaDict = {
                 type: 'string',
                 format: 'record-key',
                 description: 'The Record Key.',
-              },
-              swapRecord: {
-                type: 'string',
-                format: 'cid',
-                description:
-                  'Compare and swap with the previous record by CID.',
-              },
-              swapCommit: {
-                type: 'string',
-                format: 'cid',
-                description:
-                  'Compare and swap with the previous commit by CID.',
               },
             },
           },
@@ -2606,7 +3994,7 @@ export const schemaDict = {
         },
         errors: [
           {
-            name: 'InvalidSwap',
+            name: 'SpaceNotFound',
           },
         ],
       },
@@ -2643,68 +4031,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatSpaceGetMembers: {
-    lexicon: 1,
-    id: 'network.habitat.space.getMembers',
-    defs: {
-      main: {
-        type: 'query',
-        description:
-          'Get the list of members in a space. Callable by any member of the space.',
-        parameters: {
-          type: 'params',
-          required: ['space'],
-          properties: {
-            space: {
-              type: 'string',
-              format: 'uri',
-              description: 'Reference to the space.',
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['members'],
-            properties: {
-              members: {
-                type: 'array',
-                items: {
-                  type: 'ref',
-                  ref: 'lex:network.habitat.space.getMembers#member',
-                },
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceNotFound',
-            description: 'The specified space does not exist.',
-          },
-        ],
-      },
-      member: {
-        type: 'object',
-        required: ['did'],
-        properties: {
-          did: {
-            type: 'string',
-            format: 'did',
-          },
-          access: {
-            type: 'string',
-            enum: ['read', 'write'],
-          },
-          addedAt: {
-            type: 'string',
-            format: 'datetime',
-          },
-        },
-      },
-    },
-  },
   NetworkHabitatSpaceGetRecord: {
     lexicon: 1,
     id: 'network.habitat.space.getRecord',
@@ -2712,21 +4038,20 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'Get a single record from a permissioned space. Callable by any space member.',
+          "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
         parameters: {
           type: 'params',
-          required: ['space', 'collection', 'rkey'],
+          required: ['space', 'repo', 'collection', 'rkey'],
           properties: {
             space: {
               type: 'string',
-              format: 'uri',
+              format: 'at-uri',
               description: 'Reference to the space.',
             },
             repo: {
               type: 'string',
               format: 'did',
-              description:
-                'The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.',
+              description: 'The DID of the account whose repo to read from.',
             },
             collection: {
               type: 'string',
@@ -2748,7 +4073,7 @@ export const schemaDict = {
             properties: {
               uri: {
                 type: 'string',
-                description: 'URI of the record.',
+                format: 'at-uri',
               },
               cid: {
                 type: 'string',
@@ -2764,43 +4089,46 @@ export const schemaDict = {
           {
             name: 'RecordNotFound',
           },
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
         ],
       },
     },
   },
-  NetworkHabitatSpaceGetRepoOplog: {
+  NetworkHabitatSpaceGetSpaceCredential: {
     lexicon: 1,
-    id: 'network.habitat.space.getRepoOplog',
+    id: 'network.habitat.space.getSpaceCredential',
     defs: {
       main: {
-        type: 'query',
+        type: 'procedure',
         description:
-          'Get records modified since a given revision for a member in a space. Used for incremental sync. Callable by any member of the space.',
-        parameters: {
-          type: 'params',
-          required: ['space', 'repo'],
-          properties: {
-            space: {
-              type: 'string',
-              format: 'uri',
-              description: 'Reference to the space.',
-            },
-            repo: {
-              type: 'string',
-              format: 'did',
-              description: 'The DID of the member whose records to track.',
-            },
-            since: {
-              type: 'string',
-              description:
-                'Return records with revisions after this value (exclusive).',
-            },
-            limit: {
-              type: 'integer',
-              minimum: 1,
-              maximum: 1000,
-              default: 100,
-              description: 'Maximum number of records to return.',
+          "Exchange a delegation token for a space credential. Called on the space authority, with the delegation token as the request's authorization token. The resulting space credential reads repos across the space. Requires a delegation token, plus a client attestation when the space gates on app identity.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              clientAttestation: {
+                type: 'string',
+                description:
+                  "Optional client attestation JWT establishing the app's identity. Required only when the space gates on app identity.",
+              },
             },
           },
         },
@@ -2808,19 +4136,11 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['records'],
+            required: ['credential'],
             properties: {
-              records: {
-                type: 'array',
-                items: {
-                  type: 'ref',
-                  ref: 'lex:network.habitat.space.getRepoOplog#record',
-                },
-              },
-              cursor: {
+              credential: {
                 type: 'string',
-                description:
-                  'The revision of the last returned record. Use as `since` in the next poll.',
+                description: 'A signed JWT space credential.',
               },
             },
           },
@@ -2829,33 +4149,29 @@ export const schemaDict = {
           {
             name: 'SpaceNotFound',
           },
+          {
+            name: 'SpaceDeleted',
+          },
+          {
+            name: 'UserNotAuthorized',
+            description: 'Refused on the basis of the requesting user.',
+          },
+          {
+            name: 'AppNotAuthorized',
+            description: 'Refused on the basis of the requesting app.',
+          },
+          {
+            name: 'NotAuthorized',
+            description:
+              'Refused for a reason not attributable to a single axis.',
+          },
+          {
+            name: 'InvalidDelegationToken',
+          },
+          {
+            name: 'InvalidClientAttestation',
+          },
         ],
-      },
-      record: {
-        type: 'object',
-        required: ['rev', 'collection', 'rkey', 'value'],
-        properties: {
-          rev: {
-            type: 'string',
-            description: 'Revision (TID) of this record.',
-          },
-          collection: {
-            type: 'string',
-            format: 'nsid',
-          },
-          rkey: {
-            type: 'string',
-            format: 'record-key',
-          },
-          cid: {
-            type: 'string',
-            format: 'cid',
-          },
-          value: {
-            type: 'unknown',
-            description: 'The record value.',
-          },
-        },
       },
     },
   },
@@ -2866,32 +4182,33 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'List records in a permissioned space, matching a specific collection. Callable by any member of the space.',
+          "List the records in an account's repo within a permissioned space, optionally filtered by collection. By default each record's value is inlined; set excludeValues for a metadata-only listing (collection, rkey, cid). Used for full-state recovery. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
         parameters: {
           type: 'params',
-          required: ['space'],
+          required: ['space', 'repo'],
           properties: {
             space: {
               type: 'string',
-              format: 'uri',
+              format: 'at-uri',
               description: 'Reference to the space.',
             },
             repo: {
               type: 'string',
               format: 'did',
-              description:
-                'The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.',
+              description: 'The DID of the account whose repo to list.',
             },
             collection: {
               type: 'string',
               format: 'nsid',
-              description: 'The NSID of the record type.',
+              description:
+                'The NSID of the record collection. If omitted, lists records across all collections.',
             },
             limit: {
               type: 'integer',
               minimum: 1,
               maximum: 100,
               default: 50,
+              description: 'The number of records to return.',
             },
             cursor: {
               type: 'string',
@@ -2899,6 +4216,12 @@ export const schemaDict = {
             reverse: {
               type: 'boolean',
               description: 'Flag to reverse the order of the returned records.',
+            },
+            excludeValues: {
+              type: 'boolean',
+              default: false,
+              description:
+                'If true, omit inlined record values and return only metadata (collection, rkey, cid).',
             },
           },
         },
@@ -2921,6 +4244,20 @@ export const schemaDict = {
             },
           },
         },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
+        ],
       },
       record: {
         type: 'object',
@@ -2938,12 +4275,203 @@ export const schemaDict = {
             type: 'string',
             format: 'cid',
           },
-          updatedAt: {
+          value: {
+            type: 'unknown',
+            description:
+              "The record's value. Inlined by default; omitted when excludeValues is set.",
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceListRepoOps: {
+    lexicon: 1,
+    id: 'network.habitat.space.listRepoOps',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        parameters: {
+          type: 'params',
+          required: ['space', 'repo'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            repo: {
+              type: 'string',
+              format: 'did',
+              description: 'The DID of the account whose oplog to retrieve.',
+            },
+            since: {
+              type: 'string',
+              description: 'Return operations after this revision.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 1000,
+              default: 100,
+              description: 'Maximum number of operations to return.',
+            },
+            excludeValues: {
+              type: 'boolean',
+              default: false,
+              description:
+                'If true, omit inlined record values and return only operation metadata.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['ops'],
+            properties: {
+              ops: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.space.listRepoOps#opEntry',
+                },
+              },
+              commit: {
+                type: 'ref',
+                ref: 'lex:network.habitat.space.defs#signedCommit',
+                description:
+                  "The account's current signed commit. Included when the response reaches the head of the oplog; omitted on backfill responses.",
+              },
+              cursor: {
+                type: 'string',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
+        ],
+      },
+      opEntry: {
+        type: 'object',
+        description:
+          "A single operation in a permissioned repo's oplog. cid is null for deletes; prev is null for creates. Operations sharing the same rev belong to the same batch. value carries the record's current value for creates and updates, unless excludeValues was set or the value is stale (superseded by a later operation).",
+        required: ['rev', 'collection', 'rkey', 'cid', 'prev'],
+        nullable: ['cid', 'prev'],
+        properties: {
+          rev: {
             type: 'string',
-            format: 'datetime',
+          },
+          collection: {
+            type: 'string',
+            format: 'nsid',
+          },
+          rkey: {
+            type: 'string',
+            format: 'record-key',
+          },
+          cid: {
+            type: 'string',
+            format: 'cid',
+          },
+          prev: {
+            type: 'string',
+            format: 'cid',
           },
           value: {
             type: 'unknown',
+            description:
+              "The record's current value, inlined for create and update operations. Omitted when excludeValues is set, for deletes, or when the value has been superseded by a later operation.",
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceListRepos: {
+    lexicon: 1,
+    id: 'network.habitat.space.listRepos',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the known repos that hold data in a space (the writer set), with each repo's current rev and commit hash. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth.",
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 1000,
+              default: 100,
+              description: 'Maximum number of repos to return.',
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['repos'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              repos: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.space.listRepos#repo',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
+      },
+      repo: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+            description: 'The DID of a repo that holds data in the space.',
+          },
+          rev: {
+            type: 'string',
+            description:
+              "The repo's current revision (TID), as last reported to the authority. May lag the repo host, which is the source of truth.",
+          },
+          hash: {
+            type: 'bytes',
+            description:
+              "The repo's current commit hash (sha256 of the LtHash state), as last reported to the authority.",
           },
         },
       },
@@ -3026,6 +4554,70 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceNotifySpaceDeleted: {
+    lexicon: 1,
+    id: 'network.habitat.space.notifySpaceDeleted',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Notify a repo host or syncing service that a space has been deleted. Sent by the space authority, best-effort. Authenticated with service auth.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the deleted space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceNotifyWrite: {
+    lexicon: 1,
+    id: 'network.habitat.space.notifyWrite',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Notify that a repo in a space has advanced to a new revision. Sent by a repo host to the space host, and forwarded to registered syncers. Best-effort. Authenticated with service auth.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'repo', 'rev', 'hash'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the account whose repo advanced.',
+              },
+              rev: {
+                type: 'string',
+                description: 'The revision of the write.',
+              },
+              hash: {
+                type: 'bytes',
+                description:
+                  "The repo's current commit hash (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's hash for listRepos.",
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatSpacePutRecord: {
     lexicon: 1,
     id: 'network.habitat.space.putRecord',
@@ -3038,12 +4630,18 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['collection', 'record'],
+            required: ['space', 'repo', 'collection', 'record'],
             properties: {
               space: {
                 type: 'string',
-                format: 'uri',
+                format: 'at-uri',
                 description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'The DID of the repo to write to (the authenticated member).',
               },
               collection: {
                 type: 'string',
@@ -3053,8 +4651,13 @@ export const schemaDict = {
               rkey: {
                 type: 'string',
                 format: 'record-key',
-                maxLength: 512,
                 description: 'The Record Key.',
+                maxLength: 512,
+              },
+              validate: {
+                type: 'boolean',
+                description:
+                  "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons.",
               },
               record: {
                 type: 'unknown',
@@ -3067,20 +4670,85 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['uri'],
+            required: ['uri', 'cid'],
             properties: {
               uri: {
                 type: 'string',
+                format: 'at-uri',
                 description: 'URI of the written record.',
               },
               cid: {
                 type: 'string',
                 format: 'cid',
               },
+              validationStatus: {
+                type: 'string',
+                knownValues: ['valid', 'unknown'],
+              },
             },
           },
         },
-        errors: [],
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSpaceRegisterNotify: {
+    lexicon: 1,
+    id: 'network.habitat.space.registerNotify',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Register an endpoint to be notified of writes. On a space host, subscribes to all repos in the space; on a repo host with a `repo`, subscribes to that repo only. Authenticated with a space credential.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'endpoint'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'The DID of a specific repo to subscribe to (repo host). Omit to subscribe to the whole space (space host).',
+              },
+              endpoint: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'The endpoint to which notifyWrite events should be delivered.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['expiresAt'],
+            properties: {
+              expiresAt: {
+                type: 'string',
+                format: 'datetime',
+                description: 'When the registration expires.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
       },
     },
   },
@@ -3173,14 +4841,36 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
+  NetworkHabitatAdminGetSettings: 'network.habitat.admin.getSettings',
+  NetworkHabitatAdminIssueInvite: 'network.habitat.admin.issueInvite',
+  NetworkHabitatAdminUpdateSettings: 'network.habitat.admin.updateSettings',
   NetworkHabitatClique: 'network.habitat.clique',
   NetworkHabitatCliqueAddMembers: 'network.habitat.clique.addMembers',
   NetworkHabitatCliqueCreateClique: 'network.habitat.clique.createClique',
   NetworkHabitatCliqueGetMembers: 'network.habitat.clique.getMembers',
   NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
-  NetworkHabitatDocs: 'network.habitat.docs',
+  NetworkHabitatCollectionsDefs: 'network.habitat.collections.defs',
+  NetworkHabitatCollectionsListCollections:
+    'network.habitat.collections.listCollections',
+  NetworkHabitatCollectionsListRecords:
+    'network.habitat.collections.listRecords',
+  NetworkHabitatDocsCrdt: 'network.habitat.docs.crdt',
+  NetworkHabitatDocsCreateDoc: 'network.habitat.docs.createDoc',
+  NetworkHabitatDocsListDocs: 'network.habitat.docs.listDocs',
+  NetworkHabitatDocsMarkdown: 'network.habitat.docs.markdown',
+  NetworkHabitatDocsUpdateDoc: 'network.habitat.docs.updateDoc',
   NetworkHabitatGrantee: 'network.habitat.grantee',
+  NetworkHabitatGroupProfile: 'network.habitat.group.profile',
+  NetworkHabitatGroupsAddMember: 'network.habitat.groups.addMember',
+  NetworkHabitatGroupsCreateGroup: 'network.habitat.groups.createGroup',
+  NetworkHabitatGroupsDefs: 'network.habitat.groups.defs',
+  NetworkHabitatGroupsDeleteMember: 'network.habitat.groups.deleteMember',
+  NetworkHabitatGroupsGetGroup: 'network.habitat.groups.getGroup',
+  NetworkHabitatGroupsListGroups: 'network.habitat.groups.listGroups',
+  NetworkHabitatGroupsUpdateGroup: 'network.habitat.groups.updateGroup',
+  NetworkHabitatInstanceDescribeInstance:
+    'network.habitat.instance.describeInstance',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
@@ -3203,6 +4893,19 @@ export const ids = {
   NetworkHabitatPermissionsRemovePermission:
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
+  NetworkHabitatRelationshipCheck: 'network.habitat.relationship.check',
+  NetworkHabitatRelationshipDefs: 'network.habitat.relationship.defs',
+  NetworkHabitatRelationshipDeleteTuple:
+    'network.habitat.relationship.deleteTuple',
+  NetworkHabitatRelationshipListObjects:
+    'network.habitat.relationship.listObjects',
+  NetworkHabitatRelationshipListSubjects:
+    'network.habitat.relationship.listSubjects',
+  NetworkHabitatRelationshipListTuples:
+    'network.habitat.relationship.listTuples',
+  NetworkHabitatRelationshipTuple: 'network.habitat.relationship.tuple',
+  NetworkHabitatRelationshipWriteTuple:
+    'network.habitat.relationship.writeTuple',
   NetworkHabitatRenderSchema: 'network.habitat.render.schema',
   NetworkHabitatRepoCreateRecord: 'network.habitat.repo.createRecord',
   NetworkHabitatRepoDeleteRecord: 'network.habitat.repo.deleteRecord',
@@ -3212,15 +4915,23 @@ export const ids = {
   NetworkHabitatRepoListRecords: 'network.habitat.repo.listRecords',
   NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',
+  NetworkHabitatSearchQuery: 'network.habitat.search.query',
   NetworkHabitatSpaceAddMember: 'network.habitat.space.addMember',
   NetworkHabitatSpaceCreateSpace: 'network.habitat.space.createSpace',
+  NetworkHabitatSpaceDefs: 'network.habitat.space.defs',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
-  NetworkHabitatSpaceGetMembers: 'network.habitat.space.getMembers',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
-  NetworkHabitatSpaceGetRepoOplog: 'network.habitat.space.getRepoOplog',
+  NetworkHabitatSpaceGetSpaceCredential:
+    'network.habitat.space.getSpaceCredential',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',
+  NetworkHabitatSpaceListRepoOps: 'network.habitat.space.listRepoOps',
+  NetworkHabitatSpaceListRepos: 'network.habitat.space.listRepos',
   NetworkHabitatSpaceListSpaces: 'network.habitat.space.listSpaces',
+  NetworkHabitatSpaceNotifySpaceDeleted:
+    'network.habitat.space.notifySpaceDeleted',
+  NetworkHabitatSpaceNotifyWrite: 'network.habitat.space.notifyWrite',
   NetworkHabitatSpacePutRecord: 'network.habitat.space.putRecord',
+  NetworkHabitatSpaceRegisterNotify: 'network.habitat.space.registerNotify',
   NetworkHabitatSpaceRemoveMember: 'network.habitat.space.removeMember',
 } as const

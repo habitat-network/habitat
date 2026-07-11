@@ -14,9 +14,17 @@ import (
 
 const defaultAuthRequestTTL = 10 * time.Minute
 
+// DefaultSessionID is the session identifier callers use with ResumeSession.
+// Habitat keeps a single active OAuth session per account, so sessions are
+// keyed by DID and the session ID passed on lookup is ignored (see indigo's
+// ClientSessionData: "Assuming only one active session per account, [the DID]
+// can be used as primary key").
+const DefaultSessionID = "default"
+
 type oauthSessionModel struct {
+	// DID is the sole primary key: one active session per account.
 	DID       string `gorm:"column:did;primaryKey"`
-	SessionID string `gorm:"column:session_id;primaryKey"`
+	SessionID string `gorm:"column:session_id"`
 	Data      string `gorm:"column:data;type:text"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -69,9 +77,10 @@ func (s *OAuthStore) GetSession(
 	did syntax.DID,
 	sessionID string,
 ) (*oauth.ClientSessionData, error) {
+	// sessionID is ignored: one session per account, keyed by DID.
 	var m oauthSessionModel
 	err := s.db.WithContext(ctx).
-		Where("did = ? AND session_id = ?", did.String(), sessionID).
+		Where("did = ?", did.String()).
 		First(&m).
 		Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -87,8 +96,9 @@ func (s *OAuthStore) GetSession(
 }
 
 func (s *OAuthStore) DeleteSession(ctx context.Context, did syntax.DID, sessionID string) error {
+	// sessionID is ignored: one session per account, keyed by DID.
 	return s.db.WithContext(ctx).
-		Where("did = ? AND session_id = ?", did.String(), sessionID).
+		Where("did = ?", did.String()).
 		Delete(&oauthSessionModel{}).
 		Error
 }

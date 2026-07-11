@@ -1,0 +1,49 @@
+package oauthserver
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/habitat-network/habitat/internal/httpx"
+)
+
+// buildAuthServerMetadata assembles the authorization-server metadata document
+// for the given issuer origin. The advertised capabilities describe the target
+// atproto-compliant surface; PAR and DPoP enforcement are wired up in later
+// phases.
+func buildAuthServerMetadata(issuer string) oauth.AuthServerMetadata {
+	return oauth.AuthServerMetadata{
+		Issuer:                             issuer,
+		AuthorizationEndpoint:              issuer + "/oauth/authorize",
+		TokenEndpoint:                      issuer + "/oauth/token",
+		PushedAuthorizationRequestEndpoint: issuer + "/oauth/par",
+		ResponseTypesSupported:             []string{"code"},
+		GrantTypesSupported: []string{
+			"authorization_code",
+			"refresh_token",
+			"urn:ietf:params:oauth:grant-type:jwt-bearer",
+		},
+		CodeChallengeMethodsSupported:              []string{"S256"},
+		TokenEndpointAuthMethodsSupoorted:          []string{"none", "private_key_jwt"},
+		TokenEndpointAuthSigningAlgValuesSupported: []string{"ES256"},
+		ScopesSupported:                            []string{"atproto"},
+		DPoPSigningAlgValuesSupported:              []string{"ES256"},
+		AuthorizationReponseISSParameterSupported:  true,
+		RequirePushedAuthorizationRequests:         false, // TODO: switch to true
+		ClientIDMetadataDocumentSupported:          true,
+	}
+}
+
+// buildProtectedResourceMetadata assembles the protected-resource metadata
+// document. Habitat is both the resource server and the authorization server,
+// so the single authorization server is the issuer origin.
+func buildProtectedResourceMetadata(issuer string) oauth.ProtectedResourceMetadata {
+	return oauth.ProtectedResourceMetadata{
+		AuthorizationServers: []string{issuer},
+	}
+}
+
+func writeMetadataJSON(ctx context.Context, w http.ResponseWriter, v any) {
+	httpx.WriteJSON(ctx, w, v)
+}

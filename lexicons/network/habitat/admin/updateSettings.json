@@ -1,0 +1,41 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.admin.updateSettings",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Update this instance's admin-configurable settings. Requires an authenticated instance admin session.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "instanceName": {
+                            "type": "string",
+                            "description": "This instance's display name. Omit to leave unchanged."
+                        },
+                        "orgCreationPolicy": {
+                            "type": "string",
+                            "description": "'open' or 'invite_only'. Omit to leave unchanged."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": ["instanceName", "orgCreationPolicy"],
+                    "properties": {
+                        "instanceName": {
+                            "type": "string"
+                        },
+                        "orgCreationPolicy": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

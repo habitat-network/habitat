@@ -2,6 +2,9 @@ tasks:
   build:
     deps:
     - root:build
+    # Builds and embeds the pre-rendered /ui/ pages (member login, instance
+    # admin) into the pear binary via internal/webui/dist.
+    - pear-pages:build
   dev:
     args:
       - --
@@ -13,28 +16,23 @@ tasks:
       HABITAT_SERVICE_NAME: "habitat_local"
       HABITAT_DOMAIN: pear.local.habitat.network
       HABITAT_PRETTY_LOGS: 'true'
+      HABITAT_FRONTEND_DOMAIN: frontend.local.habitat.network
+      # Reverse-proxy /ui/ to the pear-pages dev server instead of serving the
+      # embedded build, so UI changes are picked up live.
+      HABITAT_UI_DEV_PROXY: 'http://localhost:6010'
+      HABITAT_ADMIN_PASSWORD: 'password'
+      HABITAT_SPACE_SIGNING_KEY: 'z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd'
     deps:
-    - postgres
     - root:caddy
     - ngrok
+    - pear-pages:dev
   ngrok:
-    command: ngrok
-    args:
-      - http
-      - "8000"
-      - --url
-      - https://${NGROK_DOMAIN}
-      - --log
-      - stdout
+    # we ngrok for authing with the public pds. if it's not installed, just skip. pds auth won't work
+    script: 'command -v ngrok >/dev/null 2>&1 && exec ngrok http "8000" --url "https://${NGROK_DOMAIN}" --log stdout --log-level error || echo "[ngrok] not installed, skipping tunnel" >&2'
     preset: server
     options:
       envFile:
       - /dev.env
-  postgres:
-    command: docker-compose -f ../../infra/docker-compose.yml up
-    preset: server
-    options:
-      internal: true
   docker-build:
     options:
       internal: false

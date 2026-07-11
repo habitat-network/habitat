@@ -26,6 +26,10 @@ frontend/out/
 *.tsbuildinfo
 dist/
 
+# Keep the embed dir for the pear UI so `//go:embed` always compiles; its built
+# contents are ignored via internal/webui/dist/.gitignore.
+!internal/webui/dist/
+
 # Ignore custom node config
 config/habitat.dev.yml
 
@@ -37,6 +41,7 @@ tmp/
 /pear
 cmd/pear/key.jwk
 cmd/pear/repo.db
+*repo.db*
 
 # Ignore custom VSCode/Cursor settings
 .vscode/settings.json
@@ -49,3 +54,5 @@ cmd/pear/repo.db
 .worktrees/
 
 **/*.db
+**/*-shm
+**/*-wal

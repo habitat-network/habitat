@@ -1,0 +1,58 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.listObjects",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List the spaces on which a user holds a role, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "did",
+                    "relation"
+                ],
+                "properties": {
+                    "did": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "DID of the user."
+                    },
+                    "relation": {
+                        "type": "string",
+                        "enum": [
+                            "owner",
+                            "manager",
+                            "writer",
+                            "reader"
+                        ],
+                        "description": "The role to query for."
+                    },
+                    "type": {
+                        "type": "string",
+                        "format": "nsid",
+                        "description": "Filter to spaces of this type."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "spaces"
+                    ],
+                    "properties": {
+                        "spaces": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "uri"
+                            },
+                            "description": "URIs of spaces where the user holds the role."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

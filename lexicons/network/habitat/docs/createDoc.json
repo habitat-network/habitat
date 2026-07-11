@@ -1,0 +1,37 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.docs.createDoc",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Create a new collaborative document. Implemented by the docs server, which writes the canonical record into the org's docs space using the org credential.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri",
+                        "docId"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "URI of the created document record."
+                        },
+                        "docId": {
+                            "type": "string",
+                            "description": "The record key identifying the document, used in subsequent updateDoc calls."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

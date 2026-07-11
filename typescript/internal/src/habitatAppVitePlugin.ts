@@ -51,6 +51,16 @@ export default function habitatAppPlugin(options?: {
               ? `'${habitatDomain}'`
               : "undefined",
             __HASH_ROUTING__: hashRouting ? "true" : "false",
+            // DID of the docs server, used as the Atproto-Proxy target so pear
+            // forwards network.habitat.docs.* calls to it.
+            __DOCS_SERVER_DID__: process.env.DOCS_SERVER_DID
+              ? `'${process.env.DOCS_SERVER_DID}'`
+              : "undefined",
+            // DID of the home server, used as the Atproto-Proxy target so pear
+            // forwards network.habitat.groups.* calls to it.
+            __HOME_SERVER_DID__: process.env.HOME_SERVER_DID
+              ? `'${process.env.HOME_SERVER_DID}'`
+              : "undefined",
           },
           base: domain ? `https://${domain}/` : "/",
           server: {

@@ -1,7 +1,7 @@
 /**
  * GENERATED CODE - DO NOT MODIFY
  */
-import { HeadersMap, XRPCError } from '@atproto/xrpc'
+import { type HeadersMap, XRPCError } from '@atproto/xrpc'
 import { type ValidationResult, BlobRef } from '@atproto/lexicon'
 import { CID } from 'multiformats/cid'
 import { validate as _validate } from '../../../../lexicons.js'
@@ -19,7 +19,7 @@ export type QueryParams = {}
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  members: string[]
+  members: Member[]
 }
 
 export interface CallOptions {
@@ -35,4 +35,20 @@ export interface Response {
 
 export function toKnownErr(e: any) {
   return e
+}
+
+export interface Member {
+  $type?: 'network.habitat.org.getMembers#member'
+  did: string
+  handle: string
+}
+
+const hashMember = 'member'
+
+export function isMember<V>(v: V) {
+  return is$typed(v, id, hashMember)
+}
+
+export function validateMember<V>(v: V) {
+  return validate<Member & V>(v, id, hashMember)
 }

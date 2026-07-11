@@ -1,90 +1,75 @@
-package spaces
+package spaces_test
 
 import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/spacecommit"
+	"github.com/habitat-network/habitat/internal/spaces"
+	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 
-	"github.com/habitat-network/habitat/internal/fgastore"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-func newTestStore(t *testing.T) Store {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
-	require.NoError(t, err)
-	fga, err := fgastore.NewMemory(t.Context())
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = fga.Close() })
-	s, err := NewStore(db, fga)
-	require.NoError(t, err)
-	return s
-}
-
 var (
+	orgId     = syntax.DID("did:plc:org")
 	owner     = syntax.DID("did:plc:owner")
 	alice     = syntax.DID("did:plc:alice")
 	groupType = syntax.NSID("network.habitat.group")
 )
 
 func TestCreateSpace(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "my-group")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "my-group")
 	require.NoError(t, err)
-	require.Equal(t, "ats://did:plc:owner/network.habitat.group/my-group", uri.String())
+	require.Equal(t, "ats://did:plc:org/network.habitat.group/my-group", uri.String())
 }
 
 func TestCreateSpace_AutoSkey(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "")
 	require.NoError(t, err)
-	require.NotEmpty(t, uri.Skey())
-	require.NotEqual(t, "", uri.Skey())
+	require.Contains(t, uri, "ats://did:plc:org/network.habitat.group/")
 }
 
 func TestCreateSpace_Duplicate(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	_, err := s.CreateSpace(t.Context(), owner, owner, groupType, "dup")
+	_, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "dup")
 	require.NoError(t, err)
 
-	_, err = s.CreateSpace(t.Context(), owner, owner, groupType, "dup")
-	require.ErrorIs(t, err, ErrSpaceAlreadyExists)
+	_, err = s.CreateSpace(t.Context(), orgId, owner, groupType, "dup")
+	require.ErrorIs(t, err, spaces.ErrSpaceAlreadyExists)
 }
 
 func TestCreateSpace_OwnerIsMember(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	isMember, err := s.IsMember(t.Context(), uri, owner)
+	isMember, err := s.IsMember(t.Context(), orgId, uri, owner)
 	require.NoError(t, err)
 	require.True(t, isMember)
 }
 
 func TestListSpaces(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	_, err := s.CreateSpace(t.Context(), owner, owner, groupType, "space1")
+	_, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "space1")
 	require.NoError(t, err)
 
-	spaceUri2, err := s.CreateSpace(t.Context(), alice, alice, groupType, "space2")
+	spaceUri2, err := s.CreateSpace(t.Context(), orgId, alice, groupType, "space2")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), spaceUri2, owner, SpaceAccessRead)
+	err = s.AddMember(t.Context(), spaceUri2, owner, spaces.SpaceAccessRead)
 	require.NoError(t, err)
 
 	// Owner should see both
-	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
+	spaces, err := s.ListSpaces(t.Context(), orgId, owner, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 2)
 
@@ -93,216 +78,259 @@ func TestListSpaces(t *testing.T) {
 		require.GreaterOrEqual(t, sp.MemberCount, 1)
 	}
 	// Alice should see 1
-	spaces, err = s.ListSpaces(t.Context(), alice, nil, nil)
+	spaces, err = s.ListSpaces(t.Context(), orgId, alice, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
 }
 
 func TestListSpaces_FilterByType(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
 	personal := syntax.NSID("network.habitat.personal")
 
-	_, err := s.CreateSpace(t.Context(), owner, owner, groupType, "group1")
+	_, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "group1")
 	require.NoError(t, err)
 
-	_, err = s.CreateSpace(t.Context(), owner, owner, personal, "personal1")
+	_, err = s.CreateSpace(t.Context(), orgId, owner, personal, "personal1")
 	require.NoError(t, err)
 
-	spaces, err := s.ListSpaces(t.Context(), owner, nil, &groupType)
+	spaces, err := s.ListSpaces(t.Context(), orgId, owner, nil, &groupType)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
 	require.Equal(t, groupType, spaces[0].Type)
 }
 
-func TestGetMembers(t *testing.T) {
-	s := newTestStore(t)
+func TestListSpaces_NilOwnerFilterSpansAllOrgs(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	orgA := syntax.DID("did:plc:org-a")
+	orgB := syntax.DID("did:plc:org-b")
+	member := syntax.DID("did:plc:cross-org-member")
+
+	spaceA, err := s.CreateSpace(t.Context(), orgA, member, groupType, "space-a")
+	require.NoError(t, err)
+	spaceB, err := s.CreateSpace(t.Context(), orgB, member, groupType, "space-b")
 	require.NoError(t, err)
 
-	members, err := s.GetMembers(t.Context(), uri)
+	// With no owner filter, the member sees spaces across every org they
+	// belong to, not just one.
+	spaces, err := s.ListSpaces(t.Context(), orgA, member, nil, nil)
 	require.NoError(t, err)
-	require.Len(t, members, 1)
-	require.Equal(t, owner, members[0].Did)
+	uris := make([]habitat_syntax.SpaceURI, len(spaces))
+	for i, sp := range spaces {
+		uris[i] = sp.URI
+	}
+	require.ElementsMatch(t, []habitat_syntax.SpaceURI{spaceA, spaceB}, uris)
+
+	// Filtering by a specific org owner restricts the results to that org.
+	spaces, err = s.ListSpaces(t.Context(), orgA, member, &orgA, nil)
+	require.NoError(t, err)
+	require.Len(t, spaces, 1)
+	require.Equal(t, spaceA, spaces[0].URI)
 }
 
-func TestGetMembers_WithAddedMembers(t *testing.T) {
-	s := newTestStore(t)
+func TestListRepos_Empty(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	repos, err := s.ListRepos(t.Context(), uri)
 	require.NoError(t, err)
-
-	members, err := s.GetMembers(t.Context(), uri)
-	require.NoError(t, err)
-	require.Len(t, members, 2)
-
-	require.ElementsMatch(
-		t,
-		[]MemberInfo{{Did: owner, Access: SpaceAccessWrite}, {Did: alice, Access: SpaceAccessRead}},
-		members,
-	)
+	require.Empty(t, repos)
 }
 
-func TestGetMembers_WithCanWrite(t *testing.T) {
-	s := newTestStore(t)
+func TestListRepos_WithRecords(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessWrite)
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(t.Context(), uri, alice, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
 
-	members, err := s.GetMembers(t.Context(), uri)
+	repos, err := s.ListRepos(t.Context(), uri)
 	require.NoError(t, err)
-	require.Len(t, members, 2)
+	require.Len(t, repos, 2)
 
-	require.ElementsMatch(
-		t,
-		[]MemberInfo{
-			{Did: owner, Access: SpaceAccessWrite},
-			{Did: alice, Access: SpaceAccessWrite},
-		},
-		members,
-	)
+	dids := make([]syntax.DID, len(repos))
+	for i, r := range repos {
+		dids[i] = r.DID
+	}
+	require.ElementsMatch(t, []syntax.DID{owner, alice}, dids)
+	require.NotEmpty(t, repos[0].Rev)
 }
 
-func TestGetMembers_SpaceNotFound(t *testing.T) {
-	s := newTestStore(t)
+// TestListRepos_HashMatchesLtHash verifies the reported repo hash equals an
+// independently computed LtHash over the repo's (collection/rkey/cid) elements.
+func TestListRepos_HashMatchesLtHash(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	repos, err := s.ListRepos(t.Context(), uri)
+	require.NoError(t, err)
+	require.Len(t, repos, 1)
+
+	var expected spacecommit.LtHash
+	expected.Add(spacecommit.RecordElement(coll, "k1", cid1.String()))
+	expected.Add(spacecommit.RecordElement(coll, "k2", cid2.String()))
+	require.Equal(t, expected.Sum(), repos[0].Hash)
+}
+
+func TestListRepos_SpaceNotFound(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	_, err := s.GetMembers(t.Context(), uri)
-	require.ErrorIs(t, err, ErrSpaceNotFound)
+	_, err := s.ListRepos(t.Context(), uri)
+	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
 func TestIsMember_Owner(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	isMember, err := s.IsMember(t.Context(), uri, owner)
+	isMember, err := s.IsMember(t.Context(), orgId, uri, owner)
 	require.NoError(t, err)
 	require.True(t, isMember)
 }
 
 func TestIsMember_NonOwner(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	isMember, err := s.IsMember(t.Context(), uri, alice)
+	isMember, err := s.IsMember(t.Context(), orgId, uri, alice)
 	require.NoError(t, err)
 	require.False(t, isMember)
 }
 
 func TestIsMember_NonExistentSpace(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	isMember, err := s.IsMember(t.Context(), uri, alice)
+	isMember, err := s.IsMember(t.Context(), orgId, uri, alice)
 	require.NoError(t, err)
 	require.False(t, isMember)
 }
 
 func TestIsMember_FGAMember(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	err = s.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead)
 	require.NoError(t, err)
 
-	isMember, err := s.IsMember(t.Context(), uri, alice)
+	isMember, err := s.IsMember(t.Context(), orgId, uri, alice)
 	require.NoError(t, err)
 	require.True(t, isMember)
 }
 
 func TestAddMember_DuplicateIsIdempotent(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	err = s.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead)
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	err = s.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead)
 	require.NoError(t, err)
 }
 
 func TestAddMember_OwnerIsAlwaysMember(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, owner, SpaceAccessRead)
+	err = s.AddMember(t.Context(), uri, owner, spaces.SpaceAccessRead)
 	require.NoError(t, err)
 }
 
 func TestAddMember_SpaceNotFound(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	err := s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
-	require.ErrorIs(t, err, ErrSpaceNotFound)
+	err := s.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead)
+	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
 func TestRemoveMember(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	err = s.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead)
 	require.NoError(t, err)
 
 	err = s.RemoveMember(t.Context(), uri, alice)
 	require.NoError(t, err)
 
-	isMember, err := s.IsMember(t.Context(), uri, alice)
+	isMember, err := s.IsMember(t.Context(), orgId, uri, alice)
 	require.NoError(t, err)
 	require.False(t, isMember)
 }
 
 func TestRemoveMember_NotAMember(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
 	err = s.RemoveMember(t.Context(), uri, alice)
 	require.NoError(t, err)
 }
 
-func TestRemoveMember_CannotRemoveOwner(t *testing.T) {
-	s := newTestStore(t)
+func TestRemoveMember_CanNotRemoveOrg(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	err = s.RemoveMember(t.Context(), uri, orgId)
+	require.ErrorIs(t, err, spaces.ErrCannotRemoveOrg)
+}
+
+func TestRemoveMember_CanRemoveOwner(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
 	err = s.RemoveMember(t.Context(), uri, owner)
-	require.ErrorIs(t, err, ErrCannotRemoveOwner)
+	require.NoError(t, err)
 }
 
 func TestRemoveMember_NonExistentSpace(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
 	err := s.RemoveMember(t.Context(), uri, alice)
-	require.ErrorIs(t, err, ErrSpaceNotFound)
+	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
 func TestPutAndGetRecord(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -318,9 +346,9 @@ func TestPutAndGetRecord(t *testing.T) {
 }
 
 func TestPutRecord_UpdateExisting(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -337,20 +365,20 @@ func TestPutRecord_UpdateExisting(t *testing.T) {
 }
 
 func TestGetRecord_NotFound(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
 	_, err = s.GetRecord(t.Context(), uri, owner, coll, "nonexistent")
-	require.ErrorIs(t, err, ErrRecordNotFound)
+	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
 }
 
 func TestListRecords(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
 	collA := syntax.NSID("network.habitat.alpha")
@@ -377,30 +405,75 @@ func TestListRecords(t *testing.T) {
 }
 
 func TestDeleteRecord(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"x": 1})
 	require.NoError(t, err)
 
-	err = s.DeleteRecord(t.Context(), uri, coll, "rkey")
+	err = s.DeleteRecord(t.Context(), uri, owner, coll, "rkey")
 	require.NoError(t, err)
 
 	_, err = s.GetRecord(t.Context(), uri, owner, coll, "rkey")
-	require.ErrorIs(t, err, ErrRecordNotFound)
+	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+}
+
+// TestRepoHash_IncrementalOnUpdateAndDelete verifies the cached LtHash is
+// maintained in the write path: an update folds the old cid out (not just the
+// new one in), and deleting the last record drops the repo from the writer set.
+func TestRepoHash_IncrementalOnUpdateAndDelete(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+	coll := syntax.NSID("network.habitat.note")
+
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+	var want1 spacecommit.LtHash
+	want1.Add(spacecommit.RecordElement(coll, "k1", cid1.String()))
+	_, hash, found, err := s.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, want1.Sum(), hash)
+
+	// Update the same rkey: the old element must be folded out and the new in.
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 2})
+	require.NoError(t, err)
+	require.NotEqual(t, cid1.String(), cid2.String())
+	var want2 spacecommit.LtHash
+	want2.Add(spacecommit.RecordElement(coll, "k1", cid2.String()))
+	_, hash, _, err = s.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.Equal(t, want2.Sum(), hash, "update must not leave the old cid folded in")
+
+	// Delete the last record: the repo leaves the writer set.
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))
+	_, _, found, err = s.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.False(t, found)
+
+	repos, err := s.ListRepos(t.Context(), uri)
+	require.NoError(t, err)
+	require.Empty(t, repos)
 }
 
 func TestDeleteRecord_Nonexistent(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
 	// Deleting a nonexistent record should not error
-	err = s.DeleteRecord(t.Context(), uri, syntax.NSID("network.habitat.note"), "nonexistent")
+	err = s.DeleteRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"nonexistent",
+	)
 	require.NoError(t, err)
 }
 
@@ -436,9 +509,9 @@ func TestParseSpaceURI_Invalid(t *testing.T) {
 }
 
 func TestDeleteSpace(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "to-delete")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "to-delete")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -446,14 +519,14 @@ func TestDeleteSpace(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "r2", map[string]any{"x": 2})
 	require.NoError(t, err)
-	require.NoError(t, s.AddMember(t.Context(), uri, alice, SpaceAccessRead))
+	require.NoError(t, s.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead))
 
 	err = s.DeleteSpace(t.Context(), uri)
 	require.NoError(t, err)
 
 	// space should be gone
-	_, err = s.GetMembers(t.Context(), uri)
-	require.ErrorIs(t, err, ErrSpaceNotFound)
+	_, err = s.ListRepos(t.Context(), uri)
+	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 
 	// records should be gone
 	records, err := s.ListRecords(t.Context(), uri, owner, nil)
@@ -462,16 +535,16 @@ func TestDeleteSpace(t *testing.T) {
 }
 
 func TestDeleteSpace_NonExistent(t *testing.T) {
-	s := newTestStore(t)
+	s := spaces_testutil.NewTestStore(t)
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
 	err := s.DeleteSpace(t.Context(), uri)
-	require.ErrorIs(t, err, ErrSpaceNotFound)
+	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
-func TestGetRepoOplog(t *testing.T) {
-	s := newTestStore(t)
+func TestListRepoOps(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -483,38 +556,37 @@ func TestGetRepoOplog(t *testing.T) {
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k3", map[string]any{"x": 3})
 	require.NoError(t, err)
 
-	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 1)
+	records, err := s.ListRepoOps(t.Context(), uri, owner, "", 1)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.Equal(t, syntax.RecordKey("k1"), records[0].Rkey)
 
-	records, err = s.GetRepoOplog(t.Context(), uri, owner, records[0].Rev, 100)
+	records, err = s.ListRepoOps(t.Context(), uri, owner, records[0].Rev, 100)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.Equal(t, syntax.RecordKey("k3"), records[0].Rkey)
 
-	records, err = s.GetRepoOplog(t.Context(), uri, alice, "", 100)
+	records, err = s.ListRepoOps(t.Context(), uri, alice, "", 100)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.Equal(t, syntax.RecordKey("k2"), records[0].Rkey)
-
 }
 
-func TestGetRepoOplog_Empty(t *testing.T) {
-	s := newTestStore(t)
+func TestListRepoOps_Empty(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 100)
+	records, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
 	require.NoError(t, err)
 	require.Len(t, records, 0)
 }
 
-func TestGetRepoOplog_RevIncludesValue(t *testing.T) {
-	s := newTestStore(t)
+func TestListRepoOps_RevIncludesValue(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -522,9 +594,35 @@ func TestGetRepoOplog_RevIncludesValue(t *testing.T) {
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
 	require.NoError(t, err)
 
-	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 100)
+	records, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.Equal(t, "hello", records[0].Value["text"])
 	require.NotEmpty(t, records[0].Rev)
+}
+
+func TestPutRecordTriggersNotify(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "notify-space")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	require.Len(t, s.Notifier.Writes, 1)
+	require.Equal(t, uri, s.Notifier.Writes[0].Space)
+	require.Equal(t, owner, s.Notifier.Writes[0].Repo)
+	require.NotEmpty(t, s.Notifier.Writes[0].Rev)
+}
+
+func TestDeleteSpaceTriggersNotify(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "doomed")
+	require.NoError(t, err)
+
+	require.NoError(t, s.DeleteSpace(t.Context(), uri))
+	require.Equal(t, []habitat_syntax.SpaceURI{uri}, s.Notifier.Deleted)
 }

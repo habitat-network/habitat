@@ -17,20 +17,20 @@ import "../styles/landing.css";
         <div class="hero-copy">
           <h1 class="display reveal">Own your data.</h1>
           <p class="hero-sub reveal" style="--d: 120ms">
-            Habitat is a unified data layer for organizations, so your data works better for you. Make vendor lock-in, clunky cross-app workflows, and incompatible permissions across providers a thing of the past. Give your agents the context they actually need and the guardrails to ship safely.
+            Habitat is an open-source data ownership layer for organizations, so your data works better for you. Make vendor lock-in, clunky cross-app workflows, and incompatible permissions a thing of the past. Learn how to take back control over your data now.
           </p>
 <!-- Calendly link widget begin -->
 <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
 <script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async></script>
 <div class="reveal" style="--d: 180ms; margin-bottom: 32px;">
-  <a href="" onclick="Calendly.initPopupWidget({url: 'https://calendly.com/arushi-habitat'});return false;" style="font-size: 1.125rem;">Talk to us</a>
+  <a class="cta-button cta-green hero-talk-to-us" href="" onclick="Calendly.initPopupWidget({url: 'https://calendly.com/arushi-habitat'});return false;">Talk to us</a>
 </div>
 <!-- Calendly link widget end -->
 
           <form class="waitlist reveal" style="--d: 220ms" novalidate>
             <label class="visually-hidden" for="email-hero">your email</label>
             <input id="email-hero" type="text" name="email" placeholder="your email" required />
-            <button type="submit">Or join the waitlist<span aria-hidden="true">→</span></button>
+            <button type="submit">Or sign up for updates<span aria-hidden="true">→</span></button>
           </form>
           <p class="waitlist-status reveal" data-status="idle" aria-live="polite"></p>
         </div>
@@ -64,7 +64,7 @@ import "../styles/landing.css";
     <!-- SECTION 1: THE SHIFT -->
     <section class="section shift">
       <div class="section-inner">
-        <h2 class="reveal">Your data should belong to you.</h2>
+        <h2 class="reveal">We're building your data's forever home.</h2>
         <p class="lead reveal" style="--d: 100ms">
           Today, your data belongs to SaaS providers. Each provider is siloed and limits access through their APIs, making data less useful and integrated agentic workflows harder. Habitat changes that.
         </p>
@@ -286,91 +286,30 @@ import "../styles/landing.css";
     <!-- SECTION 2: PILLARS -->
     <section class="section pillars">
       <div class="section-inner">
-        <h2 class="reveal">What Habitat offers.</h2>
+        <h2 class="reveal">What we offer:</h2>
 
-        <ol class="pillar-list">
-          <li class="pillar reveal">
-            <div class="pillar-num">1</div>
-            <div class="pillar-body">
-              <h3>Rich access control, across apps</h3>
-              <p>
-                 Habitat provides a permissioning layer shared across apps, so your team in docs is the same team in messages is the same team in your code repository.
-              </p>
+        <div class="schema-block">
+          <div class="schema-text">
+            <h3 class="reveal">Structured data in explorable schemas; LLM-friendly</h3>
+            <p class="lead reveal" style="--d: 100ms">Data in Habitat is self-describing and easily parse-able by humans and agents alike. Access any type of data from any application; bypassing data siloes entirely.</p>
+          </div>
+          <img class="section-image reveal" style="--d: 200ms" src="/schemas.png" alt="" width="1420" height="1388" />
+        </div>
+
+        <div class="content-block">
+          <div class="groups-block">
+            <img class="groups-image reveal" style="--d: 200ms" src="/groups.png" alt="" width="1568" height="776" />
+            <div class="groups-text">
+              <h3 class="reveal">Lifetime identity management and unified permissions</h3>
+              <p class="lead reveal" style="--d: 100ms">We provide a permissioning layer that can be shared, so teams and roles persist across app boundaries. When someone leaves your organization, their data stays behind, preserving historical context. </p>
             </div>
-            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
-              <rect x="3.5" y="3.5" width="26" height="26"/>
-              <rect x="11.5" y="11.5" width="26" height="26"/>
-              <rect x="19.5" y="19.5" width="25" height="25"/>
-            </svg>
-          </li>
-          <li class="pillar reveal">
-            <div class="pillar-num">2</div>
-            <div class="pillar-body">
-              <h3>Safer and more powerful agentic workflows</h3>
-              <p>
-                Habitat gives your organization
-                a single, governed substrate that agents and models can read from and write to, 
-                so you can build AI workflows on your own data, with permissions and auditability
-                intact.  Run agents that inherit permissions from their creator and see exactly who—or whose agent—did what.
-              </p>
-            </div>
-            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
-              <rect x="3.5" y="3.5" width="41" height="41"/>
-              <rect x="15.5" y="15.5" width="17" height="17"/>
-              <line x1="24" y1="15.5" x2="24" y2="32.5"/>
-              <line x1="15.5" y1="24" x2="32.5" y2="24"/>
-            </svg>
-          </li>
-          <li class="pillar reveal">
-            <div class="pillar-num">3</div>
-            <div class="pillar-body">
-              <h3>No vendor lock-in</h3>
-              <p>
-                Switching tools today usually means a whole migration project. With Habitat, the data lives with you. Swapping an app on top of this layer is trivial, and your
-                organization's history remains intact.
-              </p>
-            </div>
-            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
-              <rect x="3.5" y="18.5" width="10" height="10"/>
-              <line x1="13.5" y1="23.5" x2="18.5" y2="23.5"/>
-              <rect x="18.5" y="18.5" width="10" height="10"/>
-              <line x1="28.5" y1="23.5" x2="33.5" y2="23.5"/>
-              <rect x="33.5" y="18.5" width="10" height="10"/>
-            </svg>
-          </li>
-          <li class="pillar reveal">
-            <div class="pillar-num">4</div>
-            <div class="pillar-body">
-              <h3>Lifetime identity management</h3>
-              <p>
-                When someone leaves,
-                their data doesn't get lost in a manager's drafts folder; it stays tied to their
-                identity, preserving historical context.
-              </p>
-            </div>
-            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
-              <rect x="3.5" y="27.5" width="6" height="6"/>
-              <rect x="12.5" y="21.5" width="12" height="12"/>
-              <rect x="27.5" y="13.5" width="20" height="20"/>
-            </svg>
-          </li>
-          <li class="pillar reveal">
-            <div class="pillar-num">5</div>
-            <div class="pillar-body">
-              <h3>Pay for the people who actually use the product</h3>
-              <p>
-                Today, data access is gated by seats, so your whole org pays for tools that only a few actually use. With Habitat, people can use the tool that works for them, operating over the same underlying data.
-              </p>
-            </div>
-            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
-              <rect x="5.5" y="20.5" width="6" height="6"/>
-              <rect x="13.5" y="20.5" width="6" height="6" fill="currentColor"/>
-              <rect x="21.5" y="20.5" width="6" height="6"/>
-              <rect x="29.5" y="20.5" width="6" height="6" fill="currentColor"/>
-              <rect x="37.5" y="20.5" width="6" height="6"/>
-            </svg>
-          </li>
-        </ol>
+          </div>
+        </div>
+
+        <div class="content-block" id="agents-block">
+          <h3 class="reveal">Perfect for building agents and custom apps</h3>
+          <p class="lead reveal" style="--d: 100ms">Habitat gives you a governed substrate to read from and write to, so you can build your own custom agentic workflows, with permissions and auditability intact. Run agents that inherit permissions from their creator and see exactly who—or whose agent—did what.</p>
+        </div>
       </div>
     </section>
 
@@ -380,18 +319,9 @@ import "../styles/landing.css";
       <div class="section-inner center">
         <h2 class="reveal">Own your organization's data.</h2>
         <p class="lead reveal" style="--d: 100ms">
-          Habitat is a customer-controlled data platform for the age of AI. We're working with a
-          small group of design partners now.
+          Have a problem Habitat can help solve? <a href="https://calendly.com/arushi-habitat">Get in touch with us today.</a>
         </p>
-        <form class="waitlist center reveal" style="--d: 200ms" novalidate>
-          <label class="visually-hidden" for="email-foot">your email</label>
-          <input id="email-foot" type="text" name="email" placeholder="your email" required />
-          <button type="submit">Join waitlist <span aria-hidden="true">→</span></button>
-        </form>
-        <p class="waitlist-status reveal" data-status="idle" aria-live="polite"></p>
-        <p class="helper reveal" style="--d: 300ms">
-          <a href="mailto:hello@habitat.network">hello@habitat.network</a>
-        </p>
+
       </div>
     </section>
 
@@ -411,22 +341,14 @@ import "../styles/landing.css";
     align-items: center;
   }
 
-  .talk-btn {
-    display: inline-block;
-    margin-bottom: 32px;
-    padding: 12px 28px;
-    border-radius: 999px;
-    background: var(--black);
-    color: var(--white);
-    font: inherit;
-    font-size: 1rem;
-    font-weight: 500;
-    text-decoration: none;
-    transition: background 160ms ease;
+  .hero-talk-to-us {
+    display: flex;
+    width: 100%;
+    min-width: 0;
   }
-  .talk-btn:hover {
-    background: var(--green);
-    border-color: var(--green);
+
+  .hero-copy .waitlist {
+    max-width: none;
   }
 
   .waitlist {
@@ -563,6 +485,74 @@ import "../styles/landing.css";
   .section.closing h2 { max-width: none; margin-left: auto; margin-right: auto; }
   .section.closing .lead { margin-left: auto; margin-right: auto; }
 
+  .schema-block {
+    display: flex;
+    gap: 48px;
+    align-items: center;
+  }
+  .schema-block .schema-text {
+    flex: 1 1 40%;
+    min-width: 280px;
+  }
+  .schema-block .section-image {
+    flex: 0 0 38%;
+    max-height: 315px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  .groups-block {
+    display: flex;
+    gap: 48px;
+    align-items: center;
+  }
+  .groups-block .groups-text {
+    flex: 1 1 40%;
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .groups-block .groups-image {
+    flex: 0 0 25%;
+    max-height: 200px;
+    width: auto;
+    object-fit: contain;
+  }
+  .groups-block h3 {
+    margin: 0 0 16px;
+  }
+  .groups-block .lead {
+    margin: 0;
+  }
+
+  .pillars h3 {
+    font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-weight: 500;
+    margin: 0 0 32px;
+    max-width: 36ch;
+  }
+
+  .content-block {
+    margin-top: 100px;
+  }
+
+  #agents-block {
+    text-align: center;
+  }
+  #agents-block h3 {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 48ch;
+  }
+  #agents-block .lead {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 72ch;
+  }
+
   /* ---------- WITH HABITAT DIAGRAM ---------- */
   .habitat-svg {
     width: 100%;
@@ -663,11 +653,10 @@ import "../styles/landing.css";
     padding-top: 48px;
   }
   .diagram-label {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
     font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
+    font-weight: 500;
+    color: var(--black);
     margin-bottom: 24px;
   }
   .diagram-stack { display: flex; flex-direction: column; gap: 16px; }
@@ -803,6 +792,11 @@ import "../styles/landing.css";
     .plane { max-width: 100%; margin-left: 0; }
     .diagram { grid-template-columns: 1fr; gap: 48px; }
     .pillar { grid-template-columns: 48px 1fr; gap: 20px; }
+    .section-image { max-height: none; width: 100%; }
+    .schema-block { flex-direction: column; }
+    .schema-block .section-image { display: none; }
+    .groups-block { flex-direction: column; }
+    .groups-block .groups-image { display: none; }
   }
 
   /* ---------- REDUCED MOTION (index-specific animations) ---------- */

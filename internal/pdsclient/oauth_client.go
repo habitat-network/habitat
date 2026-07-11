@@ -17,7 +17,10 @@ import (
 type PdsOAuthClient interface {
 	ClientMetadata() *oauth.ClientMetadata
 	Authorize(ctx context.Context, identifier string) (redirectUri string, err error)
-	ExchangeCode(ctx context.Context, code, issuer, state string) error
+	// ExchangeCode completes the OAuth callback, persists the session, and
+	// returns the authenticated account DID. state is the OAuth "state" query
+	// param echoed back by the auth server.
+	ExchangeCode(ctx context.Context, code, issuer, state string) (syntax.DID, error)
 	Do(ctx context.Context, did syntax.DID, req *http.Request) (*http.Response, error)
 }
 
@@ -60,20 +63,28 @@ func NewClient(
 }
 
 // Authorize implements [PdsOAuthClient].
-func (p *pdsClientImpl) Authorize(ctx context.Context, identifier string) (redirectUri string, err error) {
+func (p *pdsClientImpl) Authorize(
+	ctx context.Context,
+	identifier string,
+) (redirectUri string, err error) {
 	return p.app.StartAuthFlow(ctx, identifier)
 }
 
 // ClientMetadata implements [PdsOAuthClient].
 func (p *pdsClientImpl) ClientMetadata() *oauth.ClientMetadata {
 	metadata := p.app.Config.ClientMetadata()
-	metadata.ClientName = new("Habitat")
+	name := "Habitat"
+	metadata.ClientName = &name
 	return &metadata
 }
 
 // Do implements [PdsOAuthClient].
-func (p *pdsClientImpl) Do(ctx context.Context, did syntax.DID, req *http.Request) (*http.Response, error) {
-	session, err := p.app.ResumeSession(ctx, did, "default")
+func (p *pdsClientImpl) Do(
+	ctx context.Context,
+	did syntax.DID,
+	req *http.Request,
+) (*http.Response, error) {
+	session, err := p.app.ResumeSession(ctx, did, DefaultSessionID)
 	if err != nil {
 		return nil, fmt.Errorf("resume session: %w", err)
 	}
@@ -93,15 +104,20 @@ func (p *pdsClientImpl) Do(ctx context.Context, did syntax.DID, req *http.Reques
 }
 
 // ExchangeCode implements [PdsOAuthClient].
-func (p *pdsClientImpl) ExchangeCode(ctx context.Context, code string, issuer string, state string) error {
+func (p *pdsClientImpl) ExchangeCode(
+	ctx context.Context,
+	code string,
+	issuer string,
+	state string,
+) (syntax.DID, error) {
 	params := url.Values{
 		"code":  {code},
 		"iss":   {issuer},
 		"state": {state},
 	}
-	_, err := p.app.ProcessCallback(ctx, params)
+	sess, err := p.app.ProcessCallback(ctx, params)
 	if err != nil {
-		return fmt.Errorf("process callback: %w", err)
+		return "", fmt.Errorf("process callback: %w", err)
 	}
-	return nil
+	return sess.AccountDID, nil
 }

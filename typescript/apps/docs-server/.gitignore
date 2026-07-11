@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Local crawl database — never commit.
+.docs-server/

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -23,7 +24,6 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"go.opentelemetry.io/otel/metric"
-	"log/slog"
 )
 
 type peerRegistry struct {
@@ -108,7 +108,7 @@ type Server struct {
 	registry *peerRegistry
 
 	// For authn/authz
-	serviceAuth authn.Method
+	serviceAuth authn.RawMethod
 	pear        pear.Pear
 
 	// Count the open conns on this server
@@ -120,7 +120,7 @@ var _ io.Closer = (*Server)(nil)
 
 func NewServer(
 	ctx context.Context,
-	serviceAuth authn.Method,
+	serviceAuth authn.RawMethod,
 	pear pear.Pear,
 	meter metric.Meter,
 ) (*Server, error) {
@@ -197,7 +197,7 @@ func NewServer(
 		}
 
 		// Always use service auth here -- the service is p2p peer discovery for habitat.
-		did, authn, err := s.serviceAuth.ValidateRaw(ctx, req.ServiceAuthToken)
+		credInfo, authn, err := s.serviceAuth.ValidateRaw(ctx, req.ServiceAuthToken)
 		if err != nil || !authn {
 			// Ignore this peer -- don't let it know about others and don't let others discover it
 			return
@@ -205,8 +205,8 @@ func NewServer(
 
 		authz, err := s.pear.HasPermission(
 			ctx,
-			did,
-			did,
+			credInfo.Subject,
+			credInfo.Subject,
 			topic.Authority().DID(),
 			topic.Collection(),
 			topic.RecordKey(),

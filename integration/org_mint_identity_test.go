@@ -12,9 +12,12 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/org"
+	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -34,7 +37,9 @@ func TestMintThenLookup(t *testing.T) {
 
 	// Create the org store and seed an org
 	dir := identity.DefaultDirectory()
-	orgStore, err := org.NewStore(db, h, dir, "pear.example.com")
+	fga, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err)
+	orgStore, err := org.NewStore(db, h, dir, "pear.example.com", nil, fga)
 	require.NoError(t, err)
 
 	orgIdIdent, _, err := orgStore.CreateOrg(
@@ -45,6 +50,7 @@ func TestMintThenLookup(t *testing.T) {
 		"password",
 		"",
 		"test-org",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 	testOrgID := orgIdIdent.DID
@@ -52,10 +58,22 @@ func TestMintThenLookup(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, testOrg.AddAdmin(ctx, adminDID))
 
-	orgServer, err := org.NewServer(orgStore, authn.NewStubAuthnForTest(adminDID), nil)
+	orgServer, err := org_server.NewServer(
+		orgStore,
+		authntest.NewSuccessMethod(adminDID),
+		nil,
+		"pear.example.com",
+		identity.DefaultDirectory(),
+		nil,
+	)
 	require.NoError(t, err)
 
-	hiveServer, err := hive.NewServer(h, authn.NewStubAuthnForTest(adminDID))
+	hiveServer, err := habitat_identity.NewServer(
+		h,
+		authntest.NewSuccessMethod(adminDID),
+		orgStore,
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Admin issues an invite token via org server

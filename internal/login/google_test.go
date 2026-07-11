@@ -9,44 +9,22 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
-
-func newTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	return db
-}
 
 func makeIDToken(clientID, email string) string {
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
-	payload := base64.RawURLEncoding.EncodeToString([]byte(
-		fmt.Sprintf(
+	payload := base64.RawURLEncoding.EncodeToString(
+		fmt.Appendf(
+			nil,
 			`{"iss":"https://accounts.google.com","aud":"%s","sub":"123","email":"%s","email_verified":true,"iat":1000000000,"exp":9999999999}`,
 			clientID,
 			email,
-		),
-	))
+		))
 	return header + "." + payload + ".fakesignature"
-}
-
-func TestGoogleProvider_LoginMethod(t *testing.T) {
-	p, err := NewGoogleProvider(
-		"client-id",
-		"client-secret",
-		"https://example.com/callback",
-		newTestDB(t),
-		encrypt.TestKey,
-	)
-	require.NoError(t, err)
-	require.Equal(t, org.LoginMethodGoogle, p.LoginMethod())
 }
 
 func TestGoogleProvider_Authorize(t *testing.T) {
@@ -54,12 +32,12 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 		"client-id",
 		"client-secret",
 		"https://example.com/callback",
-		newTestDB(t),
+		testutil.NewDB(t),
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)
 
-	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "user@gmail.com")
+	redirect, state, err := p.Authorize(t.Context(), "user@gmail.com")
 	require.NoError(t, err)
 	require.Contains(t, redirect, "https://accounts.google.com/o/oauth2/v2/auth")
 	require.Contains(t, redirect, "login_hint=user%40gmail.com")
@@ -73,29 +51,13 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 	require.NotEmpty(t, s.State)
 }
 
-func TestGoogleProvider_Authorize_NoLoginID(t *testing.T) {
-	p, err := NewGoogleProvider(
-		"client-id",
-		"client-secret",
-		"https://example.com/callback",
-		newTestDB(t),
-		encrypt.TestKey,
-	)
-	require.NoError(t, err)
-
-	_, _, err = p.Authorize(context.Background(), idWithPDSOnly(), "")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no google email configured")
-}
-
 func TestGoogleProvider_Exchange(t *testing.T) {
-	db := newTestDB(t)
 	clientID := "test-client-id.apps.googleusercontent.com"
 	p, err := NewGoogleProvider(
 		clientID,
 		"test-secret",
 		"https://example.com/callback",
-		db,
+		testutil.NewDB(t),
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)
@@ -126,15 +88,15 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	gp := p.(*googleProvider)
 	gp.oauthCfg.Endpoint.TokenURL = tokenServer.URL
 
-	_, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "user@gmail.com")
+	_, state, err := p.Authorize(t.Context(), "")
 	require.NoError(t, err)
 
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, tokenServer.Client())
-	did := syntax.DID("did:web:example.com")
-	err = p.Exchange(ctx, did, "auth-code", "", "", state)
+	loginID, err := p.Exchange(ctx, "auth-code", "", "", state)
 	require.NoError(t, err)
+	require.Equal(t, "user@gmail.com", loginID)
 
-	creds, err := gp.GetCredentials(ctx, did)
+	creds, err := gp.GetCredentials(ctx, "user@gmail.com")
 	require.NoError(t, err)
 	require.Equal(t, "ya29.google-access-token", creds.AccessToken)
 	require.Equal(t, "1//google-refresh-token", creds.RefreshToken)

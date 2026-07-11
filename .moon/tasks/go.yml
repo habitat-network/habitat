@@ -1,21 +1,30 @@
 $schema: https://moonrepo.dev/schemas/tasks.json
+fileGroups:
+  mod:
+    - 'go.mod'
+    - 'go.sum'
+  src:
+    - '**/*.go'
+    - '!**/*_test.go'
+  test:
+    - '**/*.go'
 tasks:
   format-check:
-    command: noop
-    deps:
-    - root:format-check
+    command: golangci-lint fmt -d
   format:
-    command: noop
-    deps:
-    - root:format
-    preset: server
+    command: golangci-lint fmt
+    preset: utility
   lint-check:
-    command: noop
-    deps:
-    - root:lint-check
+    command: golangci-lint run
+  lint:
+    command: golangci-lint run --fix
+    preset: utility
   build:
     deps:
     - ^:build
+    inputs:
+    - '@group(mod)'
+    - '@group(src)'
     command: go 
     args:
     - build
@@ -25,7 +34,10 @@ tasks:
     - /bin/$project
   test:
     deps:
-    - ~:build
+      - ^:test
+    inputs:
+    - '@group(mod)'
+    - '@group(test)'
     command: go
     args:
     - test
@@ -35,7 +47,7 @@ tasks:
     args:
     - mod
     - tidy
-    preset: server
+    preset: utility
   start:
     command: ./bin/$project
     deps:
@@ -54,10 +66,12 @@ tasks:
     - $workspaceRoot
     - --build.cmd
     - go build -o $workspaceRoot/bin/$project .
-    - --build.bin
+    - --build.entrypoint
     - $workspaceRoot/bin/$project
     - --build.include_dir
     - cmd/$project,internal,api,pkg
+    - --log.main_only 
+    - 'true'
     options:
       envFile:
       - /dev.env

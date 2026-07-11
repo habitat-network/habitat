@@ -5,107 +5,76 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-func NewServiceAuthMethod(directory identity.Directory) Method {
-	return &pdsServiceAuthMethod{
-		directory: directory,
+func NewServiceAuthMethod(directory identity.Directory, audience string) *AtprotoServiceAuthMethod {
+	return &AtprotoServiceAuthMethod{
+		validator: &auth.ServiceAuthValidator{
+			Dir:      directory,
+			Audience: audience,
+		},
 	}
 }
 
-type pdsServiceAuthMethod struct {
-	directory identity.Directory
+type AtprotoServiceAuthMethod struct {
+	validator *auth.ServiceAuthValidator
 }
 
-var _ Method = (*pdsServiceAuthMethod)(nil)
+var _ Method = (*AtprotoServiceAuthMethod)(nil)
 
 // CanHandle implements [Method].
-func (p *pdsServiceAuthMethod) CanHandle(r *http.Request) bool {
-	return strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
-}
-
-func (p *pdsServiceAuthMethod) validateInner(token *jwt.JSONWebToken) (syntax.DID, bool, error) {
-	var claims serviceJwtPayload
-	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil {
-		return "", false, err
+func (p *AtprotoServiceAuthMethod) CanHandle(r *http.Request) bool {
+	tokenStr, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !found {
+		return false
 	}
-	issuerDid, err := syntax.ParseDID(claims.Iss)
+	token, err := jwt.ParseSigned(tokenStr)
 	if err != nil {
-		return "", false, err
+		return false
 	}
-	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
-	id, err := p.directory.LookupDID(context.Background(), issuerDid)
-	if err != nil {
-		return "", false, err
-	}
-	publicKey, err := id.PublicKey()
-	if err != nil {
-		return "", false, err
-	}
-	if err := token.Claims(atcryptoVerifier{publicKey}); err != nil {
-		return "", false, err
-	}
-	// TODO: validate Aud and Lxm
-	return issuerDid, true, nil
+	return token.Headers[0].ExtraHeaders["typ"] == "JWT" &&
+		strings.HasPrefix(token.Headers[0].KeyID, "#")
 }
 
 // Validate implements [Method].
-func (p *pdsServiceAuthMethod) Validate(
+func (p *AtprotoServiceAuthMethod) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
 	scopes ...string,
-) (syntax.DID, bool) {
-	token, err := jwt.ParseSigned(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+) (*CredentialInfo, bool) {
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	_, nsidStr, _ := strings.Cut(r.URL.Path, "/xrpc/")
+	nsid, err := syntax.ParseNSID(nsidStr)
 	if err != nil {
-		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
-		return "", false
+		utils.WriteHTTPError(w, err, http.StatusBadRequest)
+		return nil, false
 	}
-
-	did, ok, err := p.validateInner(token)
+	did, err := p.validator.Validate(r.Context(), token, &nsid)
 	if err != nil {
-		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
-		return "", false
+		utils.WriteHTTPError(w, err, http.StatusBadRequest)
+		return nil, false
 	}
-	return did, ok
+	return &CredentialInfo{
+		Subject: did,
+		Type:    UserCredential,
+		Org:     &org.EveryoneOrg{},
+	}, true
 }
 
-func (p *pdsServiceAuthMethod) ValidateRaw(
+func (p *AtprotoServiceAuthMethod) ValidateRaw(
 	ctx context.Context,
 	token string,
 	scopes ...string,
-) (syntax.DID, bool, error) {
-	parsed, err := jwt.ParseSigned(token)
+) (*CredentialInfo, bool, error) {
+	did, err := p.validator.Validate(ctx, token, nil)
 	if err != nil {
-		return "", false, err
+		return nil, false, err
 	}
-
-	return p.validateInner(parsed)
-}
-
-type serviceJwtPayload struct {
-	Iss string `json:"iss"`
-	Aud string `json:"aud"`
-	Exp int64  `json:"exp"`
-	Lxm string `json:"lxm"`
-}
-
-type atcryptoVerifier struct {
-	atcrypto.PublicKey
-}
-
-var _ jose.OpaqueVerifier = (*atcryptoVerifier)(nil)
-
-// VerifyPayload implements [jose.OpaqueVerifier].
-func (a atcryptoVerifier) VerifyPayload(
-	payload []byte,
-	signature []byte,
-	alg jose.SignatureAlgorithm,
-) error {
-	return a.HashAndVerify(payload, signature)
+	return &CredentialInfo{Subject: did, Type: UserCredential, Org: &org.EveryoneOrg{}}, true, nil
 }

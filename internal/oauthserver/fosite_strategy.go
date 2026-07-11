@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 
-	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/oauth2"
@@ -44,21 +43,25 @@ func newStrategy(secret []byte, config fosite.Configurator) (*strategy, error) {
 func (s *strategy) GenerateAuthorizeCode(
 	ctx context.Context,
 	requester fosite.Requester,
-) (token string, signature string, err error) {
-	token, err = encrypt.EncryptCBOR(requester.GetSession().(*authSession), s.encryptionKey)
-	return token, token, err
+) (code string, signature string, err error) {
+	code, err = requester.GetSession().(*session).getAuthCode(s.encryptionKey)
+	return code, code, err
 }
 
 // ValidateAuthorizeCode implements oauth2.CoreStrategy.
 func (s *strategy) ValidateAuthorizeCode(
 	ctx context.Context,
 	requester fosite.Requester,
-	token string,
-) (err error) {
-	return encrypt.DecryptCBOR(token, s.encryptionKey, nil)
+	code string,
+) error {
+	_, err := decodeSession(code, s.encryptionKey)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // AuthorizeCodeSignature implements oauth2.CoreStrategy.
-func (s *strategy) AuthorizeCodeSignature(ctx context.Context, token string) string {
-	return token
+func (s *strategy) AuthorizeCodeSignature(ctx context.Context, code string) string {
+	return code
 }

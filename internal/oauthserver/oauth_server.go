@@ -4,29 +4,27 @@ package oauthserver
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"sync"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/login"
-	"github.com/habitat-network/habitat/internal/node"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/oauth2"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
 )
@@ -37,126 +35,17 @@ const (
 	sessionName = "auth-session"
 )
 
+func init() {
+	gob.Register(authRequestFlash{})
+}
+
 // authRequestFlash stores the authorization request state in a session flash.
 // This data is temporarily stored during the OAuth authorization flow to preserve
 // request context across redirects.
 type authRequestFlash struct {
-	Form          url.Values      // Original authorization request form data
-	LoginMethod   org.LoginMethod // Which login method initiated this flow
-	ProviderState []byte          // Opaque provider-specific state
-	Did           syntax.DID      // DID of the user
-}
-
-type metrics struct {
-	// HandleAuthorize
-	authorizeErrCtr     metric.Int64Counter
-	authorizeSuccessCtr metric.Int64Counter
-
-	// HandleCallback
-	callbackErrCtr     metric.Int64Counter
-	callbackSuccessCtr metric.Int64Counter
-
-	// HandleToken
-	refreshTokenRequestCtr metric.Int64Counter
-}
-
-func newMetrics(meter metric.Meter) (*metrics, error) {
-	authorizeErrCtr, err := meter.Int64Counter(
-		"oauth.authorize.err",
-		metric.WithUnit("Item"),
-		metric.WithDescription("counts errors in OAuth /authorize implementation"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	authorizeSuccessCtr, err := meter.Int64Counter(
-		"oauth.authorize.success",
-		metric.WithUnit("Item"),
-		metric.WithDescription("counts successes in OAuth /authorize implementation"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	callbackErrCtr, err := meter.Int64Counter(
-		"oauth.callback.err",
-		metric.WithUnit("Item"),
-		metric.WithDescription("counts errors in OAuth /callback implementation"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	callbackSuccessCtr, err := meter.Int64Counter(
-		"oauth.callback.success",
-		metric.WithUnit("Item"),
-		metric.WithDescription("counts successes in OAuth /callback implementation"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	refreshTokenRequestCtr, err := meter.Int64Counter(
-		"oauth.refresh_token.request",
-		metric.WithUnit("Item"),
-		metric.WithDescription("counts request to refresh an OAuth token with habitat"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &metrics{
-		authorizeErrCtr:        authorizeErrCtr,
-		authorizeSuccessCtr:    authorizeSuccessCtr,
-		callbackErrCtr:         callbackErrCtr,
-		callbackSuccessCtr:     callbackSuccessCtr,
-		refreshTokenRequestCtr: refreshTokenRequestCtr,
-	}, nil
-}
-
-func (m *metrics) authorizeErr(err error, reason string) {
-	if errors.Is(err, context.Canceled) {
-		return
-	}
-	m.authorizeErrCtr.Add(
-		context.Background(),
-		1,
-		metric.WithAttributeSet(
-			attribute.NewSet(
-				attribute.String("reason", reason),
-			),
-		),
-	)
-}
-
-func (m *metrics) authorizeSuccess() {
-	m.authorizeSuccessCtr.Add(
-		context.Background(),
-		1,
-	)
-}
-
-func (m *metrics) callbackErr(err error, reason string) {
-	if errors.Is(err, context.Canceled) {
-		return
-	}
-	m.callbackErrCtr.Add(
-		context.Background(),
-		1,
-		metric.WithAttributeSet(
-			attribute.NewSet(
-				attribute.String("reason", reason),
-			),
-		),
-	)
-}
-
-func (m *metrics) callbackSuccess() {
-	m.callbackSuccessCtr.Add(
-		context.Background(),
-		1,
-	)
+	Form          url.Values // Original authorization request form data
+	ProviderState []byte     // Opaque provider-specific state
+	Did           syntax.DID // DID of the user
 }
 
 // OAuthServer implements an OAuth 2.0 authorization server with AT Protocol integration.
@@ -166,20 +55,19 @@ type OAuthServer struct {
 	// Metrics
 	metrics *metrics
 
-	// The habitat service name to look up in DID docs.
-	node node.Node
-
 	provider    fosite.OAuth2Provider
-	loginRouter *login.Router      // Routes login flows by org login method
+	loginRouter *org.LoginRouter   // Routes login flows by org login method
 	directory   identity.Directory // AT Protocol identity directory for handle resolution
 	storage     *store
 
-	// Store a map of opaque cookie id --> flash between Authorize and Callback since session cookies have a size limit
-	flashMu    sync.Mutex
-	flashStore map[string]*authRequestFlash
-
 	// Org store for membership lookups
 	orgStore org.Store
+
+	// Session store for OAuth flash data across redirects
+	sessionStore sessions.Store
+
+	// issuer origin (https URL, no path) the discovery metadata is built from.
+	issuer string
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -187,6 +75,7 @@ type OAuthServer struct {
 // The server is configured with:
 //   - Authorization Code Grant with PKCE
 //   - Refresh Token Grant
+//   - JWT Bearer Grant (RFC 7523) for a hardcoded allow-list of clients
 //   - JWT token strategy for access tokens
 //   - Integration with AT Protocol identity directory
 //   - Database storage for OAuth sessions and PDS tokens
@@ -195,29 +84,38 @@ type OAuthServer struct {
 //   - loginRouter: Routes login flows by DID service endpoint
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
 //   - db: GORM database connection for storing OAuth sessions
+//   - issuer: this server's issuer origin (an https URL with no path), from
+//     which the endpoint URLs in the discovery metadata and the token endpoint
+//     URL (used to validate the "aud" claim of JWT Bearer assertions) are built
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
 	secret []byte,
-	loginRouter *login.Router,
-	node node.Node,
+	loginRouter *org.LoginRouter,
 	directory identity.Directory,
 	db *gorm.DB,
 	meter metric.Meter,
 	orgStore org.Store,
+	issuer string,
+	approvedJwtBearerClients ApprovedClientStore,
 ) (*OAuthServer, error) {
 	config := &fosite.Config{
 		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
 		ScopeStrategy:              scopeStrategy,
+		TokenURL:                   issuer + "/oauth/token",
+		// The JWT Bearer grant identifies the client solely via the "iss"
+		// claim of the assertion (checked against jwtBearerAllowedClients),
+		// so a separate client_id/secret on the token request isn't required.
+		GrantTypeJWTBearerCanSkipClientAuth: true,
 	}
 
 	strategy, err := newStrategy(secret, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create strategy: %w", err)
 	}
-	storage, err := newStore(strategy, db)
+	storage, err := newStore(strategy, db, approvedJwtBearerClients)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}
@@ -225,6 +123,18 @@ func NewOAuthServer(
 	oauthMetrics, err := newMetrics(meter)
 	if err != nil {
 		return nil, err
+	}
+
+	if loginRouter.OrgStore == nil {
+		loginRouter.OrgStore = orgStore
+	}
+
+	cookieStore := sessions.NewCookieStore(secret)
+	cookieStore.Options = &sessions.Options{
+		Path:     "/oauth-callback",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
 	}
 
 	return &OAuthServer{
@@ -237,14 +147,23 @@ func NewOAuthServer(
 			compose.OAuth2RefreshTokenGrantFactory,
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
+			compose.RFC7523AssertionGrantFactory,
 		),
-		loginRouter: loginRouter,
-		flashStore:  make(map[string]*authRequestFlash),
-		directory:   directory,
-		node:        node,
-		storage:     storage,
-		orgStore:    orgStore,
+		loginRouter:  loginRouter,
+		sessionStore: cookieStore,
+		directory:    directory,
+		storage:      storage,
+		orgStore:     orgStore,
+		issuer:       issuer,
 	}, nil
+}
+
+// derefString returns the pointed-to string, or "" if the pointer is nil.
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func fositeErrReason(err error) string {
@@ -277,27 +196,29 @@ func (o *OAuthServer) HandleAuthorize(
 	ctx := r.Context()
 	requester, err := o.provider.NewAuthorizeRequest(ctx, r)
 	if err != nil {
-		o.metrics.authorizeErr(err, fositeErrReason(err))
+		o.metrics.authorizeErr(ctx, err, fositeErrReason(err))
 		o.provider.WriteAuthorizeError(ctx, w, requester, err)
 		return
 	}
 	if err = r.ParseForm(); err != nil {
-		o.metrics.authorizeErr(err, "parse_form")
-		utils.LogAndHTTPError(r.Context(), w, err, "failed to parse form", http.StatusBadRequest)
+		o.metrics.authorizeErr(ctx, err, "parse_form")
+		utils.LogAndHTTPError(ctx, w, err, "failed to parse form", http.StatusBadRequest)
 		return
 	}
 	handle := r.Form.Get("handle")
 	atid, err := syntax.ParseAtIdentifier(handle)
 	if err != nil {
-		o.metrics.authorizeErr(err, "parse_handle")
-		utils.LogAndHTTPError(r.Context(), w, err, "failed to parse handle", http.StatusBadRequest)
+		o.metrics.authorizeErr(ctx, err, "parse_handle")
+		utils.LogAndHTTPError(ctx, w, err, "failed to parse handle", http.StatusBadRequest)
 		return
 	}
-	id, err := o.directory.Lookup(ctx, atid)
+
+	// directory caches errors, so don't pass in the real context
+	id, err := o.directory.Lookup(context.Background(), atid)
 	if err != nil {
-		o.metrics.authorizeErr(err, "lookup_atid")
+		o.metrics.authorizeErr(ctx, err, "lookup_atid")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to lookup identity",
@@ -306,53 +227,11 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	// Look up org to determine the login method
-	org, err := o.orgStore.GetOrgForDID(ctx, id.DID)
+	redirect, providerState, err := o.loginRouter.Authorize(ctx, id.DID)
 	if err != nil {
-		o.metrics.authorizeErr(err, "no_org")
+		o.metrics.authorizeErr(ctx, err, "begin_login")
 		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"no org found for identity",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	provider, err := o.loginRouter.ByLoginMethod(org.LoginMethod(ctx))
-	if err != nil {
-		o.metrics.authorizeErr(err, "no_provider")
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"no login provider for org",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	// Look up the member's login ID (provider-specific identifier) from the store.
-	// If the DID isn't a member (e.g. everyone org), loginID stays empty.
-	member, err := o.orgStore.GetMember(ctx, id.DID)
-	if err != nil {
-		o.metrics.authorizeErr(err, "get_member")
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"no member found for identity",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	redirect, providerState, err := provider.Authorize(ctx, id, member.LoginID)
-	if err != nil {
-		o.metrics.authorizeErr(err, "begin_login")
-		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to initiate authorization",
@@ -361,41 +240,37 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	// Generate opaque flash id to store in cookie
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		o.metrics.authorizeErr(err, "gen_flash_id")
+	session, err := o.sessionStore.New(r, sessionName)
+	if err != nil {
+		o.metrics.authorizeErr(ctx, err, "new_session")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
-			"failed to generate session id",
+			"failed to create session",
 			http.StatusInternalServerError,
 		)
 		return
 	}
-	flashID := hex.EncodeToString(b)
-
-	o.flashMu.Lock()
-	o.flashStore[flashID] = &authRequestFlash{
+	session.AddFlash(&authRequestFlash{
 		Form:          requester.GetRequestForm(),
-		LoginMethod:   provider.LoginMethod(),
 		ProviderState: providerState,
 		Did:           id.DID,
-	}
-	o.flashMu.Unlock()
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionName,
-		Value:    flashID,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-		Path:     "/oauth-callback",
 	})
+	if err := o.sessionStore.Save(r, w, session); err != nil {
+		o.metrics.authorizeErr(ctx, err, "save_session")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to save session",
+			http.StatusInternalServerError,
+		)
+		return
+	}
 
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
-	o.metrics.authorizeSuccess()
+	o.metrics.authorizeSuccess(ctx)
 }
 
 // HandleCallback processes the OAuth callback from the user's PDS.
@@ -418,29 +293,24 @@ func (o *OAuthServer) HandleCallback(
 	r *http.Request,
 ) {
 	ctx := r.Context()
-	cookie, err := r.Cookie(sessionName)
+	session, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
-		o.metrics.callbackErr(err, "get_session")
+		o.metrics.callbackErr(ctx, err, "get_session")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
-			"failed to get session cookie",
+			"failed to get session",
 			http.StatusBadRequest,
 		)
 		return
 	}
 
-	// Lookup cookie --> flash
-	o.flashMu.Lock()
-	arf, ok := o.flashStore[cookie.Value]
-	delete(o.flashStore, cookie.Value)
-	o.flashMu.Unlock()
-
-	if !ok {
-		o.metrics.callbackErr(nil, "no_flash")
+	flashes := session.Flashes()
+	if len(flashes) == 0 {
+		o.metrics.callbackErr(ctx, nil, "no_flash")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			nil,
 			"no state found for session",
@@ -448,12 +318,37 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
+	arf, ok := flashes[0].(authRequestFlash)
+	if !ok {
+		o.metrics.callbackErr(ctx, nil, "invalid_flash_type")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			nil,
+			"invalid session data",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	session.Options.MaxAge = -1
+	if err := o.sessionStore.Save(r, w, session); err != nil {
+		o.metrics.callbackErr(ctx, err, "delete_session")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to clear session",
+			http.StatusInternalServerError,
+		)
+		return
+	}
 
 	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
 	if err != nil {
-		o.metrics.callbackErr(err, "recreate_req")
+		o.metrics.callbackErr(ctx, err, "recreate_req")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to recreate request",
@@ -463,9 +358,9 @@ func (o *OAuthServer) HandleCallback(
 	}
 	authRequest, err := o.provider.NewAuthorizeRequest(ctx, recreatedRequest)
 	if err != nil {
-		o.metrics.callbackErr(err, fositeErrReason(err))
+		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to recreate request",
@@ -474,70 +369,7 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	// Check the DID allowlist after reconstructing authRequest so we can redirect
-	// errors back to the client via WriteAuthorizeError instead of returning a raw 401.
-	org, err := o.orgStore.GetOrgForDID(r.Context(), arf.Did)
-	if err != nil {
-		o.metrics.callbackErr(err, "allowlist_dids")
-		o.provider.WriteAuthorizeError(
-			ctx,
-			w,
-			authRequest,
-			fosite.ErrAccessDenied.WithDescription("You are not a member of this habitat organization.").
-				WithHint(""),
-		)
-		return
-	}
-
-	// Re-check admin status for org-level scopes
-	for _, s := range authRequest.GetRequestedScopes() {
-		permission, err := permissionFromScope(s)
-		if err != nil {
-			o.metrics.authorizeErr(err, "bad_scope")
-			o.provider.WriteAuthorizeError(
-				ctx, w, authRequest,
-				fosite.ErrInvalidScope.WithDescription("Invalid scope: "+s),
-			)
-			return
-		}
-		if permission.Resource != "org" {
-			// don't need admin for non org scopes
-			continue
-		}
-		isAdmin, err := org.IsAdmin(ctx, arf.Did)
-		if err != nil {
-			o.metrics.callbackErr(err, "is_admin")
-			o.provider.WriteAuthorizeError(
-				ctx, w, authRequest,
-				fosite.ErrServerError,
-			)
-			return
-		}
-		if !isAdmin {
-			o.metrics.callbackErr(err, "not_admin")
-			o.provider.WriteAuthorizeError(
-				ctx, w, authRequest,
-				fosite.ErrAccessDenied.
-					WithDescription("Only org admins can authorize org-level permissions.").
-					WithHint(""),
-			)
-			return
-		}
-	}
-
-	provider, err := o.loginRouter.ByLoginMethod(arf.LoginMethod)
-	if err != nil {
-		o.metrics.callbackErr(err, "no_provider")
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"no login provider for session",
-			http.StatusBadRequest,
-		)
-		return
-	}
-	if err := provider.Exchange(
+	if err := o.loginRouter.Exchange(
 		ctx,
 		arf.Did,
 		r.URL.Query().Get("code"),
@@ -545,9 +377,9 @@ func (o *OAuthServer) HandleCallback(
 		r.URL.Query().Get("state"),
 		arf.ProviderState,
 	); err != nil {
-		o.metrics.callbackErr(err, "complete_login")
+		o.metrics.callbackErr(ctx, err, "complete_login")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to complete login",
@@ -556,34 +388,15 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	/*
-		// Comment this out in dev because it's unused and node uses the default dir which fails bc of subdomain funnels
-			if serves, err := o.node.ServesDID(r.Context(), arf.Did); err != nil {
-				o.metrics.callbackErr(err, "lookup_serves")
-				utils.LogAndHTTPError(r.Context(), w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
-				return
-			} else if !serves {
-				o.metrics.callbackErr(err, "wrong_server")
-				utils.LogAndHTTPError(
-					r.Context(),
-					w,
-					err,
-					"user's habitat service in DID doc does not match expected service",
-					http.StatusMethodNotAllowed,
-				)
-				return
-			}
-	*/
-
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,
 		authRequest,
 		newAuthorizeSession(authRequest, arf.Did),
 	)
 	if err != nil {
-		o.metrics.callbackErr(err, fositeErrReason(err))
+		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to create response",
@@ -591,7 +404,7 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
-	o.provider.WriteAuthorizeResponse(r.Context(), w, authRequest, resp)
+	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
 	o.metrics.callbackSuccess()
 }
 
@@ -600,6 +413,8 @@ func (o *OAuthServer) HandleCallback(
 // This handler supports the following grant types:
 //   - authorization_code: Exchange an authorization code for access and refresh tokens
 //   - refresh_token: Use a refresh token to obtain a new access token
+//   - urn:ietf:params:oauth:grant-type:jwt-bearer: Exchange a signed JWT assertion,
+//     from a hardcoded allow-list of clients, for an access token
 //
 // The handler:
 //  1. Validates the client's token request (client credentials, grant type, etc.)
@@ -613,7 +428,7 @@ func (o *OAuthServer) HandleCallback(
 func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 	ctx := r.Context()
-	req, err := o.provider.NewAccessRequest(ctx, r, &oauth2.JWTSession{})
+	req, err := o.provider.NewAccessRequest(ctx, r, newSession())
 	if err != nil {
 		logError(ctx, err)
 		o.provider.WriteAccessError(ctx, w, req, err)
@@ -648,79 +463,103 @@ func logError(ctx context.Context, err error) {
 var _ authn.Method = (*OAuthServer)(nil)
 
 func (o *OAuthServer) CanHandle(r *http.Request) bool {
+	tokenStr := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	token, err := jwt.ParseSigned(tokenStr)
+	if err != nil {
+		return false
+	}
+	if token.Headers[0].ExtraHeaders["typ"] == "oauth+JWT" {
+		return true
+	}
 	return r.Header.Get("Habitat-Auth-Method") == "oauth"
 }
 
-// Validate's the given token and writes an error response to w if validation fails
+// Validate validates the given token and writes an error response to w if validation fails
 func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
 	scopes ...string,
-) (syntax.DID, bool) {
+) (*authn.CredentialInfo, bool) {
 	token := fosite.AccessTokenFromRequest(r)
-	did, ok, err := o.ValidateRaw(r.Context(), token, scopes...)
+	credInfo, ok, err := o.ValidateRaw(r.Context(), token, scopes...)
 	if err != nil || !ok {
-		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
+		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, err)
 		// Unfortunately that was returning a 200 http response, so we write our own error here.
 		utils.WriteHTTPError(
 			w,
 			fmt.Errorf("unable to validate oauth token: %w", err),
 			http.StatusUnauthorized,
 		)
-		return "", false
+		return nil, false
 	}
 
-	_, err = o.orgStore.GetOrgForDID(r.Context(), did)
-	if err != nil {
-		utils.WriteHTTPError(
-			w,
-			fmt.Errorf("not a member of this organization"),
-			http.StatusUnauthorized,
-		)
-		return "", false
-	}
-
-	return did, true
+	return credInfo, true
 }
 
-// Validate's the given token and writes an error response to w if validation fails
+// ValidateRaw validates the given token and writes an error response to w if validation fails
 func (o *OAuthServer) ValidateRaw(
 	ctx context.Context,
 	token string,
 	scopes ...string,
-) (syntax.DID, bool, error) {
+) (*authn.CredentialInfo, bool, error) {
 	_, ar, err := o.provider.IntrospectToken(
 		ctx,
 		token,
 		fosite.AccessToken,
-		&oauth2.JWTSession{},
+		newSession(),
 		scopes...,
 	)
 	if err != nil {
-		return "", false, fmt.Errorf("invalid or expired token: %w", err)
+		return nil, false, fmt.Errorf("invalid or expired token: %w", err)
 	}
 	// Get the DID from the session subject (stored in JWT)
 	session := ar.GetSession().(*oauth2.JWTSession)
 	if session.JWTClaims == nil {
-		return "", false, fmt.Errorf("JWT claims not found")
+		return nil, false, fmt.Errorf("JWT claims not found")
 	}
 
 	did := session.JWTClaims.Subject
 	if did == "" {
-		return "", false, fmt.Errorf("DID not found in JWT")
+		return nil, false, fmt.Errorf("DID not found in JWT")
 	}
-	return syntax.DID(did), true, nil
+
+	credInfo := &authn.CredentialInfo{Subject: syntax.DID(did)}
+
+	org, isMember, err := o.orgStore.GetOrgForDID(ctx, syntax.DID(did))
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get org for DID: %w", err)
+	}
+	credInfo.Org = org
+	if isMember {
+		credInfo.Type = authn.UserCredential
+	} else {
+		credInfo.Type = authn.OrgCredential
+	}
+
+	return credInfo, true, nil
+}
+
+// HandleAuthServerMetadata serves the OAuth 2.0 Authorization Server Metadata
+// document at /.well-known/oauth-authorization-server.
+func (o *OAuthServer) HandleAuthServerMetadata(w http.ResponseWriter, r *http.Request) {
+	writeMetadataJSON(r.Context(), w, buildAuthServerMetadata(o.issuer))
+}
+
+// HandleProtectedResourceMetadata serves the OAuth 2.0 Protected Resource
+// Metadata document at /.well-known/oauth-protected-resource.
+func (o *OAuthServer) HandleProtectedResourceMetadata(w http.ResponseWriter, r *http.Request) {
+	writeMetadataJSON(r.Context(), w, buildProtectedResourceMetadata(o.issuer))
 }
 
 func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := o.Validate(w, r)
+	credInfo, ok := o.Validate(w, r)
 	if !ok {
 		return
 	}
 
 	var rows []ConnectedApp
 	err := o.storage.db.WithContext(r.Context()).
-		Where("subject = ?", callerDID).
+		Where("subject = ?", credInfo.Subject).
 		Find(&rows).Error
 	if err != nil {
 		utils.LogAndHTTPError(
@@ -750,35 +589,13 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 		}
 
 		c := fositeClient.(*client)
-		name := ""
-		if c.ClientName != nil {
-			name = *c.ClientName
-		}
-		clientURI := ""
-		if c.ClientURI != nil {
-			clientURI = *c.ClientURI
-		}
-		logoURI := ""
-		if c.LogoURI != nil {
-			logoURI = *c.LogoURI
-		}
 		output.Apps[i] = habitat.NetworkHabitatListConnectedAppsApp{
 			ClientID:  row.ClientID,
-			ClientUri: clientURI,
+			ClientUri: derefString(c.ClientURI),
 			LastUsed:  row.UpdatedAt.Format(time.RFC3339Nano),
-			Name:      name,
-			LogoUri:   logoURI,
+			Name:      derefString(c.ClientName),
+			LogoUri:   derefString(c.LogoURI),
 		}
 	}
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }

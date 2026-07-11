@@ -6,15 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"slices"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xslices"
-	"github.com/habitat-network/habitat/internal/inbox"
-	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
 
@@ -106,7 +102,7 @@ type Pear interface {
 		ctx context.Context,
 		caller syntax.DID,
 		collection syntax.NSID,
-		subjects []syntax.DID,
+		subjects []syntax.AtIdentifier,
 	) ([]repo.Record, error)
 	GetBlob(
 		ctx context.Context,
@@ -126,15 +122,6 @@ type Pear interface {
 		caller syntax.DID,
 		subject syntax.DID,
 	) (*RepoDescription, error)
-
-	// Inbox / Node-to-node communication related methods
-	NotifyOfUpdate(
-		ctx context.Context,
-		sender syntax.DID,
-		recipient syntax.DID,
-		collection string,
-		rkey string,
-	) error
 }
 
 // pear stands for Permission Enforcing ATProto Repo.
@@ -144,17 +131,11 @@ type Pear interface {
 type pear struct {
 	dir identity.Directory
 
-	// Context about where this pear lives and communicatino channel with other nodes
-	node node.Node
-
 	// Backing for permissions
 	permissions permissions.Store
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
 	repo repo.Repo
-
-	// Manage receiving updates for records (replacement for the Firehose)
-	inbox inbox.Inbox
 }
 
 // Pass throughs to implement permission.Store
@@ -254,22 +235,17 @@ var (
 	ErrPublicRecordExists     = fmt.Errorf("a public record exists with the same key")
 	ErrNotLocalRepo           = fmt.Errorf("the desired did does not live on this repo")
 	ErrRemoteFetchUnsupported = errors.New("fetches from remote pears are unsupported as of now")
-	ErrDIDNotServed           = errors.New("DID is not served by this node")
 )
 
 func NewPear(
-	node node.Node,
 	dir identity.Directory,
 	perms permissions.Store,
 	repo repo.Repo,
-	inbox inbox.Inbox,
 ) *pear {
 	return &pear{
-		node:        node,
 		dir:         dir,
 		permissions: perms,
 		repo:        repo,
-		inbox:       inbox,
 	}
 }
 
@@ -464,18 +440,7 @@ func (p *pear) GetRecord(
 		return nil, habitat_err.ErrNoSettingCliques
 	}
 
-	ok, err := p.node.ServesDID(ctx, target)
-	if err != nil {
-		return nil, err
-	}
-
-	if ok {
-		return p.getRecordLocal(ctx, collection, rkey, target, caller)
-	}
-
-	return nil, ErrRemoteFetchUnsupported
-	// TODO: implement
-	// return p.getRecordRemote(ctx, collection, rkey, target, caller)
+	return p.getRecordLocal(ctx, collection, rkey, target, caller)
 }
 
 // DeleteRecord implements Pear.
@@ -488,15 +453,6 @@ func (p *pear) DeleteRecord(
 ) error {
 	if caller != target {
 		return habitat_err.ErrUnauthorized
-	}
-
-	ok, err := p.node.ServesDID(ctx, target)
-	if err != nil {
-		return err
-	}
-
-	if !ok {
-		return ErrDIDNotServed
 	}
 
 	return p.repo.DeleteRecord(ctx, target.String(), collection.String(), rkey.String())
@@ -564,10 +520,19 @@ func (p *pear) ListRecords(
 	ctx context.Context,
 	caller syntax.DID,
 	collection syntax.NSID,
-	subjects []syntax.DID,
+	subjects []syntax.AtIdentifier,
 ) ([]repo.Record, error) {
 	// Get records owned by this repo
-	localRecords, err := p.listRecordsLocal(ctx, collection, caller, subjects)
+	dids := make([]syntax.DID, len(subjects))
+	for i, atid := range subjects {
+		id, err := p.dir.Lookup(ctx, atid)
+		if err != nil {
+			return nil, err
+		}
+		dids[i] = id.DID
+	}
+
+	localRecords, err := p.listRecordsLocal(ctx, collection, caller, dids)
 	if err != nil {
 		return nil, err
 	}
@@ -642,65 +607,12 @@ func (p *pear) DescribeRepo(
 	}, nil
 }
 
-func (p *pear) getBlobRemote(
-	ctx context.Context,
-	caller syntax.DID,
-	target syntax.DID,
-	cid syntax.CID,
-) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {
-	// Otherwise, forward this request to the right repo (the clique member)
-	reqURL, err := url.Parse("/xrpc/network.habitat.repo.getBlob")
-	if err != nil {
-		return "", "", nil, err
-	}
-
-	q := reqURL.Query()
-	q.Set("did", target.String())
-	q.Set("cid", cid.String())
-	reqURL.RawQuery = q.Encode()
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		reqURL.String(),
-		nil,
-	)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("constructing http request for remote resolve: %w", err)
-	}
-
-	resp, err := p.node.SendXRPC(ctx, caller, target, req)
-	if err != nil {
-		return "", "", nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		mimeType := resp.Header.Get("Content-Type")
-		contentLen := resp.Header.Get("Content-Length")
-		return mimeType, contentLen, resp.Body, nil
-	case http.StatusUnauthorized, http.StatusForbidden:
-		return "", "", nil, habitat_err.ErrUnauthorized
-	default:
-		return "", "", nil, fmt.Errorf("unexpected status from remote getBlob: %d", resp.StatusCode)
-	}
-}
-
 func (p *pear) GetBlob(
 	ctx context.Context,
 	caller syntax.DID,
 	target syntax.DID,
 	cid syntax.CID,
 ) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {
-	serves, err := p.node.ServesDID(ctx, target)
-	if err != nil {
-		return "", "", nil, err
-	}
-
-	if !serves {
-		return p.getBlobRemote(ctx, caller, target, cid)
-	}
 	authz := false
 
 	if caller == target {
@@ -756,14 +668,4 @@ func (p *pear) UploadBlob(
 		return nil, habitat_err.ErrUnauthorized
 	}
 	return p.repo.UploadBlob(ctx, target.String(), data, mimeType)
-}
-
-func (p *pear) NotifyOfUpdate(
-	ctx context.Context,
-	sender syntax.DID,
-	recipient syntax.DID,
-	collection string,
-	rkey string,
-) error {
-	return p.inbox.Put(ctx, sender, recipient, syntax.NSID(collection), rkey)
 }

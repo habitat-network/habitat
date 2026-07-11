@@ -4,34 +4,56 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/schema"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
+
+// errEmptyRepo signals that a repo holds no records, so there is nothing to
+// commit over. It is handled internally and never returned to clients.
+var errEmptyRepo = errors.New("repo has no records")
 
 type Server struct {
 	store       Store
 	fga         fgastore.Store
 	oauth       authn.Method
 	serviceAuth authn.Method
+	delegation  authn.Method
 	decoder     *schema.Decoder
 	orgStore    org.Store
+	commit      *spacecommit.Authority
+	hive        hive.Hive
 }
 
+// NewServer constructs the spaces server. host and member are the commit
+// signers: member signs commits for habitat-managed repo owners with their own
+// key (proposal spec), and host signs for owners on external PDSes with
+// Habitat's single host key. Either may be nil; when neither can sign an
+// author, listRepoOps omits the signed commit.
 func NewServer(
 	store Store,
 	fga fgastore.Store,
 	oauth authn.Method,
 	serviceAuth authn.Method,
+	delegation *authn.DelegationTokenAuthMethod,
 	orgStore org.Store,
+	hostPrivateKey atcrypto.PrivateKey,
+	hive hive.Hive,
 ) *Server {
 	return &Server{
 		store:       store,
@@ -40,6 +62,9 @@ func NewServer(
 		serviceAuth: serviceAuth,
 		decoder:     schema.NewDecoder(),
 		orgStore:    orgStore,
+		commit:      spacecommit.NewAuthority(hostPrivateKey, hive),
+		hive:        hive,
+		delegation:  delegation,
 	}
 }
 
@@ -47,6 +72,7 @@ func NewServer(
 // using the owner contextual tuple so space owners always pass.
 func (s *Server) authorize(
 	ctx context.Context,
+	callerOrg syntax.DID,
 	callerDID syntax.DID,
 	spaceURI habitat_syntax.SpaceURI,
 	relation string,
@@ -57,11 +83,15 @@ func (s *Server) authorize(
 		relation,
 		fgastore.SpaceObjectKey(spaceURI),
 		ownerContextualTuple(spaceURI),
+		fgastore.OrgMemberContextualTuple(callerOrg),
 	)
 }
 
 func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -72,9 +102,8 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceType, err := syntax.ParseNSID(input.Type)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space type", http.StatusBadRequest)
+	spaceType, ok := httpx.ParseNSIDInput(r.Context(), w, input.Type, "space type")
+	if !ok {
 		return
 	}
 
@@ -88,7 +117,7 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		skey = parsedKey
 	}
 
-	callerOrg, err := s.orgStore.GetOrgForDID(r.Context(), callerDID)
+	callerOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -100,7 +129,7 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uri, err := s.store.CreateSpace(r.Context(), callerOrg.DID(), callerDID, spaceType, skey)
+	uri, err := s.store.CreateSpace(r.Context(), callerOrg.DID(), credInfo.Subject, spaceType, skey)
 	if errors.Is(err, ErrSpaceAlreadyExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -112,20 +141,11 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatSpaceCreateSpaceOutput{
 		Uri: uri.String(),
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth)
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -137,9 +157,8 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	}
 	var filterOwner *syntax.DID
 	if params.Did != "" {
-		ownerDid, err := syntax.ParseDID(params.Did)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse did", http.StatusBadRequest)
+		ownerDid, ok := httpx.ParseDIDInput(r.Context(), w, params.Did, "did")
+		if !ok {
 			return
 		}
 		filterOwner = &ownerDid
@@ -147,15 +166,20 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 
 	var filterType *syntax.NSID
 	if params.Type != "" {
-		t, err := syntax.ParseNSID(params.Type)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse type filter", http.StatusBadRequest)
+		t, ok := httpx.ParseNSIDInput(r.Context(), w, params.Type, "type filter")
+		if !ok {
 			return
 		}
 		filterType = &t
 	}
 
-	spaces, err := s.store.ListSpaces(r.Context(), callerDID, filterOwner, filterType)
+	spaces, err := s.store.ListSpaces(
+		r.Context(),
+		credInfo.Org.DID(),
+		credInfo.Subject,
+		filterOwner,
+		filterType,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "list spaces", http.StatusInternalServerError)
 		return
@@ -174,20 +198,14 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatSpaceListSpacesOutput{
 		Spaces: views,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -198,21 +216,20 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	if !ok {
 		return
 	}
 
-	memberDID, err := syntax.ParseDID(input.Did)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse member did", http.StatusBadRequest)
+	memberDID, ok := httpx.ParseDIDInput(r.Context(), w, input.Did, "did")
+	if !ok {
 		return
 	}
 
 	authorized, err := s.authorize(
 		r.Context(),
-		callerDID,
+		credInfo.Org.DID(),
+		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceMemberManager,
 	)
@@ -227,7 +244,10 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !authorized {
-		http.Error(w, "not authorized to manage members", http.StatusForbidden)
+		// TODO: we don't know if they're not authorize because they're not a member or
+		// because they don't have the right role. assume worst case and return not found
+		// need to return a reason from authorize
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
 		return
 	}
 
@@ -253,7 +273,10 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -264,21 +287,20 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	if !ok {
 		return
 	}
 
-	memberDID, err := syntax.ParseDID(input.Did)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse member did", http.StatusBadRequest)
+	memberDID, ok := httpx.ParseDIDInput(r.Context(), w, input.Did, "did")
+	if !ok {
 		return
 	}
 
 	authorized, err := s.authorize(
 		r.Context(),
-		callerDID,
+		credInfo.Org.DID(),
+		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceMemberManager,
 	)
@@ -293,7 +315,10 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !authorized {
-		http.Error(w, "not authorized to manage members", http.StatusForbidden)
+		// TODO: we don't know if they're not authorize because they're not a member or
+		// because they don't have the right role. assume worst case and return not found
+		// need to return a reason from authorize
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
 		return
 	}
 
@@ -304,7 +329,7 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	} else if errors.Is(err, ErrNotAMember) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
-	} else if errors.Is(err, ErrCannotRemoveOwner) {
+	} else if errors.Is(err, ErrCannotRemoveOrg) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	} else if err != nil {
@@ -315,25 +340,29 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
 
-	var params habitat.NetworkHabitatSpaceGetMembersParams
+	var params habitat.NetworkHabitatSpaceListReposParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	if params.Cursor != "" || params.Limit != 0 {
+		http.Error(w, "cursor and limit are not yet supported", http.StatusNotImplemented)
 		return
 	}
 
-	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+
+	isMember, err := s.store.IsMember(r.Context(), credInfo.Org.DID(), spaceURI, credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -345,44 +374,37 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !isMember {
-		http.Error(w, "not a member of this space", http.StatusForbidden)
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not a member"))
 		return
 	}
 
-	members, err := s.store.GetMembers(r.Context(), spaceURI)
+	repos, err := s.store.ListRepos(r.Context(), spaceURI)
 	if errors.Is(err, ErrSpaceNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteSpaceNotFound(r.Context(), w, err)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "get members", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "list repos", http.StatusInternalServerError)
 		return
 	}
 
-	memberViews := make([]habitat.NetworkHabitatSpaceGetMembersMember, len(members))
-	for i, m := range members {
-		memberViews[i] = habitat.NetworkHabitatSpaceGetMembersMember{
-			Did:     m.Did.String(),
-			AddedAt: m.AddedAt.Format("2006-01-02T15:04:05.000Z"),
+	repoViews := make([]habitat.NetworkHabitatSpaceListReposRepo, len(repos))
+	for i, r := range repos {
+		repoViews[i] = habitat.NetworkHabitatSpaceListReposRepo{
+			Did:  r.DID.String(),
+			Rev:  r.Rev,
+			Hash: r.Hash,
 		}
 	}
 
-	output := habitat.NetworkHabitatSpaceGetMembersOutput{
-		Members: memberViews,
+	output := habitat.NetworkHabitatSpaceListReposOutput{
+		Repos: repoViews,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -393,13 +415,32 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	if input.Validate {
+		httpx.WriteNotSupported(ctx, w, "validate is not yet supported")
+	}
+
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	if !ok {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceWriter)
+	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
+	if !ok {
+		return
+	}
+
+	if credInfo.Subject != repo {
+		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", fmt.Errorf("wrong repo"))
+		return
+	}
+
+	authorized, err := s.authorize(
+		r.Context(),
+		credInfo.Org.DID(),
+		credInfo.Subject,
+		spaceURI,
+		fgastore.RelationSpaceWriter,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -411,13 +452,23 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !authorized {
-		http.Error(w, "not authorized to write records in this space", http.StatusForbidden)
+		// TODO: we don't know if they're not authorize because they're not a member or
+		// because they don't have the right role. assume worst case and return not found
+		// need to return a reason from authorize
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
 		return
 	}
 
-	collection, err := syntax.ParseNSID(input.Collection)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
+	collection, ok := httpx.ParseNSIDInput(r.Context(), w, input.Collection, "collection")
+	if !ok {
+		return
+	}
+	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
+		http.Error(
+			w,
+			"relationship tuples must be managed via network.habitat.relationship.* endpoints",
+			http.StatusForbidden,
+		)
 		return
 	}
 
@@ -440,13 +491,13 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	recordUri, cid, err := s.store.PutRecord(
 		r.Context(),
 		spaceURI,
-		callerDID,
+		repo,
 		collection,
 		rkey,
 		value,
 	)
 	if errors.Is(err, ErrSpaceNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteSpaceNotFound(r.Context(), w, err)
 		return
 	} else if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "put record", http.StatusInternalServerError)
@@ -457,55 +508,52 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		Uri: recordUri.String(),
 		Cid: cid.String(),
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
 
 	var params habitat.NetworkHabitatSpaceGetRecordParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
+		utils.LogAndHTTPError(ctx, w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
 		return
 	}
-
-	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check membership",
-			http.StatusInternalServerError,
+	if credInfo.Subject != "" {
+		isMember, err := s.store.IsMember(
+			ctx,
+			credInfo.Org.DID(),
+			spaceURI,
+			credInfo.Subject,
 		)
-		return
+		if err != nil {
+			utils.LogAndHTTPError(
+				ctx,
+				w,
+				err,
+				"check membership",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+		if !isMember {
+			httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
+			return
+		}
 	}
-	if !isMember {
-		http.Error(w, "not a member of this space", http.StatusForbidden)
-		return
-	}
-
-	collection, err := syntax.ParseNSID(params.Collection)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
+	collection, ok := httpx.ParseNSIDInput(ctx, w, params.Collection, "collection")
+	if !ok {
 		return
 	}
 
@@ -515,16 +563,12 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owner := callerDID
-	if params.Repo != "" {
-		owner, err = syntax.ParseDID(params.Repo)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
-			return
-		}
+	repo, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
 	}
 
-	rec, err := s.store.GetRecord(r.Context(), spaceURI, owner, collection, rkey)
+	rec, err := s.store.GetRecord(r.Context(), spaceURI, repo, collection, rkey)
 	if errors.Is(err, ErrRecordNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -533,26 +577,18 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, owner, collection, rec.Rkey)
+	uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, collection, rec.Rkey)
 	output := habitat.NetworkHabitatSpaceGetRecordOutput{
 		Uri:   uri.String(),
 		Cid:   rec.Cid.String(),
 		Value: rec.Value,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -563,13 +599,12 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	if !ok {
 		return
 	}
 
-	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
+	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -581,36 +616,22 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !isMember {
-		http.Error(w, "not a member of this space", http.StatusForbidden)
+		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	}
 
 	var filterCollection *syntax.NSID
 	if params.Collection != "" {
-		c, err := syntax.ParseNSID(params.Collection)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"parse collection filter",
-				http.StatusBadRequest,
-			)
+		c, ok := httpx.ParseNSIDInput(r.Context(), w, params.Collection, "collection filter")
+		if !ok {
 			return
 		}
 		filterCollection = &c
 	}
 
-	var repo syntax.DID
-	if params.Repo != "" {
-		parsedRepo, err := syntax.ParseDID(params.Repo)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
-			return
-		}
-		repo = parsedRepo
-	} else {
-		repo = callerDID
+	repo, ok := httpx.ParseDIDInput(r.Context(), w, params.Repo, "repo")
+	if !ok {
+		return
 	}
 
 	records, err := s.store.ListRecords(r.Context(), spaceURI, repo, filterCollection)
@@ -625,63 +646,47 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			Collection: rec.Collection.String(),
 			Rkey:       rec.Rkey.String(),
 			Cid:        rec.Cid.String(),
-			UpdatedAt:  rec.UpdatedAt.Format("2006-01-02T15:04:05.000Z"),
-			Value:      rec.Value,
+		}
+		if !params.ExcludeValues {
+			recViews[i].Value = rec.Value
 		}
 	}
-
-	output := habitat.NetworkHabitatSpaceListRecordsOutput{
-		Records: recViews,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceListRecordsOutput{Records: recViews})
 }
 
-func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
-
-	var params habitat.NetworkHabitatSpaceGetRepoOplogParams
+	var params habitat.NetworkHabitatSpaceListRepoOpsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "invalid query params", err)
 		return
 	}
-
-	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
 		return
 	}
-
-	repoDID, err := syntax.ParseDID(params.Repo)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
+	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
 		return
 	}
-
-	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
+	isMember, err := s.store.IsMember(
+		ctx,
+		credInfo.Org.DID(),
+		spaceURI,
+		credInfo.Subject,
+	)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check membership",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
 		return
 	}
 	if !isMember {
-		http.Error(w, "not a member of this space", http.StatusForbidden)
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member: %w", err))
 		return
 	}
 
@@ -690,61 +695,116 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 		limit = 100
 	}
 
-	records, err := s.store.GetRepoOplog(r.Context(), spaceURI, repoDID, params.Since, limit)
+	records, err := s.store.ListRepoOps(ctx, spaceURI, repoDID, params.Since, limit)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "get repo oplog", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list repo ops: %w", err))
 		return
 	}
 
-	recViews := make([]habitat.NetworkHabitatSpaceGetRepoOplogRecord, len(records))
+	ops := make([]habitat.NetworkHabitatSpaceListRepoOpsOpEntry, len(records))
 	for i, rec := range records {
-		recViews[i] = habitat.NetworkHabitatSpaceGetRepoOplogRecord{
+		ops[i] = habitat.NetworkHabitatSpaceListRepoOpsOpEntry{
 			Rev:        rec.Rev,
 			Collection: rec.Collection.String(),
 			Rkey:       rec.Rkey.String(),
-			Value:      rec.Value,
 			Cid:        rec.Cid.String(),
+		}
+		if !params.ExcludeValues {
+			ops[i].Value = rec.Value
 		}
 	}
 
-	output := habitat.NetworkHabitatSpaceGetRepoOplogOutput{
-		Records: recViews,
-	}
+	output := habitat.NetworkHabitatSpaceListRepoOpsOutput{Ops: ops}
 	if len(records) > 0 {
 		output.Cursor = records[len(records)-1].Rev
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
+	// When this page reaches the head of the oplog (fewer ops than the limit) and
+	// a signer is available for the repo owner, include the current signed commit
+	// so a syncer can authenticate the state it has folded up to this point.
+	if len(records) < limit {
+		commit, err := s.buildRepoCommit(ctx, spaceURI, repoDID)
+		switch {
+		case err == nil:
+			output.Commit = commit
+		case errors.Is(err, errEmptyRepo), errors.Is(err, spacecommit.ErrNoSigner):
+			// Repo holds no records, or no signer covers the owner; omit the commit.
+		default:
+			httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))
+			return
+		}
 	}
+	httpx.WriteJSON(r.Context(), w, output)
+}
+
+// buildRepoCommit computes and signs the repo's current head commit. It returns
+// ok=false (after writing an HTTP error) only on an internal failure; a repo
+// with no records yields a zero commit with ok=true (the caller skips it).
+func (s *Server) buildRepoCommit(
+	ctx context.Context,
+	spaceURI habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (habitat.NetworkHabitatSpaceDefsSignedCommit, error) {
+	rev, hash, found, err := s.store.RepoHead(ctx, spaceURI, repo)
+	if err != nil {
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, fmt.Errorf("repo head: %w", err)
+	}
+	if !found {
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, errEmptyRepo
+	}
+	commit, err := s.commit.Build(ctx, spaceURI, repo, rev, hash)
+	if err != nil {
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, err
+	}
+	return habitat.NetworkHabitatSpaceDefsSignedCommit{
+		Ver:  int64(commit.Ver),
+		Hash: commit.Hash,
+		Ikm:  commit.Ikm,
+		Mac:  commit.Mac,
+		Sig:  commit.Sig,
+		Rev:  commit.Rev,
+	}, nil
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
 
 	var input habitat.NetworkHabitatSpaceDeleteRecordInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(ctx, w, err, "decode request body", http.StatusBadRequest)
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
+	if !ok {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceOwner)
+	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
+	if !ok {
+		return
+	}
+
+	if credInfo.Subject != repo {
+		httpx.WriteInvalidRequest(
+			ctx,
+			w,
+			"can't write to other repo",
+			fmt.Errorf("wrong repo"),
+		)
+	}
+
+	authorized, err := s.authorize(
+		r.Context(),
+		credInfo.Org.DID(),
+		credInfo.Subject,
+		spaceURI,
+		fgastore.RelationSpaceOwner,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -756,37 +816,36 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !authorized {
-		http.Error(w, "not authorized to delete records in this space", http.StatusForbidden)
+		// TODO: we don't know if they're not authorize because they're not a member or
+		// because they don't have the right role. assume worst case and return not found
+		// need to return a reason from authorize
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not authorized to delete"))
 		return
 	}
 
-	collection, err := syntax.ParseNSID(input.Collection)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
+	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
+	if !ok {
+		return
+	}
+	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
+		httpx.WriteInvalidRequest(ctx, w, "invalid collection", err)
 		return
 	}
 
-	err = s.store.DeleteRecord(r.Context(), spaceURI, collection, input.Rkey)
+	err = s.store.DeleteRecord(r.Context(), spaceURI, repo, collection, input.Rkey)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "delete record", http.StatusInternalServerError)
 		return
 	}
 
 	output := habitat.NetworkHabitatSpaceDeleteRecordOutput{}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -797,13 +856,18 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	if !ok {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceOwner)
+	authorized, err := s.authorize(
+		r.Context(),
+		credInfo.Org.DID(),
+		credInfo.Subject,
+		spaceURI,
+		fgastore.RelationSpaceOwner,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -815,13 +879,16 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !authorized {
-		http.Error(w, "not authorized to delete this space", http.StatusForbidden)
+		// TODO: we don't know if they're not authorize because they're not a member or
+		// because they don't have the right role. assume worst case and return not found
+		// need to return a reason from authorize
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to delete space"))
 		return
 	}
 
 	err = s.store.DeleteSpace(r.Context(), spaceURI)
 	if errors.Is(err, ErrSpaceNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteSpaceNotFound(r.Context(), w, err)
 		return
 	} else if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "delete space", http.StatusInternalServerError)
@@ -830,4 +897,52 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.delegation)).Validate(w, r)
+	if !ok {
+		return
+	}
+	var input habitat.NetworkHabitatSpaceGetSpaceCredentialInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	if input.ClientAttestation != "" {
+		httpx.WriteNotSupported(ctx, w, "client attestation is not yet supported")
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
+	if !ok {
+		return
+	}
+	if credInfo.Space != spaceURI {
+		httpx.WriteInvalidRequest(ctx, w, "param doesn't match token", nil)
+		return
+	}
+	privKey, err := s.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
+	if err != nil {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
+		return
+	}
+	token, err := new(jwt.Token{
+		Method: jwt.GetSigningMethod("ES256K"),
+		Claims: jwt.MapClaims{
+			"iss": spaceURI.SpaceOwner(),
+			"sub": spaceURI,
+			"iat": jwt.NewNumericDate(time.Now()),
+			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)),
+			"jti": utils.RandomNonce(16),
+		},
+		Header: map[string]any{
+			"typ": "atproto-space-credential+jwt",
+			"kid": "#atproto", // TODO: should probably switch to #atproto_space when hive supports it
+		},
+	}).SignedString(privKey)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign token: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: token})
 }
