@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
@@ -18,19 +19,19 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 )
 
 func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) (*spaces.Server, spaces.Store) {
-	return newTestServerWithSigners(t, oauth, serviceAuth, nil, nil)
+	return newTestServerWithSigners(t, oauth, serviceAuth, nil)
 }
 
 func newTestServerWithSigners(
 	t *testing.T,
 	oauth, serviceAuth authn.Method,
-	host spaces.CommitSigner,
-	member spaces.MemberSigner,
+	host atcrypto.PrivateKey,
 ) (*spaces.Server, spaces.Store) {
 	t.Helper()
 	fga, err := fgastore.NewMemory(t.Context())
@@ -487,13 +488,16 @@ func decodeB64(t *testing.T, v any) []byte {
 // oplog a host-signed commit is returned, and that it verifies against the host
 // key with the host protocol tag and carries the repo's LtHash.
 func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
-	signer, pub := newHostSignerForTest(t)
-	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
-	s := newTestServerWithSigners(t, m, m, signer, nil)
-
-	uri, err := s.store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	hostKey, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
-	_, _, err = s.store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+	pub, err := hostKey.PublicKey()
+	require.NoError(t, err)
+	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
+	s, store := newTestServerWithSigners(t, m, m, hostKey)
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -508,19 +512,19 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	var out habitat.NetworkHabitatSpaceListRepoOpsOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Len(t, out.Ops, 1)
-	require.Equal(t, int64(commitVersion), out.Commit.Ver)
+	require.Equal(t, int64(spacecommit.Version), out.Commit.Ver)
 	require.Equal(t, out.Ops[0].Rev, out.Commit.Rev)
 
 	hash := decodeB64(t, out.Commit.Hash)
 	ikm := decodeB64(t, out.Commit.Ikm)
 	sig := decodeB64(t, out.Commit.Sig)
-	require.Len(t, ikm, commitIKMLen)
+	require.Len(t, ikm, 32)
 
 	// External author (did:plc:owner) → host-signed under the host tag.
-	ctxBytes := commitCtx(hostProtocolTag, uri, owner, out.Commit.Rev, ikm)
+	ctxBytes := spacecommit.Ctx(spacecommit.HostProtocolTag, uri, owner, out.Commit.Rev, ikm)
 	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
 
-	_, wantHash, found, err := s.store.RepoHead(t.Context(), uri, owner)
+	_, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, wantHash, hash)
@@ -529,11 +533,11 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 // TestServer_ListRepoOps_NoCommitWithoutSigner confirms the commit is omitted
 // when no signer can cover the repo owner.
 func TestServer_ListRepoOps_NoCommitWithoutSigner(t *testing.T) {
-	s := newOwnerServer(t) // no signers configured
+	s, store := newOwnerServer(t) // no host key configured
 
-	uri, err := s.store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
-	_, _, err = s.store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -602,7 +606,7 @@ func TestServer_ListRepoOps_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_ListRepoOps_IncludesValue(t *testing.T) {

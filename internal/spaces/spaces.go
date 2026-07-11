@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -382,16 +383,16 @@ func loadRepoHash(
 	tx *gorm.DB,
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
-) (ltHash, syntax.TID, bool, error) {
+) (spacecommit.LtHash, syntax.TID, bool, error) {
 	var row repoHashState
 	err := tx.Where("space = ? AND repo = ?", space, repo).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ltHash{}, "", false, nil
+		return spacecommit.LtHash{}, "", false, nil
 	}
 	if err != nil {
-		return ltHash{}, "", false, err
+		return spacecommit.LtHash{}, "", false, err
 	}
-	return loadLtHash(row.State), row.Rev, true, nil
+	return spacecommit.Load(row.State), row.Rev, true, nil
 }
 
 // saveRepoHash persists a repo's LtHash state and rev.
@@ -399,13 +400,13 @@ func saveRepoHash(
 	tx *gorm.DB,
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
-	h ltHash,
+	h spacecommit.LtHash,
 	rev syntax.TID,
 ) error {
 	return tx.Save(&repoHashState{
 		Space: space,
 		Repo:  repo,
-		State: h.state(),
+		State: h.State(),
 		Rev:   rev,
 	}).Error
 }
@@ -436,11 +437,11 @@ func (s *store) ListRepos(
 
 	repos := make([]RepoInfo, len(rows))
 	for i, row := range rows {
-		h := loadLtHash(row.State)
+		h := spacecommit.Load(row.State)
 		repos[i] = RepoInfo{
 			DID:  row.Repo,
 			Rev:  string(row.Rev),
-			Hash: h.sum(),
+			Hash: h.Sum(),
 		}
 	}
 	return repos, nil
@@ -663,9 +664,9 @@ func (s *store) PutRecord(
 			return err
 		}
 		if existErr == nil {
-			h.remove(recordElement(collection.String(), rkey.String(), existing.Cid))
+			h.Remove(spacecommit.RecordElement(collection.String(), rkey.String(), existing.Cid))
 		}
-		h.add(recordElement(collection.String(), rkey.String(), cid.String()))
+		h.Add(spacecommit.RecordElement(collection.String(), rkey.String(), cid.String()))
 		if err := saveRepoHash(tx, spaceUri, repo, h, tid); err != nil {
 			return err
 		}
@@ -867,7 +868,7 @@ func (s *store) RepoHead(
 	if !found {
 		return "", nil, false, nil
 	}
-	return string(rev), h.sum(), true, nil
+	return string(rev), h.Sum(), true, nil
 }
 
 func (s *store) DeleteRecord(
@@ -911,7 +912,7 @@ func (s *store) DeleteRecord(
 			return err
 		}
 		for _, row := range rows {
-			h.remove(recordElement(row.Collection.String(), row.Rkey.String(), row.Cid))
+			h.Remove(spacecommit.RecordElement(row.Collection.String(), row.Rkey.String(), row.Cid))
 		}
 
 		// Drop the hash row entirely once the repo holds no more records, so it
