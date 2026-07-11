@@ -125,7 +125,14 @@ func SerializeRepoCAR(
 
 	var buf []byte
 	writer := &bytesWriter{buf: &buf}
-	if err := writeRepoCAR(writer, commitCID, commitBytes, indexCID, indexBytes, sorted); err != nil {
+	if err := writeRepoCAR(
+		writer,
+		commitCID,
+		commitBytes,
+		indexCID,
+		indexBytes,
+		sorted,
+	); err != nil {
 		return nil, err
 	}
 	return buf, nil
