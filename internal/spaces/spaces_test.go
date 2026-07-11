@@ -183,8 +183,8 @@ func TestListRepos_HashMatchesLtHash(t *testing.T) {
 	require.Len(t, repos, 1)
 
 	var expected spacecommit.LtHash
-	expected.Add(spacecommit.RecordElement(coll.String(), "k1", cid1.String()))
-	expected.Add(spacecommit.RecordElement(coll.String(), "k2", cid2.String()))
+	expected.Add(spacecommit.RecordElement(coll, "k1", cid1.String()))
+	expected.Add(spacecommit.RecordElement(coll, "k2", cid2.String()))
 	require.Equal(t, expected.Sum(), repos[0].Hash)
 }
 
@@ -433,7 +433,7 @@ func TestRepoHash_IncrementalOnUpdateAndDelete(t *testing.T) {
 	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
 	require.NoError(t, err)
 	var want1 spacecommit.LtHash
-	want1.Add(spacecommit.RecordElement(coll.String(), "k1", cid1.String()))
+	want1.Add(spacecommit.RecordElement(coll, "k1", cid1.String()))
 	_, hash, found, err := s.RepoHead(t.Context(), uri, owner)
 	require.NoError(t, err)
 	require.True(t, found)
@@ -444,7 +444,7 @@ func TestRepoHash_IncrementalOnUpdateAndDelete(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, cid1.String(), cid2.String())
 	var want2 spacecommit.LtHash
-	want2.Add(spacecommit.RecordElement(coll.String(), "k1", cid2.String()))
+	want2.Add(spacecommit.RecordElement(coll, "k1", cid2.String()))
 	_, hash, _, err = s.RepoHead(t.Context(), uri, owner)
 	require.NoError(t, err)
 	require.Equal(t, want2.Sum(), hash, "update must not leave the old cid folded in")
@@ -467,7 +467,13 @@ func TestDeleteRecord_Nonexistent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deleting a nonexistent record should not error
-	err = s.DeleteRecord(t.Context(), uri, owner, syntax.NSID("network.habitat.note"), "nonexistent")
+	err = s.DeleteRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"nonexistent",
+	)
 	require.NoError(t, err)
 }
 
