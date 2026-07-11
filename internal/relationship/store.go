@@ -165,7 +165,7 @@ func (s *Store) DeleteTuple(ctx context.Context, uri habitat_syntax.SpaceRecordU
 	// runs first, so if the FGA delete fails the record delete is rolled back.
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := s.spaces.WithTx(tx).
-			DeleteRecord(ctx, space, collection, rkey.String()); err != nil {
+			DeleteRecord(ctx, space, repo, collection, rkey.String()); err != nil {
 			return err
 		}
 		return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{

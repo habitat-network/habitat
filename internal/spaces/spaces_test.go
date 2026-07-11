@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	"github.com/stretchr/testify/require"
@@ -161,6 +162,30 @@ func TestListRepos_WithRecords(t *testing.T) {
 	}
 	require.ElementsMatch(t, []syntax.DID{owner, alice}, dids)
 	require.NotEmpty(t, repos[0].Rev)
+}
+
+// TestListRepos_HashMatchesLtHash verifies the reported repo hash equals an
+// independently computed LtHash over the repo's (collection/rkey/cid) elements.
+func TestListRepos_HashMatchesLtHash(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	repos, err := s.ListRepos(t.Context(), uri)
+	require.NoError(t, err)
+	require.Len(t, repos, 1)
+
+	var expected spacecommit.LtHash
+	expected.Add(spacecommit.RecordElement(coll, "k1", cid1.String()))
+	expected.Add(spacecommit.RecordElement(coll, "k2", cid2.String()))
+	require.Equal(t, expected.Sum(), repos[0].Hash)
 }
 
 func TestListRepos_SpaceNotFound(t *testing.T) {
@@ -389,11 +414,50 @@ func TestDeleteRecord(t *testing.T) {
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"x": 1})
 	require.NoError(t, err)
 
-	err = s.DeleteRecord(t.Context(), uri, coll, "rkey")
+	err = s.DeleteRecord(t.Context(), uri, owner, coll, "rkey")
 	require.NoError(t, err)
 
 	_, err = s.GetRecord(t.Context(), uri, owner, coll, "rkey")
 	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+}
+
+// TestRepoHash_IncrementalOnUpdateAndDelete verifies the cached LtHash is
+// maintained in the write path: an update folds the old cid out (not just the
+// new one in), and deleting the last record drops the repo from the writer set.
+func TestRepoHash_IncrementalOnUpdateAndDelete(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+	coll := syntax.NSID("network.habitat.note")
+
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+	var want1 spacecommit.LtHash
+	want1.Add(spacecommit.RecordElement(coll, "k1", cid1.String()))
+	_, hash, found, err := s.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, want1.Sum(), hash)
+
+	// Update the same rkey: the old element must be folded out and the new in.
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 2})
+	require.NoError(t, err)
+	require.NotEqual(t, cid1.String(), cid2.String())
+	var want2 spacecommit.LtHash
+	want2.Add(spacecommit.RecordElement(coll, "k1", cid2.String()))
+	_, hash, _, err = s.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.Equal(t, want2.Sum(), hash, "update must not leave the old cid folded in")
+
+	// Delete the last record: the repo leaves the writer set.
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))
+	_, _, found, err = s.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.False(t, found)
+
+	repos, err := s.ListRepos(t.Context(), uri)
+	require.NoError(t, err)
+	require.Empty(t, repos)
 }
 
 func TestDeleteRecord_Nonexistent(t *testing.T) {
@@ -403,7 +467,13 @@ func TestDeleteRecord_Nonexistent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deleting a nonexistent record should not error
-	err = s.DeleteRecord(t.Context(), uri, syntax.NSID("network.habitat.note"), "nonexistent")
+	err = s.DeleteRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"nonexistent",
+	)
 	require.NoError(t, err)
 }
 

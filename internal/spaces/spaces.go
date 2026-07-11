@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -38,6 +39,18 @@ type spaceRecord struct {
 	Cid        string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+}
+
+// spaceRepo caches a permissioned repo's LtHash so reads (listRepos,
+// listRepoOps commit) don't rescan every record. State is the 2048-byte LtHash
+// buffer, maintained incrementally in the write path (folded in on put, out on
+// delete). Rev tracks the repo's latest write revision.
+type spaceRepo struct {
+	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Repo      syntax.DID              `gorm:"primaryKey"`
+	Hash      []byte
+	Rev       syntax.TID
+	UpdatedAt time.Time
 }
 
 // SpaceView is the public representation of a space
@@ -147,6 +160,7 @@ type Store interface {
 	DeleteRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
 		collection syntax.NSID,
 		rkey string,
 	) error
@@ -163,6 +177,14 @@ type Store interface {
 		since string,
 		limit int,
 	) ([]Record, error)
+
+	// RepoHead returns a repo's current head revision and LtHash commit hash.
+	// found is false when the repo holds no records in the space.
+	RepoHead(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+	) (rev string, hash []byte, found bool, err error)
 
 	// WithTx returns a copy of the store scoped to the given transaction, so its
 	// DB writes participate in a caller-managed transaction. FGA writes are not
@@ -214,7 +236,7 @@ func NewStore(
 	eventStore events.Store,
 	notifier Notifier,
 ) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}); err != nil {
+	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceRepo{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
 	return &store{
@@ -355,6 +377,40 @@ func (s *store) ListSpaces(
 	return views, nil
 }
 
+// loadRepoHash reads a repo's cached LtHash state and rev, or the zero hash and
+// empty rev (found=false) when no row exists yet.
+func loadRepoHash(
+	tx *gorm.DB,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (spacecommit.LtHash, syntax.TID, bool, error) {
+	var row spaceRepo
+	err := tx.Where("space = ? AND repo = ?", space, repo).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return spacecommit.LtHash{}, "", false, nil
+	}
+	if err != nil {
+		return spacecommit.LtHash{}, "", false, err
+	}
+	return spacecommit.Load(row.Hash), row.Rev, true, nil
+}
+
+// saveRepoHash persists a repo's LtHash state and rev.
+func saveRepoHash(
+	tx *gorm.DB,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	h spacecommit.LtHash,
+	rev syntax.TID,
+) error {
+	return tx.Save(&spaceRepo{
+		Space: space,
+		Repo:  repo,
+		Hash:  h.State(),
+		Rev:   rev,
+	}).Error
+}
+
 func (s *store) ListRepos(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
@@ -369,26 +425,23 @@ func (s *store) ListRepos(
 		return nil, err
 	}
 
-	type repoRev struct {
-		Repo syntax.DID
-		Rev  syntax.TID
-	}
-	var results []repoRev
+	// The writer set and each repo's hash come straight from the cached hash
+	// table, maintained incrementally by the write path — no record rescan.
+	var rows []spaceRepo
 	if err := s.db.WithContext(ctx).
-		Model(&spaceRecord{}).
-		Select("repo, MAX(rev) as rev").
 		Where("space = ?", uri).
-		Group("repo").
-		Find(&results).Error; err != nil {
+		Order("repo ASC").
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
-	repos := make([]RepoInfo, len(results))
-	for i, r := range results {
+	repos := make([]RepoInfo, len(rows))
+	for i, row := range rows {
+		h := spacecommit.Load(row.Hash)
 		repos[i] = RepoInfo{
-			DID:  r.Repo,
-			Rev:  string(r.Rev),
-			Hash: nil,
+			DID:  row.Repo,
+			Rev:  string(row.Rev),
+			Hash: h.Sum(),
 		}
 	}
 	return repos, nil
@@ -534,7 +587,7 @@ func (s *store) PutRecord(
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil, ErrSpaceNotFound
 	} else if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("failed to get space: %w", err)
 	}
 
 	bytes, err := atdata.MarshalCBOR(value)
@@ -557,7 +610,7 @@ func (s *store) PutRecord(
 				spaceUri,
 				repo,
 			).Error; err != nil {
-				return err
+				return fmt.Errorf("failed to acquire lock: %w", err)
 			}
 		}
 		action := "update"
@@ -570,7 +623,7 @@ func (s *store) PutRecord(
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			action = "create"
 		} else if err != nil {
-			return err
+			return fmt.Errorf("failed to get previous record: %w", err)
 		}
 		tid := s.clock.Next()
 		newRev = tid
@@ -593,8 +646,30 @@ func (s *store) PutRecord(
 				},
 			},
 		); err != nil {
-			return err
+			return fmt.Errorf("failed to append event: %w", err)
 		}
+
+		h, _, _, err := loadRepoHash(tx, spaceUri, repo)
+		if err != nil {
+			return fmt.Errorf("failed to load repo hash: %w", err)
+		}
+		// Maintain the cached LtHash: fold out this record's previous element (if
+		// it already existed) and fold in the new one, then advance the rev.
+		var existing spaceRecord
+		err = tx.
+			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+				spaceUri, repo, collection, rkey).
+			First(&existing).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to get existing record: %w", err)
+		} else if err == nil {
+			h.Remove(spacecommit.RecordElement(collection, rkey, existing.Cid))
+		}
+		h.Add(spacecommit.RecordElement(collection, rkey, cid.String()))
+		if err := saveRepoHash(tx, spaceUri, repo, h, tid); err != nil {
+			return fmt.Errorf("failed to save repo hash: %w", err)
+		}
+
 		return tx.Save(&spaceRecord{
 			Repo:       repo,
 			Space:      spaceUri,
@@ -780,19 +855,76 @@ func (s *store) ListRepoOps(
 	return records, nil
 }
 
+func (s *store) RepoHead(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (string, []byte, bool, error) {
+	h, rev, found, err := loadRepoHash(s.db.WithContext(ctx), uri, repo)
+	if err != nil {
+		return "", nil, false, fmt.Errorf("repo head: %w", err)
+	}
+	if !found {
+		return "", nil, false, nil
+	}
+	return string(rev), h.Sum(), true, nil
+}
+
 func (s *store) DeleteRecord(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
 	collection syntax.NSID,
 	rkey string,
 ) error {
-	result := s.db.WithContext(ctx).
-		Where("space = ? AND collection = ? AND rkey = ?",
-			uri, collection, rkey).
-		Delete(&spaceRecord{})
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if tx.Name() == "postgres" {
+			if err := tx.Exec(
+				`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`,
+				uri,
+				repo,
+			).Error; err != nil {
+				return err
+			}
+		}
 
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
+		var rows []spaceRecord
+		if err := tx.
+			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+				uri, repo, collection, rkey).
+			Find(&rows).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		if err := tx.
+			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+				uri, repo, collection, rkey).
+			Delete(&spaceRecord{}).Error; err != nil {
+			return err
+		}
+
+		// Fold the deleted records out of the cached LtHash.
+		h, rev, _, err := loadRepoHash(tx, uri, repo)
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			h.Remove(spacecommit.RecordElement(row.Collection, row.Rkey, row.Cid))
+		}
+
+		// Drop the hash row entirely once the repo holds no more records, so it
+		// leaves the writer set reported by ListRepos.
+		var remaining int64
+		if err := tx.Model(&spaceRecord{}).
+			Where("space = ? AND repo = ?", uri, repo).
+			Count(&remaining).Error; err != nil {
+			return err
+		}
+		if remaining == 0 {
+			return tx.Where("space = ? AND repo = ?", uri, repo).Delete(&spaceRepo{}).Error
+		}
+		return saveRepoHash(tx, uri, repo, h, rev)
+	})
 }
