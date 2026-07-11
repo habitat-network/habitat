@@ -14,6 +14,12 @@ tasks:
     inputs:
       - '@group(mod)'
       - '@group(internal_test)'
+  format:
+    inputs:
+      - '@group(internal_src)'
+  format-check:
+    inputs:
+      - '@group(internal_src)'
   lint:
     inputs:
       - '@group(internal_test)'
