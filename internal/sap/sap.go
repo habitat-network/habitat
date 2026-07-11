@@ -27,6 +27,7 @@ type Sap struct {
 	crawler     *crawler
 	orgManager  *orgManager
 	notify      *notifyServer
+	registrar   *registrar
 	metrics     *metrics
 }
 
@@ -74,12 +75,14 @@ func NewSap(config SapConfig) (*Sap, error) {
 	orgManager := newOrgManager(config.DB)
 
 	var notify *notifyServer
+	var registrar *registrar
 	if config.Directory != nil && config.NotifyAudience != "" {
 		validator := &auth.ServiceAuthValidator{
 			Dir:      config.Directory,
 			Audience: config.NotifyAudience,
 		}
 		notify = newNotifyServer(config.DB, resyncer, validator)
+		registrar = newRegistrar(config.DB, config.OAuthClient, config.NotifyAudience)
 	}
 
 	return &Sap{
@@ -92,6 +95,7 @@ func NewSap(config SapConfig) (*Sap, error) {
 		resyncer:    resyncer,
 		crawler:     crawler,
 		notify:      notify,
+		registrar:   registrar,
 		metrics:     m,
 	}, nil
 }
@@ -128,6 +132,13 @@ func (s *Sap) Start(ctx context.Context) error {
 		s.resyncer.run(ctx)
 		return nil
 	})
+
+	if s.registrar != nil {
+		eg.Go(func() error {
+			s.registrar.run(ctx)
+			return nil
+		})
+	}
 
 	err := eg.Wait()
 	return errors.Join(err, s.sub.closeSubscriptions())

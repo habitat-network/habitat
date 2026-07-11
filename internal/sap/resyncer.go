@@ -234,14 +234,25 @@ func (r *resyncer) runJob(ctx context.Context, logger *slog.Logger, job resyncJo
 
 // clientForSpace returns an OAuth http.Client for any managed account that can
 // access the space (as recorded during crawl), so the resyncer isn't tied to
-// the space owner being managed. It tries each associated account until one
-// yields a working client.
+// the space owner being managed.
 func (r *resyncer) clientForSpace(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 ) (*http.Client, error) {
+	return clientForSpace(ctx, r.db, r.oauthClient, space)
+}
+
+// clientForSpace picks any managed account that can access the space and returns
+// an OAuth http.Client authenticated as it. It tries each associated account
+// (plus the space owner when managed) until one yields a working client.
+func clientForSpace(
+	ctx context.Context,
+	db *gorm.DB,
+	oauthClient *oauthclient.App,
+	space habitat_syntax.SpaceURI,
+) (*http.Client, error) {
 	var assocs []managedSpace
-	if err := r.db.WithContext(ctx).
+	if err := db.WithContext(ctx).
 		Where("space = ?", space).
 		Find(&assocs).Error; err != nil {
 		return nil, fmt.Errorf("load managed accounts for space: %w", err)
@@ -266,11 +277,11 @@ func (r *resyncer) clientForSpace(
 	var errs []error
 	for _, did := range candidates {
 		var org managedOrg
-		if err := r.db.WithContext(ctx).First(&org, "did = ?", did).Error; err != nil {
+		if err := db.WithContext(ctx).First(&org, "did = ?", did).Error; err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		client, err := r.oauthClient.GetClient(ctx, org.DID, org.SessionID)
+		client, err := oauthClient.GetClient(ctx, org.DID, org.SessionID)
 		if err != nil {
 			errs = append(errs, err)
 			continue

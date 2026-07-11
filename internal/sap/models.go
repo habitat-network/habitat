@@ -86,6 +86,15 @@ type bufferedEvent struct {
 	Data  []byte
 }
 
+// notifyRegistration records sap's registerNotify subscription for a space and
+// when the host says it expires, so the registrar can renew it before it lapses.
+type notifyRegistration struct {
+	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Endpoint  string
+	ExpiresAt time.Time
+	UpdatedAt time.Time
+}
+
 func autoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&managedOrg{},
@@ -93,5 +102,6 @@ func autoMigrate(db *gorm.DB) error {
 		&managedRepo{},
 		&outbox{},
 		&bufferedEvent{},
+		&notifyRegistration{},
 	)
 }
