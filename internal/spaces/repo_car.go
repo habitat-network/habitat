@@ -11,7 +11,7 @@ import (
 	"github.com/ipld/go-car"
 	util "github.com/ipld/go-car/util"
 
-	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 )
 
 type recordBlock struct {
@@ -19,37 +19,26 @@ type recordBlock struct {
 	Rkey       syntax.RecordKey
 	Cid        cid.Cid
 	Bytes      []byte
-	Rev        syntax.TID
 }
 
 func recordPath(collection syntax.NSID, rkey syntax.RecordKey) string {
 	return collection.String() + "/" + rkey.String()
 }
 
-func latestRev(blocks []recordBlock) string {
-	var latest syntax.TID
-	for _, block := range blocks {
-		if block.Rev > latest {
-			latest = block.Rev
-		}
-	}
-	return string(latest)
-}
-
-// placeholderSignedCommitBlock returns a DAG-CBOR block for a signed commit.
-// Real signing and LtHash are not implemented yet.
-func placeholderSignedCommitBlock(rev string) ([]byte, cid.Cid, error) {
+// signedCommitBlock encodes a signed commit as the DAG-CBOR block that forms the
+// CAR's first root, matching network.habitat.space.defs#signedCommit.
+func signedCommitBlock(c spacecommit.SignedCommit) ([]byte, cid.Cid, error) {
 	commit := map[string]any{
-		"ver":  int64(1),
-		"hash": atdata.Bytes(make([]byte, 32)),
-		"ikm":  atdata.Bytes(make([]byte, 32)),
-		"sig":  atdata.Bytes([]byte("placeholder")),
-		"mac":  atdata.Bytes(make([]byte, 32)),
-		"rev":  rev,
+		"ver":  int64(c.Ver),
+		"hash": atdata.Bytes(c.Hash),
+		"ikm":  atdata.Bytes(c.Ikm),
+		"sig":  atdata.Bytes(c.Sig),
+		"mac":  atdata.Bytes(c.Mac),
+		"rev":  c.Rev,
 	}
 	bytes, err := atdata.MarshalCBOR(commit)
 	if err != nil {
-		return nil, cid.Cid{}, fmt.Errorf("marshal placeholder signed commit: %w", err)
+		return nil, cid.Cid{}, fmt.Errorf("marshal signed commit: %w", err)
 	}
 	commitCID, err := cid.V1Builder{}.WithCodec(cid.DagCBOR).Sum(bytes)
 	if err != nil {
@@ -110,10 +99,13 @@ func writeCARBlock(w io.Writer, blockCID cid.Cid, data []byte) error {
 	return nil
 }
 
-// SerializeRepoCAR serializes a permissioned repo to CAR per com.atproto.space.getRepo.
+// SerializeRepoCAR serializes a permissioned repo to CAR per
+// com.atproto.space.getRepo. commit is the repo's signed head commit, and blocks
+// are its current records. The CAR declares two roots in order — the signed
+// commit, then the DRISL index — followed by the record blocks in lexicographic
+// order by "{collection}/{rkey}".
 func SerializeRepoCAR(
-	_ habitat_syntax.SpaceURI,
-	_ syntax.DID,
+	commit spacecommit.SignedCommit,
 	blocks []recordBlock,
 ) ([]byte, error) {
 	sorted := append([]recordBlock(nil), blocks...)
@@ -122,7 +114,7 @@ func SerializeRepoCAR(
 			recordPath(sorted[j].Collection, sorted[j].Rkey)
 	})
 
-	commitBytes, commitCID, err := placeholderSignedCommitBlock(latestRev(sorted))
+	commitBytes, commitCID, err := signedCommitBlock(commit)
 	if err != nil {
 		return nil, err
 	}

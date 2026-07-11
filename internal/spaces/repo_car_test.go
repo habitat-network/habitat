@@ -10,41 +10,47 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-car"
 	"github.com/stretchr/testify/require"
+
+	"github.com/habitat-network/habitat/internal/spacecommit"
 )
+
+func testRecordBlock(
+	t *testing.T,
+	coll syntax.NSID,
+	rkey syntax.RecordKey,
+	value map[string]any,
+) recordBlock {
+	t.Helper()
+	raw, err := atdata.MarshalCBOR(value)
+	require.NoError(t, err)
+	c, err := cid.V1Builder{}.WithCodec(cid.DagCBOR).Sum(raw)
+	require.NoError(t, err)
+	return recordBlock{Collection: coll, Rkey: rkey, Cid: c, Bytes: raw}
+}
+
+func testCommit() spacecommit.SignedCommit {
+	return spacecommit.SignedCommit{
+		Ver:  spacecommit.Version,
+		Hash: make([]byte, 32),
+		Ikm:  make([]byte, 32),
+		Mac:  make([]byte, 32),
+		Sig:  []byte("signature"),
+		Rev:  "3kabcdefghij2",
+	}
+}
 
 func TestSerializeRepoCAR(t *testing.T) {
 	t.Parallel()
 
-	s := newTestStore(t)
-	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "repo-car")
-	require.NoError(t, err)
-
 	collA := syntax.NSID("network.habitat.note")
 	collB := syntax.NSID("network.habitat.post")
-	_, _, err = s.PutRecord(
-		t.Context(),
-		uri,
-		owner,
-		collB,
-		"b-key",
-		map[string]any{"text": "second"},
-	)
-	require.NoError(t, err)
-	_, _, err = s.PutRecord(
-		t.Context(),
-		uri,
-		owner,
-		collA,
-		"a-key",
-		map[string]any{"text": "first"},
-	)
-	require.NoError(t, err)
+	// Pass the blocks out of lexicographic order to exercise the sort.
+	blocks := []recordBlock{
+		testRecordBlock(t, collB, "b-key", map[string]any{"text": "second"}),
+		testRecordBlock(t, collA, "a-key", map[string]any{"text": "first"}),
+	}
 
-	blocks, err := s.ListRecordBlocks(t.Context(), uri, owner)
-	require.NoError(t, err)
-	require.Len(t, blocks, 2)
-
-	carBytes, err := SerializeRepoCAR(uri, owner, blocks)
+	carBytes, err := SerializeRepoCAR(testCommit(), blocks)
 	require.NoError(t, err)
 
 	reader, err := car.NewCarReader(bytes.NewReader(carBytes))
@@ -80,8 +86,11 @@ func TestSerializeRepoCAR(t *testing.T) {
 
 	commit, err := atdata.UnmarshalCBOR(commitBlock)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), commit["ver"])
-	require.Equal(t, "placeholder", string(commit["sig"].(atdata.Bytes)))
+	require.Equal(t, int64(spacecommit.Version), commit["ver"])
+	require.Equal(t, "3kabcdefghij2", commit["rev"])
+	sig, ok := commit["sig"].(atdata.Bytes)
+	require.True(t, ok)
+	require.Equal(t, "signature", string(sig))
 
 	index, err := atdata.UnmarshalCBOR(indexBlock)
 	require.NoError(t, err)
@@ -104,10 +113,10 @@ func TestSerializeRepoCAR(t *testing.T) {
 	require.Contains(t, recordCIDs, cid.Cid(linkB))
 }
 
-func TestSerializeRepoCAR_EmptyRepo(t *testing.T) {
+func TestSerializeRepoCAR_NoRecords(t *testing.T) {
 	t.Parallel()
 
-	carBytes, err := SerializeRepoCAR("ats://did:plc:org/network.habitat.group/empty", owner, nil)
+	carBytes, err := SerializeRepoCAR(testCommit(), nil)
 	require.NoError(t, err)
 
 	reader, err := car.NewCarReader(bytes.NewReader(carBytes))
@@ -123,5 +132,6 @@ func TestSerializeRepoCAR_EmptyRepo(t *testing.T) {
 		require.NoError(t, err)
 		blockCount++
 	}
+	// Only the signed commit and index roots; no record blocks.
 	require.Equal(t, 2, blockCount)
 }

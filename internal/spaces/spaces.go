@@ -798,7 +798,6 @@ func (s *store) ListRecordBlocks(
 			Rkey:       row.Rkey,
 			Cid:        cid.MustParse(row.Cid),
 			Bytes:      row.Value,
-			Rev:        row.Rev,
 		}
 	}
 	return blocks, nil
