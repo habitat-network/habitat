@@ -41,7 +41,11 @@ func TestLtHash_OrderIndependent(t *testing.T) {
 	h2.Add(a)
 	h2.Add(b)
 
-	require.True(t, bytes.Equal(h1.Sum(), h2.Sum()), "digest must be independent of insertion order")
+	require.True(
+		t,
+		bytes.Equal(h1.Sum(), h2.Sum()),
+		"digest must be independent of insertion order",
+	)
 }
 
 func TestLtHash_DistinctSetsDiffer(t *testing.T) {

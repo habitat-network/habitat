@@ -14,6 +14,18 @@ tasks:
     inputs:
       - '@group(mod)'
       - '@group(internal_test)'
+  format:
+    inputs:
+      - '@group(internal_test)'
+  format-check:
+    inputs:
+      - '@group(internal_test)'
+  lint:
+    inputs:
+      - '@group(internal_test)'
+  lint-check:
+    inputs:
+      - '@group(internal_test)'
   caddy:
     command: caddy
     args:
