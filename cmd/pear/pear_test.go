@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/stretchr/testify/require"
 	tc "github.com/testcontainers/testcontainers-go"
@@ -58,6 +59,8 @@ func requireStartupHealthy(t *testing.T, dbDSN string) {
 	// The secret flags are base64-decoded by encrypt.ParseKey, so pass the
 	// encoded form of the 32-byte test key rather than the raw bytes.
 	key := base64.StdEncoding.EncodeToString(encrypt.TestKey)
+	signingKey, err := atcrypto.GeneratePrivateKeyK256()
+	require.NoError(t, err)
 	cmd := &cli.Command{Flags: getFlags(), Action: run}
 	args := []string{
 		"pear",
@@ -67,6 +70,7 @@ func requireStartupHealthy(t *testing.T, dbDSN string) {
 		"--pds_cred_encrypt_key=" + key,
 		"--oauth_server_secret=" + key,
 		"--oauth_client_secret=" + key,
+		"--space_signing_key=" + signingKey.Multibase(),
 	}
 
 	// run() blocks until ctx is cancelled; drive it on a goroutine and surface

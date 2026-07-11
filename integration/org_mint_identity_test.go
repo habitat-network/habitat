@@ -72,6 +72,7 @@ func TestMintThenLookup(t *testing.T) {
 		h,
 		authntest.NewSuccessMethod(adminDID),
 		orgStore,
+		nil,
 	)
 	require.NoError(t, err)
 
