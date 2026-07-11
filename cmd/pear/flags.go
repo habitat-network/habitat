@@ -71,9 +71,10 @@ func getFlags() []cli.Flag {
 			Sources:  getSources(fPdsCredEncryptKey),
 		},
 		&cli.StringFlag{
-			Name:    fSpaceSigningKey,
-			Usage:   "Multibase-encoded P-256 private key for the single space-host identity. Signs permissioned-repo commits for repo owners on external PDSes. If unset, host-signed commits are omitted.",
-			Sources: getSources(fSpaceSigningKey),
+			Name:     fSpaceSigningKey,
+			Usage:    "Multibase-encoded P-256 private key for the single space-host identity. Signs permissioned-repo commits for repo owners on external PDSes",
+			Sources:  getSources(fSpaceSigningKey),
+			Required: true,
 		},
 		&cli.StringFlag{
 			Name:     fOauthServerSecret,

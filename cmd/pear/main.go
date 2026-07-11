@@ -308,12 +308,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Habitat's single host signing key signs permissioned-repo commits for repo
 	// owners on external PDSes (habitat-managed owners sign with their own hive
 	// key instead). Optional: if unset, host-signed commits are omitted.
-	var hostKey atcrypto.PrivateKey
-	if k := cmd.String(fSpaceSigningKey); k != "" {
-		hostKey, err = atcrypto.ParsePrivateMultibase(k)
-		if err != nil {
-			return fmt.Errorf("parse space-host signing key: %w", err)
-		}
+	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
+	if err != nil {
+		return fmt.Errorf("parse space-host signing key: %w", err)
 	}
 	spacesServer := spaces.NewServer(
 		spacesStore,
