@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/schema"
@@ -18,9 +19,14 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
+
+// errEmptyRepo signals that a repo holds no records, so there is nothing to
+// commit over. It is handled internally and never returned to clients.
+var errEmptyRepo = errors.New("repo has no records")
 
 type Server struct {
 	store       Store
@@ -30,9 +36,15 @@ type Server struct {
 	delegation  authn.Method
 	decoder     *schema.Decoder
 	orgStore    org.Store
+	commit      *spacecommit.Authority
 	hive        hive.Hive
 }
 
+// NewServer constructs the spaces server. host and member are the commit
+// signers: member signs commits for habitat-managed repo owners with their own
+// key (proposal spec), and host signs for owners on external PDSes with
+// Habitat's single host key. Either may be nil; when neither can sign an
+// author, listRepoOps omits the signed commit.
 func NewServer(
 	store Store,
 	fga fgastore.Store,
@@ -40,6 +52,7 @@ func NewServer(
 	serviceAuth authn.Method,
 	delegation *authn.DelegationTokenAuthMethod,
 	orgStore org.Store,
+	hostPrivateKey atcrypto.PrivateKey,
 	hive hive.Hive,
 ) *Server {
 	return &Server{
@@ -49,6 +62,7 @@ func NewServer(
 		serviceAuth: serviceAuth,
 		decoder:     schema.NewDecoder(),
 		orgStore:    orgStore,
+		commit:      spacecommit.NewAuthority(hostPrivateKey, hive),
 		hive:        hive,
 		delegation:  delegation,
 	}
@@ -378,7 +392,7 @@ func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 		repoViews[i] = habitat.NetworkHabitatSpaceListReposRepo{
 			Did:  r.DID.String(),
 			Rev:  r.Rev,
-			Hash: nil,
+			Hash: r.Hash,
 		}
 	}
 
@@ -641,50 +655,39 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth, s.serviceAuth),
 	).Validate(w, r)
 	if !ok {
 		return
 	}
-
 	var params habitat.NetworkHabitatSpaceListRepoOpsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "invalid query params", err)
 		return
 	}
-
-	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
 	if !ok {
 		return
 	}
-
-	repoDID, ok := httpx.ParseDIDInput(r.Context(), w, params.Repo, "repo")
+	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
 	if !ok {
 		return
 	}
-
-	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(
-			r.Context(),
-			credInfo.Org.DID(),
-			spaceURI,
-			credInfo.Subject,
-		)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"check membership",
-				http.StatusInternalServerError,
-			)
-			return
-		}
-		if !isMember {
-			http.Error(w, "not a member of this space", http.StatusForbidden)
-			return
-		}
+	isMember, err := s.store.IsMember(
+		ctx,
+		credInfo.Org.DID(),
+		spaceURI,
+		credInfo.Subject,
+	)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
+		return
+	}
+	if !isMember {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member: %w", err))
+		return
 	}
 
 	limit := int(params.Limit)
@@ -692,9 +695,9 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		limit = 100
 	}
 
-	records, err := s.store.ListRepoOps(r.Context(), spaceURI, repoDID, params.Since, limit)
+	records, err := s.store.ListRepoOps(ctx, spaceURI, repoDID, params.Since, limit)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "list repo ops", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list repo ops: %w", err))
 		return
 	}
 
@@ -711,14 +714,56 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	output := habitat.NetworkHabitatSpaceListRepoOpsOutput{
-		Ops: ops,
-	}
+	output := habitat.NetworkHabitatSpaceListRepoOpsOutput{Ops: ops}
 	if len(records) > 0 {
 		output.Cursor = records[len(records)-1].Rev
 	}
 
+	// When this page reaches the head of the oplog (fewer ops than the limit) and
+	// a signer is available for the repo owner, include the current signed commit
+	// so a syncer can authenticate the state it has folded up to this point.
+	if len(records) < limit {
+		commit, err := s.buildRepoCommit(ctx, spaceURI, repoDID)
+		switch {
+		case err == nil:
+			output.Commit = commit
+		case errors.Is(err, errEmptyRepo), errors.Is(err, spacecommit.ErrNoSigner):
+			// Repo holds no records, or no signer covers the owner; omit the commit.
+		default:
+			httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))
+			return
+		}
+	}
 	httpx.WriteJSON(r.Context(), w, output)
+}
+
+// buildRepoCommit computes and signs the repo's current head commit. It returns
+// ok=false (after writing an HTTP error) only on an internal failure; a repo
+// with no records yields a zero commit with ok=true (the caller skips it).
+func (s *Server) buildRepoCommit(
+	ctx context.Context,
+	spaceURI habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (habitat.NetworkHabitatSpaceDefsSignedCommit, error) {
+	rev, hash, found, err := s.store.RepoHead(ctx, spaceURI, repo)
+	if err != nil {
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, fmt.Errorf("repo head: %w", err)
+	}
+	if !found {
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, errEmptyRepo
+	}
+	commit, err := s.commit.Build(ctx, spaceURI, repo, rev, hash)
+	if err != nil {
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, err
+	}
+	return habitat.NetworkHabitatSpaceDefsSignedCommit{
+		Ver:  int64(commit.Ver),
+		Hash: commit.Hash,
+		Ikm:  commit.Ikm,
+		Mac:  commit.Mac,
+		Sig:  commit.Sig,
+		Rev:  commit.Rev,
+	}, nil
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
@@ -787,7 +832,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.DeleteRecord(r.Context(), spaceURI, collection, input.Rkey)
+	err = s.store.DeleteRecord(r.Context(), spaceURI, repo, collection, input.Rkey)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "delete record", http.StatusInternalServerError)
 		return
@@ -896,7 +941,7 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 		},
 	}).SignedString(privKey)
 	if err != nil {
-		httpx.WriteSpaceNotFound(ctx, w, err)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign token: %w", err))
 		return
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: token})

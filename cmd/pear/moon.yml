@@ -21,6 +21,7 @@ tasks:
       # embedded build, so UI changes are picked up live.
       HABITAT_UI_DEV_PROXY: 'http://localhost:6010'
       HABITAT_ADMIN_PASSWORD: 'password'
+      HABITAT_SPACE_SIGNING_KEY: 'z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd'
     deps:
     - root:caddy
     - ngrok

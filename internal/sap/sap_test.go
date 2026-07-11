@@ -279,6 +279,7 @@ func setupPear(
 		authn_testutil.NewFailMethod(),
 		authn.NewDelegationTokenAuthMethod(nil, nil),
 		orgStore,
+		nil,
 		orgHive,
 	)
 
