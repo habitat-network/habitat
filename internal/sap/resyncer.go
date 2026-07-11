@@ -280,6 +280,37 @@ func (r *resyncer) clientForSpace(
 	return nil, fmt.Errorf("no working client for space %s: %w", space, errors.Join(errs...))
 }
 
+// enqueueRepo schedules a repo for sync in response to an out-of-band trigger
+// (a notifyWrite from the space host). It ensures the repo is tracked and, if an
+// already-synced repo has fallen behind the notified rev, returns it to a
+// claimable state, then wakes the dispatcher. rev may be empty when unknown.
+func (r *resyncer) enqueueRepo(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	repoDID syntax.DID,
+	rev syntax.TID,
+) error {
+	if err := r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		Create(&managedRepo{Space: space, DID: repoDID, State: RepoStatePending}).Error; err != nil {
+		return fmt.Errorf("track repo: %w", err)
+	}
+	// Re-queue an active or errored repo only when the write advances it past the
+	// rev we have; leave pending/resyncing (already claimable/in-flight) and
+	// desynced (headed for getRepo recovery) untouched.
+	if rev != "" {
+		if err := r.db.WithContext(ctx).
+			Model(&managedRepo{}).
+			Where("space = ? AND did = ? AND state IN ? AND rev < ?",
+				space, repoDID, []repoState{RepoStateActive, RepoStateError}, rev).
+			Update("state", RepoStatePending).Error; err != nil {
+			return fmt.Errorf("requeue repo: %w", err)
+		}
+	}
+	r.resyncNotif.Notify()
+	return nil
+}
+
 func (r *resyncer) syncRepo(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,

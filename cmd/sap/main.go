@@ -11,6 +11,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/log"
 	"github.com/habitat-network/habitat/internal/oauthclient"
@@ -82,8 +83,12 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	s, err := sap.NewSap(sap.SapConfig{
 		DB:          db,
 		OAuthClient: oauthApp,
-		Meter:       otel.Meter("sap"),
-		Tracer:      otel.Tracer("sap"),
+		Directory:   identity.DefaultDirectory(),
+		// The base URL space hosts register and sign notifyWrite /
+		// notifySpaceDeleted against; the XRPC handlers hang off it.
+		NotifyAudience: "https://" + domain,
+		Meter:          otel.Meter("sap"),
+		Tracer:         otel.Tracer("sap"),
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
@@ -98,6 +103,15 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	oauthMux := http.NewServeMux()
 	oauthMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
 	oauthMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+
+	// Publicly-reachable notify entry points the space host pushes to (service
+	// auth), per the permissioned-data sync proposal.
+	if h := s.NotifyWriteHandler(); h != nil {
+		oauthMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", h)
+	}
+	if h := s.NotifySpaceDeletedHandler(); h != nil {
+		oauthMux.HandleFunc("/xrpc/network.habitat.space.notifySpaceDeleted", h)
+	}
 
 	internalMux := http.NewServeMux()
 	internalMux.HandleFunc("/health", server.handleHealth)

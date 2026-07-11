@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/oauthclient"
@@ -25,6 +26,7 @@ type Sap struct {
 	resyncer    *resyncer
 	crawler     *crawler
 	orgManager  *orgManager
+	notify      *notifyServer
 	metrics     *metrics
 }
 
@@ -35,6 +37,12 @@ type SapConfig struct {
 	OAuthClient       *oauthclient.App
 	Meter             metric.Meter
 	Tracer            trace.Tracer
+
+	// NotifyAudience is sap's public base URL: the service-auth audience it
+	// expects on inbound notifyWrite / notifySpaceDeleted, and the endpoint it
+	// registers with space hosts. When empty (with no Directory), the notify
+	// entry points are disabled.
+	NotifyAudience string
 }
 
 func NewSap(config SapConfig) (*Sap, error) {
@@ -65,6 +73,15 @@ func NewSap(config SapConfig) (*Sap, error) {
 	outbox := newOutbox(config.DB, outboxNotif)
 	orgManager := newOrgManager(config.DB)
 
+	var notify *notifyServer
+	if config.Directory != nil && config.NotifyAudience != "" {
+		validator := &auth.ServiceAuthValidator{
+			Dir:      config.Directory,
+			Audience: config.NotifyAudience,
+		}
+		notify = newNotifyServer(config.DB, resyncer, validator)
+	}
+
 	return &Sap{
 		orgManager:  orgManager,
 		oauthClient: config.OAuthClient,
@@ -74,8 +91,27 @@ func NewSap(config SapConfig) (*Sap, error) {
 		resyncBuf:   resyncBuf,
 		resyncer:    resyncer,
 		crawler:     crawler,
+		notify:      notify,
 		metrics:     m,
 	}, nil
+}
+
+// NotifyWriteHandler and NotifySpaceDeletedHandler return the HTTP handlers for
+// the space host's push notifications, or nil when the notify entry points are
+// disabled (no Directory / NotifyAudience configured). Mount them at their XRPC
+// paths under the base URL registered as NotifyAudience.
+func (s *Sap) NotifyWriteHandler() http.HandlerFunc {
+	if s.notify == nil {
+		return nil
+	}
+	return s.notify.HandleNotifyWrite
+}
+
+func (s *Sap) NotifySpaceDeletedHandler() http.HandlerFunc {
+	if s.notify == nil {
+		return nil
+	}
+	return s.notify.HandleNotifySpaceDeleted
 }
 
 func (s *Sap) Start(ctx context.Context) error {
