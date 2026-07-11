@@ -16,10 +16,10 @@ tasks:
       - '@group(internal_test)'
   format:
     inputs:
-      - '@group(internal_src)'
+      - '@group(internal_test)'
   format-check:
     inputs:
-      - '@group(internal_src)'
+      - '@group(internal_test)'
   lint:
     inputs:
       - '@group(internal_test)'
