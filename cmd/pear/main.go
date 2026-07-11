@@ -624,8 +624,6 @@ func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
 	return fga, nil
 }
 
-
-
 func setupInstanceAdminPassword(ctx context.Context, cmd *cli.Command) (string, error) {
 	pass := cmd.String(fAdminPassword)
 
