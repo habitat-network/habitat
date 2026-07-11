@@ -654,6 +654,55 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceListRecordsOutput{Records: recViews})
 }
 
+func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
+	if !ok {
+		return
+	}
+	var params habitat.ComAtprotoSpaceGetRepoParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
+		return
+	}
+	if !isMember {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
+		return
+	}
+	blocks, err := s.store.ListRecordBlocks(ctx, spaceURI, repoDID)
+	if errors.Is(err, ErrSpaceNotFound) {
+		httpx.WriteSpaceNotFound(ctx, w, err)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list blocks: %w", err))
+		return
+	}
+
+	carBytes, err := SerializeRepoCAR(spaceURI, repoDID, blocks)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("serialize car: %w", err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.ipld.car")
+	if _, err := w.Write(carBytes); err != nil {
+		utils.LogAndHTTPError(ctx, w, err, "write car", http.StatusInternalServerError)
+	}
+}
+
 func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(

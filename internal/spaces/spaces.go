@@ -157,6 +157,11 @@ type Store interface {
 		repo syntax.DID,
 		collection *syntax.NSID,
 	) ([]Record, error)
+	ListRecordBlocks(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+	) ([]recordBlock, error)
 	DeleteRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -214,6 +219,7 @@ var (
 	ErrUserAlreadyMember  = errors.New("user is already a member of the space")
 	ErrNotAMember         = errors.New("user is not a member of the space")
 	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
+	ErrRepoNotFound       = errors.New("repo not found")
 )
 
 // ---- Store implementation ----
@@ -759,6 +765,43 @@ func (s *store) ListRecords(
 	}
 
 	return records, nil
+}
+
+func (s *store) ListRecordBlocks(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) ([]recordBlock, error) {
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrSpaceNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	var rows []spaceRecord
+	if err := s.db.WithContext(ctx).
+		Where("space = ?", uri).
+		Where("repo = ?", repo).
+		Order("collection ASC, rkey ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	blocks := make([]recordBlock, len(rows))
+	for i, row := range rows {
+		blocks[i] = recordBlock{
+			Collection: row.Collection,
+			Rkey:       row.Rkey,
+			Cid:        cid.MustParse(row.Cid),
+			Bytes:      row.Value,
+			Rev:        row.Rev,
+		}
+	}
+	return blocks, nil
 }
 
 func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {

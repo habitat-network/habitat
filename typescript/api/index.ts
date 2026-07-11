@@ -94,6 +94,7 @@ import * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 import * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 import * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
+import * as ComAtprotoSpaceGetRepo from './types/com/atproto/space/getRepo.js'
 import * as NetworkHabitatSpaceGetSpaceCredential from './types/network/habitat/space/getSpaceCredential.js'
 import * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
 import * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
@@ -190,6 +191,7 @@ export * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 export * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 export * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
+export * as ComAtprotoSpaceGetRepo from './types/com/atproto/space/getRepo.js'
 export * as NetworkHabitatSpaceGetSpaceCredential from './types/network/habitat/space/getSpaceCredential.js'
 export * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
 export * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
@@ -257,11 +259,13 @@ export class ComAtprotoNS {
   _client: XrpcClient
   repo: ComAtprotoRepoNS
   server: ComAtprotoServerNS
+  space: ComAtprotoSpaceNS
 
   constructor(client: XrpcClient) {
     this._client = client
     this.repo = new ComAtprotoRepoNS(client)
     this.server = new ComAtprotoServerNS(client)
+    this.space = new ComAtprotoSpaceNS(client)
   }
 }
 
@@ -356,6 +360,25 @@ export class ComAtprotoServerNS {
       .call('com.atproto.server.getServiceAuth', params, undefined, opts)
       .catch((e) => {
         throw ComAtprotoServerGetServiceAuth.toKnownErr(e)
+      })
+  }
+}
+
+export class ComAtprotoSpaceNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  getRepo(
+    params?: ComAtprotoSpaceGetRepo.QueryParams,
+    opts?: ComAtprotoSpaceGetRepo.CallOptions,
+  ): Promise<ComAtprotoSpaceGetRepo.Response> {
+    return this._client
+      .call('com.atproto.space.getRepo', params, undefined, opts)
+      .catch((e) => {
+        throw ComAtprotoSpaceGetRepo.toKnownErr(e)
       })
   }
 }

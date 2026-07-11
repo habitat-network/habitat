@@ -306,6 +306,47 @@ func TestServer_ListRecords(t *testing.T) {
 	require.Equal(t, "k2", output.Records[1].Rkey)
 }
 
+func TestServer_GetRepo(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+owner.String(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.GetRepo(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "application/vnd.ipld.car", w.Header().Get("Content-Type"))
+	require.NotEmpty(t, w.Body.Bytes())
+}
+
+func TestServer_GetRepo_RepoNotFound(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+alice.String(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.GetRepo(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	require.JSONEq(t, `{"error":"RepoNotFound"}`, w.Body.String())
+}
+
 func TestServer_AddMember_Unauthorized(t *testing.T) {
 	s, store := newAliceServer(t)
 
