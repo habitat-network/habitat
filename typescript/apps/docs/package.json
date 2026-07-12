@@ -19,7 +19,7 @@
     "@libp2p/identify": "^3.0.39",
     "@libp2p/interface": "^2.11.0",
     "@libp2p/peer-id": "^5.0.16",
-    "@libp2p/ping": "2.0.5",
+    "@libp2p/ping": "2.0.37",
     "@libp2p/webrtc": "^5.2.24",
     "@libp2p/websockets": "^9.2.19",
     "@libp2p/webtransport": "5.0.41",
