@@ -22,7 +22,7 @@
     "@libp2p/ping": "2.0.5",
     "@libp2p/webrtc": "^5.2.24",
     "@libp2p/websockets": "^9.2.19",
-    "@libp2p/webtransport": "5.0.41",
+    "@libp2p/webtransport": "5.0.51",
     "@multiformats/multiaddr": "^12.3.5",
     "@posthog/react": "^1.8.2",
     "@tanstack/react-devtools": "catalog:",

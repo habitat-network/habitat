@@ -321,8 +321,8 @@ importers:
         specifier: ^9.2.19
         version: 9.2.19
       '@libp2p/webtransport':
-        specifier: 5.0.41
-        version: 5.0.41
+        specifier: 5.0.51
+        version: 5.0.51
       '@multiformats/multiaddr':
         specifier: ^12.3.5
         version: 12.4.4
@@ -3190,8 +3190,8 @@ packages:
   '@libp2p/websockets@9.2.19':
     resolution: {integrity: sha512-+g2qI9Lgvyofoc6GFztPoPVZV+z/lg9pIUfneHht6j88Y7tH3NrAQ7Ki+9lqS5XBX2h1O1bHULWbCaVYCj9TZg==}
 
-  '@libp2p/webtransport@5.0.41':
-    resolution: {integrity: sha512-UliKk8JynCJEBee236k5ld9+gz5nZT0dkb5k6kxM67TdZCQ4YJcXt8uBaO1cUY+0txlUFsAN/GH34Xfj1+E4Xw==}
+  '@libp2p/webtransport@5.0.51':
+    resolution: {integrity: sha512-wiAUy5Z31TkoSGJ5DRF28J3F4V1drRUT4EACYUlA7w7Amx6dNoN+sblUPeYJDEp/Bd0o4bfa9WjGcFHH8QEwbA==}
 
   '@mdx-js/mdx@3.1.1':
     resolution: {integrity: sha512-f6ZO2ifpwAQIpzGWaBQT2TXxPv6z3RBzQKpVftEWN78Vl/YweF1uwussDx8ECAXVtr3Rs89fKyG9YlzUs9DyGQ==}
@@ -15426,14 +15426,14 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@libp2p/webtransport@5.0.41':
+  '@libp2p/webtransport@5.0.51':
     dependencies:
-      '@chainsafe/libp2p-noise': 16.0.0
+      '@chainsafe/libp2p-noise': 16.1.5
       '@libp2p/interface': 2.11.0
       '@libp2p/peer-id': 5.1.9
       '@libp2p/utils': 6.7.2
       '@multiformats/multiaddr': 12.4.4
-      '@multiformats/multiaddr-matcher': 1.8.0
+      '@multiformats/multiaddr-matcher': 2.0.2
       it-stream-types: 2.0.2
       multiformats: 13.4.2
       progress-events: 1.0.1
