@@ -1013,7 +1013,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	server.Client().Jar = jar
-	pds.RedirectURI = server.URL
+	pds.RedirectURI = server.URL + "/oauth-callback"
 
 	verifier := oauth2.GenerateVerifier()
 	config := &oauth2.Config{
