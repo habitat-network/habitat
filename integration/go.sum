@@ -80,6 +80,8 @@ github.com/blang/semver v3.5.1+incompatible h1:cQNTCjp13qL8KC3Nbxr/y2Bqb63oX6wdn
 github.com/blang/semver v3.5.1+incompatible/go.mod h1:kRBLl5iJ+tD4TcOOxsy/0fnwebNt5EWlYSAyrTnjyyk=
 github.com/bluesky-social/indigo v0.0.0-20260611225325-2e8287f2f1bb h1:KeRCiwcu3KYQShMFq21KgAnYVFe4XDe9O+xhQL7Bch4=
 github.com/bluesky-social/indigo v0.0.0-20260611225325-2e8287f2f1bb/go.mod h1:JqQkz8lrOI6YZivP38GHmtVOTtzsNToITKj1gMpU5Jo=
+github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537 h1:rHaND0argSxgbmE2ix/YuF11xXTtiP3oGUz4fS2Diqo=
+github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537/go.mod h1:JqQkz8lrOI6YZivP38GHmtVOTtzsNToITKj1gMpU5Jo=
 github.com/bradenaw/juniper v0.15.3 h1:RHIAMEDTpvmzV1wg1jMAHGOoI2oJUSPx3lxRldXnFGo=
 github.com/bradenaw/juniper v0.15.3/go.mod h1:UX4FX57kVSaDp4TPqvSjkAAewmRFAfXf27BOs5z9dq8=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=

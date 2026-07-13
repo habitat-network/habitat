@@ -16,7 +16,7 @@ require (
 )
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260611225325-2e8287f2f1bb
+	github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/habitat-network/habitat v0.0.0-00010101000000-000000000000
 	github.com/mdelapenya/tlscert v0.2.0
