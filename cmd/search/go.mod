@@ -5,7 +5,7 @@ go 1.26.4
 replace github.com/habitat-network/habitat => ../..
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260611225325-2e8287f2f1bb
+	github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537
 	github.com/gorilla/mux v1.8.1
 	github.com/habitat-network/habitat v0.0.2-testing-9
 	github.com/stretchr/testify v1.11.1

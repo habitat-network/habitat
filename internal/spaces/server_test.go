@@ -1,37 +1,55 @@
 package spaces_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
-	"github.com/habitat-network/habitat/internal/db/testutil"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 )
 
 func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) (*spaces.Server, spaces.Store) {
+	return newTestServerWithSigners(t, oauth, serviceAuth, nil)
+}
+
+func newTestServerWithSigners(
+	t *testing.T,
+	oauth, serviceAuth authn.Method,
+	host atcrypto.PrivateKey,
+) (*spaces.Server, spaces.Store) {
 	t.Helper()
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.Config{FgaStore: fga})
-	h, err := hive.NewHive("example.com", "pear.example.com", testutil.NewDB(t))
+	h, err := hive.NewHive("example.com", "pear.example.com", db_testutil.NewDB(t))
 	require.NoError(t, err)
-	return spaces.NewServer(sp, fga, oauth, serviceAuth,
+	return spaces.NewServer(
+		sp,
+		fga,
+		oauth,
+		serviceAuth,
 		authn.NewDelegationTokenAuthMethod(nil, nil),
-		org_testutil.NewTestStore(t), h), sp
+		org_testutil.NewTestStore(t),
+		host,
+		h,
+	), sp
 }
 
 func newOwnerServer(t *testing.T) (*spaces.Server, spaces.Store) {
@@ -113,6 +131,10 @@ func TestServer_ListRepos(t *testing.T) {
 	require.Len(t, output.Repos, 1)
 	require.Equal(t, "did:plc:owner", output.Repos[0].Did)
 	require.NotEmpty(t, output.Repos[0].Rev)
+	// The repo's LtHash commit hash is populated (base64-encoded bytes).
+	hash, ok := output.Repos[0].Hash.(string)
+	require.True(t, ok)
+	require.NotEmpty(t, hash)
 }
 
 func TestServer_ListRepos_CursorLimitNotSupported(t *testing.T) {
@@ -453,6 +475,86 @@ func TestServer_ListRepoOps(t *testing.T) {
 	require.Equal(t, output.Ops[1].Rev, output.Cursor)
 }
 
+func decodeB64(t *testing.T, v any) []byte {
+	t.Helper()
+	str, ok := v.(string)
+	require.True(t, ok, "bytes field should JSON-encode to a base64 string")
+	b, err := base64.StdEncoding.DecodeString(str)
+	require.NoError(t, err)
+	return b
+}
+
+// TestServer_ListRepoOps_IncludesSignedCommit verifies that at the head of the
+// oplog a host-signed commit is returned, and that it verifies against the host
+// key with the host protocol tag and carries the repo's LtHash.
+func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
+	hostKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	pub, err := hostKey.PublicKey()
+	require.NoError(t, err)
+	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
+	s, store := newTestServerWithSigners(t, m, m, hostKey)
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo="+owner.String(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.ListRepoOps(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var out habitat.NetworkHabitatSpaceListRepoOpsOutput
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	require.Len(t, out.Ops, 1)
+	require.Equal(t, int64(spacecommit.Version), out.Commit.Ver)
+	require.Equal(t, out.Ops[0].Rev, out.Commit.Rev)
+
+	hash := decodeB64(t, out.Commit.Hash)
+	ikm := decodeB64(t, out.Commit.Ikm)
+	sig := decodeB64(t, out.Commit.Sig)
+	require.Len(t, ikm, 32)
+
+	// External author (did:plc:owner) → host-signed under the host tag.
+	ctxBytes := spacecommit.Ctx(spacecommit.HostProtocolTag, uri, owner, out.Commit.Rev, ikm)
+	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
+
+	_, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, wantHash, hash)
+}
+
+// TestServer_ListRepoOps_NoCommitWithoutSigner confirms the commit is omitted
+// when no signer can cover the repo owner.
+func TestServer_ListRepoOps_NoCommitWithoutSigner(t *testing.T) {
+	s, store := newOwnerServer(t) // no host key configured
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo="+owner.String(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.ListRepoOps(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var out habitat.NetworkHabitatSpaceListRepoOpsOutput
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	require.Len(t, out.Ops, 1)
+	require.Zero(t, out.Commit.Ver, "commit omitted when no signer is available")
+}
+
 func TestServer_ListRepoOps_Since(t *testing.T) {
 	s, store := newOwnerServer(t)
 
@@ -504,7 +606,7 @@ func TestServer_ListRepoOps_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_ListRepoOps_IncludesValue(t *testing.T) {

@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -176,7 +177,21 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			next.ServeHTTP(w, r)
 		})
 	})
-	mux.Use(corsMiddleware)
+	mux.Use(handlers.CORS(
+		handlers.AllowedOrigins([]string{"*"}),
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+		handlers.AllowedHeaders([]string{
+			"Content-Type",
+			"Authorization",
+			"habitat-auth-method",
+			"User-Agent",
+			"atproto-accept-labelers",
+			"atproto-proxy",
+			"DPoP",
+		}),
+		handlers.MaxAge(86400),
+		handlers.ExposedHeaders([]string{"DPoP-Nonce"}),
+	))
 	if cmd.Bool(fDebug) {
 		mux.Use(func(next http.Handler) http.Handler {
 			return handlers.LoggingHandler(os.Stdout, next)
@@ -303,6 +318,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup spaces store: %w", err)
 	}
 	serviceAuth := authn.NewServiceAuthMethod(defaultDir, fmt.Sprintf("did:web:%s#habitat", domain))
+
+	// Habitat's single host signing key signs permissioned-repo commits for repo
+	// owners on external PDSes (habitat-managed owners sign with their own hive
+	// key instead). Optional: if unset, host-signed commits are omitted.
+	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
+	if err != nil {
+		return fmt.Errorf("parse space-host signing key: %w", err)
+	}
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
@@ -310,6 +333,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		serviceAuth,
 		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore),
 		orgStore,
+		hostKey,
 		hive,
 	)
 	notifyServer := notify.NewServer(notifyStore, authn.NewSpaceCredentialAuthMethod(defaultDir))
@@ -601,27 +625,6 @@ func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
 		return nil, fmt.Errorf("setup fga sqlite store %q: %w", fgaPath, err)
 	}
 	return fga, nil
-}
-
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().
-			Set("Access-Control-Allow-Headers", "Content-Type, Authorization, habitat-auth-method, User-Agent, atproto-accept-labelers, atproto-proxy, DPoP")
-		// The atproto OAuth client reads the server-issued DPoP nonce from
-		// responses to retry DPoP-bound requests; it must be exposed cross-origin.
-		w.Header().Set("Access-Control-Expose-Headers", "DPoP-Nonce")
-		w.Header().Set("Access-Control-Max-Age", "86400") // Cache preflight for 24 hours
-
-		// Handle preflight OPTIONS request
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 func setupInstanceAdminPassword(ctx context.Context, cmd *cli.Command) (string, error) {

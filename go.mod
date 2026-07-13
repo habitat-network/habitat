@@ -3,7 +3,7 @@ module github.com/habitat-network/habitat
 go 1.26.3
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260611225325-2e8287f2f1bb
+	github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
@@ -32,6 +32,7 @@ require (
 	gorm.io/driver/postgres v1.5.7
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2
+	lukechampine.com/blake3 v1.4.1
 )
 
 require (
@@ -197,7 +198,6 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	lukechampine.com/blake3 v1.4.1 // indirect
 	modernc.org/libc v1.73.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
