@@ -969,21 +969,17 @@ func TestValidateWithScopeChecking(t *testing.T) {
 // a handle, and the flow completes normally.
 func TestHandleAuthorizeDisambiguation(t *testing.T) {
 	db := dbtestutil.NewDB(t)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	pds := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
-			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
+			Pds: pds,
 		},
 		dummyDir,
 		db,
@@ -1017,7 +1013,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	server.Client().Jar = jar
-	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
+	pds.RedirectURI = server.URL
 
 	verifier := oauth2.GenerateVerifier()
 	config := &oauth2.Config{
