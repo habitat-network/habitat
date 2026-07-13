@@ -2,8 +2,6 @@ module github.com/habitat-network/habitat/cmd/sap
 
 go 1.26.3
 
-replace github.com/habitat-network/habitat => ../..
-
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537
 	github.com/golang-jwt/jwt/v5 v5.3.1

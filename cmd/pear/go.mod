@@ -2,8 +2,6 @@ module github.com/habitat-network/habitat/cmd/pear
 
 go 1.26.3
 
-replace github.com/habitat-network/habitat => ../..
-
 require (
 	github.com/alexedwards/argon2id v1.0.0
 	github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537

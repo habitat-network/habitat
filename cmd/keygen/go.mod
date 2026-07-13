@@ -2,8 +2,6 @@ module github.com/habitat-network/habitat/cmd/keygen
 
 go 1.26.3
 
-replace github.com/habitat-network/habitat => ../..
-
 require github.com/habitat-network/habitat v0.0.0-00010101000000-000000000000
 
 require (

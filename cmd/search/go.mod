@@ -2,8 +2,6 @@ module github.com/habitat-network/habitat/cmd/search
 
 go 1.26.4
 
-replace github.com/habitat-network/habitat => ../..
-
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537
 	github.com/gorilla/mux v1.8.1

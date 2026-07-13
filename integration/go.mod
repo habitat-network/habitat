@@ -2,10 +2,6 @@ module github.com/habitat-network/habitat/integration
 
 go 1.26.3
 
-replace github.com/habitat-network/habitat => ..
-
-replace github.com/habitat-network/habitat/cmd/pear => ../cmd/pear
-
 replace github.com/docker/docker/api => github.com/moby/moby/api v1.52.0
 
 exclude google.golang.org/genproto v0.0.0-20190626174449-989357319d63
