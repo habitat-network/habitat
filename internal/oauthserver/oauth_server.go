@@ -208,13 +208,7 @@ func (o *OAuthServer) HandleAuthorize(
 	flashes := session.Flashes("disambiguation")
 	if err := session.Save(r, w); err != nil {
 		o.metrics.authorizeErr(ctx, err, "save_session")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to save session",
-			http.StatusInternalServerError,
-		)
+		utils.LogAndHTTPError(ctx, w, err, "failed to save session", http.StatusInternalServerError)
 		return
 	}
 	var requester fosite.AuthorizeRequester
@@ -244,11 +238,7 @@ func (o *OAuthServer) HandleAuthorize(
 		session.AddFlash(authRequestFlash{Form: form}, "disambiguation")
 		if err := session.Save(r, w); err != nil {
 			o.metrics.authorizeErr(ctx, err, "save_session")
-			utils.LogAndHTTPError(
-				ctx,
-				w,
-				err,
-				"failed to save disambiguation session",
+		utils.LogAndHTTPError(ctx, w, err, "failed to save disambiguation session",
 				http.StatusInternalServerError,
 			)
 		}
@@ -267,11 +257,7 @@ func (o *OAuthServer) HandleAuthorize(
 	id, err := o.directory.Lookup(context.Background(), atid)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "lookup_atid")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to lookup identity",
+		utils.LogAndHTTPError(ctx, w, err, "failed to lookup identity",
 			http.StatusInternalServerError,
 		)
 		return
@@ -279,13 +265,8 @@ func (o *OAuthServer) HandleAuthorize(
 	redirect, providerState, err := o.loginRouter.Authorize(ctx, id.DID)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "begin_login")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to initiate authorization",
-			http.StatusInternalServerError,
-		)
+		utils.LogAndHTTPError(ctx, w, err, "failed to initiate authorization",
+			http.StatusInternalServerError)
 		return
 	}
 	session.AddFlash(&authRequestFlash{
@@ -295,11 +276,7 @@ func (o *OAuthServer) HandleAuthorize(
 	})
 	if err := session.Save(r, w); err != nil {
 		o.metrics.authorizeErr(ctx, err, "save_session")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to save session",
+		utils.LogAndHTTPError(ctx, w, err, "failed to save session",
 			http.StatusInternalServerError,
 		)
 		return

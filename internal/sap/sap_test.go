@@ -256,13 +256,13 @@ func setupPear(
 	)
 	require.NoError(t, err)
 
+	pds := login_testutil.NewPassthroughProvider(t)
+	pds.RedirectURI = server.URL + "/oauth-callback"
+	pds.LoginID = "loginId"
 	oauthServer, err := oauthserver.NewOAuthServer(
 		encrypt.TestKey,
 		&org.LoginRouter{
-			Pds: login_testutil.NewPassthroughProvider(
-				server.URL+"/oauth-callback",
-				"loginId",
-			),
+			Pds: pds,
 		},
 		orgHive,
 		db,

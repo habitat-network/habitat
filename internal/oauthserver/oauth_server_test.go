@@ -20,7 +20,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/habitat-network/habitat/internal/authn"
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -30,7 +30,6 @@ import (
 	"github.com/habitat-network/habitat/internal/org/testutil"
 	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 	"golang.org/x/oauth2"
@@ -66,12 +65,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	})
 
 	// Common setup for all handler tests.
-	db := db_testutil.NewDB(t)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
+	db := dbtestutil.NewDB(t)
 	secretStr, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	secret, err := encrypt.ParseKey(secretStr)
@@ -79,7 +73,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	oauthSrv, err := NewOAuthServer(
 		secret,
 		&org.LoginRouter{
-			Pds:      login.NewPDSProvider(oauthClient, credStore, nil),
+			Pds:      login_testutil.NewPassthroughProvider(t),
 			OrgStore: testStore(t),
 		},
 		pdsclient.NewDummyDirectory("http://pds.url"),
@@ -168,22 +162,18 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 }
 
 func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
-	db := db_testutil.NewDB(t)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
+	db := dbtestutil.NewDB(t)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
+	pds := login_testutil.NewPassthroughProvider(t)
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
-			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
+			Pds: pds,
 		},
 		dummyDir,
 		db,
@@ -211,7 +201,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	server.Client().Jar = jar
-	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
+	pds.RedirectURI = server.URL + "/oauth-callback"
 
 	verifier := oauth2.GenerateVerifier()
 	config := &oauth2.Config{
@@ -279,16 +269,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 
 func TestOAuthServerE2E(t *testing.T) {
 	// setup test database
-	db := db_testutil.NewDB(t)
-
-	// setup pds credential store
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err, "failed to setup pds credential store")
-
-	// setup oauth server
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
+	db := dbtestutil.NewDB(t)
 
 	// Generate RSA key for JWT signing
 	secret, err := encrypt.GenerateKey()
@@ -297,10 +278,11 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.NoError(t, err)
 
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	pds := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
-			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
+			Pds: pds,
 		},
 		dummyDir,
 		db,
@@ -338,7 +320,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.NoError(t, err, "failed to create cookie jar")
 	server.Client().Jar = jar
 	// set the server's oauthClient redirectUri now that we know the url
-	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
+	pds.RedirectURI = server.URL + "/oauth-callback"
 
 	// setup client app that oauth server can make requests to
 	verifier := oauth2.GenerateVerifier()
@@ -388,7 +370,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
 	)+"&handle=did:web:example.did.com", nil)
-	require.NoError(t, err, "failed to create authorize request")
+	require.NoError(t, err)
 
 	// make authorize requests which will follow redirects all thw way to token response
 	result, err := server.Client().Do(authRequest)
@@ -451,7 +433,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 
 	// hive and the org store share one db: org.WithTx swaps hive's db
 	// connection for its own transaction when minting member identities.
-	hiveDB := db_testutil.NewDB(t)
+	hiveDB := dbtestutil.NewDB(t)
 	h, err := hive.NewHive(memberDomain, pearDomain, hiveDB)
 	require.NoError(t, err, "failed to create hive")
 
@@ -492,16 +474,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	require.NoError(t, err, "failed to create org with hive-served admin")
 
 	// setup test database
-	db := db_testutil.NewDB(t)
-
-	// setup pds credential store
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err, "failed to setup pds credential store")
-
-	// setup oauth server
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
+	db := dbtestutil.NewDB(t)
 
 	// Generate RSA key for JWT signing
 	secret, err := encrypt.GenerateKey()
@@ -509,10 +482,11 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
+	pds := login_testutil.NewPassthroughProvider(t)
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
-			Pds:      login.NewPDSProvider(oauthClient, credStore, dummyDir),
+			Pds:      pds,
 			OrgStore: orgStore,
 		},
 		h, // the OAuth server resolves handles/DIDs via hive, not a public directory
@@ -550,7 +524,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	require.NoError(t, err, "failed to create cookie jar")
 	server.Client().Jar = jar
 	// set the server's oauthClient redirectUri now that we know the url
-	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
+	pds.RedirectURI = server.URL + "/oauth-callback"
 
 	// setup client app that oauth server can make requests to
 	verifier := oauth2.GenerateVerifier()
@@ -600,7 +574,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
 	)+"&handle="+member.Handle.String(), nil)
-	require.NoError(t, err, "failed to create authorize request")
+	require.NoError(t, err)
 
 	// make authorize requests which will follow redirects all the way to token response
 	result, err := server.Client().Do(authRequest)
@@ -637,22 +611,18 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 }
 
 func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
-	db := db_testutil.NewDB(t)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
+	db := dbtestutil.NewDB(t)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
+	pds := login_testutil.NewPassthroughProvider(t)
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
-			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
+			Pds: pds,
 		},
 		dummyDir,
 		db,
@@ -680,7 +650,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	server.Client().Jar = jar
-	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
+	pds.RedirectURI = server.URL + "/oauth-callback"
 
 	verifier := oauth2.GenerateVerifier()
 	config := &oauth2.Config{
@@ -761,7 +731,7 @@ func (s *testIsMemberStore) GetOrgForDID(
 func acquireAccessToken(
 	t *testing.T,
 	srv *OAuthServer,
-	clientMetadata *pdsclient.ClientMetadata,
+	pds *login_testutil.PassthroughProvider,
 ) string {
 	t.Helper()
 	flowServer := httptest.NewTLSServer(
@@ -783,7 +753,7 @@ func acquireAccessToken(
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	flowServer.Client().Jar = jar
-	clientMetadata.RedirectUris = []string{flowServer.URL + "/oauth-callback"}
+	pds.RedirectURI = flowServer.URL + "/oauth-callback"
 
 	verifier := oauth2.GenerateVerifier()
 	oauthCfg := &oauth2.Config{
@@ -840,12 +810,7 @@ func acquireAccessToken(
 
 // TestValidate tests every error and success pathway of OAuthServer.Validate.
 func TestValidate(t *testing.T) {
-	db := db_testutil.NewDB(t)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
+	db := dbtestutil.NewDB(t)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	require.NoError(t, err)
@@ -856,11 +821,12 @@ func TestValidate(t *testing.T) {
 	// Stateless JWT introspection means tokens issued by any server here are
 	// valid for all others created with the same secret.
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
-	newSrv := func(st org.Store) *OAuthServer {
+	newSrv := func(st org.Store) (*OAuthServer, *login_testutil.PassthroughProvider) {
+		p := login_testutil.NewPassthroughProvider(t)
 		s, srvErr := NewOAuthServer(
 			bytes,
 			&org.LoginRouter{
-				Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
+				Pds: p,
 			},
 			dummyDir,
 			db,
@@ -870,11 +836,12 @@ func TestValidate(t *testing.T) {
 			NewJWTBearerStore(),
 		)
 		require.NoError(t, srvErr)
-		return s
+		return s, p
 	}
 
 	// Issue a real JWT via the complete OAuth flow.
-	validToken := acquireAccessToken(t, newSrv(testStore(t)), clientMetadata)
+	srv, pds := newSrv(testStore(t))
+	validToken := acquireAccessToken(t, srv, pds)
 
 	// callValidate issues a GET against a minimal HTTP server wrapping srv.Validate
 	// and returns the HTTP status code together with Validate's return values.
@@ -907,17 +874,19 @@ func TestValidate(t *testing.T) {
 	}
 
 	t.Run("missing token returns !ok", func(t *testing.T) {
-		status, _, ok := callValidate(newSrv(testStore(t)), "")
+		srvEmpty, _ := newSrv(testStore(t))
+		status, _, ok := callValidate(srvEmpty, "")
 		require.False(t, ok)
 		require.NotEqual(t, http.StatusOK, status)
 
-		status, _, ok = callValidate(newSrv(testStore(t)), "not.a.valid.jwt")
+		srvBad, _ := newSrv(testStore(t))
+		status, _, ok = callValidate(srvBad, "not.a.valid.jwt")
 		require.False(t, ok)
 		require.NotEqual(t, http.StatusOK, status)
 	})
 
 	t.Run("GetOrgForDID error returns !ok with 401", func(t *testing.T) {
-		srv := newSrv(&testIsMemberStore{
+		srv, _ := newSrv(&testIsMemberStore{
 			Store: testStore(t),
 			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
 				return nil, errors.New("simulated database failure")
@@ -929,7 +898,7 @@ func TestValidate(t *testing.T) {
 	})
 
 	t.Run("non-member returns !ok with 401", func(t *testing.T) {
-		srv := newSrv(&testIsMemberStore{
+		srv, _ := newSrv(&testIsMemberStore{
 			Store: testStore(t),
 			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
 				return nil, org.ErrMemberNotFound
@@ -941,7 +910,8 @@ func TestValidate(t *testing.T) {
 	})
 
 	t.Run("valid token for member returns DID and ok with 200", func(t *testing.T) {
-		status, credInfo, ok := callValidate(newSrv(testStore(t)), validToken)
+		srv, _ := newSrv(testStore(t))
+		status, credInfo, ok := callValidate(srv, validToken)
 		require.True(t, ok)
 		require.Equal(t, http.StatusOK, status)
 		require.Equal(t, syntax.DID("did:web:example.did.com"), credInfo.Subject)
@@ -949,23 +919,19 @@ func TestValidate(t *testing.T) {
 }
 
 func TestValidateWithScopeChecking(t *testing.T) {
-	db := db_testutil.NewDB(t)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
+	db := dbtestutil.NewDB(t)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
-	newSrv := func(st org.Store) *OAuthServer {
+	newSrv := func(st org.Store) (*OAuthServer, *login_testutil.PassthroughProvider) {
+		p := login_testutil.NewPassthroughProvider(t)
 		s, srvErr := NewOAuthServer(
 			bytes,
 			&org.LoginRouter{
-				Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
+				Pds: p,
 			},
 			dummyDir,
 			db,
@@ -975,26 +941,26 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			NewJWTBearerStore(),
 		)
 		require.NoError(t, srvErr)
-		return s
+		return s, p
 	}
 
 	t.Run("token without org scope fails org scope requirement", func(t *testing.T) {
-		srv := newSrv(testStore(t))
-		token := acquireAccessToken(t, srv, clientMetadata)
+		srv, pds := newSrv(testStore(t))
+		token := acquireAccessToken(t, srv, pds)
 		_, _, err := srv.ValidateRaw(t.Context(), token, "org:*")
 		require.Error(t, err)
 	})
 
 	t.Run("token passes with no scope requirement", func(t *testing.T) {
-		srv := newSrv(testStore(t))
-		token := acquireAccessToken(t, srv, clientMetadata)
+		srv, pds := newSrv(testStore(t))
+		token := acquireAccessToken(t, srv, pds)
 		_, _, err := srv.ValidateRaw(t.Context(), token)
 		require.NoError(t, err)
 	})
 
 	t.Run("valid token returns DID and ok", func(t *testing.T) {
-		srv := newSrv(testStore(t))
-		token := acquireAccessToken(t, srv, clientMetadata)
+		srv, pds := newSrv(testStore(t))
+		token := acquireAccessToken(t, srv, pds)
 		credInfo, ok, err := srv.ValidateRaw(t.Context(), token)
 		require.NoError(t, err)
 		require.True(t, ok)
@@ -1019,8 +985,9 @@ func TestIndigoClientApp(t *testing.T) {
 
 	orgStore := org_testutil.NewTestStore(t)
 
-	db := db_testutil.NewDB(t)
-	loginProvider := login_testutil.NewPassthroughProvider("", pdsLoginDID)
+	db := dbtestutil.NewDB(t)
+	loginProvider := login_testutil.NewPassthroughProvider(t)
+	loginProvider.LoginID = pdsLoginDID
 	dir := pdsclient.NewDummyDirectory("https://habitat.example")
 	oauthServer, err := NewOAuthServer(
 		encrypt.TestKey,
@@ -1164,4 +1131,118 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		)
 	}
 	return resp, err
+}
+
+// TestHandleAuthorizeDisambiguation exercises the disambiguation redirect: when
+// an authorize request arrives without a handle, the server redirects to the
+// disambiguation page; the page (simulated here) re-issues the request with
+// a handle, and the flow completes normally.
+func TestHandleAuthorizeDisambiguation(t *testing.T) {
+	db := dbtestutil.NewDB(t)
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	pds := login_testutil.NewPassthroughProvider(t)
+	oauthServer, err := NewOAuthServer(
+		bytes,
+		&org.LoginRouter{
+			Pds: pds,
+		},
+		dummyDir,
+		db,
+		noop.Meter{},
+		testStore(t),
+		"https://habitat.example",
+		NewJWTBearerStore(),
+	)
+	require.NoError(t, err)
+
+	var disambiguateVisited bool
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/authorize":
+			oauthServer.HandleAuthorize(w, r)
+		case "/oauth-callback":
+			oauthServer.HandleCallback(w, r)
+		case "/oauth/token":
+			oauthServer.HandleToken(w, r)
+		case "/ui/login/disambiguate":
+			disambiguateVisited = true
+			params := r.URL.Query()
+			params.Set("handle", "did:web:example.did.com")
+			http.Redirect(w, r, "/oauth/authorize?"+params.Encode(), http.StatusSeeOther)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	server.Client().Jar = jar
+	pds.RedirectURI = server.URL + "/oauth-callback"
+
+	verifier := oauth2.GenerateVerifier()
+	config := &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  server.URL + "/oauth/authorize",
+			TokenURL: server.URL + "/oauth/token",
+		},
+	}
+
+	var capturedToken string
+	clientApp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/client-metadata.json":
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+				ClientId:      "http://" + r.Host + "/client-metadata.json",
+				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				ResponseTypes: []string{"code"},
+				GrantTypes:    []string{"authorization_code", "refresh_token"},
+			}))
+		case "/oauth-callback":
+			ctx := context.WithValue(r.Context(), oauth2.HTTPClient, server.Client())
+			token, exchangeErr := config.Exchange(
+				ctx,
+				r.URL.Query().Get("code"),
+				oauth2.VerifierOption(verifier),
+			)
+			require.NoError(t, exchangeErr)
+			capturedToken = token.AccessToken
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+				"token": token.AccessToken,
+			}))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(clientApp.Close)
+
+	config.ClientID = clientApp.URL + "/client-metadata.json"
+	config.RedirectURL = clientApp.URL + "/oauth-callback"
+
+	// Make an authorize request WITHOUT a handle — the server should redirect
+	// to the disambiguation page, which re-issues the request with a handle,
+	// and the full OAuth flow completes.
+	authReq, err := http.NewRequest(
+		http.MethodGet,
+		config.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier)),
+		nil,
+	)
+	require.NoError(t, err)
+
+	result, err := server.Client().Do(authReq)
+	require.NoError(t, err)
+	respBytes, err := io.ReadAll(result.Body)
+	require.NoError(t, err)
+	require.NoError(t, result.Body.Close())
+	require.Equal(t, http.StatusOK, result.StatusCode, "authorize request failed: %s", respBytes)
+
+	require.True(t, disambiguateVisited, "disambiguation page should have been visited")
+	require.NotEmpty(t, capturedToken, "OAuth flow should complete after disambiguation")
 }
