@@ -236,6 +236,9 @@ func (o *OAuthServer) HandleAuthorize(
 	form.Del("request_uri")
 	handle := form.Get("handle")
 	if handle == "" {
+		handle = form.Get("login_hint")
+	}
+	if handle == "" {
 		slog.WarnContext(ctx, "request form", "form", requester.GetRequestForm())
 		form.Del("handle")
 		session.AddFlash(authRequestFlash{Form: form}, "disambiguation")
@@ -312,6 +315,15 @@ func (o *OAuthServer) HandleAuthorize(
 // but not required, so clients may also call /oauth/authorize directly.
 func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	loginHint := r.URL.Query().Get("handle")
+	if loginHint == "" {
+		loginHint = r.URL.Query().Get("login_hint")
+	}
+	if err := r.ParseForm(); err != nil {
+		utils.LogAndHTTPError(ctx, w, err, "failed to parse form", http.StatusBadRequest)
+		return
+	}
+	r.Form.Add("login_hint", loginHint)
 	req, err := o.provider.NewPushedAuthorizeRequest(ctx, r)
 	if err != nil {
 		o.provider.WritePushedAuthorizeError(ctx, w, req, err)
@@ -454,8 +466,7 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
-	// TODO uncomment this when we migrate off openid-client
-	// resp.AddParameter("iss", o.issuer)
+	resp.AddParameter("iss", o.issuer)
 	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
 	o.metrics.callbackSuccess()
 }

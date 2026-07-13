@@ -1117,7 +1117,10 @@ func TestIndigoClientApp(t *testing.T) {
 	// server; point every DID at the habitat issuer so that resolution matches.
 	indigoApp.Dir = dir
 
-	redirect, err := indigoApp.StartAuthFlow(t.Context(), "https://habitat.example")
+	redirect, err := indigoApp.StartAuthFlow(
+		t.Context(),
+		"https://habitat.example?handle=example.handle.com",
+	)
 	require.NoError(t, err)
 
 	resp, err := client.Get(redirect)
