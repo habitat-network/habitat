@@ -32,10 +32,10 @@ export default function AuthForm({
     isError,
   } = useMutation({
     async mutationFn({ handle }: AuthFormData) {
-      // if (!handle) {
-      //   throw new Error("Handle required");
-      // }
-      const url = authManager.loginUrl(handle || "", redirectUrl);
+      if (!handle) {
+        throw new Error("Handle required");
+      }
+      const url = authManager.loginUrl(handle, redirectUrl);
       window.location.href = url.toString();
     },
   });
