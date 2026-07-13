@@ -23,7 +23,7 @@ func WithHabitatService(habitatURL string) Option {
 
 type DummyDirectory struct {
 	options    *options
-	PdsURL     string
+	pdsUrl     string
 	PrivateKey *atcrypto.PrivateKeyK256
 }
 
@@ -35,7 +35,7 @@ func NewDummyDirectory(pdsUrl string, opts ...Option) *DummyDirectory {
 	privateKey, _ := atcrypto.GeneratePrivateKeyK256()
 	return &DummyDirectory{
 		options:    o,
-		PdsURL:     pdsUrl,
+		pdsUrl:     pdsUrl,
 		PrivateKey: privateKey,
 	}
 }
@@ -83,7 +83,7 @@ func (d *DummyDirectory) getIdentity(handle syntax.Handle, did syntax.DID) *iden
 		},
 		Services: map[string]identity.ServiceEndpoint{
 			"atproto_pds": {
-				URL: d.PdsURL,
+				URL: d.pdsUrl,
 			},
 		},
 		Keys: map[string]identity.VerificationMethod{
