@@ -20,7 +20,10 @@ type fakeMember struct {
 	managed bool
 }
 
-func (f *fakeMember) PrivateKeyForDID(_ context.Context, _ syntax.DID) (atcrypto.PrivateKey, error) {
+func (f *fakeMember) PrivateKeyForDID(
+	_ context.Context,
+	_ syntax.DID,
+) (atcrypto.PrivateKey, error) {
 	if !f.managed {
 		return nil, identity.ErrDIDNotFound
 	}
@@ -75,7 +78,13 @@ func TestBuild_MemberSignedForManagedAuthor(t *testing.T) {
 
 func TestBuild_NoSignerFails(t *testing.T) {
 	authority := NewAuthority(nil, &fakeMember{managed: false})
-	_, err := authority.Build(context.Background(), testSpace, "did:plc:alice", "3lart", (&LtHash{}).Sum())
+	_, err := authority.Build(
+		context.Background(),
+		testSpace,
+		"did:plc:alice",
+		"3lart",
+		(&LtHash{}).Sum(),
+	)
 	require.ErrorIs(t, err, ErrNoSigner)
 }
 
@@ -105,14 +114,26 @@ func TestVerify_RejectsTampering(t *testing.T) {
 	// A different recomputed hash than the commit's is rejected.
 	other := (&LtHash{})
 	other.Add(RecordElement("c", "k", "cid"))
-	require.ErrorIs(t, Verify(c, HostProtocolTag, testSpace, author, other.Sum(), hostPub), ErrInvalidCommit)
+	require.ErrorIs(
+		t,
+		Verify(c, HostProtocolTag, testSpace, author, other.Sum(), hostPub),
+		ErrInvalidCommit,
+	)
 
 	// A tampered mac is rejected.
 	badMac := c
 	badMac.Mac = append([]byte(nil), c.Mac...)
 	badMac.Mac[0] ^= 0xff
-	require.ErrorIs(t, Verify(badMac, HostProtocolTag, testSpace, author, hash, hostPub), ErrInvalidCommit)
+	require.ErrorIs(
+		t,
+		Verify(badMac, HostProtocolTag, testSpace, author, hash, hostPub),
+		ErrInvalidCommit,
+	)
 
 	// The wrong tag (verifying a host-signed commit as spec) is rejected.
-	require.ErrorIs(t, Verify(c, SpecProtocolTag, testSpace, author, hash, hostPub), ErrInvalidCommit)
+	require.ErrorIs(
+		t,
+		Verify(c, SpecProtocolTag, testSpace, author, hash, hostPub),
+		ErrInvalidCommit,
+	)
 }
