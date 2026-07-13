@@ -10,8 +10,8 @@ catalogs:
       specifier: 0.20.28
       version: 0.20.28
     '@atproto/lexicon':
-      specifier: 0.7.1
-      version: 0.7.1
+      specifier: 0.7.7
+      version: 0.7.7
     '@tanstack/devtools-vite':
       specifier: ^0.3.11
       version: 0.3.12
@@ -85,7 +85,7 @@ importers:
         version: 0.20.28
       '@atproto/lexicon':
         specifier: 'catalog:'
-        version: 0.7.1
+        version: 0.7.7
       '@atproto/xrpc':
         specifier: ^0.6.12
         version: 0.6.12
@@ -270,7 +270,7 @@ importers:
         version: 0.20.28
       '@atproto/lexicon':
         specifier: 'catalog:'
-        version: 0.7.1
+        version: 0.7.7
       '@atproto/xrpc':
         specifier: ^0.6.12
         version: 0.6.12
@@ -750,7 +750,7 @@ importers:
     dependencies:
       '@atproto/lexicon':
         specifier: 'catalog:'
-        version: 0.7.1
+        version: 0.7.7
       fast-glob:
         specifier: ^3.3.3
         version: 3.3.3
@@ -1015,10 +1015,6 @@ packages:
   '@atproto/lexicon@0.6.2':
     resolution: {integrity: sha512-p3Ly6hinVZW0ETuAXZMeUGwuMm3g8HvQMQ41yyEE6AL0hAkfeKFaZKos6BdBrr6CjkpbrDZqE8M+5+QOceysMw==}
 
-  '@atproto/lexicon@0.7.1':
-    resolution: {integrity: sha512-voNfNED5KUxn3vpo7N5DMRblBDfWf7kSfdKhJFC1RrLCxg38YbBzzURNVQJ32bp13Oot8kYfyXBWxTgtKLvw8w==}
-    engines: {node: '>=22'}
-
   '@atproto/lexicon@0.7.7':
     resolution: {integrity: sha512-92VH2oEsJdrIVNy7WY8rGn99ANNVglyUffoN7GJc0mxKi+fXN5iVlJ2cOyTfYABhr2ldSiptZWXEPEdBaIR9/A==}
     engines: {node: '>=22'}
@@ -1037,10 +1033,6 @@ packages:
 
   '@atproto/syntax@0.5.4':
     resolution: {integrity: sha512-9XJOpMAgsGFxMEIp8nJ8AIWv+krrY1xQMj+wULbbXhQztQV+9aZ0TbG9Jtn3Op2or8Kr6OqyWR4ga9Z189kKDw==}
-
-  '@atproto/syntax@0.6.4':
-    resolution: {integrity: sha512-ELgpShRGMF65cvLXcoMCZFL0HBzy67yz/Nlhox3yOtTh120B09KjjvZYXhMysVog3nUJqv2EW5rf1VRYCeM/hw==}
-    engines: {node: '>=22'}
 
   '@atproto/syntax@0.7.2':
     resolution: {integrity: sha512-tZ1Tr0R9pK4bI4Zs69t29cjMlCFQvRNBeNkqJC5pGeNuCt64D0eoF7s/AlqeVmYppClmQ0xJquggGgsMDP6j7w==}
@@ -12043,13 +12035,6 @@ snapshots:
       multiformats: 9.9.0
       zod: 3.25.76
 
-  '@atproto/lexicon@0.7.1':
-    dependencies:
-      '@atproto/common-web': 0.5.6
-      '@atproto/syntax': 0.6.4
-      multiformats: 13.4.2
-      zod: 3.25.76
-
   '@atproto/lexicon@0.7.7':
     dependencies:
       '@atproto/common-web': 0.5.6
@@ -12097,11 +12082,6 @@ snapshots:
 
   '@atproto/syntax@0.5.4':
     dependencies:
-      tslib: 2.8.1
-
-  '@atproto/syntax@0.6.4':
-    dependencies:
-      iso-datestring-validator: 2.2.2
       tslib: 2.8.1
 
   '@atproto/syntax@0.7.2':
