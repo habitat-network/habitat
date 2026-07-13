@@ -8,7 +8,7 @@
   },
   "devDependencies": {
     "@atproto/api": "catalog:",
-    "@atproto/lexicon": "^0.7.1",
+    "@atproto/lexicon": "catalog:",
     "@atproto/xrpc": "^0.6.12",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
