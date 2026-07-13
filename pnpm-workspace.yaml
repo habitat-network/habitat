@@ -11,7 +11,7 @@ packages:
   - website
 
 catalog:
-  '@atproto/api': 0.20.7
+  '@atproto/api': 0.20.28
   '@atproto/lexicon': 0.7.1
   '@tanstack/devtools-vite': ^0.3.11
   '@tanstack/react-devtools': ^0.7.0
