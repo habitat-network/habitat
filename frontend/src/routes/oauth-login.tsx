@@ -14,7 +14,6 @@ export const Route = createFileRoute("/oauth-login")({
     return (
       <AuthForm
         authManager={authManager}
-        redirectUrl={`https://${__DOMAIN__}`}
         serverError={error}
         defaultHandle={handle}
       />

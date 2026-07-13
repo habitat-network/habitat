@@ -249,9 +249,13 @@ func (s *store) GetAuthorizeCodeSession(
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
 	return &fosite.Request{
-		Client:         client,
-		Session:        data,
+		Client:  client,
+		Session: data,
+		// The stateless code carries the scopes granted at authorize time. Mark
+		// them granted (not just requested) so fosite echoes them in the token
+		// response; atproto clients reject a token response with an empty scope.
 		RequestedScope: data.Scopes,
+		GrantedScope:   data.Scopes,
 	}, nil
 }
 

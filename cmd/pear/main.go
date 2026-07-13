@@ -608,7 +608,10 @@ func corsMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().
-			Set("Access-Control-Allow-Headers", "Content-Type, Authorization, habitat-auth-method, User-Agent, atproto-accept-labelers, atproto-proxy ")
+			Set("Access-Control-Allow-Headers", "Content-Type, Authorization, habitat-auth-method, User-Agent, atproto-accept-labelers, atproto-proxy, DPoP")
+		// The atproto OAuth client reads the server-issued DPoP nonce from
+		// responses to retry DPoP-bound requests; it must be exposed cross-origin.
+		w.Header().Set("Access-Control-Expose-Headers", "DPoP-Nonce")
 		w.Header().Set("Access-Control-Max-Age", "86400") // Cache preflight for 24 hours
 
 		// Handle preflight OPTIONS request

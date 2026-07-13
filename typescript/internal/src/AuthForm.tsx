@@ -1,35 +1,75 @@
 import type { AuthManager } from "./authManager";
+import { useForm } from "react-hook-form";
+import { useMutation } from "@tanstack/react-query";
 import { useId } from "react";
-import { Button } from "./components/ui";
+import { Button, Input } from "./components/ui";
+import { Field, FieldGroup, FieldLabel } from "./components/ui/field";
+
+interface AuthFormData {
+  handle?: string;
+}
 
 interface AuthFormProps {
   authManager: AuthManager;
   serverError?: string;
+  defaultHandle?: string;
   orgLoginUrl?: string;
 }
 
 export default function AuthForm({
   authManager,
   serverError,
+  defaultHandle,
   orgLoginUrl,
 }: AuthFormProps) {
+  const { register, handleSubmit } = useForm<AuthFormData>();
+  const {
+    mutate: login,
+    isPending,
+    error,
+    isError,
+  } = useMutation({
+    async mutationFn({ handle }: AuthFormData) {
+      if (!handle) {
+        throw new Error("Handle required");
+      }
+      // Starts the OAuth redirect; the handle is forwarded to Habitat as the
+      // login_hint (see AuthManager). On success the browser navigates away.
+      await authManager.login(handle);
+    },
+  });
   const errorId = useId();
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm rounded-xl border bg-background p-8 shadow-sm">
-        <Button
-          className="w-full"
-          onClick={() => authManager.login()}
-          aria-describedby={errorId}
-        >
-          Sign In with Habitat
-        </Button>
-        {serverError && (
-          <small id={errorId} className="mt-4 block text-destructive">
-            {serverError}
-          </small>
-        )}
+        <form onSubmit={handleSubmit((data) => login(data))}>
+          <FieldGroup className="mt-6 space-y-4">
+            <Field>
+              <FieldLabel>Handle</FieldLabel>
+              <Input
+                {...register("handle")}
+                defaultValue={defaultHandle}
+                aria-invalid={isError || !!serverError || undefined}
+                aria-describedby={errorId}
+                placeholder="alice.bsky.social"
+              />
+            </Field>
+            {serverError && (
+              <small id={errorId} className="text-destructive">
+                {serverError}
+              </small>
+            )}
+            {!serverError && error?.message && (
+              <small id={errorId} className="text-destructive">
+                {error.message}
+              </small>
+            )}
+            <Button aria-busy={isPending} type="submit" className="w-full">
+              Sign In
+            </Button>
+          </FieldGroup>
+        </form>
         {orgLoginUrl && (
           <Button
             variant="link"

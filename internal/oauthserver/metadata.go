@@ -35,11 +35,23 @@ func buildAuthServerMetadata(issuer string) oauth.AuthServerMetadata {
 	}
 }
 
+// protectedResourceMetadata is the RFC 9728 protected-resource metadata
+// document. We emit our own type rather than indigo's oauth.ProtectedResourceMetadata
+// because that struct omits the required `resource` field: the atproto OAuth
+// client rejects the document without it (it must exactly equal the resource
+// origin) and never proceeds to discover the authorization server.
+type protectedResourceMetadata struct {
+	Resource             string   `json:"resource"`
+	AuthorizationServers []string `json:"authorization_servers"`
+}
+
 // buildProtectedResourceMetadata assembles the protected-resource metadata
 // document. Habitat is both the resource server and the authorization server,
-// so the single authorization server is the issuer origin.
-func buildProtectedResourceMetadata(issuer string) oauth.ProtectedResourceMetadata {
-	return oauth.ProtectedResourceMetadata{
+// so the resource identifier and the single authorization server are both the
+// issuer origin.
+func buildProtectedResourceMetadata(issuer string) protectedResourceMetadata {
+	return protectedResourceMetadata{
+		Resource:             issuer,
 		AuthorizationServers: []string{issuer},
 	}
 }

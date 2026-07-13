@@ -1,6 +1,8 @@
 import clientMetadata from "./clientMetadata";
 import {
   BrowserOAuthClient,
+  type AtprotoDid,
+  type AtprotoDidDocument,
   type OAuthSession,
 } from "@atproto/oauth-client-browser";
 
@@ -20,11 +22,36 @@ export class AuthManager {
   ) {
     this.serverDomain = serverDomain;
     this.onUnauthenticated = onUnauthenticated;
+    const did: AtprotoDid = `did:web:${serverDomain}`;
+    // Habitat is a brokering OAuth server: the frontend authenticates against
+    // Habitat's own OAuth server (the pear domain), which then brokers to the
+    // user's real PDS. The atproto client normally resolves a handle to the
+    // user's real PDS/authorization server; we override identity resolution so
+    // every handle resolves to a synthetic DID document whose PDS is the pear
+    // domain. That makes the client run PAR/PKCE/DPoP against Habitat while
+    // still forwarding the typed handle to Habitat as the OAuth login_hint.
+    const identityResolver = {
+      async resolve(handle: string) {
+        const didDoc: AtprotoDidDocument = {
+          id: did,
+          service: [
+            {
+              id: "#atproto_pds",
+              type: "AtprotoPersonalDataServer",
+              serviceEndpoint: `https://${serverDomain}`,
+            },
+          ],
+        };
+        return { did, handle, didDoc };
+      },
+    };
     this.client = new BrowserOAuthClient({
       clientMetadata: clientMetadata(appName, domain),
-      // Habitat resolves handles server-side; the client only needs to reach
-      // the pear domain's OAuth metadata.
-      handleResolver: `https://${serverDomain}`,
+      identityResolver,
+      // Return the authorization code in the query string, not the URL fragment:
+      // fosite rejects fragment mode for this client, and the frontend uses hash
+      // routing, so callback params in the fragment would collide with the router.
+      responseMode: "query",
     });
   }
 
@@ -46,12 +73,12 @@ export class AuthManager {
     return { did: this.session.sub };
   }
 
-  // Begins the OAuth flow against the pear domain as a service URL. The atproto
-  // client resolves the pear domain's oauth-protected-resource -> authorization
-  // server and runs PAR/PKCE/DPoP against Habitat. No login_hint is sent; the
-  // user picks their handle on Habitat's disambiguation page.
-  login() {
-    void this.client.signInRedirect(`https://${this.serverDomain}`);
+  // Begins the OAuth flow for the given handle. Identity resolution is
+  // overridden (see constructor) so this runs against the pear domain; the
+  // handle is forwarded to Habitat as the login_hint. Returns the redirect
+  // promise so callers can surface resolution/PAR errors.
+  login(handle: string) {
+    return this.client.signInRedirect(handle);
   }
 
   logout = () => {
