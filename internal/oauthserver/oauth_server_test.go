@@ -962,3 +962,117 @@ func TestValidateWithScopeChecking(t *testing.T) {
 		require.Equal(t, syntax.DID("did:web:example.did.com"), credInfo.Subject)
 	})
 }
+
+// TestHandleAuthorizeDisambiguation exercises the disambiguation redirect: when
+// an authorize request arrives without a handle, the server redirects to the
+// disambiguation page; the page (simulated here) re-issues the request with
+// a handle, and the flow completes normally.
+func TestHandleAuthorizeDisambiguation(t *testing.T) {
+	db := dbtestutil.NewDB(t)
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	pds := login_testutil.NewPassthroughProvider(t)
+	oauthServer, err := NewOAuthServer(
+		bytes,
+		&org.LoginRouter{
+			Pds: pds,
+		},
+		dummyDir,
+		db,
+		noop.Meter{},
+		testStore(t),
+		"https://habitat.example",
+		NewJWTBearerStore(),
+	)
+	require.NoError(t, err)
+
+	var disambiguateVisited bool
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/authorize":
+			oauthServer.HandleAuthorize(w, r)
+		case "/oauth-callback":
+			oauthServer.HandleCallback(w, r)
+		case "/oauth/token":
+			oauthServer.HandleToken(w, r)
+		case "/ui/login/disambiguate":
+			disambiguateVisited = true
+			params := r.URL.Query()
+			params.Set("handle", "did:web:example.did.com")
+			http.Redirect(w, r, "/oauth/authorize?"+params.Encode(), http.StatusSeeOther)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	server.Client().Jar = jar
+	pds.RedirectURI = server.URL + "/oauth-callback"
+
+	verifier := oauth2.GenerateVerifier()
+	config := &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  server.URL + "/oauth/authorize",
+			TokenURL: server.URL + "/oauth/token",
+		},
+	}
+
+	var capturedToken string
+	clientApp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/client-metadata.json":
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+				ClientId:      "http://" + r.Host + "/client-metadata.json",
+				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				ResponseTypes: []string{"code"},
+				GrantTypes:    []string{"authorization_code", "refresh_token"},
+			}))
+		case "/oauth-callback":
+			ctx := context.WithValue(r.Context(), oauth2.HTTPClient, server.Client())
+			token, exchangeErr := config.Exchange(
+				ctx,
+				r.URL.Query().Get("code"),
+				oauth2.VerifierOption(verifier),
+			)
+			require.NoError(t, exchangeErr)
+			capturedToken = token.AccessToken
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+				"token": token.AccessToken,
+			}))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(clientApp.Close)
+
+	config.ClientID = clientApp.URL + "/client-metadata.json"
+	config.RedirectURL = clientApp.URL + "/oauth-callback"
+
+	// Make an authorize request WITHOUT a handle — the server should redirect
+	// to the disambiguation page, which re-issues the request with a handle,
+	// and the full OAuth flow completes.
+	authReq, err := http.NewRequest(
+		http.MethodGet,
+		config.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier)),
+		nil,
+	)
+	require.NoError(t, err)
+
+	result, err := server.Client().Do(authReq)
+	require.NoError(t, err)
+	respBytes, err := io.ReadAll(result.Body)
+	require.NoError(t, err)
+	require.NoError(t, result.Body.Close())
+	require.Equal(t, http.StatusOK, result.StatusCode, "authorize request failed: %s", respBytes)
+
+	require.True(t, disambiguateVisited, "disambiguation page should have been visited")
+	require.NotEmpty(t, capturedToken, "OAuth flow should complete after disambiguation")
+}
