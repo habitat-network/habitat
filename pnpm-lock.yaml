@@ -30,6 +30,9 @@ catalogs:
     '@testing-library/dom':
       specifier: ^10.4.0
       version: 10.4.1
+    '@testing-library/react':
+      specifier: ^16.2.0
+      version: 16.3.2
     '@types/node':
       specifier: ^22.10.2
       version: 22.19.3
@@ -452,7 +455,7 @@ importers:
         version: 0.4.10
       '@hono/node-server':
         specifier: ^1.13.7
-        version: 1.19.14(hono@4.12.3)
+        version: 1.19.14(hono@4.12.30)
       api:
         specifier: workspace:*
         version: link:../../api
@@ -461,7 +464,7 @@ importers:
         version: 0.5.0
       hono:
         specifier: ^4.6.14
-        version: 4.12.3
+        version: 4.12.30
       yjs:
         specifier: ^13.6.27
         version: 13.6.29
@@ -7041,8 +7044,12 @@ packages:
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
 
-  hono@4.12.3:
-    resolution: {integrity: sha512-SFsVSjp8sj5UumXOOFlkZOG6XS9SJDKw0TbwFeV+AJ8xlST8kxK5Z/5EYa111UY8732lK2S/xB653ceuaoGwpg==}
+  hono@4.12.29:
+    resolution: {integrity: sha512-1hNiRjawYrLq/4m3DQQjPGFg0VZkk4RjQJDff/excI6Dm9BiL75qxGrd7/c6YOxPdq6AscP3LiXhQ6fKFC1Waw==}
+    engines: {node: '>=16.9.0'}
+
+  hono@4.12.30:
+    resolution: {integrity: sha512-emn+JoJjrN9YTpRDS5it/UI2SO9BAE37T6I3d963RxcZ81G9A4pr2SZTEiiaiKbzx+NKRg5BZ89fCL7gCJCUog==}
     engines: {node: '>=16.9.0'}
 
   hpack.js@2.1.6:
@@ -15032,9 +15039,13 @@ snapshots:
     dependencies:
       '@hapi/hoek': 9.3.0
 
-  '@hono/node-server@1.19.14(hono@4.12.3)':
+  '@hono/node-server@1.19.14(hono@4.12.29)':
     dependencies:
-      hono: 4.12.3
+      hono: 4.12.29
+
+  '@hono/node-server@1.19.14(hono@4.12.30)':
+    dependencies:
+      hono: 4.12.30
 
   '@hookform/error-message@2.0.1(react-dom@19.1.0(react@19.1.0))(react-hook-form@7.65.0(react@19.1.0))(react@19.1.0)':
     dependencies:
@@ -15766,7 +15777,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.27.1(zod@3.25.76)':
     dependencies:
-      '@hono/node-server': 1.19.14(hono@4.12.3)
+      '@hono/node-server': 1.19.14(hono@4.12.29)
       ajv: 8.18.0
       ajv-formats: 3.0.1(ajv@8.18.0)
       content-type: 1.0.5
@@ -15776,7 +15787,7 @@ snapshots:
       eventsource-parser: 3.0.6
       express: 5.2.1
       express-rate-limit: 8.2.1(express@5.2.1)
-      hono: 4.12.3
+      hono: 4.12.29
       jose: 6.1.3
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -20199,7 +20210,9 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono@4.12.3: {}
+  hono@4.12.29: {}
+
+  hono@4.12.30: {}
 
   hpack.js@2.1.6:
     dependencies:
