@@ -177,7 +177,19 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			next.ServeHTTP(w, r)
 		})
 	})
-	mux.Use(corsMiddleware)
+	mux.Use(handlers.CORS(
+		handlers.AllowedOrigins([]string{"*"}),
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+		handlers.AllowedHeaders([]string{
+			"Content-Type",
+			"Authorization",
+			"habitat-auth-method",
+			"User-Agent",
+			"atproto-accept-labelers",
+			"atproto-proxy",
+		}),
+		handlers.MaxAge(86400),
+	))
 	if cmd.Bool(fDebug) {
 		mux.Use(func(next http.Handler) http.Handler {
 			return handlers.LoggingHandler(os.Stdout, next)
@@ -611,24 +623,6 @@ func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
 		return nil, fmt.Errorf("setup fga sqlite store %q: %w", fgaPath, err)
 	}
 	return fga, nil
-}
-
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().
-			Set("Access-Control-Allow-Headers", "Content-Type, Authorization, habitat-auth-method, User-Agent, atproto-accept-labelers, atproto-proxy ")
-		w.Header().Set("Access-Control-Max-Age", "86400") // Cache preflight for 24 hours
-
-		// Handle preflight OPTIONS request
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 func setupInstanceAdminPassword(ctx context.Context, cmd *cli.Command) (string, error) {

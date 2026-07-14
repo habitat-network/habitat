@@ -13,13 +13,15 @@ tasks:
     command: golangci-lint fmt -d
   format:
     command: golangci-lint fmt
+    preset: utility
   lint-check:
     command: golangci-lint run
   lint:
     command: golangci-lint run --fix
+    preset: utility
   build:
     deps:
-    - ^:build
+    - root:build
     inputs:
     - '@group(mod)'
     - '@group(src)'
@@ -32,7 +34,7 @@ tasks:
     - /bin/$project
   test:
     deps:
-      - ^:test
+      - ~:build
     inputs:
     - '@group(mod)'
     - '@group(test)'

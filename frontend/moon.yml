@@ -1,10 +1,4 @@
 tasks:
-  build:
-    deps:
-      - typescript/api:build
-      - typescript/internal:build
-    options:
-      mergeDeps: replace
   dev:
     env:
       HABITAT_DOMAIN: pear.local.habitat.network

@@ -9,8 +9,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@atproto/api": "^0.18.9",
-    "@atproto/identity": "^0.4.10",
+    "@atproto/api": "^0.20.0",
+    "@atproto/identity": "^0.5.0",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "^1.170.0",
     "@tanstack/react-router-devtools": "^1.167.0",

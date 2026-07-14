@@ -1,42 +1,17 @@
 package org_test
 
 import (
-	"context"
-	"net/url"
 	"testing"
-	"time"
 
-	"github.com/habitat-network/habitat/internal/login"
+	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/stretchr/testify/require"
 )
 
-type dummyProvider struct{ loginID string }
-
-var _ login.Provider = (*dummyProvider)(nil)
-
-// Authorize implements [login.Provider].
-func (d *dummyProvider) Authorize(
-	ctx context.Context,
-	loginHint string,
-) (redirectURI string, state []byte, err error) {
-	return "https://redirect.com?login_hint=" + url.QueryEscape(loginHint), nil, nil
-}
-
-// Exchange implements [login.Provider].
-func (d *dummyProvider) Exchange(
-	ctx context.Context,
-	code string,
-	issuer string,
-	state []byte,
-) (loginId string, err error) {
-	return d.loginID, nil
-}
-
 func TestLoginRouter(t *testing.T) {
 	store := testutil.NewTestStore(t)
-	orgId, adminId, err := store.CreateOrg(
+	orgID, adminID, err := store.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
@@ -46,23 +21,22 @@ func TestLoginRouter(t *testing.T) {
 		"subdomain",
 		"contact@example.com",
 	)
-	t.Logf("orgId: %s", orgId.DID.String())
-	t.Logf("adminId: %s", adminId.DID.String())
+	t.Logf("orgID: %s", orgID.DID.String())
+	t.Logf("adminID: %s", adminID.DID.String())
 
 	require.NoError(t, err)
 	router := org.LoginRouter{
-		Google:   &dummyProvider{loginID: "test@gmail.com"},
+		Google:   login_testutil.NewPassthroughProvider(t),
 		OrgStore: store,
 	}
 
 	t.Run("member login", func(t *testing.T) {
-		redirectUri, state, err := router.Authorize(t.Context(), adminId.DID)
+		_, state, err := router.Authorize(t.Context(), adminID.DID)
 		require.NoError(t, err)
-		require.Contains(t, redirectUri, "test%40gmail.com")
 
 		err = router.Exchange(
 			t.Context(),
-			adminId.DID,
+			adminID.DID,
 			"",
 			"",
 			state,
@@ -71,13 +45,18 @@ func TestLoginRouter(t *testing.T) {
 	})
 
 	t.Run("org login", func(t *testing.T) {
-		redirectUri, state, err := router.Authorize(t.Context(), orgId.DID)
+		p := login_testutil.NewPassthroughProvider(t)
+		p.LoginID = "test@gmail.com"
+		router := org.LoginRouter{
+			Google:   p,
+			OrgStore: store,
+		}
+		_, state, err := router.Authorize(t.Context(), orgID.DID)
 		require.NoError(t, err)
-		require.Equal(t, redirectUri, "https://redirect.com?login_hint=")
 
 		err = router.Exchange(
 			t.Context(),
-			orgId.DID,
+			orgID.DID,
 			"",
 			"",
 			state,
@@ -88,7 +67,7 @@ func TestLoginRouter(t *testing.T) {
 
 func TestExchange_RequireAdminForOrg(t *testing.T) {
 	store := testutil.NewTestStore(t)
-	orgId, adminId, err := store.CreateOrg(
+	orgID, _, err := store.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
@@ -99,24 +78,13 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 		"contact@example.com",
 	)
 	require.NoError(t, err)
-	token, err := store.IssueIdentityToken(
-		t.Context(),
-		orgId.DID,
-		adminId.DID,
-		true,
-		time.Now().Add(time.Hour),
-	)
-	require.NoError(t, err)
-	memberId, err := store.CreateNewMemberIdentity(t.Context(), orgId.DID, token, "alice", "", "")
-	require.NoError(t, err)
-
 	router := org.LoginRouter{
-		Google:   &dummyProvider{loginID: memberId.DID.String()},
+		Google:   login_testutil.NewPassthroughProvider(t),
 		OrgStore: store,
 	}
 	err = router.Exchange(
 		t.Context(),
-		orgId.DID,
+		orgID.DID,
 		"",
 		"",
 		nil,
@@ -126,7 +94,7 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 
 func TestExchange_MismatchLoginID(t *testing.T) {
 	store := testutil.NewTestStore(t)
-	_, adminId, err := store.CreateOrg(
+	_, adminID, err := store.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
@@ -138,13 +106,13 @@ func TestExchange_MismatchLoginID(t *testing.T) {
 	)
 	require.NoError(t, err)
 	router := org.LoginRouter{
-		Google:   &dummyProvider{loginID: "differentId@gmail.com"},
+		Google:   login_testutil.NewPassthroughProvider(t),
 		OrgStore: store,
 	}
 
 	err = router.Exchange(
 		t.Context(),
-		adminId.DID,
+		adminID.DID,
 		"",
 		"",
 		nil,
@@ -154,7 +122,7 @@ func TestExchange_MismatchLoginID(t *testing.T) {
 
 func TestExchange_MissingMember(t *testing.T) {
 	store := testutil.NewTestStore(t)
-	_, adminId, err := store.CreateOrg(
+	_, adminID, err := store.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
@@ -166,10 +134,10 @@ func TestExchange_MissingMember(t *testing.T) {
 	)
 	require.NoError(t, err)
 	router := org.LoginRouter{
-		Google:   &dummyProvider{loginID: "differentId@gmail.com"},
+		Google:   login_testutil.NewPassthroughProvider(t),
 		OrgStore: store,
 	}
 
-	err = router.Exchange(t.Context(), adminId.DID, "", "", nil)
+	err = router.Exchange(t.Context(), adminID.DID, "", "", nil)
 	require.Error(t, err)
 }

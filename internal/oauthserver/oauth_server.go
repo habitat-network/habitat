@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,6 +34,8 @@ const (
 	// this is the cookie name.
 	// TODO: hardcoding this means that only one oauth flow can be in progress at a time
 	sessionName = "auth-session"
+
+	disambiguationPath = "/ui/login/disambiguate"
 )
 
 func init() {
@@ -131,10 +134,11 @@ func NewOAuthServer(
 
 	cookieStore := sessions.NewCookieStore(secret)
 	cookieStore.Options = &sessions.Options{
-		Path:     "/oauth-callback",
+		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
+		MaxAge:   10 * 60,
 	}
 
 	return &OAuthServer{
@@ -186,53 +190,7 @@ func (o *OAuthServer) HandleAuthorize(
 	r *http.Request,
 ) {
 	ctx := r.Context()
-	requester, err := o.provider.NewAuthorizeRequest(ctx, r)
-	if err != nil {
-		o.metrics.authorizeErr(ctx, err, fositeErrReason(err))
-		o.provider.WriteAuthorizeError(ctx, w, requester, err)
-		return
-	}
-	if err = r.ParseForm(); err != nil {
-		o.metrics.authorizeErr(ctx, err, "parse_form")
-		utils.LogAndHTTPError(ctx, w, err, "failed to parse form", http.StatusBadRequest)
-		return
-	}
-	handle := r.Form.Get("handle")
-	atid, err := syntax.ParseAtIdentifier(handle)
-	if err != nil {
-		o.metrics.authorizeErr(ctx, err, "parse_handle")
-		utils.LogAndHTTPError(ctx, w, err, "failed to parse handle", http.StatusBadRequest)
-		return
-	}
-
-	// directory caches errors, so don't pass in the real context
-	id, err := o.directory.Lookup(context.Background(), atid)
-	if err != nil {
-		o.metrics.authorizeErr(ctx, err, "lookup_atid")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to lookup identity",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	redirect, providerState, err := o.loginRouter.Authorize(ctx, id.DID)
-	if err != nil {
-		o.metrics.authorizeErr(ctx, err, "begin_login")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to initiate authorization",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	session, err := o.sessionStore.New(r, sessionName)
+	session, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "new_session")
 		utils.LogAndHTTPError(
@@ -244,18 +202,74 @@ func (o *OAuthServer) HandleAuthorize(
 		)
 		return
 	}
+	flashes := session.Flashes("disambiguation")
+	if err := session.Save(r, w); err != nil {
+		o.metrics.authorizeErr(ctx, err, "save_session")
+		utils.LogAndHTTPError(ctx, w, err, "failed to save session", http.StatusInternalServerError)
+		return
+	}
+	var requester fosite.AuthorizeRequester
+	if len(flashes) > 0 {
+		// resume request after disambiguation
+		form := flashes[0].(authRequestFlash).Form
+		form.Add("handle", r.URL.Query().Get("handle"))
+		requester = &fosite.AuthorizeRequest{Request: fosite.Request{Form: form}}
+	} else {
+		requester, err = o.provider.NewAuthorizeRequest(ctx, r)
+		if err != nil {
+			o.metrics.authorizeErr(ctx, err, fositeErrReason(err))
+			o.provider.WriteAuthorizeError(ctx, w, requester, err)
+			return
+		}
+	}
+
+	form := maps.Clone(requester.GetRequestForm())
+	handle := form.Get("handle")
+	if handle == "" {
+		slog.WarnContext(ctx, "request form", "form", requester.GetRequestForm())
+		form.Del("handle")
+		session.AddFlash(authRequestFlash{Form: form}, "disambiguation")
+		if err := session.Save(r, w); err != nil {
+			o.metrics.authorizeErr(ctx, err, "save_session")
+			utils.LogAndHTTPError(ctx, w, err, "failed to save disambiguation session",
+				http.StatusInternalServerError,
+			)
+		}
+		http.Redirect(w, r, disambiguationPath, http.StatusSeeOther)
+		return
+	}
+
+	atid, err := syntax.ParseAtIdentifier(handle)
+	if err != nil {
+		o.metrics.authorizeErr(ctx, err, "parse_handle")
+		utils.LogAndHTTPError(ctx, w, err, "failed to parse handle", http.StatusBadRequest)
+		return
+	}
+
+	// directory caches errors, so don't pass in the real context
+	id, err := o.directory.Lookup(context.Background(), atid)
+	if err != nil {
+		o.metrics.authorizeErr(ctx, err, "lookup_atid")
+		utils.LogAndHTTPError(ctx, w, err, "failed to lookup identity",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+	redirect, providerState, err := o.loginRouter.Authorize(ctx, id.DID)
+	if err != nil {
+		o.metrics.authorizeErr(ctx, err, "begin_login")
+		utils.LogAndHTTPError(ctx, w, err, "failed to initiate authorization",
+			http.StatusInternalServerError)
+		return
+	}
 	session.AddFlash(&authRequestFlash{
 		Form:          requester.GetRequestForm(),
 		ProviderState: providerState,
 		Did:           id.DID,
 	})
-	if err := o.sessionStore.Save(r, w, session); err != nil {
+	if err := session.Save(r, w); err != nil {
 		o.metrics.authorizeErr(ctx, err, "save_session")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to save session",
+		utils.LogAndHTTPError(ctx, w, err, "failed to save session",
 			http.StatusInternalServerError,
 		)
 		return

@@ -2,9 +2,11 @@ layer: library
 fileGroups:
   internal_src:
     - internal/**/*.go
+    - api/**/*.go
     - '!internal/**/*_test.go'
   internal_test:
     - internal/**/*.go
+    - api/**/*.go
 tasks:
   build:
     inputs:
@@ -13,6 +15,18 @@ tasks:
   test:
     inputs:
       - '@group(mod)'
+      - '@group(internal_test)'
+  format:
+    inputs:
+      - '@group(internal_test)'
+  format-check:
+    inputs:
+      - '@group(internal_test)'
+  lint:
+    inputs:
+      - '@group(internal_test)'
+  lint-check:
+    inputs:
       - '@group(internal_test)'
   caddy:
     command: caddy
