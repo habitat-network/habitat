@@ -9,4 +9,5 @@ use (
 	./cmd/pear
 	./cmd/sap
 	./cmd/search
+	./integration
 )
