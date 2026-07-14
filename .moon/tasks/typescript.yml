@@ -39,6 +39,7 @@ tasks:
     preset: utility
   build:
     deps:
+      - typescript/api:build
       - typescript/internal:build
     command: pnpm 
     args: build
