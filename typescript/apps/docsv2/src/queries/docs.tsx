@@ -8,7 +8,7 @@ const SELF = "self";
 // validates the caller's OAuth session, signs a service-auth JWT, and forwards
 // the network.habitat.docs.* call to the docs server's #docs service endpoint.
 export function docsProxyHeaders(): Headers {
-  return new Headers({ "Atproto-Proxy": `${__DOCS_SERVER_DID__}#docs` });
+  return new Headers({ "Atproto-Proxy": `${import.meta.env.VITE_DOCS_SERVER_DID}#docs` });
 }
 
 export interface DocSummary {

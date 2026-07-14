@@ -48,9 +48,9 @@ jobs:
       - name: Build
         run: moon r frontend:gh-pages
         env:
-          DOMAIN: ${{ vars.DOMAIN }}
-          HABITAT_DOMAIN: ${{ vars.HABITAT_DOMAIN }}
-          HASH_ROUTING: true
+          VITE_BASE_URL: https://${{ vars.BASE_URL }}
+          VITE_HABITAT_DOMAIN: ${{ vars.HABITAT_DOMAIN }}
+          VITE_HASH_ROUTING: true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
