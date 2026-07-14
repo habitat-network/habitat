@@ -34,7 +34,7 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-mod-${{ runner.os }}-${{ hashFiles('**/go.sum', '.prototools', '.moon/toolchains.yml') }}
+          key: go-mod-${{ runner.os }}-${{ hashFiles('**/go.sum', '.prototools', '.moon/toolchains.yml', 'go.work.sum') }}
           restore-keys: |
             go-mod-${{ runner.os }}-
 
