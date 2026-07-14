@@ -3,7 +3,7 @@ module github.com/habitat-network/habitat/cmd/didgen
 go 1.26
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20251020231157-aa7fd7f7a301
+	github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537
 	github.com/urfave/cli/v3 v3.4.1
 )
 

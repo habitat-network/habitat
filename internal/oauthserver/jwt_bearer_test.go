@@ -16,10 +16,9 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/login"
+	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 	"golang.org/x/oauth2"
@@ -84,8 +83,6 @@ func setupJWTBearerTestServer(
 ) (srv *OAuthServer, actualTokenURL string) {
 	t.Helper()
 	db := testutil.NewDB(t)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -104,11 +101,9 @@ func setupJWTBearerTestServer(
 	t.Cleanup(server.Close)
 
 	actualTokenURL = server.URL + "/token"
-	oauthClient := pdsclient.NewDummyOAuthClient(t, &pdsclient.ClientMetadata{})
-	t.Cleanup(oauthClient.Close)
 	oauthServer, err = NewOAuthServer(
 		bytes,
-		&org.LoginRouter{Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir)},
+		&org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
 		dummyDir,
 		db,
 		noop.Meter{},

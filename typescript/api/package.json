@@ -13,11 +13,11 @@
   "packageManager": "pnpm@10.21.0",
   "dependencies": {
     "@atproto/api": "catalog:",
-    "@atproto/lexicon": "^0.4.14",
+    "@atproto/lexicon": "catalog:",
     "@atproto/xrpc": "^0.6.12",
     "multiformats": "^13.4.2"
   },
   "devDependencies": {
-    "@atproto/lex-cli": "^0.9.8"
+    "@atproto/lex-cli": "^0.10.0"
   }
 }
