@@ -1,0 +1,15 @@
+{
+  "name": "home",
+  "compatibility_date": "2026-07-14",
+  "observability": {
+    "enabled": true,
+  },
+  "assets": {
+    "directory": "dist",
+  },
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "HABITAT_DOMAIN": "habitat-953995456319.us-west1.run.app",
+    "DOMAIN": "home.habitat.network",
+  },
+}
