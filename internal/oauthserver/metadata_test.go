@@ -37,5 +37,5 @@ func TestBuildAuthServerMetadata(t *testing.T) {
 func TestBuildProtectedResourceMetadata(t *testing.T) {
 	b, err := json.Marshal(buildProtectedResourceMetadata(testIssuer))
 	require.NoError(t, err)
-	require.JSONEq(t, `{ "authorization_servers": ["https://habitat.example"] }`, string(b))
+	require.JSONEq(t, `{ "resource": "https://habitat.example", "authorization_servers": ["https://habitat.example"] }`, string(b))
 }
