@@ -48,7 +48,7 @@ jobs:
       - name: Build
         run: moon r frontend:gh-pages
         env:
-          VITE_BASE_URL: https://${{ vars.BASE_URL }}
+          VITE_BASE_URL: ${{ vars.BASE_URL }}
           VITE_HABITAT_DOMAIN: ${{ vars.HABITAT_DOMAIN }}
           VITE_HASH_ROUTING: true
 
