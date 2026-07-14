@@ -15,6 +15,10 @@ workspace:
     - format
     - format-check
 tasks:
+  build:
+    deps: []
+    options:
+      mergeDeps: replace
   generate:
     command: pnpx 
     args:
