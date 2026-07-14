@@ -6,15 +6,12 @@ import {
   type AtprotoDid,
   type OAuthSession,
 } from "@atproto/oauth-client-browser";
-import { normalizeHandle } from '@atproto/syntax'
 
 export class AuthManager {
   private serverDomain: string;
   private client: BrowserOAuthClient;
   private session: OAuthSession | undefined;
   private onUnauthenticated: () => void;
-  // Memoized so init() is safe to call from every router beforeLoad.
-  private initPromise: Promise<void> | undefined;
 
   constructor(
     appName: string,
@@ -67,13 +64,10 @@ export class AuthManager {
 
   // Processes an OAuth callback if present in the URL, otherwise restores an
   // existing session. Idempotent: the underlying client.init() must run once.
-  init(): Promise<void> {
-    if (!this.initPromise) {
-      this.initPromise = this.client.init().then((result) => {
-        this.session = result?.session;
-      });
-    }
-    return this.initPromise;
+  async init(): Promise<void> {
+    const result = await this.client.init()
+    this.session = result?.session
+
   }
 
   getAuthInfo() {
