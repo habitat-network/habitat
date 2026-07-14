@@ -331,7 +331,7 @@ importers:
         version: 12.5.1
       '@posthog/react':
         specifier: ^1.8.2
-        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.399.3)(react@19.2.7)
+        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.399.4)(react@19.2.7)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.7.11(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(solid-js@1.9.14)
@@ -388,7 +388,7 @@ importers:
         version: 13.4.2
       posthog-js:
         specifier: ^1.363.1
-        version: 1.399.3
+        version: 1.399.4
       react:
         specifier: 'catalog:'
         version: 19.2.7
@@ -492,7 +492,7 @@ importers:
         version: 0.5.6
       '@posthog/react':
         specifier: ^1.8.2
-        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.399.3)(react@19.2.7)
+        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.399.4)(react@19.2.7)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.7.11(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(solid-js@1.9.14)
@@ -531,7 +531,7 @@ importers:
         version: 0.468.0(react@19.2.7)
       posthog-js:
         specifier: ^1.363.1
-        version: 1.399.3
+        version: 1.399.4
       react:
         specifier: 'catalog:'
         version: 19.2.7
@@ -9333,8 +9333,8 @@ packages:
     resolution: {integrity: sha512-J7EF+8X+CzRPaJPOv9Ck2wNWJvGnnl3PcNPAdGg6GTLjyVpyQ0yATMSXRFRV01BviT/9Gwuc3rjEyJbDJG9a4w==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.399.3:
-    resolution: {integrity: sha512-3XCTSsCeneD1px/uKMVezEWwaRcjLt1fXf6ryx8hQPOea5szZL5MZXq1QL28pnvDfabQjAJ5h9HoA8Az4upgtA==}
+  posthog-js@1.399.4:
+    resolution: {integrity: sha512-gl2/MxF1SsA7Jtg7EwlJJynQMYhaSRmfXqn3FA3LQKiGJaS7F4F0u4L04lYmJtZTmOWb/tC73YQahgRKhZDK1A==}
 
   postman-code-generators@1.14.2:
     resolution: {integrity: sha512-qZAyyowfQAFE4MSCu2KtMGGQE/+oG1JhMZMJNMdZHYCSfQiVVeKxgk3oI4+KJ3d1y5rrm2D6C6x+Z+7iyqm+fA==}
@@ -15648,9 +15648,9 @@ snapshots:
     dependencies:
       '@posthog/types': 1.393.0
 
-  '@posthog/react@1.10.3(@types/react@19.2.17)(posthog-js@1.399.3)(react@19.2.7)':
+  '@posthog/react@1.10.3(@types/react@19.2.17)(posthog-js@1.399.4)(react@19.2.7)':
     dependencies:
-      posthog-js: 1.399.3
+      posthog-js: 1.399.4
       react: 19.2.7
     optionalDependencies:
       '@types/react': 19.2.17
@@ -22731,7 +22731,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  posthog-js@1.399.3:
+  posthog-js@1.399.4:
     dependencies:
       '@posthog/core': 1.40.2
       '@posthog/types': 1.393.0
