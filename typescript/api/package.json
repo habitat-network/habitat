@@ -18,6 +18,6 @@
     "multiformats": "^13.4.2"
   },
   "devDependencies": {
-    "@atproto/lex-cli": "^0.9.8"
+    "@atproto/lex-cli": "^0.10.0"
   }
 }
