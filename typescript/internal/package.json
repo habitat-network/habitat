@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@atproto/api": "catalog:",
-    "@atproto/identity": "^0.4.10",
+    "@atproto/identity": "^0.5.0",
     "@atproto/oauth-client-browser": "^0.3.34",
     "@base-ui/react": "^1.2.0",
     "@uidotdev/usehooks": "^2.4.1",

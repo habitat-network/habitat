@@ -166,8 +166,8 @@ importers:
         specifier: ^0.20.0
         version: 0.20.28
       '@atproto/identity':
-        specifier: ^0.4.10
-        version: 0.4.12
+        specifier: ^0.5.0
+        version: 0.5.6
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.101.2(react@19.2.7)
@@ -288,8 +288,8 @@ importers:
         specifier: 'catalog:'
         version: 0.20.28
       '@atproto/identity':
-        specifier: ^0.4.10
-        version: 0.4.12
+        specifier: ^0.5.0
+        version: 0.5.6
       '@chainsafe/libp2p-gossipsub':
         specifier: 14.1.2
         version: 14.1.2
@@ -454,8 +454,8 @@ importers:
         specifier: ^0.5.0
         version: 0.5.4
       '@atproto/identity':
-        specifier: ^0.4.10
-        version: 0.4.12
+        specifier: ^0.5.0
+        version: 0.5.6
       '@hono/node-server':
         specifier: ^1.13.7
         version: 1.19.14(hono@4.12.30)
@@ -488,8 +488,8 @@ importers:
         specifier: 'catalog:'
         version: 0.20.28
       '@atproto/identity':
-        specifier: ^0.4.10
-        version: 0.4.12
+        specifier: ^0.5.0
+        version: 0.5.6
       '@posthog/react':
         specifier: ^1.8.2
         version: 1.10.3(@types/react@19.2.17)(posthog-js@1.399.2)(react@19.2.7)
@@ -652,8 +652,8 @@ importers:
         specifier: 'catalog:'
         version: 0.20.28
       '@atproto/identity':
-        specifier: ^0.4.10
-        version: 0.4.12
+        specifier: ^0.5.0
+        version: 0.5.6
       '@atproto/oauth-client-browser':
         specifier: ^0.3.34
         version: 0.3.42
@@ -970,10 +970,6 @@ packages:
     resolution: {integrity: sha512-5Y4MIK9dpkJPiKiE6u7iEHitxj+g3aAU2GfGL686JlKE2zDKD4y18BJb+uVek6nXQKb5XOdNVvw+7BHarpn8Fw==}
     engines: {node: '>=22'}
 
-  '@atproto/crypto@0.4.5':
-    resolution: {integrity: sha512-n40aKkMoCatP0u9Yvhrdk6fXyOHFDDbkdm4h4HCyWW+KlKl8iXfD5iV+ECq+w5BM+QH25aIpt3/j6EUNerhLxw==}
-    engines: {node: '>=18.7.0'}
-
   '@atproto/crypto@0.5.4':
     resolution: {integrity: sha512-UR0BkuYNYuFtw+dA+y/oPPxzX0SWRnGJ+1Cfh/jGP1BvjRUyezK3omjpeLms5fYrXbM9vnfX+ckJFJqkBgLOdw==}
     engines: {node: '>=22'}
@@ -981,9 +977,9 @@ packages:
   '@atproto/did@0.3.0':
     resolution: {integrity: sha512-raUPzUGegtW/6OxwCmM8bhZvuIMzxG5t9oWsth6Tp91Kb5fTnHV2h/KKNF1C82doeA4BdXCErTyg7ISwLbQkzA==}
 
-  '@atproto/identity@0.4.12':
-    resolution: {integrity: sha512-P+Jn0HvKhIh1tps5n3xGrCxt+XiFWzp4kdgloyFhFmVLwjDU547DQkWx4r5Vhuiah7fRZGVSlk39R4U6SPrACg==}
-    engines: {node: '>=18.7.0'}
+  '@atproto/identity@0.5.6':
+    resolution: {integrity: sha512-xGmg8HnYhTsqsVwpFIPKjQzwnHRddXnuD8N+f/tWlblX0119L7b8GyXFKY84TRbumKx7xvy/IanAncyDxBx+/A==}
+    engines: {node: '>=22'}
 
   '@atproto/jwk-jose@0.1.11':
     resolution: {integrity: sha512-i4Fnr2sTBYmMmHXl7NJh8GrCH+tDQEVWrcDMDnV5DjJfkgT17wIqvojIw9SNbSL4Uf0OtfEv6AgG0A+mgh8b5Q==}
@@ -11950,12 +11946,6 @@ snapshots:
       '@atproto/syntax': 0.7.2
       zod: 3.25.76
 
-  '@atproto/crypto@0.4.5':
-    dependencies:
-      '@noble/curves': 1.9.7
-      '@noble/hashes': 1.8.0
-      uint8arrays: 3.0.0
-
   '@atproto/crypto@0.5.4':
     dependencies:
       '@noble/curves': 1.9.7
@@ -11966,10 +11956,10 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
-  '@atproto/identity@0.4.12':
+  '@atproto/identity@0.5.6':
     dependencies:
-      '@atproto/common-web': 0.4.21
-      '@atproto/crypto': 0.4.5
+      '@atproto/common-web': 0.5.6
+      '@atproto/crypto': 0.5.4
 
   '@atproto/jwk-jose@0.1.11':
     dependencies:
