@@ -279,8 +279,8 @@ importers:
         version: 13.4.2
     devDependencies:
       '@atproto/lex-cli':
-        specifier: ^0.9.8
-        version: 0.9.9
+        specifier: ^0.10.0
+        version: 0.10.6
 
   typescript/apps/docs:
     dependencies:
@@ -990,9 +990,9 @@ packages:
   '@atproto/jwk@0.6.0':
     resolution: {integrity: sha512-bDoJPvt7TrQVi/rBfBrSSpGykhtIriKxeYCYQTiPRKFfyRhbgpElF0wPXADjIswnbzZdOwbY63az4E/CFVT3Tw==}
 
-  '@atproto/lex-cli@0.9.9':
-    resolution: {integrity: sha512-n/ClCBNnrjbqflLFt+j8Vx8q+lQd6OPQiDToi80akUoW2wNyPmsWtK5tKje0HS+7aHZD3gO3yX4B/x6ZqqrEeA==}
-    engines: {node: '>=18.7.0'}
+  '@atproto/lex-cli@0.10.6':
+    resolution: {integrity: sha512-2DzSBIqdN+LcEfOvAr7xRB/aYQIVMl2p4eqPozcgxsixmBCZHnIyzErm8hV3LpTgTCcLpzogjJJH/yuMTinMEA==}
+    engines: {node: '>=22'}
     hasBin: true
 
   '@atproto/lex-data@0.0.15':
@@ -11993,10 +11993,10 @@ snapshots:
       multiformats: 9.9.0
       zod: 3.25.76
 
-  '@atproto/lex-cli@0.9.9':
+  '@atproto/lex-cli@0.10.6':
     dependencies:
-      '@atproto/lexicon': 0.6.2
-      '@atproto/syntax': 0.5.4
+      '@atproto/lexicon': 0.7.7
+      '@atproto/syntax': 0.7.2
       chalk: 4.1.2
       commander: 9.5.0
       prettier: 3.9.5
