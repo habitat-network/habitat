@@ -1,10 +1,12 @@
+import { IdResolver } from "@atproto/identity";
 import clientMetadata from "./clientMetadata";
 import {
   BrowserOAuthClient,
+  isAtprotoDid,
   type AtprotoDid,
-  type AtprotoDidDocument,
   type OAuthSession,
 } from "@atproto/oauth-client-browser";
+import { normalizeHandle } from '@atproto/syntax'
 
 export class AuthManager {
   private serverDomain: string;
@@ -22,32 +24,40 @@ export class AuthManager {
   ) {
     this.serverDomain = serverDomain;
     this.onUnauthenticated = onUnauthenticated;
-    const did: AtprotoDid = `did:web:${serverDomain}`;
-    // Habitat is a brokering OAuth server: the frontend authenticates against
-    // Habitat's own OAuth server (the pear domain), which then brokers to the
-    // user's real PDS. The atproto client normally resolves a handle to the
-    // user's real PDS/authorization server; we override identity resolution so
-    // every handle resolves to a synthetic DID document whose PDS is the pear
-    // domain. That makes the client run PAR/PKCE/DPoP against Habitat while
-    // still forwarding the typed handle to Habitat as the OAuth login_hint.
-    const identityResolver = {
-      async resolve(handle: string) {
-        const didDoc: AtprotoDidDocument = {
-          id: did,
-          service: [
-            {
-              id: "#atproto_pds",
-              type: "AtprotoPersonalDataServer",
-              serviceEndpoint: `https://${serverDomain}`,
-            },
-          ],
-        };
-        return { did, handle, didDoc };
-      },
-    };
+    const internalResolver = new IdResolver()
     this.client = new BrowserOAuthClient({
       clientMetadata: clientMetadata(appName, domain),
-      identityResolver,
+      identityResolver: {
+        resolve: async (identifier) => {
+          let did: AtprotoDid
+          if (!isAtprotoDid(identifier)) {
+            const result = await internalResolver.handle.resolve(identifier);
+            if (!result || !isAtprotoDid(result)) {
+              throw new Error(`Handle not found: ${identifier}`);
+            }
+            did = result
+          } else {
+            did = identifier
+          }
+          const id = await internalResolver.did.resolve(did)
+          const handle = id?.alsoKnownAs?.[0] ? id.alsoKnownAs[0].replace('at://', '') : "invalid.handle"
+          console.log({ did, handle })
+          return {
+            did: did,
+            handle: handle,
+            didDoc: {
+              id: did,
+              service: [
+                {
+                  id: "#atproto_pds",
+                  type: "AtprotoPersonalDataServer",
+                  serviceEndpoint: `https://${serverDomain}`,
+                },
+              ]
+            }
+          }
+        }
+      },
       // Return the authorization code in the query string, not the URL fragment:
       // fosite rejects fragment mode for this client, and the frontend uses hash
       // routing, so callback params in the fragment would collide with the router.
@@ -73,11 +83,8 @@ export class AuthManager {
     return { did: this.session.sub };
   }
 
-  // Begins the OAuth flow for the given handle. Identity resolution is
-  // overridden (see constructor) so this runs against the pear domain; the
-  // handle is forwarded to Habitat as the login_hint. Returns the redirect
-  // promise so callers can surface resolution/PAR errors.
   login(handle: string) {
+    console.log(handle)
     return this.client.signInRedirect(handle);
   }
 
@@ -116,4 +123,4 @@ export class AuthManager {
   }
 }
 
-export class UnauthenticatedError extends Error {}
+export class UnauthenticatedError extends Error { }

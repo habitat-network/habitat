@@ -657,6 +657,9 @@ importers:
       '@atproto/oauth-client-browser':
         specifier: ^0.3.34
         version: 0.3.42
+      '@atproto/syntax':
+        specifier: ^0.7.2
+        version: 0.7.2
       '@base-ui/react':
         specifier: ^1.2.0
         version: 1.6.0(@date-fns/tz@1.5.0)(@types/react@19.2.17)(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
