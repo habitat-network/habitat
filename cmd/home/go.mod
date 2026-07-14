@@ -5,7 +5,7 @@ go 1.26.3
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537
 	github.com/stretchr/testify v1.11.1
-	github.com/urfave/cli/v3 v3.10.0
+	github.com/urfave/cli/v3 v3.10.1
 	golang.org/x/sync v0.20.0
 	gorm.io/gorm v1.31.2
 )
