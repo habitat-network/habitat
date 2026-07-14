@@ -970,10 +970,6 @@ packages:
     resolution: {integrity: sha512-5Y4MIK9dpkJPiKiE6u7iEHitxj+g3aAU2GfGL686JlKE2zDKD4y18BJb+uVek6nXQKb5XOdNVvw+7BHarpn8Fw==}
     engines: {node: '>=22'}
 
-  '@atproto/crypto@0.4.5':
-    resolution: {integrity: sha512-n40aKkMoCatP0u9Yvhrdk6fXyOHFDDbkdm4h4HCyWW+KlKl8iXfD5iV+ECq+w5BM+QH25aIpt3/j6EUNerhLxw==}
-    engines: {node: '>=18.7.0'}
-
   '@atproto/crypto@0.5.4':
     resolution: {integrity: sha512-UR0BkuYNYuFtw+dA+y/oPPxzX0SWRnGJ+1Cfh/jGP1BvjRUyezK3omjpeLms5fYrXbM9vnfX+ckJFJqkBgLOdw==}
     engines: {node: '>=22'}
@@ -11958,12 +11954,6 @@ snapshots:
       '@atproto/lex-json': 0.1.4
       '@atproto/syntax': 0.7.2
       zod: 3.25.76
-
-  '@atproto/crypto@0.4.5':
-    dependencies:
-      '@noble/curves': 1.9.7
-      '@noble/hashes': 1.8.0
-      uint8arrays: 3.0.0
 
   '@atproto/crypto@0.5.4':
     dependencies:
