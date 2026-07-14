@@ -23,6 +23,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -439,8 +440,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		instanceAdminServer.DescribeInstance,
 	)
 
-	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
-	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
+	hostPublicKey, err := hostKey.PublicKey()
+	if err != nil {
+		return fmt.Errorf("failed to get host public key: %w", err)
+	}
+	mux.HandleFunc("/.well-known/did.json", serveDid(domain, hostPublicKey))
+	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(r.Context(), w, oauthClient.ClientMetadata())
+	})
 
 	mux.HandleFunc(
 		"/.well-known/oauth-authorization-server",
@@ -570,35 +577,27 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	return err
 }
 
-func serveDid(domain string) http.HandlerFunc {
+func serveDid(domain string, hostKey atcrypto.PublicKey) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		template := `{
-  "id": "did:web:%s",
-  "@context": [
-    "https://www.w3.org/ns/did/v1",
-    "https://w3id.org/security/multikey/v1", 
-    "https://w3id.org/security/suites/secp256k1-2019/v1"
-  ],
-  "service": [
-    {
-      "id": "#habitat",
-      "serviceEndpoint": "https://%s",
-      "type": "HabitatServer"
-    }
-  ]
-}`
-		_, err := fmt.Fprintf(w, template, domain, domain)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-}
-
-func serveClientMetadata(oauthClient pdsclient.PdsOAuthClient) http.HandlerFunc {
-	metadata := oauthClient.ClientMetadata()
-	return func(w http.ResponseWriter, r *http.Request) {
-		httpx.WriteJSON(r.Context(), w, metadata)
+		did := syntax.DID(fmt.Sprintf("did:web:%s", domain))
+		httpx.WriteJSON(r.Context(), w, identity.DIDDocument{
+			DID: did,
+			VerificationMethod: []identity.DocVerificationMethod{
+				{
+					ID:                 "habitat",
+					Type:               "Multikey",
+					Controller:         did.String(),
+					PublicKeyMultibase: hostKey.Multibase(),
+				},
+			},
+			Service: []identity.DocService{
+				{
+					ID:              "#habitat",
+					ServiceEndpoint: "https://" + domain,
+					Type:            "HabitatServer",
+				},
+			},
+		})
 	}
 }
 
