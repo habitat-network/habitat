@@ -440,7 +440,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		instanceAdminServer.DescribeInstance,
 	)
 
-	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
+	hostPublicKey, err := hostKey.PublicKey()
+	if err != nil {
+		return fmt.Errorf("failed to get host public key: %w", err)
+	}
+	mux.HandleFunc("/.well-known/did.json", serveDid(domain, hostPublicKey))
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(r.Context(), w, oauthClient.ClientMetadata())
 	})
