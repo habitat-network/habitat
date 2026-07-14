@@ -60,7 +60,6 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	modernc.org/sqlite v1.53.0 // indirect
 )
 
 require (
