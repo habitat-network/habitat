@@ -4105,6 +4105,53 @@ export const schemaDict = {
       },
     },
   },
+  ComAtprotoSpaceGetRepo: {
+    lexicon: 1,
+    id: 'com.atproto.space.getRepo',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Download an account's permissioned repo within a space as a CAR file, for full-state recovery. The CAR declares two roots in order: the signed commit, then a DRISL (DAG-CBOR) index mapping '{collection}/{rkey}' to record CID. Record blocks follow in lexicographic order. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        parameters: {
+          type: 'params',
+          required: ['space', 'repo'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            repo: {
+              type: 'string',
+              format: 'did',
+              description: 'The DID of the account whose repo to download.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/vnd.ipld.car',
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatSpaceGetSpaceCredential: {
     lexicon: 1,
     id: 'network.habitat.space.getSpaceCredential',
@@ -4922,6 +4969,7 @@ export const ids = {
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
+  ComAtprotoSpaceGetRepo: 'com.atproto.space.getRepo',
   NetworkHabitatSpaceGetSpaceCredential:
     'network.habitat.space.getSpaceCredential',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',
