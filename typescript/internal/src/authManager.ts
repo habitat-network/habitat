@@ -21,24 +21,26 @@ export class AuthManager {
   ) {
     this.serverUrl = serverUrl;
     this.onUnauthenticated = onUnauthenticated;
-    const internalResolver = new IdResolver()
+    const internalResolver = new IdResolver();
     this.client = new BrowserOAuthClient({
       clientMetadata: clientMetadata(appName, baseUrl),
       identityResolver: {
         resolve: async (identifier) => {
-          let did: AtprotoDid
+          let did: AtprotoDid;
           if (!isAtprotoDid(identifier)) {
             const result = await internalResolver.handle.resolve(identifier);
             if (!result || !isAtprotoDid(result)) {
               throw new Error(`Handle not found: ${identifier}`);
             }
-            did = result
+            did = result;
           } else {
-            did = identifier
+            did = identifier;
           }
-          const id = await internalResolver.did.resolve(did)
-          const handle = id?.alsoKnownAs?.[0] ? id.alsoKnownAs[0].replace('at://', '') : "invalid.handle"
-          console.log({ did, handle })
+          const id = await internalResolver.did.resolve(did);
+          const handle = id?.alsoKnownAs?.[0]
+            ? id.alsoKnownAs[0].replace("at://", "")
+            : "invalid.handle";
+          console.log({ did, handle });
           return {
             did: did,
             handle: handle,
@@ -50,10 +52,10 @@ export class AuthManager {
                   type: "AtprotoPersonalDataServer",
                   serviceEndpoint: serverUrl,
                 },
-              ]
-            }
-          }
-        }
+              ],
+            },
+          };
+        },
       },
       // Return the authorization code in the query string, not the URL fragment:
       // fosite rejects fragment mode for this client, and the frontend uses hash
@@ -65,9 +67,8 @@ export class AuthManager {
   // Processes an OAuth callback if present in the URL, otherwise restores an
   // existing session. Idempotent: the underlying client.init() must run once.
   async init(): Promise<void> {
-    const result = await this.client.init()
-    this.session = result?.session
-
+    const result = await this.client.init();
+    this.session = result?.session;
   }
 
   getAuthInfo() {
@@ -78,7 +79,7 @@ export class AuthManager {
   }
 
   login(handle: string) {
-    console.log(handle)
+    console.log(handle);
     return this.client.signInRedirect(handle);
   }
 
@@ -117,4 +118,4 @@ export class AuthManager {
   }
 }
 
-export class UnauthenticatedError extends Error { }
+export class UnauthenticatedError extends Error {}

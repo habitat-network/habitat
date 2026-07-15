@@ -238,7 +238,7 @@ func (o *OAuthServer) HandleAuthorize(
 		session.AddFlash(authRequestFlash{Form: form}, "disambiguation")
 		if err := session.Save(r, w); err != nil {
 			o.metrics.authorizeErr(ctx, err, "save_session")
-		utils.LogAndHTTPError(ctx, w, err, "failed to save disambiguation session",
+			utils.LogAndHTTPError(ctx, w, err, "failed to save disambiguation session",
 				http.StatusInternalServerError,
 			)
 		}

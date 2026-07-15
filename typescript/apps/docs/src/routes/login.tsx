@@ -4,8 +4,6 @@ import { AuthForm } from "internal";
 export const Route = createFileRoute("/login")({
   component() {
     const { authManager } = Route.useRouteContext();
-    return (
-      <AuthForm authManager={authManager} />
-    );
+    return <AuthForm authManager={authManager} />;
   },
 });
