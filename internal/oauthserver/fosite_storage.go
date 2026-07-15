@@ -404,6 +404,7 @@ func (s *store) GetRefreshTokenSession(
 			RefreshTokenExpiresAt: oauthSession.ExpiresAt,
 		},
 		RequestedScope: scopes,
+		GrantedScope:   scopes,
 	}, nil
 }
 
