@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -126,7 +125,7 @@ func (d *Deliverer) deliver(
 	// The registered endpoint is a service base URL; deliver the XRPC call to
 	// <endpoint>/xrpc/<nsid> so the receiver can route and validate by method,
 	// while keeping the base endpoint as the service-auth audience.
-	url := strings.TrimRight(endpoint, "/") + "/xrpc/" + method.String()
+	url := endpoint + "/xrpc/" + method.String()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: build request", "err", err, "endpoint", endpoint)
