@@ -5,10 +5,7 @@ export const Route = createFileRoute("/login")({
   component() {
     const { authManager } = Route.useRouteContext();
     return (
-      <AuthForm
-        authManager={authManager}
-        redirectUrl={import.meta.env.VITE_BASE_URL}
-      />
+      <AuthForm authManager={authManager} />
     );
   },
 });
