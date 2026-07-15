@@ -145,7 +145,7 @@ function CreateOrgPage() {
     ? invite.domain
     : useCustomInstance
       ? customDomain
-      : __HABITAT_DOMAIN__;
+      : import.meta.env.VITE_HABITAT_DOMAIN;
 
   const onSubmit = async (values: FormValues) => {
     try {

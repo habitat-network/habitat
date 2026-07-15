@@ -10,19 +10,19 @@
   },
   "dependencies": {
     "@atproto/api": "catalog:",
-    "@atproto/identity": "^0.4.10",
+    "@atproto/identity": "^0.5.0",
     "@chainsafe/libp2p-gossipsub": "14.1.2",
-    "@chainsafe/libp2p-noise": "16.0.0",
-    "@chainsafe/libp2p-yamux": "7.0.1",
+    "@chainsafe/libp2p-noise": "16.1.5",
+    "@chainsafe/libp2p-yamux": "7.0.4",
     "@libp2p/circuit-relay-v2": "^3.2.24",
     "@libp2p/dcutr": "^2.0.38",
     "@libp2p/identify": "^3.0.39",
     "@libp2p/interface": "^2.11.0",
     "@libp2p/peer-id": "^5.0.16",
-    "@libp2p/ping": "2.0.5",
+    "@libp2p/ping": "2.0.37",
     "@libp2p/webrtc": "^5.2.24",
     "@libp2p/websockets": "^9.2.19",
-    "@libp2p/webtransport": "5.0.41",
+    "@libp2p/webtransport": "5.0.51",
     "@multiformats/multiaddr": "^12.3.5",
     "@posthog/react": "^1.8.2",
     "@tanstack/react-devtools": "catalog:",
@@ -54,6 +54,7 @@
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",
+    "@tailwindcss/vite": "^4.2.1",
     "@tanstack/devtools-vite": "catalog:",
     "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",
@@ -64,6 +65,7 @@
     "jsdom": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
+    "vite-plugin-generate-file": "^0.3.1",
     "vitest": "catalog:"
   }
 }

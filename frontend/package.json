@@ -9,8 +9,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@atproto/api": "^0.18.9",
-    "@atproto/identity": "^0.4.10",
+    "@atproto/api": "^0.20.0",
+    "@atproto/identity": "^0.5.0",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "^1.170.0",
     "@tanstack/react-router-devtools": "^1.167.0",
@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.1",
+    "@tanstack/devtools-vite": "catalog:",
     "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/canvas-confetti": "^1.9.0",
@@ -43,6 +44,7 @@
     "jsdom": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
+    "vite-plugin-generate-file": "^0.3.1",
     "vitest": "catalog:"
   }
 }

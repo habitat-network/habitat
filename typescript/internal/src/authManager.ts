@@ -24,20 +24,22 @@ export class AuthManager {
 
   constructor(
     appName: string,
-    domain: string,
-    serverDomain: string,
+    baseUrl: string,
+    serverBaseUrl: string,
     onUnauthenticated: () => void,
   ) {
-    const { client_id } = clientMetadata(appName, domain);
+    const domain = new URL(baseUrl).hostname;
+    this.serverDomain = new URL(serverBaseUrl).hostname;
+
+    const client_id = clientMetadata(appName, baseUrl).client_id!;
     this.config = new client.Configuration(
       {
-        issuer: `https://${serverDomain}/oauth/authorize`,
-        authorization_endpoint: `https://${serverDomain}/oauth/authorize`,
-        token_endpoint: `https://${serverDomain}/oauth/token`,
+        issuer: `${serverBaseUrl}/oauth/authorize`,
+        authorization_endpoint: `${serverBaseUrl}/oauth/authorize`,
+        token_endpoint: `${serverBaseUrl}/oauth/token`,
       },
       client_id,
     );
-    this.serverDomain = serverDomain;
     this.store = create(
       persist<{ authInfo: AuthInfo | undefined }>(
         () => ({ authInfo: undefined }),

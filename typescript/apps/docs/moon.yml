@@ -4,6 +4,8 @@ tasks:
     env:
       DEVTOOLS_PORT: "42072"
       SERVER_PORT: "5175"
+      VITE_BASE_URL: https://docs.local.habitat.network
+      VITE_HABITAT_DOMAIN: pear.local.habitat.network
     deps:
       - pear:dev
       - root:caddy

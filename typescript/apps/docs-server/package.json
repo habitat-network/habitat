@@ -8,8 +8,8 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "@atproto/crypto": "^0.4.5",
-    "@atproto/identity": "^0.4.10",
+    "@atproto/crypto": "^0.5.0",
+    "@atproto/identity": "^0.5.0",
     "@hono/node-server": "^1.13.7",
     "api": "workspace:*",
     "async-mutex": "^0.5.0",
