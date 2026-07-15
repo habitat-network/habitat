@@ -12,7 +12,9 @@ package sap
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -50,6 +52,10 @@ type Config struct {
 	// Parallelism is the sync worker pool size (default 5).
 	Parallelism int
 
+	// CrawlInterval is how often each session is re-crawled to discover spaces
+	// created since the last crawl (default 1h).
+	CrawlInterval time.Duration
+
 	Meter  metric.Meter
 	Tracer trace.Tracer
 }
@@ -57,13 +63,14 @@ type Config struct {
 // Sap composes the sync components behind a small façade. Components live in
 // their own packages and interact only through interfaces; Sap wires them.
 type Sap struct {
-	db        *gorm.DB
-	sessions  *session.Store
-	crawler   *crawl.Crawler
-	engine    *syncer.Engine
-	registrar *register.Registrar // nil when Config.Endpoint is empty
-	outbox    *outbox.Store
-	tracer    trace.Tracer
+	db            *gorm.DB
+	sessions      *session.Store
+	crawler       *crawl.Crawler
+	engine        *syncer.Engine
+	registrar     *register.Registrar // nil when Config.Endpoint is empty
+	outbox        *outbox.Store
+	crawlInterval time.Duration
+	tracer        trace.Tracer
 }
 
 func New(config Config) (*Sap, error) {
@@ -100,11 +107,21 @@ func New(config Config) (*Sap, error) {
 		syncMetrics,
 	)
 
+	var registrar *register.Registrar
+	// crawl.Notify must stay a typed-nil-free interface value when
+	// registration is disabled.
+	var crawlNotify crawl.Notify
+	if config.Endpoint != "" {
+		registrar = register.New(config.DB, sessions, sessions, config.Endpoint)
+		crawlNotify = registrar
+	}
+
 	crawler, err := crawl.New(
 		config.DB,
 		sessions,
 		sessions,
 		engine,
+		crawlNotify,
 		config.Meter,
 		config.Tracer,
 	)
@@ -112,24 +129,25 @@ func New(config Config) (*Sap, error) {
 		return nil, fmt.Errorf("create crawler: %w", err)
 	}
 
-	var registrar *register.Registrar
-	if config.Endpoint != "" {
-		registrar = register.New(config.DB, sessions, sessions, config.Endpoint)
+	crawlInterval := config.CrawlInterval
+	if crawlInterval <= 0 {
+		crawlInterval = time.Hour
 	}
 
 	return &Sap{
-		db:        config.DB,
-		sessions:  sessions,
-		crawler:   crawler,
-		engine:    engine,
-		registrar: registrar,
-		outbox:    ob,
-		tracer:    tracer,
+		db:            config.DB,
+		sessions:      sessions,
+		crawler:       crawler,
+		engine:        engine,
+		registrar:     registrar,
+		outbox:        ob,
+		crawlInterval: crawlInterval,
+		tracer:        tracer,
 	}, nil
 }
 
-// Start runs the background loops (sync engine, crawl resumption, notify
-// registration upkeep) until ctx ends.
+// Start runs the background loops (sync engine, crawl resumption and periodic
+// re-crawls, notify registration upkeep) until ctx ends.
 func (s *Sap) Start(ctx context.Context) error {
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
@@ -139,6 +157,10 @@ func (s *Sap) Start(ctx context.Context) error {
 	eg.Go(func() error {
 		return s.crawler.ResumeIncomplete(ctx)
 	})
+	eg.Go(func() error {
+		s.recrawlLoop(ctx)
+		return nil
+	})
 	if s.registrar != nil {
 		eg.Go(func() error {
 			s.registrar.Run(ctx)
@@ -146,6 +168,28 @@ func (s *Sap) Start(ctx context.Context) error {
 		})
 	}
 	return eg.Wait()
+}
+
+// recrawlLoop periodically re-crawls every session so spaces created since
+// the last crawl are discovered and registered for notifications.
+func (s *Sap) recrawlLoop(ctx context.Context) {
+	ticker := time.NewTicker(s.crawlInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			dids, err := s.sessions.List(ctx)
+			if err != nil {
+				slog.ErrorContext(ctx, "recrawl: list sessions", "err", err)
+				continue
+			}
+			for _, did := range dids {
+				s.crawler.Run(ctx, did)
+			}
+		}
+	}
 }
 
 // AddSession registers an authenticated session (after the caller completed

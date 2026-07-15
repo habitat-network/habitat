@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -59,8 +60,10 @@ type Spaces interface {
 	Spaces(ctx context.Context) ([]habitat_syntax.SpaceURI, error)
 }
 
-// Registrar sweeps for spaces whose registration is missing or expiring and
-// (re-)registers sap's endpoint with their hosts.
+// Registrar keeps registrations fresh: spaces are registered inline as the
+// crawler discovers them (via Register), and the background sweep renews
+// registrations before they expire and retries any the crawl-time attempt
+// missed.
 type Registrar struct {
 	db       *gorm.DB
 	clients  Clients
@@ -138,6 +141,27 @@ func (r *Registrar) dueSpaces(ctx context.Context) ([]habitat_syntax.SpaceURI, e
 		}
 	}
 	return due, nil
+}
+
+// EnsureRegistered registers a space the registrar is not tracking yet. The
+// crawler calls this for every space it lists, so each space is registered
+// exactly once at discovery; renewing existing registrations is the sweep's
+// job.
+func (r *Registrar) EnsureRegistered(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) error {
+	var reg registration
+	err := r.db.WithContext(ctx).
+		Where("space = ?", space).
+		First(&reg).Error
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	return r.Register(ctx, space)
 }
 
 // Register calls registerNotify for the space as some session with access and
