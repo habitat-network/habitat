@@ -58,6 +58,7 @@ import type {
   NetworkHabitatRelationshipWriteTuple,
 } from "api";
 import { AuthManager } from "./authManager";
+import { DPoPOptions } from "openid-client";
 
 type Query<
   Params extends Record<string, string | number | boolean | string[]>,
@@ -333,6 +334,7 @@ interface AuthedOptions {
   unauthenticated?: false;
   authManager: AuthManager;
   headers?: Headers;
+  fetchOptions?: DPoPOptions;
 }
 
 interface UnauthedOptions {
@@ -388,6 +390,7 @@ export const query = async <T extends keyof QueryEndpoints>(
         "GET",
         null,
         options.headers,
+        (options as AuthedOptions).fetchOptions,
       );
   try {
     const data = await response.json();
@@ -426,6 +429,7 @@ const authedRequest = (
     "POST",
     JSON.stringify(params),
     options.headers,
+    options.fetchOptions,
   );
 
 const unauthedRequest = (

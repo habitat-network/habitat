@@ -77,7 +77,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("set client secret: %w", err)
 	}
 
-	oauthApp := oauth.NewClientApp(&config, store)
+	oauthApp := oauthclient.NewApp(&config, store)
 
 	s, err := sap.NewSap(sap.SapConfig{
 		DB:          db,

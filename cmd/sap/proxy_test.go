@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/db/testutil"
@@ -33,15 +32,6 @@ func futureJWT(t *testing.T) string {
 	return signed
 }
 
-// testDPoPKey returns a valid DPoP private key multibase so ResumeSession can
-// parse the fake session data.
-func testDPoPKey(t *testing.T) string {
-	t.Helper()
-	key, err := atcrypto.GeneratePrivateKeyP256()
-	require.NoError(t, err)
-	return key.Multibase()
-}
-
 // openProxyTestServer wires up a sap server whose managed org points at the
 // given pear host, returning an httptest server exposing the /proxy/ route.
 func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
@@ -57,7 +47,7 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauth.NewClientApp(&cfg, store)
+	oauthApp := oauthclient.NewApp(&cfg, store)
 
 	s, err := sap.NewSap(sap.SapConfig{DB: db, OAuthClient: oauthApp})
 	require.NoError(t, err)
@@ -69,11 +59,10 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 		"session_id": "session-1",
 	}).Error)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:              testProxyDID,
-		SessionID:               "session-1",
-		HostURL:                 pearHost,
-		AccessToken:             futureJWT(t),
-		DPoPPrivateKeyMultibase: testDPoPKey(t),
+		AccountDID:  testProxyDID,
+		SessionID:   "session-1",
+		HostURL:     pearHost,
+		AccessToken: futureJWT(t),
 	}))
 
 	server := NewSapServer(s, oauthApp)

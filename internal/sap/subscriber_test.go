@@ -208,13 +208,12 @@ func setupSubscriber(
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := newSessionGetter(oauth.NewClientApp(&cfg, store))
+	oauthApp := oauthclient.NewApp(&cfg, store)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:              "did:plc:testorg",
-		SessionID:               "sess1",
-		HostURL:                 srv.URL,
-		AccessToken:             testJWT(t),
-		DPoPPrivateKeyMultibase: testDPoPKey(t),
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srv.URL,
+		AccessToken: testJWT(t),
 	}))
 	complete := crawlStateComplete
 	require.NoError(t, db.Save(&managedOrg{

@@ -13,6 +13,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,7 +30,7 @@ type resyncJob struct {
 // resyncer schedules resync workers to backfill repos
 type resyncer struct {
 	db          *gorm.DB
-	oauthClient *sessionGetter
+	oauthClient *oauthclient.App
 	resyncBuf   *resyncBuffer
 	parallelism int
 	resyncNotif *utils.PollNotifier
@@ -40,7 +41,7 @@ type resyncer struct {
 
 func newResyncer(
 	db *gorm.DB,
-	oauthClient *sessionGetter,
+	oauthClient *oauthclient.App,
 	resyncBuf *resyncBuffer,
 	resyncNotif *utils.PollNotifier,
 	outboxNotif *utils.PollNotifier,
@@ -225,9 +226,9 @@ func (r *resyncer) syncRepo(
 		since = repo.Rev.String()
 	}
 
-	session, err := r.oauthClient.ResumeSession(ctx, org.DID, org.SessionID)
+	client, err := r.oauthClient.GetClient(ctx, org.DID, org.SessionID)
 	if err != nil {
-		return fmt.Errorf("get oauth session: %w", err)
+		return fmt.Errorf("get oauth client: %w", err)
 	}
 	for {
 		select {
@@ -246,16 +247,11 @@ func (r *resyncer) syncRepo(
 		params.Set("limit", "1000")
 
 		req, err := http.NewRequestWithContext(ctx, "GET",
-			session.Data.HostURL+"/xrpc/network.habitat.space.listRepoOps?"+params.Encode(), nil)
+			"/xrpc/network.habitat.space.listRepoOps?"+params.Encode(), nil)
 		if err != nil {
 			return r.handleSyncError(ctx, space, repoDID, fmt.Errorf("create request: %w", err))
 		}
-
-		resp, err := session.DoWithAuth(
-			session.Client,
-			req,
-			syntax.NSID("network.habitat.space.listRepoOps"),
-		)
+		resp, err := client.Do(req)
 		if err != nil {
 			return r.handleSyncError(ctx, space, repoDID, err)
 		}

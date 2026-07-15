@@ -29,7 +29,7 @@ func openOutboxTestServer(t *testing.T) (*httptest.Server, *sap.Sap, *gorm.DB) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauth.NewClientApp(&cfg, store)
+	oauthApp := oauthclient.NewApp(&cfg, store)
 
 	s, err := sap.NewSap(sap.SapConfig{
 		DB:          db,
