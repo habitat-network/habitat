@@ -11,7 +11,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/r3labs/sse/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -27,7 +26,7 @@ var _ db.Store[*subscriber] = (*subscriber)(nil)
 
 type subscriber struct {
 	db          *gorm.DB
-	oauthClient *oauthclient.App
+	oauthClient *sessionGetter
 	resyncBuf   *resyncBuffer
 	metrics     *metrics
 
@@ -47,7 +46,7 @@ func (s *subscriber) WithTx(tx *gorm.DB) *subscriber {
 
 func newSubscriber(
 	db *gorm.DB,
-	oauthClient *oauthclient.App,
+	oauthClient *sessionGetter,
 	resyncBuf *resyncBuffer,
 	metrics *metrics,
 ) *subscriber {
@@ -70,15 +69,15 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 		span.End()
 	}()
 
-	httpClient, err := s.oauthClient.GetClient(ctx, org.DID, org.SessionID)
+	session, err := s.oauthClient.ResumeSession(ctx, org.DID, org.SessionID)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get oauth client", "org", org.DID, "err", err)
+		slog.ErrorContext(ctx, "failed to resume session", "org", org.DID, "err", err)
 		span.RecordError(err)
 		s.metrics.subscriptionError(ctx)
 		return
 	}
 	client := sse.NewClient("/xrpc/network.habitat.sync.subscribeSpaces")
-	client.Connection = httpClient
+	client.Connection = session.Client
 	client.LastEventID.Store([]byte(org.SubscribeCursor))
 	lastGoodCursor := []byte(org.SubscribeCursor)
 	subscribeCtx, cancel := context.WithCancel(ctx)

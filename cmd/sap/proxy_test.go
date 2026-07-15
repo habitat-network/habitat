@@ -47,7 +47,7 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauthclient.NewApp(&cfg, store)
+	oauthApp := oauth.NewClientApp(&cfg, store)
 
 	s, err := sap.NewSap(sap.SapConfig{DB: db, OAuthClient: oauthApp})
 	require.NoError(t, err)

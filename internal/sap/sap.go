@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/utils"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -18,7 +17,7 @@ import (
 
 type Sap struct {
 	Outbox      Outbox
-	oauthClient *oauthclient.App
+	oauthClient *oauth.ClientApp
 	db          *gorm.DB
 	sub         *subscriber
 	resyncBuf   *resyncBuffer
@@ -32,7 +31,7 @@ type SapConfig struct {
 	DB                *gorm.DB
 	ResyncParallelism int
 	Directory         identity.Directory
-	OAuthClient       *oauthclient.App
+	OAuthClient       *oauth.ClientApp
 	Meter             metric.Meter
 	Tracer            trace.Tracer
 }
@@ -50,18 +49,20 @@ func NewSap(config SapConfig) (*Sap, error) {
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
 
+	sesssionGetter := newSessionGetter(config.OAuthClient)
+
 	resyncBuf := newResyncBuffer(config.DB, resyncNotif, outboxNotif)
-	sub := newSubscriber(config.DB, config.OAuthClient, resyncBuf, m)
+	sub := newSubscriber(config.DB, sesssionGetter, resyncBuf, m)
 	resyncer := newResyncer(
 		config.DB,
-		config.OAuthClient,
+		sesssionGetter,
 		resyncBuf,
 		resyncNotif,
 		outboxNotif,
 		config.ResyncParallelism,
 		m,
 	)
-	crawler := newCrawler(config.DB, config.OAuthClient, resyncBuf, sub, resyncNotif, m)
+	crawler := newCrawler(config.DB, sesssionGetter, resyncBuf, sub, resyncNotif, m)
 	outbox := newOutbox(config.DB, outboxNotif)
 	orgManager := newOrgManager(config.DB)
 
@@ -109,16 +110,4 @@ func (s *Sap) AddManagedOrg(ctx context.Context, did syntax.DID, sessionID strin
 
 func (s *Sap) ListManagedOrgs(ctx context.Context) ([]syntax.DID, error) {
 	return s.orgManager.ListManagedOrgs(ctx)
-}
-
-// GetClient returns an HTTP client that authenticates as the given managed org
-// DID using the OAuth session sap tracks for it. Requests made with the
-// returned client are resolved against the org's Habitat (pear) host and carry
-// the org's access token.
-func (s *Sap) GetClient(ctx context.Context, did syntax.DID) (*http.Client, error) {
-	org, err := s.orgManager.GetManagedOrg(ctx, did)
-	if err != nil {
-		return nil, err
-	}
-	return s.oauthClient.GetClient(ctx, did, org.SessionID)
 }

@@ -9,9 +9,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 )
 
@@ -27,12 +27,12 @@ var hopByHopHeaders = []string{
 
 type server struct {
 	sap         *sap.Sap
-	oauthClient *oauthclient.App
+	oauthClient *oauth.ClientApp
 }
 
 func NewSapServer(
 	sapInstance *sap.Sap,
-	oauthClient *oauthclient.App,
+	oauthClient *oauth.ClientApp,
 ) *server {
 	return &server{
 		sap:         sapInstance,
@@ -116,16 +116,29 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, err := s.sap.GetClient(r.Context(), did)
+	sessionID := r.Header.Get("Habitat-Session")
+	sess, err := s.oauthClient.ResumeSession(r.Context(), did, sessionID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("no tracked session for %s: %s", did, err), http.StatusBadGateway)
+		http.Error(
+			w,
+			fmt.Sprintf("no tracked session for %s %s: %s", did, sessionID, err),
+			http.StatusBadGateway,
+		)
 		return
 	}
 
 	// The OAuth client's transport resolves this path-only URL against the org's
 	// Habitat host and attaches the access token.
-	nsid := strings.TrimPrefix(r.URL.Path, "/proxy/")
-	target := url.URL{Path: "/xrpc/" + nsid, RawQuery: r.URL.RawQuery}
+	nsid, ok := httpx.ParseNSIDInput(
+		r.Context(),
+		w,
+		strings.TrimPrefix(r.URL.Path, "/proxy/"),
+		"nsid",
+	)
+	if !ok {
+		return
+	}
+	target := url.URL{Path: "/xrpc/" + nsid.String(), RawQuery: r.URL.RawQuery}
 
 	var body io.Reader
 	if r.Body != nil {
@@ -153,7 +166,7 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	outReq.Header.Del(habitatDIDHeader)
 	outReq.Header.Del("Authorization")
 
-	resp, err := client.Do(outReq)
+	resp, err := sess.DoWithAuth(sess.Client, outReq, nsid)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("forward request: %s", err), http.StatusBadGateway)
 		return

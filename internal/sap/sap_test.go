@@ -95,7 +95,11 @@ func TestSap(t *testing.T) {
 		sapServer.URL+"/oauth-callback",
 		[]string{},
 	)
-	oauthApp := oauthclient.NewApp(&cfg, store, oauthclient.WithDirectory(orgHive))
+	oauthApp := oauth.NewClientApp(&cfg, store)
+	oauthApp.Dir = orgHive
+	rrt := &roundTripper{t, pearServer.URL}
+	oauthApp.Client = &http.Client{Transport: rrt}
+	oauthApp.Resolver.Client = &http.Client{Transport: rrt}
 
 	s, err := NewSap(SapConfig{
 		OAuthClient: oauthApp,
@@ -135,10 +139,8 @@ func TestSap(t *testing.T) {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	client := &http.Client{
-		Jar: jar,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
+		Jar:       jar,
+		Transport: rrt,
 	}
 
 	resp, err := client.Get(redirectURL)
@@ -243,7 +245,7 @@ func setupPear(
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
 
-	orgHive, err := hive.NewHive("hive.domain", strings.TrimPrefix(server.URL, "https://"), db)
+	orgHive, err := hive.NewHive("hive.domain", "habitat.network", db)
 	require.NoError(t, err)
 
 	orgStore, err := org.NewStore(
@@ -268,7 +270,7 @@ func setupPear(
 		db,
 		metricnoop.Meter{},
 		orgStore,
-		server.URL,
+		"https://habitat.network",
 		oauthserver.NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
@@ -292,8 +294,14 @@ func setupPear(
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
+	mux.HandleFunc("/oauth/par", oauthServer.HandlePAR)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
+	mux.HandleFunc("/.well-known/oauth-authorization-server", oauthServer.HandleAuthServerMetadata)
+	mux.HandleFunc(
+		"/.well-known/oauth-protected-resource",
+		oauthServer.HandleProtectedResourceMetadata,
+	)
 
 	orgId, adminId, err := orgStore.CreateOrg(
 		t.Context(),
@@ -312,4 +320,17 @@ func setupPear(
 	}()
 
 	return server, orgId, adminId, spacesStore, orgHive
+}
+
+type roundTripper struct {
+	t         *testing.T
+	serverUrl string
+}
+
+func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if !strings.HasPrefix(req.URL.Host, "127.0.0.1") {
+		req.URL.Host = strings.TrimPrefix(rt.serverUrl, "https://")
+	}
+	rt.t.Logf("Request: %s %s", req.Method, req.URL.String())
+	return http.DefaultTransport.RoundTrip(req)
 }
