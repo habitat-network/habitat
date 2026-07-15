@@ -8,6 +8,7 @@ export const Route = createFileRoute("/login")({
     return (
       <AuthForm
         authManager={authManager}
+        redirectUrl={import.meta.env.VITE_BASE_URL}
         orgLoginUrl={router.buildLocation({ to: "/org-login" }).href}
       />
     );

@@ -9,9 +9,6 @@ interface RouterContext {
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-  async beforeLoad({ context }) {
-    await context.authManager.init();
-  },
   staleTime: 1000 * 60 * 60,
   component() {
     return (

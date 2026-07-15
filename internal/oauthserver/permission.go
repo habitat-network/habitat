@@ -120,14 +120,6 @@ func scopeMatch(granted, required permission) bool {
 }
 
 func scopeStrategy(haystack []string, needle string) bool {
-	// Exact match for scopes like "atproto" that don't follow the
-	// Habitat permission format (org:namespace).
-	for _, s := range haystack {
-		if s == needle {
-			return true
-		}
-	}
-
 	requiredP, err := permissionFromScope(needle)
 	if err != nil {
 		return false

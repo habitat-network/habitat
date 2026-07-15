@@ -7,11 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/api/habitat"
@@ -19,15 +17,6 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 )
-
-// testDPoPKey returns a valid DPoP private key multibase so ResumeSession can
-// parse the fake session data.
-func testDPoPKey(t *testing.T) string {
-	t.Helper()
-	key, err := atcrypto.GeneratePrivateKeyP256()
-	require.NoError(t, err)
-	return key.Multibase()
-}
 
 func TestCrawler(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +27,7 @@ func TestCrawler(t *testing.T) {
 					{
 						Uri: fmt.Sprintf(
 							"ats://%s/network.habitat.space/my-space",
-							strings.TrimPrefix(r.Header.Get("Authorization"), "DPoP "),
+							r.Header.Get("Authorization")[len("Bearer "):],
 						),
 						Type: "network.habitat.space",
 					},
@@ -68,7 +57,7 @@ func TestCrawler(t *testing.T) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := newSessionGetter(oauth.NewClientApp(&cfg, store))
+	oauthApp := oauthclient.NewApp(&cfg, store)
 
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	sub := newSubscriber(db, oauthApp, resyncBuf, newTestMetrics(t))
@@ -85,11 +74,10 @@ func TestCrawler(t *testing.T) {
 	}
 
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:              "did:plc:testorg",
-		SessionID:               "sess1",
-		HostURL:                 srv.URL,
-		AccessToken:             makeToken("testorg"),
-		DPoPPrivateKeyMultibase: testDPoPKey(t),
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srv.URL,
+		AccessToken: makeToken("testorg"),
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",
@@ -97,11 +85,10 @@ func TestCrawler(t *testing.T) {
 	}).Error)
 
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:              "did:plc:testorg2",
-		SessionID:               "sess2",
-		HostURL:                 srv.URL,
-		AccessToken:             makeToken("testorg2"),
-		DPoPPrivateKeyMultibase: testDPoPKey(t),
+		AccountDID:  "did:plc:testorg2",
+		SessionID:   "sess2",
+		HostURL:     srv.URL,
+		AccessToken: makeToken("testorg2"),
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:        "did:plc:testorg2",
@@ -138,7 +125,7 @@ func TestCrawler_Error(t *testing.T) {
 					{
 						Uri: fmt.Sprintf(
 							"ats://%s/network.habitat.space/my-space",
-							strings.TrimPrefix(r.Header.Get("Authorization"), "DPoP "),
+							r.Header.Get("Authorization")[len("Bearer "):],
 						),
 						Type: "network.habitat.space",
 					},
@@ -161,7 +148,7 @@ func TestCrawler_Error(t *testing.T) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := newSessionGetter(oauth.NewClientApp(&cfg, store))
+	oauthApp := oauthclient.NewApp(&cfg, store)
 
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	sub := newSubscriber(db, oauthApp, resyncBuf, newTestMetrics(t))
@@ -174,11 +161,10 @@ func TestCrawler_Error(t *testing.T) {
 	).SignedString(key)
 	require.NoError(t, err)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:              "did:plc:testorg",
-		SessionID:               "sess1",
-		HostURL:                 srv.URL,
-		AccessToken:             tok,
-		DPoPPrivateKeyMultibase: testDPoPKey(t),
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srv.URL,
+		AccessToken: tok,
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",
