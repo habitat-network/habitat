@@ -23,7 +23,7 @@
     "@tiptap/starter-kit": "^3.13.0",
     "@tiptap/y-tiptap": "^3.0.1",
     "internal": "workspace:*",
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^0.577.0",
     "posthog-js": "^1.363.1",
     "react": "catalog:",
     "react-dom": "catalog:",
