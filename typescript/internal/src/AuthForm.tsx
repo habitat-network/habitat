@@ -11,7 +11,6 @@ interface AuthFormData {
 
 interface AuthFormProps {
   authManager: AuthManager;
-  redirectUrl: string;
   serverError?: string;
   defaultHandle?: string;
   orgLoginUrl?: string;
@@ -19,7 +18,6 @@ interface AuthFormProps {
 
 export default function AuthForm({
   authManager,
-  redirectUrl,
   serverError,
   defaultHandle,
   orgLoginUrl,
@@ -35,8 +33,9 @@ export default function AuthForm({
       if (!handle) {
         throw new Error("Handle required");
       }
-      const url = authManager.loginUrl(handle, redirectUrl);
-      window.location.href = url.toString();
+      // Starts the OAuth redirect; the handle is forwarded to Habitat as the
+      // login_hint (see AuthManager). On success the browser navigates away.
+      await authManager.login(handle);
     },
   });
   const errorId = useId();

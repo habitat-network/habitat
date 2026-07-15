@@ -13,9 +13,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"go.opentelemetry.io/otel/metric"
@@ -24,7 +24,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap/crawl"
 	"github.com/habitat-network/habitat/internal/sap/outbox"
 	"github.com/habitat-network/habitat/internal/sap/register"
@@ -36,7 +35,7 @@ import (
 
 type Config struct {
 	DB          *gorm.DB
-	OAuthClient *oauthclient.App
+	OAuthClient *oauth.ClientApp
 
 	// Directory resolves identities for commit signature verification: the
 	// author's own key for habitat-managed authors, the host's published key
@@ -245,12 +244,6 @@ func (s *Sap) NotifySpaceDeleted(
 // Outbox exposes the acknowledged delivery stream of synced records.
 func (s *Sap) Outbox() outbox.Outbox {
 	return s.outbox
-}
-
-// Client returns an HTTP client authenticated as the given session's account
-// against its host, for callers proxying requests through sap.
-func (s *Sap) Client(ctx context.Context, did syntax.DID) (*http.Client, error) {
-	return s.sessions.ClientForSession(ctx, did)
 }
 
 // outboxEmitter adapts outbox.Store to syncer.Emitter.

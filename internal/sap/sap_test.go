@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -93,7 +94,7 @@ func TestSap(t *testing.T) {
 		sapServer.URL+"/oauth-callback",
 		[]string{},
 	)
-	oauthApp := oauthclient.NewApp(&cfg, store, oauthclient.WithDirectory(pear.hive))
+	oauthApp := oauth.NewClientApp(&cfg, store)
 
 	s, err := New(Config{
 		DB:          db,
@@ -151,10 +152,11 @@ func TestSap(t *testing.T) {
 	}()
 
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:  author,
-		SessionID:   "sess1",
-		HostURL:     pear.server.URL,
-		AccessToken: futureJWT(t),
+		AccountDID:              author,
+		SessionID:               "sess1",
+		HostURL:                 pear.server.URL,
+		AccessToken:             futureJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 	require.NoError(t, s.AddSession(t.Context(), author, "sess1"))
 
@@ -288,6 +290,15 @@ func setupPear(t *testing.T) *pearHost {
 	}()
 
 	return &pearHost{server: server, store: spacesStore, hive: orgHive, author: author}
+}
+
+// testDPoPKey returns a valid DPoP private key multibase so ResumeSession can
+// parse the fabricated session data.
+func testDPoPKey(t *testing.T) string {
+	t.Helper()
+	key, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	return key.Multibase()
 }
 
 // futureJWT returns a JWT whose only meaningful claim is an expiry far in the

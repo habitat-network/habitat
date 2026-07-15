@@ -7,21 +7,23 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/auth"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// habitatDIDHeader names the DID the caller wants the proxied request to be
-// authenticated as. sap looks up the OAuth session it tracks for this DID.
-const habitatDIDHeader = "Habitat-Did"
+// habitatDIDHeader and habitatSessionHeader name the OAuth session the caller
+// wants the proxied request authenticated as; both are provided by the caller.
+const (
+	habitatDIDHeader     = "Habitat-Did"
+	habitatSessionHeader = "Habitat-Session-Id"
+)
 
 // hopByHopHeaders are connection-scoped and must not be forwarded to pear per
 // the HTTP/1.1 spec (RFC 7230 §6.1).
@@ -31,7 +33,7 @@ var hopByHopHeaders = []string{
 
 type server struct {
 	sap         *sap.Sap
-	oauthClient *oauthclient.App
+	oauthClient *oauth.ClientApp
 	// serviceAuth validates the service-auth JWTs on inbound notifyWrite /
 	// notifySpaceDeleted calls from space hosts.
 	serviceAuth *auth.ServiceAuthValidator
@@ -39,7 +41,7 @@ type server struct {
 
 func NewSapServer(
 	sapInstance *sap.Sap,
-	oauthClient *oauthclient.App,
+	oauthClient *oauth.ClientApp,
 	serviceAuth *auth.ServiceAuthValidator,
 ) *server {
 	return &server{
@@ -109,11 +111,11 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// handleProxy forwards an XRPC request to pear on behalf of a session,
-// authenticating with the OAuth session sap tracks for the DID named in the
-// Habitat-Did header. The path after /proxy/ is the XRPC method, forwarded to
-// pear as /xrpc/<method> with the original method, query params, headers, and
-// body preserved.
+// handleProxy forwards an XRPC request to pear, authenticated as the OAuth
+// session the caller names with the Habitat-Did and Habitat-Session-Id
+// headers. The path after /proxy/ is the XRPC method, forwarded to pear as
+// /xrpc/<method> with the original method, query params, headers, and body
+// preserved.
 func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	didStr := r.Header.Get(habitatDIDHeader)
 	if didStr == "" {
@@ -124,23 +126,43 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
-	client, err := s.sap.Client(r.Context(), did)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("no tracked session for %s: %s", did, err), http.StatusBadGateway)
+	sessionID := r.Header.Get(habitatSessionHeader)
+	if sessionID == "" {
+		http.Error(w, "missing "+habitatSessionHeader+" header", http.StatusBadRequest)
 		return
 	}
 
-	// The OAuth client's transport resolves this path-only URL against the
-	// session's Habitat host and attaches the access token.
-	nsid := strings.TrimPrefix(r.URL.Path, "/proxy/")
-	target := url.URL{Path: "/xrpc/" + nsid, RawQuery: r.URL.RawQuery}
+	sess, err := s.oauthClient.ResumeSession(r.Context(), did, sessionID)
+	if err != nil {
+		http.Error(
+			w,
+			fmt.Sprintf("no session %s for %s: %s", sessionID, did, err),
+			http.StatusBadGateway,
+		)
+		return
+	}
+
+	nsid, ok := httpx.ParseNSIDInput(
+		r.Context(),
+		w,
+		strings.TrimPrefix(r.URL.Path, "/proxy/"),
+		"nsid",
+	)
+	if !ok {
+		return
+	}
+	// Resolve the target against the Habitat host tracked in the OAuth
+	// session; DoWithAuth attaches the access token but expects an absolute URL.
+	target := sess.Data.HostURL + "/xrpc/" + nsid.String()
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
 
 	var body io.Reader
 	if r.Body != nil {
 		body = r.Body
 	}
-	outReq, err := http.NewRequestWithContext(r.Context(), r.Method, target.String(), body)
+	outReq, err := http.NewRequestWithContext(r.Context(), r.Method, target, body)
 	if err != nil {
 		http.Error(
 			w,
@@ -160,9 +182,11 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		outReq.Header.Del(h)
 	}
 	outReq.Header.Del(habitatDIDHeader)
+	outReq.Header.Del(habitatSessionHeader)
 	outReq.Header.Del("Authorization")
+	outReq.Header.Set("Habitat-Auth-Method", "oauth")
 
-	resp, err := client.Do(outReq)
+	resp, err := sess.DoWithAuth(sess.Client, outReq, nsid)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("forward request: %s", err), http.StatusBadGateway)
 		return

@@ -14,7 +14,6 @@ export const Route = createFileRoute("/oauth-login")({
     return (
       <AuthForm
         authManager={authManager}
-        redirectUrl={import.meta.env.VITE_BASE_URL}
         serverError={error}
         defaultHandle={handle}
       />

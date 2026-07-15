@@ -6,7 +6,7 @@ export default (clientName: string, baseUrl: string) => {
     client_id: `${origin}/client-metadata.json`,
     client_name: clientName,
     client_uri: origin,
-    redirect_uris: [`${origin}/oauth-login`, origin],
+    redirect_uris: [origin],
     scope: "atproto transition:generic",
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
