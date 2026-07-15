@@ -3,6 +3,7 @@ package sap
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -13,7 +14,7 @@ import (
 type sessionGetter struct {
 	oauthClient *oauth.ClientApp
 	sessions    sync.Map
-	sf          *singleflight.Group
+	sf          singleflight.Group
 }
 
 type session struct {
@@ -62,6 +63,24 @@ func (s *sessionGetter) ResumeSession(
 
 func (s *session) Close() {
 	s.wg.Done()
+}
+
+// authTransport applies the session's OAuth DPoP auth to every request, for
+// callers (like the SSE subscriber) that build requests through an
+// *http.Client rather than calling DoWithAuth directly.
+type authTransport struct {
+	sess     *session
+	endpoint syntax.NSID
+}
+
+func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return t.sess.DoWithAuth(t.sess.Client, req, t.endpoint)
+}
+
+// authClient returns an *http.Client that authenticates every request with
+// this session's OAuth tokens.
+func (s *session) authClient(endpoint syntax.NSID) *http.Client {
+	return &http.Client{Transport: &authTransport{sess: s, endpoint: endpoint}}
 }
 
 func key(did syntax.DID, sessionID string) string {

@@ -76,8 +76,9 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 		s.metrics.subscriptionError(ctx)
 		return
 	}
-	client := sse.NewClient("/xrpc/network.habitat.sync.subscribeSpaces")
-	client.Connection = session.Client
+	subscribeNSID := syntax.NSID("network.habitat.sync.subscribeSpaces")
+	client := sse.NewClient(session.Data.HostURL + "/xrpc/" + subscribeNSID.String())
+	client.Connection = session.authClient(subscribeNSID)
 	client.LastEventID.Store([]byte(org.SubscribeCursor))
 	lastGoodCursor := []byte(org.SubscribeCursor)
 	subscribeCtx, cancel := context.WithCancel(ctx)

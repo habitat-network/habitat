@@ -259,7 +259,11 @@ func setupPear(
 	require.NoError(t, err)
 
 	pds := login_testutil.NewPassthroughProvider(t)
-	pds.RedirectURI = server.URL + "/oauth-callback"
+	// Use the issuer host rather than the literal test-server URL: the cookie
+	// jar stores the oauthserver's flash cookie under the issuer host
+	// (indigo's client builds the authorize URL from discovery metadata), and
+	// the test roundTripper rewrites this host back to the pear test server.
+	pds.RedirectURI = "https://habitat.network/oauth-callback"
 	pds.LoginID = "loginId"
 	oauthServer, err := oauthserver.NewOAuthServer(
 		encrypt.TestKey,

@@ -108,6 +108,16 @@ func (s *Sap) AddManagedOrg(ctx context.Context, did syntax.DID, sessionID strin
 	return nil
 }
 
+// GetSession returns the OAuth session sap tracks for the given managed org
+// DID, for making authenticated requests against the org's Habitat host.
+func (s *Sap) GetSession(ctx context.Context, did syntax.DID) (*oauth.ClientSession, error) {
+	org, err := s.orgManager.GetManagedOrg(ctx, did)
+	if err != nil {
+		return nil, err
+	}
+	return s.oauthClient.ResumeSession(ctx, did, org.SessionID)
+}
+
 func (s *Sap) ListManagedOrgs(ctx context.Context) ([]syntax.DID, error) {
 	return s.orgManager.ListManagedOrgs(ctx)
 }

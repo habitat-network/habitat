@@ -72,10 +72,11 @@ func TestResyncer_SyncRepo(t *testing.T) {
 
 	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:  "did:plc:testorg",
-		SessionID:   "sess1",
-		HostURL:     srv.URL,
-		AccessToken: tk,
+		AccountDID:              "did:plc:testorg",
+		SessionID:               "sess1",
+		HostURL:                 srv.URL,
+		AccessToken:             tk,
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",
@@ -136,10 +137,11 @@ func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
 
 	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:  "did:plc:testorg",
-		SessionID:   "sess1",
-		HostURL:     srv.URL,
-		AccessToken: tk,
+		AccountDID:              "did:plc:testorg",
+		SessionID:               "sess1",
+		HostURL:                 srv.URL,
+		AccessToken:             tk,
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",
@@ -213,10 +215,11 @@ func TestResyncer_Dispatcher(t *testing.T) {
 
 	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:  "did:plc:testorg",
-		SessionID:   "sess1",
-		HostURL:     srv.URL,
-		AccessToken: tk,
+		AccountDID:              "did:plc:testorg",
+		SessionID:               "sess1",
+		HostURL:                 srv.URL,
+		AccessToken:             tk,
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",
