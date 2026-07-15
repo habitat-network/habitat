@@ -33,7 +33,7 @@ tasks:
       - target: ~:build
       - target: docs:build
         env:
-          VITE_BASE_URL: ${DOMAIN}/docs
+          VITE_BASE_URL: ${VITE_BASE_URL}/docs
           OUT_DIR: $projectRoot/dist/docs
       - target: api-docs:build
         env:
