@@ -61,8 +61,8 @@ catalogs:
       specifier: ^19.2.0
       version: 19.2.7
     react-hook-form:
-      specifier: 7.65.0
-      version: 7.65.0
+      specifier: 7.81.0
+      version: 7.81.0
     typescript:
       specifier: ^5.7.2
       version: 5.9.3
@@ -209,7 +209,7 @@ importers:
         version: 19.2.7(react@19.2.7)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.65.0(react@19.2.7)
+        version: 7.81.0(react@19.2.7)
       react-json-view:
         specifier: ^1.21.3
         version: 1.21.3(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -403,7 +403,7 @@ importers:
         version: 19.2.7(react@19.2.7)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.65.0(react@19.2.7)
+        version: 7.81.0(react@19.2.7)
       tailwindcss:
         specifier: ^4.2.1
         version: 4.3.2
@@ -552,7 +552,7 @@ importers:
         version: 19.2.7(react@19.2.7)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.65.0(react@19.2.7)
+        version: 7.81.0(react@19.2.7)
       tailwindcss:
         specifier: ^4.2.1
         version: 4.3.2
@@ -628,7 +628,7 @@ importers:
         version: 19.2.7(react@19.2.7)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.65.0(react@19.2.7)
+        version: 7.81.0(react@19.2.7)
       tailwindcss:
         specifier: ^4.2.1
         version: 4.3.2
@@ -716,7 +716,7 @@ importers:
         version: 9.14.0(react@19.2.7)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.65.0(react@19.2.7)
+        version: 7.81.0(react@19.2.7)
       shadcn:
         specifier: ^3.8.5
         version: 3.8.5(@types/node@22.20.1)(typescript@5.9.3)
@@ -9613,12 +9613,6 @@ packages:
 
   react-fast-compare@3.2.2:
     resolution: {integrity: sha512-nsO+KSNgo1SbJqJEYRE9ERzo7YtYbou/OqjSQKxV7jcKox7+usiUVZOAC+XnDOABXggQTno0Y1CpVnuWEc1boQ==}
-
-  react-hook-form@7.65.0:
-    resolution: {integrity: sha512-xtOzDz063WcXvGWaHgLNrNzlsdFgtUWcb32E6WFaGTd7kPZG3EeDusjdZfUsPwKCKVXy1ZlntifaHZ4l8pAsmw==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      react: ^16.8.0 || ^17 || ^18 || ^19
 
   react-hook-form@7.81.0:
     resolution: {integrity: sha512-ocbmr2p5KBMoAfj4WCUvped33lVi1Kd5DuDUvQDnB6VEAacOjPI/jMbtDdbhco4y9ct4xUuCmMY0b/C9L0QHjw==}
@@ -22974,10 +22968,6 @@ snapshots:
       scheduler: 0.27.0
 
   react-fast-compare@3.2.2: {}
-
-  react-hook-form@7.65.0(react@19.2.7):
-    dependencies:
-      react: 19.2.7
 
   react-hook-form@7.81.0(react@19.2.7):
     dependencies:
