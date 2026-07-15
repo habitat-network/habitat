@@ -103,15 +103,11 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	publicMux := http.NewServeMux()
 	publicMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
 	publicMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
-
-	// Publicly-reachable notify entry points the space host pushes to (service
-	// auth), per the permissioned-data sync proposal.
-	if h := s.NotifyWriteHandler(); h != nil {
-		publicMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", h)
-	}
-	if h := s.NotifySpaceDeletedHandler(); h != nil {
-		publicMux.HandleFunc("/xrpc/network.habitat.space.notifySpaceDeleted", h)
-	}
+	publicMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", server.handleNotifyWrite)
+	publicMux.HandleFunc(
+		"/xrpc/network.habitat.space.notifySpaceDeleted",
+		server.handleNotifySpaceDeleted,
+	)
 
 	internalMux := http.NewServeMux()
 	internalMux.HandleFunc("/health", server.handleHealth)
