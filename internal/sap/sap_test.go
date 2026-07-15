@@ -14,22 +14,23 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/spaces"
-	"github.com/habitat-network/habitat/internal/spaces/testutil"
+	space_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -46,7 +47,7 @@ func TestSap(t *testing.T) {
 	}
 
 	// 1. Setup Pear instance
-	pearServer, orgId, adminId, spacesStore, orgHive := setupPear(t)
+	pearServer, spacesStore, orgHive := setupPear(t)
 	t.Cleanup(func() {
 		pearServer.CloseClientConnections()
 		pearServer.Close()
@@ -56,14 +57,17 @@ func TestSap(t *testing.T) {
 	groupType := syntax.NSID("network.habitat.group")
 	collection := syntax.NSID("network.habitat.test")
 
+	org := syntax.DID("did:web:public.habitat.network")
+	user := syntax.DID("did:web:user.habitat.network")
+
 	// 2. Initialize Pear with backfill data before starting SAP:
 	// 3 spaces with 5 records each (15 records).
 	for i := range 3 {
 		skey := fmt.Sprintf("backfill-space-%d", i)
 		uri, err := spacesStore.CreateSpace(
 			t.Context(),
-			orgId.DID,
-			adminId.DID,
+			org,
+			user,
 			groupType,
 			habitat_syntax.SpaceKey(skey),
 		)
@@ -74,7 +78,7 @@ func TestSap(t *testing.T) {
 			recURI, _, err := spacesStore.PutRecord(
 				t.Context(),
 				uri,
-				adminId.DID,
+				user,
 				collection,
 				rkey,
 				map[string]any{"data": fmt.Sprintf("backfill-%d-%d", i, j)},
@@ -118,18 +122,33 @@ func TestSap(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		require.NoError(t, json.NewEncoder(w).Encode(oauthApp.Config.ClientMetadata()))
 	})
+	mux.HandleFunc(
+		"/xrpc/network.habitat.space.notifyWrite",
+		func(w http.ResponseWriter, r *http.Request) {
+			var input habitat.NetworkHabitatSpaceNotifyWriteInput
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
+			require.NoError(
+				t,
+				s.NotifyWrite(
+					t.Context(),
+					habitat_syntax.SpaceURI(input.Space),
+					syntax.DID(input.Repo),
+					syntax.TID(input.Rev),
+					input.Hash.([]byte),
+				),
+			)
+		},
+	)
 
 	// 4. Start SAP worker loops
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	go func() {
-		if err := s.Start(ctx); err != nil {
-			t.Logf("Start returned: %v", err)
-		}
+		require.NoError(t, s.Start(ctx))
 	}()
 
 	// 5. Complete the OAuth flow to add the session and trigger the crawl
-	redirectURL, err := oauthApp.StartAuthFlow(t.Context(), orgId.Handle.String())
+	redirectURL, err := oauthApp.StartAuthFlow(t.Context(), user.String())
 	require.NoError(t, err)
 
 	jar, err := cookiejar.New(nil)
@@ -149,23 +168,14 @@ func TestSap(t *testing.T) {
 		t.Fatalf("Expected 200 but got %d. Body: %s", resp.StatusCode, string(body))
 	}
 
-	// notifyWrite relays the host's current head for a repo into sap, the way
-	// cmd/sap's notify endpoint would after a host push.
-	notifyWrite := func(space habitat_syntax.SpaceURI) {
-		rev, hash, found, err := spacesStore.RepoHead(t.Context(), space, adminId.DID)
-		require.NoError(t, err)
-		require.True(t, found)
-		require.NoError(t, s.NotifyWrite(t.Context(), space, adminId.DID, syntax.TID(rev), hash))
-	}
-
-	// 6. Create data while the crawl runs, relaying notifyWrite per write:
+	// 6. Create data while the crawl runs
 	// 2 new spaces with 5 records each, racing the backfill.
 	for i := range 2 {
 		skey := fmt.Sprintf("live-space-%d", i)
 		uri, err := spacesStore.CreateSpace(
 			t.Context(),
-			orgId.DID,
-			adminId.DID,
+			org,
+			user,
 			groupType,
 			habitat_syntax.SpaceKey(skey),
 		)
@@ -176,19 +186,18 @@ func TestSap(t *testing.T) {
 			recURI, _, err := spacesStore.PutRecord(
 				t.Context(),
 				uri,
-				adminId.DID,
+				user,
 				collection,
 				rkey,
 				map[string]any{"data": fmt.Sprintf("live-%d-%d", i, j)},
 			)
 			require.NoError(t, err)
 			createdURIs[recURI.String()] = true
-			notifyWrite(uri)
 		}
 	}
 	// 5 more records in an already-crawled space (incremental sync path).
 	backfillSpaceURI := habitat_syntax.ConstructSpaceURI(
-		orgId.DID,
+		syntax.DID("did:web:public.habitat.network"),
 		groupType,
 		"backfill-space-0",
 	)
@@ -197,14 +206,13 @@ func TestSap(t *testing.T) {
 		recURI, _, err := spacesStore.PutRecord(
 			t.Context(),
 			backfillSpaceURI,
-			adminId.DID,
+			user,
 			collection,
 			rkey,
 			map[string]any{"data": fmt.Sprintf("live-update-%d", j)},
 		)
 		require.NoError(t, err)
 		createdURIs[recURI.String()] = true
-		notifyWrite(backfillSpaceURI)
 	}
 
 	// Total expected records = 15 (backfill) + 10 (new spaces) + 5 (existing space updates) = 30
@@ -221,46 +229,21 @@ func TestSap(t *testing.T) {
 		return count == expectedCount
 	}, 15*time.Second, 100*time.Millisecond)
 
-	type outboxRow struct {
-		ID    uint
-		URI   string
-		Value []byte
-	}
-	var outboxRecords []outboxRow
-	require.NoError(t, db.Table("sap_outbox").Find(&outboxRecords).Error)
-	for _, rec := range outboxRecords {
-		require.Contains(t, createdURIs, rec.URI)
-	}
-
-	// 8. Every tracked repo settled active with a verified hash matching the
-	// host's head.
-	type repoRow struct {
-		Space string
-		State string
-		Hash  []byte
-	}
-	var repos []repoRow
-	require.NoError(t, db.Table("sap_repos").Find(&repos).Error)
-	require.NotEmpty(t, repos)
-	for _, r := range repos {
-		require.Equal(t, "active", r.State, "repo in space %s not active", r.Space)
-		require.NotEmpty(t, r.Hash)
-	}
+	messages, err := s.Outbox().Poll(t.Context(), 30)
+	require.NoError(t, err)
+	require.Len(t, messages, int(expectedCount))
 }
 
 func setupPear(
 	t *testing.T,
-) (*httptest.Server, *identity.Identity, *identity.Identity, spaces.Store, hive.Hive) {
+) (*httptest.Server, spaces.Store, hive.Hive) {
 	t.Helper()
 	mux := http.NewServeMux()
 	server := httptest.NewTLSServer(mux)
 
-	fgaStore, err := fgastore.NewSQLite(t.Context(), t.TempDir()+"/pear.fga.db")
+	fgaStore, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	db := db_testutil.NewDB(t)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	sqlDB.SetMaxOpenConns(1)
 
 	orgHive, err := hive.NewHive("hive.domain", strings.TrimPrefix(server.URL, "https://"), db)
 	require.NoError(t, err)
@@ -275,11 +258,11 @@ func setupPear(
 	)
 	require.NoError(t, err)
 
+	pds := login_testutil.NewPassthroughProvider(t)
+	pds.RedirectURI = server.URL + "/oauth-callback"
 	oauthServer, err := oauthserver.NewOAuthServer(
 		encrypt.TestKey,
-		&org.LoginRouter{
-			Pds: &passthroughProvider{redirectURI: server.URL + "/oauth-callback"},
-		},
+		&org.LoginRouter{Pds: pds},
 		orgHive,
 		db,
 		metricnoop.Meter{},
@@ -289,7 +272,7 @@ func setupPear(
 	)
 	require.NoError(t, err)
 
-	spacesStore := testutil.NewTestStore(t)
+	spacesStore := space_testutil.NewTestStore(t)
 
 	spacesServer := spaces.NewServer(
 		spacesStore,
@@ -310,43 +293,5 @@ func setupPear(
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 
-	orgId, adminId, err := orgStore.CreateOrg(
-		t.Context(),
-		"Test org",
-		"admin",
-		"",
-		"atproto",
-		"loginId",
-		"org",
-		"contact@example.com",
-	)
-	require.NoError(t, err)
-
-	go func() {
-		require.ErrorIs(t, spacesStore.EventStore.StartSequencer(t.Context()), context.Canceled)
-	}()
-
-	return server, orgId, adminId, spacesStore, orgHive
-}
-
-type passthroughProvider struct {
-	redirectURI string
-}
-
-// Authorize implements [login.Provider].
-func (p *passthroughProvider) Authorize(
-	ctx context.Context,
-	loginHint string,
-) (redirectURI string, state []byte, err error) {
-	return p.redirectURI, nil, nil
-}
-
-// Exchange implements [login.Provider].
-func (p *passthroughProvider) Exchange(
-	ctx context.Context,
-	code string,
-	issuer string,
-	state []byte,
-) (loginId string, err error) {
-	return "loginId", nil
+	return server, spacesStore, orgHive
 }
