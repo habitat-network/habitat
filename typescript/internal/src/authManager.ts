@@ -8,22 +8,22 @@ import {
 } from "@atproto/oauth-client-browser";
 
 export class AuthManager {
-  private serverDomain: string;
+  private serverUrl: string;
   private client: BrowserOAuthClient;
   private session: OAuthSession | undefined;
   private onUnauthenticated: () => void;
 
   constructor(
     appName: string,
-    domain: string,
-    serverDomain: string,
+    baseUrl: string,
+    serverUrl: string,
     onUnauthenticated: () => void,
   ) {
-    this.serverDomain = serverDomain;
+    this.serverUrl = serverUrl;
     this.onUnauthenticated = onUnauthenticated;
     const internalResolver = new IdResolver()
     this.client = new BrowserOAuthClient({
-      clientMetadata: clientMetadata(appName, domain),
+      clientMetadata: clientMetadata(appName, baseUrl),
       identityResolver: {
         resolve: async (identifier) => {
           let did: AtprotoDid
@@ -48,7 +48,7 @@ export class AuthManager {
                 {
                   id: "#atproto_pds",
                   type: "AtprotoPersonalDataServer",
-                  serviceEndpoint: `https://${serverDomain}`,
+                  serviceEndpoint: serverUrl,
                 },
               ]
             }
@@ -102,7 +102,7 @@ export class AuthManager {
     }
     headers.append("Habitat-Auth-Method", "oauth");
     const response = await this.session.fetchHandler(
-      new URL(path, `https://${this.serverDomain}`).toString(),
+      new URL(path, this.serverUrl).toString(),
       { method, body, headers },
     );
     if (response.status === 401) {

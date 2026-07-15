@@ -1,8 +1,11 @@
 tasks:
   dev:
     env:
-      HABITAT_DOMAIN: pear.local.habitat.network
-      DOMAIN: frontend.local.habitat.network
+      VITE_HABITAT_DOMAIN: pear.local.habitat.network
+      # Client-visible origin. Separate from BASE_URL because Vite forces a
+      # fully-qualified `base` back to "/" in dev, so import.meta.env.BASE_URL
+      # can't carry the origin.
+      VITE_BASE_URL: https://frontend.local.habitat.network
       # DID of the home server; injected as the __HOME_SERVER_DID__ Vite define
       # so the groups UI can target it via the Atproto-Proxy header.
       HOME_SERVER_DID: did:web:home.local.habitat.network
@@ -15,8 +18,7 @@ tasks:
     deps:
       - target: build
         env:
-          HABITAT_DOMAIN: pear.habitat
-          DOMAIN: frontend.habitat
+          VITE_HABITAT_DOMAIN: pear.habitat
     options:
       internal: false
   dev-all:
@@ -31,7 +33,7 @@ tasks:
       - target: ~:build
       - target: docs:build
         env:
-          DOMAIN: ${DOMAIN}/docs
+          VITE_BASE_URL: ${DOMAIN}/docs
           OUT_DIR: $projectRoot/dist/docs
       - target: api-docs:build
         env:
