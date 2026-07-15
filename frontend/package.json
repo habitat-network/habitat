@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.1",
+    "@tanstack/devtools-vite": "catalog:",
     "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/canvas-confetti": "^1.9.0",
@@ -43,6 +44,7 @@
     "jsdom": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
+    "vite-plugin-generate-file": "^0.3.1",
     "vitest": "catalog:"
   }
 }
