@@ -40,7 +40,7 @@
     "internal": "workspace:*",
     "it-byte-stream": "^2.0.4",
     "lib0": "^0.2.115",
-    "libp2p": "2.8.0",
+    "libp2p": "2.10.0",
     "lucide-react": "^0.577.0",
     "multiformats": "^13.3.1",
     "posthog-js": "^1.363.1",
