@@ -8,8 +8,4 @@
     "directory": "dist",
   },
   "compatibility_flags": ["nodejs_compat"],
-  "vars": {
-    "HABITAT_DOMAIN": "habitat-953995456319.us-west1.run.app",
-    "DOMAIN": "docs.habitat.network",
-  },
 }
