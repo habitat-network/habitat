@@ -20,7 +20,6 @@ require (
 	github.com/openfga/openfga v1.15.1
 	github.com/ory/fosite v0.49.0
 	github.com/pressly/goose/v3 v3.27.2
-	github.com/r3labs/sse/v2 v2.10.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/contrib/bridges/otelslog v0.19.0
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.67.0
@@ -205,7 +204,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260615183401-62b3387ff324 // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.73.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

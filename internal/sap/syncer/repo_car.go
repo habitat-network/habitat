@@ -1,4 +1,4 @@
-package sap
+package syncer
 
 import (
 	"errors"

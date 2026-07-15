@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/internal/db"
@@ -80,25 +81,31 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	oauthApp := oauthclient.NewApp(&config, store)
 
-	s, err := sap.NewSap(sap.SapConfig{
+	dir := identity.DefaultDirectory()
+	// The base URL space hosts register and sign notifyWrite /
+	// notifySpaceDeleted against; the XRPC handlers hang off it.
+	endpoint := "https://" + domain
+
+	s, err := sap.New(sap.Config{
 		DB:          db,
 		OAuthClient: oauthApp,
-		Directory:   identity.DefaultDirectory(),
-		// The base URL space hosts register and sign notifyWrite /
-		// notifySpaceDeleted against; the XRPC handlers hang off it.
-		NotifyAudience: "https://" + domain,
-		Meter:          otel.Meter("sap"),
-		Tracer:         otel.Tracer("sap"),
+		Directory:   dir,
+		Endpoint:    endpoint,
+		Meter:       otel.Meter("sap"),
+		Tracer:      otel.Tracer("sap"),
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	server := NewSapServer(s, oauthApp)
+	server := NewSapServer(s, oauthApp, &auth.ServiceAuthValidator{
+		Dir:      dir,
+		Audience: endpoint,
+	})
 
 	// The OAuth endpoints (callback and client metadata) must be publicly
 	// reachable since the user's PDS redirects to them, so they are served on
-	// their own port. The org and channel endpoints are served on a separate
+	// their own port. The session and channel endpoints are served on a separate
 	// internal port so the user can restrict access to trusted services.
 	publicMux := http.NewServeMux()
 	publicMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
@@ -111,8 +118,8 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	internalMux := http.NewServeMux()
 	internalMux.HandleFunc("/health", server.handleHealth)
-	internalMux.HandleFunc("/org/add", server.handleAddOrg)
-	internalMux.HandleFunc("/org/list", server.handleListOrgs)
+	internalMux.HandleFunc("/session/add", server.handleAddSession)
+	internalMux.HandleFunc("/session/list", server.handleListSessions)
 	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
 	internalMux.HandleFunc("/proxy/", server.handleProxy)
 

@@ -32,7 +32,7 @@ func futureJWT(t *testing.T) string {
 	return signed
 }
 
-// openProxyTestServer wires up a sap server whose managed org points at the
+// openProxyTestServer wires up a sap server whose session points at the
 // given pear host, returning an httptest server exposing the /proxy/ route.
 func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 	t.Helper()
@@ -49,12 +49,12 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 	)
 	oauthApp := oauthclient.NewApp(&cfg, store)
 
-	s, err := sap.NewSap(sap.SapConfig{DB: db, OAuthClient: oauthApp})
+	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp})
 	require.NoError(t, err)
 
-	// Register the managed org and its OAuth session directly, avoiding the
-	// crawl/subscribe goroutines that AddManagedOrg would spawn.
-	require.NoError(t, db.Table("managed_orgs").Create(map[string]any{
+	// Register the session directly, avoiding the crawl goroutine that
+	// AddSession would spawn.
+	require.NoError(t, db.Table("sap_sessions").Create(map[string]any{
 		"did":        testProxyDID,
 		"session_id": "session-1",
 	}).Error)
@@ -65,7 +65,7 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 		AccessToken: futureJWT(t),
 	}))
 
-	server := NewSapServer(s, oauthApp)
+	server := NewSapServer(s, oauthApp, nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/proxy/", server.handleProxy)
 	httpServer := httptest.NewServer(mux)

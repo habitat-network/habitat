@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,11 +10,13 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 // habitatDIDHeader names the DID the caller wants the proxied request to be
@@ -29,15 +32,20 @@ var hopByHopHeaders = []string{
 type server struct {
 	sap         *sap.Sap
 	oauthClient *oauthclient.App
+	// serviceAuth validates the service-auth JWTs on inbound notifyWrite /
+	// notifySpaceDeleted calls from space hosts.
+	serviceAuth *auth.ServiceAuthValidator
 }
 
 func NewSapServer(
 	sapInstance *sap.Sap,
 	oauthClient *oauthclient.App,
+	serviceAuth *auth.ServiceAuthValidator,
 ) *server {
 	return &server{
 		sap:         sapInstance,
 		oauthClient: oauthClient,
+		serviceAuth: serviceAuth,
 	}
 }
 
@@ -45,7 +53,7 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(r.Context(), w, map[string]string{"status": "ok"})
 }
 
-func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Handle string `json:"handle"`
 	}
@@ -68,17 +76,17 @@ func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusSeeOther)
 }
 
-func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
-	orgs, err := s.sap.ListManagedOrgs(r.Context())
+func (s *server) handleListSessions(w http.ResponseWriter, r *http.Request) {
+	sessions, err := s.sap.Sessions(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if orgs == nil {
-		orgs = []syntax.DID{}
+	if sessions == nil {
+		sessions = []syntax.DID{}
 	}
-	httpx.WriteJSON(r.Context(), w, map[string]any{"orgs": orgs})
+	httpx.WriteJSON(r.Context(), w, map[string]any{"sessions": sessions})
 }
 
 func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
@@ -88,20 +96,20 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.sap.AddManagedOrg(
+	if err := s.sap.AddSession(
 		r.Context(),
 		sessionData.AccountDID,
 		sessionData.SessionID,
 	); err != nil {
-		http.Error(w, fmt.Sprintf("save org: %s", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("save session: %s", err), http.StatusInternalServerError)
 		return
 	}
 
-	slog.InfoContext(r.Context(), "org oauth complete", "did", sessionData.AccountDID)
+	slog.InfoContext(r.Context(), "session oauth complete", "did", sessionData.AccountDID)
 	w.WriteHeader(http.StatusOK)
 }
 
-// handleProxy forwards an XRPC request to pear on behalf of a managed org,
+// handleProxy forwards an XRPC request to pear on behalf of a session,
 // authenticating with the OAuth session sap tracks for the DID named in the
 // Habitat-Did header. The path after /proxy/ is the XRPC method, forwarded to
 // pear as /xrpc/<method> with the original method, query params, headers, and
@@ -117,14 +125,14 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, err := s.sap.GetClient(r.Context(), did)
+	client, err := s.sap.Client(r.Context(), did)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("no tracked session for %s: %s", did, err), http.StatusBadGateway)
 		return
 	}
 
-	// The OAuth client's transport resolves this path-only URL against the org's
-	// Habitat host and attaches the access token.
+	// The OAuth client's transport resolves this path-only URL against the
+	// session's Habitat host and attaches the access token.
 	nsid := strings.TrimPrefix(r.URL.Path, "/proxy/")
 	target := url.URL{Path: "/xrpc/" + nsid, RawQuery: r.URL.RawQuery}
 
@@ -176,6 +184,36 @@ func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(r.Context(), w, s.oauthClient.Config.ClientMetadata())
 }
 
+// authorizeNotify validates the request's service-auth token for the given
+// lexicon method and checks that its issuer is the space's authority (the
+// space owner, who signs notify deliveries). On failure it writes the HTTP
+// error and returns false.
+func (s *server) authorizeNotify(
+	w http.ResponseWriter,
+	r *http.Request,
+	lxm syntax.NSID,
+	space habitat_syntax.SpaceURI,
+) bool {
+	ctx := r.Context()
+	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok {
+		httpx.WriteInvalidRequest(ctx, w, "missing bearer token",
+			fmt.Errorf("no service auth"))
+		return false
+	}
+	issuer, err := s.serviceAuth.Validate(ctx, token, &lxm)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return false
+	}
+	if issuer != space.SpaceOwner() {
+		httpx.WriteInvalidRequest(ctx, w, "not the space authority",
+			fmt.Errorf("issuer %q is not the authority for %q", issuer, space))
+		return false
+	}
+	return true
+}
+
 func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var input habitat.NetworkHabitatSpaceNotifyWriteInput
@@ -191,27 +229,26 @@ func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
 	rev, err := syntax.ParseTID(input.Rev)
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "parse rev", err)
 		return
 	}
+	hash, err := decodeBytesField(input.Hash)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "decode hash", err)
+		return
+	}
+	if !s.authorizeNotify(w, r, "network.habitat.space.notifyWrite", space) {
+		return
+	}
 
-	if err := s.sap.NotifyWrite(ctx, space, repo, rev, nil); err != nil {
+	if err := s.sap.NotifyWrite(ctx, space, repo, rev, hash); err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("notify write: %w", err))
 		return
 	}
-	slog.InfoContext(
-		ctx,
-		"notifyWrite queued resync",
-		"space",
-		space,
-		"repo",
-		repo,
-		"rev",
-		input.Rev,
-	)
+	slog.InfoContext(ctx, "notifyWrite queued sync",
+		"space", space, "repo", repo, "rev", input.Rev)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -226,10 +263,29 @@ func (s *server) handleNotifySpaceDeleted(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	if !s.authorizeNotify(w, r, "network.habitat.space.notifySpaceDeleted", space) {
+		return
+	}
 	if err := s.sap.NotifySpaceDeleted(ctx, space); err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("notify space deleted: %w", err))
 		return
 	}
 	slog.InfoContext(ctx, "notifySpaceDeleted dropped tracking", "space", space)
 	w.WriteHeader(http.StatusOK)
+}
+
+// decodeBytesField decodes a lexicon bytes field, which JSON-decodes into a
+// base64 (std) string, into raw bytes. Absent fields decode to nil.
+func decodeBytesField(v any) ([]byte, error) {
+	switch s := v.(type) {
+	case nil:
+		return nil, nil
+	case string:
+		if s == "" {
+			return nil, nil
+		}
+		return base64.StdEncoding.DecodeString(s)
+	default:
+		return nil, fmt.Errorf("expected base64 string, got %T", v)
+	}
 }
