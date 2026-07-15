@@ -27,7 +27,6 @@ import (
 	"github.com/habitat-network/habitat/internal/login"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/org/testutil"
 	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
@@ -38,7 +37,7 @@ import (
 // testStore creates a Store with a seeded test org.
 func testStore(t *testing.T) org.Store {
 	t.Helper()
-	s := testutil.NewTestStore(t)
+	s := org_testutil.NewTestStore(t)
 	_, _, err := s.CreateOrg(
 		t.Context(),
 		"org-name",
@@ -980,9 +979,6 @@ func TestIndigoClientApp(t *testing.T) {
 	// in for the PDS OAuth dance and reports the member's external atproto login
 	// DID on exchange.
 	const pdsLoginDID = "did:web:example.did.com"
-	const memberDomain = "unreachable.invalid"
-	const pearDomain = "pear." + memberDomain
-
 	orgStore := org_testutil.NewTestStore(t)
 
 	db := dbtestutil.NewDB(t)

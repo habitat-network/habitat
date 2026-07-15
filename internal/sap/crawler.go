@@ -212,6 +212,9 @@ func (c *crawler) enumerateSpaceRepos(
 		session.Data.HostURL+"/xrpc/network.habitat.space.listRepos?"+values.Encode(),
 		nil,
 	)
+	if err != nil {
+		return fmt.Errorf("new request: %w", err)
+	}
 	resp, err := session.DoWithAuth(
 		session.Client,
 		req,
