@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/bluesky-social/indigo/atproto/auth"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/oauthclient"
@@ -26,7 +27,6 @@ type Sap struct {
 	resyncer    *resyncer
 	crawler     *crawler
 	orgManager  *orgManager
-	notify      *notifyServer
 	registrar   *registrar
 	metrics     *metrics
 }
@@ -74,14 +74,8 @@ func NewSap(config SapConfig) (*Sap, error) {
 	outbox := newOutbox(config.DB, outboxNotif)
 	orgManager := newOrgManager(config.DB)
 
-	var notify *notifyServer
 	var registrar *registrar
 	if config.Directory != nil && config.NotifyAudience != "" {
-		validator := &auth.ServiceAuthValidator{
-			Dir:      config.Directory,
-			Audience: config.NotifyAudience,
-		}
-		notify = newNotifyServer(config.DB, resyncer, validator)
 		registrar = newRegistrar(config.DB, config.OAuthClient, config.NotifyAudience)
 	}
 
@@ -94,28 +88,41 @@ func NewSap(config SapConfig) (*Sap, error) {
 		resyncBuf:   resyncBuf,
 		resyncer:    resyncer,
 		crawler:     crawler,
-		notify:      notify,
 		registrar:   registrar,
 		metrics:     m,
 	}, nil
 }
 
-// NotifyWriteHandler and NotifySpaceDeletedHandler return the HTTP handlers for
-// the space host's push notifications, or nil when the notify entry points are
-// disabled (no Directory / NotifyAudience configured). Mount them at their XRPC
-// paths under the base URL registered as NotifyAudience.
-func (s *Sap) NotifyWriteHandler() http.HandlerFunc {
-	if s.notify == nil {
-		return nil
+func (s *Sap) NotifyWrite(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	rev syntax.TID,
+	hash []byte,
+) error {
+	err := s.resyncer.enqueueRepo(ctx, space, repo, rev)
+	if err != nil {
+		return fmt.Errorf("enqueue repo: %w", err)
 	}
-	return s.notify.HandleNotifyWrite
+	return nil
 }
 
-func (s *Sap) NotifySpaceDeletedHandler() http.HandlerFunc {
-	if s.notify == nil {
+func (s *Sap) NotifySpaceDeleted(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("space = ?", space).Delete(&managedRepo{}).Error; err != nil {
+			return fmt.Errorf("delete managed repos: %w", err)
+		}
+		if err := tx.Where("space = ?", space).Delete(&managedSpace{}).Error; err != nil {
+			return fmt.Errorf("delete managed spaces: %w", err)
+		}
+		if err := tx.Where("space = ?", space).Delete(&bufferedEvent{}).Error; err != nil {
+			return fmt.Errorf("delete buffered events: %w", err)
+		}
 		return nil
-	}
-	return s.notify.HandleNotifySpaceDeleted
+	})
 }
 
 func (s *Sap) Start(ctx context.Context) error {

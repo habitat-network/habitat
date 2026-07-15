@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
@@ -173,4 +174,62 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(r.Context(), w, s.oauthClient.Config.ClientMetadata())
+}
+
+func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var input habitat.NetworkHabitatSpaceNotifyWriteInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "decode notifyWrite", err)
+		return
+	}
+	space, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space")
+	if !ok {
+		return
+	}
+	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
+	if !ok {
+		return
+	}
+
+	rev, err := syntax.ParseTID(input.Rev)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "parse rev", err)
+		return
+	}
+
+	if err := s.sap.NotifyWrite(ctx, space, repo, rev, nil); err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("notify write: %w", err))
+		return
+	}
+	slog.InfoContext(
+		ctx,
+		"notifyWrite queued resync",
+		"space",
+		space,
+		"repo",
+		repo,
+		"rev",
+		input.Rev,
+	)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *server) handleNotifySpaceDeleted(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var input habitat.NetworkHabitatSpaceNotifySpaceDeletedInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "decode notifySpaceDeleted", err)
+		return
+	}
+	space, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space")
+	if !ok {
+		return
+	}
+	if err := s.sap.NotifySpaceDeleted(ctx, space); err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("notify space deleted: %w", err))
+		return
+	}
+	slog.InfoContext(ctx, "notifySpaceDeleted dropped tracking", "space", space)
+	w.WriteHeader(http.StatusOK)
 }

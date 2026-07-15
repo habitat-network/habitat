@@ -100,17 +100,17 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	// reachable since the user's PDS redirects to them, so they are served on
 	// their own port. The org and channel endpoints are served on a separate
 	// internal port so the user can restrict access to trusted services.
-	oauthMux := http.NewServeMux()
-	oauthMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
-	oauthMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+	publicMux := http.NewServeMux()
+	publicMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
+	publicMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
 
 	// Publicly-reachable notify entry points the space host pushes to (service
 	// auth), per the permissioned-data sync proposal.
 	if h := s.NotifyWriteHandler(); h != nil {
-		oauthMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", h)
+		publicMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", h)
 	}
 	if h := s.NotifySpaceDeletedHandler(); h != nil {
-		oauthMux.HandleFunc("/xrpc/network.habitat.space.notifySpaceDeleted", h)
+		publicMux.HandleFunc("/xrpc/network.habitat.space.notifySpaceDeleted", h)
 	}
 
 	internalMux := http.NewServeMux()
@@ -132,7 +132,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return err
 	})
 	eg.Go(func() error {
-		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fPort)), oauthMux)
+		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fPort)), publicMux)
 	})
 	eg.Go(func() error {
 		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fInternalPort)), internalMux)
