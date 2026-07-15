@@ -72,6 +72,10 @@ func idTemplateBuilder(memberDomain, pearDomain string) idTemplate {
 					Type: "HabitatServer",
 					URL:  "https://" + pearDomain,
 				},
+				"atproto_pds": {
+					Type: "AtprotoPersonalDataServer",
+					URL:  "https://" + pearDomain,
+				},
 			},
 		}
 	}
