@@ -77,7 +77,7 @@ type SapConfig struct {
 	// Directory resolves AT Protocol DIDs to their PDS endpoints.
 	Directory identity.Directory
 	// OAuthClient provides authenticated HTTP clients for calling org PDSes.
-	OAuthClient       *oauthclient.App
+	OAuthClient *oauthclient.App
 	// Meter is the OpenTelemetry meter for recording metrics. Pass nil to
 	// use a no-op meter.
 	Meter metric.Meter
@@ -154,7 +154,7 @@ func (s *Sap) Start(ctx context.Context) error {
 }
 
 // AddManagedOrg registers a new organization for sync. did is the org's AT
-// Protocol DID and sessionID is the OAuth session identifier that will be
+// Protocol DID and sessionID is the OAuth session identifier from  oauthClient
 // used to authenticate requests to the org's PDS. After registration the
 // org is immediately crawled (discovering its spaces and repos) and a live
 // subscription is opened for real-time events.
