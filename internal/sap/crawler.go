@@ -11,6 +11,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"go.opentelemetry.io/otel/attribute"
@@ -21,7 +22,7 @@ import (
 
 type crawler struct {
 	db          *gorm.DB
-	oauthClient *sessionGetter
+	oauthClient *oauthclient.App
 	resyncBuf   *resyncBuffer
 	sub         *subscriber
 	resyncNotif *utils.PollNotifier
@@ -30,7 +31,7 @@ type crawler struct {
 
 func newCrawler(
 	db *gorm.DB,
-	oauthClient *sessionGetter,
+	oauthClient *oauthclient.App,
 	resyncBuf *resyncBuffer,
 	sub *subscriber,
 	resyncNotif *utils.PollNotifier,
@@ -126,7 +127,7 @@ func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
 }
 
 func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
-	session, err := c.oauthClient.ResumeSession(ctx, org.DID, org.SessionID)
+	client, err := c.oauthClient.GetClient(ctx, org.DID, org.SessionID)
 	if err != nil {
 		return fmt.Errorf("resume session: %w", err)
 	}
@@ -144,20 +145,7 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 			params.Set("cursor", cursor)
 		}
 
-		req, err := http.NewRequestWithContext(
-			ctx,
-			http.MethodGet,
-			session.Data.HostURL+"/xrpc/network.habitat.space.listSpaces?"+params.Encode(),
-			nil,
-		)
-		if err != nil {
-			return fmt.Errorf("new request: %w", err)
-		}
-		resp, err := session.DoWithAuth(
-			session.Client,
-			req,
-			syntax.NSID("network.habitat.space.listSpaces"),
-		)
+		resp, err := client.Get("/xrpc/network.habitat.space.listSpaces?" + params.Encode())
 		if err != nil {
 			return fmt.Errorf("list spaces: %w", err)
 		}
@@ -180,7 +168,7 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 		}
 
 		for _, space := range listSpacesOutput.Spaces {
-			if err := c.enumerateSpaceRepos(ctx, session, space.Uri); err != nil {
+			if err := c.enumerateSpaceRepos(ctx, client, space.Uri); err != nil {
 				return fmt.Errorf("enumerate space repos for %s: %w", space.Uri, err)
 			}
 		}
@@ -202,24 +190,11 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 
 func (c *crawler) enumerateSpaceRepos(
 	ctx context.Context,
-	session *session,
+	client *http.Client,
 	spaceURI string,
 ) error {
 	values := url.Values{"space": []string{spaceURI}}
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		session.Data.HostURL+"/xrpc/network.habitat.space.listRepos?"+values.Encode(),
-		nil,
-	)
-	if err != nil {
-		return fmt.Errorf("new request: %w", err)
-	}
-	resp, err := session.DoWithAuth(
-		session.Client,
-		req,
-		syntax.NSID("network.habitat.space.listRepos"),
-	)
+	resp, err := client.Get("/xrpc/network.habitat.space.listRepos?" + values.Encode())
 	if err != nil {
 		return err
 	}

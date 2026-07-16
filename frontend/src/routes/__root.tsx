@@ -14,7 +14,7 @@ interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   async beforeLoad({ context }) {
-    await context.authManager.init();
+    await context.authManager.maybeExchangeCode();
   },
   async loader({ context }) {
     const authInfo = context.authManager.getAuthInfo();

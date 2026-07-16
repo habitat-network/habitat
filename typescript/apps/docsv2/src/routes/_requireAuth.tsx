@@ -21,7 +21,7 @@ import { FileTextIcon, PlusIcon } from "lucide-react";
 
 export const Route = createFileRoute("/_requireAuth")({
   async beforeLoad({ context }) {
-    await context.authManager.init();
+    await context.authManager.maybeExchangeCode();
     if (!context.authManager.getAuthInfo()) {
       throw redirect({ to: "/login" });
     }
