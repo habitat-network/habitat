@@ -13,7 +13,7 @@ require (
 	github.com/ipfs/go-cid v0.6.2
 	github.com/ipld/go-car v0.6.3
 	github.com/libp2p/go-libp2p v0.48.0
-	github.com/lmittmann/tint v1.1.3
+	github.com/lmittmann/tint v1.2.0
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/openfga/api/proto v0.0.0-20260619182052-dd87be81488e
