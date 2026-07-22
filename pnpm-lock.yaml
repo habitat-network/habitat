@@ -161,7 +161,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: ^0.20.0
-        version: 0.20.28
+        version: 0.20.31
       '@atproto/identity':
         specifier: ^0.5.0
         version: 0.5.6
@@ -973,10 +973,6 @@ packages:
 
   '@atproto-labs/simple-store@0.4.4':
     resolution: {integrity: sha512-3YH03xg99ZUS6Fq/6jcKRiZwUbzDb58xmS7ibg0y4+dukwrHa92cV/md76RpQJkAo9KYBvwLETdvF6fNtwIoGw==}
-    engines: {node: '>=22'}
-
-  '@atproto/api@0.20.28':
-    resolution: {integrity: sha512-/Rvk8zt9mtRi9tlMD2Qg+NG2lMj3B0HDjmfswR5724pH7GsOEMDDHwleVlmOBSrgACIyVSa5tdCDJ+R+SEhwww==}
     engines: {node: '>=22'}
 
   '@atproto/api@0.20.31':
@@ -11882,17 +11878,6 @@ snapshots:
       lru-cache: 10.4.3
 
   '@atproto-labs/simple-store@0.4.4': {}
-
-  '@atproto/api@0.20.28':
-    dependencies:
-      '@atproto/common-web': 0.5.6
-      '@atproto/lexicon': 0.7.7
-      '@atproto/syntax': 0.7.2
-      '@atproto/xrpc': 0.8.6
-      await-lock: 3.0.0
-      multiformats: 13.4.2
-      tlds: 1.261.0
-      zod: 3.25.76
 
   '@atproto/api@0.20.31':
     dependencies:
