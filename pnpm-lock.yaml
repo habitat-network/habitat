@@ -674,7 +674,7 @@ importers:
         version: 0.5.6
       '@atproto/oauth-client-browser':
         specifier: ^0.4.0
-        version: 0.4.8
+        version: 0.4.9
       '@base-ui/react':
         specifier: ^1.2.0
         version: 1.6.0(@date-fns/tz@1.5.0)(@types/react@19.2.17)(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -958,12 +958,12 @@ packages:
     resolution: {integrity: sha512-YxXwi8HMk2HHDd5rljPGqxZ8bSeU78sFNz511Y222D0FraEq98p2r1ifkIgI23KQOfy0k0VzafeJAiGDh1CvfQ==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/handle-resolver@0.4.5':
-    resolution: {integrity: sha512-+IoQ0WEUGYE0KiiZqCwFXhc48EWn36M97enL1w/3ZtsvCeBS2qojOGpnFwExxfvKjpA3GsD3RJxkN5Gv59kLQw==}
+  '@atproto-labs/handle-resolver@0.4.6':
+    resolution: {integrity: sha512-a3ZoQ0xpIowFuIhvjXwaloJwT3He6NJ02FfrKaRW0tdT2GvEH6nLaVHr46ps8A4ddCz+Q4oUha9atfr4O+0P2g==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/identity-resolver@0.4.4':
-    resolution: {integrity: sha512-FlBNVU4vtxnYxwT15+cfotOgOug7UtfqF1PeZ8jy41Lix7TjvtiBkyvLsLXIlVjv0+3ZOt/7jxC69l/c2TIZfw==}
+  '@atproto-labs/identity-resolver@0.4.5':
+    resolution: {integrity: sha512-N/v4vZ4z8hFkudBKe5S1MIUP4nI+Qrr2FVVoGJ1ED+j4tT05y6JB8XFC34jgdZUaeQhi5wLaaSMoqUD269S6tw==}
     engines: {node: '>=22'}
 
   '@atproto-labs/pipe@0.2.4':
@@ -1031,12 +1031,12 @@ packages:
     resolution: {integrity: sha512-92VH2oEsJdrIVNy7WY8rGn99ANNVglyUffoN7GJc0mxKi+fXN5iVlJ2cOyTfYABhr2ldSiptZWXEPEdBaIR9/A==}
     engines: {node: '>=22'}
 
-  '@atproto/oauth-client-browser@0.4.8':
-    resolution: {integrity: sha512-+CDgOFEFuKorSeFhZQ0VO6b0uZj6TyLuWOrv1MlrjhbSsqPtLPO3W8h+bmAEQyiQhCDNnlWfHrcAc8uUhh+UpQ==}
+  '@atproto/oauth-client-browser@0.4.9':
+    resolution: {integrity: sha512-97sZG7vacmlPlSVmHHWgPoBDhQukDvt7ajwexrg5FVW3Y8ngIIXCUQOSas5vUTyl16SUmsDf7WtGMsjPjNkFdg==}
     engines: {node: '>=22'}
 
-  '@atproto/oauth-client@0.7.10':
-    resolution: {integrity: sha512-6jf7gi7bketKa89g1aR70TAVY1S6rrhWg6t2heqyJnxxjgswgxnC4+Fsy2232eC3Wjd06Tr4RXeuF+8ixTA9hw==}
+  '@atproto/oauth-client@0.7.11':
+    resolution: {integrity: sha512-kCoQxT2CXEKT2LCZA3nZFd5VjbZN6WQ7z8asUfRICuhm79Q/Ovbs8eFftdcxM75O7M/9/EdcZ6Opppi0cq5kjw==}
     engines: {node: '>=22'}
 
   '@atproto/oauth-types@0.7.5':
@@ -11862,17 +11862,17 @@ snapshots:
     dependencies:
       '@atproto-labs/pipe': 0.2.4
 
-  '@atproto-labs/handle-resolver@0.4.5':
+  '@atproto-labs/handle-resolver@0.4.6':
     dependencies:
       '@atproto-labs/simple-store': 0.4.4
       '@atproto-labs/simple-store-memory': 0.2.4
       '@atproto/did': 0.5.4
       zod: 3.25.76
 
-  '@atproto-labs/identity-resolver@0.4.4':
+  '@atproto-labs/identity-resolver@0.4.5':
     dependencies:
       '@atproto-labs/did-resolver': 0.3.5
-      '@atproto-labs/handle-resolver': 0.4.5
+      '@atproto-labs/handle-resolver': 0.4.6
 
   '@atproto-labs/pipe@0.2.4': {}
 
@@ -11972,24 +11972,24 @@ snapshots:
       multiformats: 13.4.2
       zod: 3.25.76
 
-  '@atproto/oauth-client-browser@0.4.8':
+  '@atproto/oauth-client-browser@0.4.9':
     dependencies:
       '@atproto-labs/did-resolver': 0.3.5
-      '@atproto-labs/handle-resolver': 0.4.5
+      '@atproto-labs/handle-resolver': 0.4.6
       '@atproto-labs/simple-store': 0.4.4
       '@atproto/did': 0.5.4
       '@atproto/jwk': 0.7.4
       '@atproto/jwk-webcrypto': 0.3.4
-      '@atproto/oauth-client': 0.7.10
+      '@atproto/oauth-client': 0.7.11
       '@atproto/oauth-types': 0.7.5
       core-js: 3.49.0
 
-  '@atproto/oauth-client@0.7.10':
+  '@atproto/oauth-client@0.7.11':
     dependencies:
       '@atproto-labs/did-resolver': 0.3.5
       '@atproto-labs/fetch': 0.3.4
-      '@atproto-labs/handle-resolver': 0.4.5
-      '@atproto-labs/identity-resolver': 0.4.4
+      '@atproto-labs/handle-resolver': 0.4.6
+      '@atproto-labs/identity-resolver': 0.4.5
       '@atproto-labs/simple-store': 0.4.4
       '@atproto-labs/simple-store-memory': 0.2.4
       '@atproto/did': 0.5.4
