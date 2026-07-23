@@ -14,7 +14,7 @@ require (
 	github.com/tebeka/selenium v0.9.9
 	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.43.0
-	golang.org/x/net v0.56.0
+	golang.org/x/net v0.57.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2
 )
