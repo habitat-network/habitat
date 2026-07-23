@@ -18,7 +18,7 @@ require (
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/openfga/api/proto v0.0.0-20260619182052-dd87be81488e
 	github.com/openfga/openfga v1.18.1
-	github.com/ory/fosite v0.49.0
+	github.com/ory/fosite v0.47.0
 	github.com/pressly/goose/v3 v3.27.2
 	github.com/r3labs/sse/v2 v2.10.0
 	github.com/stretchr/testify v1.11.1
@@ -54,7 +54,7 @@ require (
 	github.com/cristalhq/jwt/v4 v4.0.2 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 // indirect
-	github.com/dgraph-io/ristretto v1.0.0 // indirect
+	github.com/dgraph-io/ristretto v0.2.0 // indirect
 	github.com/dunglas/httpsfv v1.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/earthboundkid/versioninfo/v2 v2.24.1 // indirect
