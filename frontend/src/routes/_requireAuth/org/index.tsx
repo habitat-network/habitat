@@ -76,14 +76,26 @@ function InviteSection({
   orgId: string | undefined;
 }) {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const router = useRouter();
 
   const { mutate: generateLink, isPending } = useMutation({
     mutationFn: () => issueInviteToken(authManager),
     onSuccess: ({ token }) => {
-      const path = __HASH_ROUTING__ ? `/#/org/join` : `/org/join`;
-      setInviteUrl(
-        `${window.location.origin}${path}?token=${token}&orgId=${orgId}`,
-      );
+      const location = router.buildLocation({
+        to: "/org/join",
+        search: {
+          token: token,
+          orgId: orgId,
+        },
+      }).publicHref;
+      if (import.meta.env.VITE_HASH_ROUTING) {
+        const basePath = new URL(
+          import.meta.env.VITE_BASE_URL,
+        ).pathname.replace(/\/$/, "");
+        setInviteUrl(`${window.location.origin}${basePath}/#${location}`);
+      } else {
+        setInviteUrl(`${window.location.origin}${location}`);
+      }
     },
   });
 

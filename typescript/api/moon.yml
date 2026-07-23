@@ -10,7 +10,15 @@ workspace:
     exclude:
     - start
     - dev
+    - lint
+    - lint-check
+    - format
+    - format-check
 tasks:
+  build:
+    deps: []
+    options:
+      mergeDeps: replace
   generate:
     command: pnpx 
     args:

@@ -29,14 +29,26 @@ type managedOrg struct {
 	CrawlCursor     string
 }
 
+// repoState tracks where a managed repository is in its sync lifecycle.
 type repoState string
 
+// Repository sync states. These represent the lifecycle of a managed repo
+// from initial discovery through active sync and error recovery.
 const (
-	RepoStatePending   repoState = "pending"
+	// RepoStatePending indicates a repo has been discovered but not yet
+	// synced.
+	RepoStatePending repoState = "pending"
+	// RepoStateResyncing indicates a repo is currently being backfilled.
 	RepoStateResyncing repoState = "resyncing"
-	RepoStateActive    repoState = "active"
-	RepoStateDesynced  repoState = "desynced"
-	RepoStateError     repoState = "error"
+	// RepoStateActive indicates a repo is fully synced and receiving live
+	// events.
+	RepoStateActive repoState = "active"
+	// RepoStateDesynced indicates a repo fell behind its live events and
+	// needs a full resync.
+	RepoStateDesynced repoState = "desynced"
+	// RepoStateError indicates the last sync attempt failed and the repo
+	// will be retried after a backoff period.
+	RepoStateError repoState = "error"
 )
 
 // managedRepo is the GORM model for repository sync state

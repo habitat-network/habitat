@@ -3,6 +3,7 @@ package login
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/habitat-network/habitat/internal/pdsclient"
 )
@@ -45,15 +46,18 @@ func (p *pdsProvider) Authorize(
 
 func (p *pdsProvider) Exchange(
 	ctx context.Context,
-	code string,
-	issuer string,
-	oauthState string,
+	query url.Values,
 	_ []byte,
 ) (loginID string, err error) {
 	if p.client == nil {
 		return "", fmt.Errorf("oauth client not configured")
 	}
-	did, err := p.client.ExchangeCode(ctx, code, issuer, oauthState)
+	did, err := p.client.ExchangeCode(
+		ctx,
+		query.Get("code"),
+		query.Get("iss"),
+		query.Get("state"),
+	)
 	if err != nil {
 		return "", fmt.Errorf("exchange code: %w", err)
 	}

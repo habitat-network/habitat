@@ -7,9 +7,7 @@ import type { GroupView } from "api/types/network/habitat/groups/defs";
 // __HOME_SERVER_DID__ Vite define. It falls back to the local-dev domain when
 // the define is absent so the groups UI works in a plain dev server too.
 const homeServerDid =
-  typeof __HOME_SERVER_DID__ !== "undefined" && __HOME_SERVER_DID__
-    ? __HOME_SERVER_DID__
-    : "did:web:home.local.habitat.network";
+  import.meta.env.VITE_HOME_SERVER_DID ?? "did:web:home.local.habitat.network";
 
 // homeProxyHeaders targets the home server via pear service proxying: pear
 // validates the caller's OAuth session, signs a service-auth JWT, and forwards

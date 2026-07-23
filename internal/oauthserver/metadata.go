@@ -1,11 +1,7 @@
 package oauthserver
 
 import (
-	"context"
-	"net/http"
-
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/habitat-network/habitat/internal/httpx"
 )
 
 // buildAuthServerMetadata assembles the authorization-server metadata document
@@ -30,20 +26,28 @@ func buildAuthServerMetadata(issuer string) oauth.AuthServerMetadata {
 		ScopesSupported:                            []string{"atproto"},
 		DPoPSigningAlgValuesSupported:              []string{"ES256"},
 		AuthorizationReponseISSParameterSupported:  true,
-		RequirePushedAuthorizationRequests:         false, // TODO: switch to true
+		RequirePushedAuthorizationRequests:         true,
 		ClientIDMetadataDocumentSupported:          true,
 	}
 }
 
-// buildProtectedResourceMetadata assembles the protected-resource metadata
-// document. Habitat is both the resource server and the authorization server,
-// so the single authorization server is the issuer origin.
-func buildProtectedResourceMetadata(issuer string) oauth.ProtectedResourceMetadata {
-	return oauth.ProtectedResourceMetadata{
-		AuthorizationServers: []string{issuer},
-	}
+// protectedResourceMetadata is the RFC 9728 protected-resource metadata
+// document. We emit our own type rather than indigo's oauth.ProtectedResourceMetadata
+// because that struct omits the required `resource` field: the atproto OAuth
+// client rejects the document without it (it must exactly equal the resource
+// origin) and never proceeds to discover the authorization server.
+type protectedResourceMetadata struct {
+	Resource             string   `json:"resource"`
+	AuthorizationServers []string `json:"authorization_servers"`
 }
 
-func writeMetadataJSON(ctx context.Context, w http.ResponseWriter, v any) {
-	httpx.WriteJSON(ctx, w, v)
+// buildProtectedResourceMetadata assembles the protected-resource metadata
+// document. Habitat is both the resource server and the authorization server,
+// so the resource identifier and the single authorization server are both the
+// issuer origin.
+func buildProtectedResourceMetadata(issuer string) protectedResourceMetadata {
+	return protectedResourceMetadata{
+		Resource:             issuer,
+		AuthorizationServers: []string{issuer},
+	}
 }

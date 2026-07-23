@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/login"
@@ -59,9 +60,7 @@ func (r *LoginRouter) Authorize(
 func (r *LoginRouter) Exchange(
 	ctx context.Context,
 	did syntax.DID,
-	code string,
-	issuer string,
-	oauthState string,
+	query url.Values,
 	state []byte,
 ) error {
 	// org login (requires admin)
@@ -71,7 +70,7 @@ func (r *LoginRouter) Exchange(
 		if provider == nil {
 			return fmt.Errorf("unsupported login provider for %s", did)
 		}
-		loginID, err := provider.Exchange(ctx, code, issuer, oauthState, state)
+		loginID, err := provider.Exchange(ctx, query, state)
 		if err != nil {
 			return fmt.Errorf("failed to exchange code: %w", err)
 		}
@@ -96,7 +95,7 @@ func (r *LoginRouter) Exchange(
 	if provider == nil {
 		return fmt.Errorf("unsupported login provider for %s", did)
 	}
-	loginID, err := provider.Exchange(ctx, code, issuer, oauthState, state)
+	loginID, err := provider.Exchange(ctx, query, state)
 	if err != nil {
 		return fmt.Errorf("failed to exchange code: %w", err)
 	}
