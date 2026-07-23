@@ -654,6 +654,68 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceListRecordsOutput{Records: recViews})
 }
 
+func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
+	if !ok {
+		return
+	}
+	var params habitat.ComAtprotoSpaceGetRepoParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
+		return
+	}
+	if !isMember {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
+		return
+	}
+	// Sign the repo's current head; the signed commit is the CAR's first root. An
+	// empty repo has no state to recover, so it reports as not found.
+	commit, err := s.signRepoHead(ctx, spaceURI, repoDID)
+	switch {
+	case err == nil:
+	case errors.Is(err, errEmptyRepo):
+		httpx.WriteRepoNotFound(ctx, w, err)
+		return
+	default:
+		httpx.WriteServerError(ctx, w, fmt.Errorf("sign repo head: %w", err))
+		return
+	}
+
+	blocks, err := s.store.ListRecordBlocks(ctx, spaceURI, repoDID)
+	if errors.Is(err, ErrSpaceNotFound) {
+		httpx.WriteSpaceNotFound(ctx, w, err)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list blocks: %w", err))
+		return
+	}
+
+	carBytes, err := SerializeRepoCAR(commit, blocks)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("serialize car: %w", err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.ipld.car")
+	if _, err := w.Write(carBytes); err != nil {
+		utils.LogAndHTTPError(ctx, w, err, "write car", http.StatusInternalServerError)
+	}
+}
+
 func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
@@ -737,22 +799,33 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(r.Context(), w, output)
 }
 
-// buildRepoCommit computes and signs the repo's current head commit. It returns
-// ok=false (after writing an HTTP error) only on an internal failure; a repo
-// with no records yields a zero commit with ok=true (the caller skips it).
+// signRepoHead computes and signs the repo's current head commit over its cached
+// LtHash. It returns errEmptyRepo when the repo holds no records, and
+// spacecommit.ErrNoSigner when no key covers the repo owner.
+func (s *Server) signRepoHead(
+	ctx context.Context,
+	spaceURI habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (spacecommit.SignedCommit, error) {
+	rev, hash, found, err := s.store.RepoHead(ctx, spaceURI, repo)
+	if err != nil {
+		return spacecommit.SignedCommit{}, fmt.Errorf("repo head: %w", err)
+	}
+	if !found {
+		return spacecommit.SignedCommit{}, errEmptyRepo
+	}
+	return s.commit.Build(ctx, spaceURI, repo, rev, hash)
+}
+
+// buildRepoCommit signs the repo's current head and shapes it as the lexicon
+// signedCommit for JSON responses. It surfaces errEmptyRepo and
+// spacecommit.ErrNoSigner from signRepoHead so callers can omit the commit.
 func (s *Server) buildRepoCommit(
 	ctx context.Context,
 	spaceURI habitat_syntax.SpaceURI,
 	repo syntax.DID,
 ) (habitat.NetworkHabitatSpaceDefsSignedCommit, error) {
-	rev, hash, found, err := s.store.RepoHead(ctx, spaceURI, repo)
-	if err != nil {
-		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, fmt.Errorf("repo head: %w", err)
-	}
-	if !found {
-		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, errEmptyRepo
-	}
-	commit, err := s.commit.Build(ctx, spaceURI, repo, rev, hash)
+	commit, err := s.signRepoHead(ctx, spaceURI, repo)
 	if err != nil {
 		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, err
 	}

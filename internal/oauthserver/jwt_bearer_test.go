@@ -13,11 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/login"
+	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
@@ -105,11 +104,9 @@ func setupJWTBearerTestServer(
 	t.Cleanup(server.Close)
 
 	actualTokenURL = server.URL + "/token"
-	oauthClient := pdsclient.NewDummyOAuthClient(t, &oauth.ClientMetadata{})
-	t.Cleanup(oauthClient.Close)
 	oauthServer, err = NewOAuthServer(
 		bytes,
-		&org.LoginRouter{Pds: login.NewPDSProvider(oauthClient)},
+		&org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
 		dummyDir,
 		db,
 		noop.Meter{},

@@ -10,18 +10,18 @@ import { routeTree } from "./routeTree.gen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { reportWebVitals, AuthManager } from "internal";
 
+console.log(import.meta.env.VITE_BASE_URL);
+const domainUrl = new URL(import.meta.env.VITE_BASE_URL);
 const authManager = new AuthManager(
   "Habitat",
-  __DOMAIN__,
-  __HABITAT_DOMAIN__,
+  import.meta.env.VITE_BASE_URL,
+  `https://${import.meta.env.VITE_HABITAT_DOMAIN}`,
   () => {
     router.invalidate();
     router.navigate({ to: "/oauth-login" });
   },
 );
 const queryClient = new QueryClient();
-
-const domainUrl = new URL(`https://${__DOMAIN__}`);
 
 // Create a new router instance
 const router = createRouter({
@@ -34,8 +34,8 @@ const router = createRouter({
   scrollRestoration: true,
   defaultStructuralSharing: true,
   defaultPreloadStaleTime: 0,
-  basepath: __HASH_ROUTING__ ? undefined : domainUrl.pathname,
-  history: __HASH_ROUTING__ ? createHashHistory() : undefined,
+  basepath: import.meta.env.VITE_HASH_ROUTING ? undefined : domainUrl.pathname,
+  history: import.meta.env.VITE_HASH_ROUTING ? createHashHistory() : undefined,
 });
 
 // Register the router instance for type safety

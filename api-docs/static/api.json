@@ -6526,6 +6526,123 @@
         }
       }
     },
+    "/com.atproto.space.getRepo": {
+      "get": {
+        "tags": [
+          "com.atproto.space"
+        ],
+        "summary": "com.atproto.space.getRepo",
+        "description": "Download an account's permissioned repo within a space as a CAR file, for full-state recovery. The CAR declares two roots in order: the signed commit, then a DRISL (DAG-CBOR) index mapping '{collection}/{rkey}' to record CID. Record blocks follow in lexicographic order. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        "operationId": "com.atproto.space.getRepo",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Reference to the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Reference to the space.",
+              "format": "at-uri"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "description": "The DID of the account whose repo to download.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The DID of the account whose repo to download.",
+              "format": "did"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/vnd.ipld.car": {}
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "RepoNotFound"
+                        },
+                        {
+                          "const": "RepoTakendown"
+                        },
+                        {
+                          "const": "RepoSuspended"
+                        },
+                        {
+                          "const": "RepoDeactivated"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.getSpaceCredential": {
       "post": {
         "tags": [
@@ -8762,6 +8879,9 @@
     },
     {
       "name": "network.habitat.space"
+    },
+    {
+      "name": "com.atproto.space"
     }
   ]
 }

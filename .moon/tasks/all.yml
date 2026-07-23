@@ -15,3 +15,9 @@ tasks:
       runFromWorkspaceRoot: true
       cache: false
       runInCI: false
+  build:
+    inputs: 
+    - /.prototools
+  test:
+    inputs: 
+    - /.prototools

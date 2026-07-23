@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	"net/url"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -53,9 +54,11 @@ func TestPDSProvider_Exchange(t *testing.T) {
 
 	loginID, err := p.Exchange(
 		t.Context(),
-		"dummyCode",
-		"https://pds.example.com",
-		"dummyState",
+		url.Values{
+			"code":  {"dummyCode"},
+			"iss":   {"https://pds.example.com"},
+			"state": {"dummyState"},
+		},
 		nil,
 	)
 	require.NoError(t, err)
@@ -65,7 +68,7 @@ func TestPDSProvider_Exchange(t *testing.T) {
 
 func TestPDSProvider_Exchange_NoClient(t *testing.T) {
 	p := NewPDSProvider(nil)
-	_, err := p.Exchange(context.Background(), "code", "iss", "state", nil)
+	_, err := p.Exchange(context.Background(), url.Values{}, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "oauth client not configured")
 }

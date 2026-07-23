@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	"net/url"
 )
 
 // Provider abstracts a login backend. Each implementation handles a specific
@@ -18,17 +19,12 @@ type Provider interface {
 	) (redirectURI string, state []byte, err error)
 
 	// Exchange exchanges the callback code for credentials and should persist
-	// whatever credentials the provider acquires. It returns the login ID of
-	// the authenticated identity.
-	//
-	// oauthState is the OAuth "state" query parameter echoed back on the
-	// callback URL; providers that don't use it (e.g. password, google) may
-	// ignore it.
+	// whatever credentials the provider acquires. The query parameters from the
+	// OAuth callback URL are passed so each provider can extract what it needs
+	// (e.g. "code", "iss").
 	Exchange(
 		ctx context.Context,
-		code string,
-		issuer string,
-		oauthState string,
+		query url.Values,
 		state []byte,
-	) (loginID string, err error)
+	) (loginId string, err error)
 }

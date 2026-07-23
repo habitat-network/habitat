@@ -4,6 +4,7 @@ go:
   version: null
   tidyOnChange: true
   inferRelationships: false
+  workspaces: true
   bins:
   # for some reason multiple bins in ci for >moon@v2.0.0 
   # keep getting stuck during installation. 

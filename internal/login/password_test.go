@@ -61,14 +61,14 @@ func TestLoginProvider_ExchangeRoundTrip(t *testing.T) {
 	token, err := p.issueToken(did)
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
-	loginID, err := p.Exchange(context.Background(), token, "", "", nil)
+	loginID, err := p.Exchange(context.Background(), url.Values{"code": {token}}, nil)
 	require.NoError(t, err)
 	require.Equal(t, did.String(), loginID)
 }
 
 func TestLoginProvider_Exchange_InvalidToken(t *testing.T) {
 	p := newTestLoginProvider(t)
-	_, err := p.Exchange(context.Background(), "not-a-jwt", "", "", nil)
+	_, err := p.Exchange(context.Background(), url.Values{"code": {"not-a-jwt"}}, nil)
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
@@ -83,7 +83,7 @@ func TestLoginProvider_Exchange_WrongSigningSecret(t *testing.T) {
 	tok, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	require.NoError(t, err)
 
-	_, err = p.Exchange(context.Background(), tok, "", "", nil)
+	_, err = p.Exchange(context.Background(), url.Values{"code": {tok}}, nil)
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
@@ -96,7 +96,7 @@ func TestLoginProvider_Exchange_ExpiredToken(t *testing.T) {
 	tok, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	require.NoError(t, err)
 
-	_, err = p.Exchange(context.Background(), tok, "", "", nil)
+	_, err = p.Exchange(context.Background(), url.Values{"code": {tok}}, nil)
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
@@ -125,7 +125,7 @@ func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 	require.Equal(t, callbackUrl.Path, "/oauth-callback")
 
 	code := callbackUrl.Query().Get("code")
-	loginID, err := p.Exchange(t.Context(), code, "", "", nil)
+	loginID, err := p.Exchange(t.Context(), url.Values{"code": {code}}, nil)
 	require.NoError(t, err)
 	// from dummy directory
 	require.Equal(t, "did:web:example.did.com", loginID)
