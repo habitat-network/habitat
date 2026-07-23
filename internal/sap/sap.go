@@ -37,11 +37,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/utils"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -49,14 +48,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// Sap is the top-level Sync Agent Process. It manages the full lifecycle of
-// crawling, subscribing, and resyncing orgs, and exposes the resulting
-// record stream through [Sap.Outbox].
 type Sap struct {
-	// Outbox delivers synced record events to consumers. Messages are
-	// redelivered until acknowledged via [Outbox.Ack].
 	Outbox      Outbox
-	oauthClient *oauthclient.App
+	oauthClient *oauth.ClientApp
 	db          *gorm.DB
 	sub         *subscriber
 	resyncBuf   *resyncBuffer
@@ -66,7 +60,6 @@ type Sap struct {
 	metrics     *metrics
 }
 
-// SapConfig holds the dependencies needed to construct a [Sap].
 type SapConfig struct {
 	// DB is the GORM database handle used for all persistent state. The
 	// schema is auto-migrated on [NewSap].
@@ -77,7 +70,7 @@ type SapConfig struct {
 	// Directory resolves AT Protocol DIDs to their PDS endpoints.
 	Directory identity.Directory
 	// OAuthClient provides authenticated HTTP clients for calling org PDSes.
-	OAuthClient *oauthclient.App
+	OAuthClient *oauth.ClientApp
 	// Meter is the OpenTelemetry meter for recording metrics. Pass nil to
 	// use a no-op meter.
 	Meter metric.Meter
@@ -101,18 +94,20 @@ func NewSap(config SapConfig) (*Sap, error) {
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
 
+	sesssionGetter := newSessionGetter(config.OAuthClient)
+
 	resyncBuf := newResyncBuffer(config.DB, resyncNotif, outboxNotif)
-	sub := newSubscriber(config.DB, config.OAuthClient, resyncBuf, m)
+	sub := newSubscriber(config.DB, sesssionGetter, resyncBuf, m)
 	resyncer := newResyncer(
 		config.DB,
-		config.OAuthClient,
+		sesssionGetter,
 		resyncBuf,
 		resyncNotif,
 		outboxNotif,
 		config.ResyncParallelism,
 		m,
 	)
-	crawler := newCrawler(config.DB, config.OAuthClient, resyncBuf, sub, resyncNotif, m)
+	crawler := newCrawler(config.DB, sesssionGetter, resyncBuf, sub, resyncNotif, m)
 	outbox := newOutbox(config.DB, outboxNotif)
 	orgManager := newOrgManager(config.DB)
 
@@ -168,20 +163,18 @@ func (s *Sap) AddManagedOrg(ctx context.Context, did syntax.DID, sessionID strin
 	return nil
 }
 
-// ListManagedOrgs returns the DIDs of all organizations currently registered
-// with this Sap instance.
-func (s *Sap) ListManagedOrgs(ctx context.Context) ([]syntax.DID, error) {
-	return s.orgManager.ListManagedOrgs(ctx)
-}
-
-// GetClient returns an HTTP client that authenticates as the given managed org
-// DID using the OAuth session sap tracks for it. Requests made with the
-// returned client are resolved against the org's Habitat (pear) host and carry
-// the org's access token.
-func (s *Sap) GetClient(ctx context.Context, did syntax.DID) (*http.Client, error) {
+// GetSession returns the OAuth session sap tracks for the given managed org
+// DID, for making authenticated requests against the org's Habitat host.
+func (s *Sap) GetSession(ctx context.Context, did syntax.DID) (*oauth.ClientSession, error) {
 	org, err := s.orgManager.GetManagedOrg(ctx, did)
 	if err != nil {
 		return nil, err
 	}
-	return s.oauthClient.GetClient(ctx, did, org.SessionID)
+	return s.oauthClient.ResumeSession(ctx, did, org.SessionID)
+}
+
+// ListManagedOrgs returns the DIDs of all organizations currently registered
+// with this Sap instance.
+func (s *Sap) ListManagedOrgs(ctx context.Context) ([]syntax.DID, error) {
+	return s.orgManager.ListManagedOrgs(ctx)
 }
