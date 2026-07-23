@@ -337,7 +337,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		hostKey,
 		hive,
 	)
-	notifyServer := notify.NewServer(notifyStore, authn.NewSpaceCredentialAuthMethod(defaultDir))
+	notifyServer := notify.NewServer(
+		notifyStore,
+		spacesStore,
+		oauthServer,
+		serviceAuth,
+		authn.NewSpaceCredentialAuthMethod(defaultDir),
+	)
 
 	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
@@ -587,7 +593,10 @@ func serveDid(domain string, hostKey atcrypto.PublicKey) http.HandlerFunc {
 			DID: did,
 			VerificationMethod: []identity.DocVerificationMethod{
 				{
-					ID:                 "habitat",
+					// The fragment form matters: indigo's identity.ParseIdentity
+					// drops verification methods whose ID has no "#" fragment, so
+					// syncers could never resolve the key as "habitat" otherwise.
+					ID:                 did.String() + "#habitat",
 					Type:               "Multikey",
 					Controller:         did.String(),
 					PublicKeyMultibase: hostKey.Multibase(),

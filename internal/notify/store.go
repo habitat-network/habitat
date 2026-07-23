@@ -6,6 +6,7 @@ package notify
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -90,7 +91,7 @@ func (s *store) Register(
 	}).Create(&registration{
 		Space:     space,
 		Repo:      repo,
-		Endpoint:  endpoint,
+		Endpoint:  strings.TrimRight(endpoint, "/"),
 		ExpiresAt: expiresAt,
 	}).Error
 }
