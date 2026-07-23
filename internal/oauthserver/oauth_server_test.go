@@ -1082,7 +1082,7 @@ func TestIndigoClientApp(t *testing.T) {
 
 	redirect, err := indigoApp.StartAuthFlow(
 		t.Context(),
-		"https://habitat.example?handle=example.handle.com",
+		"example.handle.com",
 	)
 	require.NoError(t, err)
 
