@@ -16,20 +16,21 @@
     "gen-api-docs": "rm -rf ./docs/api && docusaurus gen-api-docs all"
   },
   "dependencies": {
-    "@docusaurus/core": "3.9.2",
-    "@docusaurus/preset-classic": "3.9.2",
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/faster": "^3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
     "@mdx-js/react": "^3.0.0",
     "clsx": "^2.0.0",
-    "docusaurus-plugin-openapi-docs": "4.7.1",
-    "docusaurus-theme-openapi-docs": "4.3.4",
+    "docusaurus-plugin-openapi-docs": "5.1.2",
+    "docusaurus-theme-openapi-docs": "5.1.2",
     "prism-react-renderer": "^2.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "3.9.2",
-    "@docusaurus/tsconfig": "3.9.2",
-    "@docusaurus/types": "3.9.2",
+    "@docusaurus/module-type-aliases": "3.10.2",
+    "@docusaurus/tsconfig": "3.10.2",
+    "@docusaurus/types": "3.10.2",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "typescript": "~5.9.0"
