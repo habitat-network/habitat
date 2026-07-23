@@ -22,7 +22,6 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/oauth2"
@@ -152,6 +151,7 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 			compose.RFC7523AssertionGrantFactory,
+			compose.PushedAuthorizeHandlerFactory,
 		),
 		loginRouter:  loginRouter,
 		sessionStore: cookieStore,
@@ -163,8 +163,7 @@ func NewOAuthServer(
 }
 
 func fositeErrReason(err error) string {
-	var rfcErr *fosite.RFC6749Error
-	if errors.As(err, &rfcErr) {
+	if rfcErr, ok := errors.AsType[*fosite.RFC6749Error](err); ok {
 		return rfcErr.ErrorField // "invalid_grant", "invalid_client", etc.
 	}
 	return "unknown"
@@ -193,19 +192,13 @@ func (o *OAuthServer) HandleAuthorize(
 	session, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "new_session")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to create session",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get session: %w", err))
 		return
 	}
 	flashes := session.Flashes("disambiguation")
 	if err := session.Save(r, w); err != nil {
 		o.metrics.authorizeErr(ctx, err, "save_session")
-		utils.LogAndHTTPError(ctx, w, err, "failed to save session", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save session: %w", err))
 		return
 	}
 	var requester fosite.AuthorizeRequester
@@ -224,16 +217,23 @@ func (o *OAuthServer) HandleAuthorize(
 	}
 
 	form := maps.Clone(requester.GetRequestForm())
+	form.Del("request_uri")
 	handle := form.Get("handle")
+	if handle == "" {
+		handle = form.Get("login_hint")
+	}
 	if handle == "" {
 		slog.WarnContext(ctx, "request form", "form", requester.GetRequestForm())
 		form.Del("handle")
 		session.AddFlash(authRequestFlash{Form: form}, "disambiguation")
 		if err := session.Save(r, w); err != nil {
 			o.metrics.authorizeErr(ctx, err, "save_session")
-			utils.LogAndHTTPError(ctx, w, err, "failed to save disambiguation session",
-				http.StatusInternalServerError,
+			httpx.WriteServerError(
+				ctx,
+				w,
+				fmt.Errorf("failed to save disambiguation session: %w", err),
 			)
+			return
 		}
 		http.Redirect(w, r, disambiguationPath, http.StatusSeeOther)
 		return
@@ -242,7 +242,7 @@ func (o *OAuthServer) HandleAuthorize(
 	atid, err := syntax.ParseAtIdentifier(handle)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "parse_handle")
-		utils.LogAndHTTPError(ctx, w, err, "failed to parse handle", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse handle", err)
 		return
 	}
 
@@ -250,16 +250,13 @@ func (o *OAuthServer) HandleAuthorize(
 	id, err := o.directory.Lookup(context.Background(), atid)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "lookup_atid")
-		utils.LogAndHTTPError(ctx, w, err, "failed to lookup identity",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to lookup atid: %w", err))
 		return
 	}
 	redirect, providerState, err := o.loginRouter.Authorize(ctx, id.DID)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "begin_login")
-		utils.LogAndHTTPError(ctx, w, err, "failed to initiate authorization",
-			http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to begin login: %w", err))
 		return
 	}
 	session.AddFlash(&authRequestFlash{
@@ -269,14 +266,40 @@ func (o *OAuthServer) HandleAuthorize(
 	})
 	if err := session.Save(r, w); err != nil {
 		o.metrics.authorizeErr(ctx, err, "save_session")
-		utils.LogAndHTTPError(ctx, w, err, "failed to save session",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save session: %w", err))
 		return
 	}
 
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 	o.metrics.authorizeSuccess(ctx)
+}
+
+// HandlePAR processes RFC 9126 Pushed Authorization Requests. The client POSTs
+// the authorization request parameters (form-encoded) and receives a
+// request_uri it can then hand to the authorization endpoint. PAR is supported
+// but not required, so clients may also call /oauth/authorize directly.
+func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	loginHint := r.URL.Query().Get("handle")
+	if loginHint == "" {
+		loginHint = r.URL.Query().Get("login_hint")
+	}
+	if err := r.ParseForm(); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse form", err)
+		return
+	}
+	r.Form.Add("login_hint", loginHint)
+	req, err := o.provider.NewPushedAuthorizeRequest(ctx, r)
+	if err != nil {
+		o.provider.WritePushedAuthorizeError(ctx, w, req, err)
+		return
+	}
+	resp, err := o.provider.NewPushedAuthorizeResponse(ctx, req, newSession())
+	if err != nil {
+		o.provider.WritePushedAuthorizeError(ctx, w, req, err)
+		return
+	}
+	o.provider.WritePushedAuthorizeResponse(ctx, w, req, resp)
 }
 
 // HandleCallback processes the OAuth callback from the user's PDS.
@@ -302,76 +325,45 @@ func (o *OAuthServer) HandleCallback(
 	session, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, "get_session")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to get session",
-			http.StatusBadRequest,
-		)
+		httpx.WriteInvalidRequest(ctx, w, "failed to get session", err)
 		return
 	}
 
 	flashes := session.Flashes()
 	if len(flashes) == 0 {
 		o.metrics.callbackErr(ctx, nil, "no_flash")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			nil,
-			"no state found for session",
-			http.StatusBadRequest,
-		)
+		httpx.WriteInvalidRequest(ctx, w, "no state found for session", nil)
 		return
 	}
 	arf, ok := flashes[0].(authRequestFlash)
 	if !ok {
 		o.metrics.callbackErr(ctx, nil, "invalid_flash_type")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			nil,
-			"invalid session data",
-			http.StatusBadRequest,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("invalid flash type: %T", flashes[0]))
 		return
 	}
 
 	session.Options.MaxAge = -1
-	if err := o.sessionStore.Save(r, w, session); err != nil {
+	if err := session.Save(r, w); err != nil {
 		o.metrics.callbackErr(ctx, err, "delete_session")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to clear session",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to delete session: %w", err))
 		return
 	}
-
-	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
+	// The stored form still carries the one-time PAR request_uri that fosite
+	// already consumed when the flow began. Re-sending it would fail with
+	// invalid_request_uri, so drop it and rebuild the authorize request from the
+	// resolved parameters the form already contains.
+	resumeForm := maps.Clone(arf.Form)
+	resumeForm.Del("request_uri")
+	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+resumeForm.Encode(), nil)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, "recreate_req")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to recreate request",
-			http.StatusBadRequest,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to recreate request: %w", err))
 		return
 	}
 	authRequest, err := o.provider.NewAuthorizeRequest(ctx, recreatedRequest)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to recreate request",
-			http.StatusBadRequest,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to recreate fosite request: %w", err))
 		return
 	}
 
@@ -383,14 +375,17 @@ func (o *OAuthServer) HandleCallback(
 		arf.ProviderState,
 	); err != nil {
 		o.metrics.callbackErr(ctx, err, "complete_login")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to complete login",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
 		return
+	}
+
+	// Grant the requested scopes so they are bound to the authorization code and
+	// echoed back in the token response. Without this the token response carries
+	// an empty scope, which atproto clients reject (they require a valid scope
+	// containing "atproto"). The client's allowed scopes were already validated
+	// when the authorize request was parsed.
+	for _, scope := range authRequest.GetRequestedScopes() {
+		authRequest.GrantScope(scope)
 	}
 
 	resp, err := o.provider.NewAuthorizeResponse(
@@ -400,15 +395,10 @@ func (o *OAuthServer) HandleCallback(
 	)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to create response",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to create response: %w", err))
 		return
 	}
+	resp.AddParameter("iss", o.issuer)
 	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
 	o.metrics.callbackSuccess()
 }
@@ -448,12 +438,18 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
 	}
+	resp.SetExtra("sub", req.GetSession().GetSubject())
+	// The atproto OAuth client requires DPoP-bound tokens and rejects any
+	// token_type other than "DPoP". Habitat does not yet enforce DPoP
+	// server-side (tokens remain bearer tokens in practice), but we advertise
+	// the DPoP token type so atproto clients accept the response.
+	// TODO: implement real DPoP proof validation and key binding.
+	resp.SetTokenType("DPoP")
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
 func logError(ctx context.Context, err error) {
-	var rfcErr *fosite.RFC6749Error
-	if errors.As(err, &rfcErr) {
+	if rfcErr, ok := errors.AsType[*fosite.RFC6749Error](err); ok {
 		slog.ErrorContext(ctx, "token access error",
 			"err", err,
 			"error_field", rfcErr.ErrorField,
@@ -468,12 +464,8 @@ func logError(ctx context.Context, err error) {
 var _ authn.Method = (*OAuthServer)(nil)
 
 func (o *OAuthServer) CanHandle(r *http.Request) bool {
-	tokenStr := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	token, err := jwt.ParseSigned(tokenStr)
-	if err != nil {
-		return false
-	}
-	if token.Headers[0].ExtraHeaders["typ"] == "oauth+JWT" {
+	token, err := jwt.ParseSigned(tokenFromRequest(r))
+	if err == nil && token.Headers[0].ExtraHeaders["typ"] == "oauth+JWT" {
 		return true
 	}
 	return r.Header.Get("Habitat-Auth-Method") == "oauth"
@@ -485,20 +477,28 @@ func (o *OAuthServer) Validate(
 	r *http.Request,
 	scopes ...string,
 ) (*authn.CredentialInfo, bool) {
-	token := fosite.AccessTokenFromRequest(r)
-	credInfo, ok, err := o.ValidateRaw(r.Context(), token, scopes...)
+	ctx := r.Context()
+	token := tokenFromRequest(r)
+	credInfo, ok, err := o.ValidateRaw(ctx, token, scopes...)
 	if err != nil || !ok {
 		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, err)
 		// Unfortunately that was returning a 200 http response, so we write our own error here.
-		utils.WriteHTTPError(
-			w,
-			fmt.Errorf("unable to validate oauth token: %w", err),
-			http.StatusUnauthorized,
-		)
+		slog.WarnContext(ctx, "invalid token", "err", err)
+		httpx.WriteError(ctx, w, "Unauthorized", "", http.StatusUnauthorized)
 		return nil, false
 	}
 
 	return credInfo, true
+}
+
+func tokenFromRequest(r *http.Request) string {
+	// The token may arrive under the Bearer or (from atproto clients) the DPoP
+	// auth scheme. Strip either prefix before parsing, and fall back to the
+	// Habitat-Auth-Method header if the token isn't a parseable oauth+JWT.
+	tokenStr := r.Header.Get("Authorization")
+	tokenStr = strings.TrimPrefix(tokenStr, "Bearer ")
+	tokenStr = strings.TrimPrefix(tokenStr, "DPoP ")
+	return tokenStr
 }
 
 // ValidateRaw validates the given token and writes an error response to w if validation fails
@@ -547,43 +547,38 @@ func (o *OAuthServer) ValidateRaw(
 // HandleAuthServerMetadata serves the OAuth 2.0 Authorization Server Metadata
 // document at /.well-known/oauth-authorization-server.
 func (o *OAuthServer) HandleAuthServerMetadata(w http.ResponseWriter, r *http.Request) {
-	writeMetadataJSON(r.Context(), w, buildAuthServerMetadata(o.issuer))
+	httpx.WriteJSON(r.Context(), w, buildAuthServerMetadata(o.issuer))
 }
 
 // HandleProtectedResourceMetadata serves the OAuth 2.0 Protected Resource
 // Metadata document at /.well-known/oauth-protected-resource.
 func (o *OAuthServer) HandleProtectedResourceMetadata(w http.ResponseWriter, r *http.Request) {
-	writeMetadataJSON(r.Context(), w, buildProtectedResourceMetadata(o.issuer))
+	httpx.WriteJSON(r.Context(), w, buildProtectedResourceMetadata(o.issuer))
 }
 
 func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := o.Validate(w, r)
 	if !ok {
 		return
 	}
 
 	var rows []ConnectedApp
-	err := o.storage.db.WithContext(r.Context()).
+	err := o.storage.db.WithContext(ctx).
 		Where("subject = ?", credInfo.Subject).
 		Find(&rows).Error
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"listing connected apps",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to list connected apps: %w", err))
 		return
 	}
 
 	var output habitat.NetworkHabitatListConnectedAppsOutput
 	output.Apps = make([]habitat.NetworkHabitatListConnectedAppsApp, len(rows))
 	for i, row := range rows {
-		fositeClient, err := o.storage.GetClient(r.Context(), row.ClientID)
+		fositeClient, err := o.storage.GetClient(ctx, row.ClientID)
 		if err != nil {
 			slog.WarnContext(
-				r.Context(),
+				ctx,
 				"failed to fetch client metadata",
 				"err",
 				err,
@@ -602,5 +597,5 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 			LogoUri:   c.LogoUri,
 		}
 	}
-	httpx.WriteJSON(r.Context(), w, output)
+	httpx.WriteJSON(ctx, w, output)
 }

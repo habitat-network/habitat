@@ -12,6 +12,7 @@ type client struct {
 }
 
 var _ fosite.Client = (*client)(nil)
+var _ fosite.ResponseModeClient = (*client)(nil)
 
 // GetAudience implements fosite.Client.
 func (c *client) GetAudience() fosite.Arguments {
@@ -43,6 +44,18 @@ func (c *client) GetRedirectURIs() []string {
 // GetResponseTypes implements fosite.Client.
 func (c *client) GetResponseTypes() fosite.Arguments {
 	return c.ResponseTypes
+}
+
+// GetResponseModes implements fosite.ResponseModeClient. The atproto OAuth
+// client always sends an explicit response_mode; without this method fosite
+// rejects the request as unsupported_response_mode. We allow the query and
+// fragment modes (browser clients use query) plus the default.
+func (c *client) GetResponseModes() []fosite.ResponseModeType {
+	return []fosite.ResponseModeType{
+		fosite.ResponseModeDefault,
+		fosite.ResponseModeQuery,
+		fosite.ResponseModeFragment,
+	}
 }
 
 // GetScopes implements fosite.Client.
