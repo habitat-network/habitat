@@ -9,6 +9,7 @@ import clientMetadata from "./internal/src/clientMetadata";
 export default function habitatAppConfig(options?: {
   name?: string;
 }): UserConfig {
+  process.env.VITE_BASE_URL = process.env.CF_PAGES_URL || process.env.VITE_BASE_URL;
   return defineConfig({
     base: process.env.VITE_BASE_URL,
     server: {

@@ -7,14 +7,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/auth"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -125,22 +124,37 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, err := s.sap.Client(r.Context(), did)
+	sess, err := s.sap.GetSession(r.Context(), did)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("no tracked session for %s: %s", did, err), http.StatusBadGateway)
+		http.Error(
+			w,
+			fmt.Sprintf("no tracked session for %s: %s", did, err),
+			http.StatusBadGateway,
+		)
 		return
 	}
 
-	// The OAuth client's transport resolves this path-only URL against the
-	// session's Habitat host and attaches the access token.
-	nsid := strings.TrimPrefix(r.URL.Path, "/proxy/")
-	target := url.URL{Path: "/xrpc/" + nsid, RawQuery: r.URL.RawQuery}
+	nsid, ok := httpx.ParseNSIDInput(
+		r.Context(),
+		w,
+		strings.TrimPrefix(r.URL.Path, "/proxy/"),
+		"nsid",
+	)
+	if !ok {
+		return
+	}
+	// Resolve the target against the org's Habitat host tracked in the OAuth
+	// session; DoWithAuth attaches the access token but expects an absolute URL.
+	target := sess.Data.HostURL + "/xrpc/" + nsid.String()
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
 
 	var body io.Reader
 	if r.Body != nil {
 		body = r.Body
 	}
-	outReq, err := http.NewRequestWithContext(r.Context(), r.Method, target.String(), body)
+	outReq, err := http.NewRequestWithContext(r.Context(), r.Method, target, body)
 	if err != nil {
 		http.Error(
 			w,
@@ -161,8 +175,9 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	outReq.Header.Del(habitatDIDHeader)
 	outReq.Header.Del("Authorization")
+	outReq.Header.Set("Habitat-Auth-Method", "oauth")
 
-	resp, err := client.Do(outReq)
+	resp, err := sess.DoWithAuth(sess.Client, outReq, nsid)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("forward request: %s", err), http.StatusBadGateway)
 		return

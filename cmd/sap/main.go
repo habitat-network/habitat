@@ -79,7 +79,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("set client secret: %w", err)
 	}
 
-	oauthApp := oauthclient.NewApp(&config, store)
+	oauthApp := oauth.NewClientApp(&config, store)
 
 	dir := identity.DefaultDirectory()
 	// The base URL space hosts register and sign notifyWrite /

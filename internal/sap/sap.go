@@ -16,6 +16,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
@@ -29,7 +30,6 @@ import (
 	"github.com/habitat-network/habitat/internal/sap/session"
 	"github.com/habitat-network/habitat/internal/sap/syncer"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type Config struct {
