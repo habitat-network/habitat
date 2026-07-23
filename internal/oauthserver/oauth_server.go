@@ -575,10 +575,10 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 	var output habitat.NetworkHabitatListConnectedAppsOutput
 	output.Apps = make([]habitat.NetworkHabitatListConnectedAppsApp, len(rows))
 	for i, row := range rows {
-		fositeClient, err := o.storage.GetClient(r.Context(), row.ClientID)
+		fositeClient, err := o.storage.GetClient(ctx, row.ClientID)
 		if err != nil {
 			slog.WarnContext(
-				r.Context(),
+				ctx,
 				"failed to fetch client metadata",
 				"err",
 				err,
@@ -597,5 +597,5 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 			LogoUri:   c.LogoUri,
 		}
 	}
-	httpx.WriteJSON(r.Context(), w, output)
+	httpx.WriteJSON(ctx, w, output)
 }
