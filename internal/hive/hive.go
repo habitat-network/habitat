@@ -81,19 +81,19 @@ func idTemplateBuilder(memberDomain, pearDomain string) idTemplate {
 	}
 }
 
-func NewHive(memberDomain string, pearDomain string, db *gorm.DB) (Hive, error) {
+func NewHive(memberDomain string, pearDomain string, db *gorm.DB) Hive {
 	template := idTemplateBuilder(memberDomain, pearDomain)
-	store, err := newStore(db, template)
-	if err != nil {
-		return nil, err
-	}
 	h := &hive{
 		memberDomain: memberDomain,
 		pearDomain:   pearDomain,
-		store:        store,
+		store:        newStore(db, template),
 		// TODO: add a cache directory here
 	}
-	return h, nil
+	return h
+}
+
+func (h *hive) Models() []any {
+	return h.store.Models()
 }
 
 // Lookup implements identity.Directory

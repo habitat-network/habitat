@@ -14,6 +14,7 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
@@ -23,14 +24,15 @@ var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 
 func newTestLoginProvider(t *testing.T) *PasswordLoginProvider {
 	t.Helper()
-	provider, err := NewPasswordProvider(
-		testutil.NewDB(t),
+	db := testutil.NewDB(t)
+	p := NewPasswordProvider(
+		db,
 		"pear.example.com",
 		testSigningSecret,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
-	require.NoError(t, err)
-	return provider
+	require.NoError(t, habitatdb.AutoMigrate(db, p))
+	return p
 }
 
 func TestLoginProvider_Authorize(t *testing.T) {

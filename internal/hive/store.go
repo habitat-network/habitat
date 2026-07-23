@@ -46,15 +46,15 @@ type store struct {
 
 type idTemplate func(handleInternal, opaqueID, signingPublicKey string) *identity.Identity
 
-func newStore(db *gorm.DB, template idTemplate) (*store, error) {
-	err := db.AutoMigrate(&ident{})
-	if err != nil {
-		return nil, err
-	}
+func newStore(db *gorm.DB, template idTemplate) *store {
 	return &store{
 		db:       db,
 		template: template,
-	}, nil
+	}
+}
+
+func (s *store) Models() []any {
+	return []any{&ident{}}
 }
 
 // persistIdentity writes a prepared ident row to the given DB (or transaction).

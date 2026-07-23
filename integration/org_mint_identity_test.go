@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
@@ -30,8 +31,7 @@ func TestMintThenLookup(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 
-	h, err := hive.NewHive("example.com", "pear.example.com", db)
-	require.NoError(t, err)
+	h := hive.NewHive("example.com", "pear.example.com", db)
 
 	adminDID := syntax.DID("did:plc:admin1234")
 
@@ -39,8 +39,9 @@ func TestMintThenLookup(t *testing.T) {
 	dir := identity.DefaultDirectory()
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
-	orgStore, err := org.NewStore(db, h, dir, "pear.example.com", nil, fga)
-	require.NoError(t, err)
+	orgStore := org.NewStore(db, h, dir, "pear.example.com", nil, fga)
+
+	require.NoError(t, habitatdb.AutoMigrate(db, h, orgStore))
 
 	orgIdIdent, _, err := orgStore.CreateOrg(
 		ctx,

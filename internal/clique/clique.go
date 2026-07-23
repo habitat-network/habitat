@@ -3,7 +3,6 @@ package clique
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"time"
 
@@ -50,12 +49,12 @@ type store struct {
 
 var _ Store = &store{}
 
-func NewStore(db *gorm.DB) (*store, error) {
-	err := db.AutoMigrate(&cliqueMember{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to migrate clique_members table: %w", err)
-	}
-	return &store{db: db}, nil
+func NewStore(db *gorm.DB) *store {
+	return &store{db: db}
+}
+
+func (s *store) Models() []any {
+	return []any{&cliqueMember{}}
 }
 
 var (

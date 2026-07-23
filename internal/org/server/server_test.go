@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/instance"
 	orgpkg "github.com/habitat-network/habitat/internal/org"
@@ -516,13 +517,14 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 // server.Server.CreateOrg, not just by the fakeInstancePolicy used elsewhere in
 // this file.
 func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
-	instanceStore, err := instance.NewStore(
-		testutil.NewDB(t),
+	instanceDB := testutil.NewDB(t)
+	instanceStore := instance.NewStore(
+		instanceDB,
 		[]byte("key"),
 		"passhash",
 		"pear.example.com",
 	)
-	require.NoError(t, err)
+	require.NoError(t, habitatdb.AutoMigrate(instanceDB, instanceStore))
 	require.NoError(t, instanceStore.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
 	token, err := instanceStore.IssueInvite(t.Context())
 	require.NoError(t, err)

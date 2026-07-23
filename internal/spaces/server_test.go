@@ -42,8 +42,7 @@ func newTestServerWithSigners(
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.Config{FgaStore: fga})
-	h, err := hive.NewHive("example.com", "pear.example.com", db_testutil.NewDB(t))
-	require.NoError(t, err)
+	h := hive.NewHive("example.com", "pear.example.com", db_testutil.NewDB(t))
 	return spaces.NewServer(
 		sp,
 		fga,

@@ -8,6 +8,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -22,21 +23,18 @@ var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 	t.Helper()
 	db := testutil.NewDB(t)
-	require.NoError(t, db.AutoMigrate(&organization{}, &member{}, &spentToken{}))
-	h, err := hive.NewHive("example.com", "pear.example.com", db)
-	require.NoError(t, err)
-	passwordProvider, err := login.NewPasswordProvider(
+	h := hive.NewHive("example.com", "pear.example.com", db)
+	passwordProvider := login.NewPasswordProvider(
 		db,
 		"",
 		encrypt.TestKey,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
-	require.NoError(t, err)
 
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 
-	st, err := NewStore(
+	st := NewStore(
 		db,
 		h,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
@@ -44,7 +42,7 @@ func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 		passwordProvider,
 		fga,
 	)
-	require.NoError(t, err)
+	require.NoError(t, habitatdb.AutoMigrate(db, h, passwordProvider, st))
 	store := st.(*storeImpl)
 
 	orgDid := syntax.DID("test-org")

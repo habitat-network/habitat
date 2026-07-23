@@ -68,11 +68,12 @@ type store struct {
 
 var _ Store = &store{}
 
-func NewStore(db *gorm.DB) (*store, error) {
-	if err := db.AutoMigrate(&registration{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate notify tables: %w", err)
-	}
-	return &store{db: db}, nil
+func NewStore(db *gorm.DB) *store {
+	return &store{db: db}
+}
+
+func (s *store) Models() []any {
+	return []any{&registration{}}
 }
 
 func (s *store) Register(

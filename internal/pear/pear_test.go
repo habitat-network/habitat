@@ -8,9 +8,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/clique"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/repo"
+	repopkg "github.com/habitat-network/habitat/internal/repo"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
@@ -24,15 +25,13 @@ const (
 )
 
 func newPearForTest(t *testing.T, db *gorm.DB, dir identity.Directory) *pear {
-	repo, err := repo.NewRepo(db)
-	require.NoError(t, err)
+	repo := repopkg.NewRepo(db)
 
-	cliqueStore, err := clique.NewStore(db)
-	require.NoError(t, err)
+	cliqueStore := clique.NewStore(db)
 
-	permissions, err := permissions.NewStore(db, cliqueStore)
-	require.NoError(t, err)
-	p := NewPear(dir, permissions, repo)
+	perms := permissions.NewStore(db, cliqueStore)
+	require.NoError(t, habitatdb.AutoMigrate(db, repo, cliqueStore, perms))
+	p := NewPear(dir, perms, repo)
 	return p
 }
 
@@ -372,8 +371,7 @@ func TestCliqueFlow(t *testing.T) {
 	db := testutil.NewDB(t)
 	p := newPearForTest(t, db, dir)
 
-	cs, err := clique.NewStore(db)
-	require.NoError(t, err)
+	cs := clique.NewStore(db)
 
 	// A creates the clique and adds B as a member
 	clique, err := cs.CreateClique(t.Context(), aDID, []syntax.DID{bDID})
@@ -492,8 +490,7 @@ func TestDescribeRepo(t *testing.T) {
 	db := testutil.NewDB(t)
 	p := newPearForTest(t, db, dir)
 
-	cs, err := clique.NewStore(db)
-	require.NoError(t, err)
+	cs := clique.NewStore(db)
 
 	// Create a clique owned by owner with member as a member
 	clique, err := cs.CreateClique(t.Context(), ownerDID, []syntax.DID{memberDID})
@@ -601,15 +598,13 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	db := testutil.NewDB(t)
 
 	// Create pear with the shared database
-	repoStore, err := repo.NewRepo(db)
-	require.NoError(t, err)
+	repoStore := repopkg.NewRepo(db)
 	// remoteDID is intentionally not added to mock identities to simulate a different node
 	dir := mockIdentities([]syntax.DID{aliceDID, bobDID, carolDID})
 
-	cliqueStore, err := clique.NewStore(db)
-	require.NoError(t, err)
-	perms, err := permissions.NewStore(db, cliqueStore)
-	require.NoError(t, err)
+	cliqueStore := clique.NewStore(db)
+	perms := permissions.NewStore(db, cliqueStore)
+	require.NoError(t, habitatdb.AutoMigrate(db, repoStore, cliqueStore, perms))
 	p := NewPear(dir, perms, repoStore)
 
 	val := map[string]any{"someKey": "someVal"}
@@ -617,7 +612,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	coll := syntax.NSID("my.fake.collection")
 
 	// Alice creates her own records
-	_, err = p.PutRecord(
+	_, err := p.PutRecord(
 		t.Context(),
 		syntax.DID(aliceDID),
 		syntax.DID(aliceDID),

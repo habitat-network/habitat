@@ -9,6 +9,7 @@ import (
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/stretchr/testify/require"
 
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -465,10 +466,9 @@ func TestWriteTuple_RollsBackRecordOnFGAFailure(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = mem.Close() })
 	fga := &flakyFGA{Store: mem}
-	eventStore, err := events.NewStore(db)
-	require.NoError(t, err)
-	sp, err := spaces.NewStore(db, fga, eventStore, &notify_testutil.TestNotifier{})
-	require.NoError(t, err)
+	eventStore := events.NewStore(db)
+	sp := spaces.NewStore(db, fga, eventStore, &notify_testutil.TestNotifier{})
+	require.NoError(t, habitatdb.AutoMigrate(db, eventStore, sp))
 	rel := NewStore(db, sp, fga)
 
 	// CreateSpace uses fga.Write (not WriteRaw), so it succeeds.

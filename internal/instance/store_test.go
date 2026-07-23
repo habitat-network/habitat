@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alexedwards/argon2id"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -16,8 +17,9 @@ func newTestStore(t *testing.T) *storeImpl {
 	hash, err := argon2id.CreateHash("password", argon2id.DefaultParams)
 	require.NoError(t, err)
 
-	store, err := NewStore(testutil.NewDB(t), []byte("random"), "pear.example.com", hash)
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
+	store := NewStore(db, []byte("random"), "pear.example.com", hash)
+	require.NoError(t, habitatdb.AutoMigrate(db, store))
 	return store
 }
 

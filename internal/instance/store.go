@@ -30,8 +30,10 @@ const (
 	policyInviteOnly InvitePolicy = "invite_only"
 )
 
-var ErrInvalidPolicy = errors.New("invalid org creation policy")
-var ErrInvalidInvite = errors.New("invalid or expired invite")
+var (
+	ErrInvalidPolicy = errors.New("invalid org creation policy")
+	ErrInvalidInvite = errors.New("invalid or expired invite")
+)
 
 type PolicyStore interface {
 	// GetOrgCreationPolicy is a convenience accessor for just the policy field.
@@ -94,10 +96,12 @@ type storeImpl struct {
 	domain   string
 }
 
-var _ AdminStore = (*storeImpl)(nil)
-var _ PolicyStore = (*storeImpl)(nil)
+var (
+	_ AdminStore  = (*storeImpl)(nil)
+	_ PolicyStore = (*storeImpl)(nil)
+)
 
-func NewStore(db *gorm.DB, secret []byte, domain, passwordHash string) (*storeImpl, error) {
+func NewStore(db *gorm.DB, secret []byte, domain, passwordHash string) *storeImpl {
 	cookieStore := sessions.NewCookieStore(secret)
 	cookieStore.Options = &sessions.Options{
 		Path:     "/",
@@ -106,9 +110,6 @@ func NewStore(db *gorm.DB, secret []byte, domain, passwordHash string) (*storeIm
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	}
-	if err := db.AutoMigrate(&instanceSettings{}, &instanceInvite{}); err != nil {
-		return nil, err
-	}
 
 	return &storeImpl{
 		passwordHash: passwordHash,
@@ -116,7 +117,11 @@ func NewStore(db *gorm.DB, secret []byte, domain, passwordHash string) (*storeIm
 		sessions:     cookieStore,
 		domain:       domain,
 		db:           db,
-	}, nil
+	}
+}
+
+func (s *storeImpl) Models() []any {
+	return []any{&instanceSettings{}, &instanceInvite{}}
 }
 
 func (s *storeImpl) Authenticate(ctx context.Context, password string) (bool, error) {

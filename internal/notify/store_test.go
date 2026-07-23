@@ -7,6 +7,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -19,8 +20,9 @@ var (
 
 func newTestStore(t *testing.T) Store {
 	t.Helper()
-	s, err := NewStore(testutil.NewDB(t))
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
+	s := NewStore(db)
+	require.NoError(t, habitatdb.AutoMigrate(db, s))
 	return s
 }
 

@@ -33,6 +33,7 @@ require (
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2
+	gorm.io/plugin/opentelemetry v0.1.3
 	lukechampine.com/blake3 v1.4.1
 )
 

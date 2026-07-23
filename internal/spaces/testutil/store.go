@@ -3,6 +3,7 @@ package testutil
 import (
 	"testing"
 
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -38,10 +39,9 @@ func NewTestStore(t *testing.T, cfgs ...Config) *testStore {
 	if cfg.DB == nil {
 		cfg.DB = db_testutil.NewDB(t)
 	}
-	eventStore, err := events.NewStore(cfg.DB)
-	require.NoError(t, err)
+	eventStore := events.NewStore(cfg.DB)
 	notifier := &testutil.TestNotifier{}
-	s, err := spaces.NewStore(cfg.DB, cfg.FgaStore, eventStore, notifier)
-	require.NoError(t, err)
+	s := spaces.NewStore(cfg.DB, cfg.FgaStore, eventStore, notifier)
+	require.NoError(t, habitatdb.AutoMigrate(cfg.DB, eventStore, s))
 	return &testStore{Store: s, Notifier: notifier, EventStore: eventStore}
 }
