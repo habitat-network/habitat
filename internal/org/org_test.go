@@ -42,7 +42,7 @@ func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 		passwordProvider,
 		fga,
 	)
-	require.NoError(t, habitatdb.AutoMigrate(db, h, passwordProvider, st))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, h, passwordProvider, st))
 	store := st.(*storeImpl)
 
 	orgDid := syntax.DID("test-org")

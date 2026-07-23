@@ -22,7 +22,7 @@ func newTestStore(t *testing.T) Store {
 	t.Helper()
 	db := testutil.NewDB(t)
 	s := NewStore(db)
-	require.NoError(t, habitatdb.AutoMigrate(db, s))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, s))
 	return s
 }
 

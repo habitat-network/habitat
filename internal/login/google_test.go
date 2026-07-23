@@ -63,7 +63,7 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, p))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, p))
 
 	idToken := makeIDToken(clientID, "user@gmail.com")
 

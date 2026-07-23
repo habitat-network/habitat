@@ -107,7 +107,7 @@ type link struct {
 	Ref habitat_syntax.HabitatURI `gorm:"primaryKey"`
 }
 
-func NewRepo(db *gorm.DB) Repo {
+func NewRepo(db *gorm.DB) *repo {
 	return &repo{db: db}
 }
 

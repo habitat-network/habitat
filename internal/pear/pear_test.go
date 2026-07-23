@@ -30,7 +30,7 @@ func newPearForTest(t *testing.T, db *gorm.DB, dir identity.Directory) *pear {
 	cliqueStore := clique.NewStore(db)
 
 	perms := permissions.NewStore(db, cliqueStore)
-	require.NoError(t, habitatdb.AutoMigrate(db, repo, cliqueStore, perms))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, repo, cliqueStore, perms))
 	p := NewPear(dir, perms, repo)
 	return p
 }
@@ -604,7 +604,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	cliqueStore := clique.NewStore(db)
 	perms := permissions.NewStore(db, cliqueStore)
-	require.NoError(t, habitatdb.AutoMigrate(db, repoStore, cliqueStore, perms))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, repoStore, cliqueStore, perms))
 	p := NewPear(dir, perms, repoStore)
 
 	val := map[string]any{"someKey": "someVal"}

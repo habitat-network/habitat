@@ -84,7 +84,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, oauthSrv))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, oauthSrv))
 
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -184,7 +184,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, oauthServer))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, oauthServer))
 
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -294,7 +294,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		NewJWTBearerStore(),
 	)
 	require.NoError(t, err, "failed to setup oauth server")
-	require.NoError(t, habitatdb.AutoMigrate(db, oauthServer))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, oauthServer))
 
 	// setup http server oauth client to make requests to
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -461,7 +461,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	require.NoError(t, err, "failed to setup fga store")
 	orgStore := org.NewStore(hiveDB, h, dummyDir, pearDomain, passwordProvider, fgaStore)
 
-	require.NoError(t, habitatdb.AutoMigrate(hiveDB, h, passwordProvider, orgStore))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), hiveDB, h, passwordProvider, orgStore))
 
 	_, member, err := orgStore.CreateOrg(
 		t.Context(),
@@ -499,7 +499,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		NewJWTBearerStore(),
 	)
 	require.NoError(t, err, "failed to setup oauth server")
-	require.NoError(t, habitatdb.AutoMigrate(db, oauthServer))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, oauthServer))
 
 	// setup http server oauth client to make requests to
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -635,7 +635,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 		NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, oauthServer))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, oauthServer))
 
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -840,7 +840,7 @@ func TestValidate(t *testing.T) {
 			NewJWTBearerStore(),
 		)
 		require.NoError(t, srvErr)
-		require.NoError(t, habitatdb.AutoMigrate(db, s))
+		require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, s))
 		return s, p
 	}
 
@@ -946,7 +946,7 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			NewJWTBearerStore(),
 		)
 		require.NoError(t, srvErr)
-		require.NoError(t, habitatdb.AutoMigrate(db, s))
+		require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, s))
 		return s, p
 	}
 
@@ -1006,7 +1006,7 @@ func TestIndigoClientApp(t *testing.T) {
 		NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, oauthServer))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, oauthServer))
 
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("server path: %s", r.URL.String())
@@ -1163,7 +1163,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, oauthServer))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, oauthServer))
 
 	var disambiguateVisited bool
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

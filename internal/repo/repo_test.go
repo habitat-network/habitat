@@ -15,7 +15,7 @@ func newTestRepo(t *testing.T) Repo {
 	t.Helper()
 	db := testutil.NewDB(t)
 	r := NewRepo(db)
-	require.NoError(t, habitatdb.AutoMigrate(db, r))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, r))
 	return r
 }
 

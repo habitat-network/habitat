@@ -41,7 +41,7 @@ func TestMintThenLookup(t *testing.T) {
 	require.NoError(t, err)
 	orgStore := org.NewStore(db, h, dir, "pear.example.com", nil, fga)
 
-	require.NoError(t, habitatdb.AutoMigrate(db, h, orgStore))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, h, orgStore))
 
 	orgIdIdent, _, err := orgStore.CreateOrg(
 		ctx,

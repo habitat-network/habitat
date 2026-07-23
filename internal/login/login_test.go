@@ -19,7 +19,7 @@ func TestPDSProvider_Authorize(t *testing.T) {
 	db := testutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, credStore))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, credStore))
 	clientMetadata := &pdsclient.ClientMetadata{
 		RedirectUris: []string{"https://pds.example.com/authorize"},
 	}
@@ -50,7 +50,7 @@ func TestPDSProvider_Exchange(t *testing.T) {
 	db := testutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, credStore))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, credStore))
 	clientMetadata := &pdsclient.ClientMetadata{
 		RedirectUris: []string{"https://pds.example.com/authorize"},
 	}

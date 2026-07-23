@@ -31,7 +31,7 @@ func newTestLoginProvider(t *testing.T) *PasswordLoginProvider {
 		testSigningSecret,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
-	require.NoError(t, habitatdb.AutoMigrate(db, p))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, p))
 	return p
 }
 

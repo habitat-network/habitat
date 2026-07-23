@@ -273,7 +273,7 @@ func setupPear(
 		oauthserver.NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, orgHive, orgStore, oauthServer))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, orgHive, orgStore, oauthServer))
 
 	spacesStore := testutil.NewTestStore(t)
 

@@ -81,7 +81,7 @@ func idTemplateBuilder(memberDomain, pearDomain string) idTemplate {
 	}
 }
 
-func NewHive(memberDomain string, pearDomain string, db *gorm.DB) Hive {
+func NewHive(memberDomain string, pearDomain string, db *gorm.DB) *hive {
 	template := idTemplateBuilder(memberDomain, pearDomain)
 	h := &hive{
 		memberDomain: memberDomain,

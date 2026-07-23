@@ -88,7 +88,7 @@ func NewStore(
 	pearDomain string,
 	passwordProvider *login.PasswordLoginProvider,
 	fga fgastore.Store,
-) Store {
+) *storeImpl {
 	return &storeImpl{
 		db:               db,
 		hive:             hve,

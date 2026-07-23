@@ -23,7 +23,7 @@ func newTestServiceProxyHive(t *testing.T) hive.Hive {
 	t.Helper()
 	db := testutil.NewDB(t)
 	h := hive.NewHive("example.com", "pear.example.com", db)
-	require.NoError(t, habitatdb.AutoMigrate(db, h))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, h))
 	return h
 }
 

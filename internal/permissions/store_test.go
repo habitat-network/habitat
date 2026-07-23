@@ -14,7 +14,7 @@ func newTestStore(t *testing.T) *store {
 	db := testutil.NewDB(t)
 	cliqueStore := clique.NewStore(db)
 	store := NewStore(db, cliqueStore)
-	require.NoError(t, habitatdb.AutoMigrate(db, cliqueStore, store))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, cliqueStore, store))
 	return store
 }
 

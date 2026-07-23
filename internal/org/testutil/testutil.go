@@ -36,6 +36,6 @@ func NewTestStore(t *testing.T) org.Store {
 		passwordProvider,
 		fga,
 	)
-	require.NoError(t, habitatdb.AutoMigrate(db, h, passwordProvider, store))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, h, passwordProvider, store))
 	return store
 }

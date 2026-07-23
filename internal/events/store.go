@@ -79,7 +79,7 @@ type storeImpl struct {
 	subscribers   map[*utils.PollNotifier]struct{}
 }
 
-func NewStore(db *gorm.DB) Store {
+func NewStore(db *gorm.DB) *storeImpl {
 	seqNotif := utils.NewPollNotifier()
 	seqNotif.Notify() // initial notification
 	return &storeImpl{

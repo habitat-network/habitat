@@ -25,7 +25,7 @@ func TestGetClient(t *testing.T) {
 	require.NoError(t, err)
 	db := testutil.NewDB(t)
 	store := newStore(strat, db, nil)
-	require.NoError(t, habitatdb.AutoMigrate(db, store))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, store))
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("url: %s", r.Host)

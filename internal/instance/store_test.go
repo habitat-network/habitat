@@ -19,7 +19,7 @@ func newTestStore(t *testing.T) *storeImpl {
 
 	db := testutil.NewDB(t)
 	store := NewStore(db, []byte("random"), "pear.example.com", hash)
-	require.NoError(t, habitatdb.AutoMigrate(db, store))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, store))
 	return store
 }
 

@@ -1,17 +1,22 @@
 package db
 
-import "gorm.io/gorm"
+import (
+	"context"
+
+	"gorm.io/gorm"
+)
 
 type MigratableStore interface {
 	Models() []any
 }
 
-func AutoMigrate(db *gorm.DB, stores ...any) error {
+func AutoMigrate(ctx context.Context, db *gorm.DB, stores ...MigratableStore) error {
 	models := []any{}
 	for _, store := range stores {
-		if ms, ok := store.(MigratableStore); ok {
-			models = append(models, ms.Models()...)
+		if store == nil {
+			continue
 		}
+		models = append(models, store.Models()...)
 	}
-	return db.AutoMigrate(models...)
+	return db.WithContext(ctx).AutoMigrate(models...)
 }

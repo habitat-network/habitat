@@ -129,7 +129,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	// Reuse the oauth server secret
 	instanceAdminStore := instance.NewStore(
-		db.WithContext(startupCtx),
+		db,
 		oauthSecret,
 		fDomain,
 		passwordHash,
@@ -141,7 +141,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("load PDS encryption key: %w", err)
 	}
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(db.WithContext(startupCtx), credKey)
+	pdsCredStore, err := pdscred.NewPDSCredentialStore(db, credKey)
 	if err != nil {
 		return fmt.Errorf("setup pds cred store: %w", err)
 	}
@@ -209,7 +209,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		hiveDomain = domain
 	}
 
-	hive := hive.NewHive(hiveDomain, domain, db.WithContext(startupCtx))
+	hive := hive.NewHive(hiveDomain, domain, db)
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
 	defaultDir := identity.DefaultDirectory()
@@ -229,13 +229,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	passwordProvider := login.NewPasswordProvider(
-		db.WithContext(startupCtx),
+		db,
 		cmd.String(fDomain),
 		oauthSecret,
 		hiveDir,
 	)
 	orgStore := org.NewStore(
-		db.WithContext(startupCtx),
+		db,
 		hive,
 		hiveDir,
 		domain,
@@ -250,19 +250,20 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
-	var googleLoginProvider login.Provider
+	var googleLoginProvider habitatdb.MigratableStore
 	if googleClientID != "" && googleClientSecret != "" {
-		googleLoginProvider, err = login.NewGoogleProvider(
+		glp, err := login.NewGoogleProvider(
 			googleClientID,
 			googleClientSecret,
 			"https://"+domain+"/oauth-callback",
-			db.WithContext(startupCtx),
+			db,
 			credKey,
 		)
 		if err != nil {
 			return fmt.Errorf("setup google login provider: %w", err)
 		}
-		loginRouter.Google = googleLoginProvider
+		loginRouter.Google = glp
+		googleLoginProvider = glp
 		slog.InfoContext(startupCtx, "google login provider enabled")
 	}
 
@@ -271,7 +272,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		loginRouter,
 		// OAuth server needs privileged access to lookup hive-hosted identities
 		hiveDir,
-		db.WithContext(startupCtx),
+		db,
 		meter,
 		orgStore,
 		"https://"+domain,
@@ -286,15 +287,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir, pdsClientFactory))
 
-	cliqueStore := clique.NewStore(db.WithContext(startupCtx))
-
-	eventStore := events.NewStore(db.WithContext(startupCtx))
+	cliqueStore := clique.NewStore(db)
+	eventStore := events.NewStore(db)
 	syncServer := sync.NewServer(eventStore)
-
-	notifyStore := notify.NewStore(db.WithContext(startupCtx))
+	notifyStore := notify.NewStore(db)
 	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, hive)
 
-	spacesStore := spaces.NewStore(db.WithContext(startupCtx), fgaStore, eventStore, notifier)
+	spacesStore := spaces.NewStore(db, fgaStore, eventStore, notifier)
 	serviceAuth := authn.NewServiceAuthMethod(defaultDir, fmt.Sprintf("did:web:%s#habitat", domain))
 
 	// Habitat's single host signing key signs permissioned-repo commits for repo
@@ -316,7 +315,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 	notifyServer := notify.NewServer(notifyStore, authn.NewSpaceCredentialAuthMethod(defaultDir))
 
-	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
+	relationshipStore := relationship.NewStore(db, spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
 		relationshipStore,
 		fgaStore,
@@ -324,12 +323,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		serviceAuth,
 	)
 
-	repo := repo.NewRepo(db.WithContext(startupCtx))
-
-	permissions := permissions.NewStore(db.WithContext(startupCtx), cliqueStore)
+	repo := repo.NewRepo(db)
+	permissions := permissions.NewStore(db, cliqueStore)
 
 	// AutoMigrate all database models at once
-	if err := habitatdb.AutoMigrate(db,
+	if err := habitatdb.AutoMigrate(startupCtx, db,
 		instanceAdminStore,
 		pdsCredStore,
 		hive,
@@ -534,7 +532,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		Addr:    fmt.Sprintf(":%s", port),
 	}
 
-	eg, egCtx := errgroup.WithContext(startupCtx)
+	eg, egCtx := errgroup.WithContext(notifyCtx)
 	eg.Go(func() error {
 		slog.InfoContext(egCtx, "starting sequencer")
 		return eventStore.StartSequencer(egCtx)
@@ -565,7 +563,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	err = eg.Wait()
 	if !errors.Is(err, context.Canceled) {
-		slog.ErrorContext(startupCtx, "server shut down returned an error", "err", err)
+		slog.ErrorContext(notifyCtx, "server shut down returned an error", "err", err)
 	}
 	return err
 }

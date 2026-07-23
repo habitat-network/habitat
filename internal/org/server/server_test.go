@@ -524,7 +524,7 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 		"passhash",
 		"pear.example.com",
 	)
-	require.NoError(t, habitatdb.AutoMigrate(instanceDB, instanceStore))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), instanceDB, instanceStore))
 	require.NoError(t, instanceStore.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
 	token, err := instanceStore.IssueInvite(t.Context())
 	require.NoError(t, err)

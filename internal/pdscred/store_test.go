@@ -17,7 +17,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 	db := testutil.NewDB(t)
 	store, err := NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, store))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, store))
 
 	// Generate test dpop key
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -53,7 +53,7 @@ func TestGetDpopClient_NotFound(t *testing.T) {
 	db := testutil.NewDB(t)
 	store, err := NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, store))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, store))
 
 	credentials, err := store.GetCredentials(t.Context(), syntax.DID("did:plc:nonexistent"))
 	require.Error(t, err)

@@ -16,7 +16,7 @@ func newTestHive(t *testing.T, memberDomain, pearDomain string) Hive {
 	t.Helper()
 	db := testutil.NewDB(t)
 	h := NewHive(memberDomain, pearDomain, db)
-	require.NoError(t, habitatdb.AutoMigrate(db, h))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, h))
 	return h
 }
 

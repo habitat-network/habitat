@@ -468,7 +468,7 @@ func TestWriteTuple_RollsBackRecordOnFGAFailure(t *testing.T) {
 	fga := &flakyFGA{Store: mem}
 	eventStore := events.NewStore(db)
 	sp := spaces.NewStore(db, fga, eventStore, &notify_testutil.TestNotifier{})
-	require.NoError(t, habitatdb.AutoMigrate(db, eventStore, sp))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, eventStore, sp))
 	rel := NewStore(db, sp, fga)
 
 	// CreateSpace uses fga.Write (not WriteRaw), so it succeeds.

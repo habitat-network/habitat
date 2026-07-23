@@ -113,7 +113,7 @@ func setupJWTBearerTestServer(
 		NewJWTBearerStore(approvedClientIDs...),
 	)
 	require.NoError(t, err)
-	require.NoError(t, habitatdb.AutoMigrate(db, oauthServer))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, oauthServer))
 
 	return oauthServer, actualTokenURL
 }

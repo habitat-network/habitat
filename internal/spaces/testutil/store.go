@@ -42,6 +42,6 @@ func NewTestStore(t *testing.T, cfgs ...Config) *testStore {
 	eventStore := events.NewStore(cfg.DB)
 	notifier := &testutil.TestNotifier{}
 	s := spaces.NewStore(cfg.DB, cfg.FgaStore, eventStore, notifier)
-	require.NoError(t, habitatdb.AutoMigrate(cfg.DB, eventStore, s))
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), cfg.DB, eventStore, s))
 	return &testStore{Store: s, Notifier: notifier, EventStore: eventStore}
 }
