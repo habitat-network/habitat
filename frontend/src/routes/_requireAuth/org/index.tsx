@@ -88,8 +88,15 @@ function InviteSection({
           orgId: orgId,
         },
       }).publicHref;
-      const hash = import.meta.env.VITE_HASH_ROUTING ? "/#" : "";
-      setInviteUrl(`${window.location.origin}${hash}${location}`);
+      if (import.meta.env.VITE_HASH_ROUTING) {
+        const basePath = new URL(import.meta.env.VITE_BASE_URL).pathname.replace(
+          /\/$/,
+          "",
+        );
+        setInviteUrl(`${window.location.origin}${basePath}/#${location}`);
+      } else {
+        setInviteUrl(`${window.location.origin}${location}`);
+      }
     },
   });
 
