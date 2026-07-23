@@ -337,7 +337,7 @@ importers:
         version: 12.5.1
       '@posthog/react':
         specifier: ^1.10.3
-        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.406.2)(react@19.2.8)
+        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.407.0)(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.8(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -394,7 +394,7 @@ importers:
         version: 13.4.2
       posthog-js:
         specifier: ^1.406.2
-        version: 1.406.2
+        version: 1.407.0
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -504,7 +504,7 @@ importers:
         version: 0.5.6
       '@posthog/react':
         specifier: ^1.10.3
-        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.406.2)(react@19.2.8)
+        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.407.0)(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.8(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -543,7 +543,7 @@ importers:
         version: 0.577.0(react@19.2.8)
       posthog-js:
         specifier: ^1.406.2
-        version: 1.406.2
+        version: 1.407.0
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -3691,6 +3691,9 @@ packages:
   '@posthog/core@1.44.0':
     resolution: {integrity: sha512-uE+mdKvetxNQC6gWQf4MHIH8bGt+JN6z7ho0A4G3t9G1VGQTx9wHYHNwkKf3gzi+1oAXS9ej2VVY4pjWUU2PWg==}
 
+  '@posthog/core@1.45.0':
+    resolution: {integrity: sha512-nP5FGwkIk8Ngy45BHzwN/kBGV6jqNZINn+iSge5CbdjMevZsEYK8OG3QOSyysml3yWn4tsRJroGi76+HrBIJuQ==}
+
   '@posthog/react@1.10.3':
     resolution: {integrity: sha512-Qu//fGQmVlX0B9kTA3LLg67e7AYLEmeuA0Bf1qSyUM0uUILcRQGjQezhNQPLYSTakOqvXEnl6fM2iQBF6Toxrw==}
     peerDependencies:
@@ -3703,6 +3706,9 @@ packages:
 
   '@posthog/types@1.397.1':
     resolution: {integrity: sha512-W/LpWbKVaaUnfZKuFuHa+Dg03D+fC87cM+PQbG+59JcSPW8F0JcBtSoXmpfrqbpuxUToMo+gktutrUkAb/KQBw==}
+
+  '@posthog/types@1.398.0':
+    resolution: {integrity: sha512-sJMkl4k+u8yS/0fjHsKqE9xTdsAh30a2WvgChiptellnVoE0e8QJKFgqOMD2sk8FaEArPdeFklAhXvmENAt3Sg==}
 
   '@react-native/assets-registry@0.86.0':
     resolution: {integrity: sha512-nIaXbm2jX1OTYp0qbviJ3O6KZivoE8z3BnhUQ2LsqfZSWRoOK/n1qsiAr6oALiNKWnXY3j2KPwtYORnZzp8xew==}
@@ -9307,8 +9313,8 @@ packages:
     resolution: {integrity: sha512-v4sDNP3fdNiWMfabO7OwOQdOX8TiQSztKyT1Wj0w+j7LDallJThJRBBBmzVGyYj0crMh7jlV4zepPkiNu9UwDQ==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.406.2:
-    resolution: {integrity: sha512-HNJO6Llro79s3x/ScxGY7i+Tf/o+ctJkOc79vrnS6R1I3TzucfzfwgAip1JVnQHnkBPV4JE8hI6nUXMJdU113Q==}
+  posthog-js@1.407.0:
+    resolution: {integrity: sha512-HtVdHlnAVJ+s0XGS2n5V5HflJYnG0X1pqjcOUF5Goid+C+zjRrhUJbYiXeugMLpn2vUBsXXEXHj22bNmi9CeKQ==}
 
   postman-code-generators@1.14.2:
     resolution: {integrity: sha512-qZAyyowfQAFE4MSCu2KtMGGQE/+oG1JhMZMJNMdZHYCSfQiVVeKxgk3oI4+KJ3d1y5rrm2D6C6x+Z+7iyqm+fA==}
@@ -15630,14 +15636,20 @@ snapshots:
     dependencies:
       '@posthog/types': 1.397.1
 
-  '@posthog/react@1.10.3(@types/react@19.2.17)(posthog-js@1.406.2)(react@19.2.8)':
+  '@posthog/core@1.45.0':
     dependencies:
-      posthog-js: 1.406.2
+      '@posthog/types': 1.398.0
+
+  '@posthog/react@1.10.3(@types/react@19.2.17)(posthog-js@1.407.0)(react@19.2.8)':
+    dependencies:
+      posthog-js: 1.407.0
       react: 19.2.8
     optionalDependencies:
       '@types/react': 19.2.17
 
   '@posthog/types@1.397.1': {}
+
+  '@posthog/types@1.398.0': {}
 
   '@react-native/assets-registry@0.86.0': {}
 
@@ -22516,11 +22528,11 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  posthog-js@1.406.2:
+  posthog-js@1.407.0:
     dependencies:
       '@posthog/browser-common': 0.2.0
-      '@posthog/core': 1.44.0
-      '@posthog/types': 1.397.1
+      '@posthog/core': 1.45.0
+      '@posthog/types': 1.398.0
       core-js: 3.49.0
       dompurify: 3.4.12
       fflate: 0.4.9
