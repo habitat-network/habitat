@@ -34,7 +34,7 @@ export class AuthManager {
     const client_id = clientMetadata(appName, baseUrl).client_id!;
     this.config = new client.Configuration(
       {
-        issuer: `${serverBaseUrl}/oauth/authorize`,
+        issuer: serverBaseUrl,
         authorization_endpoint: `${serverBaseUrl}/oauth/authorize`,
         token_endpoint: `${serverBaseUrl}/oauth/token`,
       },
