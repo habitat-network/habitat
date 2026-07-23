@@ -10,11 +10,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -47,17 +47,17 @@ func AutoMigrate(db *gorm.DB) error {
 
 // Store persists sessions and space access, and builds authenticated clients.
 type Store struct {
-	db    *gorm.DB
-	oauth *oauthclient.App
+	db     *gorm.DB
+	getter *getter
 }
 
-func NewStore(db *gorm.DB, oauth *oauthclient.App) *Store {
-	return &Store{db: db, oauth: oauth}
+func NewStore(db *gorm.DB, oauth *oauth.ClientApp) *Store {
+	return &Store{db: db, getter: newGetter(oauth)}
 }
 
 // WithTx returns a Store scoped to the given transaction.
 func (s *Store) WithTx(tx *gorm.DB) *Store {
-	return &Store{db: tx, oauth: s.oauth}
+	return &Store{db: tx, getter: s.getter}
 }
 
 // Add upserts a session for the account.
@@ -86,7 +86,11 @@ func (s *Store) ClientForSession(ctx context.Context, did syntax.DID) (*http.Cli
 	if err := s.db.WithContext(ctx).First(&sess, "did = ?", did).Error; err != nil {
 		return nil, fmt.Errorf("load session %s: %w", did, err)
 	}
-	return s.oauth.GetClient(ctx, sess.DID, sess.SessionID)
+	resumed, err := s.getter.resume(ctx, sess.DID, sess.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	return resumed.authClient(), nil
 }
 
 // RecordSpaceAccess records that the session can access the space.

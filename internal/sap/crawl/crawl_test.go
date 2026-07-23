@@ -91,7 +91,7 @@ func TestCrawlerBackfillsSession(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
-	c, err := New(db, fakeClients{base: base}, rec, rec, nil, nil)
+	c, err := New(db, fakeClients{base: base}, rec, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	c.Run(t.Context(), "did:plc:sessiondid")

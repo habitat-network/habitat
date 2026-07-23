@@ -17,7 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testProxyDID = "did:plc:testorg"
+const (
+	testProxyDID     = "did:plc:testorg"
+	testProxySession = "session-1"
+)
 
 // futureJWT returns a JWT whose only meaningful claim is an expiry far in the
 // future, so the OAuth transport treats the access token as valid and never
@@ -62,15 +65,9 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 	s, err := sap.NewSap(sap.SapConfig{DB: db, OAuthClient: oauthApp})
 	require.NoError(t, err)
 
-	// Register the managed org and its OAuth session directly, avoiding the
-	// crawl/subscribe goroutines that AddManagedOrg would spawn.
-	require.NoError(t, db.Table("managed_orgs").Create(map[string]any{
-		"did":        testProxyDID,
-		"session_id": "session-1",
-	}).Error)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:              testProxyDID,
-		SessionID:               "session-1",
+		SessionID:               testProxySession,
 		HostURL:                 pearHost,
 		AccessToken:             futureJWT(t),
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
@@ -108,6 +105,7 @@ func TestServerProxyForwardsRequestToPear(t *testing.T) {
 	)
 	require.NoError(t, err)
 	req.Header.Set(habitatDIDHeader, testProxyDID)
+	req.Header.Set(habitatSessionHeader, testProxySession)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -128,24 +126,40 @@ func TestServerProxyForwardsRequestToPear(t *testing.T) {
 	require.Equal(t, `{"text":"hi"}`, gotBody)
 	require.Equal(t, "application/json", gotReq.Header.Get("Content-Type"))
 
-	// The OAuth session's token is attached and the DID selector header is stripped.
+	// The OAuth session's token is attached and the session selector headers
+	// are stripped.
 	require.NotEmpty(t, gotReq.Header.Get("Authorization"))
 	require.Equal(t, "oauth", gotReq.Header.Get("Habitat-Auth-Method"))
 	require.Empty(t, gotReq.Header.Get(habitatDIDHeader))
+	require.Empty(t, gotReq.Header.Get(habitatSessionHeader))
 }
 
-func TestServerProxyRejectsMissingDIDHeader(t *testing.T) {
+func TestServerProxyRejectsMissingHeaders(t *testing.T) {
 	t.Parallel()
 
 	httpServer := openProxyTestServer(t, "http://unused.example")
 
+	// No headers at all.
 	resp, err := http.Get(httpServer.URL + "/proxy/network.habitat.space.listSpaces")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	// DID without a session ID.
+	req, err := http.NewRequest(
+		http.MethodGet,
+		httpServer.URL+"/proxy/network.habitat.space.listSpaces",
+		nil,
+	)
+	require.NoError(t, err)
+	req.Header.Set(habitatDIDHeader, testProxyDID)
+	resp2, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp2.Body.Close() }()
+	require.Equal(t, http.StatusBadRequest, resp2.StatusCode)
 }
 
-func TestServerProxyUnknownDIDReturnsBadGateway(t *testing.T) {
+func TestServerProxyUnknownSessionReturnsBadGateway(t *testing.T) {
 	t.Parallel()
 
 	httpServer := openProxyTestServer(t, "http://unused.example")
@@ -157,6 +171,7 @@ func TestServerProxyUnknownDIDReturnsBadGateway(t *testing.T) {
 	)
 	require.NoError(t, err)
 	req.Header.Set(habitatDIDHeader, "did:plc:unknownorg")
+	req.Header.Set(habitatSessionHeader, "nope")
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)

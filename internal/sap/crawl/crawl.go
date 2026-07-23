@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -70,12 +71,25 @@ type Tracker interface {
 	Track(ctx context.Context, space habitat_syntax.SpaceURI, repo syntax.DID) error
 }
 
+// Notify subscribes sap to a discovered space's push notifications. Satisfied
+// by register.Registrar; may be nil when notification registration is
+// disabled.
+type Notify interface {
+	EnsureRegistered(ctx context.Context, space habitat_syntax.SpaceURI) error
+}
+
 // Crawler runs backfill crawls.
 type Crawler struct {
 	db      *gorm.DB
 	clients Clients
 	access  Access
 	tracker Tracker
+	notify  Notify // may be nil
+
+	// inFlight dedupes concurrent Runs for the same session within this
+	// process (e.g. a periodic re-crawl overlapping a still-running crawl).
+	mu       sync.Mutex
+	inFlight map[syntax.DID]struct{}
 
 	tracer          trace.Tracer
 	crawlsCompleted metric.Int64Counter
@@ -87,6 +101,7 @@ func New(
 	clients Clients,
 	access Access,
 	tracker Tracker,
+	notify Notify,
 	meter metric.Meter,
 	tracer trace.Tracer,
 ) (*Crawler, error) {
@@ -117,6 +132,8 @@ func New(
 		clients:         clients,
 		access:          access,
 		tracker:         tracker,
+		notify:          notify,
+		inFlight:        make(map[syntax.DID]struct{}),
 		tracer:          tracer,
 		crawlsCompleted: crawlsCompleted,
 		crawlDuration:   crawlDuration,
@@ -139,8 +156,23 @@ func (c *Crawler) ResumeIncomplete(ctx context.Context) error {
 }
 
 // Run crawls everything the session can see, resuming from any stored cursor.
-// It is safe to re-run for the same session; discovery is idempotent.
+// A completed crawl re-runs from the beginning, so periodic re-crawls discover
+// spaces created since. It is safe to re-run for the same session; discovery
+// is idempotent, and overlapping Runs for one session no-op.
 func (c *Crawler) Run(ctx context.Context, did syntax.DID) {
+	c.mu.Lock()
+	if _, running := c.inFlight[did]; running {
+		c.mu.Unlock()
+		return
+	}
+	c.inFlight[did] = struct{}{}
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		delete(c.inFlight, did)
+		c.mu.Unlock()
+	}()
+
 	ctx, span := c.tracer.Start(ctx, "sap.crawler.crawl",
 		trace.WithAttributes(attribute.String("sap.session", did.String())))
 	start := time.Now()
@@ -162,9 +194,18 @@ func (c *Crawler) Run(ctx context.Context, did syntax.DID) {
 		span.RecordError(err)
 		return
 	}
+	// A finished crawl restarts from the top; an interrupted one resumes from
+	// its cursor.
+	if cr.State == stateComplete {
+		cr.Cursor = ""
+	}
 	if err := c.db.WithContext(ctx).Model(&crawl{}).
 		Where("did = ?", did).
-		Updates(map[string]any{"state": stateRunning, "error_msg": ""}).Error; err != nil {
+		Updates(map[string]any{
+			"state":     stateRunning,
+			"cursor":    cr.Cursor,
+			"error_msg": "",
+		}).Error; err != nil {
 		slog.ErrorContext(ctx, "set crawl running", "session", did, "err", err)
 		span.RecordError(err)
 		return
@@ -234,6 +275,14 @@ func (c *Crawler) crawlSession(ctx context.Context, did syntax.DID, cursor strin
 			space := habitat_syntax.SpaceURI(sp.Uri)
 			if err := c.access.RecordSpaceAccess(ctx, space, did); err != nil {
 				return fmt.Errorf("record space access %s: %w", space, err)
+			}
+			// Subscribe to the space's push notifications as soon as we know
+			// about it. Best-effort: the registrar's sweep retries misses.
+			if c.notify != nil {
+				if err := c.notify.EnsureRegistered(ctx, space); err != nil {
+					slog.WarnContext(ctx, "register notify during crawl",
+						"space", space, "err", err)
+				}
 			}
 			if err := c.enumerateRepos(ctx, client, space); err != nil {
 				return fmt.Errorf("enumerate repos for %s: %w", space, err)

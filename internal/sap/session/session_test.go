@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
@@ -14,6 +16,13 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
+
+func testDPoPKey(t *testing.T) string {
+	t.Helper()
+	key, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	return key.Multibase()
+}
 
 func testJWT(t *testing.T) string {
 	t.Helper()
@@ -38,13 +47,14 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	s := NewStore(db, oauthclient.NewApp(&cfg, oauthStore))
+	s := NewStore(db, oauth.NewClientApp(&cfg, oauthStore))
 
 	require.NoError(t, oauthStore.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:  "did:plc:alice",
-		SessionID:   "sess1",
-		HostURL:     "https://host.example",
-		AccessToken: testJWT(t),
+		AccountDID:              "did:plc:alice",
+		SessionID:               "sess1",
+		HostURL:                 "https://host.example",
+		AccessToken:             testJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 	require.NoError(t, s.Add(t.Context(), "did:plc:alice", "sess1"))
 
