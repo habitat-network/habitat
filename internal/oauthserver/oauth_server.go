@@ -152,6 +152,7 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 			compose.RFC7523AssertionGrantFactory,
+			compose.PushedAuthorizeHandlerFactory,
 		),
 		loginRouter:  loginRouter,
 		sessionStore: cookieStore,
@@ -224,7 +225,11 @@ func (o *OAuthServer) HandleAuthorize(
 	}
 
 	form := maps.Clone(requester.GetRequestForm())
+	form.Del("request_uri")
 	handle := form.Get("handle")
+	if handle == "" {
+		handle = form.Get("login_hint")
+	}
 	if handle == "" {
 		slog.WarnContext(ctx, "request form", "form", requester.GetRequestForm())
 		form.Del("handle")
@@ -277,6 +282,34 @@ func (o *OAuthServer) HandleAuthorize(
 
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 	o.metrics.authorizeSuccess(ctx)
+}
+
+// HandlePAR processes RFC 9126 Pushed Authorization Requests. The client POSTs
+// the authorization request parameters (form-encoded) and receives a
+// request_uri it can then hand to the authorization endpoint. PAR is supported
+// but not required, so clients may also call /oauth/authorize directly.
+func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	loginHint := r.URL.Query().Get("handle")
+	if loginHint == "" {
+		loginHint = r.URL.Query().Get("login_hint")
+	}
+	if err := r.ParseForm(); err != nil {
+		utils.LogAndHTTPError(ctx, w, err, "failed to parse form", http.StatusBadRequest)
+		return
+	}
+	r.Form.Add("login_hint", loginHint)
+	req, err := o.provider.NewPushedAuthorizeRequest(ctx, r)
+	if err != nil {
+		o.provider.WritePushedAuthorizeError(ctx, w, req, err)
+		return
+	}
+	resp, err := o.provider.NewPushedAuthorizeResponse(ctx, req, newSession())
+	if err != nil {
+		o.provider.WritePushedAuthorizeError(ctx, w, req, err)
+		return
+	}
+	o.provider.WritePushedAuthorizeResponse(ctx, w, req, resp)
 }
 
 // HandleCallback processes the OAuth callback from the user's PDS.
@@ -338,7 +371,7 @@ func (o *OAuthServer) HandleCallback(
 	}
 
 	session.Options.MaxAge = -1
-	if err := o.sessionStore.Save(r, w, session); err != nil {
+	if err := session.Save(r, w); err != nil {
 		o.metrics.callbackErr(ctx, err, "delete_session")
 		utils.LogAndHTTPError(
 			ctx,
@@ -349,8 +382,13 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
-
-	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
+	// The stored form still carries the one-time PAR request_uri that fosite
+	// already consumed when the flow began. Re-sending it would fail with
+	// invalid_request_uri, so drop it and rebuild the authorize request from the
+	// resolved parameters the form already contains.
+	resumeForm := maps.Clone(arf.Form)
+	resumeForm.Del("request_uri")
+	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+resumeForm.Encode(), nil)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, "recreate_req")
 		utils.LogAndHTTPError(
@@ -393,6 +431,15 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
+	// Grant the requested scopes so they are bound to the authorization code and
+	// echoed back in the token response. Without this the token response carries
+	// an empty scope, which atproto clients reject (they require a valid scope
+	// containing "atproto"). The client's allowed scopes were already validated
+	// when the authorize request was parsed.
+	for _, scope := range authRequest.GetRequestedScopes() {
+		authRequest.GrantScope(scope)
+	}
+
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,
 		authRequest,
@@ -409,6 +456,7 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
+	resp.AddParameter("iss", o.issuer)
 	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
 	o.metrics.callbackSuccess()
 }
@@ -448,6 +496,13 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
 	}
+	resp.SetExtra("sub", req.GetSession().GetSubject())
+	// The atproto OAuth client requires DPoP-bound tokens and rejects any
+	// token_type other than "DPoP". Habitat does not yet enforce DPoP
+	// server-side (tokens remain bearer tokens in practice), but we advertise
+	// the DPoP token type so atproto clients accept the response.
+	// TODO: implement real DPoP proof validation and key binding.
+	resp.SetTokenType("DPoP")
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
@@ -468,12 +523,14 @@ func logError(ctx context.Context, err error) {
 var _ authn.Method = (*OAuthServer)(nil)
 
 func (o *OAuthServer) CanHandle(r *http.Request) bool {
-	tokenStr := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	// The token may arrive under the Bearer or (from atproto clients) the DPoP
+	// auth scheme. Strip either prefix before parsing, and fall back to the
+	// Habitat-Auth-Method header if the token isn't a parseable oauth+JWT.
+	tokenStr := r.Header.Get("Authorization")
+	tokenStr = strings.TrimPrefix(tokenStr, "Bearer ")
+	tokenStr = strings.TrimPrefix(tokenStr, "DPoP ")
 	token, err := jwt.ParseSigned(tokenStr)
-	if err != nil {
-		return false
-	}
-	if token.Headers[0].ExtraHeaders["typ"] == "oauth+JWT" {
+	if err == nil && token.Headers[0].ExtraHeaders["typ"] == "oauth+JWT" {
 		return true
 	}
 	return r.Header.Get("Habitat-Auth-Method") == "oauth"
@@ -486,6 +543,15 @@ func (o *OAuthServer) Validate(
 	scopes ...string,
 ) (*authn.CredentialInfo, bool) {
 	token := fosite.AccessTokenFromRequest(r)
+	if token == "" {
+		// The atproto OAuth client sends the access token with the DPoP auth
+		// scheme ("Authorization: DPoP <token>"), which fosite's bearer-only
+		// extractor ignores. Habitat does not enforce DPoP, so accept the token
+		// regardless of scheme.
+		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "DPoP ") {
+			token = strings.TrimPrefix(auth, "DPoP ")
+		}
+	}
 	credInfo, ok, err := o.ValidateRaw(r.Context(), token, scopes...)
 	if err != nil || !ok {
 		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, err)

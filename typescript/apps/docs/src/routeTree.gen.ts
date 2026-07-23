@@ -35,9 +35,9 @@ const RequireAuthUriRoute = RequireAuthUriRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof RequireAuthIndexRoute
   '/login': typeof LoginRoute
   '/$uri': typeof RequireAuthUriRoute
-  '/': typeof RequireAuthIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -53,7 +53,7 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/login' | '/$uri' | '/'
+  fullPaths: '/' | '/login' | '/$uri'
   fileRoutesByTo: FileRoutesByTo
   to: '/login' | '/$uri' | '/'
   id:
@@ -81,7 +81,7 @@ declare module '@tanstack/react-router' {
     '/_requireAuth': {
       id: '/_requireAuth'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof RequireAuthRouteImport
       parentRoute: typeof rootRouteImport
     }
