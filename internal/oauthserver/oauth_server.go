@@ -370,8 +370,7 @@ func (o *OAuthServer) HandleCallback(
 	if err := o.loginRouter.Exchange(
 		ctx,
 		arf.Did,
-		r.URL.Query().Get("code"),
-		r.URL.Query().Get("iss"),
+		r.URL.Query(),
 		arf.ProviderState,
 	); err != nil {
 		o.metrics.callbackErr(ctx, err, "complete_login")
