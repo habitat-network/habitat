@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/habitat-network/habitat/internal/login"
@@ -49,8 +50,7 @@ func (p *PassthroughProvider) Authorize(
 
 func (p *PassthroughProvider) Exchange(
 	ctx context.Context,
-	code string,
-	issuer string,
+	query url.Values,
 	state []byte,
 ) (loginID string, err error) {
 	return p.LoginID, nil

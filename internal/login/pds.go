@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -77,10 +78,11 @@ func (p *pdsProvider) Authorize(
 
 func (p *pdsProvider) Exchange(
 	ctx context.Context,
-	code string,
-	issuer string,
+	query url.Values,
 	stateBytes []byte,
 ) (loginID string, err error) {
+	code := query.Get("code")
+	issuer := query.Get("iss")
 	var s pdsProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
 		return "", fmt.Errorf("unmarshal pds provider state: %w", err)

@@ -1,6 +1,7 @@
 package org_test
 
 import (
+	"net/url"
 	"testing"
 
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
@@ -37,8 +38,7 @@ func TestLoginRouter(t *testing.T) {
 		err = router.Exchange(
 			t.Context(),
 			adminID.DID,
-			"",
-			"",
+			url.Values{},
 			state,
 		)
 		require.NoError(t, err)
@@ -57,8 +57,7 @@ func TestLoginRouter(t *testing.T) {
 		err = router.Exchange(
 			t.Context(),
 			orgID.DID,
-			"",
-			"",
+			url.Values{},
 			state,
 		)
 		require.NoError(t, err)
@@ -85,8 +84,7 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 	err = router.Exchange(
 		t.Context(),
 		orgID.DID,
-		"",
-		"",
+		url.Values{},
 		nil,
 	)
 	require.Error(t, err)
@@ -113,8 +111,7 @@ func TestExchange_MismatchLoginID(t *testing.T) {
 	err = router.Exchange(
 		t.Context(),
 		adminID.DID,
-		"",
-		"",
+		url.Values{},
 		nil,
 	)
 	require.Error(t, err)
@@ -138,6 +135,6 @@ func TestExchange_MissingMember(t *testing.T) {
 		OrgStore: store,
 	}
 
-	err = router.Exchange(t.Context(), adminID.DID, "", "", nil)
+	err = router.Exchange(t.Context(), adminID.DID, url.Values{}, nil)
 	require.Error(t, err)
 }
