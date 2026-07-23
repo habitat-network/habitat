@@ -12,7 +12,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/utils"
 	"log/slog"
 )
@@ -33,25 +32,24 @@ var targetRoutedMethods = map[string]string{
 }
 
 type PDSForwarding struct {
-	oauth            authn.Method
-	pdsClientFactory pdsclient.HttpClientFactory
-	dir              identity.Directory
-	plainHTTPClient  *http.Client
+	oauth           authn.Method
+	client          pdsclient.PdsOAuthClient
+	dir             identity.Directory
+	plainHTTPClient *http.Client
 }
 
 var _ http.Handler = (*PDSForwarding)(nil)
 
 func NewPDSForwarding(
-	credStore pdscred.PDSCredentialStore,
 	oauthServer authn.Method,
-	pdsClientFactory pdsclient.HttpClientFactory,
+	client pdsclient.PdsOAuthClient,
 	dir identity.Directory,
 ) *PDSForwarding {
 	return &PDSForwarding{
-		oauth:            oauthServer,
-		pdsClientFactory: pdsClientFactory,
-		dir:              dir,
-		plainHTTPClient:  &http.Client{},
+		oauth:           oauthServer,
+		client:          client,
+		dir:             dir,
+		plainHTTPClient: &http.Client{},
 	}
 }
 
@@ -235,24 +233,15 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 	req.Header.Del("Keep-Alive")
 	req.Header.Del("Transfer-Encoding")
 	req.Header.Del("Te")
+	// The OAuth client sets its own DPoP-bound Authorization on the caller's
+	// behalf; drop any inbound auth so it can't leak to the PDS.
+	req.Header.Del("Authorization")
+	req.Header.Del("DPoP")
 
-	dpopClient, err := p.pdsClientFactory.NewClient(r.Context(), credInfo.Subject)
+	// Forward the request using the caller's OAuth session against their PDS.
+	resp, err := p.client.Do(r.Context(), credInfo.Subject, req)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"[pds forwarding]: failed to create dpop client",
-			http.StatusInternalServerError,
-		)
-
-		return
-	}
-
-	// Forward the request using the dpopClient
-	resp, err := dpopClient.Do(req)
-	if err != nil {
-		// dpopClient.Do only returns an error for transport-level failures (network
+		// client.Do only returns an error for transport-level failures (network
 		// errors, signing errors, etc.) — never for PDS auth failures, which come
 		// back as valid HTTP responses. So always return 502 here.
 		utils.LogAndHTTPError(

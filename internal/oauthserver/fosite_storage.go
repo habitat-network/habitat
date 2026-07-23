@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	jose "github.com/go-jose/go-jose/v3"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
@@ -114,16 +115,13 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 	if err != nil {
 		return nil, err
 	}
-	return &client{metadata}, nil
+	return &client{*metadata}, nil
 }
 
-// fetchClientMetadata fetches and decodes the client metadata document
-// published at id (the client's client_id URL). See
+// fetchClientMetadataBytes fetches the raw client metadata document published
+// at id (the client's client_id URL). See
 // https://atproto.com/specs/oauth#client-id-metadata-document.
-func (s *store) fetchClientMetadata(
-	ctx context.Context,
-	id string,
-) (*pdsclient.ClientMetadata, error) {
+func (s *store) fetchClientMetadataBytes(ctx context.Context, id string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, id, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
@@ -139,10 +137,25 @@ func (s *store) fetchClientMetadata(
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to fetch client metadata: status %d", resp.StatusCode)
 	}
-
-	var metadata pdsclient.ClientMetadata
-	err = json.NewDecoder(resp.Body).Decode(&metadata)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		return nil, fmt.Errorf("failed to read client metadata: %w", err)
+	}
+	return body, nil
+}
+
+// fetchClientMetadata fetches and decodes the client metadata document into the
+// indigo OAuth client metadata type (used for the fosite client view).
+func (s *store) fetchClientMetadata(
+	ctx context.Context,
+	id string,
+) (*oauth.ClientMetadata, error) {
+	body, err := s.fetchClientMetadataBytes(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	var metadata oauth.ClientMetadata
+	if err := json.Unmarshal(body, &metadata); err != nil {
 		return nil, fmt.Errorf("failed to decode client metadata: %w", err)
 	}
 	return &metadata, nil
@@ -178,14 +191,23 @@ func (s *store) GetPublicKeys(
 	if !s.approvedJwtBearerClients.IsApprovedClient(issuer) {
 		return nil, fosite.ErrNotFound
 	}
-	metadata, err := s.fetchClientMetadata(ctx, issuer)
+	body, err := s.fetchClientMetadataBytes(ctx, issuer)
 	if err != nil {
 		return nil, err
 	}
-	if metadata.Jwks == nil || len(metadata.Jwks.Keys) == 0 {
+	// indigo's client metadata type only models EC keys, so decode the jwks
+	// field directly into the jose type fosite's rfc7523 handler expects (JWT
+	// Bearer clients may use RSA keys).
+	var doc struct {
+		Jwks *jose.JSONWebKeySet `json:"jwks"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return nil, fmt.Errorf("parse client jwks: %w", err)
+	}
+	if doc.Jwks == nil || len(doc.Jwks.Keys) == 0 {
 		return nil, fosite.ErrNotFound
 	}
-	return metadata.Jwks, nil
+	return doc.Jwks, nil
 }
 
 // GetPublicKeyScopes implements rfc7523.RFC7523KeyStorage.

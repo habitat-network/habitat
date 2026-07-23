@@ -45,10 +45,13 @@ func newJWTBearerTestClient(t *testing.T) *oauthjwt.Config {
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:   clientID,
-				GrantTypes: []string{"urn:ietf:params:oauth:grant-type:jwt-bearer"},
-				Jwks: &jose.JSONWebKeySet{Keys: []jose.JSONWebKey{{
+			// Publish as a raw document: the server decodes the atproto fields
+			// into indigo's client metadata type and the jwks (an RSA key here)
+			// separately into jose for JWT Bearer verification.
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"client_id":   clientID,
+				"grant_types": []string{"urn:ietf:params:oauth:grant-type:jwt-bearer"},
+				"jwks": &jose.JSONWebKeySet{Keys: []jose.JSONWebKey{{
 					Key:       privateKey.Public(),
 					KeyID:     keyID,
 					Algorithm: string(jose.RS256),

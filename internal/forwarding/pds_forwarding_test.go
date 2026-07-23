@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -85,10 +86,13 @@ func TestServeHTTP_ForwardsToCallerPDS(t *testing.T) {
 	fakePDS, lastPath := fakePDSServer(t)
 
 	callerDID := syntax.DID("did:plc:caller123")
+	dummyClient := pdsclient.NewDummyOAuthClient(nil, &oauth.ClientMetadata{})
+	dummyClient.PDSURL = fakePDS.URL
+	defer dummyClient.Close()
 	p := &PDSForwarding{
-		oauth:            authntest.NewSuccessMethod(callerDID),
-		pdsClientFactory: pdsclient.NewDummyClientFactory(fakePDS.URL),
-		plainHTTPClient:  fakePDS.Client(),
+		oauth:           authntest.NewSuccessMethod(callerDID),
+		client:          dummyClient,
+		plainHTTPClient: fakePDS.Client(),
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.uploadBlob", nil)

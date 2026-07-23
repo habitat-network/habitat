@@ -162,6 +162,14 @@ func NewOAuthServer(
 	}, nil
 }
 
+// derefString returns the pointed-to string, or "" if the pointer is nil.
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 func fositeErrReason(err error) string {
 	if rfcErr, ok := errors.AsType[*fosite.RFC6749Error](err); ok {
 		return rfcErr.ErrorField // "invalid_grant", "invalid_client", etc.
@@ -590,10 +598,10 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 		c := fositeClient.(*client)
 		output.Apps[i] = habitat.NetworkHabitatListConnectedAppsApp{
 			ClientID:  row.ClientID,
-			ClientUri: c.ClientUri,
+			ClientUri: derefString(c.ClientURI),
 			LastUsed:  row.UpdatedAt.Format(time.RFC3339Nano),
-			Name:      c.ClientName,
-			LogoUri:   c.LogoUri,
+			Name:      derefString(c.ClientName),
+			LogoUri:   derefString(c.LogoURI),
 		}
 	}
 	httpx.WriteJSON(ctx, w, output)

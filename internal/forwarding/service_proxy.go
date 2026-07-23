@@ -30,11 +30,11 @@ var hopByHopHeaders = []string{
 // session and forwards the request to the specified service using a service
 // auth JWT signed on the caller's behalf.
 type serviceProxy struct {
-	oauth            authn.Method
-	hive             hive.Hive
-	dir              identity.Directory
-	httpClient       *http.Client
-	pdsClientFactory pdsclient.HttpClientFactory
+	oauth      authn.Method
+	hive       hive.Hive
+	dir        identity.Directory
+	httpClient *http.Client
+	client     pdsclient.PdsOAuthClient
 }
 
 // NewServiceProxy constructs a ServiceProxy, which is a MiddlewareFunc and intercepts requests that have atproto-proxy in the headers.
@@ -45,14 +45,14 @@ func NewServiceProxy(
 	oauth authn.Method,
 	hive hive.Hive,
 	dir identity.Directory,
-	clientFactory pdsclient.HttpClientFactory,
+	client pdsclient.PdsOAuthClient,
 ) func(http.Handler) http.Handler /* type of mux.MiddlewareFunc */ {
 	sp := &serviceProxy{
-		oauth:            oauth,
-		hive:             hive,
-		dir:              dir,
-		httpClient:       &http.Client{},
-		pdsClientFactory: clientFactory,
+		oauth:      oauth,
+		hive:       hive,
+		dir:        dir,
+		httpClient: &http.Client{},
+		client:     client,
 	}
 
 	// Requests carrying an Atproto-Proxy header on an XRPC path are intercepted and
@@ -220,10 +220,6 @@ func (s *serviceProxy) fetchRemoteServiceAuth(
 	proxyHeader string, nsid syntax.NSID,
 ) (string, error) {
 	slog.WarnContext(ctx, "fetching remove service auth", "proxy", proxyHeader, "nsid", nsid)
-	pdsClient, err := s.pdsClientFactory.NewClient(ctx, credInfo.Subject)
-	if err != nil {
-		return "", fmt.Errorf("failed to create PDS client: %w", err)
-	}
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
@@ -233,11 +229,11 @@ func (s *serviceProxy) fetchRemoteServiceAuth(
 		}.Encode(),
 		nil,
 	)
-	slog.WarnContext(ctx, "fetching remove service auth", "req", req.URL.String())
 	if err != nil {
 		return "", fmt.Errorf("failed to build service auth request: %w", err)
 	}
-	resp, err := pdsClient.Do(req)
+	slog.WarnContext(ctx, "fetching remove service auth", "req", req.URL.String())
+	resp, err := s.client.Do(ctx, credInfo.Subject, req)
 	if err != nil {
 		return "", fmt.Errorf("failed to get service auth: %w", err)
 	}
