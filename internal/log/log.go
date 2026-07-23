@@ -45,7 +45,7 @@ func New(
 	))
 	if cfg.stdout {
 		logHandlers = append(logHandlers,
-			tint.NewHandler(os.Stdout, &tint.Options{
+			tint.NewTextHandler(os.Stdout, &tint.Options{
 				AddSource: true,
 				Level:     cfg.level,
 			}),
