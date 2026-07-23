@@ -53,18 +53,18 @@ func newStore(
 	strat *strategy,
 	db *gorm.DB,
 	approvedJwtBearerClients ApprovedClientStore,
-) (*store, error) {
-	err := db.AutoMigrate(&OAuthSession{}, &ConnectedApp{})
-	if err != nil {
-		return nil, err
-	}
+) *store {
 	// TODO: we need to add a goroutine here that cleans up expired sessions
 	return &store{
 		memoryStore:              storage.NewMemoryStore(),
 		strategy:                 strat,
 		db:                       db,
 		approvedJwtBearerClients: approvedJwtBearerClients,
-	}, nil
+	}
+}
+
+func (s *store) Models() []any {
+	return []any{&OAuthSession{}, &ConnectedApp{}}
 }
 
 var (

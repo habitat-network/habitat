@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/ory/fosite"
@@ -22,8 +23,9 @@ func TestGetClient(t *testing.T) {
 		secretBytes,
 		&fosite.Config{})
 	require.NoError(t, err)
-	store, err := newStore(strat, testutil.NewDB(t), nil)
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
+	store := newStore(strat, db, nil)
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, store))
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("url: %s", r.Host)

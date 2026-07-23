@@ -101,14 +101,12 @@ var (
 // - Whole NSID prefixes: "network.habitat.*"
 // - Specific NSIDs: "network.habitat.collection"
 // - Specific records: "network.habitat.collection.recordKey"
-func NewStore(db *gorm.DB, cliqueStore clique.Store) (*store, error) {
-	// AutoMigrate will create the table with all indexes defined in the Permission struct
-	err := db.AutoMigrate(&permission{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to migrate permissions table: %w", err)
-	}
+func NewStore(db *gorm.DB, cliqueStore clique.Store) *store {
+	return &store{db: db, cliqueStore: cliqueStore}
+}
 
-	return &store{db: db, cliqueStore: cliqueStore}, nil
+func (s *store) Models() []any {
+	return []any{&permission{}}
 }
 
 // HasPermission checks if a requester has permission to access a specific record.

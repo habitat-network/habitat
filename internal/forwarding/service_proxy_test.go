@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -20,8 +21,9 @@ import (
 
 func newTestServiceProxyHive(t *testing.T) hive.Hive {
 	t.Helper()
-	h, err := hive.NewHive("example.com", "pear.example.com", testutil.NewDB(t))
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
+	h := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, h))
 	return h
 }
 

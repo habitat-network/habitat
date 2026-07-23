@@ -14,6 +14,7 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
@@ -267,6 +268,11 @@ func testPdsCredStore(
 	require.NoError(t, err, "failed to open in-memory db")
 	store, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err, "failed to create pds cred store")
+	require.NoError(
+		t,
+		habitatdb.AutoMigrate(t.Context(), db, store),
+		"failed to migrate pds cred store",
+	)
 	// Create test key
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)

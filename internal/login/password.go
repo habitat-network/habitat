@@ -44,17 +44,17 @@ func NewPasswordProvider(
 	pearDomain string,
 	signingSecret []byte,
 	dir identity.Directory,
-) (*PasswordLoginProvider, error) {
-	err := db.AutoMigrate(&passwordEntry{})
-	if err != nil {
-		return nil, err
-	}
+) *PasswordLoginProvider {
 	return &PasswordLoginProvider{
 		db:            db,
 		pearDomain:    pearDomain,
 		signingSecret: signingSecret,
 		dir:           dir,
-	}, nil
+	}
+}
+
+func (p *PasswordLoginProvider) Models() []any {
+	return []any{&passwordEntry{}}
 }
 
 var _ Provider = (*PasswordLoginProvider)(nil)

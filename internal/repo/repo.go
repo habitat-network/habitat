@@ -107,15 +107,12 @@ type link struct {
 	Ref habitat_syntax.HabitatURI `gorm:"primaryKey"`
 }
 
-// TODO: create table etc.
-func NewRepo(db *gorm.DB) (Repo, error) {
-	if err := db.AutoMigrate(&record{}, &Blob{}, &link{}); err != nil {
-		return nil, err
-	}
+func NewRepo(db *gorm.DB) *repo {
+	return &repo{db: db}
+}
 
-	return &repo{
-		db: db,
-	}, nil
+func (s *repo) Models() []any {
+	return []any{&record{}, &Blob{}, &link{}}
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.

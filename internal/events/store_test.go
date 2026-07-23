@@ -7,13 +7,15 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStore_Concurrency(t *testing.T) {
-	store, err := NewStore(testutil.NewDB(t))
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
+	store := NewStore(db)
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, store))
 
 	go func() { require.ErrorIs(t, store.StartSequencer(t.Context()), context.Canceled) }()
 
@@ -68,8 +70,9 @@ func TestStore_Concurrency(t *testing.T) {
 }
 
 func TestStore_SubscriberDoesntBlock(t *testing.T) {
-	store, err := NewStore(testutil.NewDB(t))
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
+	store := NewStore(db)
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, store))
 	go func() { require.ErrorIs(t, store.StartSequencer(t.Context()), context.Canceled) }()
 
 	subscriberChan1 := store.Subscribe(t.Context(), 0)

@@ -241,17 +241,18 @@ func NewStore(
 	fga fgastore.Store,
 	eventStore events.Store,
 	notifier Notifier,
-) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceRepo{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
-	}
+) *store {
 	return &store{
 		db:         db,
 		fga:        fga,
 		clock:      syntax.NewTIDClock(0),
 		eventStore: eventStore,
 		notifier:   notifier,
-	}, nil
+	}
+}
+
+func (s *store) Models() []any {
+	return []any{&space{}, &spaceRecord{}, &spaceRepo{}}
 }
 
 // WithTx implements [Store], returning a store whose DB operations run on tx.

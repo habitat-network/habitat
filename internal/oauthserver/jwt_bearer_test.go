@@ -14,6 +14,7 @@ import (
 	"time"
 
 	jose "github.com/go-jose/go-jose/v3"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
@@ -112,6 +113,7 @@ func setupJWTBearerTestServer(
 		NewJWTBearerStore(approvedClientIDs...),
 	)
 	require.NoError(t, err)
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, oauthServer))
 
 	return oauthServer, actualTokenURL
 }

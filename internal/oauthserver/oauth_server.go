@@ -72,6 +72,10 @@ type OAuthServer struct {
 	issuer string
 }
 
+func (o *OAuthServer) Models() []any {
+	return o.storage.Models()
+}
+
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
 //
 // The server is configured with:
@@ -117,10 +121,7 @@ func NewOAuthServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create strategy: %w", err)
 	}
-	storage, err := newStore(strategy, db, approvedJwtBearerClients)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create storage: %w", err)
-	}
+	storage := newStore(strategy, db, approvedJwtBearerClients)
 
 	oauthMetrics, err := newMetrics(meter)
 	if err != nil {

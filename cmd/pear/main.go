@@ -28,7 +28,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
-	"github.com/habitat-network/habitat/internal/db"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -109,7 +109,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	slog.InfoContext(startupCtx, "running with flags", "flags", cmd.FlagNames())
 
-	db, err := db.New(cmd.String(fDB), db.WithMigrations(embedMigrations))
+	db, err := habitatdb.New(cmd.String(fDB), habitatdb.WithMigrations(embedMigrations))
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
 	}
@@ -128,15 +128,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup instance admin password: %w", err)
 	}
 	// Reuse the oauth server secret
-	instanceAdminStore, err := instance.NewStore(
-		db.WithContext(startupCtx),
+	instanceAdminStore := instance.NewStore(
+		db,
 		oauthSecret,
 		fDomain,
 		passwordHash,
 	)
-	if err != nil {
-		return fmt.Errorf("setup instance admin store: %w", err)
-	}
 
 	instanceAdminServer := instance.NewServer(instanceAdminStore, "habitat.network")
 
@@ -144,22 +141,22 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("load PDS encryption key: %w", err)
 	}
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(db.WithContext(startupCtx), credKey)
+	pdsCredStore, err := pdscred.NewPDSCredentialStore(db, credKey)
 	if err != nil {
 		return fmt.Errorf("setup pds cred store: %w", err)
 	}
 
 	domain := cmd.String(fDomain)
-	var clientUri string
+	var clientURI string
 	if cmd.String(fPdsOauthClientUri) != "" {
-		clientUri = "https://" + cmd.String(fPdsOauthClientUri)
+		clientURI = "https://" + cmd.String(fPdsOauthClientUri)
 	}
-	if clientUri == "" {
-		clientUri = "https://" + domain
+	if clientURI == "" {
+		clientURI = "https://" + domain
 	}
 	oauthClient, err := pdsclient.NewPdsOAuthClient(
-		clientUri+"/client-metadata.json",
-		clientUri,
+		clientURI+"/client-metadata.json",
+		clientURI,
 		"https://"+domain+"/oauth-callback",
 		cmd.String(fOauthClientSecret),
 		meter,
@@ -212,10 +209,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		hiveDomain = domain
 	}
 
-	hive, err := hive.NewHive(hiveDomain, domain, db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup hive (identity service for org): %w", err)
-	}
+	hive := hive.NewHive(hiveDomain, domain, db)
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
 	defaultDir := identity.DefaultDirectory()
@@ -234,26 +228,20 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup PDS client factory: %w", err)
 	}
 
-	passwordProvider, err := login.NewPasswordProvider(
+	passwordProvider := login.NewPasswordProvider(
 		db,
 		cmd.String(fDomain),
 		oauthSecret,
 		hiveDir,
 	)
-	if err != nil {
-		return fmt.Errorf("setup password login provider: %w", err)
-	}
-	orgStore, err := org.NewStore(
-		db.WithContext(startupCtx),
+	orgStore := org.NewStore(
+		db,
 		hive,
 		hiveDir,
 		domain,
 		passwordProvider,
 		fgaStore,
 	)
-	if err != nil {
-		return fmt.Errorf("setup org store: %w", err)
-	}
 
 	loginRouter := &org.LoginRouter{
 		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
@@ -262,18 +250,20 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
+	var googleLoginProvider habitatdb.MigratableStore
 	if googleClientID != "" && googleClientSecret != "" {
-		googleProvider, err := login.NewGoogleProvider(
+		glp, err := login.NewGoogleProvider(
 			googleClientID,
 			googleClientSecret,
 			"https://"+domain+"/oauth-callback",
-			db.WithContext(startupCtx),
+			db,
 			credKey,
 		)
 		if err != nil {
 			return fmt.Errorf("setup google login provider: %w", err)
 		}
-		loginRouter.Google = googleProvider
+		loginRouter.Google = glp
+		googleLoginProvider = glp
 		slog.InfoContext(startupCtx, "google login provider enabled")
 	}
 
@@ -282,7 +272,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		loginRouter,
 		// OAuth server needs privileged access to lookup hive-hosted identities
 		hiveDir,
-		db.WithContext(startupCtx),
+		db,
 		meter,
 		orgStore,
 		"https://"+domain,
@@ -297,27 +287,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir, pdsClientFactory))
 
-	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup clique store: %w", err)
-	}
-
-	eventStore, err := events.NewStore(db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup event store: %w", err)
-	}
+	cliqueStore := clique.NewStore(db)
+	eventStore := events.NewStore(db)
 	syncServer := sync.NewServer(eventStore)
-
-	notifyStore, err := notify.NewStore(db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup notify store: %w", err)
-	}
+	notifyStore := notify.NewStore(db)
 	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, hive)
 
-	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore, eventStore, notifier)
-	if err != nil {
-		return fmt.Errorf("setup spaces store: %w", err)
-	}
+	spacesStore := spaces.NewStore(db, fgaStore, eventStore, notifier)
 	serviceAuth := authn.NewServiceAuthMethod(defaultDir, fmt.Sprintf("did:web:%s#habitat", domain))
 
 	// Habitat's single host signing key signs permissioned-repo commits for repo
@@ -339,7 +315,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 	notifyServer := notify.NewServer(notifyStore, authn.NewSpaceCredentialAuthMethod(defaultDir))
 
-	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
+	relationshipStore := relationship.NewStore(db, spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
 		relationshipStore,
 		fgaStore,
@@ -347,14 +323,26 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		serviceAuth,
 	)
 
-	repo, err := repo.NewRepo(db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup repo: %w", err)
-	}
+	repo := repo.NewRepo(db)
+	permissions := permissions.NewStore(db, cliqueStore)
 
-	permissions, err := permissions.NewStore(db, cliqueStore)
-	if err != nil {
-		return fmt.Errorf("create permission store: %w", err)
+	// AutoMigrate all database models at once
+	if err := habitatdb.AutoMigrate(startupCtx, db,
+		instanceAdminStore,
+		pdsCredStore,
+		hive,
+		passwordProvider,
+		orgStore,
+		googleLoginProvider,
+		oauthServer,
+		cliqueStore,
+		eventStore,
+		notifyStore,
+		spacesStore,
+		repo,
+		permissions,
+	); err != nil {
+		return fmt.Errorf("migrate database: %w", err)
 	}
 
 	pear := pear.NewPear(hiveDir, permissions, repo)
@@ -544,7 +532,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		Addr:    fmt.Sprintf(":%s", port),
 	}
 
-	eg, egCtx := errgroup.WithContext(startupCtx)
+	eg, egCtx := errgroup.WithContext(notifyCtx)
 	eg.Go(func() error {
 		slog.InfoContext(egCtx, "starting sequencer")
 		return eventStore.StartSequencer(egCtx)
@@ -575,7 +563,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	err = eg.Wait()
 	if !errors.Is(err, context.Canceled) {
-		slog.ErrorContext(startupCtx, "server shut down returned an error", "err", err)
+		slog.ErrorContext(notifyCtx, "server shut down returned an error", "err", err)
 	}
 	return err
 }
@@ -608,7 +596,7 @@ func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
 	dsn := cmd.String(fDB)
 	// Share the main Postgres database for FGA when one is configured; only fall
 	// back to a separate SQLite file when the main store is SQLite.
-	if db.ParseDialect(dsn) == db.Postgres {
+	if habitatdb.ParseDialect(dsn) == habitatdb.Postgres {
 		fga, err := fgastore.NewPostgres(ctx, dsn)
 		if err != nil {
 			return nil, fmt.Errorf("setup fga store with postgres: %w", err)

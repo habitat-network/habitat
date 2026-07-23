@@ -88,10 +88,7 @@ func NewStore(
 	pearDomain string,
 	passwordProvider *login.PasswordLoginProvider,
 	fga fgastore.Store,
-) (Store, error) {
-	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
-		return nil, err
-	}
+) *storeImpl {
 	return &storeImpl{
 		db:               db,
 		hive:             hve,
@@ -100,7 +97,11 @@ func NewStore(
 		everyone:         NewEveryoneOrg(),
 		passwordProvider: passwordProvider,
 		fga:              fga,
-	}, nil
+	}
+}
+
+func (s *storeImpl) Models() []any {
+	return []any{&organization{}, &member{}, &spentToken{}}
 }
 
 func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {

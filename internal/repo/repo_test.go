@@ -4,21 +4,29 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/permissions"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 )
 
+func newTestRepo(t *testing.T) Repo {
+	t.Helper()
+	db := testutil.NewDB(t)
+	r := NewRepo(db)
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, r))
+	return r
+}
+
 func TestRepoPutAndGetRecord(t *testing.T) {
-	repo, err := NewRepo(testutil.NewDB(t))
-	require.NoError(t, err)
+	repo := newTestRepo(t)
 
 	collection := "test.collection"
 	key := "test-key"
 	val := map[string]any{"data": "value", "data-1": float64(123), "data-2": true}
 
-	_, err = repo.PutRecord(t.Context(), Record{
+	_, err := repo.PutRecord(t.Context(), Record{
 		Did:        "my-did",
 		Collection: collection,
 		Rkey:       key,
@@ -43,9 +51,8 @@ func TestRepoPutAndGetRecord(t *testing.T) {
 
 func TestRepoListRecords(t *testing.T) {
 	ctx := t.Context()
-	repo, err := NewRepo(testutil.NewDB(t))
-	require.NoError(t, err)
-	_, err = repo.PutRecord(
+	repo := newTestRepo(t)
+	_, err := repo.PutRecord(
 		t.Context(),
 		Record{
 			"my-did",
@@ -106,8 +113,7 @@ func TestRepoListRecords(t *testing.T) {
 
 func TestRepoListCollections(t *testing.T) {
 	ctx := t.Context()
-	repo, err := NewRepo(testutil.NewDB(t))
-	require.NoError(t, err)
+	repo := newTestRepo(t)
 
 	did := syntax.DID("did:plc:testuser")
 
@@ -122,7 +128,7 @@ func TestRepoListCollections(t *testing.T) {
 		{Did: string(did), Collection: "network.habitat.alpha", Rkey: "key-2", Value: map[string]any{"x": "2"}},
 		{Did: string(did), Collection: "network.habitat.beta", Rkey: "key-1", Value: map[string]any{"x": "3"}},
 	} {
-		_, err = repo.PutRecord(ctx, rec, nil)
+		_, err := repo.PutRecord(ctx, rec, nil)
 		require.NoError(t, err)
 	}
 
@@ -158,8 +164,7 @@ func TestRepoListCollections(t *testing.T) {
 }
 
 func TestRepoUploadAndGetBlob(t *testing.T) {
-	repo, err := NewRepo(testutil.NewDB(t))
-	require.NoError(t, err)
+	repo := newTestRepo(t)
 
 	did := "did:plc:testuser"
 	data := []byte("hello blob world")
@@ -208,8 +213,7 @@ func TestRepoUploadAndGetBlob(t *testing.T) {
 
 func TestListRecords(t *testing.T) {
 	ctx := t.Context()
-	repo, err := NewRepo(testutil.NewDB(t))
-	require.NoError(t, err)
+	repo := newTestRepo(t)
 
 	did := "did:plc:testuser"
 	coll1 := "network.habitat.alpha"
@@ -220,7 +224,7 @@ func TestListRecords(t *testing.T) {
 		{Did: did, Collection: coll1, Rkey: "key-2", Value: map[string]any{"x": "2"}},
 		{Did: did, Collection: coll2, Rkey: "key-1", Value: map[string]any{"x": "3"}},
 	} {
-		_, err = repo.PutRecord(ctx, rec, nil)
+		_, err := repo.PutRecord(ctx, rec, nil)
 		require.NoError(t, err)
 	}
 
@@ -256,8 +260,7 @@ func TestListRecords(t *testing.T) {
 //  2. link rows use DoNothing — putting the same blob-referencing record twice must
 //     not produce a duplicate-key error or a duplicate link row.
 func TestPutRecordOnConflict(t *testing.T) {
-	repo, err := NewRepo(testutil.NewDB(t))
-	require.NoError(t, err)
+	repo := newTestRepo(t)
 
 	ctx := t.Context()
 	did := "did:plc:onconflict"
@@ -344,8 +347,7 @@ func TestPutRecordOnConflict(t *testing.T) {
 
 func TestCreateRecord(t *testing.T) {
 	ctx := t.Context()
-	repo, err := NewRepo(testutil.NewDB(t))
-	require.NoError(t, err)
+	repo := newTestRepo(t)
 
 	did := "did:plc:testuser"
 	collection := "network.habitat.test"
@@ -409,8 +411,7 @@ func TestCreateRecord(t *testing.T) {
 }
 
 func TestDeleteRecord(t *testing.T) {
-	repo, err := NewRepo(testutil.NewDB(t))
-	require.NoError(t, err)
+	repo := newTestRepo(t)
 
 	ownerDID := syntax.DID("did:example:owner")
 
@@ -419,7 +420,7 @@ func TestDeleteRecord(t *testing.T) {
 	validate := true
 	val := map[string]any{"key": "val"}
 
-	_, err = repo.PutRecord(t.Context(), Record{
+	_, err := repo.PutRecord(t.Context(), Record{
 		Did:        string(ownerDID),
 		Collection: coll.String(),
 		Rkey:       rkey.String(),

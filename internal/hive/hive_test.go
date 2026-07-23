@@ -7,14 +7,16 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
 )
 
 func newTestHive(t *testing.T, memberDomain, pearDomain string) Hive {
 	t.Helper()
-	h, err := NewHive(memberDomain, pearDomain, testutil.NewDB(t))
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
+	h := NewHive(memberDomain, pearDomain, db)
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, h))
 	return h
 }
 

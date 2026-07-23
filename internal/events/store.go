@@ -79,11 +79,7 @@ type storeImpl struct {
 	subscribers   map[*utils.PollNotifier]struct{}
 }
 
-func NewStore(db *gorm.DB) (Store, error) {
-	err := db.AutoMigrate(&eventEntry{})
-	if err != nil {
-		return nil, err
-	}
+func NewStore(db *gorm.DB) *storeImpl {
 	seqNotif := utils.NewPollNotifier()
 	seqNotif.Notify() // initial notification
 	return &storeImpl{
@@ -91,7 +87,11 @@ func NewStore(db *gorm.DB) (Store, error) {
 		seqNotif:      seqNotif,
 		subscribers:   map[*utils.PollNotifier]struct{}{},
 		subscribersMu: new(sync.RWMutex),
-	}, nil
+	}
+}
+
+func (s *storeImpl) Models() []any {
+	return []any{&eventEntry{}}
 }
 
 // AppendSpaceEvent implements [Store].

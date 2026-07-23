@@ -20,18 +20,18 @@ type PDSCredentialStore interface {
 func NewPDSCredentialStore(
 	db *gorm.DB,
 	encryptionKey []byte,
-) (PDSCredentialStore, error) {
+) (*pdsCredentialStore, error) {
 	if encryptionKey == nil {
 		return nil, fmt.Errorf("encryption key is required")
-	}
-	// Run migrations
-	if err := db.AutoMigrate(&pdsCredentialsModel{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 	return &pdsCredentialStore{
 		db:            db,
 		encryptionKey: encryptionKey,
 	}, nil
+}
+
+func (s *pdsCredentialStore) Models() []any {
+	return []any{&pdsCredentialsModel{}}
 }
 
 type pdsCredentialStore struct {

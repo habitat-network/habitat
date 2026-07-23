@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/stretchr/testify/require"
@@ -53,14 +54,16 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 
 func TestGoogleProvider_Exchange(t *testing.T) {
 	clientID := "test-client-id.apps.googleusercontent.com"
+	db := testutil.NewDB(t)
 	p, err := NewGoogleProvider(
 		clientID,
 		"test-secret",
 		"https://example.com/callback",
-		testutil.NewDB(t),
+		db,
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, p))
 
 	idToken := makeIDToken(clientID, "user@gmail.com")
 
@@ -85,7 +88,7 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	)
 	defer tokenServer.Close()
 
-	gp := p.(*googleProvider)
+	gp := p
 	gp.oauthCfg.Endpoint.TokenURL = tokenServer.URL
 
 	_, state, err := p.Authorize(t.Context(), "")

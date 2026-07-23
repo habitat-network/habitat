@@ -22,6 +22,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/authn"
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
+	habitatdb "github.com/habitat-network/habitat/internal/db"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -243,10 +244,9 @@ func setupPear(
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
 
-	orgHive, err := hive.NewHive("hive.domain", strings.TrimPrefix(server.URL, "https://"), db)
-	require.NoError(t, err)
+	orgHive := hive.NewHive("hive.domain", strings.TrimPrefix(server.URL, "https://"), db)
 
-	orgStore, err := org.NewStore(
+	orgStore := org.NewStore(
 		db,
 		orgHive,
 		orgHive,
@@ -254,6 +254,7 @@ func setupPear(
 		nil,
 		fgaStore,
 	)
+
 	require.NoError(t, err)
 
 	pds := login_testutil.NewPassthroughProvider(t)
@@ -272,6 +273,7 @@ func setupPear(
 		oauthserver.NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
+	require.NoError(t, habitatdb.AutoMigrate(t.Context(), db, orgHive, orgStore, oauthServer))
 
 	spacesStore := testutil.NewTestStore(t)
 

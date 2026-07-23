@@ -38,12 +38,9 @@ func NewGoogleProvider(
 	clientID, clientSecret, redirectURL string,
 	db *gorm.DB,
 	encryptionKey []byte,
-) (Provider, error) {
+) (*googleProvider, error) {
 	if encryptionKey == nil {
 		return nil, fmt.Errorf("encryption key is required")
-	}
-	if err := db.AutoMigrate(&googleCredentialsModel{}); err != nil {
-		return nil, fmt.Errorf("migrate google credentials table: %w", err)
 	}
 	return &googleProvider{
 		oauthCfg: &oauth2.Config{
@@ -59,6 +56,10 @@ func NewGoogleProvider(
 		db:            db,
 		encryptionKey: encryptionKey,
 	}, nil
+}
+
+func (p *googleProvider) Models() []any {
+	return []any{&googleCredentialsModel{}}
 }
 
 func (p *googleProvider) Authorize(
