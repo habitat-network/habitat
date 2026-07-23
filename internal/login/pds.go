@@ -24,9 +24,6 @@ func (p *pdsProvider) Authorize(
 	ctx context.Context,
 	loginHint string,
 ) (string, []byte, error) {
-	if p.client == nil {
-		return "", nil, fmt.Errorf("oauth client not configured")
-	}
 	// loginHint is the member's LoginID (a DID or handle). The OAuth client
 	// resolves it to the right PDS and starts the auth flow. An empty hint
 	// (e.g. authing an org where any admin will do) can't be resolved to a PDS.
@@ -49,9 +46,6 @@ func (p *pdsProvider) Exchange(
 	query url.Values,
 	_ []byte,
 ) (loginID string, err error) {
-	if p.client == nil {
-		return "", fmt.Errorf("oauth client not configured")
-	}
 	did, err := p.client.ExchangeCode(
 		ctx,
 		query.Get("code"),

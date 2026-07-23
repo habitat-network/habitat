@@ -37,13 +37,6 @@ func TestPDSProvider_Authorize_EmptyHint(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestPDSProvider_Authorize_NoClient(t *testing.T) {
-	p := NewPDSProvider(nil)
-	_, _, err := p.Authorize(context.Background(), "did:web:pds.example.com")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "oauth client not configured")
-}
-
 func TestPDSProvider_Exchange(t *testing.T) {
 	clientMetadata := &oauth.ClientMetadata{
 		RedirectURIs: []string{"https://pds.example.com/authorize"},
@@ -64,11 +57,4 @@ func TestPDSProvider_Exchange(t *testing.T) {
 	require.NoError(t, err)
 	// from dummy oauth client
 	require.Equal(t, pdsclient.DummyDID.String(), loginID)
-}
-
-func TestPDSProvider_Exchange_NoClient(t *testing.T) {
-	p := NewPDSProvider(nil)
-	_, err := p.Exchange(context.Background(), url.Values{}, nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "oauth client not configured")
 }
