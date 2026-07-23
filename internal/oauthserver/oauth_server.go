@@ -523,13 +523,7 @@ func logError(ctx context.Context, err error) {
 var _ authn.Method = (*OAuthServer)(nil)
 
 func (o *OAuthServer) CanHandle(r *http.Request) bool {
-	// The token may arrive under the Bearer or (from atproto clients) the DPoP
-	// auth scheme. Strip either prefix before parsing, and fall back to the
-	// Habitat-Auth-Method header if the token isn't a parseable oauth+JWT.
-	tokenStr := r.Header.Get("Authorization")
-	tokenStr = strings.TrimPrefix(tokenStr, "Bearer ")
-	tokenStr = strings.TrimPrefix(tokenStr, "DPoP ")
-	token, err := jwt.ParseSigned(tokenStr)
+	token, err := jwt.ParseSigned(tokenFromRequest(r))
 	if err == nil && token.Headers[0].ExtraHeaders["typ"] == "oauth+JWT" {
 		return true
 	}
@@ -542,16 +536,7 @@ func (o *OAuthServer) Validate(
 	r *http.Request,
 	scopes ...string,
 ) (*authn.CredentialInfo, bool) {
-	token := fosite.AccessTokenFromRequest(r)
-	if token == "" {
-		// The atproto OAuth client sends the access token with the DPoP auth
-		// scheme ("Authorization: DPoP <token>"), which fosite's bearer-only
-		// extractor ignores. Habitat does not enforce DPoP, so accept the token
-		// regardless of scheme.
-		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "DPoP ") {
-			token = strings.TrimPrefix(auth, "DPoP ")
-		}
-	}
+	token := tokenFromRequest(r)
 	credInfo, ok, err := o.ValidateRaw(r.Context(), token, scopes...)
 	if err != nil || !ok {
 		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, err)
@@ -565,6 +550,16 @@ func (o *OAuthServer) Validate(
 	}
 
 	return credInfo, true
+}
+
+func tokenFromRequest(r *http.Request) string {
+	// The token may arrive under the Bearer or (from atproto clients) the DPoP
+	// auth scheme. Strip either prefix before parsing, and fall back to the
+	// Habitat-Auth-Method header if the token isn't a parseable oauth+JWT.
+	tokenStr := r.Header.Get("Authorization")
+	tokenStr = strings.TrimPrefix(tokenStr, "Bearer ")
+	tokenStr = strings.TrimPrefix(tokenStr, "DPoP ")
+	return tokenStr
 }
 
 // ValidateRaw validates the given token and writes an error response to w if validation fails
@@ -613,13 +608,13 @@ func (o *OAuthServer) ValidateRaw(
 // HandleAuthServerMetadata serves the OAuth 2.0 Authorization Server Metadata
 // document at /.well-known/oauth-authorization-server.
 func (o *OAuthServer) HandleAuthServerMetadata(w http.ResponseWriter, r *http.Request) {
-	writeMetadataJSON(r.Context(), w, buildAuthServerMetadata(o.issuer))
+	httpx.WriteJSON(r.Context(), w, buildAuthServerMetadata(o.issuer))
 }
 
 // HandleProtectedResourceMetadata serves the OAuth 2.0 Protected Resource
 // Metadata document at /.well-known/oauth-protected-resource.
 func (o *OAuthServer) HandleProtectedResourceMetadata(w http.ResponseWriter, r *http.Request) {
-	writeMetadataJSON(r.Context(), w, buildProtectedResourceMetadata(o.issuer))
+	httpx.WriteJSON(r.Context(), w, buildProtectedResourceMetadata(o.issuer))
 }
 
 func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) {
