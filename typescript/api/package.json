@@ -10,7 +10,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.21.0",
+  "packageManager": "pnpm@10.34.5",
   "dependencies": {
     "@atproto/api": "catalog:",
     "@atproto/lexicon": "catalog:",
