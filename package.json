@@ -9,11 +9,11 @@
   "devDependencies": {
     "@atproto/api": "catalog:",
     "@atproto/lexicon": "catalog:",
-    "@atproto/xrpc": "^0.8.0",
+    "@atproto/xrpc": "^0.8.6",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "oxlint": "^1.28.0",
+    "oxlint": "^1.75.0",
     "prettier": "3.9.5",
     "typescript": "^5.9.3",
     "vite": "catalog:"
