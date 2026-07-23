@@ -42,4 +42,3 @@ tasks:
     options:
       runDepsInParallel: false
       cache: false
-      runInCI: false
