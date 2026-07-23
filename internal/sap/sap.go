@@ -1,3 +1,36 @@
+// Package sap implements the Sync Agent Process for Habitat. It crawls
+// managed organizations' AT Protocol repos, discovers spaces and their member
+// repositories, and keeps a local copy of each repo's records in sync via
+// live SSE subscriptions and periodic resyncs. The synced records are exposed
+// through a durable [Outbox] that consumers can poll for new events.
+//
+// # Lifecycle
+//
+// A typical integration creates a [Sap] with [NewSap], calls [Sap.AddManagedOrg]
+// for each organization the instance manages, and then calls [Sap.Start] to
+// begin background crawling, subscribing, and resyncing. The outbox is
+// accessible at any time through [Sap.Outbox].
+//
+// # Architecture
+//
+// The package is built around four cooperating subsystems:
+//
+//   - **Crawler** – performs a one-shot enumeration of every space and repo in
+//     a newly added org. Repos discovered during crawling are enqueued for
+//     resync.
+//   - **Subscriber** – opens a persistent SSE connection per org to receive
+//     real-time space events. Incoming events are either applied immediately
+//     (for repos that are already active) or buffered for later replay.
+//   - **Resyncer** – a worker pool that backfills repos from scratch or
+//     catches up repos that fell behind. It pulls work from a shared job
+//     queue that is fed by both the crawler and the subscriber.
+//   - **Outbox** – the consumer-facing API. It exposes a durable, ordered
+//     stream of record-level events that have been validated and written by
+//     the resyncer or subscriber.
+//
+// A [resyncBuffer] sits between the subscriber and the outbox, deciding per
+// event whether to apply it directly or hold it in a pending buffer while a
+// resync is in flight.
 package sap
 
 import (
