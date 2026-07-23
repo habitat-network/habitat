@@ -89,10 +89,9 @@ function InviteSection({
         },
       }).publicHref;
       if (import.meta.env.VITE_HASH_ROUTING) {
-        const basePath = new URL(import.meta.env.VITE_BASE_URL).pathname.replace(
-          /\/$/,
-          "",
-        );
+        const basePath = new URL(
+          import.meta.env.VITE_BASE_URL,
+        ).pathname.replace(/\/$/, "");
         setInviteUrl(`${window.location.origin}${basePath}/#${location}`);
       } else {
         setInviteUrl(`${window.location.origin}${location}`);
