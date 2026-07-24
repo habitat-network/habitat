@@ -18,14 +18,21 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
+// Auth methods a session can use to authenticate to its host.
+const (
+	AuthOAuth     = "oauth"
+	AuthJWTBearer = "jwt-bearer"
+)
+
 // session is an OAuth session sap holds credentials for: any user or org
 // account that completed the auth flow. sap authenticates to that account's
 // host with it.
 type session struct {
-	DID       syntax.DID `gorm:"column:did;primaryKey"`
-	SessionID string     // keys the oauth client's session store
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	DID        syntax.DID `gorm:"column:did;primaryKey"`
+	SessionID  string     // keys the oauth client's session store; empty for jwt-bearer
+	AuthMethod string     // AuthOAuth (default) or AuthJWTBearer
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 func (session) TableName() string { return "sap_sessions" }
@@ -45,27 +52,34 @@ func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&session{}, &spaceAccess{})
 }
 
+// JWTBearerClients builds an HTTP client that authenticates as a DID via the
+// JWT-bearer grant. Satisfied by jwtbearer.Builder; nil when unconfigured.
+type JWTBearerClients interface {
+	ClientForDID(ctx context.Context, did syntax.DID) (*http.Client, error)
+}
+
 // Store persists sessions and space access, and builds authenticated clients.
 type Store struct {
 	db     *gorm.DB
 	getter *getter
+	jwt    JWTBearerClients // may be nil
 }
 
-func NewStore(db *gorm.DB, oauth *oauth.ClientApp) *Store {
-	return &Store{db: db, getter: newGetter(oauth)}
+func NewStore(db *gorm.DB, oauth *oauth.ClientApp, jwt JWTBearerClients) *Store {
+	return &Store{db: db, getter: newGetter(oauth), jwt: jwt}
 }
 
 // WithTx returns a Store scoped to the given transaction.
 func (s *Store) WithTx(tx *gorm.DB) *Store {
-	return &Store{db: tx, getter: s.getter}
+	return &Store{db: tx, getter: s.getter, jwt: s.jwt}
 }
 
-// Add upserts a session for the account.
-func (s *Store) Add(ctx context.Context, did syntax.DID, sessionID string) error {
+// Add upserts a session for the account with the given auth method.
+func (s *Store) Add(ctx context.Context, did syntax.DID, sessionID, method string) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "did"}},
-		DoUpdates: clause.AssignmentColumns([]string{"session_id", "updated_at"}),
-	}).Create(&session{DID: did, SessionID: sessionID}).Error
+		DoUpdates: clause.AssignmentColumns([]string{"session_id", "auth_method", "updated_at"}),
+	}).Create(&session{DID: did, SessionID: sessionID, AuthMethod: method}).Error
 }
 
 // List returns the DIDs of all sessions.
@@ -80,11 +94,17 @@ func (s *Store) List(ctx context.Context) ([]syntax.DID, error) {
 }
 
 // ClientForSession returns an HTTP client authenticated as the session's
-// account against its host.
+// account against its host, using the session's recorded auth method.
 func (s *Store) ClientForSession(ctx context.Context, did syntax.DID) (*http.Client, error) {
 	var sess session
 	if err := s.db.WithContext(ctx).First(&sess, "did = ?", did).Error; err != nil {
 		return nil, fmt.Errorf("load session %s: %w", did, err)
+	}
+	if sess.AuthMethod == AuthJWTBearer {
+		if s.jwt == nil {
+			return nil, fmt.Errorf("jwt-bearer client not configured for %s", did)
+		}
+		return s.jwt.ClientForDID(ctx, did)
 	}
 	resumed, err := s.getter.resume(ctx, sess.DID, sess.SessionID)
 	if err != nil {

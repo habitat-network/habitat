@@ -90,7 +90,7 @@ func New(config Config) (*Sap, error) {
 		tracer = tracenoop.NewTracerProvider().Tracer("sap")
 	}
 
-	sessions := session.NewStore(config.DB, config.OAuthClient)
+	sessions := session.NewStore(config.DB, config.OAuthClient, nil)
 	ob := outbox.NewStore(config.DB, utils.NewPollNotifier())
 
 	syncMetrics, err := syncer.NewMetrics(config.Meter, config.Tracer)
@@ -194,7 +194,7 @@ func (s *Sap) recrawlLoop(ctx context.Context) {
 // AddSession registers an authenticated session (after the caller completed
 // the OAuth flow) and kicks off its backfill crawl in the background.
 func (s *Sap) AddSession(ctx context.Context, did syntax.DID, sessionID string) error {
-	if err := s.sessions.Add(ctx, did, sessionID); err != nil {
+	if err := s.sessions.Add(ctx, did, sessionID, session.AuthOAuth); err != nil {
 		return fmt.Errorf("add session: %w", err)
 	}
 	go s.crawler.Run(detachSpan(ctx), did)

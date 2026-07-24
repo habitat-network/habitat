@@ -1,14 +1,17 @@
 package session
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
@@ -47,7 +50,7 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	s := NewStore(db, oauth.NewClientApp(&cfg, oauthStore))
+	s := NewStore(db, oauth.NewClientApp(&cfg, oauthStore), nil)
 
 	require.NoError(t, oauthStore.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:              "did:plc:alice",
@@ -56,7 +59,7 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 		AccessToken:             testJWT(t),
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
-	require.NoError(t, s.Add(t.Context(), "did:plc:alice", "sess1"))
+	require.NoError(t, s.Add(t.Context(), "did:plc:alice", "sess1", AuthOAuth))
 
 	dids, err := s.List(t.Context())
 	require.NoError(t, err)
@@ -80,4 +83,30 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	spaces, err = s.Spaces(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, spaces)
+}
+
+type fakeJWTClients struct {
+	client *http.Client
+	calls  int
+}
+
+func (f *fakeJWTClients) ClientForDID(ctx context.Context, did syntax.DID) (*http.Client, error) {
+	f.calls++
+	return f.client, nil
+}
+
+func TestClientForSessionDispatchesJWTBearer(t *testing.T) {
+	db := db_testutil.NewDB(t)
+	require.NoError(t, AutoMigrate(db))
+	sentinel := &http.Client{}
+	jwt := &fakeJWTClients{client: sentinel}
+	store := NewStore(db, nil, jwt)
+
+	did := syntax.DID("did:web:member.example")
+	require.NoError(t, store.Add(t.Context(), did, "", AuthJWTBearer))
+
+	got, err := store.ClientForSession(t.Context(), did)
+	require.NoError(t, err)
+	require.Same(t, sentinel, got)
+	require.Equal(t, 1, jwt.calls)
 }
