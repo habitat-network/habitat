@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	crand "crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -17,6 +21,7 @@ import (
 	"github.com/habitat-network/habitat/internal/log"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/internal/sap/jwtbearer"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/urfave/cli/v3"
 	"go.opentelemetry.io/otel"
@@ -86,11 +91,19 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	// notifySpaceDeleted against; the XRPC handlers hang off it.
 	endpoint := "https://" + domain
 
+	signingKey, err := loadOrGenerateES256(cmd.String(fJwtSigningKey))
+	if err != nil {
+		return fmt.Errorf("load jwt signing key: %w", err)
+	}
+	clientID := "https://" + domain + "/client-metadata.json"
+	jwtBuilder := jwtbearer.New(clientID, signingKey, dir)
+
 	s, err := sap.New(sap.Config{
 		DB:          db,
 		OAuthClient: oauthApp,
 		Directory:   dir,
 		Endpoint:    endpoint,
+		JWTBearer:   jwtBuilder,
 		Meter:       otel.Meter("sap"),
 		Tracer:      otel.Tracer("sap"),
 	})
@@ -98,7 +111,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	server := NewSapServer(s, oauthApp, &auth.ServiceAuthValidator{
+	server := NewSapServer(s, oauthApp, jwtBuilder, domain, &auth.ServiceAuthValidator{
 		Dir:      dir,
 		Audience: endpoint,
 	})
@@ -119,6 +132,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	internalMux := http.NewServeMux()
 	internalMux.HandleFunc("/health", server.handleHealth)
 	internalMux.HandleFunc("/session/add", server.handleAddSession)
+	internalMux.HandleFunc("/session/jwt", server.handleAddJWTSession)
 	internalMux.HandleFunc("/session/list", server.handleListSessions)
 	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
 	internalMux.HandleFunc("/proxy/", server.handleProxy)
@@ -153,4 +167,20 @@ func serve(ctx context.Context, addr string, handler http.Handler) error {
 	go func() { _ = srv.ListenAndServe() }()
 	<-ctx.Done()
 	return srv.Shutdown(ctx)
+}
+
+// loadOrGenerateES256 decodes a base64-encoded raw P-256 private key for the
+// JWT-bearer confidential client, or generates an ephemeral one if encoded is
+// empty (suitable for local dev; production deployments should pass a stable
+// key so the client's identity — and any host-side key pinning — survives
+// restarts).
+func loadOrGenerateES256(encoded string) (*ecdsa.PrivateKey, error) {
+	if encoded == "" {
+		return ecdsa.GenerateKey(elliptic.P256(), crand.Reader)
+	}
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("decode key: %w", err)
+	}
+	return ecdsa.ParseRawPrivateKey(elliptic.P256(), raw)
 }

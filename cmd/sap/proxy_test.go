@@ -73,7 +73,7 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 
-	server := NewSapServer(s, oauthApp, nil)
+	server := NewSapServer(s, oauthApp, nil, "example.com", nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/proxy/", server.handleProxy)
 	httpServer := httptest.NewServer(mux)

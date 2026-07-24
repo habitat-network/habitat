@@ -29,6 +29,7 @@ import (
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/sap/session"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -156,7 +157,7 @@ func TestSap(t *testing.T) {
 		AccessToken:             futureJWT(t),
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
-	require.NoError(t, s.AddSession(t.Context(), author, "sess1"))
+	require.NoError(t, s.AddSession(t.Context(), author, "sess1", session.AuthOAuth))
 
 	// 5. The crawl registers every discovered space for notifications.
 	require.Eventually(t, func() bool {

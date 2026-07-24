@@ -12,9 +12,13 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/internal/sap/jwtbearer"
+	"github.com/habitat-network/habitat/internal/sap/session"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -34,6 +38,12 @@ var hopByHopHeaders = []string{
 type server struct {
 	sap         *sap.Sap
 	oauthClient *oauth.ClientApp
+	// jwt builds sap's JWT-bearer confidential-client assertions and serves
+	// its public key for the client-metadata JWKS.
+	jwt *jwtbearer.Builder
+	// domain is sap's publicly-accessible domain, used to build its
+	// client-metadata document.
+	domain string
 	// serviceAuth validates the service-auth JWTs on inbound notifyWrite /
 	// notifySpaceDeleted calls from space hosts.
 	serviceAuth *auth.ServiceAuthValidator
@@ -42,11 +52,15 @@ type server struct {
 func NewSapServer(
 	sapInstance *sap.Sap,
 	oauthClient *oauth.ClientApp,
+	jwt *jwtbearer.Builder,
+	domain string,
 	serviceAuth *auth.ServiceAuthValidator,
 ) *server {
 	return &server{
 		sap:         sapInstance,
 		oauthClient: oauthClient,
+		jwt:         jwt,
+		domain:      domain,
 		serviceAuth: serviceAuth,
 	}
 }
@@ -99,15 +113,34 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.sap.AddSession(
-		r.Context(),
-		sessionData.AccountDID,
-		sessionData.SessionID,
+		r.Context(), sessionData.AccountDID, sessionData.SessionID, session.AuthOAuth,
 	); err != nil {
 		http.Error(w, fmt.Sprintf("save session: %s", err), http.StatusInternalServerError)
 		return
 	}
 
 	slog.InfoContext(r.Context(), "session oauth complete", "did", sessionData.AccountDID)
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleAddJWTSession registers a jwt-bearer session for a DID directly (no
+// OAuth redirect); sap authenticates to the DID's host via the JWT-bearer grant.
+func (s *server) handleAddJWTSession(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		DID string `json:"did"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	did, ok := httpx.ParseDIDInput(r.Context(), w, req.DID, "did")
+	if !ok {
+		return
+	}
+	if err := s.sap.AddSession(r.Context(), did, "", session.AuthJWTBearer); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -204,8 +237,29 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleClientMetadata serves sap's atproto confidential-client metadata
+// document, used by hosts to fetch sap's JWKS when validating its JWT-bearer
+// assertions. See https://atproto.com/specs/oauth.
 func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
-	httpx.WriteJSON(r.Context(), w, s.oauthClient.Config.ClientMetadata())
+	clientID := "https://" + s.domain + "/client-metadata.json"
+	httpx.WriteJSON(r.Context(), w, &pdsclient.ClientMetadata{
+		ClientId:        clientID,
+		ClientName:      "Habitat Sap",
+		ClientUri:       "https://" + s.domain,
+		ApplicationType: "web",
+		GrantTypes: []string{
+			"authorization_code",
+			"refresh_token",
+			"urn:ietf:params:oauth:grant-type:jwt-bearer",
+		},
+		Scope:                   "atproto",
+		ResponseTypes:           []string{"code"},
+		RedirectUris:            []string{"https://" + s.domain + "/oauth-callback"},
+		TokenEndpointAuthMethod: "private_key_jwt",
+		TokenEndpointAuthSigner: "ES256",
+		DpopBoundAccessTokens:   true,
+		Jwks:                    &jose.JSONWebKeySet{Keys: []jose.JSONWebKey{s.jwt.PublicJWK()}},
+	})
 }
 
 // authorizeNotify validates the request's service-auth token for the given

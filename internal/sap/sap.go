@@ -55,6 +55,10 @@ type Config struct {
 	// created since the last crawl (default 1h).
 	CrawlInterval time.Duration
 
+	// JWTBearer, when set, lets sessions authenticate to their host via the
+	// JWT-bearer grant instead of OAuth. Chosen per session (see AddSession).
+	JWTBearer session.JWTBearerClients
+
 	Meter  metric.Meter
 	Tracer trace.Tracer
 }
@@ -90,7 +94,7 @@ func New(config Config) (*Sap, error) {
 		tracer = tracenoop.NewTracerProvider().Tracer("sap")
 	}
 
-	sessions := session.NewStore(config.DB, config.OAuthClient, nil)
+	sessions := session.NewStore(config.DB, config.OAuthClient, config.JWTBearer)
 	ob := outbox.NewStore(config.DB, utils.NewPollNotifier())
 
 	syncMetrics, err := syncer.NewMetrics(config.Meter, config.Tracer)
@@ -191,10 +195,10 @@ func (s *Sap) recrawlLoop(ctx context.Context) {
 	}
 }
 
-// AddSession registers an authenticated session (after the caller completed
-// the OAuth flow) and kicks off its backfill crawl in the background.
-func (s *Sap) AddSession(ctx context.Context, did syntax.DID, sessionID string) error {
-	if err := s.sessions.Add(ctx, did, sessionID, session.AuthOAuth); err != nil {
+// AddSession registers an authenticated session and kicks off its backfill
+// crawl. method is session.AuthOAuth or session.AuthJWTBearer.
+func (s *Sap) AddSession(ctx context.Context, did syntax.DID, sessionID, method string) error {
+	if err := s.sessions.Add(ctx, did, sessionID, method); err != nil {
 		return fmt.Errorf("add session: %w", err)
 	}
 	go s.crawler.Run(detachSpan(ctx), did)

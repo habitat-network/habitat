@@ -3,12 +3,13 @@ package main
 import "github.com/urfave/cli/v3"
 
 var (
-	fDB           = "db"
-	fPort         = "port"
-	fInternalPort = "internal-port"
-	fDomain       = "domain"
-	fLogLevel     = "log-level"
-	fSecret       = "secret"
+	fDB            = "db"
+	fPort          = "port"
+	fInternalPort  = "internal-port"
+	fDomain        = "domain"
+	fLogLevel      = "log-level"
+	fSecret        = "secret"
+	fJwtSigningKey = "jwt-signing-key"
 )
 
 func getFlags() []cli.Flag {
@@ -48,6 +49,11 @@ func getFlags() []cli.Flag {
 			Usage:   "Secret used in OAuth flow",
 			Value:   "secret",
 			Sources: cli.EnvVars("SAP_SECRET"),
+		},
+		&cli.StringFlag{
+			Name:    fJwtSigningKey,
+			Usage:   "Base64-encoded raw P-256 (ES256) private key for the JWT-bearer confidential client. Generated ephemerally if empty.",
+			Sources: cli.EnvVars("SAP_JWT_SIGNING_KEY"),
 		},
 	}
 }

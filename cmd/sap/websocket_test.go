@@ -37,7 +37,7 @@ func openOutboxTestServer(t *testing.T) (*httptest.Server, *sap.Sap, *gorm.DB) {
 	})
 	require.NoError(t, err)
 
-	server := NewSapServer(s, oauthApp, nil)
+	server := NewSapServer(s, oauthApp, nil, "example.com", nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/channel", server.handleOutboxChannel)
 	httpServer := httptest.NewServer(mux)
