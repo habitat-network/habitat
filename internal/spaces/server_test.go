@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipld/go-car"
 	"github.com/stretchr/testify/require"
+	"gocloud.dev/blob/memblob"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -53,6 +55,7 @@ func newTestServerWithSigners(
 		org_testutil.NewTestStore(t),
 		host,
 		h,
+		spaces.NewBlobStore(memblob.OpenBucket(nil)),
 	), sp
 }
 
@@ -88,6 +91,40 @@ func TestServer_CreateSpace(t *testing.T) {
 	err := json.NewDecoder(w.Body).Decode(&output)
 	require.NoError(t, err)
 	require.Contains(t, output.Uri, "ats://did:web:public.habitat.network/network.habitat.group/")
+}
+
+func TestServer_UploadAndGetBlob(t *testing.T) {
+	s, store := newOwnerServer(t)
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "blobs")
+	require.NoError(t, err)
+
+	// Upload a blob.
+	upReq := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.repo.uploadBlob",
+		strings.NewReader("hello blobs"),
+	)
+	upReq.Header.Set("Content-Type", "text/plain")
+	upW := httptest.NewRecorder()
+	s.UploadBlob(upW, upReq)
+	require.Equal(t, http.StatusOK, upW.Code)
+
+	var out habitat.NetworkHabitatRepoUploadBlobOutput
+	require.NoError(t, json.NewDecoder(upW.Body).Decode(&out))
+	require.NotEmpty(t, out.Cid)
+
+	// Get it back through the space.
+	getURL := "/xrpc/network.habitat.space.getBlob?space=" +
+		url.QueryEscape(uri.String()) + "&cid=" + out.Cid
+	getW := httptest.NewRecorder()
+	s.GetBlob(getW, httptest.NewRequest(http.MethodGet, getURL, nil))
+
+	require.Equal(t, http.StatusOK, getW.Code)
+	require.Equal(t, "text/plain", getW.Header().Get("Content-Type"))
+	body, err := io.ReadAll(getW.Body)
+	require.NoError(t, err)
+	require.Equal(t, "hello blobs", string(body))
 }
 
 func TestServer_ListSpaces(t *testing.T) {

@@ -24,6 +24,7 @@ var (
 	fAdminPassword      = "admin_password"
 	fUiDevProxy         = "ui_dev_proxy"
 	fBuiltinApps        = "builtin_app"
+	fBlobBucket         = "blob_bucket"
 )
 
 var profiles []string
@@ -129,6 +130,12 @@ func getFlags() []cli.Flag {
 			Usage:   "Database connection string",
 			Value:   "sqlite://repo.db",
 			Sources: getSources(fDB),
+		},
+		&cli.StringFlag{
+			Name:    fBlobBucket,
+			Usage:   "gocloud.dev bucket connection string for blob storage, with inline credentials (e.g. s3://bucket?region=us-east-1, gs://bucket, file:///var/blobs). Defaults to an in-memory store.",
+			Value:   "mem://",
+			Sources: getSources(fBlobBucket),
 		},
 	}
 }

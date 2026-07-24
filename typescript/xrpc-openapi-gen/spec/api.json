@@ -6367,6 +6367,114 @@
         }
       }
     },
+    "/network.habitat.space.getBlob": {
+      "get": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.getBlob",
+        "description": "Get a blob stored within a permissioned space, addressed by its CID. Requires read access to the space.",
+        "operationId": "network.habitat.space.getBlob",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Reference to the space the blob belongs to.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Reference to the space the blob belongs to.",
+              "format": "at-uri"
+            }
+          },
+          {
+            "name": "cid",
+            "in": "query",
+            "description": "The CID of the blob to fetch.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The CID of the blob to fetch.",
+              "format": "cid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {}
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "BlobNotFound"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.getRecord": {
       "get": {
         "tags": [
