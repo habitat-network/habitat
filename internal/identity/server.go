@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -181,20 +182,6 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(ident.DID.String()))
 }
 
-type resolveDIDOutput struct {
-	DIDDoc didDocWithContext `json:"didDoc"`
-}
-
-type resolveHandleOutput struct {
-	DID string `json:"did"`
-}
-
-type identityInfo struct {
-	DID    string            `json:"did"`
-	Handle string            `json:"handle"`
-	DIDDoc didDocWithContext `json:"didDoc"`
-}
-
 // ResolveDID implements com.atproto.identity.resolveDid.
 func (s *Server) ResolveDID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -220,8 +207,8 @@ func (s *Server) ResolveDID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpx.WriteJSON(ctx, w, resolveDIDOutput{
-		DIDDoc: s.didDocumentWithContext(ident),
+	httpx.WriteJSON(ctx, w, atproto.IdentityResolveDid_Output{
+		DidDoc: s.didDocumentWithContext(ident),
 	})
 }
 
@@ -250,8 +237,8 @@ func (s *Server) ResolveHandle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpx.WriteJSON(ctx, w, resolveHandleOutput{
-		DID: ident.DID.String(),
+	httpx.WriteJSON(ctx, w, atproto.IdentityResolveHandle_Output{
+		Did: ident.DID.String(),
 	})
 }
 
@@ -284,10 +271,10 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpx.WriteJSON(ctx, w, identityInfo{
-		DID:    ident.DID.String(),
+	httpx.WriteJSON(ctx, w, atproto.IdentityDefs_IdentityInfo{
+		Did:    ident.DID.String(),
 		Handle: ident.Handle.String(),
-		DIDDoc: s.didDocumentWithContext(ident),
+		DidDoc: s.didDocumentWithContext(ident),
 	})
 }
 

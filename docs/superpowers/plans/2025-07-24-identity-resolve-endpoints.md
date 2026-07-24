@@ -4,7 +4,7 @@
 
 **Goal:** Add `com.atproto.identity.resolveDid`, `com.atproto.identity.resolveHandle`, and `com.atproto.identity.resolveIdentity` XRPC endpoints that resolve AT Protocol identities using hive (local) with fallback to the public AT Protocol directory.
 
-**Architecture:** Lexicon JSON files are added to `lexicons/com/atproto/identity/` for spec compliance. Handler methods are added to the existing `internal/identity/server.go`. The server struct gets a new `directory` field (an `identity.Directory`) that wraps hive + default directory for fallback resolution. Routes are registered in `cmd/pear/main.go`. No code generation is needed since `com.atproto.*` lexicons are not in the lexgen config — types are defined inline in the handler file.
+**Architecture:** Lexicon JSON files are added to `lexicons/com/atproto/identity/` for spec compliance. Handler methods are added to the existing `internal/identity/server.go`. The server struct gets a new `directory` field (an `identity.Directory`) that wraps hive + default directory for fallback resolution. Routes are registered in `cmd/pear/main.go`. Response structs use the generated types from `github.com/bluesky-social/indigo/api/atproto`.
 
 **Tech Stack:** Go, gorilla/mux, indigo identity/syntax packages, hive
 
@@ -473,7 +473,7 @@ git commit -m "fix: address lint issues in identity resolve handlers"
 
 ## Design Decisions
 
-1. **No code generation** — `com.atproto.*` lexicons are not in `lexgen.json`. Types are defined inline in `server.go` since they're small (3 output structs). Adding `com.atproto.*` to lexgen would generate types for all existing `com.atproto.repo.*` lexicons too, which is unnecessary churn.
+1. **Use generated indigo types** — Handler responses use the generated `github.com/bluesky-social/indigo/api/atproto` structs (`IdentityResolveDid_Output`, `IdentityResolveHandle_Output`, and `IdentityDefs_IdentityInfo`) instead of local response types.
 
 2. **`identity.Directory` over raw `hive.Hive`** — The new handlers use `s.directory` (a `WrappedDirectory` = hive + default directory) instead of `s.hive` directly. This means habitat-hosted identities resolve locally via hive first, and external DIDs/handles fall back to the public AT Protocol directory. The existing `ServeDIDDoc` and `ServeHandle` methods continue using `s.hive` directly since they only serve habitat identities.
 
