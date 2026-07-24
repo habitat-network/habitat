@@ -789,8 +789,6 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case err == nil:
 			output.Commit = commit
-		case errors.Is(err, errEmptyRepo), errors.Is(err, spacecommit.ErrNoSigner):
-			// Repo holds no records, or no signer covers the owner; omit the commit.
 		default:
 			httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))
 			return
@@ -837,6 +835,53 @@ func (s *Server) buildRepoCommit(
 		Sig:  commit.Sig,
 		Rev:  commit.Rev,
 	}, nil
+}
+
+// GetLatestCommit returns the current signed commit over a repo's head state
+// within a space. It is callable with OAuth (for the caller's own data) or a
+// space credential (for syncing services); either way the caller must be a
+// member of the space.
+func (s *Server) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
+	if !ok {
+		return
+	}
+	var params habitat.NetworkHabitatSpaceGetLatestCommitParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid query params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
+		return
+	}
+	if !isMember {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
+		return
+	}
+
+	commit, err := s.buildRepoCommit(ctx, spaceURI, repoDID)
+	switch {
+	case err == nil:
+	case errors.Is(err, errEmptyRepo):
+		httpx.WriteRepoNotFound(ctx, w, err)
+		return
+	default:
+		httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))
+		return
+	}
+
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetLatestCommitOutput{Commit: commit})
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
