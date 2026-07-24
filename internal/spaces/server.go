@@ -786,8 +786,8 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	// so a syncer can authenticate the state it has folded up to this point.
 	if len(records) < limit {
 		commit, err := s.buildRepoCommit(ctx, spaceURI, repoDID)
-		switch {
-		case err == nil:
+		switch err {
+		case nil:
 			output.Commit = commit
 		default:
 			httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))

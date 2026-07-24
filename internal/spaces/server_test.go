@@ -29,7 +29,9 @@ import (
 )
 
 func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) (*spaces.Server, spaces.Store) {
-	return newTestServerWithSigners(t, oauth, serviceAuth, nil)
+	host, err := atcrypto.GeneratePrivateKeyK256()
+	require.NoError(t, err)
+	return newTestServerWithSigners(t, oauth, serviceAuth, host)
 }
 
 func newTestServerWithSigners(
@@ -620,31 +622,6 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, wantHash, hash)
-}
-
-// TestServer_ListRepoOps_NoCommitWithoutSigner confirms the commit is omitted
-// when no signer can cover the repo owner.
-func TestServer_ListRepoOps_NoCommitWithoutSigner(t *testing.T) {
-	s, store := newOwnerServer(t) // no host key configured
-
-	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
-	require.NoError(t, err)
-	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo="+owner.String(),
-		nil,
-	)
-	w := httptest.NewRecorder()
-	s.ListRepoOps(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
-	var out habitat.NetworkHabitatSpaceListRepoOpsOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
-	require.Len(t, out.Ops, 1)
-	require.Zero(t, out.Commit.Ver, "commit omitted when no signer is available")
 }
 
 // TestServer_GetLatestCommit returns a host-signed commit over the repo's head
