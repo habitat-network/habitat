@@ -42,7 +42,19 @@ Out of scope: OAuth/PDS login flows, the existing testcontainers harness
   `client-metadata.json` (at the clientID URL, over HTTPS) for its JWKS,
   validates the signed assertion, and issues an access token whose `sub` is the
   assertion's `subject` DID (`internal/oauthserver/{oauth_server,fosite_storage,
-  jwt_bearer_store}.go`). The subject DID must resolve to an org/member.
+  jwt_bearer_store}.go`). The subject DID must resolve to an org/member. The
+  grant uses `GrantTypeJWTBearerCanSkipClientAuth: true`: the client is proven
+  solely by the assertion's `iss` (checked against the allow-list) and its
+  signature. pear's fosite `client` wrapper (`fosite_client.go`) currently
+  hardcodes `IsPublic() = true` and ignores `token_endpoint_auth_method`; the
+  existing jwt-bearer test signs with **RS256**.
+- **`pdsclient.ClientMetadata`** already carries every confidential-client field
+  (`token_endpoint_auth_method`, `token_endpoint_auth_signing_alg`,
+  `dpop_bound_access_tokens`, `scope`, `response_types`, `redirect_uris`,
+  `grant_types`, `jwks`); pear-as-a-PDS-*client* (`oauth_client.go`) already
+  emits a spec-compliant confidential-client doc (`private_key_jwt`, `ES256`,
+  `dpop_bound_access_tokens: true`, ES256 JWKS). So the document shape exists —
+  sap just needs to serve one, and pear-as-*server* needs to honor it.
 - **hive** mints identities as `did:web:<opaqueid>.<subdomain>` where `opaqueid`
   is a random 6-char string — so member/org DIDs live at **runtime-random
   subdomains** of the pear domain.
@@ -126,8 +138,11 @@ sessions simultaneously.
   2. Mint an access token via `grant_type=urn:ietf:params:oauth:grant-type:
      jwt-bearer` against `<pear>/oauth/token`, with the signed assertion's
      `subject = did`, `iss/sub(client) = sap clientID`, `aud = <pear>/oauth/token`,
-     signed by sap's RSA key. Reuse `golang.org/x/oauth2/jwt` (as the existing
-     `jwt_bearer_test.go` does); cache one `TokenSource` per DID for refresh.
+     `jti` unique, `iat` set, signed **ES256** by sap's P-256 key. Cache one
+     token source per DID for refresh. (The existing `jwt_bearer_test.go` uses
+     `golang.org/x/oauth2/jwt` with RSA; sap needs ES256, so it either uses that
+     library with an ES256 key or signs the assertion directly with
+     `atcrypto`/`go-jose` — decided during implementation.)
   3. Return an `*http.Client` whose transport resolves relative `/xrpc/...` URLs
      against the pear base URL, attaches `Authorization: Bearer <token>`, and
      sets `Habitat-Auth-Method: oauth` (so pear's `OAuthServer.CanHandle`
@@ -135,14 +150,28 @@ sessions simultaneously.
 
 ### `cmd/sap`
 
-- New startup config (flags/env, instance-level): `--jwt_signing_key` (RSA
-  private key, PEM) and `--jwt_client_id` (sap's clientID URL,
+- New startup config (flags/env, instance-level): `--jwt_signing_key` (an
+  **ES256 / P-256** private key; multibase like sap's existing `--secret`, or
+  PEM) and `--jwt_client_id` (sap's clientID URL,
   `https://sap.local.habitat.network/client-metadata.json`). When set, sap
   constructs the JWT-bearer builder and wires it into `session.Store`.
-- Serve a JWT-bearer `client-metadata.json`: `client_id` = the clientID,
-  `grant_types` = `["urn:ietf:params:oauth:grant-type:jwt-bearer"]`, and the RSA
-  public key as a JWKS. (The existing OAuth public client-metadata is replaced or
-  extended for the JWT-bearer client; sap in this test is a JWT-bearer client.)
+- Serve a **spec-compliant atproto confidential-client** `client-metadata.json`
+  (per <https://atproto.com/specs/oauth>), built from `pdsclient.ClientMetadata`:
+  - `client_id` = the clientID URL
+  - `token_endpoint_auth_method: "private_key_jwt"`
+  - `token_endpoint_auth_signing_alg: "ES256"`
+  - `dpop_bound_access_tokens: true`
+  - `scope: "atproto"`
+  - `response_types: ["code"]`
+  - `grant_types: ["authorization_code", "refresh_token",
+    "urn:ietf:params:oauth:grant-type:jwt-bearer"]` (the first two make the doc
+    spec-shaped; the jwt-bearer grant is the one sap actually exercises)
+  - `redirect_uris: ["https://sap.local.habitat.network/oauth-callback"]`
+  - `jwks`: sap's **ES256** public key
+  sap's `--jwt_signing_key` is therefore an **ES256** (P-256) key, and its
+  jwt-bearer assertions are signed ES256. The ES256-signed assertion is itself
+  the client's `private_key_jwt` proof, so no separate `client_assertion` is
+  needed (the grant keeps `CanSkipClientAuth`).
 - `/session/add` gains an `auth_method` field. The OAuth callback records
   `oauth`; a JWT-bearer session is added with an empty `sessionID` and
   `auth_method=jwt-bearer`.
@@ -150,14 +179,52 @@ sessions simultaneously.
 No changes to crawler, syncer, registrar, or outbox — they consume the
 unchanged `Clients` interfaces.
 
+## pear code changes: confidential-client support
+
+Goal: an approved jwt-bearer client (sap) presents a spec-compliant
+**confidential-client** metadata document, and pear honors it — validating and
+reflecting the confidential-client properties rather than treating every client
+as public. This advances the atproto-OAuth-server compliance effort (confidential
+clients were the outstanding item).
+
+- **`fosite_client.go`**: derive client properties from the metadata instead of
+  hardcoding them:
+  - `IsPublic()` returns `false` when `token_endpoint_auth_method ==
+    "private_key_jwt"` (true otherwise, preserving public-client behavior).
+  - Expose the token-endpoint auth method and signing alg to fosite (implement
+    the `fosite.OpenIDConnectClient` / JWT-profile client interfaces fosite
+    consults for private_key_jwt), backed by the metadata's
+    `token_endpoint_auth_signing_alg` and `jwks`.
+- **`fosite_storage.go`**: the jwt-bearer key path (`GetPublicKeys`) already
+  reads `metadata.Jwks`; confirm it selects the **ES256** key. Optionally
+  validate that an allow-listed client's metadata conforms to the confidential-
+  client spec (has `private_key_jwt`, a JWKS, `dpop_bound_access_tokens: true`)
+  before honoring its grant, rejecting non-conformant docs.
+- **Keep `GrantTypeJWTBearerCanSkipClientAuth: true`**: the ES256-signed grant
+  assertion already proves the client (its `iss` is the clientID and it is
+  signed by the client's key = private_key_jwt-equivalent proof), so no separate
+  `client_assertion` is required. The exact fosite interaction (does marking the
+  client confidential make fosite demand a separate `client_assertion` on the
+  jwt-bearer grant?) is pinned down by tests in `internal/oauthserver` before
+  relying on it — if fosite forces separate client auth for confidential
+  clients, either scope `IsPublic()=false` to non-grant flows or have sap also
+  send a `client_assertion`.
+- All changes are driven by `internal/oauthserver` unit tests (extend
+  `jwt_bearer_test.go`): an approved **ES256** confidential client obtains a
+  token via the jwt-bearer grant; a public client still works; a non-conformant
+  approved client is rejected (if validation is added).
+
 ## Test flow (`integration/sap_test.go`)
 
 1. **Bootstrap infra**: bring up postgres, caddy, dnsmasq, toxiproxy, pear, sap;
    wait for pear `/health` and sap health. Register the toxiproxy proxy (no
    toxics yet).
 2. **Test JWT-bearer client**: a host-side helper that serves its own
-   `client-metadata.json` (JWKS) over the caddy-fronted domain and mints
-   per-subject tokens. Used as an org admin/member to call pear's XRPC.
+   spec-compliant confidential-client `client-metadata.json` (ES256 JWKS,
+   `private_key_jwt`, `dpop_bound_access_tokens: true`) over a caddy-fronted
+   domain, listed in pear's `--builtin_app`, and mints per-subject ES256 tokens.
+   Used as an org admin/member to call pear's XRPC. (Its metadata host is served
+   through caddy so pear can fetch the JWKS over trusted HTTPS.)
 3. **Bootstrap data over pear XRPC** (via JWT-bearer): create an org; mint N
    member identities (the repo owners); create M spaces owned across those
    identities.
