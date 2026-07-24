@@ -6,12 +6,12 @@ settings:
 
 catalogs:
   default:
-    '@atproto/api':
-      specifier: 0.20.31
-      version: 0.20.31
     '@atproto/lexicon':
       specifier: 0.7.7
       version: 0.7.7
+    '@tanstack/devtools-vite':
+      specifier: ^0.8.1
+      version: 0.8.3
     '@tanstack/react-devtools':
       specifier: ^0.10.8
       version: 0.10.9
@@ -79,7 +79,7 @@ importers:
     devDependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.31
+        version: 0.20.32
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.7
@@ -161,7 +161,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: ^0.20.31
-        version: 0.20.31
+        version: 0.20.32
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.6
@@ -270,7 +270,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.31
+        version: 0.20.32
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.7
@@ -289,7 +289,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.31
+        version: 0.20.32
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.6
@@ -495,7 +495,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.31
+        version: 0.20.32
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.6
@@ -665,7 +665,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.31
+        version: 0.20.32
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.6
@@ -975,8 +975,8 @@ packages:
     resolution: {integrity: sha512-3YH03xg99ZUS6Fq/6jcKRiZwUbzDb58xmS7ibg0y4+dukwrHa92cV/md76RpQJkAo9KYBvwLETdvF6fNtwIoGw==}
     engines: {node: '>=22'}
 
-  '@atproto/api@0.20.31':
-    resolution: {integrity: sha512-TovCQLQv5ti1jqh8UH6jJ0EFuWRjGdUtFyFR5xYC/IkIulwHDuyrVaXdCv7VLWiHftp92DevtZnFRm+BZsZZdw==}
+  '@atproto/api@0.20.32':
+    resolution: {integrity: sha512-P6Lh6+PR+x0/HHdEbmwZ5e2uvrzViEeobHWHoEc7KTaKJ/bQQu39z2wfBrG4dOTEC/OcOhFYhAhepo0VGIOeAQ==}
     engines: {node: '>=22'}
 
   '@atproto/common-web@0.5.6':
@@ -11836,7 +11836,7 @@ snapshots:
 
   '@atproto-labs/simple-store@0.4.4': {}
 
-  '@atproto/api@0.20.31':
+  '@atproto/api@0.20.32':
     dependencies:
       '@atproto/common-web': 0.5.6
       '@atproto/lexicon': 0.7.7
