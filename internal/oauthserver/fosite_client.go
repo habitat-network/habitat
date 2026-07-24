@@ -64,7 +64,9 @@ func (c *client) GetScopes() fosite.Arguments {
 	return strings.Split(c.Scope, " ")
 }
 
-// IsPublic implements fosite.Client.
+// IsPublic implements fosite.Client. A client that advertises the
+// private_key_jwt token-endpoint auth method is confidential; all others
+// (including the default empty value) are treated as public.
 func (c *client) IsPublic() bool {
-	return true
+	return c.TokenEndpointAuthMethod != "private_key_jwt"
 }

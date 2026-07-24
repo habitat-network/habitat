@@ -1,6 +1,8 @@
 package oauthserver
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -14,6 +16,7 @@ import (
 	"time"
 
 	jose "github.com/go-jose/go-jose/v3"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
@@ -195,5 +198,105 @@ func TestHandleTokenJWTBearerGrant(t *testing.T) {
 		cfg.Expires = time.Minute
 		_, err := cfg.TokenSource(t.Context()).Token()
 		require.Error(t, err)
+	})
+}
+
+// newES256ConfidentialClient serves a spec-compliant atproto confidential-client
+// metadata document (private_key_jwt, ES256 JWKS) and returns the client ID plus
+// the P-256 signing key.
+func newES256ConfidentialClient(t *testing.T) (clientID string, key *ecdsa.PrivateKey) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	const keyID = "test-es256"
+	var id string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/client-metadata.json" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+			ClientId:        id,
+			ApplicationType: "web",
+			GrantTypes: []string{
+				"authorization_code",
+				"refresh_token",
+				"urn:ietf:params:oauth:grant-type:jwt-bearer",
+			},
+			Scope:                   "atproto",
+			ResponseTypes:           []string{"code"},
+			RedirectUris:            []string{id + "/callback"},
+			TokenEndpointAuthMethod: "private_key_jwt",
+			TokenEndpointAuthSigner: "ES256",
+			DpopBoundAccessTokens:   true,
+			Jwks: &jose.JSONWebKeySet{Keys: []jose.JSONWebKey{{
+				Key:       key.Public(),
+				KeyID:     keyID,
+				Algorithm: string(jose.ES256),
+				Use:       "sig",
+			}}},
+		}))
+	}))
+	t.Cleanup(server.Close)
+	id = server.URL + "/client-metadata.json"
+	return id, key
+}
+
+func TestHandleTokenJWTBearerES256Confidential(t *testing.T) {
+	clientID, key := newES256ConfidentialClient(t)
+	clientURL, _ := url.Parse(clientID)
+	domain := clientURL.Host
+	srv, tokenURL := setupJWTBearerTestServer(t, domain, clientID)
+
+	const subject = "did:web:es256-subject.example"
+	now := time.Now()
+	tok := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
+		"iss": clientID,
+		"sub": subject,
+		"aud": domain + "/oauth/token",
+		"iat": now.Unix(),
+		"exp": now.Add(time.Minute).Unix(),
+		"jti": "es256-jti-1",
+	})
+	tok.Header["kid"] = "test-es256"
+	assertion, err := tok.SignedString(key)
+	require.NoError(t, err)
+
+	resp, err := http.PostForm(tokenURL, url.Values{
+		"grant_type": {"urn:ietf:params:oauth:grant-type:jwt-bearer"},
+		"assertion":  {assertion},
+	})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var out struct {
+		AccessToken string `json:"access_token"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
+	require.NotEmpty(t, out.AccessToken)
+
+	did, ok, err := srv.ValidateRaw(t.Context(), out.AccessToken)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, subject, did.Subject.String())
+}
+
+// TestClientIsPublicReflectsMetadata guards that fosite.Client.IsPublic()
+// reflects the wrapped pdsclient.ClientMetadata's token_endpoint_auth_method
+// rather than hardcoding a value: a private_key_jwt confidential client must
+// report IsPublic() == false, while all other (including unset) auth methods
+// remain public.
+func TestClientIsPublicReflectsMetadata(t *testing.T) {
+	t.Run("confidential client with private_key_jwt is not public", func(t *testing.T) {
+		c := &client{&pdsclient.ClientMetadata{TokenEndpointAuthMethod: "private_key_jwt"}}
+		require.False(t, c.IsPublic())
+	})
+
+	t.Run("client without an auth method is public", func(t *testing.T) {
+		c := &client{&pdsclient.ClientMetadata{}}
+		require.True(t, c.IsPublic())
 	})
 }
