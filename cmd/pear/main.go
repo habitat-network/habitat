@@ -500,6 +500,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
+	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit", spacesServer.GetLatestCommit)
 	mux.HandleFunc("/xrpc/com.atproto.space.getRepo", spacesServer.GetRepo)
 	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
 

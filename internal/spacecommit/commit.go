@@ -34,13 +34,8 @@ const (
 	ikmLen = 32
 )
 
-var (
-	// ErrNoSigner is returned when no key is available to sign a commit for an
-	// author (no host key and the author is not habitat-managed).
-	ErrNoSigner = errors.New("no commit signer available for author")
-	// ErrInvalidCommit is returned by Verify when a commit fails validation.
-	ErrInvalidCommit = errors.New("invalid commit")
-)
+// ErrInvalidCommit is returned by Verify when a commit fails validation.
+var ErrInvalidCommit = errors.New("invalid commit")
 
 // MemberSigner resolves the signing key for habitat-managed identities (did:web
 // hive members whose keys Habitat holds). It returns identity.ErrDIDNotFound for
@@ -77,9 +72,6 @@ func (a *Authority) resolve(
 		if !errors.Is(err, identity.ErrDIDNotFound) {
 			return "", nil, err
 		}
-	}
-	if a.host == nil {
-		return "", nil, ErrNoSigner
 	}
 	return HostProtocolTag, a.host, nil
 }
