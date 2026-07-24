@@ -58,6 +58,7 @@ import (
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
+	"gocloud.dev/blob"
 
 	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
 )
@@ -318,6 +319,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup spaces store: %w", err)
 	}
+
+	blobBucket, err := blob.OpenBucket(startupCtx, cmd.String(fBlobBucket))
+	if err != nil {
+		return fmt.Errorf("open blob bucket: %w", err)
+	}
+	defer func() { _ = blobBucket.Close() }()
+	blobStore := spaces.NewBlobStore(blobBucket)
 	serviceAuth := authn.NewServiceAuthMethod(defaultDir, fmt.Sprintf("did:web:%s#habitat", domain))
 
 	// Habitat's single host signing key signs permissioned-repo commits for repo
@@ -336,6 +344,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		orgStore,
 		hostKey,
 		hive,
+		blobStore,
 	)
 	notifyServer := notify.NewServer(notifyStore, authn.NewSpaceCredentialAuthMethod(defaultDir))
 
@@ -473,8 +482,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearServer.UploadBlob)
-	mux.HandleFunc("/xrpc/network.habitat.repo.getBlob", pearServer.GetBlob)
+	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", spacesServer.UploadBlob)
 
 	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
@@ -496,6 +504,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
 	mux.HandleFunc("/xrpc/network.habitat.space.putRecord", spacesServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRecord", spacesServer.GetRecord)
+	mux.HandleFunc("/xrpc/network.habitat.space.getBlob", spacesServer.GetBlob)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)

@@ -4031,6 +4031,44 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceGetBlob: {
+    lexicon: 1,
+    id: 'network.habitat.space.getBlob',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get a blob stored within a permissioned space, addressed by its CID. Requires read access to the space.',
+        parameters: {
+          type: 'params',
+          required: ['space', 'cid'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space the blob belongs to.',
+            },
+            cid: {
+              type: 'string',
+              format: 'cid',
+              description: 'The CID of the blob to fetch.',
+            },
+          },
+        },
+        output: {
+          encoding: '*/*',
+        },
+        errors: [
+          {
+            name: 'BlobNotFound',
+          },
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatSpaceGetRecord: {
     lexicon: 1,
     id: 'network.habitat.space.getRecord',
@@ -4968,6 +5006,7 @@ export const ids = {
   NetworkHabitatSpaceDefs: 'network.habitat.space.defs',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
+  NetworkHabitatSpaceGetBlob: 'network.habitat.space.getBlob',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
   ComAtprotoSpaceGetRepo: 'com.atproto.space.getRepo',
   NetworkHabitatSpaceGetSpaceCredential:
