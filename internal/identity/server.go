@@ -185,18 +185,10 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 // ResolveDID implements com.atproto.identity.resolveDid.
 func (s *Server) ResolveDID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	didStr := r.URL.Query().Get("did")
-	if didStr == "" {
-		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: did", nil)
+	did, ok := httpx.ParseDIDInput(ctx, w, r.URL.Query().Get("did"), "did")
+	if !ok {
 		return
 	}
-
-	did, err := syntax.ParseDID(didStr)
-	if err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "invalid did", err)
-		return
-	}
-
 	ident, err := s.directory.LookupDID(ctx, did)
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		httpx.WriteError(ctx, w, "DidNotFound", "DID not found", http.StatusNotFound)
@@ -206,7 +198,6 @@ func (s *Server) ResolveDID(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("resolving DID: %w", err))
 		return
 	}
-
 	httpx.WriteJSON(ctx, w, atproto.IdentityResolveDid_Output{
 		DidDoc: s.didDocumentWithContext(ident),
 	})
@@ -220,13 +211,11 @@ func (s *Server) ResolveHandle(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: handle", nil)
 		return
 	}
-
 	handle, err := syntax.ParseHandle(handleStr)
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "invalid handle", err)
 		return
 	}
-
 	ident, err := s.directory.LookupHandle(ctx, handle)
 	if errors.Is(err, identity.ErrHandleNotFound) {
 		httpx.WriteError(ctx, w, "HandleNotFound", "handle not found", http.StatusNotFound)
@@ -236,7 +225,6 @@ func (s *Server) ResolveHandle(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("resolving handle: %w", err))
 		return
 	}
-
 	httpx.WriteJSON(ctx, w, atproto.IdentityResolveHandle_Output{
 		Did: ident.DID.String(),
 	})
@@ -250,13 +238,11 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: identifier", nil)
 		return
 	}
-
 	atid, err := syntax.ParseAtIdentifier(identifier)
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "invalid identifier", err)
 		return
 	}
-
 	ident, err := s.directory.Lookup(ctx, atid)
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		httpx.WriteError(ctx, w, "DidNotFound", "DID not found", http.StatusNotFound)
@@ -270,7 +256,6 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("resolving identity: %w", err))
 		return
 	}
-
 	httpx.WriteJSON(ctx, w, atproto.IdentityDefs_IdentityInfo{
 		Did:    ident.DID.String(),
 		Handle: ident.Handle.String(),
