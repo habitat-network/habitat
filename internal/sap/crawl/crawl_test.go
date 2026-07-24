@@ -30,7 +30,7 @@ func (t rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 type fakeClients struct{ base *url.URL }
 
 func (f fakeClients) ClientForSession(context.Context, syntax.DID) (*http.Client, error) {
-	return &http.Client{Transport: rewriteTransport{base: f.base}}, nil
+	return &http.Client{Transport: rewriteTransport(f)}, nil
 }
 
 // recorder collects space access records and tracked repos.

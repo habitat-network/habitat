@@ -132,7 +132,7 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess, err := s.sap.GetSession(r.Context(), did)
+	sess, err := s.oauthClient.ResumeSession(r.Context(), did, sessionID)
 	if err != nil {
 		http.Error(
 			w,

@@ -32,7 +32,7 @@ func (f fakeClients) ClientForSpace(
 	context.Context,
 	habitat_syntax.SpaceURI,
 ) (*http.Client, error) {
-	return &http.Client{Transport: rewriteTransport{base: f.base}}, nil
+	return &http.Client{Transport: rewriteTransport(f)}, nil
 }
 
 type fakeSpaces []habitat_syntax.SpaceURI

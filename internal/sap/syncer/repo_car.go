@@ -87,7 +87,11 @@ func parseRepoCAR(r io.Reader) (recoveredRepo, error) {
 		}
 		recBytes, ok := blocks[recCID]
 		if !ok {
-			return recoveredRepo{}, fmt.Errorf("record block %s for %q missing from car", recCID, path)
+			return recoveredRepo{}, fmt.Errorf(
+				"record block %s for %q missing from car",
+				recCID,
+				path,
+			)
 		}
 		value, err := atdata.UnmarshalCBOR(recBytes)
 		if err != nil {

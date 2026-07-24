@@ -593,9 +593,6 @@ func serveDid(domain string, hostKey atcrypto.PublicKey) http.HandlerFunc {
 			DID: did,
 			VerificationMethod: []identity.DocVerificationMethod{
 				{
-					// The fragment form matters: indigo's identity.ParseIdentity
-					// drops verification methods whose ID has no "#" fragment, so
-					// syncers could never resolve the key as "habitat" otherwise.
 					ID:                 did.String() + "#habitat",
 					Type:               "Multikey",
 					Controller:         did.String(),
