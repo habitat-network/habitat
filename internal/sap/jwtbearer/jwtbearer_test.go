@@ -98,7 +98,8 @@ func TestClientForDIDConcurrentGetsMintOnce(t *testing.T) {
 		// request, so they all contend on the singleflight call for this
 		// DID instead of racing serially.
 		<-release
-		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "tok-concurrent", "expires_in": 3600})
+		_ = json.NewEncoder(w).
+			Encode(map[string]any{"access_token": "tok-concurrent", "expires_in": 3600})
 	})
 	mux.HandleFunc(
 		"/xrpc/network.habitat.space.listSpaces",
