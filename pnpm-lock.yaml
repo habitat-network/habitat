@@ -7,11 +7,14 @@ settings:
 catalogs:
   default:
     '@atproto/api':
-      specifier: 0.20.31
-      version: 0.20.31
+      specifier: 0.20.32
+      version: 0.20.32
     '@atproto/lexicon':
       specifier: 0.7.7
       version: 0.7.7
+    '@tanstack/devtools-vite':
+      specifier: ^0.8.1
+      version: 0.8.3
     '@tanstack/react-devtools':
       specifier: ^0.10.8
       version: 0.10.9
@@ -79,7 +82,7 @@ importers:
     devDependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.31
+        version: 0.20.32
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.7
@@ -270,7 +273,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.31
+        version: 0.20.32
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.7
@@ -289,7 +292,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.31
+        version: 0.20.32
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.6
@@ -495,7 +498,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.31
+        version: 0.20.32
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.6
@@ -665,7 +668,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.31
+        version: 0.20.32
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.6
@@ -977,6 +980,10 @@ packages:
 
   '@atproto/api@0.20.31':
     resolution: {integrity: sha512-TovCQLQv5ti1jqh8UH6jJ0EFuWRjGdUtFyFR5xYC/IkIulwHDuyrVaXdCv7VLWiHftp92DevtZnFRm+BZsZZdw==}
+    engines: {node: '>=22'}
+
+  '@atproto/api@0.20.32':
+    resolution: {integrity: sha512-P6Lh6+PR+x0/HHdEbmwZ5e2uvrzViEeobHWHoEc7KTaKJ/bQQu39z2wfBrG4dOTEC/OcOhFYhAhepo0VGIOeAQ==}
     engines: {node: '>=22'}
 
   '@atproto/common-web@0.5.6':
@@ -11837,6 +11844,17 @@ snapshots:
   '@atproto-labs/simple-store@0.4.4': {}
 
   '@atproto/api@0.20.31':
+    dependencies:
+      '@atproto/common-web': 0.5.6
+      '@atproto/lexicon': 0.7.7
+      '@atproto/syntax': 0.7.2
+      '@atproto/xrpc': 0.8.6
+      await-lock: 3.0.0
+      multiformats: 13.4.2
+      tlds: 1.261.0
+      zod: 3.25.76
+
+  '@atproto/api@0.20.32':
     dependencies:
       '@atproto/common-web': 0.5.6
       '@atproto/lexicon': 0.7.7
