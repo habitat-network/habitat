@@ -33,6 +33,7 @@ func effectiveHost(r *http.Request) string {
 // Does not serve the MintIdentity endpoint.
 type Server struct {
 	hive          hive.Hive
+	directory     identity.Directory
 	oauth         authn.Method
 	orgStore      org.Store
 	pdsForwarding *forwarding.PDSForwarding
@@ -47,7 +48,13 @@ func NewServer(
 	orgStore org.Store,
 	pdsForwarding *forwarding.PDSForwarding,
 ) (*Server, error) {
-	return &Server{hive: hive, oauth: oauth, orgStore: orgStore, pdsForwarding: pdsForwarding}, nil
+	return &Server{
+		hive:          hive,
+		directory:     NewWrappedDirectory(hive, identity.DefaultDirectory()),
+		oauth:         oauth,
+		orgStore:      orgStore,
+		pdsForwarding: pdsForwarding,
+	}, nil
 }
 
 type didDocWithContext struct {
@@ -172,4 +179,121 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	_, _ = w.Write([]byte(ident.DID.String()))
+}
+
+type resolveDIDOutput struct {
+	DIDDoc didDocWithContext `json:"didDoc"`
+}
+
+type resolveHandleOutput struct {
+	DID string `json:"did"`
+}
+
+type identityInfo struct {
+	DID    string            `json:"did"`
+	Handle string            `json:"handle"`
+	DIDDoc didDocWithContext `json:"didDoc"`
+}
+
+// ResolveDID implements com.atproto.identity.resolveDid.
+func (s *Server) ResolveDID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	didStr := r.URL.Query().Get("did")
+	if didStr == "" {
+		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: did", nil)
+		return
+	}
+
+	did, err := syntax.ParseDID(didStr)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid did", err)
+		return
+	}
+
+	ident, err := s.directory.LookupDID(ctx, did)
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		httpx.WriteError(ctx, w, "DidNotFound", "DID not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("resolving DID: %w", err))
+		return
+	}
+
+	httpx.WriteJSON(ctx, w, resolveDIDOutput{
+		DIDDoc: s.didDocumentWithContext(ident),
+	})
+}
+
+// ResolveHandle implements com.atproto.identity.resolveHandle.
+func (s *Server) ResolveHandle(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	handleStr := r.URL.Query().Get("handle")
+	if handleStr == "" {
+		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: handle", nil)
+		return
+	}
+
+	handle, err := syntax.ParseHandle(handleStr)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid handle", err)
+		return
+	}
+
+	ident, err := s.directory.LookupHandle(ctx, handle)
+	if errors.Is(err, identity.ErrHandleNotFound) {
+		httpx.WriteError(ctx, w, "HandleNotFound", "handle not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("resolving handle: %w", err))
+		return
+	}
+
+	httpx.WriteJSON(ctx, w, resolveHandleOutput{
+		DID: ident.DID.String(),
+	})
+}
+
+// ResolveIdentity implements com.atproto.identity.resolveIdentity.
+func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	identifier := r.URL.Query().Get("identifier")
+	if identifier == "" {
+		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: identifier", nil)
+		return
+	}
+
+	atid, err := syntax.ParseAtIdentifier(identifier)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid identifier", err)
+		return
+	}
+
+	ident, err := s.directory.Lookup(ctx, atid)
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		httpx.WriteError(ctx, w, "DidNotFound", "DID not found", http.StatusNotFound)
+		return
+	}
+	if errors.Is(err, identity.ErrHandleNotFound) {
+		httpx.WriteError(ctx, w, "HandleNotFound", "handle not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("resolving identity: %w", err))
+		return
+	}
+
+	httpx.WriteJSON(ctx, w, identityInfo{
+		DID:    ident.DID.String(),
+		Handle: ident.Handle.String(),
+		DIDDoc: s.didDocumentWithContext(ident),
+	})
+}
+
+func (s *Server) didDocumentWithContext(ident *identity.Identity) didDocWithContext {
+	return didDocWithContext{
+		Context:     didCtx,
+		DIDDocument: ident.DIDDocument(),
+	}
 }

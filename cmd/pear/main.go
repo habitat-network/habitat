@@ -528,6 +528,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
 
 	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", idServer.GetServiceAuth)
+	mux.HandleFunc("/xrpc/com.atproto.identity.resolveDid", idServer.ResolveDID)
+	mux.HandleFunc("/xrpc/com.atproto.identity.resolveHandle", idServer.ResolveHandle)
+	mux.HandleFunc("/xrpc/com.atproto.identity.resolveIdentity", idServer.ResolveIdentity)
 
 	uiHandler, err := webui.New(cmd.String(fUiDevProxy))
 	if err != nil {
