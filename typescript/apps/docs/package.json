@@ -13,7 +13,7 @@
     "@atproto/identity": "^0.5.6",
     "@chainsafe/libp2p-gossipsub": "14.1.2",
     "@chainsafe/libp2p-noise": "16.1.5",
-    "@chainsafe/libp2p-yamux": "7.0.4",
+    "@chainsafe/libp2p-yamux": "8.0.1",
     "@libp2p/circuit-relay-v2": "^3.2.24",
     "@libp2p/dcutr": "^2.0.38",
     "@libp2p/identify": "^3.0.39",
