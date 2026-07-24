@@ -798,8 +798,7 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 }
 
 // signRepoHead computes and signs the repo's current head commit over its cached
-// LtHash. It returns errEmptyRepo when the repo holds no records, and
-// spacecommit.ErrNoSigner when no key covers the repo owner.
+// LtHash. It returns errEmptyRepo when the repo holds no records
 func (s *Server) signRepoHead(
 	ctx context.Context,
 	spaceURI habitat_syntax.SpaceURI,
@@ -816,8 +815,8 @@ func (s *Server) signRepoHead(
 }
 
 // buildRepoCommit signs the repo's current head and shapes it as the lexicon
-// signedCommit for JSON responses. It surfaces errEmptyRepo and
-// spacecommit.ErrNoSigner from signRepoHead so callers can omit the commit.
+// signedCommit for JSON responses. It surfaces errEmptyRepo
+// from signRepoHead so callers can omit the commit.
 func (s *Server) buildRepoCommit(
 	ctx context.Context,
 	spaceURI habitat_syntax.SpaceURI,

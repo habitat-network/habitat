@@ -64,14 +64,12 @@ func (a *Authority) resolve(
 	ctx context.Context,
 	author syntax.DID,
 ) (string, atcrypto.PrivateKey, error) {
-	if a.member != nil {
-		key, err := a.member.PrivateKeyForDID(ctx, author)
-		if err == nil {
-			return SpecProtocolTag, key, nil
-		}
-		if !errors.Is(err, identity.ErrDIDNotFound) {
-			return "", nil, err
-		}
+	key, err := a.member.PrivateKeyForDID(ctx, author)
+	if err == nil {
+		return SpecProtocolTag, key, nil
+	}
+	if !errors.Is(err, identity.ErrDIDNotFound) {
+		return "", nil, err
 	}
 	return HostProtocolTag, a.host, nil
 }
