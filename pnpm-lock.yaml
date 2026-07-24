@@ -6,9 +6,6 @@ settings:
 
 catalogs:
   default:
-    '@atproto/api':
-      specifier: 0.20.32
-      version: 0.20.32
     '@atproto/lexicon':
       specifier: 0.7.7
       version: 0.7.7
@@ -82,7 +79,7 @@ importers:
     devDependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.32
+        version: 0.20.33
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.7
@@ -164,7 +161,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: ^0.20.31
-        version: 0.20.31
+        version: 0.20.33
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.6
@@ -273,7 +270,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.32
+        version: 0.20.33
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.7
@@ -292,7 +289,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.32
+        version: 0.20.33
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.6
@@ -498,7 +495,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.32
+        version: 0.20.33
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.6
@@ -668,7 +665,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.32
+        version: 0.20.33
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.6
@@ -978,12 +975,8 @@ packages:
     resolution: {integrity: sha512-3YH03xg99ZUS6Fq/6jcKRiZwUbzDb58xmS7ibg0y4+dukwrHa92cV/md76RpQJkAo9KYBvwLETdvF6fNtwIoGw==}
     engines: {node: '>=22'}
 
-  '@atproto/api@0.20.31':
-    resolution: {integrity: sha512-TovCQLQv5ti1jqh8UH6jJ0EFuWRjGdUtFyFR5xYC/IkIulwHDuyrVaXdCv7VLWiHftp92DevtZnFRm+BZsZZdw==}
-    engines: {node: '>=22'}
-
-  '@atproto/api@0.20.32':
-    resolution: {integrity: sha512-P6Lh6+PR+x0/HHdEbmwZ5e2uvrzViEeobHWHoEc7KTaKJ/bQQu39z2wfBrG4dOTEC/OcOhFYhAhepo0VGIOeAQ==}
+  '@atproto/api@0.20.33':
+    resolution: {integrity: sha512-3YpnBVMieQFWetLvqibn2yG6vhNZ7ozSi/EUujuGcvYXt9g/NrvmHufaUtrXCasp2mHDI7t7UG5sLEBg6YNEJw==}
     engines: {node: '>=22'}
 
   '@atproto/common-web@0.5.6':
@@ -8385,8 +8378,8 @@ packages:
   multiformats@13.4.2:
     resolution: {integrity: sha512-eh6eHCrRi1+POZ3dA+Dq1C6jhP1GNtr9CRINMb67OKzqW9I5DUuZM/3jLPlzhgpGeiNUlEGEbkCYChXMCc/8DQ==}
 
-  multiformats@14.0.4:
-    resolution: {integrity: sha512-+SXItmOUWzT0kjlIfkZ4NawJaC9jW/mPlyn902V9Qgpc7YDwdEiwqbiZxTyvC0XWh1jZguXca3A/WQ+UOPRLUA==}
+  multiformats@14.0.5:
+    resolution: {integrity: sha512-vbIm83F2yZ1pWJGS0yl0ysracIvv56LtbrIyiIQHoLdYDJOMoLfVFsXhh9DUH4SFdkdkFhucyWniihsNzVEjkQ==}
 
   mustache@4.2.0:
     resolution: {integrity: sha512-71ippSywq5Yb7/tVYyGbkBggbU8H3u5Rz56fH60jGFgr8uHwxs+aSKeqmluIVzM0m0kB7xQjKS6qPfd0b2ZoqQ==}
@@ -11849,18 +11842,7 @@ snapshots:
 
   '@atproto-labs/simple-store@0.4.4': {}
 
-  '@atproto/api@0.20.31':
-    dependencies:
-      '@atproto/common-web': 0.5.6
-      '@atproto/lexicon': 0.7.7
-      '@atproto/syntax': 0.7.2
-      '@atproto/xrpc': 0.8.6
-      await-lock: 3.0.0
-      multiformats: 13.4.2
-      tlds: 1.261.0
-      zod: 3.25.76
-
-  '@atproto/api@0.20.32':
+  '@atproto/api@0.20.33':
     dependencies:
       '@atproto/common-web': 0.5.6
       '@atproto/lexicon': 0.7.7
@@ -14924,7 +14906,7 @@ snapshots:
       '@libp2p/interface': 3.2.5
       '@noble/curves': 2.2.0
       '@noble/hashes': 2.2.0
-      multiformats: 14.0.4
+      multiformats: 14.0.5
       protons-runtime: 7.0.0
       uint8arraylist: 3.0.2
       uint8arrays: 6.1.1
@@ -14982,7 +14964,7 @@ snapshots:
       '@multiformats/dns': 1.0.15
       '@multiformats/multiaddr': 13.0.3
       main-event: 1.0.4
-      multiformats: 14.0.4
+      multiformats: 14.0.5
       progress-events: 1.1.0
       uint8arraylist: 3.0.2
 
@@ -15286,7 +15268,7 @@ snapshots:
   '@multiformats/multiaddr@13.0.3':
     dependencies:
       '@chainsafe/is-ip': 2.1.0
-      multiformats: 14.0.4
+      multiformats: 14.0.5
       uint8-varint: 3.0.0
       uint8arrays: 6.1.1
 
@@ -21494,7 +21476,7 @@ snapshots:
 
   multiformats@13.4.2: {}
 
-  multiformats@14.0.4: {}
+  multiformats@14.0.5: {}
 
   mustache@4.2.0: {}
 
@@ -24425,7 +24407,7 @@ snapshots:
 
   uint8arrays@6.1.1:
     dependencies:
-      multiformats: 14.0.4
+      multiformats: 14.0.5
 
   ultrahtml@1.7.0: {}
 
