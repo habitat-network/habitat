@@ -21,6 +21,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/sync/singleflight"
 )
 
 const keyID = "habitat"
@@ -42,6 +43,7 @@ type Builder struct {
 
 	mu    sync.Mutex
 	cache map[syntax.DID]cachedToken
+	sf    singleflight.Group
 }
 
 type cachedToken struct {
@@ -94,13 +96,50 @@ func (b *Builder) hostFor(ctx context.Context, did syntax.DID) (string, error) {
 }
 
 // token returns a cached or freshly minted access token for did against base.
+//
+// The cache check is a fast path that only briefly holds b.mu — it never
+// blocks on network I/O, so a slow or hanging mint for one DID cannot stall
+// cache reads for other DIDs. Concurrent mints for the same DID are
+// deduplicated via singleflight (keyed by DID) rather than by holding b.mu
+// across the outbound request, so different DIDs never serialize against
+// each other.
 func (b *Builder) token(ctx context.Context, did syntax.DID, base string) (string, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if c, ok := b.cache[did]; ok && b.now().Add(30*time.Second).Before(c.exp) {
-		return c.token, nil
+	if tok, ok := b.cachedToken(did); ok {
+		return tok, nil
 	}
 
+	v, err, _ := b.sf.Do(did.String(), func() (any, error) {
+		// Re-check the cache inside the singleflight call: a concurrent
+		// caller may have already minted and cached a token while we were
+		// waiting to enter this function, so this avoids a redundant mint.
+		if tok, ok := b.cachedToken(did); ok {
+			return tok, nil
+		}
+		return b.mint(ctx, did, base)
+	})
+	if err != nil {
+		return "", err
+	}
+	return v.(string), nil
+}
+
+// cachedToken returns did's cached token if it has at least 30s of validity
+// left. It only briefly holds b.mu and never performs network I/O.
+func (b *Builder) cachedToken(did syntax.DID) (string, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	c, ok := b.cache[did]
+	if !ok || !b.now().Add(30*time.Second).Before(c.exp) {
+		return "", false
+	}
+	return c.token, true
+}
+
+// mint requests a fresh access token for did from base's /oauth/token
+// endpoint and caches it. It does not hold b.mu across the outbound request;
+// callers are responsible for deduping concurrent mints of the same did (see
+// token's use of singleflight).
+func (b *Builder) mint(ctx context.Context, did syntax.DID, base string) (string, error) {
 	assertion, err := b.sign(did, base)
 	if err != nil {
 		return "", err
@@ -131,7 +170,11 @@ func (b *Builder) token(ctx context.Context, did syntax.DID, base string) (strin
 	if ttl <= 0 {
 		ttl = 5 * time.Minute
 	}
+
+	b.mu.Lock()
 	b.cache[did] = cachedToken{token: out.AccessToken, exp: b.now().Add(ttl)}
+	b.mu.Unlock()
+
 	return out.AccessToken, nil
 }
 
