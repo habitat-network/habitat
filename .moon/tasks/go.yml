@@ -21,7 +21,7 @@ tasks:
     preset: utility
   build:
     deps:
-    - ^:build
+    - root:build
     inputs:
     - '@group(mod)'
     - '@group(src)'
@@ -34,7 +34,7 @@ tasks:
     - /bin/$project
   test:
     deps:
-      - ^:test
+      - ~:build
     inputs:
     - '@group(mod)'
     - '@group(test)'

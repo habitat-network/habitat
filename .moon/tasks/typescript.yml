@@ -39,7 +39,10 @@ tasks:
     preset: utility
   build:
     deps:
-      - ^:build
+      - typescript/api:build
+      - typescript/internal:build
+    inputs:
+      - /pnpm-lock.yaml
     command: pnpm 
     args: build
   start:

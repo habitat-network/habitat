@@ -1,8 +1,10 @@
-declare const __DOMAIN__: string;
-declare const __HABITAT_DOMAIN__: string;
-declare const __HASH_ROUTING__: boolean;
-declare const __DOCS_SERVER_DID__: string;
-declare const __HOME_SERVER_DID__: string;
+interface ImportMetaEnv {
+  readonly VITE_BASE_URL: string;
+  readonly VITE_HABITAT_DOMAIN: string;
+  readonly VITE_HASH_ROUTING?: string;
+  readonly VITE_DOCS_SERVER_DID?: string;
+  readonly VITE_HOME_SERVER_DID?: string;
+}
 
 declare module "*.svg" {
   const content: string;

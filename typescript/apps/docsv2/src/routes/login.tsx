@@ -8,12 +8,8 @@ export const Route = createFileRoute("/login")({
     return (
       <AuthForm
         authManager={authManager}
-        redirectUrl={`https://${__DOMAIN__}`}
-        orgLoginUrl={
-          router.buildLocation({
-            to: "/org-login",
-          }).href
-        }
+        redirectUrl={import.meta.env.VITE_BASE_URL}
+        orgLoginUrl={router.buildLocation({ to: "/org-login" }).href}
       />
     );
   },

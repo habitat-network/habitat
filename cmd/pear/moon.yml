@@ -1,7 +1,6 @@
 tasks:
   build:
     deps:
-    - root:build
     # Builds and embeds the pre-rendered /ui/ pages (member login, instance
     # admin) into the pear binary via internal/webui/dist.
     - pear-pages:build

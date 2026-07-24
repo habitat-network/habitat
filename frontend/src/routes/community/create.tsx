@@ -95,7 +95,9 @@ function CreateCommunityPage() {
     };
   }, [useCustomInstance, customDomain]);
 
-  const targetDomain = useCustomInstance ? customDomain : __HABITAT_DOMAIN__;
+  const targetDomain = useCustomInstance
+    ? customDomain
+    : import.meta.env.VITE_HABITAT_DOMAIN;
 
   const handleNameChange = (value: string) => {
     setValue("name", value);

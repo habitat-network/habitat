@@ -28,7 +28,7 @@ export const Route = createFileRoute("/_requireAuth/")({
     );
 
     const apps = appData.apps.filter(
-      (app) => app.clientUri !== `https://${__DOMAIN__}`,
+      (app) => app.clientUri !== import.meta.env.VITE_BASE_URL,
     );
 
     let orgName: string | undefined;

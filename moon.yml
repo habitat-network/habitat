@@ -2,9 +2,11 @@ layer: library
 fileGroups:
   internal_src:
     - internal/**/*.go
+    - api/**/*.go
     - '!internal/**/*_test.go'
   internal_test:
     - internal/**/*.go
+    - api/**/*.go
 tasks:
   build:
     inputs:

@@ -29,7 +29,7 @@ func TestBuildAuthServerMetadata(t *testing.T) {
 		"scopes_supported": ["atproto"],
 		"dpop_signing_alg_values_supported": ["ES256"],
 		"authorization_response_iss_parameter_supported": true,
-		"require_pushed_authorization_requests": false,
+		"require_pushed_authorization_requests": true,
 		"client_id_metadata_document_supported": true
 		}`, string(b))
 }
@@ -37,5 +37,9 @@ func TestBuildAuthServerMetadata(t *testing.T) {
 func TestBuildProtectedResourceMetadata(t *testing.T) {
 	b, err := json.Marshal(buildProtectedResourceMetadata(testIssuer))
 	require.NoError(t, err)
-	require.JSONEq(t, `{ "authorization_servers": ["https://habitat.example"] }`, string(b))
+	require.JSONEq(
+		t,
+		`{ "resource": "https://habitat.example", "authorization_servers": ["https://habitat.example"] }`,
+		string(b),
+	)
 }

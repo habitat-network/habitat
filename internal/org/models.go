@@ -14,7 +14,7 @@ type organization struct {
 	SigningSecret   string      // base64-encoded HMAC-SHA256 key for invite tokens
 	CreatedAt       time.Time
 	HandleSubdomain string `gorm:"unique"`
-	ContactEmail    string `gorm:"unique"` // email for reaching out to the org about its account
+	ContactEmail    string // email for reaching out to the org about its account
 }
 
 // Keep track of members in the org.

@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
-	"log/slog"
 )
 
 type ErrorMessage struct {

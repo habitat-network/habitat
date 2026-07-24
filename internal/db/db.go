@@ -9,6 +9,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/plugin/opentelemetry/tracing"
 )
 
 type Dialect string
@@ -58,7 +59,9 @@ func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
 	default:
 		return nil, fmt.Errorf("unsupported database: %s", dsn)
 	}
-
+	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
+		return nil, err
+	}
 	if cfg.migrations != nil {
 		sqlDB, err := db.DB()
 		if err != nil {

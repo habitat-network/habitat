@@ -1,15 +1,19 @@
 package spaces_test
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/ipld/go-car"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -25,7 +29,9 @@ import (
 )
 
 func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) (*spaces.Server, spaces.Store) {
-	return newTestServerWithSigners(t, oauth, serviceAuth, nil)
+	host, err := atcrypto.GeneratePrivateKeyK256()
+	require.NoError(t, err)
+	return newTestServerWithSigners(t, oauth, serviceAuth, host)
 }
 
 func newTestServerWithSigners(
@@ -306,6 +312,94 @@ func TestServer_ListRecords(t *testing.T) {
 	require.Equal(t, "k2", output.Records[1].Rkey)
 }
 
+// TestServer_GetRepo verifies getRepo returns a CAR whose first root is a real
+// signed commit over the repo's LtHash, verifiable against the host key.
+func TestServer_GetRepo(t *testing.T) {
+	hostKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	pub, err := hostKey.PublicKey()
+	require.NoError(t, err)
+	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
+	s, store := newTestServerWithSigners(t, m, m, hostKey)
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+owner.String(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.GetRepo(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "application/vnd.ipld.car", w.Header().Get("Content-Type"))
+
+	reader, err := car.NewCarReader(bytes.NewReader(w.Body.Bytes()))
+	require.NoError(t, err)
+	require.Len(t, reader.Header.Roots, 2)
+	commitCID := reader.Header.Roots[0]
+
+	var commitBlock []byte
+	for {
+		blk, err := reader.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		if blk.Cid() == commitCID {
+			commitBlock = blk.RawData()
+		}
+	}
+	require.NotEmpty(t, commitBlock)
+
+	commit, err := atdata.UnmarshalCBOR(commitBlock)
+	require.NoError(t, err)
+	require.Equal(t, int64(spacecommit.Version), commit["ver"])
+
+	rev, ok := commit["rev"].(string)
+	require.True(t, ok)
+	ikm, ok := commit["ikm"].(atdata.Bytes)
+	require.True(t, ok)
+	sig, ok := commit["sig"].(atdata.Bytes)
+	require.True(t, ok)
+	hash, ok := commit["hash"].(atdata.Bytes)
+	require.True(t, ok)
+
+	// External author (did:plc:owner) → host-signed under the host tag.
+	ctxBytes := spacecommit.Ctx(spacecommit.HostProtocolTag, uri, owner, rev, ikm)
+	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
+
+	// The committed hash matches the repo's current LtHash state.
+	_, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, wantHash, []byte(hash))
+}
+
+func TestServer_GetRepo_RepoNotFound(t *testing.T) {
+	s, store := newOwnerServer(t)
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+alice.String(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.GetRepo(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	require.JSONEq(t, `{"error":"RepoNotFound"}`, w.Body.String())
+}
+
 func TestServer_AddMember_Unauthorized(t *testing.T) {
 	s, store := newAliceServer(t)
 
@@ -530,10 +624,15 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	require.Equal(t, wantHash, hash)
 }
 
-// TestServer_ListRepoOps_NoCommitWithoutSigner confirms the commit is omitted
-// when no signer can cover the repo owner.
-func TestServer_ListRepoOps_NoCommitWithoutSigner(t *testing.T) {
-	s, store := newOwnerServer(t) // no host key configured
+// TestServer_GetLatestCommit returns a host-signed commit over the repo's head
+// that verifies against the host key and carries the repo's LtHash.
+func TestServer_GetLatestCommit(t *testing.T) {
+	hostKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	pub, err := hostKey.PublicKey()
+	require.NoError(t, err)
+	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
+	s, store := newTestServerWithSigners(t, m, m, hostKey)
 
 	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
@@ -542,17 +641,74 @@ func TestServer_ListRepoOps_NoCommitWithoutSigner(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo="+owner.String(),
+		"/xrpc/network.habitat.space.getLatestCommit?space="+uri.String()+"&repo="+owner.String(),
 		nil,
 	)
 	w := httptest.NewRecorder()
-	s.ListRepoOps(w, req)
+	s.GetLatestCommit(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var out habitat.NetworkHabitatSpaceListRepoOpsOutput
+	var out habitat.NetworkHabitatSpaceGetLatestCommitOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
-	require.Len(t, out.Ops, 1)
-	require.Zero(t, out.Commit.Ver, "commit omitted when no signer is available")
+	require.Equal(t, int64(spacecommit.Version), out.Commit.Ver)
+
+	hash := decodeB64(t, out.Commit.Hash)
+	ikm := decodeB64(t, out.Commit.Ikm)
+	sig := decodeB64(t, out.Commit.Sig)
+	require.Len(t, ikm, 32)
+
+	ctxBytes := spacecommit.Ctx(spacecommit.HostProtocolTag, uri, owner, out.Commit.Rev, ikm)
+	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
+
+	rev, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, wantHash, hash)
+	require.Equal(t, rev, out.Commit.Rev)
+}
+
+// TestServer_GetLatestCommit_EmptyRepo returns repo-not-found when the repo
+// holds no records in the space.
+func TestServer_GetLatestCommit_EmptyRepo(t *testing.T) {
+	hostKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
+	s, store := newTestServerWithSigners(t, m, m, hostKey)
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getLatestCommit?space="+uri.String()+"&repo="+owner.String(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.GetLatestCommit(w, req)
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// TestServer_GetLatestCommit_Unauthorized returns space-not-found when the
+// caller is not a member of the space.
+func TestServer_GetLatestCommit_Unauthorized(t *testing.T) {
+	hostKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	m := authntest.NewSuccessMethodWithOrg(alice, orgId)
+	s, store := newTestServerWithSigners(t, m, m, hostKey)
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getLatestCommit?space="+uri.String()+"&repo="+owner.String(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.GetLatestCommit(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_ListRepoOps_Since(t *testing.T) {

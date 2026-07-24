@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -88,15 +89,17 @@ func (p *googleProvider) Authorize(
 
 func (p *googleProvider) Exchange(
 	ctx context.Context,
-	code string,
-	_ string,
+	query url.Values,
 	stateBytes []byte,
 ) (loginID string, err error) {
+	code := query.Get("code")
 	var s googleProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
 		return "", fmt.Errorf("unmarshal google state: %w", err)
 	}
-
+	if s.State != query.Get("state") {
+		return "", fmt.Errorf("google state mismatch")
+	}
 	token, err := p.oauthCfg.Exchange(ctx, code, oauth2.VerifierOption(s.Verifier))
 	if err != nil {
 		return "", fmt.Errorf("google token exchange: %w", err)

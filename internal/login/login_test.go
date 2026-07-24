@@ -3,6 +3,7 @@ package login
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"testing"
 
 	"github.com/habitat-network/habitat/internal/db/testutil"
@@ -66,8 +67,7 @@ func TestPDSProvider_Exchange(t *testing.T) {
 
 	loginID, err := p.Exchange(
 		t.Context(),
-		"dummyCode",
-		"https://pds.example.com",
+		url.Values{"code": {"dummyCode"}, "iss": {"https://pds.example.com"}},
 		state,
 	)
 	require.NoError(t, err)

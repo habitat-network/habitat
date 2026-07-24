@@ -5,7 +5,9 @@ import { Button, Input } from "internal";
 export const Route = createFileRoute("/org-login")({
   async loader() {
     const didres = new DidResolver({});
-    const doc = await didres.resolve(__DOCS_SERVER_DID__);
+    const doc = await didres.resolve(
+      import.meta.env.VITE_DOCS_SERVER_DID || "",
+    );
     // The docs server advertises itself under the #docs service fragment; its
     // endpoint is where the /org/login bootstrap lives.
     const endpoint = doc?.service?.find((s) =>

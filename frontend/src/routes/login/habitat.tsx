@@ -34,7 +34,7 @@ function HabitatLoginPage() {
       const { callbackURL } = await procedure(
         "network.habitat.org.loginMember",
         { handle, password },
-        { unauthenticated: true, domain: __HABITAT_DOMAIN__ },
+        { unauthenticated: true, domain: import.meta.env.VITE_HABITAT_DOMAIN },
       );
       window.location.href = callbackURL;
     } catch (err) {

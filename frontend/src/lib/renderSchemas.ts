@@ -11,9 +11,13 @@ const T = "network.habitat.render.schema";
 
 // TODO: make this less hard coded ?
 const docsBasePath =
-  __HABITAT_DOMAIN__ === "habitat-953995456319.us-west1.run.app"
+  import.meta.env.VITE_HABITAT_DOMAIN ===
+  "habitat-953995456319.us-west1.run.app"
     ? "habitat.network/habitat/docs/#"
-    : __DOMAIN__.replace("frontend", "docs");
+    : new URL(import.meta.env.VITE_BASE_URL).hostname.replace(
+        "frontend",
+        "docs",
+      );
 
 export const RENDER_SCHEMA_REGISTRY: Record<string, RenderSchema> = {
   "community.lexicon.calendar.event": {

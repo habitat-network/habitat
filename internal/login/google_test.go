@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/habitat-network/habitat/internal/db/testutil"
@@ -91,8 +92,11 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	_, state, err := p.Authorize(t.Context(), "")
 	require.NoError(t, err)
 
+	var gs googleProviderState
+	require.NoError(t, json.Unmarshal(state, &gs))
+
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, tokenServer.Client())
-	loginID, err := p.Exchange(ctx, "auth-code", "", state)
+	loginID, err := p.Exchange(ctx, url.Values{"code": {"auth-code"}, "state": {gs.State}}, state)
 	require.NoError(t, err)
 	require.Equal(t, "user@gmail.com", loginID)
 

@@ -4031,6 +4031,61 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceGetLatestCommit: {
+    lexicon: 1,
+    id: 'network.habitat.space.getLatestCommit',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Get the current signed commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        parameters: {
+          type: 'params',
+          required: ['space', 'repo'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            repo: {
+              type: 'string',
+              format: 'did',
+              description:
+                'The DID of the account whose latest commit to retrieve.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              commit: {
+                type: 'ref',
+                ref: 'lex:network.habitat.space.defs#signedCommit',
+                description: "The account's current signed commit.",
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatSpaceGetRecord: {
     lexicon: 1,
     id: 'network.habitat.space.getRecord',
@@ -4091,6 +4146,53 @@ export const schemaDict = {
           },
           {
             name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
+        ],
+      },
+    },
+  },
+  ComAtprotoSpaceGetRepo: {
+    lexicon: 1,
+    id: 'com.atproto.space.getRepo',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Download an account's permissioned repo within a space as a CAR file, for full-state recovery. The CAR declares two roots in order: the signed commit, then a DRISL (DAG-CBOR) index mapping '{collection}/{rkey}' to record CID. Record blocks follow in lexicographic order. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        parameters: {
+          type: 'params',
+          required: ['space', 'repo'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            repo: {
+              type: 'string',
+              format: 'did',
+              description: 'The DID of the account whose repo to download.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/vnd.ipld.car',
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoNotFound',
           },
           {
             name: 'RepoTakendown',
@@ -4921,7 +5023,9 @@ export const ids = {
   NetworkHabitatSpaceDefs: 'network.habitat.space.defs',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
+  NetworkHabitatSpaceGetLatestCommit: 'network.habitat.space.getLatestCommit',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
+  ComAtprotoSpaceGetRepo: 'com.atproto.space.getRepo',
   NetworkHabitatSpaceGetSpaceCredential:
     'network.habitat.space.getSpaceCredential',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',

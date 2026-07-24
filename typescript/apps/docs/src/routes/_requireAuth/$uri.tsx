@@ -191,9 +191,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       },
     });
 
-    // TODO: this should look up the habitat service on the doc owner's DID and use that endpoint, not the generic __HABITAT_DOMAIN__. This is left for later.
+    // TODO: this should look up the habitat service on the doc owner's DID and use that endpoint, not the generic VITE_HABITAT_DOMAIN. This is left for later.
     // All user pear nodes are expected to implement the relay address.
-    const domain = __HABITAT_DOMAIN__;
+    const domain = import.meta.env.VITE_HABITAT_DOMAIN;
     const relayAddr = multiaddr(`/dns4/${domain}/tcp/443/wss`);
 
     async function dialRelayAndStartPeerDiscovery() {
