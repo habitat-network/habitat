@@ -78,3 +78,118 @@ func TestRegistrarRegistersDueSpaces(t *testing.T) {
 	reg.sweep(t.Context())
 	require.Equal(t, 1, calls)
 }
+
+// TestRegistrarEnsureRegisteredAlreadyTracked verifies that EnsureRegistered
+// is a no-op when the space already has a registration.
+func TestRegistrarEnsureRegisteredAlreadyTracked(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceRegisterNotifyOutput{
+			ExpiresAt: time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339),
+		})
+	}))
+	t.Cleanup(srv.Close)
+	base, _ := url.Parse(srv.URL)
+
+	db := db_testutil.NewDB(t)
+	require.NoError(t, AutoMigrate(db))
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	reg := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+
+	require.NoError(t, reg.EnsureRegistered(t.Context(), space))
+	require.Equal(t, 1, calls)
+
+	// Second call: already registered, no new HTTP call.
+	require.NoError(t, reg.EnsureRegistered(t.Context(), space))
+	require.Equal(t, 1, calls)
+}
+
+// TestRegistrarWithTx verifies that WithTx returns a registrar scoped to
+// the given transaction.
+func TestRegistrarWithTx(t *testing.T) {
+	t.Parallel()
+
+	db := db_testutil.NewDB(t)
+	require.NoError(t, AutoMigrate(db))
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	reg := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{space}, "https://sap.example")
+
+	tx := db.Begin()
+	defer tx.Rollback()
+	scoped := reg.WithTx(tx)
+
+	require.NotEqual(t, reg.db, scoped.db)
+}
+
+// TestRegistrarDropSpace verifies that DropSpace removes the registration.
+func TestRegistrarDropSpace(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceRegisterNotifyOutput{
+			ExpiresAt: time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339),
+		})
+	}))
+	t.Cleanup(srv.Close)
+	base, _ := url.Parse(srv.URL)
+
+	db := db_testutil.NewDB(t)
+	require.NoError(t, AutoMigrate(db))
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	reg := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+
+	require.NoError(t, reg.Register(t.Context(), space))
+
+	var count int64
+	require.NoError(t, db.Model(&registration{}).Where("space = ?", space).Count(&count).Error)
+	require.Equal(t, int64(1), count)
+
+	require.NoError(t, reg.DropSpace(t.Context(), space))
+
+	require.NoError(t, db.Model(&registration{}).Where("space = ?", space).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+}
+
+// TestRegistrarDueSpacesEmpty verifies dueSpaces returns nil for no spaces.
+func TestRegistrarDueSpacesEmpty(t *testing.T) {
+	t.Parallel()
+
+	db := db_testutil.NewDB(t)
+	require.NoError(t, AutoMigrate(db))
+	reg := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, "https://sap.example")
+
+	due, err := reg.dueSpaces(t.Context())
+	require.NoError(t, err)
+	require.Nil(t, due)
+}
+
+// TestRegistrarDueSpacesFiltersFresh verifies that dueSpaces only returns
+// spaces whose registrations are expired or missing.
+func TestRegistrarDueSpacesFiltersFresh(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceRegisterNotifyOutput{
+			ExpiresAt: time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339),
+		})
+	}))
+	t.Cleanup(srv.Close)
+	base, _ := url.Parse(srv.URL)
+
+	db := db_testutil.NewDB(t)
+	require.NoError(t, AutoMigrate(db))
+	space1 := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space2 := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s2")
+	reg := New(db, fakeClients{base: base}, fakeSpaces{space1, space2}, "https://sap.example")
+
+	// Register only space1.
+	require.NoError(t, reg.Register(t.Context(), space1))
+
+	due, err := reg.dueSpaces(t.Context())
+	require.NoError(t, err)
+	require.Len(t, due, 1)
+	require.Equal(t, space2, due[0])
+}

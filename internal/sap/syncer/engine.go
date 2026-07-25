@@ -263,42 +263,36 @@ func (e *Engine) claimAndQueue(
 ) int {
 	now := time.Now().Unix()
 	claimed := 0
-	query := fmt.Sprintf(`
-		UPDATE sap_repos SET state = 'syncing'
-		WHERE (space, did) IN (
+	for {
+		var candidates []repo
+		selectQ := fmt.Sprintf(`
 			SELECT space, did FROM sap_repos
 			WHERE (%s) AND (retry_after = 0 OR retry_after < ?)
 			ORDER BY %s, space, did
 			LIMIT ?
-		)
-		RETURNING space, did
-	`, whereStates, priority)
-	for {
-		rows, err := e.db.WithContext(ctx).Raw(query, now, 100).Rows()
-		if err != nil {
-			slog.ErrorContext(ctx, "claim batch", "err", err)
+		`, whereStates, priority)
+		if err := e.db.WithContext(ctx).Raw(selectQ, now, 100).Scan(&candidates).Error; err != nil {
+			slog.ErrorContext(ctx, "claim batch select", "err", err)
 			span.RecordError(err)
 			return claimed
 		}
-		var jobs []job
-		for rows.Next() {
-			j := job{Recover: recover}
-			if err := rows.Scan(&j.Space, &j.DID); err != nil {
-				_ = rows.Close()
-				slog.ErrorContext(ctx, "scan job", "err", err)
-				span.RecordError(err)
+		if len(candidates) == 0 {
+			return claimed
+		}
+		for _, c := range candidates {
+			res := e.db.WithContext(ctx).
+				Model(&repo{}).
+				Where("space = ? AND did = ? AND state != ?", c.Space, c.DID, stateSyncing).
+				Update("state", stateSyncing)
+			if res.Error != nil {
+				slog.ErrorContext(ctx, "claim repo", "err", res.Error)
+				span.RecordError(res.Error)
 				return claimed
 			}
-			jobs = append(jobs, j)
 		}
-		_ = rows.Close()
-		if err := rows.Err(); err != nil {
-			slog.ErrorContext(ctx, "rows err", "err", err)
-			span.RecordError(err)
-			return claimed
-		}
-		if len(jobs) == 0 {
-			return claimed
+		var jobs []job
+		for _, c := range candidates {
+			jobs = append(jobs, job{Space: c.Space, DID: c.DID, Recover: recover})
 		}
 		claimed += len(jobs)
 		for _, j := range jobs {
@@ -308,7 +302,7 @@ func (e *Engine) claimAndQueue(
 				return claimed
 			}
 		}
-		if len(jobs) < 100 {
+		if len(candidates) < 100 {
 			return claimed
 		}
 	}
