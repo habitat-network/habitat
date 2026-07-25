@@ -55,7 +55,7 @@
 
 **Background:** `fosite_client.go`'s `IsPublic()` currently hardcodes `true`. The jwt-bearer grant uses `GrantTypeJWTBearerCanSkipClientAuth: true`, so the grant handler authenticates the client from the assertion's `iss` + signature and skips separate client auth regardless of `IsPublic()`. We make `IsPublic()` reflect the metadata so a confidential client is represented correctly, and prove an **ES256** confidential client still obtains a token via the grant.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `internal/oauthserver/jwt_bearer_test.go`:
 
@@ -142,12 +142,12 @@ func TestHandleTokenJWTBearerES256Confidential(t *testing.T) {
 
 Add imports to the test file as needed: `crypto/ecdsa`, `crypto/elliptic`, `crypto/rand`, `encoding/json`, `net/http`, `net/http/httptest`, `net/url`, `time`, `github.com/golang-jwt/jwt/v5` (aliased `jwt`), `jose "github.com/go-jose/go-jose/v3"`.
 
-- [ ] **Step 2: Run the test to see how it behaves today**
+- [x] **Step 2: Run the test to see how it behaves today**
 
 Run: `go test ./internal/oauthserver/ -run TestHandleTokenJWTBearerES256Confidential -v`
 Expected: either PASS (grant already tolerates ES256 + confidential metadata) or FAIL. If it already PASSES, `IsPublic()` still hardcodes `true` — Step 3 makes the representation correct and adds a guard test. If it FAILS, note the fosite error (`invalid_client` implies the confidential client now needs auth).
 
-- [ ] **Step 3: Make `IsPublic()` reflect the metadata**
+- [x] **Step 3: Make `IsPublic()` reflect the metadata**
 
 In `internal/oauthserver/fosite_client.go` replace the `IsPublic` method:
 
@@ -160,17 +160,17 @@ func (c *client) IsPublic() bool {
 }
 ```
 
-- [ ] **Step 4: Run the ES256 test and the existing jwt-bearer tests**
+- [x] **Step 4: Run the ES256 test and the existing jwt-bearer tests**
 
 Run: `go test ./internal/oauthserver/ -run TestHandleTokenJWTBearer -v`
 Expected: PASS for both the RS256 public-client tests and the new ES256 confidential test. If the ES256 case fails with `invalid_client`, the grant is demanding separate client auth for confidential clients; in that case additionally implement `GetTokenEndpointAuthMethod()`/`GetTokenEndpointAuthSigningAlgorithm()` on `client` returning the metadata values and confirm `GrantTypeJWTBearerCanSkipClientAuth` still applies — re-run until green.
 
-- [ ] **Step 5: Run the full oauthserver package**
+- [x] **Step 5: Run the full oauthserver package**
 
 Run: `go test ./internal/oauthserver/...`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/oauthserver/fosite_client.go internal/oauthserver/jwt_bearer_test.go
@@ -196,7 +196,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
   - `ClientForSession` dispatches on the stored `AuthMethod`.
 - Consumes: existing `getter`, `oauth.ClientApp`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `internal/sap/session/session_test.go`:
 
@@ -229,12 +229,12 @@ func TestClientForSessionDispatchesJWTBearer(t *testing.T) {
 
 Ensure the test file imports `net/http`, `context`, and `db_testutil "github.com/habitat-network/habitat/internal/db/testutil"` (match existing imports).
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/sap/session/ -run TestClientForSessionDispatchesJWTBearer -v`
 Expected: FAIL to compile (`NewStore` arity, `Add` arity, `AuthJWTBearer`, `JWTBearerClients` undefined).
 
-- [ ] **Step 3: Add the auth-method column and constants**
+- [x] **Step 3: Add the auth-method column and constants**
 
 In `internal/sap/session/session.go`, add the constants near the top of the type declarations and extend the `session` struct:
 
@@ -258,7 +258,7 @@ type session struct {
 }
 ```
 
-- [ ] **Step 4: Add the JWT seam to the Store and update constructors**
+- [x] **Step 4: Add the JWT seam to the Store and update constructors**
 
 Replace the `Store`, `NewStore`, `WithTx`, and `Add` definitions:
 
@@ -293,7 +293,7 @@ func (s *Store) Add(ctx context.Context, did syntax.DID, sessionID, method strin
 }
 ```
 
-- [ ] **Step 5: Dispatch in `ClientForSession`**
+- [x] **Step 5: Dispatch in `ClientForSession`**
 
 Replace `ClientForSession`:
 
@@ -319,12 +319,12 @@ func (s *Store) ClientForSession(ctx context.Context, did syntax.DID) (*http.Cli
 }
 ```
 
-- [ ] **Step 6: Run the new and existing session tests**
+- [x] **Step 6: Run the new and existing session tests**
 
 Run: `go test ./internal/sap/session/ -v`
 Expected: PASS. (Existing tests that call `NewStore`/`Add` must be updated to the new signatures — pass `nil` for `jwt` and `AuthOAuth` for method. Update them in this step.)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add internal/sap/session/
@@ -349,7 +349,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
   - `func (b *Builder) PublicJWK() jose.JSONWebKey` — for the served client-metadata JWKS. KeyID is `"habitat"`.
 - Consumes: `Directory`, an ES256 P-256 private key.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `internal/sap/jwtbearer/jwtbearer_test.go`:
 
@@ -424,12 +424,12 @@ func TestClientForDIDMintsAndAttachesToken(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/sap/jwtbearer/ -run TestClientForDIDMintsAndAttachesToken -v`
 Expected: FAIL (package/`New` undefined).
 
-- [ ] **Step 3: Implement the builder**
+- [x] **Step 3: Implement the builder**
 
 Create `internal/sap/jwtbearer/jwtbearer.go`:
 
@@ -617,12 +617,12 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `go test ./internal/sap/jwtbearer/ -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/sap/jwtbearer/
@@ -649,7 +649,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
   - `func (s *Sap) AddSession(ctx context.Context, did syntax.DID, sessionID, method string) error`
   - cmd/sap serves a confidential-client `client-metadata.json`; new internal endpoint `POST /session/jwt` adds a `jwt-bearer` session from `{"did": "..."}`.
 
-- [ ] **Step 1: Thread the auth method and JWT config through the library**
+- [x] **Step 1: Thread the auth method and JWT config through the library**
 
 In `internal/sap/sap.go`:
 
@@ -683,7 +683,7 @@ func (s *Sap) AddSession(ctx context.Context, did syntax.DID, sessionID, method 
 
 Add the import `"github.com/habitat-network/habitat/internal/sap/session"` if not present.
 
-- [ ] **Step 2: Update the in-process sap test callers**
+- [x] **Step 2: Update the in-process sap test callers**
 
 In `internal/sap/sap_test.go`, change the `AddSession` call to pass the OAuth method:
 
@@ -693,7 +693,7 @@ In `internal/sap/sap_test.go`, change the `AddSession` call to pass the OAuth me
 
 Add the `session` import. Run: `go test ./internal/sap/ -run TestSap -v` — Expected: PASS (unchanged behavior; jwt config nil).
 
-- [ ] **Step 3: Add the signing-key flag**
+- [x] **Step 3: Add the signing-key flag**
 
 In `cmd/sap/flags.go`, add a flag var and entry:
 
@@ -709,7 +709,7 @@ In `cmd/sap/flags.go`, add a flag var and entry:
 		},
 ```
 
-- [ ] **Step 4: Build the builder and confidential-client metadata in main**
+- [x] **Step 4: Build the builder and confidential-client metadata in main**
 
 In `cmd/sap/main.go`, after `domain` is set and before `sap.New`, construct the signing key and builder:
 
@@ -753,7 +753,7 @@ func loadOrGenerateES256(encoded string) (*ecdsa.PrivateKey, error) {
 
 Pass the builder into the server constructor so it can serve metadata (see Step 5). Add imports: `crypto/ecdsa`, `crypto/elliptic`, `crand "crypto/rand"`, `encoding/base64`, and `"github.com/habitat-network/habitat/internal/sap/jwtbearer"`.
 
-- [ ] **Step 5: Serve confidential-client metadata and add the JWT session endpoint**
+- [x] **Step 5: Serve confidential-client metadata and add the JWT session endpoint**
 
 In `cmd/sap/server.go`, add the builder to `server` and constructor:
 
@@ -835,7 +835,7 @@ Update `handleOAuthCallback` to pass the method:
 
 Add imports to `server.go`: `jose "github.com/go-jose/go-jose/v3"`, `"github.com/habitat-network/habitat/internal/pdsclient"`, `"github.com/habitat-network/habitat/internal/sap/jwtbearer"`, `"github.com/habitat-network/habitat/internal/sap/session"`.
 
-- [ ] **Step 6: Wire the new server params and route in main**
+- [x] **Step 6: Wire the new server params and route in main**
 
 In `cmd/sap/main.go`, update the `NewSapServer` call to pass the builder and domain, and register the route on the internal mux:
 
@@ -852,12 +852,12 @@ In `cmd/sap/main.go`, update the `NewSapServer` call to pass the builder and dom
 
 (Match `NewSapServer`'s parameter order to whatever you defined in Step 5; include `domain`.)
 
-- [ ] **Step 7: Build and run sap unit tests**
+- [x] **Step 7: Build and run sap unit tests**
 
 Run: `go build ./cmd/sap/... && go test ./internal/sap/...`
 Expected: build succeeds; tests PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add cmd/sap/ internal/sap/sap.go internal/sap/sap_test.go
@@ -873,7 +873,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 **Files:**
 - Create: `cmd/sap/Dockerfile`
 
-- [ ] **Step 1: Write the Dockerfile**
+- [x] **Step 1: Write the Dockerfile**
 
 Create `cmd/sap/Dockerfile` (modeled on `cmd/pear/Dockerfile`, without the UI stage):
 
@@ -901,12 +901,12 @@ COPY --from=build /app/bin/sap /app/sap
 CMD ["/app/sap"]
 ```
 
-- [ ] **Step 2: Verify it builds**
+- [x] **Step 2: Verify it builds**
 
 Run: `docker build -f cmd/sap/Dockerfile -t sap:test .`
 Expected: image builds successfully.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add cmd/sap/Dockerfile
@@ -933,7 +933,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - One self-signed CA signs a leaf cert whose SANs cover `local.habitat.network`, `*.local.habitat.network`, `*.pear.local.habitat.network`, `*.*.pear.local.habitat.network`. Caddy serves it; pear and sap trust the CA via `SSL_CERT_FILE`.
 - CoreDNS answers `*.local.habitat.network → caddy IP` and forwards everything else to the container's Docker resolver (`127.0.0.11`) so service aliases still resolve. pear/sap use CoreDNS as their only resolver.
 
-- [ ] **Step 1: Add integration dependencies**
+- [x] **Step 1: Add integration dependencies**
 
 Run inside `integration/`:
 ```bash
@@ -944,7 +944,7 @@ go get github.com/gorilla/websocket@latest
 ```
 Expected: `go.mod`/`go.sum` updated.
 
-- [ ] **Step 2: TLS CA + leaf generation helper**
+- [x] **Step 2: TLS CA + leaf generation helper**
 
 Create `integration/sap_infra_test.go` starting with the package and a cert helper:
 
@@ -1028,7 +1028,7 @@ func writeTLS(t *testing.T, dir string) {
 }
 ```
 
-- [ ] **Step 3: Caddyfile + Corefile writers**
+- [x] **Step 3: Caddyfile + Corefile writers**
 
 Append helpers that write the proxy configs into the shared dir. `testClientMetadata` is the JSON the test client serves (built in Task 7; here we accept it as a string).
 
@@ -1079,7 +1079,7 @@ func writeCorefile(t *testing.T, dir, caddyIP string) {
 }
 ```
 
-- [ ] **Step 4: Orchestration — `startSapStack`**
+- [x] **Step 4: Orchestration — `startSapStack`**
 
 Append the orchestrator. It creates the network, generates TLS, starts caddy, derives its IP, starts CoreDNS, postgres, toxiproxy, pear, sap, then configures the notify proxy. `pearEnv`/`sapEnv` are built with the required flags. `certsDir` is bind-mounted read-only into caddy at `/certs` and used for `SSL_CERT_FILE` into pear/sap.
 
@@ -1192,7 +1192,7 @@ func startSapStack(ctx context.Context, t *testing.T) *sapStack {
 }
 ```
 
-- [ ] **Step 5: Small helpers (`mustStart`, `buildImage`, `startPostgres`, env builders)**
+- [x] **Step 5: Small helpers (`mustStart`, `buildImage`, `startPostgres`, env builders)**
 
 Append:
 
@@ -1310,12 +1310,12 @@ func sapEnv(pgURL string) map[string]string {
 
 `genKey32` and `genP256Multibase` produce a base64 32-byte key and an atcrypto multibase P-256 key respectively (implement with `encrypt.GenerateKey` and `atcrypto.GeneratePrivateKeyP256().Multibase()` — add those imports).
 
-- [ ] **Step 6: Compile the infra file**
+- [x] **Step 6: Compile the infra file**
 
 Run: `cd integration && go vet ./...`
 Expected: compiles (the file references `buildTestClientMetadata`, added in Task 7; temporarily stub it returning `(nil, nil)` to compile this task, then implement in Task 7). Prefer to implement Task 7's `buildTestClientMetadata` before running the full test.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add integration/sap_infra_test.go integration/go.mod integration/go.sum
@@ -1340,7 +1340,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **Notes:** the client mints its own ES256 assertions (aud = `PearBaseURL + "/oauth/token"`), posts them to `PearHTTP/oauth/token` (published port), caches tokens per subject, and sets `Habitat-Auth-Method: oauth` on every XRPC call. The `Host` header on requests is set to `pear.local.habitat.network` so any host-aware logic sees the canonical host.
 
-- [ ] **Step 1: Test-client metadata builder**
+- [x] **Step 1: Test-client metadata builder**
 
 Create `integration/sap_client_test.go`:
 
@@ -1399,7 +1399,7 @@ func buildTestClientMetadata(t *testing.T, clientID string) (*ecdsa.PrivateKey, 
 }
 ```
 
-- [ ] **Step 2: JWT-bearer pear client**
+- [x] **Step 2: JWT-bearer pear client**
 
 Append:
 
@@ -1520,7 +1520,7 @@ func randJTI() string {
 }
 ```
 
-- [ ] **Step 3: Bootstrap wrappers**
+- [x] **Step 3: Bootstrap wrappers**
 
 Append thin helpers over `xrpc` for the flows used by the test. `createOrg` is unauthenticated (`subject == ""`):
 
@@ -1568,12 +1568,12 @@ func (c *pearClient) putRecord(ctx context.Context, member, space, collection, r
 }
 ```
 
-- [ ] **Step 4: Compile**
+- [x] **Step 4: Compile**
 
 Run: `cd integration && go vet ./...`
 Expected: compiles (remove any temporary stub of `buildTestClientMetadata`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add integration/sap_client_test.go
@@ -1594,7 +1594,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **Behavior:** bootstrap org + 3 members + spaces; register a jwt-bearer sap session per member; open the outbox websocket and drain+ack; run concurrent writers (creates + updates) while injecting notify toxics; assert every created URI is delivered exactly once.
 
-- [ ] **Step 1: Outbox websocket drainer**
+- [x] **Step 1: Outbox websocket drainer**
 
 Create `integration/sap_test.go`:
 
@@ -1644,7 +1644,7 @@ func drainOutbox(ctx context.Context, t *testing.T, wsURL string, seen *sync.Map
 
 (Provide `addInt64` via `sync/atomic` or use `atomic.Int64` directly; adjust types accordingly.)
 
-- [ ] **Step 2: The test body — bootstrap + register sessions**
+- [x] **Step 2: The test body — bootstrap + register sessions**
 
 Append:
 
@@ -1687,7 +1687,7 @@ func TestSapSyncsPearRecords(t *testing.T) {
 	}
 ```
 
-- [ ] **Step 3: Outbox drain + concurrent workload with notify chaos**
+- [x] **Step 3: Outbox drain + concurrent workload with notify chaos**
 
 Continue the test body:
 
@@ -1739,7 +1739,7 @@ Continue the test body:
 	wg.Wait()
 ```
 
-- [ ] **Step 4: Assert eventual delivery**
+- [x] **Step 4: Assert eventual delivery**
 
 Continue and close the test:
 
@@ -1777,12 +1777,12 @@ func registerSapSession(ctx context.Context, t *testing.T, stack *sapStack, did 
 
 Add the `SapInternal` field to `sapStack` and set it in `startSapStack` (`"http://" + sapWSHost`). Add the needed imports (`bytes`, `net/http`, `encoding/json`) to `sap_test.go`. Implement `addInt64`/`loadInt64` with `atomic` or switch the counters to `atomic.Int64` and adjust call sites.
 
-- [ ] **Step 5: Run the integration test**
+- [x] **Step 5: Run the integration test**
 
 Run: `cd integration && go test -run TestSapSyncsPearRecords -v -timeout 600s`
 Expected: PASS. Realistically this first run surfaces bugs — proceed to Step 6.
 
-- [ ] **Step 6: Systematic-debugging pass for discovered bugs**
+- [x] **Step 6: Systematic-debugging pass for discovered bugs**
 
 For each failure, use the `superpowers:systematic-debugging` skill. Likely findings and where to fix:
 - **notifyWrite hash empty** (`internal/notify/notifier.go` sends `Hash: ""`): confirm sap's incremental sync still converges (it re-derives via `listRepoOps`/`getRepo` + verifier). If convergence breaks, fix the notifier to send the signed commit hash or fix sap's handling of an empty hash. Add/extend a unit test in the owning package.
@@ -1792,7 +1792,7 @@ For each failure, use the `superpowers:systematic-debugging` skill. Likely findi
 
 Each production fix lands as its own commit with a message describing the bug.
 
-- [ ] **Step 7: Commit the test**
+- [x] **Step 7: Commit the test**
 
 ```bash
 git add integration/sap_test.go
@@ -1801,7 +1801,7 @@ git commit -m "integration: end-to-end pear-sap sync under concurrency and notif
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 8: Add a moon task (optional wiring)**
+- [x] **Step 8: Add a moon task (optional wiring)**
 
 If `integration/moon.yml` defines a test task, add a `sap` variant or ensure the module's `test` task runs `go test ./...`. Mirror the existing task; do not add it to `moon ci`.
 

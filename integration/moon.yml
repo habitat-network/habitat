@@ -26,3 +26,17 @@ tasks:
       envFile:
       - /dev.env
     preset: server
+  # The pear<->sap sync tests. They build the pear and sap images themselves
+  # via testcontainers, so unlike `test` they need no docker-build deps and no
+  # browser or PDS. Manual, like the rest of this project - not part of moon ci.
+  test-sap:
+    command: go
+    args:
+    - test
+    - ./...
+    - -run
+    - TestSap
+    - -v
+    - -timeout
+    - 20m
+    preset: server
