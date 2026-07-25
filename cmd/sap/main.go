@@ -56,7 +56,10 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	}
 	defer func() { _ = otelShutdown(context.Background()) }()
 
-	slog.SetDefault(log.New(log.WithLevel(cmd.String(fLogLevel))))
+	// Log to stdout as well as the OTel logger provider: without it the
+	// log-level flag is inert and sap is silent wherever OTel is not
+	// configured, which is exactly where the logs are needed.
+	slog.SetDefault(log.New(log.WithLevel(cmd.String(fLogLevel)), log.WithStdout(true)))
 
 	db, err := db.New(cmd.String(fDB))
 	if err != nil {
@@ -99,13 +102,14 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	jwtBuilder := jwtbearer.New(clientID, signingKey, dir)
 
 	s, err := sap.New(sap.Config{
-		DB:          db,
-		OAuthClient: oauthApp,
-		Directory:   dir,
-		Endpoint:    endpoint,
-		JWTBearer:   jwtBuilder,
-		Meter:       otel.Meter("sap"),
-		Tracer:      otel.Tracer("sap"),
+		DB:            db,
+		OAuthClient:   oauthApp,
+		Directory:     dir,
+		Endpoint:      endpoint,
+		JWTBearer:     jwtBuilder,
+		CrawlInterval: cmd.Duration(fCrawlInterval),
+		Meter:         otel.Meter("sap"),
+		Tracer:        otel.Tracer("sap"),
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
