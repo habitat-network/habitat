@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -1026,82 +1027,6 @@ func TestEngineNotifyWriteConcurrentUnknownRepo(t *testing.T) {
 	require.Equal(t, int64(1), count)
 }
 
-// resyncHost serves getLatestCommit for a single repo at the given head, and
-// counts how many times it was asked.
-type resyncHost struct {
-	commit habitat.NetworkHabitatSpaceDefsSignedCommit
-	calls  atomic.Int64
-}
-
-func (h *resyncHost) start(t *testing.T) string {
-	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/xrpc/network.habitat.space.getLatestCommit", r.URL.Path)
-		h.calls.Add(1)
-		_ = json.NewEncoder(w).Encode(
-			habitat.NetworkHabitatSpaceGetLatestCommitOutput{Commit: h.commit})
-	}))
-	t.Cleanup(srv.Close)
-	return srv.URL
-}
-
-// TestEngineResyncRequeuesRepoBehindHost verifies the sweep polls the host for
-// each tracked repo's head and requeues one whose rev the host has moved past
-// — the repair path for a notifyWrite that never arrived.
-func TestEngineResyncRequeuesRepoBehindHost(t *testing.T) {
-	t.Parallel()
-
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
-	clock := syntax.NewTIDClock(0)
-	ours, theirs := clock.Next().String(), clock.Next().String()
-
-	host := &resyncHost{commit: habitat.NetworkHabitatSpaceDefsSignedCommit{
-		Ver: int64(spacecommit.Version), Rev: theirs,
-	}}
-	e, _, db := newTestEngine(t, host.start(t))
-
-	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
-	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
-		Updates(map[string]any{"state": stateActive, "rev": ours}).Error)
-
-	count, err := e.Resync(t.Context())
-	require.NoError(t, err)
-	require.Equal(t, int64(1), count)
-	require.Equal(t, int64(1), host.calls.Load())
-
-	var r repo
-	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
-	require.Equal(t, statePending, r.State)
-}
-
-// TestEngineResyncLeavesCurrentRepoAlone verifies a repo already at the host's
-// head is polled but not requeued, so a steady-state sweep costs one request
-// per repo and no sync work.
-func TestEngineResyncLeavesCurrentRepoAlone(t *testing.T) {
-	t.Parallel()
-
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
-	rev := syntax.NewTIDClock(0).Next().String()
-
-	host := &resyncHost{commit: habitat.NetworkHabitatSpaceDefsSignedCommit{
-		Ver: int64(spacecommit.Version), Rev: rev,
-	}}
-	e, _, db := newTestEngine(t, host.start(t))
-
-	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
-	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
-		Updates(map[string]any{"state": stateActive, "rev": rev}).Error)
-
-	count, err := e.Resync(t.Context())
-	require.NoError(t, err)
-	require.Equal(t, int64(0), count)
-	require.Equal(t, int64(1), host.calls.Load())
-
-	var r repo
-	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
-	require.Equal(t, stateActive, r.State)
-}
-
 // TestEngineResyncSurvivesUnreachableHost verifies one repo's failed poll does
 // not abort the sweep: the sweep is best-effort upkeep and runs again next
 // interval.
@@ -1126,4 +1051,242 @@ func TestEngineResyncSurvivesUnreachableHost(t *testing.T) {
 	var r repo
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
 	require.Equal(t, stateActive, r.State)
+}
+
+// TestEngineScheduleRetryDesyncRecoversPromptly verifies a repo marked
+// desynced is claimable immediately rather than sitting in error backoff.
+// Recovery is the protocol's designed self-healing path, not a retry after a
+// fault, so the first attempt must not be delayed. A repo that keeps
+// desyncing still backs off.
+func TestEngineScheduleRetryDesyncRecoversPromptly(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	e, _, db := newTestEngine(t, "http://unused.example")
+	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
+
+	require.NoError(t, e.scheduleRetry(
+		t.Context(), space, "did:plc:alice", stateDesynced, errors.New("hash mismatch")))
+
+	var r repo
+	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
+	require.Equal(t, stateDesynced, r.State)
+	require.Equal(t, int64(0), r.RetryAfter, "first recovery must be claimable immediately")
+
+	// A repeat desync is a real problem, so it backs off like any other retry.
+	require.NoError(t, e.scheduleRetry(
+		t.Context(), space, "did:plc:alice", stateDesynced, errors.New("hash mismatch")))
+	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
+	require.Greater(t, r.RetryAfter, time.Now().Unix())
+}
+
+// TestEngineResyncComparesRevsPerSpace verifies the sweep enumerates each
+// space once with listRepos and compares the revisions it reports against what
+// is stored, rather than fetching every repo's head individually. One request
+// per space is what makes the sweep affordable at the interval that makes
+// dropped notifications converge quickly.
+func TestEngineResyncComparesRevsPerSpace(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	clock := syntax.NewTIDClock(0)
+	ours, theirs := clock.Next().String(), clock.Next().String()
+
+	var listCalls atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/xrpc/network.habitat.space.listRepos", r.URL.Path)
+		require.Equal(t, space.String(), r.URL.Query().Get("space"))
+		listCalls.Add(1)
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
+			Repos: []habitat.NetworkHabitatSpaceListReposRepo{
+				{Did: "did:plc:behind", Rev: theirs},
+				{Did: "did:plc:current", Rev: ours},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	e, _, db := newTestEngine(t, srv.URL)
+	for _, did := range []syntax.DID{"did:plc:behind", "did:plc:current"} {
+		require.NoError(t, e.Track(t.Context(), space, did))
+		require.NoError(t, db.Model(&repo{}).Where("did = ?", did).
+			Updates(map[string]any{"state": stateActive, "rev": ours}).Error)
+	}
+
+	count, err := e.Resync(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count, "only the repo the host has moved past should requeue")
+	require.Equal(t, int64(1), listCalls.Load(), "one listRepos per space, not per repo")
+
+	states := map[syntax.DID]repoState{}
+	var repos []repo
+	require.NoError(t, db.Find(&repos).Error)
+	for _, r := range repos {
+		states[r.DID] = r.State
+	}
+	require.Equal(t, statePending, states["did:plc:behind"])
+	require.Equal(t, stateActive, states["did:plc:current"])
+}
+
+// TestEngineRecoverByDiffRefetchesOnlyChangedRecords verifies the narrow
+// recovery path: a repo sap already holds an index for is repaired by
+// enumerating paths with values excluded and fetching only the records whose
+// CID moved. The unchanged records must not be refetched or re-emitted, so a
+// recovery costs the consumer nothing for data it already has.
+func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	repoDID := syntax.DID("did:plc:alice")
+	coll := syntax.NSID("network.habitat.test")
+	rev := syntax.NewTIDClock(0).Next().String()
+
+	// The host holds three records; sap's index is current for two of them.
+	hostCids := map[syntax.RecordKey]string{"k1": "bafyaaa", "k2": "bafybbb", "k3": "bafyccc"}
+	var lt spacecommit.LtHash
+	for rkey, c := range hostCids {
+		lt.Add(spacecommit.RecordElement(coll, rkey, c))
+	}
+
+	var fetched sync.Map
+	var listCalls, commitCalls atomic.Int64
+	mux := http.NewServeMux()
+	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit",
+		func(w http.ResponseWriter, _ *http.Request) {
+			commitCalls.Add(1)
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetLatestCommitOutput{
+				Commit: habitat.NetworkHabitatSpaceDefsSignedCommit{
+					Ver:  int64(spacecommit.Version),
+					Rev:  rev,
+					Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+				},
+			})
+		})
+	mux.HandleFunc("/xrpc/network.habitat.space.listRecords",
+		func(w http.ResponseWriter, r *http.Request) {
+			listCalls.Add(1)
+			require.Equal(t, "true", r.URL.Query().Get("excludeValues"))
+			out := habitat.NetworkHabitatSpaceListRecordsOutput{}
+			for _, rkey := range []syntax.RecordKey{"k1", "k2", "k3"} {
+				out.Records = append(out.Records, habitat.NetworkHabitatSpaceListRecordsRecord{
+					Collection: coll.String(), Rkey: rkey.String(), Cid: hostCids[rkey],
+				})
+			}
+			_ = json.NewEncoder(w).Encode(out)
+		})
+	mux.HandleFunc("/xrpc/network.habitat.space.getRecord",
+		func(w http.ResponseWriter, r *http.Request) {
+			rkey := r.URL.Query().Get("rkey")
+			fetched.Store(rkey, true)
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetRecordOutput{
+				Cid: hostCids[syntax.RecordKey(rkey)], Value: map[string]any{"k": rkey},
+			})
+		})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	e, emitter, db := newTestEngine(t, srv.URL)
+	require.NoError(t, e.Track(t.Context(), space, repoDID))
+	// k1 is current, k2 is stale, k3 is unknown to sap.
+	for rkey, c := range map[syntax.RecordKey]string{"k1": "bafyaaa", "k2": "bafyOLD"} {
+		require.NoError(t, indexRecord(t.Context(), db, space, repoDID, coll, rkey, c))
+	}
+
+	require.NoError(t, e.recoverRepo(t.Context(), space, repoDID))
+
+	require.Equal(t, int64(1), commitCalls.Load())
+	require.Equal(t, int64(1), listCalls.Load())
+	_, gotK1 := fetched.Load("k1")
+	_, gotK2 := fetched.Load("k2")
+	_, gotK3 := fetched.Load("k3")
+	require.False(t, gotK1, "unchanged record must not be refetched")
+	require.True(t, gotK2, "stale record must be refetched")
+	require.True(t, gotK3, "unknown record must be fetched")
+
+	require.Len(t, emitter.emitted, 2, "only changed records are re-emitted")
+
+	var r repo
+	require.NoError(t, db.First(&r, "did = ?", repoDID).Error)
+	require.Equal(t, stateActive, r.State)
+	require.Equal(t, syntax.TID(rev), r.Rev)
+
+	index, err := recordIndex(t.Context(), db, space, repoDID)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{
+		"network.habitat.test/k1": "bafyaaa",
+		"network.habitat.test/k2": "bafybbb",
+		"network.habitat.test/k3": "bafyccc",
+	}, index)
+}
+
+// TestEngineSyncRepoFoldsOutSupersededRecord covers an incremental sync across
+// an update to a path already folded into the repo's hash. The host reports
+// the path's current CID with no prev, so folding the new CID in without
+// folding the old one out leaves the running hash carrying both and the repo
+// diverges from a commit it actually agrees with.
+func TestEngineSyncRepoFoldsOutSupersededRecord(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	repoDID := syntax.DID("did:plc:alice")
+	coll := syntax.NSID("network.habitat.test")
+	clock := syntax.NewTIDClock(0)
+	rev1, rev2 := clock.Next().String(), clock.Next().String()
+
+	commitFor := func(rev, recCid string) habitat.NetworkHabitatSpaceDefsSignedCommit {
+		var lt spacecommit.LtHash
+		lt.Add(spacecommit.RecordElement(coll, "k1", recCid))
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{
+			Ver:  int64(spacecommit.Version),
+			Rev:  rev,
+			Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+		}
+	}
+
+	// The host advances k1 from bafyaaa to bafybbb between the two passes.
+	updated := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/xrpc/network.habitat.space.listRepoOps", r.URL.Path)
+		since := r.URL.Query().Get("since")
+		out := habitat.NetworkHabitatSpaceListRepoOpsOutput{}
+		switch {
+		case !updated && since == "":
+			out.Ops = []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{{
+				Rev: rev1, Collection: coll.String(), Rkey: "k1",
+				Cid: "bafyaaa", Value: map[string]any{"n": 1},
+			}}
+			out.Cursor = rev1
+			out.Commit = commitFor(rev1, "bafyaaa")
+		case updated && since == rev1:
+			out.Ops = []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{{
+				Rev: rev2, Collection: coll.String(), Rkey: "k1",
+				Cid: "bafybbb", Value: map[string]any{"n": 2},
+			}}
+			out.Cursor = rev2
+			out.Commit = commitFor(rev2, "bafybbb")
+		default:
+			out.Commit = commitFor(since, map[bool]string{false: "bafyaaa", true: "bafybbb"}[updated])
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	}))
+	t.Cleanup(srv.Close)
+
+	e, _, db := newTestEngine(t, srv.URL)
+	require.NoError(t, e.Track(t.Context(), space, repoDID))
+	require.NoError(t, db.Model(&repo{}).Where("did = ?", repoDID).
+		Update("state", stateSyncing).Error)
+	require.NoError(t, e.syncRepo(t.Context(), space, repoDID))
+
+	var r repo
+	require.NoError(t, db.First(&r, "did = ?", repoDID).Error)
+	require.Equal(t, stateActive, r.State)
+
+	updated = true
+	require.NoError(t, db.Model(&repo{}).Where("did = ?", repoDID).
+		Update("state", stateSyncing).Error)
+	require.NoError(t, e.syncRepo(t.Context(), space, repoDID))
+
+	require.NoError(t, db.First(&r, "did = ?", repoDID).Error)
+	require.Equal(t, stateActive, r.State, "superseded record left the repo diverged")
+	require.Equal(t, syntax.TID(rev2), r.Rev)
 }

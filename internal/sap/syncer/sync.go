@@ -131,11 +131,37 @@ func (e *Engine) applyOps(
 			return fmt.Errorf("parse rkey %q: %w", op.Rkey, err)
 		}
 
-		if op.Prev != "" {
-			lt.Remove(spacecommit.RecordElement(collection, rkey, op.Prev))
+		// An operation that supersedes a record has to fold the old version out
+		// of the running hash as well as the new one in, or the hash carries
+		// both and the repo reads as diverged from a commit it agrees with.
+		// The host may report the superseded CID as prev; when it does not,
+		// sap's own path index is the authority on what it last folded in.
+		prev := op.Prev
+		if prev == "" {
+			held, err := heldCid(ctx, tx, space, repoDID, collection, rkey)
+			if err != nil {
+				return fmt.Errorf("held cid %s/%s: %w", collection, rkey, err)
+			}
+			prev = held
 		}
-		if op.Cid != "" {
-			lt.Add(spacecommit.RecordElement(collection, rkey, op.Cid))
+		if prev != op.Cid {
+			if prev != "" {
+				lt.Remove(spacecommit.RecordElement(collection, rkey, prev))
+			}
+			if op.Cid != "" {
+				lt.Add(spacecommit.RecordElement(collection, rkey, op.Cid))
+			}
+		}
+
+		// Keep the path index in step with the hash, in the same transaction,
+		// so recovery can tell which records it already holds.
+		if op.Cid == "" {
+			if err := forgetRecord(ctx, tx, space, repoDID, collection, rkey); err != nil {
+				return fmt.Errorf("forget record %s/%s: %w", collection, rkey, err)
+			}
+		} else if err := indexRecord(
+			ctx, tx, space, repoDID, collection, rkey, op.Cid); err != nil {
+			return fmt.Errorf("index record %s/%s: %w", collection, rkey, err)
 		}
 
 		if op.Value == nil {
@@ -229,4 +255,137 @@ func getLatestCommit(
 		return output.Commit, fmt.Errorf("decode get latest commit: %w", decodeErr)
 	}
 	return output.Commit, closeErr
+}
+
+// listRepoHeads pages through network.habitat.space.listRepos, returning every
+// repo the space holds along with the rev and hash its host currently reports.
+func listRepoHeads(
+	ctx context.Context,
+	client *http.Client,
+	space habitat_syntax.SpaceURI,
+) ([]habitat.NetworkHabitatSpaceListReposRepo, error) {
+	var all []habitat.NetworkHabitatSpaceListReposRepo
+	cursor := ""
+	for {
+		params := url.Values{"space": []string{space.String()}}
+		if cursor != "" {
+			params.Set("cursor", cursor)
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+			"/xrpc/network.habitat.space.listRepos?"+params.Encode(), nil)
+		if err != nil {
+			return nil, fmt.Errorf("create request: %w", err)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("list repos: %w", err)
+		}
+		var output habitat.NetworkHabitatSpaceListReposOutput
+		decodeErr := json.NewDecoder(resp.Body).Decode(&output)
+		closeErr := resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("list repos: %s", resp.Status)
+		}
+		if decodeErr != nil {
+			return nil, fmt.Errorf("decode list repos: %w", decodeErr)
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+
+		all = append(all, output.Repos...)
+		if output.Cursor == "" || len(output.Repos) == 0 {
+			return all, nil
+		}
+		cursor = output.Cursor
+	}
+}
+
+// listRepoPaths pages through network.habitat.space.listRecords with values
+// excluded, returning the repo's full path → CID listing. This is the cheap
+// enumeration the permissioned-data protocol's narrow recovery is built on:
+// it identifies the host's exact record set without transferring any values.
+func listRepoPaths(
+	ctx context.Context,
+	client *http.Client,
+	space habitat_syntax.SpaceURI,
+	repoDID syntax.DID,
+) ([]habitat.NetworkHabitatSpaceListRecordsRecord, error) {
+	var all []habitat.NetworkHabitatSpaceListRecordsRecord
+	cursor := ""
+	for {
+		params := url.Values{
+			"space":         []string{space.String()},
+			"repo":          []string{repoDID.String()},
+			"excludeValues": []string{"true"},
+			"limit":         []string{"1000"},
+		}
+		if cursor != "" {
+			params.Set("cursor", cursor)
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+			"/xrpc/network.habitat.space.listRecords?"+params.Encode(), nil)
+		if err != nil {
+			return nil, fmt.Errorf("create request: %w", err)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("list records: %w", err)
+		}
+		var output habitat.NetworkHabitatSpaceListRecordsOutput
+		decodeErr := json.NewDecoder(resp.Body).Decode(&output)
+		closeErr := resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("list records: %s", resp.Status)
+		}
+		if decodeErr != nil {
+			return nil, fmt.Errorf("decode list records: %w", decodeErr)
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+
+		all = append(all, output.Records...)
+		if output.Cursor == "" || len(output.Records) == 0 {
+			return all, nil
+		}
+		cursor = output.Cursor
+	}
+}
+
+// getRecord fetches a single record's value.
+func getRecord(
+	ctx context.Context,
+	client *http.Client,
+	space habitat_syntax.SpaceURI,
+	repoDID syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+) (habitat.NetworkHabitatSpaceGetRecordOutput, error) {
+	var output habitat.NetworkHabitatSpaceGetRecordOutput
+
+	params := url.Values{
+		"space":      []string{space.String()},
+		"repo":       []string{repoDID.String()},
+		"collection": []string{collection.String()},
+		"rkey":       []string{rkey.String()},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"/xrpc/network.habitat.space.getRecord?"+params.Encode(), nil)
+	if err != nil {
+		return output, fmt.Errorf("create request: %w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return output, fmt.Errorf("get record: %w", err)
+	}
+	decodeErr := json.NewDecoder(resp.Body).Decode(&output)
+	closeErr := resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return output, fmt.Errorf("get record %s/%s: %s", collection, rkey, resp.Status)
+	}
+	if decodeErr != nil {
+		return output, fmt.Errorf("decode get record: %w", decodeErr)
+	}
+	return output, closeErr
 }

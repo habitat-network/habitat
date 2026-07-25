@@ -60,7 +60,7 @@ func (repo) TableName() string { return "sap_repos" }
 
 // AutoMigrate creates the syncer tables.
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&repo{})
+	return db.AutoMigrate(&repo{}, &repoRecord{})
 }
 
 // Clients supplies an HTTP client authenticated as some session that can
@@ -226,77 +226,75 @@ func (e *Engine) observeHead(
 	return queued, nil
 }
 
-// Resync polls every tracked repo's host for its current head commit and
-// feeds it through the same staleness decision a pushed notification takes,
-// returning how many repos it found behind and queued.
+// Resync sweeps every space sap tracks, comparing the revisions its host
+// reports for each repo against what sap has stored and queuing the ones the
+// host has moved past. It returns how many were queued.
 //
 // Host notifications are best-effort: a notifyWrite that never arrives leaves
 // a repo settled at a stale rev with nothing scheduled to advance it, since
-// Track only inserts repos it has not seen. This is the anti-entropy sweep
-// that closes that gap, so sync is eventually consistent rather than
-// dependent on every push landing.
+// Track only inserts repos it has not seen. This is the periodic sweep the
+// permissioned-data protocol names as the counterpart to those notifications,
+// and it is what makes sync eventually consistent rather than dependent on
+// every push landing.
 //
-// A repo already at its host's head costs one getLatestCommit and no sync
-// work, so a steady-state sweep is one request per tracked repo. Unlike the
-// notification path the commit here always carries a hash, so divergence at
-// an unchanged rev is caught too.
+// The comparison uses listRepos, which reports a rev and hash per repo, so the
+// sweep costs one request per space rather than one per repo. Each candidate
+// then goes through the same staleness decision a pushed notification takes.
 //
 // Failures are logged and skipped rather than returned: the sweep is
-// best-effort upkeep, and one unreachable host must not stop it from
-// repairing the rest. An error is returned only if the repo list itself
-// cannot be read.
+// best-effort upkeep, and one unreachable host must not stop it from repairing
+// the rest. An error is returned only if the tracked spaces cannot be read.
 func (e *Engine) Resync(ctx context.Context) (int64, error) {
-	var repos []repo
+	var spaces []habitat_syntax.SpaceURI
 	if err := e.db.WithContext(ctx).
 		Model(&repo{}).
-		Select("space", "did").
-		Find(&repos).Error; err != nil {
-		return 0, fmt.Errorf("list tracked repos: %w", err)
+		Distinct().
+		Pluck("space", &spaces).Error; err != nil {
+		return 0, fmt.Errorf("list tracked spaces: %w", err)
 	}
 
 	var queued int64
-	for _, r := range repos {
+	for _, space := range spaces {
 		select {
 		case <-ctx.Done():
 			return queued, nil
 		default:
 		}
 
-		client, err := e.clients.ClientForSpace(ctx, r.Space)
+		client, err := e.clients.ClientForSpace(ctx, space)
 		if err != nil {
-			slog.WarnContext(ctx, "resync: client for space",
-				"space", r.Space, "repo", r.DID, "err", err)
+			slog.WarnContext(ctx, "resync: client for space", "space", space, "err", err)
 			continue
 		}
-		commit, err := getLatestCommit(ctx, client, r.Space, r.DID)
-		// A repo nothing has been written to yet, or one whose commit the host
-		// omitted, has no head to be behind.
-		if errors.Is(err, errEmptyRepoHead) {
-			continue
-		}
+		heads, err := listRepoHeads(ctx, client, space)
 		if err != nil {
-			slog.WarnContext(ctx, "resync: get latest commit",
-				"space", r.Space, "repo", r.DID, "err", err)
+			slog.WarnContext(ctx, "resync: list repos", "space", space, "err", err)
 			continue
 		}
-		if commit.Ver == 0 {
-			continue
-		}
-		decoded, err := decodeCommit(commit)
-		if err != nil {
-			slog.WarnContext(ctx, "resync: decode commit",
-				"space", r.Space, "repo", r.DID, "err", err)
-			continue
-		}
-		didQueue, err := e.observeHead(
-			ctx, r.Space, r.DID, syntax.TID(decoded.Rev), decoded.Hash)
-		if err != nil {
-			slog.WarnContext(ctx, "resync: observe head",
-				"space", r.Space, "repo", r.DID, "err", err)
-			continue
-		}
-		if didQueue {
-			queued++
+		for _, head := range heads {
+			did, err := syntax.ParseDID(head.Did)
+			if err != nil {
+				slog.WarnContext(ctx, "resync: parse repo did",
+					"space", space, "repo", head.Did, "err", err)
+				continue
+			}
+			// The hash is optional in the listing; without it the rev
+			// comparison alone decides.
+			hash, err := decodeBytesField(head.Hash)
+			if err != nil {
+				slog.WarnContext(ctx, "resync: decode repo hash",
+					"space", space, "repo", did, "err", err)
+				hash = nil
+			}
+			didQueue, err := e.observeHead(ctx, space, did, syntax.TID(head.Rev), hash)
+			if err != nil {
+				slog.WarnContext(ctx, "resync: observe head",
+					"space", space, "repo", did, "err", err)
+				continue
+			}
+			if didQueue {
+				queued++
+			}
 		}
 	}
 	return queued, nil
@@ -521,6 +519,14 @@ func (e *Engine) scheduleRetry(
 			"space", space, "repo", did, "state", state,
 			"retry_count", retryCount, "err", cause)
 	}
+	// A first desync is not a fault to back off from: rebuilding from the
+	// host's full state is the protocol's designed self-healing path, and
+	// delaying it just leaves the repo stale for longer. Repeated desyncs mean
+	// recovery is not converging, so those back off like anything else.
+	var retryAfter int64
+	if state != stateDesynced || retryCount > 1 {
+		retryAfter = time.Now().Add(backoff(retryCount, 60)).Unix()
+	}
 	if err := e.db.WithContext(ctx).
 		Model(&repo{}).
 		Where("space = ? AND did = ?", space, did).
@@ -529,7 +535,7 @@ func (e *Engine) scheduleRetry(
 			"dirty":       false, // the retry re-syncs to head anyway
 			"error_msg":   errMsg,
 			"retry_count": retryCount,
-			"retry_after": time.Now().Add(backoff(retryCount, 60)).Unix(),
+			"retry_after": retryAfter,
 		}).Error; err != nil {
 		return err
 	}
