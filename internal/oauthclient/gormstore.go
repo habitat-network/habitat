@@ -12,10 +12,14 @@ import (
 )
 
 // sessionRow stores oauth.ClientSessionData keyed by (did, session_id).
+//
+// Data carries no explicit column type: "blob" is SQLite-only and fails to
+// migrate on Postgres, so the dialect picks the type for []byte itself
+// (bytea on Postgres, blob on SQLite).
 type sessionRow struct {
 	DID       string `gorm:"column:did;primaryKey;type:text"`
 	SessionID string `gorm:"column:session_id;primaryKey;type:text"`
-	Data      []byte `gorm:"column:data;type:blob"`
+	Data      []byte `gorm:"column:data"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -25,7 +29,7 @@ func (sessionRow) TableName() string { return "client_sessions" }
 // authRequestRow stores oauth.AuthRequestData keyed by state.
 type authRequestRow struct {
 	State     string `gorm:"column:state;primaryKey;type:text"`
-	Data      []byte `gorm:"column:data;type:blob"`
+	Data      []byte `gorm:"column:data"`
 	CreatedAt time.Time
 }
 
