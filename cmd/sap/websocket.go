@@ -5,12 +5,20 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/habitat-network/habitat/internal/sap/outbox"
 )
 
 const outboxPollLimit = 100
+
+// outboxPollInterval bounds how long a delivery can wait when the outbox's
+// wake-up notification does not reach the channel. That hint is a single
+// coalescing slot shared by all emitters, so it can be consumed by a loop
+// iteration that has nothing to poll for, or collapse a burst into one
+// wake-up; the outbox itself is durable, and delivery must not depend on it.
+const outboxPollInterval = time.Second
 
 var outboxUpgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -62,6 +70,10 @@ func (s *server) handleOutboxChannel(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	// Backstop for a missed wake-up; the notification remains the fast path.
+	ticker := time.NewTicker(outboxPollInterval)
+	defer ticker.Stop()
+
 	pending := map[uint]outbox.Message{}
 	for {
 		if len(pending) == 0 {
@@ -96,6 +108,7 @@ func (s *server) handleOutboxChannel(w http.ResponseWriter, r *http.Request) {
 			}
 			delete(pending, id)
 		case <-s.sap.Outbox().Watch():
+		case <-ticker.C:
 		}
 	}
 }

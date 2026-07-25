@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -127,4 +128,65 @@ func TestServer_OutboxChannelRedeliversUnackedAfterReconnect(t *testing.T) {
 	var msg2 outboxWireMessage
 	require.NoError(t, conn2.ReadJSON(&msg2))
 	require.Equal(t, id, msg2.ID)
+}
+
+// TestOutboxChannelDeliversBeyondOnePollBatch verifies the channel keeps
+// delivering once the first poll batch is drained. The handler only re-polls
+// when nothing is pending, so a client that acks everything must still receive
+// more messages than outboxPollLimit.
+func TestOutboxChannelDeliversBeyondOnePollBatch(t *testing.T) {
+	httpServer, _, db := openOutboxTestServer(t)
+
+	const total = outboxPollLimit*2 + 25
+	for i := range total {
+		createOutboxRow(t, db,
+			fmt.Sprintf("ats://did:plc:o/network.habitat.space/s/did:plc:r/c/rec%d", i),
+			`{"n":1}`)
+	}
+
+	conn, _, err := websocket.DefaultDialer.Dial(
+		strings.Replace(httpServer.URL, "http", "ws", 1)+"/channel", nil)
+	require.NoError(t, err)
+	defer func() { _ = conn.Close() }()
+
+	seen := 0
+	for seen < total {
+		require.NoError(t, conn.SetReadDeadline(time.Now().Add(10*time.Second)))
+		var msg outboxWireMessage
+		require.NoError(t, conn.ReadJSON(&msg), "stalled after %d/%d messages", seen, total)
+		seen++
+		require.NoError(t, conn.WriteJSON(outboxAck{ID: msg.ID}))
+	}
+	require.Equal(t, total, seen)
+}
+
+// TestOutboxChannelDeliversMessagesEmittedWhileDraining verifies the channel
+// keeps up when records are still being emitted as the client drains, which is
+// how a live sync behaves. Delivery must not stall on a poll that happened to
+// find the outbox empty.
+func TestOutboxChannelDeliversMessagesEmittedWhileDraining(t *testing.T) {
+	httpServer, _, db := openOutboxTestServer(t)
+
+	conn, _, err := websocket.DefaultDialer.Dial(
+		strings.Replace(httpServer.URL, "http", "ws", 1)+"/channel", nil)
+	require.NoError(t, err)
+	defer func() { _ = conn.Close() }()
+
+	const total = outboxPollLimit * 3
+	go func() {
+		for i := range total {
+			createOutboxRow(t, db,
+				fmt.Sprintf("ats://did:plc:o/network.habitat.space/s/did:plc:r/c/rec%d", i),
+				`{"n":1}`)
+		}
+	}()
+
+	seen := 0
+	for seen < total {
+		require.NoError(t, conn.SetReadDeadline(time.Now().Add(15*time.Second)))
+		var msg outboxWireMessage
+		require.NoError(t, conn.ReadJSON(&msg), "stalled after %d/%d messages", seen, total)
+		seen++
+		require.NoError(t, conn.WriteJSON(outboxAck{ID: msg.ID}))
+	}
 }
