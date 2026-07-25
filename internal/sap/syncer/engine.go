@@ -514,6 +514,12 @@ func (e *Engine) scheduleRetry(
 	errMsg := ""
 	if cause != nil {
 		errMsg = cause.Error()
+		// Callers return this function's result, which is nil when scheduling
+		// succeeds, so the cause never reaches the worker's error logging.
+		// Without this a repo can fail every pass and sap stays silent.
+		slog.WarnContext(ctx, "sync pass failed, scheduling retry",
+			"space", space, "repo", did, "state", state,
+			"retry_count", retryCount, "err", cause)
 	}
 	if err := e.db.WithContext(ctx).
 		Model(&repo{}).
