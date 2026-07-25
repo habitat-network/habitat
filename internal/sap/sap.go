@@ -1,42 +1,19 @@
-// Package sap implements the Sync Agent Process for Habitat. It crawls
-// managed organizations' AT Protocol repos, discovers spaces and their member
-// repositories, and keeps a local copy of each repo's records in sync via
-// live SSE subscriptions and periodic resyncs. The synced records are exposed
-// through a durable [Outbox] that consumers can poll for new events.
-//
-// # Lifecycle
-//
-// A typical integration creates a [Sap] with [NewSap], calls [Sap.AddManagedOrg]
-// for each organization the instance manages, and then calls [Sap.Start] to
-// begin background crawling, subscribing, and resyncing. The outbox is
-// accessible at any time through [Sap.Outbox].
-//
-// # Architecture
-//
-// The package is built around four cooperating subsystems:
-//
-//   - **Crawler** – performs a one-shot enumeration of every space and repo in
-//     a newly added org. Repos discovered during crawling are enqueued for
-//     resync.
-//   - **Subscriber** – opens a persistent SSE connection per org to receive
-//     real-time space events. Incoming events are either applied immediately
-//     (for repos that are already active) or buffered for later replay.
-//   - **Resyncer** – a worker pool that backfills repos from scratch or
-//     catches up repos that fell behind. It pulls work from a shared job
-//     queue that is fed by both the crawler and the subscriber.
-//   - **Outbox** – the consumer-facing API. It exposes a durable, ordered
-//     stream of record-level events that have been validated and written by
-//     the resyncer or subscriber.
-//
-// A [resyncBuffer] sits between the subscriber and the outbox, deciding per
-// event whether to apply it directly or hold it in a pending buffer while a
-// resync is in flight.
+// Package sap is a syncing service for habitat permissioned spaces, usable as
+// a library. A caller adds an OAuth session after completing the auth flow;
+// sap then backfills everything the session can see (listSpaces/listRepos),
+// keeps notify registrations with the spaces' hosts fresh, and — when the
+// caller relays a host notification via NotifyWrite / NotifySpaceDeleted —
+// incrementally syncs the affected repo with listRepoOps, verifying each
+// repo's LtHash against the host's signed commit. Repos that fail verification
+// are rebuilt from a full getRepo snapshot. Synced records are delivered
+// through an acknowledged outbox.
 package sap
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -44,137 +21,254 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
+
+	"github.com/habitat-network/habitat/internal/sap/crawl"
+	"github.com/habitat-network/habitat/internal/sap/outbox"
+	"github.com/habitat-network/habitat/internal/sap/register"
+	"github.com/habitat-network/habitat/internal/sap/session"
+	"github.com/habitat-network/habitat/internal/sap/syncer"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-type Sap struct {
-	Outbox      Outbox
-	oauthClient *oauth.ClientApp
-	db          *gorm.DB
-	sub         *subscriber
-	resyncBuf   *resyncBuffer
-	resyncer    *resyncer
-	crawler     *crawler
-	orgManager  *orgManager
-	metrics     *metrics
-}
-
-type SapConfig struct {
-	// DB is the GORM database handle used for all persistent state. The
-	// schema is auto-migrated on [NewSap].
-	DB *gorm.DB
-	// ResyncParallelism controls how many repo resync workers run
-	// concurrently. Defaults to 5 when set to zero or negative.
-	ResyncParallelism int
-	// Directory resolves AT Protocol DIDs to their PDS endpoints.
-	Directory identity.Directory
-	// OAuthClient provides authenticated HTTP clients for calling org PDSes.
+type Config struct {
+	DB          *gorm.DB
 	OAuthClient *oauth.ClientApp
-	// Meter is the OpenTelemetry meter for recording metrics. Pass nil to
-	// use a no-op meter.
-	Meter metric.Meter
-	// Tracer is the OpenTelemetry tracer for creating spans. Pass nil to
-	// use a no-op tracer.
+
+	// Directory resolves identities for commit signature verification: the
+	// author's own key for habitat-managed authors, the host's published key
+	// for external ones. When nil, commits are verified by hash only.
+	Directory identity.Directory
+
+	// Endpoint is sap's public base URL, registered with space hosts as the
+	// destination for notifyWrite / notifySpaceDeleted. When empty, sap does
+	// not register for notifications; the caller must route them some other
+	// way.
+	Endpoint string
+
+	// Parallelism is the sync worker pool size (default 5).
+	Parallelism int
+
+	// CrawlInterval is how often each session is re-crawled to discover spaces
+	// created since the last crawl (default 1h).
+	CrawlInterval time.Duration
+
+	Meter  metric.Meter
 	Tracer trace.Tracer
 }
 
-// NewSap creates a new Sap, auto-migrating the database schema and
-// initializing all internal subsystems (subscriber, crawler, resyncer, outbox).
-func NewSap(config SapConfig) (*Sap, error) {
-	if err := autoMigrate(config.DB); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
+// Sap composes the sync components behind a small façade. Components live in
+// their own packages and interact only through interfaces; Sap wires them.
+type Sap struct {
+	db            *gorm.DB
+	sessions      *session.Store
+	crawler       *crawl.Crawler
+	engine        *syncer.Engine
+	registrar     *register.Registrar // nil when Config.Endpoint is empty
+	outbox        *outbox.Store
+	tracer        trace.Tracer
+	crawlInterval time.Duration
+}
+
+func New(config Config) (*Sap, error) {
+	for _, migrate := range []func(*gorm.DB) error{
+		session.AutoMigrate,
+		crawl.AutoMigrate,
+		syncer.AutoMigrate,
+		register.AutoMigrate,
+		outbox.AutoMigrate,
+	} {
+		if err := migrate(config.DB); err != nil {
+			return nil, fmt.Errorf("migrate database: %w", err)
+		}
 	}
 
-	m, err := newMetrics(config.Meter, config.Tracer)
+	tracer := config.Tracer
+	if tracer == nil {
+		tracer = tracenoop.NewTracerProvider().Tracer("sap")
+	}
+
+	sessions := session.NewStore(config.DB, config.OAuthClient)
+	ob := outbox.NewStore(config.DB, utils.NewPollNotifier())
+
+	syncMetrics, err := syncer.NewMetrics(config.Meter, config.Tracer)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create metrics: %w", err)
+		return nil, fmt.Errorf("create syncer metrics: %w", err)
+	}
+	engine := syncer.New(
+		config.DB,
+		sessions,
+		outboxEmitter{store: ob},
+		syncer.NewVerifier(config.Directory),
+		config.Parallelism,
+		syncMetrics,
+	)
+
+	var registrar *register.Registrar
+	// crawl.Notify must stay a typed-nil-free interface value when
+	// registration is disabled.
+	var crawlNotify crawl.Notify
+	if config.Endpoint != "" {
+		registrar = register.New(config.DB, sessions, sessions, config.Endpoint)
+		crawlNotify = registrar
 	}
 
-	resyncNotif := utils.NewPollNotifier()
-	outboxNotif := utils.NewPollNotifier()
-
-	sesssionGetter := newSessionGetter(config.OAuthClient)
-
-	resyncBuf := newResyncBuffer(config.DB, resyncNotif, outboxNotif)
-	sub := newSubscriber(config.DB, sesssionGetter, resyncBuf, m)
-	resyncer := newResyncer(
+	crawler, err := crawl.New(
 		config.DB,
-		sesssionGetter,
-		resyncBuf,
-		resyncNotif,
-		outboxNotif,
-		config.ResyncParallelism,
-		m,
+		sessions,
+		sessions,
+		engine,
+		crawlNotify,
+		config.Meter,
+		config.Tracer,
 	)
-	crawler := newCrawler(config.DB, sesssionGetter, resyncBuf, sub, resyncNotif, m)
-	outbox := newOutbox(config.DB, outboxNotif)
-	orgManager := newOrgManager(config.DB)
+	if err != nil {
+		return nil, fmt.Errorf("create crawler: %w", err)
+	}
+
+	crawlInterval := config.CrawlInterval
+	if crawlInterval <= 0 {
+		crawlInterval = time.Hour
+	}
 
 	return &Sap{
-		orgManager:  orgManager,
-		oauthClient: config.OAuthClient,
-		Outbox:      outbox,
-		db:          config.DB,
-		sub:         sub,
-		resyncBuf:   resyncBuf,
-		resyncer:    resyncer,
-		crawler:     crawler,
-		metrics:     m,
+		db:            config.DB,
+		sessions:      sessions,
+		crawler:       crawler,
+		engine:        engine,
+		registrar:     registrar,
+		outbox:        ob,
+		crawlInterval: crawlInterval,
+		tracer:        tracer,
 	}, nil
 }
 
-// Start begins background processing for all managed orgs. It loads existing
-// subscriptions, resumes any incomplete crawls, and runs the resyncer until
-// ctx is cancelled. Start blocks until all background goroutines finish and
-// returns any error from the subscriber's shutdown (cursors are persisted
-// per-event, so errors here are typically nil).
+// Start runs the background loops (sync engine, crawl resumption and periodic
+// re-crawls, notify registration upkeep) until ctx ends.
 func (s *Sap) Start(ctx context.Context) error {
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		return s.sub.loadSubscriptions(ctx)
-	})
-
-	eg.Go(func() error {
-		return s.crawler.resumeIncompleteCrawls(ctx)
-	})
-
-	eg.Go(func() error {
-		s.resyncer.run(ctx)
+		s.engine.Run(ctx)
 		return nil
 	})
-
-	err := eg.Wait()
-	return errors.Join(err, s.sub.closeSubscriptions())
+	eg.Go(func() error {
+		return s.crawler.ResumeIncomplete(ctx)
+	})
+	eg.Go(func() error {
+		s.recrawlLoop(ctx)
+		return nil
+	})
+	if s.registrar != nil {
+		eg.Go(func() error {
+			s.registrar.Run(ctx)
+			return nil
+		})
+	}
+	return eg.Wait()
 }
 
-// AddManagedOrg registers a new organization for sync. did is the org's AT
-// Protocol DID and sessionID is the OAuth session identifier from  oauthClient
-// used to authenticate requests to the org's PDS. After registration the
-// org is immediately crawled (discovering its spaces and repos) and a live
-// subscription is opened for real-time events.
-func (s *Sap) AddManagedOrg(ctx context.Context, did syntax.DID, sessionID string) error {
-	org, err := s.orgManager.AddManagedOrg(ctx, did, sessionID)
-	if err != nil {
-		return err
+// recrawlLoop periodically re-crawls every session so spaces created since
+// the last crawl are discovered and registered for notifications.
+func (s *Sap) recrawlLoop(ctx context.Context) {
+	ticker := time.NewTicker(s.crawlInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			dids, err := s.sessions.List(ctx)
+			if err != nil {
+				slog.ErrorContext(ctx, "recrawl: list sessions", "err", err)
+				continue
+			}
+			for _, did := range dids {
+				s.crawler.Run(ctx, did)
+			}
+		}
 	}
-	go s.crawler.crawlOrg(detachSpan(ctx), org)
-	go s.sub.addSubscription(detachSpan(ctx), org)
+}
+
+// AddSession registers an authenticated session (after the caller completed
+// the OAuth flow) and kicks off its backfill crawl in the background.
+func (s *Sap) AddSession(ctx context.Context, did syntax.DID, sessionID string) error {
+	if err := s.sessions.Add(ctx, did, sessionID); err != nil {
+		return fmt.Errorf("add session: %w", err)
+	}
+	go s.crawler.Run(detachSpan(ctx), did)
 	return nil
 }
 
-// GetSession returns the OAuth session sap tracks for the given managed org
-// DID, for making authenticated requests against the org's Habitat host.
-func (s *Sap) GetSession(ctx context.Context, did syntax.DID) (*oauth.ClientSession, error) {
-	org, err := s.orgManager.GetManagedOrg(ctx, did)
-	if err != nil {
-		return nil, err
-	}
-	return s.oauthClient.ResumeSession(ctx, did, org.SessionID)
+// Sessions lists the DIDs of the sessions sap syncs on behalf of.
+func (s *Sap) Sessions(ctx context.Context) ([]syntax.DID, error) {
+	return s.sessions.List(ctx)
 }
 
-// ListManagedOrgs returns the DIDs of all organizations currently registered
-// with this Sap instance.
-func (s *Sap) ListManagedOrgs(ctx context.Context) ([]syntax.DID, error) {
-	return s.orgManager.ListManagedOrgs(ctx)
+// NotifyWrite reacts to a host's notifyWrite: the repo advanced to rev with
+// commit hash (sha256 of its LtHash state; may be nil). The repo is synced
+// incrementally and re-verified.
+func (s *Sap) NotifyWrite(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	rev syntax.TID,
+	hash []byte,
+) error {
+	return s.engine.NotifyWrite(ctx, space, repo, rev, hash)
+}
+
+// NotifySpaceDeleted reacts to a host's notifySpaceDeleted: all local tracking
+// state for the space is dropped.
+func (s *Sap) NotifySpaceDeleted(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := s.engine.WithTx(tx).DropSpace(ctx, space); err != nil {
+			return fmt.Errorf("drop repos: %w", err)
+		}
+		if err := s.sessions.WithTx(tx).DropSpace(ctx, space); err != nil {
+			return fmt.Errorf("drop space access: %w", err)
+		}
+		if s.registrar != nil {
+			if err := s.registrar.WithTx(tx).DropSpace(ctx, space); err != nil {
+				return fmt.Errorf("drop registration: %w", err)
+			}
+		}
+		return nil
+	})
+}
+
+// Outbox exposes the acknowledged delivery stream of synced records.
+func (s *Sap) Outbox() outbox.Outbox {
+	return s.outbox
+}
+
+// outboxEmitter adapts outbox.Store to syncer.Emitter.
+type outboxEmitter struct {
+	store *outbox.Store
+}
+
+func (e outboxEmitter) Emit(
+	ctx context.Context,
+	uri habitat_syntax.SpaceRecordURI,
+	value []byte,
+) error {
+	return e.store.Emit(ctx, uri, value)
+}
+
+func (e outboxEmitter) InTx(tx *gorm.DB) syncer.Emitter {
+	return outboxEmitter{store: e.store.WithTx(tx)}
+}
+
+// detachSpan returns a context that carries the trace span from ctx as a
+// remote parent but is not bound to ctx's cancellation or deadline, for
+// fire-and-forget goroutines that outlive the calling request.
+func detachSpan(ctx context.Context) context.Context {
+	return trace.ContextWithRemoteSpanContext(
+		context.Background(),
+		trace.SpanContextFromContext(ctx),
+	)
 }

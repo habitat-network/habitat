@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,10 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/org"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -30,9 +33,38 @@ func (m *spaceCredMethod) Validate(
 	return &authn.CredentialInfo{Space: m.space}, true
 }
 
+// oauthMethod is a test authn.Method that authenticates every request as the
+// given member DID (no space credential), like an OAuth token.
+type oauthMethod struct {
+	did syntax.DID
+}
+
+func (m *oauthMethod) CanHandle(_ *http.Request) bool { return true }
+func (m *oauthMethod) Validate(
+	_ http.ResponseWriter,
+	_ *http.Request,
+	_ ...string,
+) (*authn.CredentialInfo, bool) {
+	return &authn.CredentialInfo{Subject: m.did, Org: &org.EveryoneOrg{}}, true
+}
+
+// fakeMembers is a MembershipChecker returning a fixed answer.
+type fakeMembers struct {
+	member bool
+}
+
+func (f *fakeMembers) IsMember(
+	_ context.Context,
+	_ syntax.DID,
+	_ habitat_syntax.SpaceURI,
+	_ syntax.DID,
+) (bool, error) {
+	return f.member, nil
+}
+
 func newTestServer(t *testing.T, credSpace habitat_syntax.SpaceURI) *Server {
 	t.Helper()
-	return NewServer(newTestStore(t), &spaceCredMethod{space: credSpace})
+	return NewServer(newTestStore(t), &fakeMembers{}, &spaceCredMethod{space: credSpace})
 }
 
 func registerNotifyReq(body string) *http.Request {
@@ -77,6 +109,37 @@ func TestServerRegisterNotifyRepoSpecific(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, regs, 1)
 	require.Equal(t, repo, regs[0].Repo)
+}
+
+func TestServerRegisterNotifyOAuthMember(t *testing.T) {
+	// A member's OAuth token (no space credential) registers when the membership
+	// check passes.
+	s := NewServer(newTestStore(t), &fakeMembers{member: true},
+		&oauthMethod{did: "did:plc:member"})
+
+	body := `{"space": "` + space.String() + `", "endpoint": "https://sync.example/all"}`
+	w := httptest.NewRecorder()
+	s.RegisterNotify(w, registerNotifyReq(body))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	regs, err := s.store.ListForSpace(t.Context(), space)
+	require.NoError(t, err)
+	require.Len(t, regs, 1)
+}
+
+func TestServerRegisterNotifyOAuthNonMember(t *testing.T) {
+	// A non-member's OAuth token is rejected and nothing is registered.
+	s := NewServer(newTestStore(t), &fakeMembers{member: false},
+		&oauthMethod{did: "did:plc:stranger"})
+
+	body := `{"space": "` + space.String() + `", "endpoint": "https://sync.example/all"}`
+	w := httptest.NewRecorder()
+	s.RegisterNotify(w, registerNotifyReq(body))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	regs, err := s.store.ListForSpace(t.Context(), space)
+	require.NoError(t, err)
+	require.Empty(t, regs)
 }
 
 func TestServerRegisterNotifyRejectsSpaceMismatch(t *testing.T) {

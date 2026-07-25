@@ -10,7 +10,9 @@ import (
 	"syscall"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/log"
 	"github.com/habitat-network/habitat/internal/oauthclient"
@@ -79,9 +81,16 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	oauthApp := oauth.NewClientApp(&config, store)
 
-	s, err := sap.NewSap(sap.SapConfig{
+	dir := identity.DefaultDirectory()
+	// The base URL space hosts register and sign notifyWrite /
+	// notifySpaceDeleted against; the XRPC handlers hang off it.
+	endpoint := "https://" + domain
+
+	s, err := sap.New(sap.Config{
 		DB:          db,
 		OAuthClient: oauthApp,
+		Directory:   dir,
+		Endpoint:    endpoint,
 		Meter:       otel.Meter("sap"),
 		Tracer:      otel.Tracer("sap"),
 	})
@@ -89,20 +98,28 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	server := NewSapServer(s, oauthApp)
+	server := NewSapServer(s, oauthApp, &auth.ServiceAuthValidator{
+		Dir:      dir,
+		Audience: endpoint,
+	})
 
 	// The OAuth endpoints (callback and client metadata) must be publicly
 	// reachable since the user's PDS redirects to them, so they are served on
-	// their own port. The org and channel endpoints are served on a separate
+	// their own port. The session and channel endpoints are served on a separate
 	// internal port so the user can restrict access to trusted services.
-	oauthMux := http.NewServeMux()
-	oauthMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
-	oauthMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+	publicMux := http.NewServeMux()
+	publicMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
+	publicMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+	publicMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", server.handleNotifyWrite)
+	publicMux.HandleFunc(
+		"/xrpc/network.habitat.space.notifySpaceDeleted",
+		server.handleNotifySpaceDeleted,
+	)
 
 	internalMux := http.NewServeMux()
 	internalMux.HandleFunc("/health", server.handleHealth)
-	internalMux.HandleFunc("/org/add", server.handleAddOrg)
-	internalMux.HandleFunc("/org/list", server.handleListOrgs)
+	internalMux.HandleFunc("/session/add", server.handleAddSession)
+	internalMux.HandleFunc("/session/list", server.handleListSessions)
 	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
 	internalMux.HandleFunc("/proxy/", server.handleProxy)
 
@@ -118,7 +135,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return err
 	})
 	eg.Go(func() error {
-		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fPort)), oauthMux)
+		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fPort)), publicMux)
 	})
 	eg.Go(func() error {
 		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fInternalPort)), internalMux)

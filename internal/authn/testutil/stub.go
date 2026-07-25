@@ -72,6 +72,16 @@ func NewSuccessMethod(did syntax.DID) authn.Method {
 	}
 }
 
+// NewSuccessMethodForOrg authenticates every request as did belonging to the
+// given org.Org (e.g. &org.EveryoneOrg{}).
+func NewSuccessMethodForOrg(did syntax.DID, o org.Org) authn.Method {
+	return &success{
+		did:      did,
+		credType: authn.UserCredential,
+		org:      o,
+	}
+}
+
 func NewSuccessMethodWithOrg(did, orgDID syntax.DID) authn.Method {
 	return &success{
 		did:      did,
