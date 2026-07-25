@@ -786,9 +786,26 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	// so a syncer can authenticate the state it has folded up to this point.
 	if len(records) < limit {
 		commit, err := s.buildRepoCommit(ctx, spaceURI, repoDID)
-		switch err {
-		case nil:
-			output.Commit = commit
+		switch {
+		case err == nil:
+			// The ops and the head commit come from two separate reads, so a
+			// write landing between them produces a commit describing state
+			// these ops do not cover. A syncer folds the ops and compares its
+			// hash against the commit, so that mismatch reads as divergence
+			// and drops an otherwise healthy repo into full recovery. The
+			// commit's rev names the state it covers: include it only when
+			// that is exactly where these ops leave the syncer, and otherwise
+			// omit it so the syncer takes another page and asks again.
+			at := params.Since
+			if len(records) > 0 {
+				at = records[len(records)-1].Rev
+			}
+			if commit.Rev == at {
+				output.Commit = commit
+			}
+		case errors.Is(err, errEmptyRepo):
+			// Nothing has been written to the repo, so there is no head to
+			// describe and nothing for a syncer to verify against.
 		default:
 			httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))
 			return

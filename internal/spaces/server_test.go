@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -834,4 +835,58 @@ func TestServer_ListRepoOps_ExcludeValues(t *testing.T) {
 	require.Len(t, output.Ops, 1)
 	require.Equal(t, "k1", output.Ops[0].Rkey)
 	require.Nil(t, output.Ops[0].Value)
+}
+
+// TestServer_ListRepoOps_CommitMatchesReturnedOps asserts the response
+// invariant a syncer depends on: when a signed commit is included it must
+// describe exactly the state reached by folding the ops in that same response.
+// A syncer folds the ops and compares its running hash against the commit, so
+// a commit built from a later state than the ops reads as divergence and sends
+// an otherwise healthy repo into full recovery. Writes run concurrently with
+// the reads to exercise the window between listing ops and signing the head.
+func TestServer_ListRepoOps_CommitMatchesReturnedOps(t *testing.T) {
+	hostKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
+	s, store := newTestServerWithSigners(t, m, m, hostKey)
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+	coll := syntax.NSID("network.habitat.note")
+
+	writesDone := make(chan struct{})
+	go func() {
+		defer close(writesDone)
+		for i := range 60 {
+			_, _, err := store.PutRecord(t.Context(), uri, owner,
+				coll, syntax.RecordKey(fmt.Sprintf("k%d", i)), map[string]any{"x": i})
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	for range 60 {
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
+			nil,
+		)
+		w := httptest.NewRecorder()
+		s.ListRepoOps(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var output habitat.NetworkHabitatSpaceListRepoOpsOutput
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&output))
+		if output.Commit.Ver == 0 {
+			continue // no commit claimed for this page
+		}
+		want := ""
+		if len(output.Ops) > 0 {
+			want = output.Ops[len(output.Ops)-1].Rev
+		}
+		require.Equal(t, want, output.Commit.Rev,
+			"commit describes a different revision than the ops returned with it")
+	}
+	<-writesDone
 }
