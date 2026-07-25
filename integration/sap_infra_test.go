@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"math/big"
 	"net/netip"
 	"os"
@@ -122,13 +123,22 @@ testclient.local.habitat.network {
 // toxiproxy) still resolve.
 func writeCorefile(t *testing.T, dir, caddyIP string) {
 	t.Helper()
+	// The zone header already restricts these templates to
+	// local.habitat.network and its subdomains, so no match regex is needed.
+	// AAAA is answered NODATA (NOERROR, no records) rather than left to fall
+	// through: Go's resolver queries A and AAAA together and treats a SERVFAIL
+	// on either as a lookup failure.
 	content := fmt.Sprintf(`local.habitat.network:53 {
+	errors
 	template IN A {
-		match ".*\\.?local\\.habitat\\.network\\.$"
 		answer "{{ .Name }} 60 IN A %s"
+	}
+	template IN AAAA {
+		rcode NOERROR
 	}
 }
 .:53 {
+	errors
 	forward . 127.0.0.11
 }
 `, caddyIP)
@@ -308,17 +318,18 @@ func buildTestClientMetadata(t *testing.T, clientID string) (*ecdsa.PrivateKey, 
 	return key, metaJSON
 }
 
-// mustStart starts a container from req, registering cleanup to terminate it
-// and dump its logs (in that order, so logs are captured before removal) at
-// the end of the test.
+// mustStart starts a container from req, registering cleanup to dump its logs
+// and then terminate it. Cleanups run last-registered-first, so the terminate
+// hook is registered first to make the log dump run while the container still
+// exists.
 func mustStart(ctx context.Context, t *testing.T, req testcontainers.ContainerRequest) testcontainers.Container {
 	t.Helper()
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req, Started: true,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { dumpLogs(t, c) })
 	t.Cleanup(func() { _ = c.Terminate(context.Background()) })
+	t.Cleanup(func() { dumpLogs(t, c) })
 	return c
 }
 
@@ -330,13 +341,22 @@ func dumpLogs(t *testing.T, c testcontainers.Container) {
 		return
 	}
 	defer func() { _ = rc.Close() }()
-	buf := make([]byte, 1<<20)
-	n, _ := rc.Read(buf)
-	if n > 0 {
-		name, _ := c.Name(context.Background())
-		t.Logf("=== logs %s ===\n%s", name, string(buf[:n]))
+	// Read the whole stream (capped): a single Read returns only the first
+	// chunk, which usually stops short of the failure being diagnosed.
+	out, err := io.ReadAll(io.LimitReader(rc, 1<<20))
+	if err != nil || len(out) == 0 {
+		return
 	}
+	name, _ := c.Name(context.Background())
+	t.Logf("=== logs %s ===\n%s", name, out)
 }
+
+// itestSkipBuildEnv, when set to a non-empty value, makes buildImage reuse
+// images already present in the local Docker daemon instead of building them.
+// It exists for environments where the in-container build cannot reach the
+// network (e.g. a TLS-terminating egress proxy the base images do not trust);
+// the images must then be built out of band under the same tags.
+const itestSkipBuildEnv = "HABITAT_ITEST_SKIP_BUILD"
 
 // buildImage builds an image from a repo Dockerfile with the repo root as the
 // build context. The container created to trigger the build is never
@@ -349,6 +369,10 @@ func dumpLogs(t *testing.T, c testcontainers.Container) {
 // invalid reference "pear:itest:<uuid>" (Tag defaults to a random UUID).
 func buildImage(ctx context.Context, t *testing.T, dockerfile, tag string) string {
 	t.Helper()
+	if os.Getenv(itestSkipBuildEnv) != "" {
+		t.Logf("%s set: reusing prebuilt image %s", itestSkipBuildEnv, tag)
+		return tag
+	}
 	repo, imgTag, ok := strings.Cut(tag, ":")
 	require.True(t, ok, "tag must be of the form repo:tag, got %q", tag)
 	req := testcontainers.GenericContainerRequest{
@@ -429,7 +453,10 @@ func sapEnv(t *testing.T, pgURL string) map[string]string {
 		"SAP_DB":            pgURL,
 		"SAP_LOG_LEVEL":     "debug",
 		"SAP_SECRET":        genP256Multibase(t),
-		"SSL_CERT_FILE":     "/certs/ca.pem",
+		// Sweep often, so a test that drops host notifications does not have to
+		// wait out the hour-long production default for sap to repair itself.
+		"SAP_CRAWL_INTERVAL": "5s",
+		"SSL_CERT_FILE":      "/certs/ca.pem",
 	}
 }
 
