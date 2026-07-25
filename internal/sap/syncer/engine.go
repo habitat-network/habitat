@@ -156,7 +156,26 @@ func (e *Engine) NotifyWrite(
 	rev syntax.TID,
 	hash []byte,
 ) error {
+	if _, err := e.observeHead(ctx, space, did, rev, hash); err != nil {
+		return fmt.Errorf("notify write: %w", err)
+	}
+	return nil
+}
+
+// observeHead applies an observation of a repo's head at the host — from a
+// pushed notification or from a Resync poll — and reports whether it left the
+// repo queued for a sync pass. It is the single place that decides whether
+// our copy of a repo is behind.
+func (e *Engine) observeHead(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	did syntax.DID,
+	rev syntax.TID,
+	hash []byte,
+) (bool, error) {
+	queued := false
 	err := e.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		queued = false
 		var r repo
 		err := tx.Where("space = ? AND did = ?", space, did).First(&r).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -165,6 +184,7 @@ func (e *Engine) NotifyWrite(
 			// losing transaction aborts on the primary key and the write it
 			// was reporting is dropped. The winner already left the repo
 			// pending, which is what this insert wanted.
+			queued = true
 			return tx.Clauses(clause.OnConflict{DoNothing: true}).
 				Create(&repo{Space: space, DID: did, State: statePending}).Error
 		}
@@ -190,6 +210,7 @@ func (e *Engine) NotifyWrite(
 		if !behind {
 			return nil
 		}
+		queued = true
 		return tx.Model(&repo{}).
 			Where("space = ? AND did = ?", space, did).
 			Updates(map[string]any{
@@ -199,40 +220,86 @@ func (e *Engine) NotifyWrite(
 			}).Error
 	})
 	if err != nil {
-		return fmt.Errorf("notify write: %w", err)
+		return false, err
 	}
 	e.notif.Notify()
-	return nil
+	return queued, nil
 }
 
-// Resync requeues every repo that has settled active for another incremental
-// pass, returning how many were requeued.
+// Resync polls every tracked repo's host for its current head commit and
+// feeds it through the same staleness decision a pushed notification takes,
+// returning how many repos it found behind and queued.
 //
 // Host notifications are best-effort: a notifyWrite that never arrives leaves
 // a repo settled at a stale rev with nothing scheduled to advance it, since
 // Track only inserts repos it has not seen. This is the anti-entropy sweep
 // that closes that gap, so sync is eventually consistent rather than
-// dependent on every push landing. A pass over an already-current repo costs
-// one listRepoOps returning no operations.
+// dependent on every push landing.
 //
-// Repos that are pending, syncing, desynced or in error are left alone: they
-// are already claimable, mid-flight, or on their own retry schedule.
+// A repo already at its host's head costs one getLatestCommit and no sync
+// work, so a steady-state sweep is one request per tracked repo. Unlike the
+// notification path the commit here always carries a hash, so divergence at
+// an unchanged rev is caught too.
+//
+// Failures are logged and skipped rather than returned: the sweep is
+// best-effort upkeep, and one unreachable host must not stop it from
+// repairing the rest. An error is returned only if the repo list itself
+// cannot be read.
 func (e *Engine) Resync(ctx context.Context) (int64, error) {
-	res := e.db.WithContext(ctx).
+	var repos []repo
+	if err := e.db.WithContext(ctx).
 		Model(&repo{}).
-		Where("state = ?", stateActive).
-		Updates(map[string]any{
-			"state":       statePending,
-			"retry_count": 0,
-			"retry_after": 0,
-		})
-	if res.Error != nil {
-		return 0, fmt.Errorf("resync repos: %w", res.Error)
+		Select("space", "did").
+		Find(&repos).Error; err != nil {
+		return 0, fmt.Errorf("list tracked repos: %w", err)
 	}
-	if res.RowsAffected > 0 {
-		e.notif.Notify()
+
+	var queued int64
+	for _, r := range repos {
+		select {
+		case <-ctx.Done():
+			return queued, nil
+		default:
+		}
+
+		client, err := e.clients.ClientForSpace(ctx, r.Space)
+		if err != nil {
+			slog.WarnContext(ctx, "resync: client for space",
+				"space", r.Space, "repo", r.DID, "err", err)
+			continue
+		}
+		commit, err := getLatestCommit(ctx, client, r.Space, r.DID)
+		// A repo nothing has been written to yet, or one whose commit the host
+		// omitted, has no head to be behind.
+		if errors.Is(err, errEmptyRepoHead) {
+			continue
+		}
+		if err != nil {
+			slog.WarnContext(ctx, "resync: get latest commit",
+				"space", r.Space, "repo", r.DID, "err", err)
+			continue
+		}
+		if commit.Ver == 0 {
+			continue
+		}
+		decoded, err := decodeCommit(commit)
+		if err != nil {
+			slog.WarnContext(ctx, "resync: decode commit",
+				"space", r.Space, "repo", r.DID, "err", err)
+			continue
+		}
+		didQueue, err := e.observeHead(
+			ctx, r.Space, r.DID, syntax.TID(decoded.Rev), decoded.Hash)
+		if err != nil {
+			slog.WarnContext(ctx, "resync: observe head",
+				"space", r.Space, "repo", r.DID, "err", err)
+			continue
+		}
+		if didQueue {
+			queued++
+		}
 	}
-	return res.RowsAffected, nil
+	return queued, nil
 }
 
 // DropSpace stops tracking every repo in the space.

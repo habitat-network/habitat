@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -995,39 +996,6 @@ func TestEngineNotifyWriteAlreadyCurrent(t *testing.T) {
 	require.Equal(t, stateActive, r.State)
 }
 
-// TestEngineResyncRequeuesSettledRepos verifies the anti-entropy sweep
-// requeues repos that have settled active, so a repo whose notifyWrite was
-// lost is re-checked. Repos already claimable or mid-flight are left alone.
-func TestEngineResyncRequeuesSettledRepos(t *testing.T) {
-	t.Parallel()
-
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
-	e, _, db := newTestEngine(t, "http://unused.example")
-	for did, state := range map[syntax.DID]repoState{
-		"did:plc:settled":  stateActive,
-		"did:plc:inflight": stateSyncing,
-		"did:plc:queued":   statePending,
-	} {
-		require.NoError(t, e.Track(t.Context(), space, did))
-		require.NoError(t, db.Model(&repo{}).Where("did = ?", did).
-			Update("state", state).Error)
-	}
-
-	count, err := e.Resync(t.Context())
-	require.NoError(t, err)
-	require.Equal(t, int64(1), count)
-
-	states := map[syntax.DID]repoState{}
-	var repos []repo
-	require.NoError(t, db.Find(&repos).Error)
-	for _, r := range repos {
-		states[r.DID] = r.State
-	}
-	require.Equal(t, statePending, states["did:plc:settled"])
-	require.Equal(t, stateSyncing, states["did:plc:inflight"])
-	require.Equal(t, statePending, states["did:plc:queued"])
-}
-
 // TestEngineNotifyWriteConcurrentUnknownRepo verifies that concurrent
 // notifications for a repo sap has not seen before all succeed. The insert
 // races between the existence check and the create, which on Postgres aborts
@@ -1056,4 +1024,106 @@ func TestEngineNotifyWriteConcurrentUnknownRepo(t *testing.T) {
 	var count int64
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:racer").Count(&count).Error)
 	require.Equal(t, int64(1), count)
+}
+
+// resyncHost serves getLatestCommit for a single repo at the given head, and
+// counts how many times it was asked.
+type resyncHost struct {
+	commit habitat.NetworkHabitatSpaceDefsSignedCommit
+	calls  atomic.Int64
+}
+
+func (h *resyncHost) start(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/xrpc/network.habitat.space.getLatestCommit", r.URL.Path)
+		h.calls.Add(1)
+		_ = json.NewEncoder(w).Encode(
+			habitat.NetworkHabitatSpaceGetLatestCommitOutput{Commit: h.commit})
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+// TestEngineResyncRequeuesRepoBehindHost verifies the sweep polls the host for
+// each tracked repo's head and requeues one whose rev the host has moved past
+// — the repair path for a notifyWrite that never arrived.
+func TestEngineResyncRequeuesRepoBehindHost(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	clock := syntax.NewTIDClock(0)
+	ours, theirs := clock.Next().String(), clock.Next().String()
+
+	host := &resyncHost{commit: habitat.NetworkHabitatSpaceDefsSignedCommit{
+		Ver: int64(spacecommit.Version), Rev: theirs,
+	}}
+	e, _, db := newTestEngine(t, host.start(t))
+
+	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
+	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
+		Updates(map[string]any{"state": stateActive, "rev": ours}).Error)
+
+	count, err := e.Resync(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count)
+	require.Equal(t, int64(1), host.calls.Load())
+
+	var r repo
+	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
+	require.Equal(t, statePending, r.State)
+}
+
+// TestEngineResyncLeavesCurrentRepoAlone verifies a repo already at the host's
+// head is polled but not requeued, so a steady-state sweep costs one request
+// per repo and no sync work.
+func TestEngineResyncLeavesCurrentRepoAlone(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	rev := syntax.NewTIDClock(0).Next().String()
+
+	host := &resyncHost{commit: habitat.NetworkHabitatSpaceDefsSignedCommit{
+		Ver: int64(spacecommit.Version), Rev: rev,
+	}}
+	e, _, db := newTestEngine(t, host.start(t))
+
+	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
+	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
+		Updates(map[string]any{"state": stateActive, "rev": rev}).Error)
+
+	count, err := e.Resync(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, int64(0), count)
+	require.Equal(t, int64(1), host.calls.Load())
+
+	var r repo
+	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
+	require.Equal(t, stateActive, r.State)
+}
+
+// TestEngineResyncSurvivesUnreachableHost verifies one repo's failed poll does
+// not abort the sweep: the sweep is best-effort upkeep and runs again next
+// interval.
+func TestEngineResyncSurvivesUnreachableHost(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+
+	e, _, db := newTestEngine(t, srv.URL)
+	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
+	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
+		Update("state", stateActive).Error)
+
+	count, err := e.Resync(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, int64(0), count)
+
+	var r repo
+	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
+	require.Equal(t, stateActive, r.State)
 }

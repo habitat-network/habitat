@@ -16,6 +16,10 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
+// errEmptyRepoHead reports that a host has no head commit for a repo, because
+// nothing has been written to it yet.
+var errEmptyRepoHead = errors.New("repo has no head commit")
+
 // syncRepo pulls a repo's ops incrementally with listRepoOps, folding them
 // into the repo's stored LtHash state and emitting each record. At the head of
 // the oplog it verifies the folded hash against the host's signed commit: a
@@ -186,4 +190,43 @@ func listRepoOps(
 		return output, fmt.Errorf("decode list repo ops: %w", decodeErr)
 	}
 	return output, closeErr
+}
+
+// getLatestCommit fetches a repo's current signed commit from its host. A
+// repo the host has no records for answers 404, which is reported as
+// errEmptyRepoHead so callers can treat it as "nothing to sync" rather than a
+// failure.
+func getLatestCommit(
+	ctx context.Context,
+	client *http.Client,
+	space habitat_syntax.SpaceURI,
+	repoDID syntax.DID,
+) (habitat.NetworkHabitatSpaceDefsSignedCommit, error) {
+	var output habitat.NetworkHabitatSpaceGetLatestCommitOutput
+
+	params := url.Values{
+		"space": []string{space.String()},
+		"repo":  []string{repoDID.String()},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"/xrpc/network.habitat.space.getLatestCommit?"+params.Encode(), nil)
+	if err != nil {
+		return output.Commit, fmt.Errorf("create request: %w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return output.Commit, fmt.Errorf("get latest commit: %w", err)
+	}
+	decodeErr := json.NewDecoder(resp.Body).Decode(&output)
+	closeErr := resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return output.Commit, errEmptyRepoHead
+	}
+	if resp.StatusCode != http.StatusOK {
+		return output.Commit, fmt.Errorf("get latest commit: %s", resp.Status)
+	}
+	if decodeErr != nil {
+		return output.Commit, fmt.Errorf("decode get latest commit: %w", decodeErr)
+	}
+	return output.Commit, closeErr
 }
