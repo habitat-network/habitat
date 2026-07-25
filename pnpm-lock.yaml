@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@atproto/api':
+      specifier: 0.20.33
+      version: 0.20.33
     '@atproto/lexicon':
       specifier: 0.7.7
       version: 0.7.7
@@ -312,8 +315,8 @@ importers:
         specifier: ^3.0.39
         version: 3.0.39
       '@libp2p/interface':
-        specifier: ^2.11.0
-        version: 2.11.0
+        specifier: ^3.0.0
+        version: 3.2.5
       '@libp2p/peer-id':
         specifier: ^5.1.9
         version: 5.1.9
