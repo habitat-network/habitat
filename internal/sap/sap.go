@@ -174,7 +174,10 @@ func (s *Sap) Start(ctx context.Context) error {
 }
 
 // recrawlLoop periodically re-crawls every session so spaces created since
-// the last crawl are discovered and registered for notifications.
+// the last crawl are discovered and registered for notifications, and sweeps
+// already-tracked repos for another sync pass. Host notifications are
+// best-effort, so this sweep is what makes a repo whose notifyWrite was
+// dropped converge rather than sit at a stale rev forever.
 func (s *Sap) recrawlLoop(ctx context.Context) {
 	ticker := time.NewTicker(s.crawlInterval)
 	defer ticker.Stop()
@@ -186,10 +189,15 @@ func (s *Sap) recrawlLoop(ctx context.Context) {
 			dids, err := s.sessions.List(ctx)
 			if err != nil {
 				slog.ErrorContext(ctx, "recrawl: list sessions", "err", err)
-				continue
+			} else {
+				for _, did := range dids {
+					s.crawler.Run(ctx, did)
+				}
 			}
-			for _, did := range dids {
-				s.crawler.Run(ctx, did)
+			if n, err := s.engine.Resync(ctx); err != nil {
+				slog.ErrorContext(ctx, "recrawl: resync repos", "err", err)
+			} else if n > 0 {
+				slog.DebugContext(ctx, "recrawl: requeued repos", "count", n)
 			}
 		}
 	}

@@ -160,7 +160,13 @@ func (e *Engine) NotifyWrite(
 		var r repo
 		err := tx.Where("space = ? AND did = ?", space, did).First(&r).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return tx.Create(&repo{Space: space, DID: did, State: statePending}).Error
+			// Concurrent notifications for the same unknown repo all reach
+			// here, so the insert races: without the conflict clause the
+			// losing transaction aborts on the primary key and the write it
+			// was reporting is dropped. The winner already left the repo
+			// pending, which is what this insert wanted.
+			return tx.Clauses(clause.OnConflict{DoNothing: true}).
+				Create(&repo{Space: space, DID: did, State: statePending}).Error
 		}
 		if err != nil {
 			return err
@@ -197,6 +203,36 @@ func (e *Engine) NotifyWrite(
 	}
 	e.notif.Notify()
 	return nil
+}
+
+// Resync requeues every repo that has settled active for another incremental
+// pass, returning how many were requeued.
+//
+// Host notifications are best-effort: a notifyWrite that never arrives leaves
+// a repo settled at a stale rev with nothing scheduled to advance it, since
+// Track only inserts repos it has not seen. This is the anti-entropy sweep
+// that closes that gap, so sync is eventually consistent rather than
+// dependent on every push landing. A pass over an already-current repo costs
+// one listRepoOps returning no operations.
+//
+// Repos that are pending, syncing, desynced or in error are left alone: they
+// are already claimable, mid-flight, or on their own retry schedule.
+func (e *Engine) Resync(ctx context.Context) (int64, error) {
+	res := e.db.WithContext(ctx).
+		Model(&repo{}).
+		Where("state = ?", stateActive).
+		Updates(map[string]any{
+			"state":       statePending,
+			"retry_count": 0,
+			"retry_after": 0,
+		})
+	if res.Error != nil {
+		return 0, fmt.Errorf("resync repos: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		e.notif.Notify()
+	}
+	return res.RowsAffected, nil
 }
 
 // DropSpace stops tracking every repo in the space.

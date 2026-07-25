@@ -1,6 +1,10 @@
 package main
 
-import "github.com/urfave/cli/v3"
+import (
+	"time"
+
+	"github.com/urfave/cli/v3"
+)
 
 var (
 	fDB            = "db"
@@ -10,6 +14,7 @@ var (
 	fLogLevel      = "log-level"
 	fSecret        = "secret"
 	fJwtSigningKey = "jwt-signing-key"
+	fCrawlInterval = "crawl-interval"
 )
 
 func getFlags() []cli.Flag {
@@ -54,6 +59,13 @@ func getFlags() []cli.Flag {
 			Name:    fJwtSigningKey,
 			Usage:   "Base64-encoded raw P-256 (ES256) private key for the JWT-bearer confidential client. Generated ephemerally if empty.",
 			Sources: cli.EnvVars("SAP_JWT_SIGNING_KEY"),
+		},
+		&cli.DurationFlag{
+			Name: fCrawlInterval,
+			Usage: "How often to re-crawl every session for new spaces and sweep " +
+				"tracked repos for another sync pass, repairing any dropped host notification",
+			Value:   time.Hour,
+			Sources: cli.EnvVars("SAP_CRAWL_INTERVAL"),
 		},
 	}
 }

@@ -994,3 +994,66 @@ func TestEngineNotifyWriteAlreadyCurrent(t *testing.T) {
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
 	require.Equal(t, stateActive, r.State)
 }
+
+// TestEngineResyncRequeuesSettledRepos verifies the anti-entropy sweep
+// requeues repos that have settled active, so a repo whose notifyWrite was
+// lost is re-checked. Repos already claimable or mid-flight are left alone.
+func TestEngineResyncRequeuesSettledRepos(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	e, _, db := newTestEngine(t, "http://unused.example")
+	for did, state := range map[syntax.DID]repoState{
+		"did:plc:settled":  stateActive,
+		"did:plc:inflight": stateSyncing,
+		"did:plc:queued":   statePending,
+	} {
+		require.NoError(t, e.Track(t.Context(), space, did))
+		require.NoError(t, db.Model(&repo{}).Where("did = ?", did).
+			Update("state", state).Error)
+	}
+
+	count, err := e.Resync(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count)
+
+	states := map[syntax.DID]repoState{}
+	var repos []repo
+	require.NoError(t, db.Find(&repos).Error)
+	for _, r := range repos {
+		states[r.DID] = r.State
+	}
+	require.Equal(t, statePending, states["did:plc:settled"])
+	require.Equal(t, stateSyncing, states["did:plc:inflight"])
+	require.Equal(t, statePending, states["did:plc:queued"])
+}
+
+// TestEngineNotifyWriteConcurrentUnknownRepo verifies that concurrent
+// notifications for a repo sap has not seen before all succeed. The insert
+// races between the existence check and the create, which on Postgres aborts
+// the losing transaction with a primary-key violation unless the conflict is
+// handled.
+func TestEngineNotifyWriteConcurrentUnknownRepo(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	e, _, db := newTestEngine(t, "http://unused.example")
+
+	const concurrency = 8
+	errs := make(chan error, concurrency)
+	start := make(chan struct{})
+	for range concurrency {
+		go func() {
+			<-start
+			errs <- e.NotifyWrite(context.Background(), space, "did:plc:racer", "aaa", nil)
+		}()
+	}
+	close(start)
+	for range concurrency {
+		require.NoError(t, <-errs)
+	}
+
+	var count int64
+	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:racer").Count(&count).Error)
+	require.Equal(t, int64(1), count)
+}
