@@ -16,7 +16,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/internal/spaces/testutil"
 	"github.com/habitat-network/habitat/internal/sync"
 

@@ -15,7 +15,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 )

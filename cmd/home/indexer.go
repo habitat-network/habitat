@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/pkg/sap"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
