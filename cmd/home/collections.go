@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/pkg/oauthclient"
 )
 
 // CollectionService implements the network.habitat.collections.* endpoints. It
@@ -16,10 +16,10 @@ import (
 // those spaces.
 type CollectionService struct {
 	store    *Store
-	oauthApp *oauthclient.App
+	oauthApp *oauth.ClientApp
 }
 
-func NewCollectionService(store *Store, oauthApp *oauthclient.App) *CollectionService {
+func NewCollectionService(store *Store, oauthApp *oauth.ClientApp) *CollectionService {
 	return &CollectionService{store: store, oauthApp: oauthApp}
 }
 
@@ -33,11 +33,11 @@ func (c *CollectionService) readableSpaces(
 	if err != nil {
 		return nil, err
 	}
-	client, err := c.oauthApp.GetClient(ctx, orgDID, sessionID)
+	session, err := c.oauthApp.ResumeSession(ctx, orgDID, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("build org client: %w", err)
 	}
-	pear := &pearClient{http: client}
+	pear := &pearClient{session: session}
 	return pear.listObjects(ctx, caller, "reader")
 }
 
