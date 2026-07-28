@@ -7,9 +7,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -29,10 +29,10 @@ var ErrMemberNotFound = errors.New("subject is not a direct member of this group
 // pear using the org credential held by the oauth client.
 type GroupService struct {
 	store    *Store
-	oauthApp *oauthclient.App
+	oauthApp *oauth.ClientApp
 }
 
-func NewGroupService(store *Store, oauthApp *oauthclient.App) *GroupService {
+func NewGroupService(store *Store, oauthApp *oauth.ClientApp) *GroupService {
 	return &GroupService{store: store, oauthApp: oauthApp}
 }
 
@@ -42,11 +42,11 @@ func (g *GroupService) orgPear(ctx context.Context) (*pearClient, syntax.DID, er
 	if err != nil {
 		return nil, "", err
 	}
-	client, err := g.oauthApp.GetClient(ctx, orgDID, sessionID)
+	session, err := g.oauthApp.ResumeSession(ctx, orgDID, sessionID)
 	if err != nil {
 		return nil, "", fmt.Errorf("build org client: %w", err)
 	}
-	return &pearClient{http: client}, orgDID, nil
+	return &pearClient{session: session}, orgDID, nil
 }
 
 func (g *GroupService) CreateGroup(

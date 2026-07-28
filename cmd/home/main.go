@@ -18,8 +18,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/oauthclient"
-	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
+	"github.com/habitat-network/habitat/pkg/sap"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/errgroup"
 )
@@ -78,7 +78,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err := config.SetClientSecret(secret, "home"); err != nil {
 		return fmt.Errorf("set client secret: %w", err)
 	}
-	oauthApp := oauthclient.NewApp(&config, oauthStore)
+	oauthApp := oauth.NewClientApp(&config, oauthStore)
 
 	s, err := sap.NewSap(sap.SapConfig{
 		DB:          db,

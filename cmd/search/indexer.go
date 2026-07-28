@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/pkg/sap"
 )
 
 const indexerBatchSize = 50

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -28,16 +29,16 @@ const (
 // rewrites relative paths onto the org's pear host, so requests use "/xrpc/..."
 // paths.
 type pearClient struct {
-	http *http.Client
+	session *oauth.ClientSession
 }
 
-func (p *pearClient) post(ctx context.Context, nsid string, input any, out any) error {
+func (p *pearClient) post(ctx context.Context, nsid syntax.NSID, input any, out any) error {
 	body, err := json.Marshal(input)
 	if err != nil {
 		return fmt.Errorf("marshal %s input: %w", nsid, err)
 	}
 	req, err := http.NewRequestWithContext(
-		ctx, http.MethodPost, "/xrpc/"+nsid, bytes.NewReader(body),
+		ctx, http.MethodPost, "/xrpc/"+nsid.String(), bytes.NewReader(body),
 	)
 	if err != nil {
 		return fmt.Errorf("build %s request: %w", nsid, err)
@@ -46,9 +47,9 @@ func (p *pearClient) post(ctx context.Context, nsid string, input any, out any) 
 	return p.do(req, nsid, out)
 }
 
-func (p *pearClient) get(ctx context.Context, nsid string, params url.Values, out any) error {
+func (p *pearClient) get(ctx context.Context, nsid syntax.NSID, params url.Values, out any) error {
 	req, err := http.NewRequestWithContext(
-		ctx, http.MethodGet, "/xrpc/"+nsid+"?"+params.Encode(), nil,
+		ctx, http.MethodGet, "/xrpc/"+nsid.String()+"?"+params.Encode(), nil,
 	)
 	if err != nil {
 		return fmt.Errorf("build %s request: %w", nsid, err)
@@ -56,8 +57,8 @@ func (p *pearClient) get(ctx context.Context, nsid string, params url.Values, ou
 	return p.do(req, nsid, out)
 }
 
-func (p *pearClient) do(req *http.Request, nsid string, out any) error {
-	resp, err := p.http.Do(req)
+func (p *pearClient) do(req *http.Request, nsid syntax.NSID, out any) error {
+	resp, err := p.session.DoWithAuth(http.DefaultClient, req, nsid)
 	if err != nil {
 		return fmt.Errorf("call %s: %w", nsid, err)
 	}
