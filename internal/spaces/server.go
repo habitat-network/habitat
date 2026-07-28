@@ -1016,6 +1016,45 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (s *Server) GetDelegationToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth)).Validate(w, r)
+	if !ok {
+		return
+	}
+	space, ok := httpx.ParseSpaceURIInput(ctx, w, r.URL.Query().Get("space"), "space")
+	if !ok {
+		return
+	}
+	privKey, err := s.hive.PrivateKeyForDID(ctx, credInfo.Subject)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get private key: %w", err))
+		return
+	}
+	token, err := new(jwt.Token{
+		Method: jwt.GetSigningMethod("ES256K"),
+		Claims: jwt.MapClaims{
+			"iss": credInfo.Subject,
+			"sub": space.String(),
+			"aud": space.SpaceOwner().String() + "#" + "#atproto_space_host",
+			"iat": time.Now().Unix(),
+			"exp": time.Now().Add(time.Minute).Unix(),
+			"jti": utils.RandomNonce(16),
+		},
+		Header: map[string]any{
+			"typ": "atproto-space-delegation+jwt",
+			"kid": "#atproto",
+		},
+	}).SignedString(privKey)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("sign token: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetDelegationTokenOutput{
+		Token: token,
+	})
+}
+
 func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.delegation)).Validate(w, r)
