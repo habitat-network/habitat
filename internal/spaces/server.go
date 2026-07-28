@@ -889,47 +889,26 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
 	var input habitat.NetworkHabitatSpaceDeleteRecordInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "decode request body", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
 	}
-
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
 	if !ok {
 		return
 	}
-
 	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
 	if !ok {
 		return
 	}
-
 	if credInfo.Subject != repo {
-		httpx.WriteInvalidRequest(
-			ctx,
-			w,
-			"can't write to other repo",
-			fmt.Errorf("wrong repo"),
-		)
+		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", nil)
 	}
-
-	authorized, err := s.authorize(
-		r.Context(),
-		credInfo.Org.DID(),
-		credInfo.Subject,
-		spaceURI,
-		fgastore.RelationSpaceOwner,
-	)
+	authorized, err := s.authorize(ctx, credInfo.Org.DID(), credInfo.Subject, spaceURI,
+		fgastore.RelationSpaceOwner)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check delete permission",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("authorize: %w", err))
 		return
 	}
 	if !authorized {
@@ -939,7 +918,6 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not authorized to delete"))
 		return
 	}
-
 	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
 	if !ok {
 		return
@@ -948,15 +926,12 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "invalid collection", err)
 		return
 	}
-
-	err = s.store.DeleteRecord(r.Context(), spaceURI, repo, collection, input.Rkey)
+	err = s.store.DeleteRecord(ctx, spaceURI, repo, collection, input.Rkey)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "delete record", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("delete record: %w", err))
 		return
 	}
-
-	output := habitat.NetworkHabitatSpaceDeleteRecordOutput{}
-	httpx.WriteJSON(r.Context(), w, output)
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceDeleteRecordOutput{})
 }
 
 func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
