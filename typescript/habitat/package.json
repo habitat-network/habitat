@@ -1,0 +1,37 @@
+{
+  "name": "@habitat-network/habitat",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for building on Habitat, a data ownership layer built on AT Protocol.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/habitat-network/habitat.git",
+    "directory": "typescript/habitat"
+  },
+  "keywords": ["habitat", "atproto", "at-protocol", "identity", "oauth"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@atproto-labs/identity-resolver": ">=0.4.0 <1"
+  },
+  "devDependencies": {
+    "@atproto-labs/identity-resolver": "^0.4.5",
+    "msw": "^2.15.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

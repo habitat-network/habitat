@@ -6,6 +6,7 @@ packages:
   - typescript/internal
   - typescript/apps/*
   - typescript/api
+  - typescript/habitat
   - typescript/xrpc-openapi-gen
   - api-docs
   - website
