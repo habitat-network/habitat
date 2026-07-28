@@ -1,7 +1,8 @@
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { server } from "../test/msw.js";
+import { HabitatIdentityResolverError } from "./errors.js";
 import {
   DEFAULT_HABITAT_SERVICE_URL,
   HabitatIdentityResolver,
@@ -141,5 +142,206 @@ describe("HabitatIdentityResolver", () => {
     const info = await new HabitatIdentityResolver().resolve(DID);
 
     expect(info.handle).toBe("handle.invalid");
+  });
+});
+
+describe("HabitatIdentityResolver error handling", () => {
+  it("throws with status and xrpcError for a 404 DidNotFound", async () => {
+    server.use(
+      http.get(`${DEFAULT_HABITAT_SERVICE_URL}${XRPC_PATH}`, () =>
+        HttpResponse.json(
+          { error: "DidNotFound", message: "DID not found" },
+          { status: 404 },
+        ),
+      ),
+    );
+
+    const error = await new HabitatIdentityResolver()
+      .resolve(DID)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HabitatIdentityResolverError);
+    expect((error as HabitatIdentityResolverError).status).toBe(404);
+    expect((error as HabitatIdentityResolverError).xrpcError).toBe(
+      "DidNotFound",
+    );
+    expect((error as Error).message).toContain("DID not found");
+  });
+
+  it("throws with status and xrpcError for a 400 InvalidRequest", async () => {
+    server.use(
+      http.get(`${DEFAULT_HABITAT_SERVICE_URL}${XRPC_PATH}`, () =>
+        HttpResponse.json(
+          { error: "InvalidRequest", message: "invalid identifier" },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    const error = await new HabitatIdentityResolver()
+      .resolve("!!!")
+      .catch((e: unknown) => e);
+
+    expect((error as HabitatIdentityResolverError).status).toBe(400);
+    expect((error as HabitatIdentityResolverError).xrpcError).toBe(
+      "InvalidRequest",
+    );
+  });
+
+  it("still reports the status when the error body is not JSON", async () => {
+    server.use(
+      http.get(`${DEFAULT_HABITAT_SERVICE_URL}${XRPC_PATH}`, () =>
+        HttpResponse.text("upstream exploded", { status: 502 }),
+      ),
+    );
+
+    const error = await new HabitatIdentityResolver()
+      .resolve(DID)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HabitatIdentityResolverError);
+    expect((error as HabitatIdentityResolverError).status).toBe(502);
+    expect((error as HabitatIdentityResolverError).xrpcError).toBeUndefined();
+  });
+
+  it("throws when the success body is not JSON", async () => {
+    server.use(
+      http.get(`${DEFAULT_HABITAT_SERVICE_URL}${XRPC_PATH}`, () =>
+        HttpResponse.text("not json", { status: 200 }),
+      ),
+    );
+
+    const error = await new HabitatIdentityResolver()
+      .resolve(DID)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HabitatIdentityResolverError);
+  });
+
+  it("throws when the payload has no DID", async () => {
+    stubResolveIdentity(DEFAULT_HABITAT_SERVICE_URL, {
+      handle: HANDLE,
+      didDoc: DID_DOC,
+    });
+
+    const error = await new HabitatIdentityResolver()
+      .resolve(DID)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HabitatIdentityResolverError);
+  });
+
+  it("throws when the DID uses an unsupported method", async () => {
+    stubResolveIdentity(DEFAULT_HABITAT_SERVICE_URL, {
+      did: "did:example:nope",
+      handle: HANDLE,
+      didDoc: { ...DID_DOC, id: "did:example:nope" },
+    });
+
+    const error = await new HabitatIdentityResolver()
+      .resolve(DID)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HabitatIdentityResolverError);
+  });
+
+  it("throws when the DID document is missing", async () => {
+    stubResolveIdentity(DEFAULT_HABITAT_SERVICE_URL, {
+      did: DID,
+      handle: HANDLE,
+    });
+
+    const error = await new HabitatIdentityResolver()
+      .resolve(DID)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HabitatIdentityResolverError);
+  });
+
+  it("throws when the DID document id does not match the resolved DID", async () => {
+    stubResolveIdentity(DEFAULT_HABITAT_SERVICE_URL, {
+      did: DID,
+      handle: HANDLE,
+      didDoc: { ...DID_DOC, id: "did:web:someone-else.habitat.network" },
+    });
+
+    const error = await new HabitatIdentityResolver()
+      .resolve(DID)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HabitatIdentityResolverError);
+    expect((error as Error).message).toContain("someone-else");
+  });
+
+  it("throws when the handle is not a string", async () => {
+    stubResolveIdentity(DEFAULT_HABITAT_SERVICE_URL, {
+      did: DID,
+      handle: 42,
+      didDoc: DID_DOC,
+    });
+
+    const error = await new HabitatIdentityResolver()
+      .resolve(DID)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HabitatIdentityResolverError);
+  });
+
+  it("wraps a network failure and preserves the cause", async () => {
+    server.use(
+      http.get(`${DEFAULT_HABITAT_SERVICE_URL}${XRPC_PATH}`, () =>
+        HttpResponse.error(),
+      ),
+    );
+
+    const error = await new HabitatIdentityResolver()
+      .resolve(DID)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HabitatIdentityResolverError);
+    expect((error as Error).cause).toBeDefined();
+    expect((error as Error).message).toContain("pear.habitat.network");
+  });
+
+  it("requests an uncached response when noCache is set", async () => {
+    let cacheMode: string | undefined;
+
+    server.use(
+      http.get(`${DEFAULT_HABITAT_SERVICE_URL}${XRPC_PATH}`, ({ request }) => {
+        cacheMode = request.cache;
+        return HttpResponse.json({ did: DID, handle: HANDLE, didDoc: DID_DOC });
+      }),
+    );
+
+    const info = await new HabitatIdentityResolver().resolve(DID, {
+      noCache: true,
+    });
+
+    expect(info.did).toBe(DID);
+    // Known fragility: undici does not reliably surface `request.cache` to an
+    // MSW handler. If `cacheMode` comes back as "default" or undefined, delete
+    // this single assertion rather than adding a seam to production code to
+    // make it observable — the behavior is a one-line pass-through to `fetch`.
+    expect(cacheMode).toBe("no-store");
+  });
+
+  it("propagates AbortError without wrapping it", async () => {
+    server.use(
+      http.get(`${DEFAULT_HABITAT_SERVICE_URL}${XRPC_PATH}`, async () => {
+        await delay("infinite");
+        return HttpResponse.json({});
+      }),
+    );
+
+    const controller = new AbortController();
+    const promise = new HabitatIdentityResolver().resolve(DID, {
+      signal: controller.signal,
+    });
+    controller.abort();
+
+    const error = await promise.catch((e: unknown) => e);
+
+    expect((error as Error).name).toBe("AbortError");
+    expect(error).not.toBeInstanceOf(HabitatIdentityResolverError);
   });
 });
