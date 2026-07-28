@@ -21,15 +21,23 @@ func TestSpaceKey(t *testing.T) {
 
 func TestConstructSpaceURI(t *testing.T) {
 	uri := ConstructSpaceURI("did:plc:abc123", "network.habitat.space", "my-space")
-	require.Equal(t, SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space"), uri)
-	require.Equal(t, "ats://did:plc:abc123/network.habitat.space/my-space", uri.String())
+	require.Equal(t, SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space"), uri)
+	require.Equal(t, "at://did:plc:abc123/space/network.habitat.space/my-space", uri.String())
 	require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
 	require.Equal(t, "network.habitat.space", uri.SpaceType().String())
 	require.Equal(t, SpaceKey("my-space"), uri.Skey())
 }
 
 func TestParseSpaceURI(t *testing.T) {
-	t.Run("valid", func(t *testing.T) {
+	t.Run("new format", func(t *testing.T) {
+		uri, err := ParseSpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space_1")
+		require.NoError(t, err)
+		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
+		require.Equal(t, "network.habitat.space", uri.SpaceType().String())
+		require.Equal(t, SpaceKey("my-space_1"), uri.Skey())
+	})
+
+	t.Run("legacy ats format", func(t *testing.T) {
 		uri, err := ParseSpaceURI("ats://did:plc:abc123/network.habitat.space/my-space_1")
 		require.NoError(t, err)
 		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
@@ -130,7 +138,7 @@ func TestSpaceRecordURI_SpaceURI(t *testing.T) {
 		)
 		require.Equal(
 			t,
-			SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space"),
+			SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space"),
 			uri.SpaceURI(),
 		)
 		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())

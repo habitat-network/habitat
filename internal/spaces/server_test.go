@@ -89,7 +89,7 @@ func TestServer_CreateSpace(t *testing.T) {
 	var output habitat.NetworkHabitatSpaceCreateSpaceOutput
 	err := json.NewDecoder(w.Body).Decode(&output)
 	require.NoError(t, err)
-	require.Contains(t, output.Uri, "ats://did:web:public.habitat.network/network.habitat.group/")
+	require.Contains(t, output.Uri, "at://did:web:public.habitat.network/space/network.habitat.group/")
 }
 
 func TestServer_ListSpaces(t *testing.T) {

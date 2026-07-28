@@ -24,7 +24,7 @@ func TestCreateSpace(t *testing.T) {
 
 	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "my-group")
 	require.NoError(t, err)
-	require.Equal(t, "ats://did:plc:org/network.habitat.group/my-group", uri.String())
+	require.Equal(t, "at://did:plc:org/space/network.habitat.group/my-group", uri.String())
 }
 
 func TestCreateSpace_AutoSkey(t *testing.T) {
@@ -32,7 +32,7 @@ func TestCreateSpace_AutoSkey(t *testing.T) {
 
 	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "")
 	require.NoError(t, err)
-	require.Contains(t, uri, "ats://did:plc:org/network.habitat.group/")
+	require.Contains(t, uri, "at://did:plc:org/space/network.habitat.group/")
 }
 
 func TestCreateSpace_Duplicate(t *testing.T) {
@@ -479,12 +479,12 @@ func TestDeleteRecord_Nonexistent(t *testing.T) {
 
 func TestSpaceURI(t *testing.T) {
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "my-key")
-	require.Equal(t, "ats://did:plc:owner/network.habitat.group/my-key", uri.String())
+	require.Equal(t, "at://did:plc:owner/space/network.habitat.group/my-key", uri.String())
 	require.Equal(t, owner, uri.SpaceOwner())
 	require.Equal(t, groupType, uri.SpaceType())
 	require.Equal(t, habitat_syntax.SpaceKey("my-key"), uri.Skey())
 
-	parsed, err := habitat_syntax.ParseSpaceURI("ats://did:plc:owner/network.habitat.group/my-key")
+	parsed, err := habitat_syntax.ParseSpaceURI("at://did:plc:owner/space/network.habitat.group/my-key")
 	require.NoError(t, err)
 	require.Equal(t, uri, parsed)
 }
