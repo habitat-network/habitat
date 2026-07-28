@@ -6,14 +6,13 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
-	atpidentity "github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 )
 
 func testResolveServer() *Server {
-	dir := atpidentity.NewMockDirectory()
-	dir.Insert(atpidentity.Identity{
+	dir := identity.NewMockDirectory()
+	dir.Insert(identity.Identity{
 		DID:         syntax.DID("did:web:alice.example.com"),
 		Handle:      syntax.Handle("alice.example.com"),
 		AlsoKnownAs: []string{"at://alice.example.com"},
