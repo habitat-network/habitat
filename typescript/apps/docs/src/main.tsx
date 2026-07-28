@@ -12,14 +12,6 @@ import { reportWebVitals, AuthManager } from "internal";
 import posthog from "posthog-js";
 import { PostHogProvider } from "@posthog/react";
 
-const authManager = new AuthManager(
-  "Habitat Docs",
-  __DOMAIN__,
-  __HABITAT_DOMAIN__,
-  () => {
-    router.navigate({ to: "/login" });
-  },
-);
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -28,7 +20,15 @@ const queryClient = new QueryClient({
   },
 });
 
-const domainUrl = new URL(`https://${__DOMAIN__}`);
+const domainUrl = new URL(import.meta.env.VITE_BASE_URL);
+const authManager = new AuthManager(
+  "Habitat Docs",
+  import.meta.env.VITE_BASE_URL,
+  `https://${import.meta.env.VITE_HABITAT_DOMAIN}`,
+  () => {
+    router.navigate({ to: "/login" });
+  },
+);
 
 // Create a new router instance
 const router = createRouter({
@@ -41,8 +41,8 @@ const router = createRouter({
   scrollRestoration: true,
   defaultStructuralSharing: true,
   defaultPreloadStaleTime: 0,
-  basepath: __HASH_ROUTING__ ? undefined : domainUrl.pathname,
-  history: __HASH_ROUTING__ ? createHashHistory() : undefined,
+  basepath: import.meta.env.VITE_HASH_ROUTING ? undefined : domainUrl.pathname,
+  history: import.meta.env.VITE_HASH_ROUTING ? createHashHistory() : undefined,
 });
 
 // Register the router instance for type safety

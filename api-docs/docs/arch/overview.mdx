@@ -1,0 +1,44 @@
+---
+id: overview
+slug: /arch/overview.mdx
+sidebar_label: Overview
+sidebar_position: 0
+---
+
+# Overview
+
+Habitat is building a data ownership platform for organizations and communities. We are developing an open protocol that defines an Organizational Data Server (ODS), which can be implemented by anyone and for which we offer both managed hosting and self-hosting instructions.
+
+The following is a high-level technical architecture diagram of Habitat's Organizational Data Server and how it interacts with application servers built by developers. This is roughly analogous to a Personal Data Server (PDS) / AppViews in AT Protocol, with a few key departures that are explored in the following pages.
+
+```
+                 +--------------------------------------------------------------------+
+                 |                                                                    |
+                 |                   Organizational Data Server                       |
+                 |                                                                    |
+                 |  +---------------------------+ +-------------------------+         |
+                 |  |+-------++-------++-------+| |                         |         |
+                 |  || User  || User  || User  || |                         |         |
+                 |  || Repo 1|| Repo 2|| Repo 3|| |                         |         |
+                 |  |+-------++-------++-------+| |                         |         |
+                 |  |                           | |                         |         |
+                 |  |+-------------------------+| |                         |         |
+                 |  ||    Authentication       || |                         |         |
+                 |  |+-------------------------+| |                         |         |
+                 |  |+-------------------------+| |                         |         |
+                 |  ||     Permissions         || |                         |         |
+                 |  |+-------------------------+| |                         |         |
+                 |  |+-------------------------+| |                         |         |
+                 |  ||     Sync Server         || |                         |         |
+                 |  |+-------------------------+| |                         |         |
+                 |  |                           | |                         |         |
+                 |  | A Habitat Organization    | |                         | . . .   |
+                 |  +-------------|-------------+ +-------------------------+         |
+                 +--------------|-|---------------------------------------------------+
+                                | |                                                    
+                                | |Event Stream                                        
+                                | |                                                    
+                    +--------------------------+                                       
+                    |   Application Server     |                                       
+                    +--------------------------+                                       
+ ```

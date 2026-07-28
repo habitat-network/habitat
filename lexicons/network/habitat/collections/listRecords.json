@@ -1,0 +1,41 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.collections.listRecords",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List the records in a collection the calling user can see, each with the spaces it belongs to that the user can read. The record body is not included; fetch it on demand from pear. Implemented by the home server and reached via pear service proxying.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "collection"
+                ],
+                "properties": {
+                    "collection": {
+                        "type": "string",
+                        "format": "nsid",
+                        "description": "The NSID of the record collection to list."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "records"
+                    ],
+                    "properties": {
+                        "records": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "network.habitat.collections.defs#recordView"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

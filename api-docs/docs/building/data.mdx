@@ -1,0 +1,12 @@
+---
+id: data
+slug: /building/data.mdx
+sidebar_label: Data Model
+sidebar_position: 1
+---
+
+# Data Model
+
+Habitat uses the [same data model as AT Protocol](https://atproto.com/specs/data-model). Refer to the linked documentation for the most up to date documentation. 
+
+At a high level, every piece of data stored in Habitat is tied to an identity, and stored in that identity's [repository](../arch/repositories.mdx). Data can be in the form of either **records** or **blobs**. Records are JSON records that adhere to the AT Protocol Lexicon schema language. [Blobs](https://atproto.com/specs/blob) can be any file format and must be referenced by at least one record via the `blob` lexicon field type, otherwise they get garbage collected. Blobs are content addressed, and records have unique record keys referencing them.

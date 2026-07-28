@@ -108,7 +108,7 @@ type Server struct {
 	registry *peerRegistry
 
 	// For authn/authz
-	serviceAuth authn.Method
+	serviceAuth authn.RawMethod
 	pear        pear.Pear
 
 	// Count the open conns on this server
@@ -120,11 +120,11 @@ var _ io.Closer = (*Server)(nil)
 
 func NewServer(
 	ctx context.Context,
-	serviceAuth authn.Method,
-	p pear.Pear,
+	serviceAuth authn.RawMethod,
+	pear pear.Pear,
 	meter metric.Meter,
 ) (*Server, error) {
-	p2pHost, err := libp2p.New(
+	host, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0/ws"), // Websocket for browser relay
 		libp2p.Transport(websocket.New),
 		libp2p.ForceReachabilityPublic(),
@@ -133,21 +133,21 @@ func NewServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create libp2p host: %w", err)
 	}
-	slog.InfoContext(ctx, "p2p server started", "peer_id", p2pHost.ID())
+	slog.InfoContext(ctx, "p2p server started", "peer_id", host.ID())
 
-	addr, err := manet.ToNetAddr(p2pHost.Addrs()[0])
+	addr, err := manet.ToNetAddr(host.Addrs()[0])
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert multiaddr to net.Addr: %w", err)
 	}
-	p2pURL, err := url.Parse(addr.String())
+	url, err := url.Parse(addr.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse url: %w", err)
 	}
-	p2pURL.Scheme = "http"
+	url.Scheme = "http"
 
 	registry := newPeerRegistry()
 	// Notify the registry about disconnections
-	p2pHost.Network().Notify(registry)
+	host.Network().Notify(registry)
 
 	gauge, err := meter.Int64Gauge("p2p.connections", metric.WithUnit("item"))
 	if err != nil {
@@ -155,11 +155,11 @@ func NewServer(
 	}
 
 	s := &Server{
-		host:        p2pHost,
-		proxy:       httputil.NewSingleHostReverseProxy(p2pURL),
+		host:        host,
+		proxy:       httputil.NewSingleHostReverseProxy(url),
 		registry:    registry,
 		serviceAuth: serviceAuth,
-		pear:        p,
+		pear:        pear,
 		connsGauge:  gauge,
 	}
 
@@ -169,7 +169,7 @@ func NewServer(
 	}
 
 	const peerDiscoveryProtocol = "/habitat/peer-discovery/1.0.0"
-	p2pHost.SetStreamHandler(peerDiscoveryProtocol, func(stream network.Stream) {
+	host.SetStreamHandler(peerDiscoveryProtocol, func(stream network.Stream) {
 		peerID := stream.Conn().RemotePeer()
 
 		// Context tied to this stream handler
@@ -197,16 +197,16 @@ func NewServer(
 		}
 
 		// Always use service auth here -- the service is p2p peer discovery for habitat.
-		did, ok, err := s.serviceAuth.ValidateRaw(ctx, req.ServiceAuthToken)
-		if err != nil || !ok {
+		credInfo, authn, err := s.serviceAuth.ValidateRaw(ctx, req.ServiceAuthToken)
+		if err != nil || !authn {
 			// Ignore this peer -- don't let it know about others and don't let others discover it
 			return
 		}
 
 		authz, err := s.pear.HasPermission(
 			ctx,
-			did,
-			did,
+			credInfo.Subject,
+			credInfo.Subject,
 			topic.Authority().DID(),
 			topic.Collection(),
 			topic.RecordKey(),

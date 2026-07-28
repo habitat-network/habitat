@@ -1,0 +1,27 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.instance.describeInstance",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "Get public info about this instance. Modeled on com.atproto.server.describeServer. No authentication required.",
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": ["name", "inviteRequired"],
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "This instance's manager-configured display name."
+                        },
+                        "inviteRequired": {
+                            "type": "boolean",
+                            "description": "Whether creating an org on this instance requires an invite token."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,19 +1,19 @@
-import { defineConfig } from "vite";
+import { defineConfig, mergeConfig } from "vite";
 import viteReact from "@vitejs/plugin-react";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import habitatPlugins from "internal/habitatAppVitePlugin.ts";
+import habitatAppConfig from "../../vite.config.app";
 
-const config = defineConfig({
-  plugins: [
-    // this is the plugin that enables path aliases
-    viteTsConfigPaths({
-      projects: ["./tsconfig.json"],
-    }),
-    tanstackRouter(),
-    viteReact(),
-    ...habitatPlugins(),
-  ],
-});
-
-export default config;
+export default mergeConfig(
+  habitatAppConfig(),
+  defineConfig({
+    plugins: [
+      // this is the plugin that enables path aliases
+      viteTsConfigPaths({
+        projects: ["./tsconfig.json"],
+      }),
+      tanstackRouter(),
+      viteReact(),
+    ],
+  }),
+);

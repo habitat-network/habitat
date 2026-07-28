@@ -173,15 +173,15 @@ func fakeTokenServer(responses map[string]interface{}) *httptest.Server {
 }
 
 // testDpopClient creates a real DPoP HTTP client for testing
-func testDpopClient(t *testing.T, ident *identity.Identity) *DpopHttpClient {
+func testDpopClient(t *testing.T, identity *identity.Identity) *DpopHttpClient {
 	// Create a session store and session for testing
 	sessionStore := sessions.NewCookieStore([]byte("test-key"))
 
 	// Create a test request for session creation
-	req := httptest.NewRequest("GET", "/test", http.NoBody)
+	req := httptest.NewRequest("GET", "/test", nil)
 
 	// Create a fresh DPoP session
-	dpopSession, err := newCookieSession(req, sessionStore, ident, "https://test.com")
+	dpopSession, err := newCookieSession(req, sessionStore, identity, "https://test.com")
 	require.NoError(t, err)
 
 	// Get the key from the session
@@ -216,18 +216,18 @@ type DpopSessionOptions struct {
 // testDpopSession creates a test DPoP session with configurable options
 func testDpopSession(t *testing.T, opts DpopSessionOptions) *cookieSession {
 	sessionStore := sessions.NewCookieStore([]byte("test-key"))
-	req := httptest.NewRequest("GET", "/test", http.NoBody)
+	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
 
 	// Use provided identity or create a default one
-	var ident *identity.Identity
+	var identity *identity.Identity
 	if opts.Identity != nil {
-		ident = opts.Identity
+		identity = opts.Identity
 	} else {
-		ident = testIdentity(opts.PdsURL)
+		identity = testIdentity(opts.PdsURL)
 	}
 
-	dpopSession, err := newCookieSession(req, sessionStore, ident, opts.PdsURL)
+	dpopSession, err := newCookieSession(req, sessionStore, identity, opts.PdsURL)
 	require.NoError(t, err)
 	require.NotNil(t, dpopSession)
 
@@ -261,7 +261,7 @@ func stringPtr(s string) *string {
 
 func testPdsCredStore(
 	t *testing.T,
-	claims jwt.Claims, //nolint:gocritic // test utility, 96 bytes is fine to pass by value
+	claims jwt.Claims,
 ) pdscred.PDSCredentialStore {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err, "failed to open in-memory db")

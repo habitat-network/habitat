@@ -1,0 +1,50 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.docs.listDocs",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List all documents in the org, with titles. Implemented by the docs server, which lists the doc spaces from pear using the org credential and reads each space's markdown 'self' record for the title.",
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "docs"
+                    ],
+                    "properties": {
+                        "docs": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "#docView"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "docView": {
+            "type": "object",
+            "required": [
+                "docId",
+                "uri",
+                "title"
+            ],
+            "properties": {
+                "docId": {
+                    "type": "string",
+                    "description": "The doc's space key, used as the document identifier in updateDoc and routing."
+                },
+                "uri": {
+                    "type": "string",
+                    "description": "URI of the doc's space."
+                },
+                "title": {
+                    "type": "string",
+                    "description": "The document title, from its markdown 'self' record."
+                }
+            }
+        }
+    }
+}

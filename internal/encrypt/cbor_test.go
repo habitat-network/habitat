@@ -330,8 +330,8 @@ func TestEncryptCBOR_LargeData(t *testing.T) {
 }
 
 func TestParseKey(t *testing.T) {
-	key, err := encrypt.GenerateKey()
-	require.NoError(t, err)
+	key, error := encrypt.GenerateKey()
+	require.NoError(t, error)
 
 	parsedKey, err := encrypt.ParseKey(key)
 	require.NoError(t, err)

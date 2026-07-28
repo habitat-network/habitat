@@ -7,17 +7,13 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func TestGetDpopClient_Success(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	store, err := NewPDSCredentialStore(db, encrypt.TestKey)
+	store, err := NewPDSCredentialStore(testutil.NewDB(t), encrypt.TestKey)
 	require.NoError(t, err)
 
 	// Generate test dpop key
@@ -25,8 +21,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create test DID
-	did, err := syntax.ParseDID("did:plc:test123")
-	require.NoError(t, err)
+	did := syntax.DID("did:plc:test123")
 
 	err = store.UpsertCredentials(t.Context(), did, &Credentials{
 		AccessToken:  "test-access-token",
@@ -52,17 +47,10 @@ func TestGetDpopClient_Success(t *testing.T) {
 }
 
 func TestGetDpopClient_NotFound(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	store, err := NewPDSCredentialStore(testutil.NewDB(t), encrypt.TestKey)
 	require.NoError(t, err)
 
-	store, err := NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
-
-	// Try to get client for non-existent DID
-	did, err := syntax.ParseDID("did:plc:nonexistent")
-	require.NoError(t, err)
-
-	credentials, err := store.GetCredentials(t.Context(), did)
+	credentials, err := store.GetCredentials(t.Context(), syntax.DID("did:plc:nonexistent"))
 	require.Error(t, err)
 	require.Nil(t, credentials)
 	require.Contains(t, err.Error(), "user credentials not found")

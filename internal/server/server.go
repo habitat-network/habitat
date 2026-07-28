@@ -5,17 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-	"log/slog"
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pear"
@@ -39,24 +39,19 @@ type Server struct {
 	// Org store for membership lookups
 	orgStore org.Store
 
-	// Used for resolving handles -> did, did -> PDS
-	dir identity.Directory
-
 	authMethods authMethods
 	decoder     *schema.Decoder
 }
 
 // NewServer returns a pear server.
 func NewServer(
-	dir identity.Directory,
-	p pear.Pear,
+	pear pear.Pear,
 	oauthServer *oauthserver.OAuthServer,
 	serviceAuthMethod authn.Method,
 	orgStore org.Store,
 ) *Server {
 	server := &Server{
-		dir:  dir,
-		pear: p,
+		pear: pear,
 		authMethods: authMethods{
 			oauth:       oauthServer,
 			serviceAuth: serviceAuthMethod,
@@ -69,7 +64,10 @@ func NewServer(
 
 // PutRecord puts a private record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -123,7 +121,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	v := true
 	uri, err := s.pear.PutRecord(
 		r.Context(),
-		callerDID,
+		credInfo.Subject,
 		target.DID(),
 		syntax.NSID(req.Collection),
 		record,
@@ -142,23 +140,17 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
+	httpx.WriteJSON(r.Context(), w, &habitat.NetworkHabitatRepoPutRecordOutput{
 		Uri: uri.String(),
-	}); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	})
 }
 
 // CreateRecord creates a new record
 func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -210,7 +202,7 @@ func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
 	v := true
 	uri, err := s.pear.CreateRecord(
 		r.Context(),
-		callerDID,
+		credInfo.Subject,
 		target.DID(),
 		syntax.NSID(req.Collection),
 		record,
@@ -237,23 +229,17 @@ func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoCreateRecordOutput{
+	httpx.WriteJSON(r.Context(), w, &habitat.NetworkHabitatRepoCreateRecordOutput{
 		Uri: uri.String(),
-	}); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	})
 }
 
 // GetRecord gets a potentially encrypted record (see s.inner.getRecord)
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth, s.authMethods.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -270,15 +256,8 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection, err := syntax.ParseNSID(params.Collection)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"parsing collection as NSID",
-			http.StatusBadRequest,
-		)
+	collection, ok := httpx.ParseNSIDInput(r.Context(), w, params.Collection, "collection")
+	if !ok {
 		return
 	}
 	rkey, err := syntax.ParseRecordKey(params.Rkey)
@@ -293,12 +272,12 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := s.pear.GetRecord(r.Context(), collection, rkey, target.DID(), callerDID)
+	record, err := s.pear.GetRecord(r.Context(), collection, rkey, target.DID(), credInfo.Subject)
 	if err != nil {
-		switch {
-		case errors.Is(err, repo.ErrRecordNotFound):
+		if errors.Is(err, repo.ErrRecordNotFound) {
 			utils.LogAndHTTPError(r.Context(), w, err, "record not found", http.StatusNotFound)
-		case errors.Is(err, pear.ErrNotLocalRepo):
+			return
+		} else if errors.Is(err, pear.ErrNotLocalRepo) {
 			// TODO: is this still relevant?
 			utils.LogAndHTTPError(
 				r.Context(),
@@ -307,17 +286,12 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 				"forwarding not implemented",
 				http.StatusNotImplemented,
 			)
-		case errors.Is(err, habitat_err.ErrUnauthorized):
+			return
+		} else if errors.Is(err, habitat_err.ErrUnauthorized) {
 			utils.LogAndHTTPError(r.Context(), w, err, "unauthorized", http.StatusForbidden)
-		default:
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"getting record",
-				http.StatusInternalServerError,
-			)
+			return
 		}
+		utils.LogAndHTTPError(r.Context(), w, err, "getting record", http.StatusInternalServerError)
 		return
 	}
 
@@ -335,7 +309,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	if params.IncludePermissions {
 		grantees, err := s.pear.ListAllowGrantsForRecord(
 			r.Context(),
-			callerDID,
+			credInfo.Subject,
 			syntax.DID(record.Did),
 			syntax.NSID(record.Collection),
 			syntax.RecordKey(record.Rkey),
@@ -353,20 +327,14 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		output.Permissions = permissions.ConstructInterfaceFromGrantees(grantees)
 	}
 
-	if json.NewEncoder(w).Encode(output) != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -395,7 +363,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blob, err := s.pear.UploadBlob(r.Context(), callerDID, callerDID, bytes, mimeType)
+	blob, err := s.pear.UploadBlob(r.Context(), credInfo.Subject, credInfo.Subject, bytes, mimeType)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -410,21 +378,14 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	out := habitat.NetworkHabitatRepoUploadBlobOutput{
 		Blob: blob,
 	}
-	err = json.NewEncoder(w).Encode(out)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"error encoding json output",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, out)
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -436,7 +397,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repoID, err := syntax.ParseAtIdentifier(req.Repo)
+	repo, err := syntax.ParseAtIdentifier(req.Repo)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "parse repo", http.StatusBadRequest)
 		return
@@ -444,8 +405,8 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 
 	err = s.pear.DeleteRecord(
 		r.Context(),
-		callerDID,
-		repoID.DID(),
+		credInfo.Subject,
+		repo.DID(),
 		syntax.NSID(req.Collection),
 		syntax.RecordKey(req.Rkey),
 	)
@@ -467,11 +428,12 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 
 // TODO: implement permissions over getBlob
 func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(
-		w,
-		r,
-		s.authMethods.oauth, /* TODO: add service auth here when we support fwding blob reqs */
-	)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(
+			s.authMethods.oauth,
+		), /* TODO: add service auth here when we support fwding blob reqs */
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -483,9 +445,8 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	did, err := syntax.ParseDID(params.Did)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parsing did", http.StatusBadRequest)
+	did, ok := httpx.ParseDIDInput(r.Context(), w, params.Did, "did")
+	if !ok {
 		return
 	}
 
@@ -495,7 +456,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mimeType, contentLen, blob, err := s.pear.GetBlob(r.Context(), callerDID, did, cid)
+	mimeType, contentLen, blob, err := s.pear.GetBlob(r.Context(), credInfo.Subject, did, cid)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -523,7 +484,10 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth, s.authMethods.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -535,7 +499,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dids := make([]syntax.DID, len(params.Subjects))
+	subjects := make([]syntax.AtIdentifier, len(params.Subjects))
 	for i, subject := range params.Subjects {
 		// TODO: support handles
 		atid, err := syntax.ParseAtIdentifier(subject)
@@ -549,28 +513,15 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
-
-		id, err := s.dir.Lookup(r.Context(), atid)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"parsing looking up atid",
-				http.StatusBadRequest,
-			)
-			return
-		}
-		dids[i] = id.DID
+		subjects[i] = atid
 	}
 
-	collection, err := syntax.ParseNSID(params.Collection)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parsing collection", http.StatusBadRequest)
+	collection, ok := httpx.ParseNSIDInput(r.Context(), w, params.Collection, "collection")
+	if !ok {
 		return
 	}
 
-	records, err := s.pear.ListRecords(r.Context(), callerDID, collection, dids)
+	records, err := s.pear.ListRecords(r.Context(), credInfo.Subject, collection, subjects)
 	if err != nil {
 		if errors.Is(err, pear.ErrNotLocalRepo) {
 			utils.LogAndHTTPError(
@@ -611,7 +562,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		if params.IncludePermissions {
 			grantees, err := s.pear.ListAllowGrantsForRecord(
 				r.Context(),
-				callerDID,
+				credInfo.Subject,
 				syntax.DID(record.Did),
 				syntax.NSID(record.Collection),
 				syntax.RecordKey(record.Rkey),
@@ -621,7 +572,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 					slog.ErrorContext(r.Context(),
 						"[pear] list records inconsistent state",
 						"caller",
-						callerDID,
+						credInfo.Subject,
 						"uri",
 						habitat_syntax.ConstructHabitatUri(
 							record.Did,
@@ -649,25 +600,19 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 		output.Records = append(output.Records, next)
 	}
-	if json.NewEncoder(w).Encode(output) != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
 
-	description, err := s.pear.DescribeRepo(r.Context(), callerDID, callerDID)
+	description, err := s.pear.DescribeRepo(r.Context(), credInfo.Subject, credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -700,75 +645,7 @@ func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err = json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-}
-
-func (s *Server) DescribeRepoPublic(w http.ResponseWriter, r *http.Request) {
-	repoStr := r.URL.Query().Get("repo")
-	id, err := s.dir.Lookup(r.Context(), syntax.AtIdentifier(repoStr))
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			fmt.Sprintf("looking up did from repo param: %s", repoStr),
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	description, err := s.pear.DescribeRepo(r.Context(), id.DID, id.DID)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"describing repo",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	output := habitat.NetworkHabitatRepoDescribeRepoOutput{
-		Did:             description.DID.String(),
-		Handle:          description.Handle,
-		DidDoc:          description.DIDDoc,
-		HandleIsCorrect: description.HandleIsCorrect,
-		Collections: make(
-			[]habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata,
-			len(description.Collections),
-		),
-	}
-
-	for i, c := range description.Collections {
-		grantees := permissions.ConstructInterfaceFromGrantees(c.Grantees)
-		output.Collections[i] = habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata{
-			Grantees:    grantees,
-			LastTouched: c.LastTouched.Format(time.RFC3339Nano),
-			Nsid:        c.Name,
-			RecordCount: int64(c.RecordCount),
-		}
-	}
-
-	if err = json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 // TODO: this is a confusing name, because our ListPermissions internally takes in a generic query of grantee + owner + collection + rkey
@@ -777,11 +654,14 @@ func (s *Server) DescribeRepoPublic(w http.ResponseWriter, r *http.Request) {
 // However, this is currently only used in the UI to show all the permissions a particular user has granted to other people, as a way of
 // inspecting and easily adding / removing permission grants on your data. We should rename this and/or also make it generic.
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
-	perms, err := s.pear.ListPermissionGrants(r.Context(), callerDID, callerDID)
+	perms, err := s.pear.ListPermissionGrants(r.Context(), credInfo.Subject, credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -807,27 +687,14 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"json marshal response",
-			http.StatusInternalServerError,
-		)
-		slog.ErrorContext(
-			r.Context(),
-			"error sending response for ListPermissions request",
-			"err",
-			err,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -845,9 +712,9 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 	}
 	err = s.pear.AddPermissions(
 		r.Context(),
-		callerDID,
+		credInfo.Subject,
 		grantees,
-		callerDID,
+		credInfo.Subject,
 		syntax.NSID(req.Collection),
 		syntax.RecordKey(req.Rkey),
 	)
@@ -864,7 +731,10 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -888,9 +758,9 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	}
 	err = s.pear.RemovePermissions(
 		r.Context(),
-		callerDID,
+		credInfo.Subject,
 		grantees,
-		callerDID,
+		credInfo.Subject,
 		syntax.NSID(req.Collection),
 		syntax.RecordKey(req.Rkey),
 	)
@@ -900,38 +770,6 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 			w,
 			err,
 			"removing permission",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-}
-
-func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.serviceAuth)
-	if !ok {
-		return
-	}
-
-	req := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{}
-	err := json.NewDecoder(r.Body).Decode(req)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode json request", http.StatusBadRequest)
-		return
-	}
-
-	err = s.pear.NotifyOfUpdate(
-		r.Context(),
-		callerDID,
-		syntax.DID(req.Recipient),
-		req.Collection,
-		req.Rkey,
-	)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"notify of update",
 			http.StatusInternalServerError,
 		)
 		return

@@ -1,0 +1,24 @@
+{
+  "name": "docs-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --build --force",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@atproto/crypto": "^0.5.4",
+    "@atproto/identity": "^0.5.6",
+    "@hono/node-server": "^2.0.0",
+    "api": "workspace:*",
+    "async-mutex": "^0.5.0",
+    "hono": "^4.12.31",
+    "yjs": "^13.6.31"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "^4.23.1",
+    "typescript": "catalog:"
+  }
+}

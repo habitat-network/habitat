@@ -1,0 +1,45 @@
+/**
+ * GENERATED CODE - DO NOT MODIFY
+ */
+import { type HeadersMap, XRPCError } from '@atproto/xrpc'
+import { type ValidationResult, BlobRef } from '@atproto/lexicon'
+import { CID } from 'multiformats/cid'
+import { validate as _validate } from '../../../../lexicons.js'
+import {
+  type $Typed,
+  is$typed as _is$typed,
+  type OmitKey,
+} from '../../../../util.js'
+
+const is$typed = _is$typed,
+  validate = _validate
+const id = 'network.habitat.space.notifyWrite'
+
+export type QueryParams = {}
+
+export interface InputSchema {
+  /** Reference to the space. */
+  space: string
+  /** The DID of the account whose repo advanced. */
+  repo: string
+  /** The revision of the write. */
+  rev: string
+  /** The repo's current commit hash (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's hash for listRepos. */
+  hash: Uint8Array
+}
+
+export interface CallOptions {
+  signal?: AbortSignal
+  headers?: HeadersMap
+  qp?: QueryParams
+  encoding?: 'application/json'
+}
+
+export interface Response {
+  success: boolean
+  headers: HeadersMap
+}
+
+export function toKnownErr(e: any) {
+  return e
+}

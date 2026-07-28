@@ -1,0 +1,102 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.groups.defs",
+    "defs": {
+        "groupView": {
+            "type": "object",
+            "description": "A group, backed by a network.habitat.group space, with its membership resolved. Membership is the set of users holding at least the writer role on the group-space, expanded through inherited groups.",
+            "required": [
+                "uri",
+                "name",
+                "isMember",
+                "canManage"
+            ],
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the group-space."
+                },
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "memberCount": {
+                    "type": "integer",
+                    "description": "Number of distinct members after expanding inherited groups."
+                },
+                "isMember": {
+                    "type": "boolean",
+                    "description": "Whether the calling user is a member of this group."
+                },
+                "canManage": {
+                    "type": "boolean",
+                    "description": "Whether the calling user can manage this group (add members, edit it)."
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "type": "ref",
+                        "ref": "#memberView"
+                    }
+                },
+                "inheritedGroups": {
+                    "type": "array",
+                    "description": "Other groups this group inherits members from.",
+                    "items": {
+                        "type": "ref",
+                        "ref": "#groupRef"
+                    }
+                }
+            }
+        },
+        "memberView": {
+            "type": "object",
+            "required": [
+                "did",
+                "direct"
+            ],
+            "properties": {
+                "did": {
+                    "type": "string",
+                    "format": "did"
+                },
+                "role": {
+                    "type": "string",
+                    "description": "Role held on the group-space (owner|manager|writer|reader)."
+                },
+                "direct": {
+                    "type": "boolean",
+                    "description": "True if the member is granted a role directly on this group, false if the membership is inherited from another group."
+                },
+                "viaGroup": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "If inherited, the URI of the group-space the membership came from."
+                }
+            }
+        },
+        "groupRef": {
+            "type": "object",
+            "required": [
+                "uri",
+                "name"
+            ],
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

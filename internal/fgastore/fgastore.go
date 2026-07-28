@@ -161,22 +161,30 @@ func findOrCreateStore(ctx context.Context, svr *server.Server) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("list stores: %w", err)
 	}
+	var storeID string
 	if stores := listResp.GetStores(); len(stores) > 0 {
-		return stores[0].GetId(), nil
+		storeID = stores[0].GetId()
+	} else {
+		createResp, err := svr.CreateStore(ctx, &openfgav1.CreateStoreRequest{Name: "habitat"})
+		if err != nil {
+			return "", fmt.Errorf("create store: %w", err)
+		}
+		storeID = createResp.GetId()
 	}
-	createResp, err := svr.CreateStore(ctx, &openfgav1.CreateStoreRequest{Name: "habitat"})
-	if err != nil {
-		return "", fmt.Errorf("create store: %w", err)
-	}
+	// Write the current auth model even for an existing store so model changes
+	// (e.g. new relations or type restrictions) take effect on restart rather
+	// than only when the store is first created. OpenFGA versions models and
+	// uses the latest by default, and existing tuples stay valid because the
+	// model only ever grows, so this is safe in practice.
 	model := authModel()
 	if _, err := svr.WriteAuthorizationModel(ctx, &openfgav1.WriteAuthorizationModelRequest{
-		StoreId:         createResp.GetId(),
+		StoreId:         storeID,
 		SchemaVersion:   model.GetSchemaVersion(),
 		TypeDefinitions: model.GetTypeDefinitions(),
 	}); err != nil {
 		return "", fmt.Errorf("write auth model: %w", err)
 	}
-	return createResp.GetId(), nil
+	return storeID, nil
 }
 
 func (f *FGA) Check(

@@ -5,7 +5,7 @@ package habitat
 // NetworkHabitatSpaceGetRecordParams represents the input parameters for network.habitat.space.getRecord
 type NetworkHabitatSpaceGetRecordParams struct {
 	Collection string `json:"collection"`
-	Repo       string `json:"repo,omitempty"`
+	Repo       string `json:"repo"`
 	Rkey       string `json:"rkey"`
 	Space      string `json:"space"`
 }

@@ -222,8 +222,8 @@ func performOAuthLoginWithBrowser(
 
 	wd, err := selenium.NewRemote(caps, seleniumURL)
 	require.NoError(t, err, "Failed to connect to Selenium")
-	defer wd.Quit()
-	wd.SetImplicitWaitTimeout(5 * time.Second)
+	defer func() { _ = wd.Quit() }()
+	_ = wd.SetImplicitWaitTimeout(5 * time.Second)
 
 	// Navigate to the frontend's OAuth login endpoint (using Docker network address)
 	frontendOAuthURL := "https://frontend.habitat/oauth-login"
@@ -278,7 +278,7 @@ func performOAuthLoginWithBrowser(
 	err = submitButton.Click()
 	require.NoError(t, err, "Failed to click submit button")
 
-	wd.Wait(func(wd selenium.WebDriver) (bool, error) {
+	_ = wd.Wait(func(wd selenium.WebDriver) (bool, error) {
 		title, err := wd.Title()
 		if err != nil {
 			return false, err
@@ -303,7 +303,7 @@ func performOAuthLoginWithBrowser(
 	err = consentButton.Click()
 	require.NoError(t, err, "Failed to click consent button")
 
-	wd.Wait(func(wd selenium.WebDriver) (bool, error) {
+	_ = wd.Wait(func(wd selenium.WebDriver) (bool, error) {
 		currentURL, err := wd.CurrentURL()
 		if err != nil {
 			return false, err
@@ -366,7 +366,7 @@ func createPDSAccount(
 
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)

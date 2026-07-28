@@ -1,0 +1,32 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.collections.listCollections",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List the record collections (lexicon types) present in the org's synced data, each with a count of the distinct records the calling user can see. Only collections with at least one visible record are returned. Implemented by the home server and reached via pear service proxying.",
+            "parameters": {
+                "type": "params",
+                "properties": {}
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "collections"
+                    ],
+                    "properties": {
+                        "collections": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "network.habitat.collections.defs#collectionView"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

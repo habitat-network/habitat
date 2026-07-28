@@ -1,7 +1,6 @@
 package pdsclient
 
 import (
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -17,7 +16,7 @@ func TestSessionInterface(t *testing.T) {
 func TestSession(t *testing.T) {
 	// Setup
 	sessionStore := sessions.NewCookieStore([]byte("test-key"))
-	req := httptest.NewRequest("GET", "/test", http.NoBody)
+	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
 
 	// Create test data
@@ -70,7 +69,7 @@ func TestSession(t *testing.T) {
 	require.Equal(t, SessionKeyDpop, cookies[0].Name)
 
 	// Step 5: Create a new request with the session cookie
-	newReq := httptest.NewRequest("GET", "/test", http.NoBody)
+	newReq := httptest.NewRequest("GET", "/test", nil)
 	newReq.AddCookie(cookies[0])
 
 	// Step 6: Retrieve the existing session

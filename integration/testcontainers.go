@@ -82,7 +82,7 @@ func NewTestEnvironment(
 				t.Logf("Failed to get logs for container %s: %v", inspect.Name, err)
 				continue
 			}
-			defer logs.Close()
+			defer func() { _ = logs.Close() }()
 			buf := new(bytes.Buffer)
 			_, err = buf.ReadFrom(logs)
 			if err != nil {

@@ -51,7 +51,7 @@ export const AppLayout = ({
 }: AppLayoutProps) => {
   return (
     <SidebarProvider>
-      <Sidebar collapsible="icon">
+      <Sidebar collapsible="icon" variant="floating">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>

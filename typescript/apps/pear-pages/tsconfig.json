@@ -1,0 +1,17 @@
+{
+  "extends": "../../../tsconfig.options.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["vite/client", "node"]
+  },
+  "include": ["src/**/*", "../../globals.d.ts"],
+  "references": [
+    {
+      "path": "../../internal"
+    }
+  ]
+}

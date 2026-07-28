@@ -282,11 +282,11 @@ func (o *oauthClientImpl) ExchangeCode(
 
 func (o *oauthClientImpl) RefreshToken(
 	dpopClient *DpopHttpClient,
-	ident *identity.Identity,
+	identity *identity.Identity,
 	issuer string,
 	refreshToken string,
 ) (*TokenResponse, error) {
-	pr, err := fetchOAuthProtectedResource(ident)
+	pr, err := fetchOAuthProtectedResource(identity)
 	if err != nil {
 		o.metrics.refreshTokenErr(err)
 		return nil, err

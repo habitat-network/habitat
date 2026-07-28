@@ -1,0 +1,10 @@
+layer: application
+tasks:
+  build:
+    args:
+      - --outDir
+      - $workspaceRoot/internal/webui/dist
+    deps:
+      - typescript/internal:build
+    options:
+      mergeDeps: replace

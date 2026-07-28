@@ -1,0 +1,27 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.admin.getSettings",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "Get this instance's admin-configurable settings. Requires an authenticated instance admin session.",
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": ["instanceName", "orgCreationPolicy"],
+                    "properties": {
+                        "instanceName": {
+                            "type": "string",
+                            "description": "This instance's display name."
+                        },
+                        "orgCreationPolicy": {
+                            "type": "string",
+                            "description": "'open' or 'invite_only'."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

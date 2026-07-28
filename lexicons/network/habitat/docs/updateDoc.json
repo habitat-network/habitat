@@ -1,0 +1,50 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.docs.updateDoc",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Apply a CRDT update to a collaborative document. Implemented by the docs server, which merges the update into the canonical document and writes it back using the org credential.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "docId",
+                        "update"
+                    ],
+                    "properties": {
+                        "docId": {
+                            "type": "string",
+                            "description": "The record key identifying the document to update."
+                        },
+                        "update": {
+                            "type": "string",
+                            "description": "Base64-encoded Yjs update to merge into the document."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "URI of the updated document record."
+                        },
+                        "cid": {
+                            "type": "string",
+                            "format": "cid",
+                            "description": "CID of the updated record."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

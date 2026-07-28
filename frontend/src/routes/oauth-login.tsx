@@ -3,21 +3,18 @@ import { z } from "zod";
 
 import { AuthForm } from "internal";
 
-const loginSearchSchema = z.object({
-  handle: z.string().optional(),
-});
-
 export const Route = createFileRoute("/oauth-login")({
-  validateSearch: loginSearchSchema,
+  validateSearch: z.object({
+    handle: z.string().optional(),
+    error: z.string().optional(),
+  }),
   component() {
-    const { handle } = Route.useSearch();
+    const { handle, error } = Route.useSearch();
     const { authManager } = Route.useRouteContext();
-    const error =
-      new URLSearchParams(window.location.search).get("error") ?? undefined;
     return (
       <AuthForm
         authManager={authManager}
-        redirectUrl={`https://${__DOMAIN__}`}
+        redirectUrl={import.meta.env.VITE_BASE_URL}
         serverError={error}
         defaultHandle={handle}
       />

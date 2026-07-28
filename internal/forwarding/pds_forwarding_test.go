@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
 
 // fakePDSServer returns a test server that records the last request path it received.
-func fakePDSServer(t *testing.T) (server *httptest.Server, path *string) {
+func fakePDSServer(t *testing.T) (*httptest.Server, *string) {
 	t.Helper()
 	var lastPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +38,7 @@ func TestServeHTTP_MissingTargetParam(t *testing.T) {
 	fakePDS, _ := fakePDSServer(t)
 	p := newTestForwarding(t, fakePDS)
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.getRecord", http.NoBody)
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.getRecord", nil)
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)
 
@@ -52,7 +52,7 @@ func TestServeHTTP_InvalidAtIdentifier(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.repo.getRecord?repo=not-a-valid-did-or-handle!!!",
-		http.NoBody,
+		nil,
 	)
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)
@@ -67,7 +67,7 @@ func TestServeHTTP_ForwardsToTargetPDS(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.repo.getRecord?repo=did:plc:abc123&collection=app.bsky.feed.post&rkey=abc",
-		http.NoBody,
+		nil,
 	)
 	// Strip Authorization to confirm it isn't forwarded (security check)
 	req.Header.Set("Authorization", "Bearer secret-token")
@@ -86,12 +86,12 @@ func TestServeHTTP_ForwardsToCallerPDS(t *testing.T) {
 
 	callerDID := syntax.DID("did:plc:caller123")
 	p := &PDSForwarding{
-		oauth:            authn.NewStubAuthnForTest(callerDID),
+		oauth:            authntest.NewSuccessMethod(callerDID),
 		pdsClientFactory: pdsclient.NewDummyClientFactory(fakePDS.URL),
 		plainHTTPClient:  fakePDS.Client(),
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.uploadBlob", http.NoBody)
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.uploadBlob", nil)
 	req.Header.Set("Authorization", "Bearer caller-token")
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)

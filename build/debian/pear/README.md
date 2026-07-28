@@ -11,13 +11,14 @@
 **1. Download the compose file**
 
 ```bash
-curl -O https://raw.githubusercontent.com/habitat-network/habitat/master/build/debian/pear/docker-compose.yml
+curl -LO https://github.com/habitat-network/habitat/releases/latest/download/docker-compose.yml
 ```
 
 **2. Create a `.env` file in the same directory**
 
 ```bash
 HABITAT_DOMAIN=pear.example.com
+HABITAT_ADMIN_PASSWORD=<your password for instance-wide config here>
 ```
 
 That's the only required setting. See [Configuration](#configuration) for all options.
@@ -65,6 +66,7 @@ All settings are configured via environment variables in your `.env` file.
 | `HABITAT_PDS_CRED_ENCRYPT_KEY` | auto-generated | — | 32-byte base64-encoded encryption key for PDS credentials |
 | `HABITAT_OAUTH_SERVER_SECRET` | auto-generated | — | 32-byte base64-encoded secret for the OAuth server |
 | `HABITAT_OAUTH_CLIENT_SECRET` | auto-generated | — | 32-byte base64-encoded secret for the OAuth client |
+| `HABITAT_ADMIN_PASSWORD` | auto-generated if not defined | — | password for the `admin` login at an instance-wide level for instance config |
 
 The three secrets at the bottom are generated automatically on first run. You can override them by setting them explicitly in `.env` — for example, if you are migrating an existing installation.
 

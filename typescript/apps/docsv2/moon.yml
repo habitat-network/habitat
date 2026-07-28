@@ -1,0 +1,16 @@
+layer: application
+tasks:
+  dev:
+    env:
+      DEVTOOLS_PORT: "42073"
+      SERVER_PORT: "5176"
+      VITE_BASE_URL: https://docsv2.local.habitat.network
+      VITE_DOMAIN: docsv2.local.habitat.network
+      VITE_HABITAT_DOMAIN: pear.local.habitat.network
+      # DID of the docs server; exposed as import.meta.env.VITE_DOCS_SERVER_DID
+      # so the frontend can target it via the Atproto-Proxy header.
+      VITE_DOCS_SERVER_DID: "did:web:docs-server.local.habitat.network"
+    deps:
+      - pear:dev
+      - root:caddy
+      - docs-server:dev

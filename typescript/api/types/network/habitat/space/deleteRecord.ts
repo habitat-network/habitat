@@ -1,7 +1,7 @@
 /**
  * GENERATED CODE - DO NOT MODIFY
  */
-import { HeadersMap, XRPCError } from '@atproto/xrpc'
+import { type HeadersMap, XRPCError } from '@atproto/xrpc'
 import { type ValidationResult, BlobRef } from '@atproto/lexicon'
 import { CID } from 'multiformats/cid'
 import { validate as _validate } from '../../../../lexicons.js'
@@ -20,14 +20,12 @@ export type QueryParams = {}
 export interface InputSchema {
   /** Reference to the space. */
   space: string
+  /** The DID of the repo to delete from (the authenticated member). */
+  repo: string
   /** The NSID of the record collection. */
   collection: string
   /** The Record Key. */
   rkey: string
-  /** Compare and swap with the previous record by CID. */
-  swapRecord?: string | null
-  /** Compare and swap with the previous commit by CID. */
-  swapCommit?: string | null
 }
 
 export interface OutputSchema {}
@@ -45,7 +43,7 @@ export interface Response {
   data: OutputSchema
 }
 
-export class InvalidSwapError extends XRPCError {
+export class SpaceNotFoundError extends XRPCError {
   constructor(src: XRPCError) {
     super(src.status, src.error, src.message, src.headers, { cause: src })
   }
@@ -53,7 +51,7 @@ export class InvalidSwapError extends XRPCError {
 
 export function toKnownErr(e: any) {
   if (e instanceof XRPCError) {
-    if (e.error === 'InvalidSwap') return new InvalidSwapError(e)
+    if (e.error === 'SpaceNotFound') return new SpaceNotFoundError(e)
   }
 
   return e

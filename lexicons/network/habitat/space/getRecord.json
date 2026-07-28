@@ -1,69 +1,63 @@
 {
-    "lexicon": 1,
-    "id": "network.habitat.space.getRecord",
-    "defs": {
-        "main": {
-            "type": "query",
-            "description": "Get a single record from a permissioned space. Callable by any space member.",
-            "parameters": {
-                "type": "params",
-                "required": [
-                    "space",
-                    "collection",
-                    "rkey"
-                ],
-                "properties": {
-                    "space": {
-                        "type": "string",
-                        "format": "uri",
-                        "description": "Reference to the space."
-                    },
-                    "repo": {
-                        "type": "string",
-                        "format": "did",
-                        "description": "The DID of the member whose repo to read from. If omitted, defaults to the authenticated user."
-                    },
-                    "collection": {
-                        "type": "string",
-                        "format": "nsid",
-                        "description": "The NSID of the record collection."
-                    },
-                    "rkey": {
-                        "type": "string",
-                        "format": "record-key",
-                        "description": "The Record Key."
-                    }
-                }
-            },
-            "output": {
-                "encoding": "application/json",
-                "schema": {
-                    "type": "object",
-                    "required": [
-                        "uri",
-                        "cid",
-                        "value"
-                    ],
-                    "properties": {
-                        "uri": {
-                            "type": "string",
-                            "description": "URI of the record."
-                        },
-                        "cid": {
-                            "type": "string",
-                            "format": "cid"
-                        },
-                        "value": {
-                            "type": "unknown"
-                        }
-                    }
-                }
-            },
-            "errors": [
-                {
-                    "name": "RecordNotFound"
-                }
-            ]
+  "lexicon": 1,
+  "id": "network.habitat.space.getRecord",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+      "parameters": {
+        "type": "params",
+        "required": ["space", "repo", "collection", "rkey"],
+        "properties": {
+          "space": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Reference to the space."
+          },
+          "repo": {
+            "type": "string",
+            "format": "did",
+            "description": "The DID of the account whose repo to read from."
+          },
+          "collection": {
+            "type": "string",
+            "format": "nsid",
+            "description": "The NSID of the record collection."
+          },
+          "rkey": {
+            "type": "string",
+            "format": "record-key",
+            "description": "The Record Key."
+          }
         }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["uri", "cid", "value"],
+          "properties": {
+            "uri": {
+              "type": "string",
+              "format": "at-uri"
+            },
+            "cid": {
+              "type": "string",
+              "format": "cid"
+            },
+            "value": {
+              "type": "unknown"
+            }
+          }
+        }
+      },
+      "errors": [
+        { "name": "RecordNotFound" },
+        { "name": "SpaceNotFound" },
+        { "name": "RepoTakendown" },
+        { "name": "RepoSuspended" },
+        { "name": "RepoDeactivated" }
+      ]
     }
+  }
 }

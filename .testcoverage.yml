@@ -32,3 +32,4 @@ exclude:
     - ^internal/node # Pass-throughs
     - internal/org/public.go
     - testutil/
+    - internal/pear # Outdated will remove this package soon

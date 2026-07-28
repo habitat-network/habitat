@@ -15,14 +15,9 @@ tasks:
       runFromWorkspaceRoot: true
       cache: false
       runInCI: false
-  caddy:
-    command: caddy
-    args:
-      - run
-      - --config
-      - '@in(0)'
-    inputs:
-    - Caddyfile
-    preset: server
-    options:
-      internal: true
+  build:
+    inputs: 
+    - /.prototools
+  test:
+    inputs: 
+    - /.prototools

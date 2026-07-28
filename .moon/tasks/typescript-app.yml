@@ -1,4 +1,7 @@
 tasks:
+  build:
+    inputs:
+      - /typescript/vite.config.app.ts
   dev:
     env:
       DOMAIN: $project.local.habitat.network

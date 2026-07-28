@@ -1,0 +1,62 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.groups.addMember",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Add a member to a group. The member is either an individual user (subjectDid) or another group whose members are inherited (subjectGroup). The home server writes the backing relationship tuple using the org credential. Caller must be able to manage the group.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "group"
+                    ],
+                    "properties": {
+                        "group": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URI of the group-space to add the member to."
+                        },
+                        "subjectDid": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the user to add as a member. Mutually exclusive with subjectGroup."
+                        },
+                        "subjectGroup": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URI of another group-space whose members this group should inherit. Mutually exclusive with subjectDid."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "URI of the written relationship tuple."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "GroupNotFound",
+                    "description": "No group with the given URI is indexed."
+                },
+                {
+                    "name": "Forbidden",
+                    "description": "The caller is not allowed to manage this group."
+                },
+                {
+                    "name": "InvalidSubject",
+                    "description": "Exactly one of subjectDid or subjectGroup must be provided."
+                }
+            ]
+        }
+    }
+}

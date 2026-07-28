@@ -1,32 +1,29 @@
 tasks:
-  build:
-    deps:
-      - typescript/api:build
-      - typescript/internal:build
-    options:
-      mergeDeps: replace
   dev:
     env:
-      HABITAT_DOMAIN: pear.local.habitat.network
-      DOMAIN: frontend.local.habitat.network
+      VITE_HABITAT_DOMAIN: pear.local.habitat.network
+      # Client-visible origin. Separate from BASE_URL because Vite forces a
+      # fully-qualified `base` back to "/" in dev, so import.meta.env.BASE_URL
+      # can't carry the origin.
+      VITE_BASE_URL: https://frontend.local.habitat.network
+      # DID of the home server; injected as the __HOME_SERVER_DID__ Vite define
+      # so the groups UI can target it via the Atproto-Proxy header.
+      HOME_SERVER_DID: did:web:home.local.habitat.network
     deps:
-      - target: pear:dev
-        env:
-          HABITAT_FRONTEND_DOMAIN: frontend.local.habitat.network
+      - pear:dev
       - root:caddy
+      - search:dev
+      - home:dev
   docker-build:
     deps:
       - target: build
         env:
-          HABITAT_DOMAIN: pear.habitat
-          DOMAIN: frontend.habitat
+          VITE_HABITAT_DOMAIN: pear.habitat
     options:
       internal: false
   dev-all:
     deps:
       - target: ~:dev
-      - target: greensky:dev
-      - target: calendar:dev
       - target: docs:dev
     options:
       persistent: true
@@ -34,17 +31,9 @@ tasks:
   gh-pages:
     deps:
       - target: ~:build
-      - target: calendar:build
-        env:
-          DOMAIN: ${DOMAIN}/calendar
-          OUT_DIR: $projectRoot/dist/calendar
-      - target: greensky:build
-        env:
-          DOMAIN: ${DOMAIN}/greensky
-          OUT_DIR: $projectRoot/dist/greensky
       - target: docs:build
         env:
-          DOMAIN: ${DOMAIN}/docs
+          VITE_BASE_URL: ${VITE_BASE_URL}/docs
           OUT_DIR: $projectRoot/dist/docs
       - target: api-docs:build
         env:

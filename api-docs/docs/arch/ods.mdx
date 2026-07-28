@@ -1,0 +1,19 @@
+---
+id: ods
+slug: /arch/ods.mdx
+sidebar_label: Organizational Data Server
+sidebar_position: 1
+---
+
+# Organizational Data Server
+
+Habitat's core development is the Organizational Data Server (ODS). Every community or organization on Habitat has an (ODS) which houses all the data for that entity and provides the necessary APIs from which products can interact with the organization. An Organizational Data Server is much like a Personal Data Server in AT Protocol, but with the 'organization' distinction. For a single organization, the Organizational Data Server makes it so that all organization member repositories are hosted on (conceptually) the same server, so member data and identities persist beyond the lifetime that a member may be in the organization. One way to think about this is that an 'organization' is an entity separate and larger than any particular member or set of members, and all data must be tied to this organization entity, rather than to users.
+
+Every Habitat organization has admins, which can manage members of the organization and other members. Admins also set metadata about the organization, like the name, description, and which login methods users join with.
+
+A more in-depth write-up about why Habitat has developed the Organizational Data Server and the affordances it gives in contrast to the Personal Data Server can be found [here](https://habitat.leaflet.pub/3mo3v5xzvtc2y).
+
+
+## Administration
+
+An administrator of an Organizational Data Server is whoever has root access to the running server. The administrator can set additional controls on the server, such as whether it can be multi-tenant (host more than one Habitat organization) or not. 

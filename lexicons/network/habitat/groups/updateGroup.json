@@ -1,0 +1,59 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.groups.updateGroup",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Update a group's profile (name and/or description). Caller must be able to manage the group.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "group"
+                    ],
+                    "properties": {
+                        "group": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URI of the group-space."
+                        },
+                        "name": {
+                            "type": "string",
+                            "maxLength": 256
+                        },
+                        "description": {
+                            "type": "string",
+                            "maxLength": 2048
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "format": "uri"
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "GroupNotFound",
+                    "description": "No group with the given URI is indexed."
+                },
+                {
+                    "name": "Forbidden",
+                    "description": "The caller is not allowed to manage this group."
+                }
+            ]
+        }
+    }
+}

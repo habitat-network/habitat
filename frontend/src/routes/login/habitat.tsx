@@ -8,10 +8,11 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { procedure } from "internal";
+import { z } from "zod";
 
 export const Route = createFileRoute("/login/habitat")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    handle: String(search.handle ?? ""),
+  validateSearch: z.object({
+    handle: z.string().default(""),
   }),
   component: HabitatLoginPage,
 });
@@ -33,7 +34,7 @@ function HabitatLoginPage() {
       const { callbackURL } = await procedure(
         "network.habitat.org.loginMember",
         { handle, password },
-        { unauthenticated: true, domain: __HABITAT_DOMAIN__ },
+        { unauthenticated: true, domain: import.meta.env.VITE_HABITAT_DOMAIN },
       );
       window.location.href = callbackURL;
     } catch (err) {

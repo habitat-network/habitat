@@ -9,6 +9,7 @@ import type {
   ComAtprotoServerGetServiceAuth,
 } from "@atproto/api";
 import type {
+  ComAtprotoRepoDescribeRepo,
   NetworkHabitatCliqueCreateClique,
   NetworkHabitatListConnectedApps,
   NetworkHabitatRepoDeleteRecord,
@@ -36,10 +37,25 @@ import type {
   NetworkHabitatOrgMintMemberIdentity,
   NetworkHabitatSpaceAddMember,
   NetworkHabitatSpaceDeleteRecord,
-  NetworkHabitatSpaceGetMembers,
+  NetworkHabitatSpaceListRepos,
+  NetworkHabitatSpaceGetRecord,
   NetworkHabitatSpaceListRecords,
   NetworkHabitatSpaceListSpaces,
   NetworkHabitatSpaceRemoveMember,
+  NetworkHabitatSpaceCreateSpace,
+  NetworkHabitatSpacePutRecord,
+  NetworkHabitatInstanceDescribeInstance,
+  NetworkHabitatDocsCreateDoc,
+  NetworkHabitatDocsUpdateDoc,
+  NetworkHabitatDocsListDocs,
+  NetworkHabitatGroupsListGroups,
+  NetworkHabitatGroupsGetGroup,
+  NetworkHabitatGroupsCreateGroup,
+  NetworkHabitatGroupsUpdateGroup,
+  NetworkHabitatGroupsAddMember,
+  NetworkHabitatCollectionsListCollections,
+  NetworkHabitatCollectionsListRecords,
+  NetworkHabitatRelationshipWriteTuple,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -50,9 +66,45 @@ type Query<
 > = {
   params: Params;
   output: Output;
+  unauthenticated?: false;
+};
+
+type UnauthedQuery<
+  Params extends Record<string, string | number | boolean | string[]>,
+  Output,
+> = {
+  params: Params;
+  output: Output;
+  unauthenticated: true;
 };
 
 type QueryEndpoints = {
+  // Implemented by the docs server; reached via pear service proxying when
+  // called with an Atproto-Proxy header.
+  "network.habitat.docs.listDocs": Query<
+    NetworkHabitatDocsListDocs.QueryParams,
+    NetworkHabitatDocsListDocs.OutputSchema
+  >;
+  // Implemented by the home server; reached via pear service proxying when
+  // called with an Atproto-Proxy header.
+  "network.habitat.groups.listGroups": Query<
+    NetworkHabitatGroupsListGroups.QueryParams,
+    NetworkHabitatGroupsListGroups.OutputSchema
+  >;
+  "network.habitat.groups.getGroup": Query<
+    NetworkHabitatGroupsGetGroup.QueryParams,
+    NetworkHabitatGroupsGetGroup.OutputSchema
+  >;
+  // Implemented by the home server; reached via pear service proxying when
+  // called with an Atproto-Proxy header.
+  "network.habitat.collections.listCollections": Query<
+    NetworkHabitatCollectionsListCollections.QueryParams,
+    NetworkHabitatCollectionsListCollections.OutputSchema
+  >;
+  "network.habitat.collections.listRecords": Query<
+    NetworkHabitatCollectionsListRecords.QueryParams,
+    NetworkHabitatCollectionsListRecords.OutputSchema
+  >;
   "com.atproto.repo.listRecords": Query<
     ComAtprotoRepoListRecords.QueryParams,
     ComAtprotoRepoListRecords.OutputSchema
@@ -60,6 +112,10 @@ type QueryEndpoints = {
   "com.atproto.repo.getRecord": Query<
     ComAtprotoRepoGetRecord.QueryParams,
     ComAtprotoRepoGetRecord.OutputSchema
+  >;
+  "com.atproto.repo.describeRepo": Query<
+    ComAtprotoRepoDescribeRepo.QueryParams,
+    ComAtprotoRepoDescribeRepo.OutputSchema
   >;
   "com.atproto.server.getServiceAuth": Query<
     ComAtprotoServerGetServiceAuth.QueryParams,
@@ -117,9 +173,13 @@ type QueryEndpoints = {
     NetworkHabitatPermissionsListPermissions.QueryParams,
     NetworkHabitatPermissionsListPermissions.OutputSchema
   >;
-  "network.habitat.space.getMembers": Query<
-    NetworkHabitatSpaceGetMembers.QueryParams,
-    NetworkHabitatSpaceGetMembers.OutputSchema
+  "network.habitat.space.listRepos": Query<
+    NetworkHabitatSpaceListRepos.QueryParams,
+    NetworkHabitatSpaceListRepos.OutputSchema
+  >;
+  "network.habitat.space.getRecord": Query<
+    NetworkHabitatSpaceGetRecord.QueryParams,
+    NetworkHabitatSpaceGetRecord.OutputSchema
   >;
   "network.habitat.space.listRecords": Query<
     NetworkHabitatSpaceListRecords.QueryParams,
@@ -128,6 +188,10 @@ type QueryEndpoints = {
   "network.habitat.space.listSpaces": Query<
     NetworkHabitatSpaceListSpaces.QueryParams,
     NetworkHabitatSpaceListSpaces.OutputSchema
+  >;
+  "network.habitat.instance.describeInstance": UnauthedQuery<
+    NetworkHabitatInstanceDescribeInstance.QueryParams,
+    NetworkHabitatInstanceDescribeInstance.OutputSchema
   >;
 };
 
@@ -151,6 +215,24 @@ type ProcedureEndpoints = {
   "com.atproto.repo.createRecord": Procedure<
     ComAtprotoRepoCreateRecord.InputSchema,
     ComAtprotoRepoCreateRecord.OutputSchema
+  >;
+  // Implemented by the home server; reached via pear service proxying.
+  "network.habitat.groups.createGroup": Procedure<
+    NetworkHabitatGroupsCreateGroup.InputSchema,
+    NetworkHabitatGroupsCreateGroup.OutputSchema
+  >;
+  "network.habitat.groups.updateGroup": Procedure<
+    NetworkHabitatGroupsUpdateGroup.InputSchema,
+    NetworkHabitatGroupsUpdateGroup.OutputSchema
+  >;
+  "network.habitat.groups.addMember": Procedure<
+    NetworkHabitatGroupsAddMember.InputSchema,
+    NetworkHabitatGroupsAddMember.OutputSchema
+  >;
+  // Write a relationship tuple granting a role on a space. Implemented by pear.
+  "network.habitat.relationship.writeTuple": Procedure<
+    NetworkHabitatRelationshipWriteTuple.InputSchema,
+    NetworkHabitatRelationshipWriteTuple.OutputSchema
   >;
   "network.habitat.repo.putRecord": Procedure<
     NetworkHabitatRepoPutRecord.InputSchema,
@@ -212,7 +294,7 @@ type ProcedureEndpoints = {
     NetworkHabitatOrgLoginMember.InputSchema,
     NetworkHabitatOrgLoginMember.OutputSchema
   >;
-  "network.habitat.org.mintMemberIdentity": Procedure<
+  "network.habitat.org.mintMemberIdentity": UnauthedProcedure<
     NetworkHabitatOrgMintMemberIdentity.InputSchema,
     NetworkHabitatOrgMintMemberIdentity.OutputSchema
   >;
@@ -227,6 +309,24 @@ type ProcedureEndpoints = {
   "network.habitat.space.removeMember": Procedure<
     NetworkHabitatSpaceRemoveMember.InputSchema,
     void
+  >;
+  "network.habitat.space.createSpace": Procedure<
+    NetworkHabitatSpaceCreateSpace.InputSchema,
+    NetworkHabitatSpaceCreateSpace.OutputSchema
+  >;
+  "network.habitat.space.putRecord": Procedure<
+    NetworkHabitatSpacePutRecord.InputSchema,
+    NetworkHabitatSpacePutRecord.OutputSchema
+  >;
+  // Implemented by the docs server; reaches it via pear service proxying when
+  // called with an Atproto-Proxy header (see options.headers).
+  "network.habitat.docs.createDoc": Procedure<
+    NetworkHabitatDocsCreateDoc.InputSchema,
+    NetworkHabitatDocsCreateDoc.OutputSchema
+  >;
+  "network.habitat.docs.updateDoc": Procedure<
+    NetworkHabitatDocsUpdateDoc.InputSchema,
+    NetworkHabitatDocsUpdateDoc.OutputSchema
   >;
 };
 
@@ -254,19 +354,22 @@ type ProcedureOptions<T extends keyof ProcedureEndpoints> =
 export class XRPCError extends Error {
   public status: number;
   public error: string;
-  public message: string;
-  constructor(status: number, response: { error: string; message: string }) {
+  constructor(status: number, response: { error: string }) {
     super(response.error);
     this.status = status;
     this.error = response.error;
-    this.message = response.message;
   }
 }
+
+type QueryOptions<T extends keyof QueryEndpoints> =
+  QueryEndpoints[T]["unauthenticated"] extends true
+    ? UnauthedOptions
+    : AuthedOptions;
 
 export const query = async <T extends keyof QueryEndpoints>(
   endpoint: T,
   params: QueryEndpoints[T]["params"],
-  options: AuthedOptions,
+  options: QueryOptions<T>,
 ): Promise<QueryEndpoints[T]["output"]> => {
   const queryParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -279,13 +382,16 @@ export const query = async <T extends keyof QueryEndpoints>(
       queryParams.set(key, value.toString());
     }
   }
-  const response = await options.authManager.fetch(
-    "/xrpc/" + endpoint + "?" + queryParams.toString(),
-    "GET",
-    null,
-    options.headers,
-    options.fetchOptions,
-  );
+  const path = "/xrpc/" + endpoint + "?" + queryParams.toString();
+  const response = options.unauthenticated
+    ? await fetch(`https://${(options as UnauthedOptions).domain}${path}`)
+    : await (options as AuthedOptions).authManager.fetch(
+        path,
+        "GET",
+        null,
+        options.headers,
+        (options as AuthedOptions).fetchOptions,
+      );
   try {
     const data = await response.json();
     if (!response.ok) {

@@ -14,6 +14,7 @@ services:
     environment:
       # Required: the publicly accessible domain for this server (no https:// prefix)
       HABITAT_DOMAIN: ${HABITAT_DOMAIN}
+      HABITAT_ADMIN_PASSWORD: ${HABITAT_ADMIN_PASSWORD}
 
       # Optional: path to the SQLite database file (default: /data/repo.db)
       # The /data directory is a persistent volume — do not change this unless you

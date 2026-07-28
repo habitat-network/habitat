@@ -1,13 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { query } from "internal";
+import { z } from "zod";
 
 export const Route = createFileRoute("/_requireAuth/pear-test/view")({
-  validateSearch(search) {
-    return {
-      did: search.did as string,
-      rkey: search.rkey as string,
-    };
-  },
+  validateSearch: z.object({
+    did: z.string(),
+    rkey: z.string(),
+  }),
   loaderDeps: ({ search }) => search,
   async loader({ deps: { did, rkey }, context }) {
     const json = await query(

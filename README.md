@@ -1,6 +1,8 @@
-# Habiat
+# Habitat
 
-## Environement Setup
+⚠️ This repository is under active development and may introduce breaking changes. Please reach out on Bluesky @habitat.network for up-to-date information and any usage questions. ⚠️
+
+## Environment Setup
 
 All external tools are managed by [proto](https://moonrepo.dev/docs/proto) which installs the correct versions declared in [.prototools](.prototools). To get setup, run:
 

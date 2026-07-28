@@ -4,5 +4,11 @@ package habitat
 
 // NetworkHabitatOrgGetMembersOutput represents the output for network.habitat.org.getMembers
 type NetworkHabitatOrgGetMembersOutput struct {
-	Members []string `json:"members"`
+	Members []NetworkHabitatOrgGetMembersMember `json:"members"`
+}
+
+// NetworkHabitatOrgGetMembersMember represents a member object
+type NetworkHabitatOrgGetMembersMember struct {
+	Did    string `json:"did"`
+	Handle string `json:"handle"`
 }

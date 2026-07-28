@@ -1,0 +1,45 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.groups.createGroup",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Create a new group. The home server creates a network.habitat.group space using the org credential, writes a network.habitat.group.profile self record, and grants the calling user the manager role so they are both a member and able to manage the group.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "name"
+                    ],
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "maxLength": 256
+                        },
+                        "description": {
+                            "type": "string",
+                            "maxLength": 2048
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URI of the created group-space."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

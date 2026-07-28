@@ -203,7 +203,7 @@ func (p *PDSForwarding) serveTargetPDS(
 }
 
 func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
-	did, ok := p.oauth.Validate(w, r)
+	credInfo, ok := p.oauth.Validate(w, r)
 	if !ok {
 		return
 	}
@@ -236,7 +236,7 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 	req.Header.Del("Transfer-Encoding")
 	req.Header.Del("Te")
 
-	dpopClient, err := p.pdsClientFactory.NewClient(r.Context(), did)
+	dpopClient, err := p.pdsClientFactory.NewClient(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),

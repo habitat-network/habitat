@@ -1,0 +1,36 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.groups.getGroup",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "Fetch a single group with its full membership expanded, including which other groups it inherits members from. Implemented by the home server and reached via pear service proxying.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "group"
+                ],
+                "properties": {
+                    "group": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the group-space."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "ref",
+                    "ref": "network.habitat.groups.defs#groupView"
+                }
+            },
+            "errors": [
+                {
+                    "name": "GroupNotFound",
+                    "description": "No group with the given URI is indexed."
+                }
+            ]
+        }
+    }
+}

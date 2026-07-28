@@ -1,10 +1,18 @@
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
-import { query, procedure } from "internal";
+import { query, procedure, type AuthManager } from "internal";
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
   Field,
+  FieldError,
   FieldLabel,
   Input,
   Table,
@@ -13,6 +21,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Textarea,
   ToggleGroup,
   ToggleGroupItem,
 } from "internal/components/ui";
@@ -22,28 +31,28 @@ import { RecordRenderer } from "@/components/RecordRenderer";
 export const Route = createFileRoute("/_requireAuth/spaces/$space")({
   async loader({ context, params }) {
     const { authManager } = context;
-    const space = decodeURIComponent(params.space);
+    const space = params.space;
 
-    const { members } = await query(
-      "network.habitat.space.getMembers",
+    const { repos } = await query(
+      "network.habitat.space.listRepos",
       { space },
       { authManager },
     );
 
     const results = await Promise.all(
-      members.map(async (member) => {
+      repos.map(async (repo) => {
         const { records } = await query(
           "network.habitat.space.listRecords",
-          { space, repo: member.did },
+          { space, repo: repo.did },
           { authManager },
         );
-        return records.map((record) => ({ ...record, owner: member.did }));
+        return records.map((record) => ({ ...record, owner: repo.did }));
       }),
     );
 
     const records = results.flat();
 
-    return { records, space, members };
+    return { records, space, repos };
   },
   pendingComponent: () => {
     const { space } = Route.useParams();
@@ -54,8 +63,7 @@ export const Route = createFileRoute("/_requireAuth/spaces/$space")({
 
 function SpaceRecords() {
   const { space } = Route.useParams();
-  const { records, members } = Route.useLoaderData();
-  const decodedSpace = decodeURIComponent(space);
+  const { records, repos } = Route.useLoaderData();
   const router = useRouter();
   const { authManager } = Route.useRouteContext();
 
@@ -78,7 +86,7 @@ function SpaceRecords() {
     }) {
       await procedure(
         "network.habitat.space.deleteRecord",
-        { space: decodedSpace, collection, rkey },
+        { space, collection, rkey, repo: authManager.getAuthInfo()!.did },
         { authManager },
       );
       router.invalidate();
@@ -89,7 +97,7 @@ function SpaceRecords() {
     async mutationFn(did: string) {
       await procedure(
         "network.habitat.space.removeMember",
-        { space: decodedSpace, did },
+        { space, did },
         { authManager },
       );
       router.invalidate();
@@ -100,7 +108,7 @@ function SpaceRecords() {
     async mutationFn({ did, access }: AddMemberForm) {
       await procedure(
         "network.habitat.space.addMember",
-        { space: decodedSpace, did, access },
+        { space, did, access },
         { authManager },
       );
       form.reset();
@@ -110,10 +118,15 @@ function SpaceRecords() {
 
   return (
     <>
-      <h2 className="text-2xl mb-4">Space: {decodedSpace}</h2>
+      <h2 className="text-2xl mb-4">Space: {space}</h2>
       <p className="text-sm text-muted-foreground mb-4">
         {records.length} record{records.length !== 1 ? "s" : ""}
       </p>
+      <CreateRecordDialog
+        space={space}
+        authManager={authManager}
+        onCreated={() => router.invalidate()}
+      />
       <Table>
         <TableHeader>
           <TableRow>
@@ -133,7 +146,7 @@ function SpaceRecords() {
                   <RecordRenderer
                     record={record.value ?? {}}
                     lexicon={record.collection}
-                    uri={`${decodedSpace}/${record.collection}/${record.rkey}`}
+                    uri={`${space}/${record.collection}/${record.rkey}`}
                   />
                 </div>
               </TableCell>
@@ -160,32 +173,28 @@ function SpaceRecords() {
         </TableBody>
       </Table>
 
-      <h3 className="text-xl mt-8 mb-2">Members ({members.length})</h3>
+      <h3 className="text-xl mt-8 mb-2">Repos ({repos.length})</h3>
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>DID</TableHead>
-            <TableHead>Access</TableHead>
-            <TableHead>Added At</TableHead>
+            <TableHead>Rev</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {members.map((member) => (
-            <TableRow key={member.did}>
-              <TableCell className="font-mono text-xs">{member.did}</TableCell>
-              <TableCell>{member.access ?? "read"}</TableCell>
+          {repos.map((repo) => (
+            <TableRow key={repo.did}>
+              <TableCell className="font-mono text-xs">{repo.did}</TableCell>
               <TableCell className="text-xs text-muted-foreground">
-                {member.addedAt
-                  ? new Date(member.addedAt).toLocaleString()
-                  : "-"}
+                {repo.rev ?? "-"}
               </TableCell>
               <TableCell>
                 <Button
                   variant="destructive"
                   size="icon-xs"
                   aria-label="Remove member"
-                  onClick={() => removeMember(member.did)}
+                  onClick={() => removeMember(repo.did)}
                 >
                   <X />
                 </Button>
@@ -232,5 +241,105 @@ function SpaceRecords() {
         </Button>
       </form>
     </>
+  );
+}
+
+interface CreateRecordForm {
+  collection: string;
+  recordJson: string;
+}
+
+function CreateRecordDialog({
+  space,
+  authManager,
+  onCreated,
+}: {
+  space: string;
+  authManager: AuthManager;
+  onCreated: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const form = useForm<CreateRecordForm>({
+    defaultValues: { collection: "", recordJson: "{\n  \n}" },
+  });
+
+  const {
+    mutate: createRecord,
+    isPending,
+    error: createError,
+    reset: resetMutation,
+  } = useMutation({
+    async mutationFn({ collection, recordJson }: CreateRecordForm) {
+      let record: { [x: string]: unknown };
+      try {
+        record = JSON.parse(recordJson);
+      } catch {
+        throw new Error("Record must be valid JSON");
+      }
+      await procedure(
+        "network.habitat.space.putRecord",
+        { space, collection, record, repo: authManager.getAuthInfo()!.did },
+        { authManager },
+      );
+    },
+    onSuccess() {
+      form.reset();
+      setOpen(false);
+      onCreated();
+    },
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) {
+          form.reset();
+          resetMutation();
+        }
+      }}
+    >
+      <DialogTrigger render={<Button>Create record</Button>} />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create record</DialogTitle>
+        </DialogHeader>
+        <form
+          id="create-record-form"
+          onSubmit={form.handleSubmit((data) => createRecord(data))}
+          className="flex flex-col gap-4"
+        >
+          <Field>
+            <FieldLabel>Collection</FieldLabel>
+            <Input
+              {...form.register("collection", {
+                required: "Collection is required",
+              })}
+              placeholder="network.habitat.example.thing"
+            />
+            <FieldError errors={[form.formState.errors.collection]} />
+          </Field>
+          <Field>
+            <FieldLabel>Record (JSON)</FieldLabel>
+            <Textarea
+              {...form.register("recordJson", {
+                required: "Record is required",
+              })}
+              rows={10}
+              className="font-mono"
+            />
+            <FieldError errors={[form.formState.errors.recordJson]} />
+          </Field>
+          {createError && <FieldError>{createError.message}</FieldError>}
+        </form>
+        <DialogFooter>
+          <Button type="submit" form="create-record-form" disabled={isPending}>
+            Create
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

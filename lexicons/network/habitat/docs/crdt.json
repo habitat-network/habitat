@@ -1,0 +1,23 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.docs.crdt",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "The CRDT (Yjs) state of a collaborative document. Each document is its own space; this record holds the canonical document state under the literal key 'self'.",
+            "key": "literal:self",
+            "record": {
+                "type": "object",
+                "required": [
+                    "blob"
+                ],
+                "properties": {
+                    "blob": {
+                        "type": "string",
+                        "description": "Base64-encoded Yjs state update representing the document content."
+                    }
+                }
+            }
+        }
+    }
+}

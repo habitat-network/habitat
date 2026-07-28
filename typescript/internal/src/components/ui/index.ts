@@ -24,3 +24,4 @@ export * from "./tooltip";
 export * from "./hover-card";
 export * from "./toggle-group";
 export * from "./toggle";
+export * from "./toast";

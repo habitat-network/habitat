@@ -3,9 +3,11 @@ package testutil
 import (
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -18,7 +20,23 @@ func NewTestStore(t *testing.T) org.Store {
 	require.NoError(t, err)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
-	store, err := org.NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
+	passwordProvider, err := login.NewPasswordProvider(
+		db,
+		"pear.example.com",
+		[]byte("test-signing-secret-for-org-00000"),
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
+	)
+	require.NoError(t, err)
+	fga, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err)
+	store, err := org.NewStore(
+		db,
+		h,
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
+		"pear.example.com",
+		passwordProvider,
+		fga,
+	)
 	require.NoError(t, err)
 	return store
 }

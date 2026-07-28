@@ -1,7 +1,7 @@
 /**
  * GENERATED CODE - DO NOT MODIFY
  */
-import { HeadersMap, XRPCError } from '@atproto/xrpc'
+import { type HeadersMap, XRPCError } from '@atproto/xrpc'
 import { type ValidationResult, BlobRef } from '@atproto/lexicon'
 import { CID } from 'multiformats/cid'
 import { validate as _validate } from '../../../../lexicons.js'
@@ -20,6 +20,8 @@ export type QueryParams = {}
 export interface InputSchema {
   /** Internal handle for the bootstrap admin (alphanumeric, 1-50 chars). */
   admin_handle: string
+  /** Email address for contacting the org about its account (not used for login). */
+  contact_email: string
   /** Password for the bootstrap admin account (required for password login method). */
   admin_password?: string
   /** Subdomain for all org member handles (e.g. 'acmecorp'). */
@@ -30,6 +32,8 @@ export interface InputSchema {
   login_method?: string
   /** Provider-specific identifier (public ATProto DID for 'atproto', email for 'google'). Ignored for 'password'. */
   login_id?: string
+  /** Single-use invite token from an instance admin, required when the instance's org creation policy is invite_only. */
+  invite_token?: string
 }
 
 export interface OutputSchema {
