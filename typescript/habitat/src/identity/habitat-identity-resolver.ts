@@ -95,7 +95,11 @@ async function toXrpcError(
     };
     if (typeof body?.error === "string") xrpcError = body.error;
     if (typeof body?.message === "string") detail = body.message;
-  } catch {
+  } catch (cause) {
+    // Aborting mid-body-read must stay distinguishable from failure, exactly as
+    // on the fetch and success-body paths — never swallowed into a generic
+    // resolution error.
+    if (isAbortError(cause)) throw cause;
     // A non-JSON error body still yields a useful error via `status`.
   }
 

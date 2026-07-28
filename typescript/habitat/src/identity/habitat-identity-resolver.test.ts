@@ -1,5 +1,8 @@
-import { delay, http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { createServer, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+
+import { delay, http, HttpResponse, passthrough } from "msw";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { server } from "../test/msw.js";
 import { HabitatIdentityResolverError } from "./errors.js";
@@ -44,6 +47,39 @@ function stubResolveIdentity(
   );
 
   return () => received;
+}
+
+/** Local HTTP servers started by `withStalledErrorBody`, torn down per test. */
+const stalledServers: Array<() => Promise<void>> = [];
+
+afterEach(async () => {
+  while (stalledServers.length > 0) await stalledServers.pop()!();
+});
+
+/**
+ * Starts a real local HTTP server whose handler is expected to flush response
+ * headers and then never end the body, and returns its origin. Needed because a
+ * mocked MSW body cannot stall *after* headers reach `fetch`.
+ */
+async function withStalledErrorBody(
+  respond: (res: ServerResponse) => void,
+): Promise<string> {
+  const httpServer = createServer((_req, res) => respond(res));
+
+  await new Promise<void>((resolve) => {
+    httpServer.listen(0, "127.0.0.1", resolve);
+  });
+
+  stalledServers.push(
+    () =>
+      new Promise<void>((resolve) => {
+        httpServer.closeAllConnections();
+        httpServer.close(() => resolve());
+      }),
+  );
+
+  const { port } = httpServer.address() as AddressInfo;
+  return `http://127.0.0.1:${port}`;
 }
 
 describe("HabitatIdentityResolver", () => {
@@ -337,6 +373,43 @@ describe("HabitatIdentityResolver error handling", () => {
     const promise = new HabitatIdentityResolver().resolve(DID, {
       signal: controller.signal,
     });
+    controller.abort();
+
+    const error = await promise.catch((e: unknown) => e);
+
+    expect((error as Error).name).toBe("AbortError");
+    expect(error).not.toBeInstanceOf(HabitatIdentityResolverError);
+  });
+
+  // MSW buffers a mocked response body before handing it to `fetch`, so a
+  // stalled MSW body makes `fetch` itself never settle — the abort then lands
+  // in the fetch catch and never reaches `toXrpcError`. Covering that third
+  // catch site requires a real socket that flushes error headers and then
+  // stalls the body, so this test passes through to a local HTTP server.
+  it("propagates AbortError when a non-2xx body is aborted mid-read", async () => {
+    let headersFlushed: () => void;
+    const flushed = new Promise<void>((resolve) => {
+      headersFlushed = resolve;
+    });
+
+    const origin = await withStalledErrorBody((res) => {
+      res.writeHead(404, { "content-type": "application/json" });
+      // Partial JSON: headers and a byte reach the client, then nothing more,
+      // so `response.json()` is still awaiting data when the abort fires.
+      res.write('{"error":', () => headersFlushed());
+    });
+
+    server.use(http.get(`${origin}${XRPC_PATH}`, () => passthrough()));
+
+    const controller = new AbortController();
+    const promise = new HabitatIdentityResolver(origin).resolve(DID, {
+      signal: controller.signal,
+    });
+
+    await flushed;
+    // Let the flushed headers resolve the `fetch` promise so the resolver is
+    // inside the error-body read, not the fetch call, when the abort lands.
+    await delay(50);
     controller.abort();
 
     const error = await promise.catch((e: unknown) => e);
