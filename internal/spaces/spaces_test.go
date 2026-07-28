@@ -419,6 +419,11 @@ func TestDeleteRecord(t *testing.T) {
 
 	_, err = s.GetRecord(t.Context(), uri, owner, coll, "rkey")
 	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+
+	ops, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
+	require.NoError(t, err)
+	require.Len(t, ops, 1)
+	require.Empty(t, ops[0].Cid)
 }
 
 // TestRepoHash_IncrementalOnUpdateAndDelete verifies the cached LtHash is
@@ -542,63 +547,73 @@ func TestDeleteSpace_NonExistent(t *testing.T) {
 }
 
 func TestListRepoOps(t *testing.T) {
+	ctx := t.Context()
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	uri, err := s.CreateSpace(ctx, orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
-	require.NoError(t, err)
-	_, _, err = s.PutRecord(t.Context(), uri, alice, coll, "k2", map[string]any{"x": 2})
-	require.NoError(t, err)
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k3", map[string]any{"x": 3})
-	require.NoError(t, err)
+	t.Run("empty", func(t *testing.T) {
+		records, err := s.ListRepoOps(ctx, uri, "did:web:unknown", "", 100)
+		require.NoError(t, err)
+		require.Len(t, records, 0)
+	})
+	t.Run("multiple", func(t *testing.T) {
+		_, _, err = s.PutRecord(ctx, uri, owner, coll, "k1", map[string]any{"x": 1})
+		require.NoError(t, err)
+		_, _, err = s.PutRecord(ctx, uri, alice, coll, "k2", map[string]any{"x": 2})
+		require.NoError(t, err)
+		_, _, err = s.PutRecord(ctx, uri, owner, coll, "k3", map[string]any{"x": 3})
+		require.NoError(t, err)
 
-	records, err := s.ListRepoOps(t.Context(), uri, owner, "", 1)
-	require.NoError(t, err)
-	require.Len(t, records, 1)
-	require.Equal(t, syntax.RecordKey("k1"), records[0].Rkey)
+		records, err := s.ListRepoOps(ctx, uri, owner, "", 1)
+		require.NoError(t, err)
+		require.Len(t, records, 1)
+		require.Equal(t, syntax.RecordKey("k1"), records[0].Rkey)
 
-	records, err = s.ListRepoOps(t.Context(), uri, owner, records[0].Rev, 100)
-	require.NoError(t, err)
-	require.Len(t, records, 1)
-	require.Equal(t, syntax.RecordKey("k3"), records[0].Rkey)
+		records, err = s.ListRepoOps(ctx, uri, owner, records[0].Rev, 100)
+		require.NoError(t, err)
+		require.Len(t, records, 1)
+		require.Equal(t, syntax.RecordKey("k3"), records[0].Rkey)
 
-	records, err = s.ListRepoOps(t.Context(), uri, alice, "", 100)
-	require.NoError(t, err)
-	require.Len(t, records, 1)
-	require.Equal(t, syntax.RecordKey("k2"), records[0].Rkey)
-}
+		ownerLastRev := records[0].Rev
 
-func TestListRepoOps_Empty(t *testing.T) {
-	s := spaces_testutil.NewTestStore(t)
+		records, err = s.ListRepoOps(ctx, uri, alice, "", 100)
+		require.NoError(t, err)
+		require.Len(t, records, 1)
+		require.Equal(t, syntax.RecordKey("k2"), records[0].Rkey)
 
-	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
-	require.NoError(t, err)
+		aliceLastRev := records[0].Rev
 
-	records, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
-	require.NoError(t, err)
-	require.Len(t, records, 0)
-}
+		require.NoError(t, s.DeleteRecord(ctx, uri, owner, coll, "k1"))
+		require.NoError(t, s.DeleteRecord(ctx, uri, alice, coll, "k2"))
 
-func TestListRepoOps_RevIncludesValue(t *testing.T) {
-	s := spaces_testutil.NewTestStore(t)
+		records, err = s.ListRepoOps(ctx, uri, owner, ownerLastRev, 100)
+		require.NoError(t, err)
+		require.Len(t, records, 1)
+		require.Equal(t, syntax.RecordKey("k1"), records[0].Rkey)
+		require.Empty(t, records[0].Cid)
 
-	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
-	require.NoError(t, err)
+		records, err = s.ListRepoOps(ctx, uri, alice, aliceLastRev, 100)
+		require.NoError(t, err)
+		require.Len(t, records, 1)
+		require.Equal(t, syntax.RecordKey("k2"), records[0].Rkey)
+		require.Empty(t, records[0].Cid)
+	})
 
-	coll := syntax.NSID("network.habitat.note")
+	t.Run("includes value", func(t *testing.T) {
+		owner := syntax.DID("did:web:bob")
+		_, _, err = s.PutRecord(ctx, uri, owner, coll, "k1", map[string]any{"text": "hello"})
+		require.NoError(t, err)
 
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
-	require.NoError(t, err)
-
-	records, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
-	require.NoError(t, err)
-	require.Len(t, records, 1)
-	require.Equal(t, "hello", records[0].Value["text"])
-	require.NotEmpty(t, records[0].Rev)
+		records, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
+		require.NoError(t, err)
+		require.Len(t, records, 1)
+		require.Equal(t, "hello", records[0].Value["text"])
+		require.NotEmpty(t, records[0].Rev)
+	})
 }
 
 func TestPutRecordTriggersNotify(t *testing.T) {
