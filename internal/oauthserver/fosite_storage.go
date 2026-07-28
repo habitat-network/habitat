@@ -120,10 +120,19 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 // fetchClientMetadata fetches and decodes the client metadata document
 // published at id (the client's client_id URL). See
 // https://atproto.com/specs/oauth#client-id-metadata-document.
+//
+// Per https://atproto.com/specs/oauth#localhost-client-development, a
+// loopback client ID is a self-describing synthetic identifier and must
+// never be dereferenced as a URL; its metadata is synthesized locally
+// instead.
 func (s *store) fetchClientMetadata(
 	ctx context.Context,
 	id string,
 ) (*pdsclient.ClientMetadata, error) {
+	if isLoopbackClientID(id) {
+		return synthesizeLoopbackClientMetadata(id)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, id, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
