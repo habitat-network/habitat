@@ -5,7 +5,7 @@ import { type QueryClient } from "@tanstack/react-query";
 import { AtpAgent } from "@atproto/api";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { Toaster } from "sonner";
+import { Toaster } from 'internal/components/ui'
 
 interface RouterContext {
   queryClient: QueryClient;
