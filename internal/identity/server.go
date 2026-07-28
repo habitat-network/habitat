@@ -38,6 +38,7 @@ type Server struct {
 	oauth         authn.Method
 	orgStore      org.Store
 	pdsForwarding *forwarding.PDSForwarding
+	domain        string
 }
 
 // NewServer constructs the hive HTTP server. The OAuth method is required to
@@ -48,6 +49,7 @@ func NewServer(
 	oauth authn.Method,
 	orgStore org.Store,
 	pdsForwarding *forwarding.PDSForwarding,
+	domain string,
 ) (*Server, error) {
 	return &Server{
 		hive:          hive,
@@ -55,6 +57,7 @@ func NewServer(
 		oauth:         oauth,
 		orgStore:      orgStore,
 		pdsForwarding: pdsForwarding,
+		domain:        domain,
 	}, nil
 }
 
@@ -199,7 +202,7 @@ func (s *Server) ResolveDID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(ctx, w, atproto.IdentityResolveDid_Output{
-		DidDoc: s.didDocumentWithContext(ident),
+		DidDoc: s.overriddenDidDoc(ident),
 	})
 }
 
@@ -259,13 +262,21 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(ctx, w, atproto.IdentityDefs_IdentityInfo{
 		Did:    ident.DID.String(),
 		Handle: ident.Handle.String(),
-		DidDoc: s.didDocumentWithContext(ident),
+		DidDoc: s.overriddenDidDoc(ident),
 	})
 }
 
-func (s *Server) didDocumentWithContext(ident *identity.Identity) didDocWithContext {
-	return didDocWithContext{
-		Context:     didCtx,
-		DIDDocument: ident.DIDDocument(),
+func (s *Server) overriddenDidDoc(ident *identity.Identity) identity.DIDDocument {
+	return identity.DIDDocument{
+		DID:                ident.DID,
+		AlsoKnownAs:        ident.AlsoKnownAs,
+		VerificationMethod: ident.DIDDocument().VerificationMethod,
+		Service: []identity.DocService{
+			{
+				ID:              "#atproto_pds",
+				Type:            "AtprotoPersonalDataServer",
+				ServiceEndpoint: "https://" + s.domain,
+			},
+		},
 	}
 }
