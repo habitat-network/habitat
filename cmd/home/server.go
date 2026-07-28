@@ -11,7 +11,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/pkg/sap"
 )
 
 // serviceID is the fragment in the home server's did:web service entry. The

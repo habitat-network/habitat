@@ -9,7 +9,7 @@ can poll or stream over a websocket.
 
 ```go
 import (
-    "github.com/habitat-network/habitat/internal/sap"
+    "github.com/habitat-network/habitat/pkg/sap"
     "go.opentelemetry.io/otel"
 )
 
