@@ -1,8 +1,0 @@
-layer: application
-tasks:
-  dev:
-    env:
-      DEVTOOLS_PORT: "42071"
-      SERVER_PORT: "5174"
-    deps:
-      - target: "pear:dev"

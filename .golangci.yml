@@ -13,3 +13,5 @@ linters:
       enable-all: true
 formatters:
   enable: golines
+run:
+  allow-parallel-runners: true
