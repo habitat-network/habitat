@@ -484,7 +484,9 @@ func TestSpaceURI(t *testing.T) {
 	require.Equal(t, groupType, uri.SpaceType())
 	require.Equal(t, habitat_syntax.SpaceKey("my-key"), uri.Skey())
 
-	parsed, err := habitat_syntax.ParseSpaceURI("at://did:plc:owner/space/network.habitat.group/my-key")
+	parsed, err := habitat_syntax.ParseSpaceURI(
+		"at://did:plc:owner/space/network.habitat.group/my-key",
+	)
 	require.NoError(t, err)
 	require.Equal(t, uri, parsed)
 }
