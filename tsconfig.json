@@ -12,6 +12,9 @@
       "path": "./typescript/api"
     },
     {
+      "path": "./typescript/habitat"
+    },
+    {
       "path": "./typescript/apps/docs"
     },
     {
