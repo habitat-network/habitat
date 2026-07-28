@@ -4031,6 +4031,41 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceGetDelegationToken: {
+    lexicon: 1,
+    id: 'network.habitat.space.getDelegationToken',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Mint a delegation token for a space, proving the requesting app is acting on the user's behalf. Exchanged with the space authority for a space credential. Served by the requesting user's PDS. Requires OAuth auth.",
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['token'],
+            properties: {
+              token: {
+                type: 'string',
+                description: 'A signed JWT delegation token.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatSpaceGetLatestCommit: {
     lexicon: 1,
     id: 'network.habitat.space.getLatestCommit',
@@ -5023,6 +5058,8 @@ export const ids = {
   NetworkHabitatSpaceDefs: 'network.habitat.space.defs',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
+  NetworkHabitatSpaceGetDelegationToken:
+    'network.habitat.space.getDelegationToken',
   NetworkHabitatSpaceGetLatestCommit: 'network.habitat.space.getLatestCommit',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
   ComAtprotoSpaceGetRepo: 'com.atproto.space.getRepo',
