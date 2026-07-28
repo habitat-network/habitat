@@ -98,7 +98,11 @@ func TestServer_ListSpaces(t *testing.T) {
 	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "my-space")
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.space.listSpaces", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listSpaces",
+		http.NoBody,
+	)
 	w := httptest.NewRecorder()
 	s.ListSpaces(w, req)
 
@@ -125,7 +129,7 @@ func TestServer_ListRepos(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepos?space="+uri.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepos(w, req)
@@ -152,7 +156,7 @@ func TestServer_ListRepos_CursorLimitNotSupported(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepos?space="+uri.String()+"&cursor=abc",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepos(w, req)
@@ -161,7 +165,7 @@ func TestServer_ListRepos_CursorLimitNotSupported(t *testing.T) {
 	req = httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepos?space="+uri.String()+"&limit=10",
-		nil,
+		http.NoBody,
 	)
 	w = httptest.NewRecorder()
 	s.ListRepos(w, req)
@@ -177,7 +181,7 @@ func TestServer_ListRepos_Unauthorized(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepos?space="+uri.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepos(w, req)
@@ -232,7 +236,7 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 	getReq := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getRecord?space="+uri.String()+"&collection=network.habitat.note&rkey=my-note&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	getW := httptest.NewRecorder()
 	s.GetRecord(getW, getReq)
@@ -298,7 +302,7 @@ func TestServer_ListRecords(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRecords?space="+uri.String()+"&collection=network.habitat.note&repo="+owner.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRecords(w, req)
@@ -332,7 +336,7 @@ func TestServer_GetRepo(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+owner.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.GetRepo(w, req)
@@ -391,7 +395,7 @@ func TestServer_GetRepo_RepoNotFound(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+alice.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.GetRepo(w, req)
@@ -551,7 +555,7 @@ func TestServer_ListRepoOps(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -597,7 +601,7 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo="+owner.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -642,7 +646,7 @@ func TestServer_GetLatestCommit(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getLatestCommit?space="+uri.String()+"&repo="+owner.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.GetLatestCommit(w, req)
@@ -681,7 +685,7 @@ func TestServer_GetLatestCommit_EmptyRepo(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getLatestCommit?space="+uri.String()+"&repo="+owner.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.GetLatestCommit(w, req)
@@ -704,7 +708,7 @@ func TestServer_GetLatestCommit_Unauthorized(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getLatestCommit?space="+uri.String()+"&repo="+owner.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.GetLatestCommit(w, req)
@@ -727,7 +731,7 @@ func TestServer_ListRepoOps_Since(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -739,7 +743,7 @@ func TestServer_ListRepoOps_Since(t *testing.T) {
 	req = httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner&since="+first.Cursor,
-		nil,
+		http.NoBody,
 	)
 	w = httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -758,7 +762,7 @@ func TestServer_ListRepoOps_Unauthorized(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -786,7 +790,7 @@ func TestServer_ListRepoOps_IncludesValue(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -822,7 +826,7 @@ func TestServer_ListRepoOps_ExcludeValues(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner&excludeValues=true",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)

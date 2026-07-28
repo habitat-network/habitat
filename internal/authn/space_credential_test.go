@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -20,7 +21,7 @@ func TestSpaceCredentialAuthMethod_CanHandle(t *testing.T) {
 		Method: jwt.SigningMethodHS256,
 	}).SignedString([]byte("secret"))
 	require.NoError(t, err)
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
 	require.True(t, NewSpaceCredentialAuthMethod(nil).CanHandle(r))
 }
@@ -43,7 +44,7 @@ func TestSpaceCredentialAuthMethod_Validate(t *testing.T) {
 	}).SignedString(dir.PrivateKey)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
 
 	credInfo, ok := NewSpaceCredentialAuthMethod(dir).Validate(w, r)

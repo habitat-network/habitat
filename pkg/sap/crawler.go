@@ -148,7 +148,7 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 			ctx,
 			http.MethodGet,
 			session.Data.HostURL+"/xrpc/network.habitat.space.listSpaces?"+params.Encode(),
-			nil,
+			http.NoBody,
 		)
 		if err != nil {
 			return fmt.Errorf("new request: %w", err)
@@ -210,7 +210,7 @@ func (c *crawler) enumerateSpaceRepos(
 		ctx,
 		http.MethodGet,
 		session.Data.HostURL+"/xrpc/network.habitat.space.listRepos?"+values.Encode(),
-		nil,
+		http.NoBody,
 	)
 	if err != nil {
 		return fmt.Errorf("new request: %w", err)

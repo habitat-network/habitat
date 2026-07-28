@@ -25,7 +25,7 @@ func newTestServer(t *testing.T, caller syntax.DID) (*Server, *Store, spaces.Sto
 }
 
 func queryReq(path string, params url.Values) *http.Request {
-	return httptest.NewRequest(http.MethodGet, path+"?"+params.Encode(), nil)
+	return httptest.NewRequest(http.MethodGet, path+"?"+params.Encode(), http.NoBody)
 }
 
 func TestServer_WriteTuple(t *testing.T) {

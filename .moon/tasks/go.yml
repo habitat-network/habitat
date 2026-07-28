@@ -11,11 +11,15 @@ fileGroups:
 tasks:
   format-check:
     command: golangci-lint fmt -d
+    inputs:
+      - /.golangci.yml
   format:
     command: golangci-lint fmt
     preset: utility
   lint-check:
     command: golangci-lint run
+    inputs:
+      - /.golangci.yml
   lint:
     command: golangci-lint run --fix
     preset: utility

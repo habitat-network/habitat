@@ -11,6 +11,16 @@ linters:
       context: "all"
     gocritic:
       enable-all: true
+      disabled-checks:
+        - hugeParam
+        - paramTypeCombine
+        - rangeValCopy
+        - importShadow
+        - unnamedResult
+        - ifElseChain
+        - singleCaseSwitch
+        - unnecessaryBlock
+        - commentedOutCode
 formatters:
   enable: golines
 run:
