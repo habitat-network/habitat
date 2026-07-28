@@ -478,10 +478,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.permissions.removePermission",
-		pearServer.RemovePermission,
-	)
+	mux.HandleFunc("/xrpc/network.habitat.permissions.removePermission",
+		pearServer.RemovePermission)
 
 	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", cliqueServer.CreateClique)
 	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", cliqueServer.AddCliqueMembers)
@@ -501,27 +499,23 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
 	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit", spacesServer.GetLatestCommit)
-	mux.HandleFunc("/xrpc/com.atproto.space.getRepo", spacesServer.GetRepo)
+	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
 	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
+	mux.HandleFunc("/xrpc/network.habitat.space.getDelegationToken",
+		spacesServer.GetDelegationToken)
+	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
+		spacesServer.GetSpaceCredential)
 
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.writeTuple",
-		relationshipServer.WriteTuple,
-	)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.deleteTuple",
-		relationshipServer.DeleteTuple,
-	)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.writeTuple",
+		relationshipServer.WriteTuple)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteTuple",
+		relationshipServer.DeleteTuple)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.listTuples", relationshipServer.ListTuples)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.check", relationshipServer.Check)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.listSubjects",
-		relationshipServer.ListSubjects,
-	)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.listObjects",
-		relationshipServer.ListObjects,
-	)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listSubjects",
+		relationshipServer.ListSubjects)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listObjects",
+		relationshipServer.ListObjects)
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
