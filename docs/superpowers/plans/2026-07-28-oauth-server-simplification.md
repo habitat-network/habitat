@@ -154,6 +154,12 @@ func (r *OAuthRequest) fromRequester(key string, requester fosite.Requester, exp
 }
 ```
 
+Note on `Subject`: because `CreatePARSession` uses GORM `Save` (a full-column UPDATE when the
+key exists), re-storing a request under a key that already has a resolved DID would blank it
+if the incoming session carries no subject. Callers that already know the DID must therefore
+go through `CreateAuthorizeFlowSession` (Task 5), which sets `Subject` explicitly after
+`fromRequester`.
+
 - [ ] **Step 3: Add helper to reconstruct PKCE form from OAuthRequest**
 
 ```go
@@ -304,25 +310,59 @@ func (s *store) InvalidateAuthorizeCodeSession(ctx context.Context, signature st
 
 - [ ] **Step 4: Implement PKCE storage methods**
 
+These cannot be no-ops. fosite calls
+`CreateAuthorizeCodeSession(ctx, sig, ar.Sanitize(c.GetSanitationWhiteList(ctx)))`
+(`flow_authorize_code_auth.go:85`), and `Sanitize` keeps only
+`{"code","redirect_uri","grant_type","response_type","scope","client_id"}` —
+`code_challenge` and `code_challenge_method` are stripped before the store sees them, so
+`fromRequester` would always persist an empty challenge and every PKCE token exchange would
+fail with *"code verifier was provided but the code challenge was absent"*.
+
+`CreatePKCERequestSession` is the one call site that receives the challenge intact
+(`handler/pkce/handler.go:61-64` sanitizes with `["code_challenge","code_challenge_method"]`),
+and fosite invokes it with the same signature as the authorize code, after
+`CreateAuthorizeCodeSession`. So it updates the row the code session just wrote.
+
 ```go
-func (s *store) CreatePKCERequestSession(ctx context.Context, signature string, _ fosite.Requester) error {
-    // PKCE data is stored as part of the authorize code session row; no-op.
-    return nil
+// CreatePKCERequestSession implements pkce.PKCERequestStorage. It writes the
+// challenge onto the authorize code's row: this is the only point in the flow
+// where fosite hands us the challenge un-sanitized.
+func (s *store) CreatePKCERequestSession(
+    ctx context.Context,
+    signature string,
+    requester fosite.Requester,
+) error {
+    form := requester.GetRequestForm()
+    return s.db.WithContext(ctx).Model(&OAuthRequest{}).
+        Where("key = ?", signature).
+        Updates(map[string]any{
+            "code_challenge":        form.Get("code_challenge"),
+            "code_challenge_method": form.Get("code_challenge_method"),
+        }).Error
 }
 
-func (s *store) GetPKCERequestSession(ctx context.Context, signature string, _ fosite.Session) (fosite.Requester, error) {
+// GetPKCERequestSession implements pkce.PKCERequestStorage. The client is
+// populated because pkce.validateNoPKCE calls IsPublic() on it.
+func (s *store) GetPKCERequestSession(
+    ctx context.Context,
+    signature string,
+    _ fosite.Session,
+) (fosite.Requester, error) {
     var r OAuthRequest
-    err := s.db.WithContext(ctx).First(&r, "key = ?", signature).Error
+    if err := s.db.WithContext(ctx).First(&r, "key = ?", signature).Error; err != nil {
+        return nil, errors.Join(fosite.ErrNotFound, err)
+    }
+    client, err := s.GetClient(ctx, r.ClientID)
     if err != nil {
         return nil, errors.Join(fosite.ErrNotFound, err)
     }
-    return &fosite.Request{
-        Form: r.pkceForm(),
-    }, nil
+    return &fosite.Request{Client: client, Form: r.pkceForm()}, nil
 }
 
+// DeletePKCERequestSession implements pkce.PKCERequestStorage. The challenge
+// lives on the authorize code's row, which InvalidateAuthorizeCodeSession
+// already deletes.
 func (s *store) DeletePKCERequestSession(ctx context.Context, signature string) error {
-    // Delete on the authorize code session handles this
     return nil
 }
 ```
