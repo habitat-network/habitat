@@ -21,7 +21,7 @@ function DisambiguatePage() {
         <fieldset className="flex flex-col gap-4">
           <Field>
             <FieldLabel>Handle</FieldLabel>
-            <Input placeholder="handle" autoFocus name="handle" required />
+            <Input placeholder="handle" autoFocus name="disambiguation" required />
           </Field>
           <Button type="submit">Continue</Button>
         </fieldset>

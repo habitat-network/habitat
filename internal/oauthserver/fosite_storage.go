@@ -55,62 +55,46 @@ type OAuthRequest struct {
 // WriteAuthorizeResponse reads the struct field, not the form.
 func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) (*fosite.AuthorizeRequest, error) {
 	scopes := fosite.Arguments(strings.Fields(r.Scopes))
-	form := url.Values{}
-	setIfNotEmpty := func(k, v string) {
-		if v != "" {
-			form.Set(k, v)
-		}
-	}
-	setIfNotEmpty("client_id", r.ClientID)
-	setIfNotEmpty("redirect_uri", r.RedirectURI)
-	setIfNotEmpty("response_type", r.ResponseType)
-	setIfNotEmpty("scope", r.Scopes)
-	setIfNotEmpty("state", r.State)
-	setIfNotEmpty("code_challenge", r.CodeChallenge)
-	setIfNotEmpty("code_challenge_method", r.CodeChallengeMethod)
-
 	var redirectURI *url.URL
-	if r.RedirectURI != "" {
-		var err error
-		redirectURI, err = url.Parse(r.RedirectURI)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse stored redirect uri: %w", err)
-		}
-	}
-
+	redirectURI, _ = url.Parse(r.RedirectURI)
 	return &fosite.AuthorizeRequest{
 		ResponseTypes:        fosite.Arguments(strings.Fields(r.ResponseType)),
 		HandledResponseTypes: fosite.Arguments{},
 		RedirectURI:          redirectURI,
 		State:                r.State,
 		Request: fosite.Request{
-			Client:  client,
-			Session: &session{Subject: r.Subject, ClientID: r.ClientID, Scopes: scopes},
+			Client: client,
+			Session: &session{
+				Subject:  r.Subject,
+				ClientID: r.ClientID,
+				Scopes:   scopes,
+			},
 			// The row records the scopes the user authorized. Mark them granted
 			// (not just requested) so fosite echoes them in the token response;
 			// atproto clients reject a token response with an empty scope.
 			RequestedScope: scopes,
 			GrantedScope:   scopes,
-			Form:           form,
-			RequestedAt:    time.Now().UTC(),
+			Form: url.Values{
+				"code_challenge":        {r.CodeChallenge},
+				"code_challenge_method": {r.CodeChallengeMethod},
+			},
+			RequestedAt: time.Now().UTC(),
 		},
 	}, nil
 }
 
 // fromRequester populates the OAuthRequest columns from a fosite.Requester.
-func (r *OAuthRequest) fromRequester(key string, requester fosite.Requester, expiresAt time.Time) {
+func fromRequester(uri string, requester fosite.Requester, expiresAt time.Time) (r *OAuthRequest) {
 	form := requester.GetRequestForm()
-	r.Key = key
-	r.ClientID = requester.GetClient().GetID()
-	r.Scopes = strings.Join(requester.GetRequestedScopes(), " ")
-	r.RedirectURI = form.Get("redirect_uri")
-	r.State = form.Get("state")
-	r.ResponseType = form.Get("response_type")
-	r.CodeChallenge = form.Get("code_challenge")
-	r.CodeChallengeMethod = form.Get("code_challenge_method")
-	r.ExpiresAt = expiresAt
-	if sess := requester.GetSession(); sess != nil {
-		r.Subject = sess.GetSubject()
+	return &OAuthRequest{
+		Key:          uri,
+		ClientID:     requester.GetClient().GetID(),
+		Scopes:       strings.Join(requester.GetRequestedScopes(), " "),
+		RedirectURI:  form.Get("redirect_uri"),
+		State:        form.Get("state"),
+		ResponseType: form.Get("response_type"),
+		ExpiresAt:    expiresAt,
+		Subject:      requester.GetSession().GetSubject(),
 	}
 }
 
@@ -182,9 +166,9 @@ func (s *store) CreatePARSession(
 	requestURI string,
 	request fosite.AuthorizeRequester,
 ) error {
-	var r OAuthRequest
-	r.fromRequester(requestURI, request, time.Now().Add(parSessionTTL))
-	return s.db.WithContext(ctx).Save(&r).Error
+	return s.db.WithContext(ctx).
+		Create(fromRequester(requestURI, request, time.Now().Add(parSessionTTL))).
+		Error
 }
 
 // GetPARSession implements fosite.PARStorage.
@@ -193,12 +177,12 @@ func (s *store) GetPARSession(
 	requestURI string,
 ) (fosite.AuthorizeRequester, error) {
 	var r OAuthRequest
-	err := s.db.WithContext(ctx).First(&r, "key = ?", requestURI).Error
+	err := s.db.WithContext(ctx).
+		Where("expires_at > ?", time.Now()).
+		First(&r, "key = ?", requestURI).
+		Error
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
-	}
-	if time.Now().After(r.ExpiresAt) {
-		return nil, fosite.ErrNotFound
 	}
 	client, err := s.GetClient(ctx, r.ClientID)
 	if err != nil {
@@ -207,25 +191,21 @@ func (s *store) GetPARSession(
 	return r.toAuthorizeRequest(client)
 }
 
+func (s *store) UpdatePARSessionSubject(
+	ctx context.Context,
+	requestURI string,
+	subject syntax.DID,
+) error {
+	return s.db.WithContext(ctx).
+		Model(&OAuthRequest{}).
+		Where("key = ?", requestURI).
+		Update("subject", subject).
+		Error
+}
+
 // DeletePARSession implements fosite.PARStorage.
 func (s *store) DeletePARSession(ctx context.Context, requestURI string) error {
 	return s.db.WithContext(ctx).Delete(&OAuthRequest{}, "key = ?", requestURI).Error
-}
-
-// CreateAuthorizeFlowSession persists an authorization request that is waiting
-// on the user — either at the disambiguation page or at their PDS — under an
-// opaque key held in the caller's cookie. A zero did means the user is not yet
-// resolved. Save (not Create) so the same key can be re-stored once it is.
-func (s *store) CreateAuthorizeFlowSession(
-	ctx context.Context,
-	key string,
-	requester fosite.AuthorizeRequester,
-	did syntax.DID,
-) error {
-	var r OAuthRequest
-	r.fromRequester(key, requester, time.Now().Add(parSessionTTL))
-	r.Subject = did.String()
-	return s.db.WithContext(ctx).Save(&r).Error
 }
 
 // ClientAssertionJWTValid implements fosite.Storage. Client assertion JWTs are
@@ -358,16 +338,16 @@ func (s *store) CreateAuthorizeCodeSession(
 	signature string,
 	requester fosite.Requester,
 ) (err error) {
-	var r OAuthRequest
-	// Authorize code sessions expire based on fosite config (typically 10-15 min).
-	exp := time.Now().Add(15 * time.Minute)
-	if sess := requester.GetSession(); sess != nil {
-		if t := sess.GetExpiresAt(fosite.AuthorizeCode); !t.IsZero() {
-			exp = t
-		}
-	}
-	r.fromRequester(signature, requester, exp)
-	return s.db.WithContext(ctx).Create(&r).Error
+	ctx, span := tracer.Start(ctx, "CreateAuthorizeCodeSession")
+	defer span.End()
+	span.SetAttributes(attribute.String("auth_signature", signature))
+	return s.db.WithContext(ctx).
+		Create(
+			fromRequester(
+				signature,
+				requester,
+				requester.GetSession().GetExpiresAt(fosite.AuthorizeCode),
+			)).Error
 }
 
 // GetAuthorizeCodeSession implements oauth2.CoreStorage.
@@ -400,7 +380,6 @@ func (s *store) GetAuthorizeCodeSession(
 		Subject:           r.Subject,
 		ClientID:          r.ClientID,
 		Scopes:            strings.Fields(r.Scopes),
-		PKCEChallenge:     r.CodeChallenge,
 		AuthCodeExpiresAt: r.ExpiresAt,
 	}
 	return &ar.Request, nil

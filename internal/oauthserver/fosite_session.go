@@ -21,7 +21,6 @@ type session struct {
 	Subject               string
 	ClientID              string
 	Scopes                []string
-	PKCEChallenge         string
 	AuthCodeExpiresAt     time.Time
 	AccessTokenExpiresAt  time.Time
 	RefreshTokenExpiresAt time.Time

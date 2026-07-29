@@ -6,8 +6,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -63,7 +61,7 @@ type OAuthServer struct {
 	orgStore org.Store
 
 	// Cookie store for the request key and provider state across redirects
-	cookieStore sessions.Store
+	sessionStore sessions.Store
 
 	// issuer origin (https URL, no path) the discovery metadata is built from.
 	issuer string
@@ -153,12 +151,12 @@ func NewOAuthServer(
 			compose.RFC7523AssertionGrantFactory,
 			compose.PushedAuthorizeHandlerFactory,
 		),
-		loginRouter: loginRouter,
-		cookieStore: cookieStore,
-		directory:   directory,
-		storage:     storage,
-		orgStore:    orgStore,
-		issuer:      issuer,
+		loginRouter:  loginRouter,
+		sessionStore: cookieStore,
+		directory:    directory,
+		storage:      storage,
+		orgStore:     orgStore,
+		issuer:       issuer,
 	}, nil
 }
 
@@ -167,16 +165,6 @@ func fositeErrReason(err error) string {
 		return rfcErr.ErrorField // "invalid_grant", "invalid_client", etc.
 	}
 	return "unknown"
-}
-
-// newRequestKey mints the opaque identifier for an in-flight authorization
-// request. It is held only in the encrypted cookie, so it must be unguessable.
-func newRequestKey() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("failed to generate request key: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // HandleAuthorize processes OAuth 2.0 authorization requests from the client.
@@ -196,146 +184,108 @@ func newRequestKey() (string, error) {
 // response using the OAuth error format.
 func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	cookie, err := o.cookieStore.Get(r, sessionName)
+	session, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "get_cookie")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get cookie: %w", err))
 		return
 	}
-
-	// staleKey is the row this request currently lives under, if any. It is
-	// dropped once the request has been re-stored under a fresh key, so a
-	// consumed PAR request_uri or a used disambiguation key cannot be replayed.
-	var staleKey string
-	var requester fosite.AuthorizeRequester
-	switch resumeKey, _ := cookie.Values[requestKeyCookie].(string); {
-	case resumeKey != "":
-		staleKey = resumeKey
-		requester, err = o.storage.GetPARSession(ctx, resumeKey)
-		if err != nil {
-			o.metrics.authorizeErr(ctx, err, "resume_lookup")
-			httpx.WriteInvalidRequest(ctx, w, "authorization request expired", err)
-			return
-		}
-	case r.URL.Query().Get("request_uri") != "":
-		staleKey = r.URL.Query().Get("request_uri")
-		requester, err = o.storage.GetPARSession(ctx, staleKey)
-		if err != nil {
-			o.metrics.authorizeErr(ctx, err, "par_lookup")
-			o.provider.WriteAuthorizeError(ctx, w, requester, fosite.ErrInvalidRequestURI)
-			return
-		}
-	default:
-		requester, err = o.provider.NewAuthorizeRequest(ctx, r)
-		if err != nil {
-			o.metrics.authorizeErr(ctx, err, fositeErrReason(err))
-			o.provider.WriteAuthorizeError(ctx, w, requester, err)
-			return
-		}
-	}
-
-	key, err := newRequestKey()
-	if err != nil {
-		o.metrics.authorizeErr(ctx, err, "new_request_key")
-		httpx.WriteServerError(ctx, w, err)
+	requester := o.retrieveAuthorizeRequest(w, r, session)
+	if requester == nil {
 		return
 	}
-
-	// HandlePAR resolves the login hint at push time, so the subject may already
-	// be known; otherwise fall back to a handle from the disambiguation redirect
-	// or the request form.
-	var did syntax.DID
-	var subject string
-	if sess := requester.GetSession(); sess != nil {
-		subject = sess.GetSubject()
+	did := syntax.DID(requester.GetSession().GetSubject())
+	if did == "" {
+		if err := session.Save(r, w); err != nil {
+			o.metrics.authorizeErr(ctx, err, "save_cookie")
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
+			return
+		}
+		http.Redirect(w, r, disambiguationPath, http.StatusSeeOther)
+		return
 	}
-	if subject != "" {
-		did, err = syntax.ParseDID(subject)
-		if err != nil {
-			o.metrics.authorizeErr(ctx, err, "parse_subject")
-			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to parse stored subject: %w", err))
-			return
-		}
-	} else {
-		handle := r.URL.Query().Get("handle")
-		if handle == "" {
-			handle = requester.GetRequestForm().Get("handle")
-		}
-		if handle == "" {
-			handle = requester.GetRequestForm().Get("login_hint")
-		}
-		if handle == "" {
-			// Park the request and let the user pick an identity. The cookie
-			// carries only the key, so the resumed request is provably ours.
-			if err := o.storage.CreateAuthorizeFlowSession(ctx, key, requester, ""); err != nil {
-				o.metrics.authorizeErr(ctx, err, "store_disambiguation")
-				httpx.WriteServerError(ctx, w, fmt.Errorf("failed to store request: %w", err))
-				return
-			}
-			if staleKey != "" {
-				if err := o.storage.DeletePARSession(ctx, staleKey); err != nil {
-					slog.WarnContext(ctx, "failed to delete stale oauth request", "err", err)
-				}
-			}
-			cookie.Values[requestKeyCookie] = key
-			delete(cookie.Values, providerStateCookie)
-			if err := cookie.Save(r, w); err != nil {
-				o.metrics.authorizeErr(ctx, err, "save_cookie")
-				httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
-				return
-			}
-			http.Redirect(w, r, disambiguationPath, http.StatusSeeOther)
-			return
-		}
-
-		atid, err := syntax.ParseAtIdentifier(handle)
-		if err != nil {
-			o.metrics.authorizeErr(ctx, err, "parse_handle")
-			httpx.WriteInvalidRequest(ctx, w, "failed to parse handle", err)
-			return
-		}
-		// directory caches errors, so don't pass in the real context
-		id, err := o.directory.Lookup(context.Background(), atid)
-		if err != nil {
-			o.metrics.authorizeErr(ctx, err, "lookup_atid")
-			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to lookup atid: %w", err))
-			return
-		}
-		did = id.DID
-	}
-
-	redirect, providerState, err := o.loginRouter.Authorize(ctx, did)
+	redirect, providerState, err := o.loginRouter.Authorize(
+		ctx,
+		syntax.DID(requester.GetSession().GetSubject()),
+	)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "begin_login")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to begin login: %w", err))
 		return
 	}
-
-	if err := o.storage.CreateAuthorizeFlowSession(ctx, key, requester, did); err != nil {
-		o.metrics.authorizeErr(ctx, err, "store_request")
-		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to store request: %w", err))
-		return
-	}
-	if staleKey != "" {
-		if err := o.storage.DeletePARSession(ctx, staleKey); err != nil {
-			slog.WarnContext(ctx, "failed to delete stale oauth request", "err", err)
-		}
-	}
-
-	cookie.Values[requestKeyCookie] = key
-	cookie.Values[providerStateCookie] = providerState
-	if err := cookie.Save(r, w); err != nil {
+	session.Values[providerStateCookie] = providerState
+	if err := session.Save(r, w); err != nil {
 		o.metrics.authorizeErr(ctx, err, "save_cookie")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
 		return
 	}
-
 	// Redirect to the provider untouched: pdsclient already put its own state
 	// inside the request it pushed to the PDS, and appending ours would be both
 	// ignored and ambiguous on the way back.
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 	o.metrics.authorizeSuccess(ctx)
+}
+
+func (o *OAuthServer) retrieveAuthorizeRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+	cookieSession *sessions.Session,
+) fosite.AuthorizeRequester {
+	ctx := r.Context()
+	if r.URL.Query().Get("response_type") == "code" {
+		// non-par authorize requests start with /oauth/authorize with a "code" response_type
+		loginHint := r.URL.Query().Get("login_hint")
+		if loginHint == "" {
+			loginHint = r.URL.Query().Get("handle")
+		}
+		did, err := o.resolveLoginHint(loginHint)
+		if err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
+			return nil
+		}
+		requester, err := o.provider.NewAuthorizeRequest(ctx, r)
+		if err != nil {
+			o.provider.WriteAuthorizeError(ctx, w, requester, err)
+			return nil
+		}
+		sess := newSession()
+		sess.SetSubject(did.String())
+		requester.SetSession(sess)
+		// for non-par, create a fake PAR session to persist it
+		uri := requester.GetID()
+		if err := o.storage.CreatePARSession(ctx, uri, requester); err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save request session: %w", err))
+			return nil
+		}
+		cookieSession.Values[requestKeyCookie] = uri
+	} else if r.URL.Query().Get("request_uri") != "" {
+		cookieSession.Values[requestKeyCookie] = r.URL.Query().Get("request_uri")
+	}
+	requestKey, _ := cookieSession.Values[requestKeyCookie].(string)
+	slog.WarnContext(ctx, "request key", "key", requestKey)
+	if r.URL.Query().Get("disambiguation") != "" {
+		did, err := o.resolveLoginHint(r.URL.Query().Get("disambiguation"))
+		if err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
+			return nil
+		}
+		if err := o.storage.UpdatePARSessionSubject(ctx, requestKey, did); err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to update PAR subject: %w", err))
+			return nil
+		}
+	}
+	requester, err := o.storage.GetPARSession(ctx, requestKey)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to get request", err)
+		return nil
+	}
+	if r.URL.Query().Get("client_id") != "" {
+		if r.URL.Query().Get("client_id") != requester.GetClient().GetID() {
+			httpx.WriteInvalidRequest(ctx, w, "client_id mismatch", nil)
+			return nil
+		}
+	}
+	return requester
 }
 
 // HandlePAR processes RFC 9126 Pushed Authorization Requests. The client POSTs
@@ -344,30 +294,17 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 // but not required, so clients may also call /oauth/authorize directly.
 func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	loginHint := r.URL.Query().Get("handle")
-	if loginHint == "" {
-		loginHint = r.URL.Query().Get("login_hint")
-	}
-	if err := r.ParseForm(); err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "failed to parse form", err)
+	sess := newSession()
+	did, err := o.resolveLoginHint(r.URL.Query().Get("login_hint"))
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 		return
 	}
-	r.Form.Add("login_hint", loginHint)
+	sess.SetSubject(did.String())
 	req, err := o.provider.NewPushedAuthorizeRequest(ctx, r)
 	if err != nil {
 		o.provider.WritePushedAuthorizeError(ctx, w, req, err)
 		return
-	}
-	sess := newSession()
-	if loginHint != "" {
-		if atid, err := syntax.ParseAtIdentifier(loginHint); err == nil {
-			if id, err := o.directory.Lookup(context.Background(), atid); err == nil {
-				sess.Subject = id.DID.String()
-			} else {
-				slog.WarnContext(ctx, "failed to resolve PAR login hint",
-					"err", err, "hint", loginHint)
-			}
-		}
 	}
 	resp, err := o.provider.NewPushedAuthorizeResponse(ctx, req, sess)
 	if err != nil {
@@ -375,6 +312,20 @@ func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	o.provider.WritePushedAuthorizeResponse(ctx, w, req, resp)
+}
+
+func (o *OAuthServer) resolveLoginHint(loginHint string) (syntax.DID, error) {
+	if loginHint == "" {
+		return "", nil
+	}
+	if atid, err := syntax.ParseAtIdentifier(loginHint); err == nil {
+		id, err := o.directory.Lookup(context.Background(), atid)
+		if err != nil {
+			return "", fmt.Errorf("failed to lookup handle: %w", err)
+		}
+		return id.DID, nil
+	}
+	return "", nil
 }
 
 // HandleCallback processes the OAuth callback from the user's PDS.
@@ -395,40 +346,27 @@ func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	cookie, err := o.cookieStore.Get(r, sessionName)
+	cookie, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, "get_cookie")
 		httpx.WriteInvalidRequest(ctx, w, "failed to get cookie", err)
 		return
 	}
-	key, _ := cookie.Values[requestKeyCookie].(string)
+	requestKey, _ := cookie.Values[requestKeyCookie].(string)
 	providerState, _ := cookie.Values[providerStateCookie].([]byte)
+	cookie.Values[providerStateCookie] = nil
 
-	// The cookie is single-use: clear it before doing anything that can fail.
-	cookie.Options.MaxAge = -1
-	if err := cookie.Save(r, w); err != nil {
-		o.metrics.callbackErr(ctx, err, "delete_cookie")
-		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to delete cookie: %w", err))
-		return
-	}
-	if key == "" {
-		o.metrics.callbackErr(ctx, nil, "no_cookie_state")
-		httpx.WriteInvalidRequest(ctx, w, "no authorization request in progress", nil)
-		return
-	}
-
-	requester, err := o.storage.GetPARSession(ctx, key)
+	requester, err := o.storage.GetPARSession(ctx, requestKey)
 	if err != nil {
-		o.metrics.callbackErr(ctx, err, "request_lookup")
-		httpx.WriteInvalidRequest(ctx, w, "authorization request expired", err)
+		o.metrics.callbackErr(ctx, err, "get_request")
+		httpx.WriteInvalidRequest(ctx, w, "failed to get request", err)
 		return
 	}
-	defer func() {
-		if err := o.storage.DeletePARSession(ctx, key); err != nil {
-			slog.WarnContext(ctx, "failed to delete oauth request", "err", err)
-		}
-	}()
-
+	if err := o.storage.DeletePARSession(ctx, requestKey); err != nil {
+		o.metrics.callbackErr(ctx, err, "delete_request")
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to delete request: %w", err))
+		return
+	}
 	did, err := syntax.ParseDID(requester.GetSession().GetSubject())
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, "parse_did")
@@ -452,10 +390,9 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := o.provider.NewAuthorizeResponse(ctx, requester, &session{
-		Subject:       did.String(),
-		ClientID:      requester.GetClient().GetID(),
-		Scopes:        requester.GetRequestedScopes(),
-		PKCEChallenge: requester.GetRequestForm().Get("code_challenge"),
+		Subject:  did.String(),
+		ClientID: requester.GetClient().GetID(),
+		Scopes:   requester.GetRequestedScopes(),
 	})
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
