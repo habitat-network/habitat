@@ -33,7 +33,10 @@ func (s *Server) resolveCallerOrg(
 	callerBearerToken string,
 ) (syntax.DID, error) {
 	req, err := http.NewRequestWithContext(
-		ctx, http.MethodGet, s.pearHost+"/xrpc/network.habitat.org.getMetadata", nil,
+		ctx,
+		http.MethodGet,
+		s.pearHost+"/xrpc/network.habitat.org.getMetadata",
+		http.NoBody,
 	)
 	if err != nil {
 		return "", fmt.Errorf("build getMetadata request: %w", err)

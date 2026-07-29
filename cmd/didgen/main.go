@@ -50,7 +50,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Create output directory if it doesn't exist
 	outputDir := filepath.Dir(outputPath)
 	if outputDir != "." && outputDir != "" {
-		if err := os.MkdirAll(outputDir, 0755); err != nil {
+		if err := os.MkdirAll(outputDir, 0o755); err != nil {
 			return fmt.Errorf("failed to create output directory: %w", err)
 		}
 	}
@@ -112,7 +112,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Write DID document to file
-	if err := os.WriteFile(outputPath, didDocJSON, 0644); err != nil {
+	if err := os.WriteFile(outputPath, didDocJSON, 0o644); err != nil {
 		return fmt.Errorf("failed to write DID document to %s: %w", outputPath, err)
 	}
 

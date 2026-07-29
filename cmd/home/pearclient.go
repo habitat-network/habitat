@@ -49,7 +49,10 @@ func (p *pearClient) post(ctx context.Context, nsid syntax.NSID, input any, out 
 
 func (p *pearClient) get(ctx context.Context, nsid syntax.NSID, params url.Values, out any) error {
 	req, err := http.NewRequestWithContext(
-		ctx, http.MethodGet, "/xrpc/"+nsid.String()+"?"+params.Encode(), nil,
+		ctx,
+		http.MethodGet,
+		"/xrpc/"+nsid.String()+"?"+params.Encode(),
+		http.NoBody,
 	)
 	if err != nil {
 		return fmt.Errorf("build %s request: %w", nsid, err)

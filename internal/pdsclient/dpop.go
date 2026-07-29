@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,7 +21,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"golang.org/x/sync/singleflight"
-	"log/slog"
 )
 
 // DpopNonceProvider provides access to nonce management
@@ -212,7 +212,7 @@ func doInternal(
 	if hasBody {
 		req2.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
-	if err = sign(req2, nonceProvider, key, accessToken); err != nil {
+	if err := sign(req2, nonceProvider, key, accessToken); err != nil {
 		return nil, err
 	}
 	return http.DefaultClient.Do(req2)

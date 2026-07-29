@@ -354,7 +354,7 @@ func (o *OAuthServer) HandleCallback(
 	// resolved parameters the form already contains.
 	resumeForm := maps.Clone(arf.Form)
 	resumeForm.Del("request_uri")
-	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+resumeForm.Encode(), nil)
+	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+resumeForm.Encode(), http.NoBody)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, "recreate_req")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to recreate request: %w", err))

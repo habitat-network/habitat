@@ -31,7 +31,7 @@ func TestResolveDID(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.identity.resolveDid?did=did:web:alice.example.com",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 
@@ -62,7 +62,7 @@ func TestResolveHandle(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.identity.resolveHandle?handle=alice.example.com",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 
@@ -77,7 +77,7 @@ func TestResolveIdentity(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.identity.resolveIdentity?identifier=alice.example.com",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 
@@ -110,7 +110,7 @@ func TestResolveHandleNotFound(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.identity.resolveHandle?handle=nobody.example.com",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 

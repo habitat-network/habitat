@@ -153,7 +153,7 @@ func TestServerProxyUnknownDIDReturnsBadGateway(t *testing.T) {
 	req, err := http.NewRequest(
 		http.MethodGet,
 		httpServer.URL+"/proxy/network.habitat.space.listSpaces",
-		nil,
+		http.NoBody,
 	)
 	require.NoError(t, err)
 	req.Header.Set(habitatDIDHeader, "did:plc:unknownorg")

@@ -33,12 +33,12 @@ func TestSession_CreateValidateDelete(t *testing.T) {
 	s := newTestStore(t)
 
 	createRec := httptest.NewRecorder()
-	createReq := httptest.NewRequest(http.MethodPost, "/admin/login", nil)
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/login", http.NoBody)
 	require.NoError(t, s.CreateSession(createRec, createReq))
 	cookies := createRec.Result().Cookies()
 	require.Len(t, cookies, 1)
 
-	validateReq := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	validateReq := httptest.NewRequest(http.MethodGet, "/admin", http.NoBody)
 	validateReq.AddCookie(cookies[0])
 	ok, err := s.ValidateSession(validateReq)
 	require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestSession_CreateValidateDelete(t *testing.T) {
 	require.Len(t, deleteCookies, 1)
 	require.LessOrEqual(t, deleteCookies[0].MaxAge, 0)
 
-	finalReq := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	finalReq := httptest.NewRequest(http.MethodGet, "/admin", http.NoBody)
 	finalReq.AddCookie(deleteCookies[0])
 	ok, err = s.ValidateSession(finalReq)
 	require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestSession_CreateValidateDelete(t *testing.T) {
 func TestValidateSession_NoCookieFails(t *testing.T) {
 	s := newTestStore(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin", http.NoBody)
 	ok, err := s.ValidateSession(req)
 	require.NoError(t, err)
 	require.False(t, ok)
@@ -69,7 +69,7 @@ func TestValidateSession_NoCookieFails(t *testing.T) {
 func TestValidateSession_TamperedCookieFails(t *testing.T) {
 	s := newTestStore(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin", http.NoBody)
 	req.AddCookie(&http.Cookie{Name: sessionName, Value: "not-a-valid-session-value"})
 	ok, err := s.ValidateSession(req)
 	require.NoError(t, err)

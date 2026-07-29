@@ -43,7 +43,7 @@ func TestServiceProxyNoHeader_CallsNext(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
+	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", http.NoBody)
 	sp(next).ServeHTTP(w, r)
 
 	require.True(t, nextCalled)
@@ -59,7 +59,7 @@ func TestServiceProxyMalformedHeader_Returns400(t *testing.T) {
 	)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
+	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", http.NoBody)
 	r.Header.Set("Atproto-Proxy", "did:web:labeler.example.com") // missing #serviceId
 	sp(neverNext(t)).ServeHTTP(w, r)
 
@@ -70,7 +70,7 @@ func TestServiceProxyAuthFails_Returns401(t *testing.T) {
 	sp := NewServiceProxy(authntest.NewFailMethod(), nil, identity.NewMockDirectory(), nil)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
+	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", http.NoBody)
 	r.Header.Set("Atproto-Proxy", "did:web:labeler.example.com#atproto_labeler")
 	sp(neverNext(t)).ServeHTTP(w, r)
 
@@ -87,7 +87,7 @@ func TestServiceProxyDIDResolutionFails_Returns502(t *testing.T) {
 	)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
+	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", http.NoBody)
 	r.Header.Set("Atproto-Proxy", "did:web:labeler.example.com#atproto_labeler")
 	sp(neverNext(t)).ServeHTTP(w, r)
 
@@ -112,7 +112,7 @@ func TestServiceProxyServiceNotFound_Returns400(t *testing.T) {
 	)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
+	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", http.NoBody)
 	r.Header.Set("Atproto-Proxy", targetDID+"#atproto_labeler")
 	sp(neverNext(t)).ServeHTTP(w, r)
 
@@ -145,7 +145,7 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 	sp := NewServiceProxy(authntest.NewSuccessMethod(callerID.DID), h, dir, nil)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
+	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", http.NoBody)
 	r.Header.Set("Atproto-Proxy", targetDID+"#atproto_labeler")
 	r.Header.Set("DPoP", "some-dpop-proof")
 	sp(neverNext(t)).ServeHTTP(w, r)
@@ -218,7 +218,7 @@ func TestServiceProxyIntegration_RemoteDID(t *testing.T) {
 	)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
+	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", http.NoBody)
 	r.Header.Set("Atproto-Proxy", targetDID+"#atproto_labeler")
 	r.Header.Set("DPoP", "some-dpop-proof")
 	sp(neverNext(t)).ServeHTTP(w, r)

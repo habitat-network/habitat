@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -25,7 +26,7 @@ func TestServiceAuthValidate(t *testing.T) {
 	require.NoError(t, err)
 	serviceAuth := NewServiceAuthMethod(directory, "https://pds.com")
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/xrpc/io.example.test", nil)
+	r := httptest.NewRequest("GET", "/xrpc/io.example.test", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
 
 	credInfo, ok := serviceAuth.Validate(w, r)
@@ -38,7 +39,7 @@ func TestServiceAuthValidate_InvalidToken(t *testing.T) {
 	directory := pdsclient.NewDummyDirectory("https://pds.com")
 	serviceAuth := NewServiceAuthMethod(directory, "https://pds.com")
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/xrpc/lxm", nil)
+	r := httptest.NewRequest("GET", "/xrpc/lxm", http.NoBody)
 	r.Header.Set("Authorization", "Bearer invalid")
 	_, ok := serviceAuth.Validate(w, r)
 	require.False(t, ok)
@@ -54,7 +55,7 @@ func TestServiceAuthCanHandle(t *testing.T) {
 	token, err := tok.SignedString(directory.PrivateKey)
 	require.NoError(t, err)
 	serviceAuth := NewServiceAuthMethod(directory, "https://pds.com")
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
 	require.True(t, serviceAuth.CanHandle(r))
 }

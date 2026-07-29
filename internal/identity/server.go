@@ -159,6 +159,7 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(doc)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
