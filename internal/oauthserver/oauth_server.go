@@ -153,12 +153,12 @@ func NewOAuthServer(
 			compose.RFC7523AssertionGrantFactory,
 			compose.PushedAuthorizeHandlerFactory,
 		),
-		loginRouter:  loginRouter,
-		cookieStore:  cookieStore,
-		directory:    directory,
-		storage:      storage,
-		orgStore:     orgStore,
-		issuer:       issuer,
+		loginRouter: loginRouter,
+		cookieStore: cookieStore,
+		directory:   directory,
+		storage:     storage,
+		orgStore:    orgStore,
+		issuer:      issuer,
 	}, nil
 }
 
@@ -364,7 +364,8 @@ func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 			if id, err := o.directory.Lookup(context.Background(), atid); err == nil {
 				sess.Subject = id.DID.String()
 			} else {
-				slog.WarnContext(ctx, "failed to resolve PAR login hint", "err", err, "hint", loginHint)
+				slog.WarnContext(ctx, "failed to resolve PAR login hint",
+					"err", err, "hint", loginHint)
 			}
 		}
 	}

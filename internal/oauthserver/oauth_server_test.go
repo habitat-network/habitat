@@ -1134,20 +1134,22 @@ func TestCallbackRejectsForgedPDSState(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	flowServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/oauth/authorize":
-			srv.HandleAuthorize(w, r)
-		case "/oauth-callback":
-			// Replace the state the PDS echoed back with a forged value.
-			q := r.URL.Query()
-			q.Set("state", "forged-state-that-never-was-a-request-key")
-			r.URL.RawQuery = q.Encode()
-			srv.HandleCallback(w, r)
-		case "/oauth/token":
-			srv.HandleToken(w, r)
-		}
-	}))
+	flowServer := httptest.NewTLSServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/oauth/authorize":
+				srv.HandleAuthorize(w, r)
+			case "/oauth-callback":
+				// Replace the state the PDS echoed back with a forged value.
+				q := r.URL.Query()
+				q.Set("state", "forged-state-that-never-was-a-request-key")
+				r.URL.RawQuery = q.Encode()
+				srv.HandleCallback(w, r)
+			case "/oauth/token":
+				srv.HandleToken(w, r)
+			}
+		}),
+	)
 	t.Cleanup(flowServer.Close)
 
 	jar, err := cookiejar.New(nil)
@@ -1237,16 +1239,26 @@ func TestOAuthRequestRoundTrip(t *testing.T) {
 	// Build an authorize request as fosite would produce it at PAR time.
 	ar := &fosite.AuthorizeRequest{
 		ResponseTypes: fosite.Arguments{"code"},
-		RedirectURI:   &url.URL{Scheme: "http", Host: clientApp.Listener.Addr().String(), Path: "/callback"},
-		State:         "client-state",
+		RedirectURI: &url.URL{
+			Scheme: "http",
+			Host:   clientApp.Listener.Addr().String(),
+			Path:   "/callback",
+		},
+		State: "client-state",
 		Request: fosite.Request{
-			Client:         client,
-			Session:        &session{Subject: "did:web:alice.test", ClientID: clientID, Scopes: []string{"atproto"}},
+			Client: client,
+			Session: &session{
+				Subject:  "did:web:alice.test",
+				ClientID: clientID,
+				Scopes:   []string{"atproto"},
+			},
 			RequestedScope: fosite.Arguments{"atproto"},
 			GrantedScope:   fosite.Arguments{"atproto"},
 			Form: url.Values{
-				"client_id":             {clientID},
-				"redirect_uri":          {"http://" + clientApp.Listener.Addr().String() + "/callback"},
+				"client_id": {clientID},
+				"redirect_uri": {
+					"http://" + clientApp.Listener.Addr().String() + "/callback",
+				},
 				"response_type":         {"code"},
 				"scope":                 {"atproto"},
 				"state":                 {"client-state"},

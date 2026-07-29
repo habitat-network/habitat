@@ -396,7 +396,7 @@ func (s *store) GetAuthorizeCodeSession(
 	if err != nil {
 		return nil, err
 	}
-	ar.Request.Session = &session{
+	ar.Session = &session{
 		Subject:           r.Subject,
 		ClientID:          r.ClientID,
 		Scopes:            strings.Fields(r.Scopes),
