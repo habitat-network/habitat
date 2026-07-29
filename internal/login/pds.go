@@ -5,19 +5,18 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 )
 
-// pdsProvider logs members in against their ATProto PDS using an OAuth client.
-// Session credentials are persisted by the underlying pdsclient (indigo OAuth
-// client store), so this provider is a thin adapter onto the login.Provider
-// interface.
+// pdsProvider logs members in against their ATProto PDS using an OAuth
+// client. Session credentials are persisted by the client's store, so this
+// provider is a thin adapter onto the login.Provider interface.
 type pdsProvider struct {
-	client pdsclient.PdsOAuthClient
+	app *oauth.ClientApp
 }
 
-func NewPDSProvider(client pdsclient.PdsOAuthClient) Provider {
-	return &pdsProvider{client: client}
+func NewPDSProvider(app *oauth.ClientApp) Provider {
+	return &pdsProvider{app: app}
 }
 
 func (p *pdsProvider) Authorize(
@@ -32,7 +31,7 @@ func (p *pdsProvider) Authorize(
 		return "", nil, fmt.Errorf("atproto login requires a handle")
 	}
 
-	redirect, err := p.client.Authorize(ctx, loginHint)
+	redirect, err := p.app.StartAuthFlow(ctx, loginHint)
 	if err != nil {
 		return "", nil, fmt.Errorf("start auth flow: %w", err)
 	}
@@ -46,14 +45,9 @@ func (p *pdsProvider) Exchange(
 	query url.Values,
 	_ []byte,
 ) (loginID string, err error) {
-	did, err := p.client.ExchangeCode(
-		ctx,
-		query.Get("code"),
-		query.Get("iss"),
-		query.Get("state"),
-	)
+	sess, err := p.app.ProcessCallback(ctx, query)
 	if err != nil {
 		return "", fmt.Errorf("exchange code: %w", err)
 	}
-	return did.String(), nil
+	return sess.AccountDID.String(), nil
 }

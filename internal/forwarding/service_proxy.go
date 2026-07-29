@@ -16,8 +16,8 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 )
 
 // hopByHopHeaders are stripped before forwarding per the HTTP/1.1 spec.
@@ -30,11 +30,11 @@ var hopByHopHeaders = []string{
 // session and forwards the request to the specified service using a service
 // auth JWT signed on the caller's behalf.
 type serviceProxy struct {
-	oauth      authn.Method
-	hive       hive.Hive
-	dir        identity.Directory
-	httpClient *http.Client
-	client     pdsclient.PdsOAuthClient
+	oauth         authn.Method
+	hive          hive.Hive
+	dir           identity.Directory
+	httpClient    *http.Client
+	sessionGetter *oauthclient.SessionGetter
 }
 
 // NewServiceProxy constructs a ServiceProxy, which is a MiddlewareFunc and intercepts requests that have atproto-proxy in the headers.
@@ -45,14 +45,14 @@ func NewServiceProxy(
 	oauth authn.Method,
 	hive hive.Hive,
 	dir identity.Directory,
-	client pdsclient.PdsOAuthClient,
+	sessionGetter *oauthclient.SessionGetter,
 ) func(http.Handler) http.Handler /* type of mux.MiddlewareFunc */ {
 	sp := &serviceProxy{
-		oauth:      oauth,
-		hive:       hive,
-		dir:        dir,
-		httpClient: &http.Client{},
-		client:     client,
+		oauth:         oauth,
+		hive:          hive,
+		dir:           dir,
+		httpClient:    &http.Client{},
+		sessionGetter: sessionGetter,
 	}
 
 	// Requests carrying an Atproto-Proxy header on an XRPC path are intercepted and
@@ -233,7 +233,7 @@ func (s *serviceProxy) fetchRemoteServiceAuth(
 		return "", fmt.Errorf("failed to build service auth request: %w", err)
 	}
 	slog.WarnContext(ctx, "fetching remove service auth", "req", req.URL.String())
-	resp, err := s.client.Do(ctx, credInfo.Subject, req)
+	resp, err := s.sessionGetter.Do(ctx, credInfo.Subject, oauthclient.AnySessionID, req)
 	if err != nil {
 		return "", fmt.Errorf("failed to get service auth: %w", err)
 	}

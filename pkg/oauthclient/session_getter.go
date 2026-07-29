@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -100,6 +102,36 @@ func (s *SessionGetter) ResumeSession(
 // second call is a no-op) and safe to race with ctx being done.
 func (s *Session) Close() {
 	s.release()
+}
+
+// Do resumes the session for (did, sessionID) and performs req against it,
+// releasing the session once the call returns. If req.URL has no host, it is
+// resolved against the session's PDS host URL.
+func (s *SessionGetter) Do(
+	ctx context.Context,
+	did syntax.DID,
+	sessionID string,
+	req *http.Request,
+) (*http.Response, error) {
+	session, err := s.ResumeSession(ctx, did, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("resume session: %w", err)
+	}
+	defer session.Close()
+
+	if req.URL.Host == "" {
+		hostURL, err := url.Parse(session.Data.HostURL)
+		if err != nil {
+			return nil, fmt.Errorf("parse host url: %w", err)
+		}
+		req.URL = hostURL.ResolveReference(req.URL)
+	}
+	nsidStr := strings.TrimPrefix(req.URL.Path, "/xrpc/")
+	nsid, err := syntax.ParseNSID(nsidStr)
+	if err != nil {
+		return nil, fmt.Errorf("parse nsid: %w", err)
+	}
+	return session.DoWithAuth(http.DefaultClient, req, nsid)
 }
 
 // authTransport applies the session's OAuth DPoP auth to every request, for

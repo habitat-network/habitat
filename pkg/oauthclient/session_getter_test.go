@@ -87,6 +87,49 @@ func TestSessionGetter_ResumeSession(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
+func TestSessionGetter_Do(t *testing.T) {
+	var gotPath, gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	did := syntax.DID("did:plc:test")
+	sg := newTestSessionGetter(t, did, "sess1", srv.URL)
+
+	req, err := http.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.getRecord", nil)
+	require.NoError(t, err)
+	resp, err := sg.Do(context.Background(), did, "sess1", req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "/xrpc/com.atproto.repo.getRecord", gotPath)
+	require.Contains(t, gotAuth, "DPoP")
+}
+
+func TestSessionGetter_DoNoSession(t *testing.T) {
+	store, err := NewGormStore(testutil.NewDB(t))
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	sg := NewSessionGetter(oauth.NewClientApp(&cfg, store))
+
+	req, err := http.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.getRecord", nil)
+	require.NoError(t, err)
+	resp, err := sg.Do(context.Background(), "did:plc:missing", "sess1", req)
+	require.Error(t, err)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+}
+
 func TestSessionGetter_ResumeSessionNotFound(t *testing.T) {
 	store, err := NewGormStore(testutil.NewDB(t))
 	require.NoError(t, err)

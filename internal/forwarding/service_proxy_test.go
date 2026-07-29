@@ -8,14 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
 
@@ -211,14 +209,11 @@ func TestServiceProxyIntegration_RemoteDID(t *testing.T) {
 		Services: map[string]identity.ServiceEndpoint{"atproto_labeler": {URL: target.URL}},
 	})
 
-	dummyClient := pdsclient.NewDummyOAuthClient(nil, &oauth.ClientMetadata{})
-	dummyClient.PDSURL = pds.URL
-	defer dummyClient.Close()
 	sp := NewServiceProxy(
 		authntest.NewSuccessMethod(calledDID),
 		h,
 		dir,
-		dummyClient,
+		newTestSessionGetter(t, calledDID, pds.URL),
 	)
 
 	w := httptest.NewRecorder()

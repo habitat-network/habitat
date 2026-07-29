@@ -11,8 +11,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"log/slog"
 )
 
@@ -33,7 +33,7 @@ var targetRoutedMethods = map[string]string{
 
 type PDSForwarding struct {
 	oauth           authn.Method
-	client          pdsclient.PdsOAuthClient
+	sessionGetter   *oauthclient.SessionGetter
 	dir             identity.Directory
 	plainHTTPClient *http.Client
 }
@@ -42,12 +42,12 @@ var _ http.Handler = (*PDSForwarding)(nil)
 
 func NewPDSForwarding(
 	oauthServer authn.Method,
-	client pdsclient.PdsOAuthClient,
+	sessionGetter *oauthclient.SessionGetter,
 	dir identity.Directory,
 ) *PDSForwarding {
 	return &PDSForwarding{
 		oauth:           oauthServer,
-		client:          client,
+		sessionGetter:   sessionGetter,
 		dir:             dir,
 		plainHTTPClient: &http.Client{},
 	}
@@ -239,7 +239,7 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 	req.Header.Del("DPoP")
 
 	// Forward the request using the caller's OAuth session against their PDS.
-	resp, err := p.client.Do(r.Context(), credInfo.Subject, req)
+	resp, err := p.sessionGetter.Do(r.Context(), credInfo.Subject, oauthclient.AnySessionID, req)
 	if err != nil {
 		// client.Do only returns an error for transport-level failures (network
 		// errors, signing errors, etc.) — never for PDS auth failures, which come

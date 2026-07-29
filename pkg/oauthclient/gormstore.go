@@ -38,6 +38,12 @@ type gormStore struct {
 
 var _ oauth.ClientAuthStore = (*gormStore)(nil)
 
+// AnySessionID can be passed as the sessionID argument to GetSession,
+// DeleteSession, SessionGetter.ResumeSession, or SessionGetter.Do when the
+// store is configured with WithSingleSessionPerDID, which ignores the
+// argument and resolves whichever session is currently stored for the DID.
+const AnySessionID = ""
+
 // Option configures a gormStore created by NewGormStore.
 type Option func(*gormStore)
 
