@@ -312,8 +312,8 @@ importers:
         specifier: ^5.1.9
         version: 5.1.9
       '@libp2p/ping':
-        specifier: 2.0.37
-        version: 2.0.37
+        specifier: 3.1.10
+        version: 3.1.10
       '@libp2p/webrtc':
         specifier: ^5.2.24
         version: 5.2.24(react-native@0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.8))
@@ -3202,8 +3202,8 @@ packages:
   '@libp2p/peer-store@11.2.7':
     resolution: {integrity: sha512-dwTM+0i7mAgAnZvMHghgGcFoWPGaTbKx2nBueMd2Yg38mCs9WeambmR6gQdjwvYpybvNgFDAA+XesCKCotuczg==}
 
-  '@libp2p/ping@2.0.37':
-    resolution: {integrity: sha512-SvCYM/tHvK3LQzCEa4eflQmrHEL5EAPWPxbIclqJ6SA0mi7jW3xO21AIsHkQDxfFVevIRWKaKoLj6MAythrNcg==}
+  '@libp2p/ping@3.1.10':
+    resolution: {integrity: sha512-f6Pbz13PMuXhYgz2nhesidqWRYAvXAMuCgLHoRic0DAqxtyAu6VzKWA4BWeT/yoKObYRZ2yvsgqApFN3gknKYw==}
 
   '@libp2p/pubsub@10.1.18':
     resolution: {integrity: sha512-Bxa0cwkaQvadyJNlJlzH0m1eo7m03G2nCpuKbcv+i0qNbyyTOydBcuoslG/UWFYhRBB9Js9R6zNIsaIgpo+iGw==}
@@ -15117,15 +15117,14 @@ snapshots:
       uint8arraylist: 2.4.9
       uint8arrays: 5.1.1
 
-  '@libp2p/ping@2.0.37':
+  '@libp2p/ping@3.1.10':
     dependencies:
-      '@libp2p/crypto': 5.1.21
-      '@libp2p/interface': 2.11.0
-      '@libp2p/interface-internal': 2.3.19
-      '@multiformats/multiaddr': 12.5.1
-      it-byte-stream: 2.0.6
-      main-event: 1.0.4
-      uint8arrays: 5.1.1
+      '@libp2p/interface': 3.2.5
+      '@libp2p/interface-internal': 3.1.10
+      p-event: 7.1.0
+      race-signal: 2.0.0
+      uint8arraylist: 3.0.2
+      uint8arrays: 6.1.1
 
   '@libp2p/pubsub@10.1.18':
     dependencies:
