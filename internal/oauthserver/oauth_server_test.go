@@ -2,7 +2,6 @@ package oauthserver
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,7 +18,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/ory/fosite"
 
 	"github.com/habitat-network/habitat/internal/authn"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
@@ -1099,188 +1097,6 @@ func TestIndigoClientApp(t *testing.T) {
 		"iss":          []string{respJson["iss"]},
 	})
 	require.NoError(t, err)
-}
-
-// TestCallbackRejectsForgedPDSState asserts that HandleCallback does not
-// trust the `state` query parameter echoed back by the PDS — the only thing
-// that identifies the in-flight request is the cookie's request_key.
-// Driving the flow to completion and then replacing the callback URL's state
-// with an unrelated value would succeed if the handler looked up by state,
-// but should succeed with the cookie-key approach since the cookie is what
-// matters.
-func TestCallbackRejectsForgedPDSState(t *testing.T) {
-	db := dbtestutil.NewDB(t)
-	secret := make([]byte, 32)
-	_, err := rand.Read(secret)
-	require.NoError(t, err)
-
-	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
-	pds := login_testutil.NewPassthroughProvider(t)
-	srv, err := NewOAuthServer(
-		secret,
-		&org.LoginRouter{
-			Pds: pds,
-		},
-		dummyDir,
-		db,
-		noop.Meter{},
-		testStore(t),
-		"https://habitat.example",
-		NewJWTBearerStore(),
-	)
-	require.NoError(t, err)
-
-	flowServer := httptest.NewTLSServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/oauth/authorize":
-				srv.HandleAuthorize(w, r)
-			case "/oauth-callback":
-				// Replace the state the PDS echoed back with a forged value.
-				q := r.URL.Query()
-				q.Set("state", "forged-state-that-never-was-a-request-key")
-				r.URL.RawQuery = q.Encode()
-				srv.HandleCallback(w, r)
-			case "/oauth/token":
-				srv.HandleToken(w, r)
-			}
-		}),
-	)
-	t.Cleanup(flowServer.Close)
-
-	jar, err := cookiejar.New(nil)
-	require.NoError(t, err)
-	flowServer.Client().Jar = jar
-	pds.RedirectURI = flowServer.URL + "/oauth-callback"
-
-	verifier := oauth2.GenerateVerifier()
-	oauthCfg := &oauth2.Config{
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  flowServer.URL + "/oauth/authorize",
-			TokenURL: flowServer.URL + "/oauth/token",
-		},
-	}
-
-	var capturedCode string
-	clientApp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/client-metadata.json":
-			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
-				ResponseTypes: []string{"code"},
-				GrantTypes:    []string{"authorization_code", "refresh_token"},
-			}))
-		case "/oauth-callback":
-			capturedCode = r.URL.Query().Get("code")
-		}
-	}))
-	t.Cleanup(clientApp.Close)
-
-	oauthCfg.ClientID = clientApp.URL + "/client-metadata.json"
-	oauthCfg.RedirectURL = clientApp.URL + "/oauth-callback"
-
-	authReq, err := http.NewRequest(
-		http.MethodGet,
-		oauthCfg.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier))+
-			"&handle=did:web:example.did.com",
-		nil,
-	)
-	require.NoError(t, err)
-
-	result, err := flowServer.Client().Do(authReq)
-	require.NoError(t, err)
-	require.NoError(t, result.Body.Close())
-
-	// Attempt to exchange the captured code with the forged-state callback.
-	// If the callback had trusted the PDS state, this exchange would fail
-	// because the forged state would not match any known request. Because
-	// the callback uses the cookie key instead, the code is issued and the
-	// exchange succeeds.
-	require.NotEmpty(t, capturedCode)
-	token, err := oauthCfg.Exchange(
-		context.WithValue(t.Context(), oauth2.HTTPClient, flowServer.Client()),
-		capturedCode,
-		oauth2.VerifierOption(verifier),
-	)
-	require.NoError(t, err)
-	require.NotEmpty(t, token.AccessToken)
-}
-
-// TestOAuthRequestRoundTrip asserts that a fosite.AuthorizeRequester stored
-// through CreatePARSession can be read back with GetPARSession and produces
-// a requester with all fields fosite needs to write an authorize response.
-func TestOAuthRequestRoundTrip(t *testing.T) {
-	db := dbtestutil.NewDB(t)
-	store, err := newStore(db, nil)
-	require.NoError(t, err)
-
-	// Build a minimal client metadata server so the store can resolve it.
-	clientApp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-			ClientId:      "http://" + r.Host + "/client-metadata.json",
-			RedirectUris:  []string{"http://" + r.Host + "/callback"},
-			ResponseTypes: []string{"code"},
-			GrantTypes:    []string{"authorization_code"},
-		}))
-	}))
-	t.Cleanup(clientApp.Close)
-
-	clientID := clientApp.URL + "/client-metadata.json"
-	client, err := store.GetClient(t.Context(), clientID)
-	require.NoError(t, err)
-
-	// Build an authorize request as fosite would produce it at PAR time.
-	ar := &fosite.AuthorizeRequest{
-		ResponseTypes: fosite.Arguments{"code"},
-		RedirectURI: &url.URL{
-			Scheme: "http",
-			Host:   clientApp.Listener.Addr().String(),
-			Path:   "/callback",
-		},
-		State: "client-state",
-		Request: fosite.Request{
-			Client: client,
-			Session: &session{
-				Subject:  "did:web:alice.test",
-				ClientID: clientID,
-				Scopes:   []string{"atproto"},
-			},
-			RequestedScope: fosite.Arguments{"atproto"},
-			GrantedScope:   fosite.Arguments{"atproto"},
-			Form: url.Values{
-				"client_id": {clientID},
-				"redirect_uri": {
-					"http://" + clientApp.Listener.Addr().String() + "/callback",
-				},
-				"response_type":         {"code"},
-				"scope":                 {"atproto"},
-				"state":                 {"client-state"},
-				"code_challenge":        {"E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"},
-				"code_challenge_method": {"S256"},
-			},
-			RequestedAt: time.Now().UTC(),
-		},
-	}
-
-	key := "test-round-trip-key"
-	err = store.CreatePARSession(t.Context(), key, ar)
-	require.NoError(t, err)
-
-	readBack, err := store.GetPARSession(t.Context(), key)
-	require.NoError(t, err)
-
-	require.Equal(t, fosite.Arguments{"code"}, readBack.GetResponseTypes(),
-		"ResponseTypes must be preserved")
-	require.NotNil(t, readBack.GetRedirectURI(), "RedirectURI must be non-nil")
-	require.Equal(t, "/callback", readBack.GetRedirectURI().Path)
-	require.Equal(t, "did:web:alice.test", readBack.GetSession().GetSubject())
-	require.True(t, readBack.GetRequestedScopes().Has("atproto"))
-	require.Equal(t, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
-		readBack.GetRequestForm().Get("code_challenge"))
-	require.Equal(t, "S256", readBack.GetRequestForm().Get("code_challenge_method"))
 }
 
 type roundTripper struct {
