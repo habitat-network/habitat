@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/ory/fosite"
@@ -209,6 +210,22 @@ func (s *store) GetPARSession(
 // DeletePARSession implements fosite.PARStorage.
 func (s *store) DeletePARSession(ctx context.Context, requestURI string) error {
 	return s.db.WithContext(ctx).Delete(&OAuthRequest{}, "key = ?", requestURI).Error
+}
+
+// CreateAuthorizeFlowSession persists an authorization request that is waiting
+// on the user — either at the disambiguation page or at their PDS — under an
+// opaque key held in the caller's cookie. A zero did means the user is not yet
+// resolved. Save (not Create) so the same key can be re-stored once it is.
+func (s *store) CreateAuthorizeFlowSession(
+	ctx context.Context,
+	key string,
+	requester fosite.AuthorizeRequester,
+	did syntax.DID,
+) error {
+	var r OAuthRequest
+	r.fromRequester(key, requester, time.Now().Add(parSessionTTL))
+	r.Subject = did.String()
+	return s.db.WithContext(ctx).Save(&r).Error
 }
 
 // ClientAssertionJWTValid implements fosite.Storage. Client assertion JWTs are
