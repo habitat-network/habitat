@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"gorm.io/gorm"
 )
 
@@ -25,7 +26,9 @@ type PdsOAuthClient interface {
 }
 
 type pdsClientImpl struct {
-	app *oauth.ClientApp
+	app             *oauth.ClientApp
+	sessionGetter   *oauthclient.SessionGetter
+	currentSessions *currentSessionStore
 }
 
 func NewClient(
@@ -52,14 +55,22 @@ func NewClient(
 		return nil, fmt.Errorf("set client secret: %w", err)
 	}
 
-	store, err := NewOAuthStore(db, clientSecret)
+	store, err := oauthclient.NewGormStore(db)
 	if err != nil {
 		return nil, fmt.Errorf("new oauth store: %w", err)
+	}
+	currentSessions, err := newCurrentSessionStore(db)
+	if err != nil {
+		return nil, err
 	}
 
 	app := oauth.NewClientApp(&config, store)
 
-	return &pdsClientImpl{app: app}, nil
+	return &pdsClientImpl{
+		app:             app,
+		sessionGetter:   oauthclient.NewSessionGetter(app),
+		currentSessions: currentSessions,
+	}, nil
 }
 
 // Authorize implements [PdsOAuthClient].
@@ -84,10 +95,15 @@ func (p *pdsClientImpl) Do(
 	did syntax.DID,
 	req *http.Request,
 ) (*http.Response, error) {
-	session, err := p.app.ResumeSession(ctx, did, DefaultSessionID)
+	sessionID, err := p.currentSessions.Get(ctx, did)
+	if err != nil {
+		return nil, err
+	}
+	session, err := p.sessionGetter.ResumeSession(ctx, did, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("resume session: %w", err)
 	}
+	defer session.Close()
 	if req.URL.Host == "" {
 		hostURL, err := url.Parse(session.Data.HostURL)
 		if err != nil {
@@ -118,6 +134,9 @@ func (p *pdsClientImpl) ExchangeCode(
 	sess, err := p.app.ProcessCallback(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("process callback: %w", err)
+	}
+	if err := p.currentSessions.Set(ctx, sess.AccountDID, sess.SessionID); err != nil {
+		return "", fmt.Errorf("save current session: %w", err)
 	}
 	return sess.AccountDID, nil
 }

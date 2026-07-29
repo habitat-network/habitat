@@ -42,6 +42,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
@@ -94,20 +95,20 @@ func NewSap(config SapConfig) (*Sap, error) {
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
 
-	sesssionGetter := newSessionGetter(config.OAuthClient)
+	sessionGetter := oauthclient.NewSessionGetter(config.OAuthClient)
 
 	resyncBuf := newResyncBuffer(config.DB, resyncNotif, outboxNotif)
-	sub := newSubscriber(config.DB, sesssionGetter, resyncBuf, m)
+	sub := newSubscriber(config.DB, sessionGetter, resyncBuf, m)
 	resyncer := newResyncer(
 		config.DB,
-		sesssionGetter,
+		sessionGetter,
 		resyncBuf,
 		resyncNotif,
 		outboxNotif,
 		config.ResyncParallelism,
 		m,
 	)
-	crawler := newCrawler(config.DB, sesssionGetter, resyncBuf, sub, resyncNotif, m)
+	crawler := newCrawler(config.DB, sessionGetter, resyncBuf, sub, resyncNotif, m)
 	outbox := newOutbox(config.DB, outboxNotif)
 	orgManager := newOrgManager(config.DB)
 

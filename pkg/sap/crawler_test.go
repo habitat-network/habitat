@@ -68,7 +68,7 @@ func TestCrawler(t *testing.T) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := newSessionGetter(oauth.NewClientApp(&cfg, store))
+	oauthApp := oauthclient.NewSessionGetter(oauth.NewClientApp(&cfg, store))
 
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	sub := newSubscriber(db, oauthApp, resyncBuf, newTestMetrics(t))
@@ -161,7 +161,7 @@ func TestCrawler_Error(t *testing.T) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := newSessionGetter(oauth.NewClientApp(&cfg, store))
+	oauthApp := oauthclient.NewSessionGetter(oauth.NewClientApp(&cfg, store))
 
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	sub := newSubscriber(db, oauthApp, resyncBuf, newTestMetrics(t))

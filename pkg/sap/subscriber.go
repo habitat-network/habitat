@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/r3labs/sse/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -26,7 +27,7 @@ var _ db.Store[*subscriber] = (*subscriber)(nil)
 
 type subscriber struct {
 	db          *gorm.DB
-	oauthClient *sessionGetter
+	oauthClient *oauthclient.SessionGetter
 	resyncBuf   *resyncBuffer
 	metrics     *metrics
 
@@ -46,7 +47,7 @@ func (s *subscriber) WithTx(tx *gorm.DB) *subscriber {
 
 func newSubscriber(
 	db *gorm.DB,
-	oauthClient *sessionGetter,
+	oauthClient *oauthclient.SessionGetter,
 	resyncBuf *resyncBuffer,
 	metrics *metrics,
 ) *subscriber {
@@ -78,7 +79,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	}
 	subscribeNSID := syntax.NSID("network.habitat.sync.subscribeSpaces")
 	client := sse.NewClient(session.Data.HostURL + "/xrpc/" + subscribeNSID.String())
-	client.Connection = session.authClient(subscribeNSID)
+	client.Connection = session.AuthClient(subscribeNSID)
 	client.LastEventID.Store([]byte(org.SubscribeCursor))
 	lastGoodCursor := []byte(org.SubscribeCursor)
 	subscribeCtx, cancel := context.WithCancel(ctx)

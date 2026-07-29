@@ -9,19 +9,13 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-func newTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	return db
-}
 
 func newTestClient(t *testing.T, db *gorm.DB, secret string) PdsOAuthClient {
 	t.Helper()
@@ -40,7 +34,7 @@ func TestNewClient(t *testing.T) {
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 
-	client := newTestClient(t, newTestDB(t), secret)
+	client := newTestClient(t, testutil.NewDB(t), secret)
 	require.NotNil(t, client)
 
 	meta := client.ClientMetadata()
@@ -53,7 +47,7 @@ func TestNewClient(t *testing.T) {
 
 func TestNewClientInvalidSecret(t *testing.T) {
 	_, err := NewClient(
-		newTestDB(t),
+		testutil.NewDB(t),
 		"https://app.example.com/client-metadata.json",
 		"https://app.example.com",
 		"https://app.example.com/oauth-callback",
@@ -65,7 +59,7 @@ func TestNewClientInvalidSecret(t *testing.T) {
 func TestAuthorizeInvalidIdentifier(t *testing.T) {
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
-	client := newTestClient(t, newTestDB(t), secret)
+	client := newTestClient(t, testutil.NewDB(t), secret)
 
 	_, err = client.Authorize(context.Background(), "not a valid handle!!!")
 	require.Error(t, err)
@@ -74,17 +68,17 @@ func TestAuthorizeInvalidIdentifier(t *testing.T) {
 func TestExchangeCodeMissingState(t *testing.T) {
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
-	client := newTestClient(t, newTestDB(t), secret)
+	client := newTestClient(t, testutil.NewDB(t), secret)
 
 	// No pending auth request matches an empty state, so the callback fails.
 	_, err = client.ExchangeCode(context.Background(), "code", "https://pds.example.com", "")
 	require.Error(t, err)
 }
 
-func TestDoNoSession(t *testing.T) {
+func TestDoNoCurrentSession(t *testing.T) {
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
-	client := newTestClient(t, newTestDB(t), secret)
+	client := newTestClient(t, testutil.NewDB(t), secret)
 
 	req, err := http.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.getRecord", nil)
 	require.NoError(t, err)
@@ -96,15 +90,16 @@ func TestDoNoSession(t *testing.T) {
 }
 
 func TestDo(t *testing.T) {
-	db := newTestDB(t)
+	db := testutil.NewDB(t)
 	secretStr, err := encrypt.GenerateKey()
 	require.NoError(t, err)
-	secret, err := encrypt.ParseKey(secretStr)
-	require.NoError(t, err)
 
-	// Seed a session for the account so ResumeSession succeeds. The store shares
-	// the db and encryption key with the client created below.
-	store, err := NewOAuthStore(db, secret)
+	// Seed a session and mark it as the current one for the account, mirroring
+	// what ExchangeCode does on a real callback. The store and pointer table
+	// share the db with the client created below.
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	currentSessions, err := newCurrentSessionStore(db)
 	require.NoError(t, err)
 	dpopKey, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
@@ -121,11 +116,12 @@ func TestDo(t *testing.T) {
 	did := syntax.DID("did:web:example.com")
 	require.NoError(t, store.SaveSession(context.Background(), oauth.ClientSessionData{
 		AccountDID:              did,
-		SessionID:               DefaultSessionID,
+		SessionID:               "sess1",
 		HostURL:                 srv.URL,
 		AccessToken:             "dummy-access-token",
 		DPoPPrivateKeyMultibase: dpopKey.Multibase(),
 	}))
+	require.NoError(t, currentSessions.Set(context.Background(), did, "sess1"))
 
 	client := newTestClient(t, db, secretStr)
 	req, err := http.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.getRecord", nil)
