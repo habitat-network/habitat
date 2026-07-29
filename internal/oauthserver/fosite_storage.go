@@ -53,10 +53,7 @@ type OAuthRequest struct {
 // from. The redirect URI is parsed rather than left in the form because
 // WriteAuthorizeResponse reads the struct field, not the form.
 func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) (*fosite.AuthorizeRequest, error) {
-	scopes := fosite.Arguments{}
-	if r.Scopes != "" {
-		scopes = strings.Split(r.Scopes, " ")
-	}
+	scopes := fosite.Arguments(strings.Fields(r.Scopes))
 	form := url.Values{}
 	setIfNotEmpty := func(k, v string) {
 		if v != "" {
@@ -86,8 +83,11 @@ func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) (*fosite.Authori
 		RedirectURI:          redirectURI,
 		State:                r.State,
 		Request: fosite.Request{
-			Client:         client,
-			Session:        &session{Subject: r.Subject, ClientID: r.ClientID, Scopes: scopes},
+			Client:  client,
+			Session: &session{Subject: r.Subject, ClientID: r.ClientID, Scopes: scopes},
+			// The row records the scopes the user authorized. Mark them granted
+			// (not just requested) so fosite echoes them in the token response;
+			// atproto clients reject a token response with an empty scope.
 			RequestedScope: scopes,
 			GrantedScope:   scopes,
 			Form:           form,
@@ -151,6 +151,7 @@ func newStore(
 	if err != nil {
 		return nil, err
 	}
+	// TODO: we need to add a goroutine here that cleans up expired sessions
 	return &store{
 		db:                       db,
 		approvedJwtBearerClients: approvedJwtBearerClients,
@@ -367,6 +368,9 @@ func (s *store) GetAuthorizeCodeSession(
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
+	if time.Now().After(r.ExpiresAt) {
+		return nil, fosite.ErrNotFound
+	}
 	client, err := s.GetClient(ctx, r.ClientID)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
@@ -375,9 +379,6 @@ func (s *store) GetAuthorizeCodeSession(
 	if err != nil {
 		return nil, err
 	}
-	// The stateless code carries the scopes granted at authorize time. Mark
-	// them granted (not just requested) so fosite echoes them in the token
-	// response; atproto clients reject a token response with an empty scope.
 	ar.Request.Session = &session{
 		Subject:           r.Subject,
 		ClientID:          r.ClientID,
@@ -393,37 +394,46 @@ func (s *store) InvalidateAuthorizeCodeSession(ctx context.Context, signature st
 	return s.db.WithContext(ctx).Delete(&OAuthRequest{}, "key = ?", signature).Error
 }
 
-// CreatePKCERequestSession implements pkce.PKCERequestStorage. PKCE data is
-// stored as part of the authorize code session row, so there is nothing extra
-// to persist here.
+// CreatePKCERequestSession implements pkce.PKCERequestStorage. It writes the
+// challenge onto the authorize code's row: this is the only point in the flow
+// where fosite hands us the challenge un-sanitized.
 func (s *store) CreatePKCERequestSession(
 	ctx context.Context,
 	signature string,
 	requester fosite.Requester,
 ) error {
-	return nil
+	form := requester.GetRequestForm()
+	return s.db.WithContext(ctx).Model(&OAuthRequest{}).
+		Where("key = ?", signature).
+		Updates(map[string]any{
+			"code_challenge":        form.Get("code_challenge"),
+			"code_challenge_method": form.Get("code_challenge_method"),
+		}).Error
 }
 
-// DeletePKCERequestSession implements pkce.PKCERequestStorage. Deleting the
-// authorize code session (InvalidateAuthorizeCodeSession) covers this row.
+// DeletePKCERequestSession implements pkce.PKCERequestStorage. The challenge
+// lives on the authorize code's row, which InvalidateAuthorizeCodeSession
+// already deletes.
 func (s *store) DeletePKCERequestSession(ctx context.Context, signature string) error {
 	return nil
 }
 
-// GetPKCERequestSession implements pkce.PKCERequestStorage.
+// GetPKCERequestSession implements pkce.PKCERequestStorage. The client is
+// populated because pkce.validateNoPKCE calls IsPublic() on it.
 func (s *store) GetPKCERequestSession(
 	ctx context.Context,
 	signature string,
 	_ fosite.Session,
 ) (fosite.Requester, error) {
 	var r OAuthRequest
-	err := s.db.WithContext(ctx).First(&r, "key = ?", signature).Error
+	if err := s.db.WithContext(ctx).First(&r, "key = ?", signature).Error; err != nil {
+		return nil, errors.Join(fosite.ErrNotFound, err)
+	}
+	client, err := s.GetClient(ctx, r.ClientID)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
-	return &fosite.Request{
-		Form: r.pkceForm(),
-	}, nil
+	return &fosite.Request{Client: client, Form: r.pkceForm()}, nil
 }
 
 // CreateAccessTokenSession implements oauth2.CoreStorage.
