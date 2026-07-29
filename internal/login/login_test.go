@@ -2,85 +2,72 @@ package login
 
 import (
 	"context"
-	"encoding/json"
-	"net/url"
+	"net/http"
 	"testing"
 
-	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	oauthtestutil "github.com/habitat-network/habitat/pkg/oauthclient/testutil"
 	"github.com/stretchr/testify/require"
 )
 
 // --- pdsProvider ---
 
+// newTestApp builds an *oauth.ClientApp wired to a FakePDS at
+// "https://pds.example.com", so StartAuthFlow/ProcessCallback can run a real
+// round trip against it.
+func newTestApp(t *testing.T) (*oauth.ClientApp, *oauthtestutil.FakePDS) {
+	t.Helper()
+	cfg := oauth.NewPublicConfig(
+		"https://app.example.com/client-metadata.json",
+		"https://app.example.com/oauth-callback",
+		[]string{"atproto", "transition:generic"},
+	)
+	app := oauth.NewClientApp(&cfg, oauth.NewMemStore())
+	fakePDS := oauthtestutil.NewFakePDS(t, "https://pds.example.com")
+	fakePDS.Configure(app)
+	return app, fakePDS
+}
+
 func TestPDSProvider_Authorize(t *testing.T) {
-	credStore, err := pdscred.NewPDSCredentialStore(testutil.NewDB(t), encrypt.TestKey)
-	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{
-		RedirectUris: []string{"https://pds.example.com/authorize"},
-	}
-	client := pdsclient.NewDummyOAuthClient(t, clientMetadata)
-	defer client.Close()
-	p := NewPDSProvider(
-		client,
-		credStore,
-		pdsclient.NewDummyDirectory("https://pds.example.com"),
-	)
+	app, _ := newTestApp(t)
+	p := NewPDSProvider(app)
 
-	redirect, state, err := p.Authorize(
+	redirect, _, err := p.Authorize(
 		context.Background(),
-		"did:web:pds.example.com",
+		oauthtestutil.FakeDID.String(),
 	)
 	require.NoError(t, err)
-	require.Contains(t, redirect, "/authorize")
-	require.NotEmpty(t, state)
+	require.Contains(t, redirect, "/oauth/authorize")
+}
 
-	// state must round-trip through Exchange — verify it's valid JSON with expected fields
-	var s pdsProviderState
-	require.NoError(t, unmarshalProviderState(state, &s))
-	require.NotEmpty(t, s.DpopKey)
-	require.Equal(t, "dummyVerifier", s.AuthorizeState.Verifier)
+func TestPDSProvider_Authorize_EmptyHint(t *testing.T) {
+	p := NewPDSProvider(nil)
+
+	_, _, err := p.Authorize(context.Background(), "")
+	require.Error(t, err)
 }
 
 func TestPDSProvider_Exchange(t *testing.T) {
-	credStore, err := pdscred.NewPDSCredentialStore(testutil.NewDB(t), encrypt.TestKey)
+	app, _ := newTestApp(t)
+	p := NewPDSProvider(app)
+
+	redirect, _, err := p.Authorize(context.Background(), oauthtestutil.FakeDID.String())
 	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{
-		RedirectUris: []string{"https://pds.example.com/authorize"},
+
+	// Follow the auth server's redirect (simulating user approval) to obtain
+	// the callback query params, without following it all the way to our
+	// (nonexistent, in this test) callback handler.
+	app.Client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
-	client := pdsclient.NewDummyOAuthClient(t, clientMetadata)
-	defer client.Close()
-	p := NewPDSProvider(
-		client,
-		credStore,
-		pdsclient.NewDummyDirectory("https://pds.example.com"),
-	)
-
-	// Obtain valid state from Authorize.
-	_, state, err := p.Authorize(
-		t.Context(),
-		"did:web:pds.example.com",
-	)
+	resp, err := app.Client.Get(redirect)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+	loc, err := resp.Location()
 	require.NoError(t, err)
 
-	loginID, err := p.Exchange(
-		t.Context(),
-		url.Values{"code": {"dummyCode"}, "iss": {"https://pds.example.com"}},
-		state,
-	)
+	loginID, err := p.Exchange(t.Context(), loc.Query(), nil)
 	require.NoError(t, err)
-	// from dummy oauth client
-	require.Equal(t, "did:web:example.did.com", loginID)
-
-	creds, err := credStore.GetCredentials(t.Context(), "did:web:example.did.com")
-	require.NoError(t, err)
-	require.Equal(t, "dummy_refresh_token", creds.RefreshToken)
-	require.NotNil(t, creds.DpopKey)
-}
-
-// unmarshalProviderState is a test helper to inspect the opaque pds state bytes.
-func unmarshalProviderState(b []byte, s *pdsProviderState) error {
-	return json.Unmarshal(b, s)
+	require.Equal(t, oauthtestutil.FakeDID.String(), loginID)
 }

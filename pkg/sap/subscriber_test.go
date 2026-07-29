@@ -208,7 +208,7 @@ func setupSubscriber(
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := newSessionGetter(oauth.NewClientApp(&cfg, store))
+	oauthApp := oauthclient.NewSessionGetter(oauth.NewClientApp(&cfg, store))
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:              "did:plc:testorg",
 		SessionID:               "sess1",

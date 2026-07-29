@@ -215,9 +215,9 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				}))
@@ -334,9 +334,9 @@ func TestOAuthServerE2E(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				err := json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				err := json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				})
@@ -538,9 +538,9 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				err := json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				err := json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				})
@@ -664,9 +664,9 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 					Scope:         "org:*",
@@ -767,9 +767,9 @@ func acquireAccessToken(
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))
@@ -1194,9 +1194,9 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))

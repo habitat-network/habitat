@@ -22,6 +22,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/handlers"
@@ -47,8 +48,6 @@ import (
 
 	"github.com/habitat-network/habitat/internal/log"
 	"github.com/habitat-network/habitat/internal/p2p"
-	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/relationship"
@@ -57,6 +56,7 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/webui"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/urfave/cli/v3"
 
 	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
@@ -144,11 +144,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("load PDS encryption key: %w", err)
 	}
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(db.WithContext(startupCtx), credKey)
-	if err != nil {
-		return fmt.Errorf("setup pds cred store: %w", err)
-	}
-
 	domain := cmd.String(fDomain)
 	var clientUri string
 	if cmd.String(fPdsOauthClientUri) != "" {
@@ -157,16 +152,31 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if clientUri == "" {
 		clientUri = "https://" + domain
 	}
-	oauthClient, err := pdsclient.NewPdsOAuthClient(
+	oauthClientConfig := oauth.NewPublicConfig(
 		clientUri+"/client-metadata.json",
-		clientUri,
 		"https://"+domain+"/oauth-callback",
-		cmd.String(fOauthClientSecret),
-		meter,
+		[]string{"atproto", "transition:generic"},
+	)
+	oauthClientSecret, err := encrypt.ParseKey(cmd.String(fOauthClientSecret))
+	if err != nil {
+		return fmt.Errorf("setup oauth client: %w", err)
+	}
+	oauthClientKey, err := atcrypto.ParsePrivateBytesP256(oauthClientSecret)
+	if err != nil {
+		return fmt.Errorf("setup oauth client: %w", err)
+	}
+	if err := oauthClientConfig.SetClientSecret(oauthClientKey, "habitat"); err != nil {
+		return fmt.Errorf("setup oauth client: %w", err)
+	}
+	oauthClientStore, err := oauthclient.NewGormStore(
+		db.WithContext(startupCtx),
+		oauthclient.WithSingleSessionPerDID(),
 	)
 	if err != nil {
 		return fmt.Errorf("setup oauth client: %w", err)
 	}
+	oauthClient := oauth.NewClientApp(&oauthClientConfig, oauthClientStore)
+	sessionGetter := oauthclient.NewSessionGetter(oauthClient)
 
 	mux := mux.NewRouter()
 
@@ -225,15 +235,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// any locally-hosted DID.
 	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
 
-	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
-		pdsCredStore,
-		oauthClient,
-		defaultDir,
-	)
-	if err != nil {
-		return fmt.Errorf("setup PDS client factory: %w", err)
-	}
-
 	passwordProvider, err := login.NewPasswordProvider(
 		db,
 		cmd.String(fDomain),
@@ -256,7 +257,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	loginRouter := &org.LoginRouter{
-		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
+		Pds:      login.NewPDSProvider(oauthClient),
 		Password: passwordProvider,
 		OrgStore: orgStore,
 	}
@@ -295,7 +296,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
-	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir, pdsClientFactory))
+	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir, sessionGetter))
 
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
@@ -393,9 +394,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup p2p server: %w", err)
 	}
 	pdsForwarding := forwarding.NewPDSForwarding(
-		pdsCredStore,
 		oauthServer,
-		pdsClientFactory,
+		sessionGetter,
 		defaultDir,
 	)
 
@@ -448,7 +448,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain, hostPublicKey))
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
-		httpx.WriteJSON(r.Context(), w, oauthClient.ClientMetadata())
+		metadata := oauthClient.Config.ClientMetadata()
+		clientName := "Habitat"
+		metadata.ClientName = &clientName
+		httpx.WriteJSON(r.Context(), w, &metadata)
 	})
 
 	mux.HandleFunc(

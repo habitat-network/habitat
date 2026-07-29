@@ -13,6 +13,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
@@ -21,7 +22,7 @@ import (
 
 type crawler struct {
 	db          *gorm.DB
-	oauthClient *sessionGetter
+	oauthClient *oauthclient.SessionGetter
 	resyncBuf   *resyncBuffer
 	sub         *subscriber
 	resyncNotif *utils.PollNotifier
@@ -30,7 +31,7 @@ type crawler struct {
 
 func newCrawler(
 	db *gorm.DB,
-	oauthClient *sessionGetter,
+	oauthClient *oauthclient.SessionGetter,
 	resyncBuf *resyncBuffer,
 	sub *subscriber,
 	resyncNotif *utils.PollNotifier,
@@ -202,7 +203,7 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 
 func (c *crawler) enumerateSpaceRepos(
 	ctx context.Context,
-	session *session,
+	session *oauthclient.Session,
 	spaceURI string,
 ) error {
 	values := url.Values{"space": []string{spaceURI}}

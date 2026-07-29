@@ -15,6 +15,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
@@ -29,7 +30,7 @@ type resyncJob struct {
 // resyncer schedules resync workers to backfill repos
 type resyncer struct {
 	db          *gorm.DB
-	oauthClient *sessionGetter
+	oauthClient *oauthclient.SessionGetter
 	resyncBuf   *resyncBuffer
 	parallelism int
 	resyncNotif *utils.PollNotifier
@@ -40,7 +41,7 @@ type resyncer struct {
 
 func newResyncer(
 	db *gorm.DB,
-	oauthClient *sessionGetter,
+	oauthClient *oauthclient.SessionGetter,
 	resyncBuf *resyncBuffer,
 	resyncNotif *utils.PollNotifier,
 	outboxNotif *utils.PollNotifier,

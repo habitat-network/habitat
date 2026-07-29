@@ -14,7 +14,6 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
 
@@ -214,7 +213,7 @@ func TestServiceProxyIntegration_RemoteDID(t *testing.T) {
 		authntest.NewSuccessMethod(calledDID),
 		h,
 		dir,
-		pdsclient.NewDummyClientFactory(pds.URL),
+		newTestSessionGetter(t, calledDID, pds.URL),
 	)
 
 	w := httptest.NewRecorder()
