@@ -246,7 +246,11 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	// be known; otherwise fall back to a handle from the disambiguation redirect
 	// or the request form.
 	var did syntax.DID
-	if subject := requester.GetSession().GetSubject(); subject != "" {
+	var subject string
+	if sess := requester.GetSession(); sess != nil {
+		subject = sess.GetSubject()
+	}
+	if subject != "" {
 		did, err = syntax.ParseDID(subject)
 		if err != nil {
 			o.metrics.authorizeErr(ctx, err, "parse_subject")
@@ -406,7 +410,7 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to delete cookie: %w", err))
 		return
 	}
-	if key == "" || len(providerState) == 0 {
+	if key == "" {
 		o.metrics.callbackErr(ctx, nil, "no_cookie_state")
 		httpx.WriteInvalidRequest(ctx, w, "no authorization request in progress", nil)
 		return
