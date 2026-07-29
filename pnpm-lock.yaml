@@ -61,8 +61,8 @@ catalogs:
       specifier: ^19.2.8
       version: 19.2.8
     react-hook-form:
-      specifier: 7.82.0
-      version: 7.82.0
+      specifier: 7.83.0
+      version: 7.83.0
     typescript:
       specifier: ^5.9.3
       version: 5.9.3
@@ -203,7 +203,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.82.0(react@19.2.8)
+        version: 7.83.0(react@19.2.8)
       react-json-view:
         specifier: ^1.21.3
         version: 1.21.3(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -394,7 +394,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.82.0(react@19.2.8)
+        version: 7.83.0(react@19.2.8)
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -543,7 +543,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.82.0(react@19.2.8)
+        version: 7.83.0(react@19.2.8)
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -619,7 +619,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.82.0(react@19.2.8)
+        version: 7.83.0(react@19.2.8)
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -722,7 +722,7 @@ importers:
         version: 9.14.0(react@19.2.8)
       react-hook-form:
         specifier: 'catalog:'
-        version: 7.82.0(react@19.2.8)
+        version: 7.83.0(react@19.2.8)
       shadcn:
         specifier: ^3.8.5
         version: 3.8.5(@types/node@22.20.1)(typescript@5.9.3)
@@ -9607,6 +9607,12 @@ packages:
 
   react-hook-form@7.82.0:
     resolution: {integrity: sha512-Zw/uFZ2dO+02GHlBn7JFGn8kZJ7LdM33B/0BXOovzFay+CMhf94JMw5BVu+F1tVkUKjNvBuaE3fz5BJhga10Tg==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      react: ^16.8.0 || ^17 || ^18 || ^19
+
+  react-hook-form@7.83.0:
+    resolution: {integrity: sha512-AXt8cMCmx5a7u4uvpb2uRFVrWQhllI4pV+LSykxIac/hjt44TnQkmX9BKuQi2i+LDC62esmiLpilkav+kjVf/A==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
@@ -23012,6 +23018,10 @@ snapshots:
   react-fast-compare@3.2.2: {}
 
   react-hook-form@7.82.0(react@19.2.8):
+    dependencies:
+      react: 19.2.8
+
+  react-hook-form@7.83.0(react@19.2.8):
     dependencies:
       react: 19.2.8
 
