@@ -8,21 +8,11 @@ import (
 	"testing"
 
 	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/ory/fosite"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetClient(t *testing.T) {
-	secret, err := encrypt.GenerateKey()
-	require.NoError(t, err)
-	secretBytes, err := encrypt.ParseKey(secret)
-	require.NoError(t, err)
-	strat, err := newStrategy(
-		secretBytes,
-		&fosite.Config{})
-	require.NoError(t, err)
-	store, err := newStore(strat, testutil.NewDB(t), nil)
+	store, err := newStore(testutil.NewDB(t), nil)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

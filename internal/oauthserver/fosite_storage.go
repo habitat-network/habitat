@@ -16,7 +16,6 @@ import (
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
 	"github.com/ory/fosite/handler/rfc7523"
-	"github.com/ory/fosite/storage"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -26,8 +25,6 @@ import (
 var tracer = otel.Tracer("github.com/habitat-network/habitat/internal/oauthserver")
 
 type store struct {
-	memoryStore              *storage.MemoryStore
-	strategy                 *strategy
 	db                       *gorm.DB
 	approvedJwtBearerClients ApprovedClientStore
 }
@@ -147,18 +144,14 @@ type ConnectedApp struct {
 }
 
 func newStore(
-	strat *strategy,
 	db *gorm.DB,
 	approvedJwtBearerClients ApprovedClientStore,
 ) (*store, error) {
-	err := db.AutoMigrate(&OAuthSession{}, &ConnectedApp{})
+	err := db.AutoMigrate(&OAuthRequest{}, &OAuthSession{}, &ConnectedApp{})
 	if err != nil {
 		return nil, err
 	}
-	// TODO: we need to add a goroutine here that cleans up expired sessions
 	return &store{
-		memoryStore:              storage.NewMemoryStore(),
-		strategy:                 strat,
 		db:                       db,
 		approvedJwtBearerClients: approvedJwtBearerClients,
 	}, nil
@@ -173,15 +166,23 @@ var (
 	_ rfc7523.RFC7523KeyStorage     = (*store)(nil)
 )
 
-// CreatePARSession implements fosite.PARStorage. The pushed authorization
-// request context is short-lived and single-use, so it is kept in memory
-// rather than persisted; see the note on the memory store above.
+// parSessionTTL bounds how long an in-flight authorization request — pushed or
+// mid-PDS-redirect — stays resumable.
+const parSessionTTL = 10 * time.Minute
+
+// CreatePARSession implements fosite.PARStorage. It also doubles as the
+// re-store step the authorize flow uses to persist an in-flight request under
+// a fresh key while it bridges the PDS redirect; Save (upsert) rather than
+// Create so re-storing the same key (e.g. once the login hint resolves to a
+// DID) does not hit a duplicate-key error.
 func (s *store) CreatePARSession(
 	ctx context.Context,
 	requestURI string,
 	request fosite.AuthorizeRequester,
 ) error {
-	return s.memoryStore.CreatePARSession(ctx, requestURI, request)
+	var r OAuthRequest
+	r.fromRequester(requestURI, request, time.Now().Add(parSessionTTL))
+	return s.db.WithContext(ctx).Save(&r).Error
 }
 
 // GetPARSession implements fosite.PARStorage.
@@ -189,15 +190,28 @@ func (s *store) GetPARSession(
 	ctx context.Context,
 	requestURI string,
 ) (fosite.AuthorizeRequester, error) {
-	return s.memoryStore.GetPARSession(ctx, requestURI)
+	var r OAuthRequest
+	err := s.db.WithContext(ctx).First(&r, "key = ?", requestURI).Error
+	if err != nil {
+		return nil, errors.Join(fosite.ErrNotFound, err)
+	}
+	if time.Now().After(r.ExpiresAt) {
+		return nil, fosite.ErrNotFound
+	}
+	client, err := s.GetClient(ctx, r.ClientID)
+	if err != nil {
+		return nil, errors.Join(fosite.ErrNotFound, err)
+	}
+	return r.toAuthorizeRequest(client)
 }
 
 // DeletePARSession implements fosite.PARStorage.
 func (s *store) DeletePARSession(ctx context.Context, requestURI string) error {
-	return s.memoryStore.DeletePARSession(ctx, requestURI)
+	return s.db.WithContext(ctx).Delete(&OAuthRequest{}, "key = ?", requestURI).Error
 }
 
-// ClientAssertionJWTValid implements fosite.Storage.
+// ClientAssertionJWTValid implements fosite.Storage. Client assertion JWTs are
+// never checked (see SetClientAssertionJWT), so there is nothing to validate.
 func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
 	return nil
 }
@@ -302,7 +316,8 @@ func (s *store) GetPublicKeyScopes(
 	return cl.GetScopes(), nil
 }
 
-// IsJWTUsed implements rfc7523.RFC7523KeyStorage.
+// IsJWTUsed implements rfc7523.RFC7523KeyStorage. Assertion JTIs are never
+// tracked (see SetClientAssertionJWT), so none are ever considered used.
 func (s *store) IsJWTUsed(ctx context.Context, jti string) (bool, error) {
 	return false, nil
 }
@@ -312,19 +327,29 @@ func (s *store) MarkJWTUsedForTime(ctx context.Context, jti string, exp time.Tim
 	return nil
 }
 
-// SetClientAssertionJWT implements fosite.Storage.
+// SetClientAssertionJWT implements fosite.Storage. Client assertion JWTs are
+// never checked by this server (see ClientAssertionJWTValid), so tracking
+// them is unnecessary.
 func (s *store) SetClientAssertionJWT(ctx context.Context, jti string, exp time.Time) error {
-	return s.memoryStore.SetClientAssertionJWT(ctx, jti, exp)
+	return nil
 }
 
 // CreateAuthorizeCodeSession implements oauth2.CoreStorage.
 func (s *store) CreateAuthorizeCodeSession(
 	ctx context.Context,
-	code string,
-	request fosite.Requester,
+	signature string,
+	requester fosite.Requester,
 ) (err error) {
-	// Session data is encrypted in the code itself by the strategy
-	return nil
+	var r OAuthRequest
+	// Authorize code sessions expire based on fosite config (typically 10-15 min).
+	exp := time.Now().Add(15 * time.Minute)
+	if sess := requester.GetSession(); sess != nil {
+		if t := sess.GetExpiresAt(fosite.AuthorizeCode); !t.IsZero() {
+			exp = t
+		}
+	}
+	r.fromRequester(signature, requester, exp)
+	return s.db.WithContext(ctx).Create(&r).Error
 }
 
 // GetAuthorizeCodeSession implements oauth2.CoreStorage.
@@ -337,32 +362,40 @@ func (s *store) GetAuthorizeCodeSession(
 	defer span.End()
 	span.SetAttributes(attribute.String("auth_signature", signature))
 
-	data, err := decodeSession(signature, s.strategy.encryptionKey)
+	var r OAuthRequest
+	err = s.db.WithContext(ctx).First(&r, "key = ?", signature).Error
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
-	client, err := s.GetClient(ctx, data.ClientID)
+	client, err := s.GetClient(ctx, r.ClientID)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
-	return &fosite.Request{
-		Client:  client,
-		Session: data,
-		// The stateless code carries the scopes granted at authorize time. Mark
-		// them granted (not just requested) so fosite echoes them in the token
-		// response; atproto clients reject a token response with an empty scope.
-		RequestedScope: data.Scopes,
-		GrantedScope:   data.Scopes,
-	}, nil
+	ar, err := r.toAuthorizeRequest(client)
+	if err != nil {
+		return nil, err
+	}
+	// The stateless code carries the scopes granted at authorize time. Mark
+	// them granted (not just requested) so fosite echoes them in the token
+	// response; atproto clients reject a token response with an empty scope.
+	ar.Request.Session = &session{
+		Subject:           r.Subject,
+		ClientID:          r.ClientID,
+		Scopes:            strings.Fields(r.Scopes),
+		PKCEChallenge:     r.CodeChallenge,
+		AuthCodeExpiresAt: r.ExpiresAt,
+	}
+	return &ar.Request, nil
 }
 
 // InvalidateAuthorizeCodeSession implements oauth2.CoreStorage.
-func (s *store) InvalidateAuthorizeCodeSession(ctx context.Context, code string) (err error) {
-	// Stateless - code is self-contained and single-use
-	return nil
+func (s *store) InvalidateAuthorizeCodeSession(ctx context.Context, signature string) (err error) {
+	return s.db.WithContext(ctx).Delete(&OAuthRequest{}, "key = ?", signature).Error
 }
 
-// CreatePKCERequestSession implements pkce.PKCERequestStorage.
+// CreatePKCERequestSession implements pkce.PKCERequestStorage. PKCE data is
+// stored as part of the authorize code session row, so there is nothing extra
+// to persist here.
 func (s *store) CreatePKCERequestSession(
 	ctx context.Context,
 	signature string,
@@ -371,7 +404,8 @@ func (s *store) CreatePKCERequestSession(
 	return nil
 }
 
-// DeletePKCERequestSession implements pkce.PKCERequestStorage.
+// DeletePKCERequestSession implements pkce.PKCERequestStorage. Deleting the
+// authorize code session (InvalidateAuthorizeCodeSession) covers this row.
 func (s *store) DeletePKCERequestSession(ctx context.Context, signature string) error {
 	return nil
 }
@@ -382,15 +416,13 @@ func (s *store) GetPKCERequestSession(
 	signature string,
 	_ fosite.Session,
 ) (fosite.Requester, error) {
-	data, err := decodeSession(signature, s.strategy.encryptionKey)
+	var r OAuthRequest
+	err := s.db.WithContext(ctx).First(&r, "key = ?", signature).Error
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
 	return &fosite.Request{
-		Form: url.Values{
-			"code_challenge":        []string{data.PKCEChallenge},
-			"code_challenge_method": []string{"S256"},
-		},
+		Form: r.pkceForm(),
 	}, nil
 }
 

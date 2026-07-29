@@ -117,7 +117,7 @@ func NewOAuthServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create strategy: %w", err)
 	}
-	storage, err := newStore(strategy, db, approvedJwtBearerClients)
+	storage, err := newStore(db, approvedJwtBearerClients)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}
