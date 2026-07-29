@@ -71,7 +71,7 @@ func Load(state []byte) LtHash {
 // State returns the 2048-byte little-endian serialization of the lanes.
 func (h *LtHash) State() []byte {
 	b := make([]byte, LtHashStateBytes)
-	for i, lane := range h.lanes {
+	for i, lane := range &h.lanes {
 		binary.LittleEndian.PutUint16(b[i*2:], lane)
 	}
 	return b

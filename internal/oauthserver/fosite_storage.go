@@ -233,7 +233,7 @@ func (s *store) fetchClientMetadata(
 	ctx context.Context,
 	id string,
 ) (*pdsclient.ClientMetadata, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, id, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, id, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}

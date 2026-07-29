@@ -11,7 +11,7 @@ import (
 
 func TestValidate(t *testing.T) {
 	supportedCreds := []CredentialType{OrgCredential}
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	w := httptest.NewRecorder()
 	r.Header.Set("Authorization", "foo")
 	credInfo, ok := NewValidator(

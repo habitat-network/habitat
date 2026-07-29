@@ -73,6 +73,7 @@ func TestMintThenLookup(t *testing.T) {
 		authntest.NewSuccessMethod(adminDID),
 		orgStore,
 		nil,
+		"pear.example.com",
 	)
 	require.NoError(t, err)
 
@@ -113,7 +114,7 @@ func TestMintThenLookup(t *testing.T) {
 	require.True(t, strings.HasPrefix(mintOut.Did, "did:web:"))
 
 	// Verify via hive server: resolve handle -> DID
-	handleReq := httptest.NewRequest(http.MethodGet, "/.well-known/atproto-did", nil)
+	handleReq := httptest.NewRequest(http.MethodGet, "/.well-known/atproto-did", http.NoBody)
 	handleReq.Host = "alice.example.com"
 	handleW := httptest.NewRecorder()
 	hiveServer.ServeHandle(handleW, handleReq)
@@ -123,7 +124,7 @@ func TestMintThenLookup(t *testing.T) {
 
 	// Verify via hive server: resolve DID -> DID doc
 	didHost := strings.TrimPrefix(did, "did:web:")
-	docReq := httptest.NewRequest(http.MethodGet, "/.well-known/did.json", nil)
+	docReq := httptest.NewRequest(http.MethodGet, "/.well-known/did.json", http.NoBody)
 	docReq.Host = didHost
 	docW := httptest.NewRecorder()
 	hiveServer.ServeDIDDoc(docW, docReq)

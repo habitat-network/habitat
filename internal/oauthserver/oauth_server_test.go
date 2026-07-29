@@ -103,7 +103,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	defer server.Close()
 
 	t.Run("CanHandle returns true for oauth header", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{}).
 			SignedString(secret)
 		require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	})
 
 	t.Run("CanHandle returns false without oauth header", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		require.False(t, oauthSrv.CanHandle(r))
 	})
 
@@ -152,7 +152,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	})
 
 	t.Run("Validate rejects malformed JWT", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, server.URL+"/resource", nil)
+		req, err := http.NewRequest(http.MethodGet, server.URL+"/resource", http.NoBody)
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer not.a.valid.jwt")
 		resp, err := server.Client().Do(req)
@@ -236,7 +236,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle=did:web:example.did.com", nil)
+	)+"&handle=did:web:example.did.com", http.NoBody)
 	require.NoError(t, err)
 
 	// CheckRedirect stops the client from following past the callback so we can
@@ -255,7 +255,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	// Follow redirects manually until we reach /oauth-callback.
 	for resp.StatusCode == http.StatusSeeOther {
 		loc := resp.Header.Get("Location")
-		nextReq, reqErr := http.NewRequest(http.MethodGet, loc, nil)
+		nextReq, reqErr := http.NewRequest(http.MethodGet, loc, http.NoBody)
 		require.NoError(t, reqErr)
 		resp, err = httpClient.Do(nextReq)
 		require.NoError(t, err)
@@ -370,7 +370,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle=did:web:example.did.com", nil)
+	)+"&handle=did:web:example.did.com", http.NoBody)
 	require.NoError(t, err)
 
 	// make authorize requests which will follow redirects all thw way to token response
@@ -574,7 +574,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle="+member.Handle.String(), nil)
+	)+"&handle="+member.Handle.String(), http.NoBody)
 	require.NoError(t, err)
 
 	// make authorize requests which will follow redirects all the way to token response
@@ -686,7 +686,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle=did:web:example.did.com&scope=org:*", nil)
+	)+"&handle=did:web:example.did.com&scope=org:*", http.NoBody)
 	require.NoError(t, err)
 
 	server.Client().CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -700,7 +700,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 
 	for resp.StatusCode == http.StatusSeeOther {
 		loc := resp.Header.Get("Location")
-		nextReq, reqErr := http.NewRequest(http.MethodGet, loc, nil)
+		nextReq, reqErr := http.NewRequest(http.MethodGet, loc, http.NoBody)
 		require.NoError(t, reqErr)
 		resp, err = httpClient.Do(nextReq)
 		require.NoError(t, err)
@@ -793,14 +793,10 @@ func acquireAccessToken(
 	oauthCfg.ClientID = clientApp.URL + "/client-metadata.json"
 	oauthCfg.RedirectURL = clientApp.URL + "/oauth-callback"
 
-	authReq, err := http.NewRequest(
-		http.MethodGet,
-		oauthCfg.AuthCodeURL(
-			"test-state",
-			oauth2.S256ChallengeOption(verifier),
-		)+"&handle=did:web:example.did.com",
-		nil,
-	)
+	authReq, err := http.NewRequest(http.MethodGet, oauthCfg.AuthCodeURL(
+		"test-state",
+		oauth2.S256ChallengeOption(verifier),
+	)+"&handle=did:web:example.did.com", http.NoBody)
 	require.NoError(t, err)
 	resp, err := flowServer.Client().Do(authReq)
 	defer func() { _ = resp.Body.Close() }()
@@ -861,7 +857,7 @@ func TestValidate(t *testing.T) {
 			}),
 		)
 		defer httpSrv.Close()
-		req, reqErr := http.NewRequest(http.MethodGet, httpSrv.URL+"/", nil)
+		req, reqErr := http.NewRequest(http.MethodGet, httpSrv.URL+"/", http.NoBody)
 		require.NoError(t, reqErr)
 		if bearerToken != "" {
 			req.Header.Set("Authorization", "Bearer "+bearerToken)
@@ -1412,7 +1408,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 	authReq, err := http.NewRequest(
 		http.MethodGet,
 		config.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier)),
-		nil,
+		http.NoBody,
 	)
 	require.NoError(t, err)
 
