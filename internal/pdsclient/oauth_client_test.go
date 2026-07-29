@@ -75,7 +75,7 @@ func TestExchangeCodeMissingState(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestDoNoCurrentSession(t *testing.T) {
+func TestDoNoSession(t *testing.T) {
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	client := newTestClient(t, testutil.NewDB(t), secret)
@@ -94,12 +94,10 @@ func TestDo(t *testing.T) {
 	secretStr, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 
-	// Seed a session and mark it as the current one for the account, mirroring
-	// what ExchangeCode does on a real callback. The store and pointer table
-	// share the db with the client created below.
-	store, err := oauthclient.NewGormStore(db)
-	require.NoError(t, err)
-	currentSessions, err := newCurrentSessionStore(db)
+	// Seed a session directly, mirroring what ExchangeCode persists on a real
+	// callback. The store shares the db with the client created below and
+	// must use the same WithSingleSessionPerDID mode.
+	store, err := oauthclient.NewGormStore(db, oauthclient.WithSingleSessionPerDID())
 	require.NoError(t, err)
 	dpopKey, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
@@ -121,7 +119,6 @@ func TestDo(t *testing.T) {
 		AccessToken:             "dummy-access-token",
 		DPoPPrivateKeyMultibase: dpopKey.Multibase(),
 	}))
-	require.NoError(t, currentSessions.Set(context.Background(), did, "sess1"))
 
 	client := newTestClient(t, db, secretStr)
 	req, err := http.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.getRecord", nil)

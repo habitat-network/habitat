@@ -32,17 +32,39 @@ type authRequestRow struct {
 func (authRequestRow) TableName() string { return "client_auth_requests" }
 
 type gormStore struct {
-	db *gorm.DB
+	db                  *gorm.DB
+	singleSessionPerDID bool
 }
 
 var _ oauth.ClientAuthStore = (*gormStore)(nil)
 
+// Option configures a gormStore created by NewGormStore.
+type Option func(*gormStore)
+
+// WithSingleSessionPerDID configures the store to keep at most one session
+// per account DID: SaveSession replaces any existing session for the DID
+// (even if it was saved under a different session ID), and GetSession /
+// DeleteSession ignore their sessionID argument, operating on whichever
+// session is currently stored for the DID.
+//
+// By default (this option omitted) the store keeps one row per (DID, session
+// ID) pair, allowing multiple concurrent sessions per account.
+func WithSingleSessionPerDID() Option {
+	return func(s *gormStore) {
+		s.singleSessionPerDID = true
+	}
+}
+
 // NewGormStore creates a ClientAuthStore backed by GORM.
-func NewGormStore(db *gorm.DB) (oauth.ClientAuthStore, error) {
+func NewGormStore(db *gorm.DB, opts ...Option) (oauth.ClientAuthStore, error) {
 	if err := db.AutoMigrate(&sessionRow{}, &authRequestRow{}); err != nil {
 		return nil, fmt.Errorf("migrate gormstore: %w", err)
 	}
-	return &gormStore{db: db}, nil
+	s := &gormStore{db: db}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s, nil
 }
 
 // GetSession implements oauth.ClientAuthStore.
@@ -51,10 +73,12 @@ func (s *gormStore) GetSession(
 	did syntax.DID,
 	sessionID string,
 ) (*oauth.ClientSessionData, error) {
+	q := s.db.WithContext(ctx).Where("did = ?", did.String())
+	if !s.singleSessionPerDID {
+		q = q.Where("session_id = ?", sessionID)
+	}
 	var row sessionRow
-	if err := s.db.WithContext(ctx).
-		Where("did = ? AND session_id = ?", did.String(), sessionID).
-		First(&row).Error; err != nil {
+	if err := q.First(&row).Error; err != nil {
 		return nil, err
 	}
 	var data oauth.ClientSessionData
@@ -74,18 +98,28 @@ func (s *gormStore) SaveSession(ctx context.Context, sess oauth.ClientSessionDat
 	if err != nil {
 		return fmt.Errorf("extract session key: %w", err)
 	}
-	return s.db.WithContext(ctx).Save(&sessionRow{
-		DID:       key.DID,
-		SessionID: key.SessionID,
-		Data:      data,
-	}).Error
+	row := sessionRow{DID: key.DID, SessionID: key.SessionID, Data: data}
+	if !s.singleSessionPerDID {
+		return s.db.WithContext(ctx).Save(&row).Error
+	}
+	// A new session may be saved under a different session ID than any
+	// existing row for this DID (indigo assigns the session ID per auth
+	// flow), so replace by DID rather than upserting by primary key.
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("did = ?", key.DID).Delete(&sessionRow{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(&row).Error
+	})
 }
 
 // DeleteSession implements oauth.ClientAuthStore.
 func (s *gormStore) DeleteSession(ctx context.Context, did syntax.DID, sessionID string) error {
-	return s.db.WithContext(ctx).
-		Where("did = ? AND session_id = ?", did.String(), sessionID).
-		Delete(&sessionRow{}).Error
+	q := s.db.WithContext(ctx).Where("did = ?", did.String())
+	if !s.singleSessionPerDID {
+		q = q.Where("session_id = ?", sessionID)
+	}
+	return q.Delete(&sessionRow{}).Error
 }
 
 // GetAuthRequestInfo implements oauth.ClientAuthStore.

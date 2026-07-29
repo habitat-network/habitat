@@ -25,10 +25,15 @@ type PdsOAuthClient interface {
 	Do(ctx context.Context, did syntax.DID, req *http.Request) (*http.Response, error)
 }
 
+// anySessionID is passed to SessionGetter.ResumeSession for lookups. The
+// underlying store is configured with oauthclient.WithSingleSessionPerDID,
+// which ignores the session ID argument and resolves whichever session is
+// currently stored for the DID, so the actual value here is irrelevant.
+const anySessionID = ""
+
 type pdsClientImpl struct {
-	app             *oauth.ClientApp
-	sessionGetter   *oauthclient.SessionGetter
-	currentSessions *currentSessionStore
+	app           *oauth.ClientApp
+	sessionGetter *oauthclient.SessionGetter
 }
 
 func NewClient(
@@ -55,21 +60,16 @@ func NewClient(
 		return nil, fmt.Errorf("set client secret: %w", err)
 	}
 
-	store, err := oauthclient.NewGormStore(db)
+	store, err := oauthclient.NewGormStore(db, oauthclient.WithSingleSessionPerDID())
 	if err != nil {
 		return nil, fmt.Errorf("new oauth store: %w", err)
-	}
-	currentSessions, err := newCurrentSessionStore(db)
-	if err != nil {
-		return nil, err
 	}
 
 	app := oauth.NewClientApp(&config, store)
 
 	return &pdsClientImpl{
-		app:             app,
-		sessionGetter:   oauthclient.NewSessionGetter(app),
-		currentSessions: currentSessions,
+		app:           app,
+		sessionGetter: oauthclient.NewSessionGetter(app),
 	}, nil
 }
 
@@ -95,11 +95,7 @@ func (p *pdsClientImpl) Do(
 	did syntax.DID,
 	req *http.Request,
 ) (*http.Response, error) {
-	sessionID, err := p.currentSessions.Get(ctx, did)
-	if err != nil {
-		return nil, err
-	}
-	session, err := p.sessionGetter.ResumeSession(ctx, did, sessionID)
+	session, err := p.sessionGetter.ResumeSession(ctx, did, anySessionID)
 	if err != nil {
 		return nil, fmt.Errorf("resume session: %w", err)
 	}
@@ -134,9 +130,6 @@ func (p *pdsClientImpl) ExchangeCode(
 	sess, err := p.app.ProcessCallback(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("process callback: %w", err)
-	}
-	if err := p.currentSessions.Set(ctx, sess.AccountDID, sess.SessionID); err != nil {
-		return "", fmt.Errorf("save current session: %w", err)
 	}
 	return sess.AccountDID, nil
 }
