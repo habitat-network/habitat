@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/habitat-network/habitat/internal/sap"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/pkg/sap"
 	"github.com/stretchr/testify/require"
 )
 

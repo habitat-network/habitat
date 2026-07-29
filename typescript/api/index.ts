@@ -93,6 +93,8 @@ import * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/c
 import * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 import * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
+import * as NetworkHabitatSpaceGetDelegationToken from './types/network/habitat/space/getDelegationToken.js'
+import * as NetworkHabitatSpaceGetLatestCommit from './types/network/habitat/space/getLatestCommit.js'
 import * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
 import * as ComAtprotoSpaceGetRepo from './types/com/atproto/space/getRepo.js'
 import * as NetworkHabitatSpaceGetSpaceCredential from './types/network/habitat/space/getSpaceCredential.js'
@@ -190,6 +192,8 @@ export * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/c
 export * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 export * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
+export * as NetworkHabitatSpaceGetDelegationToken from './types/network/habitat/space/getDelegationToken.js'
+export * as NetworkHabitatSpaceGetLatestCommit from './types/network/habitat/space/getLatestCommit.js'
 export * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
 export * as ComAtprotoSpaceGetRepo from './types/com/atproto/space/getRepo.js'
 export * as NetworkHabitatSpaceGetSpaceCredential from './types/network/habitat/space/getSpaceCredential.js'
@@ -1937,6 +1941,29 @@ export class NetworkHabitatSpaceNS {
       .call('network.habitat.space.deleteSpace', opts?.qp, data, opts)
       .catch((e) => {
         throw NetworkHabitatSpaceDeleteSpace.toKnownErr(e)
+      })
+  }
+
+  getDelegationToken(
+    params?: NetworkHabitatSpaceGetDelegationToken.QueryParams,
+    opts?: NetworkHabitatSpaceGetDelegationToken.CallOptions,
+  ): Promise<NetworkHabitatSpaceGetDelegationToken.Response> {
+    return this._client.call(
+      'network.habitat.space.getDelegationToken',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  getLatestCommit(
+    params?: NetworkHabitatSpaceGetLatestCommit.QueryParams,
+    opts?: NetworkHabitatSpaceGetLatestCommit.CallOptions,
+  ): Promise<NetworkHabitatSpaceGetLatestCommit.Response> {
+    return this._client
+      .call('network.habitat.space.getLatestCommit', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceGetLatestCommit.toKnownErr(e)
       })
   }
 

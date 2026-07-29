@@ -786,11 +786,9 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	// so a syncer can authenticate the state it has folded up to this point.
 	if len(records) < limit {
 		commit, err := s.buildRepoCommit(ctx, spaceURI, repoDID)
-		switch {
-		case err == nil:
+		switch err {
+		case nil:
 			output.Commit = commit
-		case errors.Is(err, errEmptyRepo), errors.Is(err, spacecommit.ErrNoSigner):
-			// Repo holds no records, or no signer covers the owner; omit the commit.
 		default:
 			httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))
 			return
@@ -800,8 +798,7 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 }
 
 // signRepoHead computes and signs the repo's current head commit over its cached
-// LtHash. It returns errEmptyRepo when the repo holds no records, and
-// spacecommit.ErrNoSigner when no key covers the repo owner.
+// LtHash. It returns errEmptyRepo when the repo holds no records
 func (s *Server) signRepoHead(
 	ctx context.Context,
 	spaceURI habitat_syntax.SpaceURI,
@@ -818,8 +815,8 @@ func (s *Server) signRepoHead(
 }
 
 // buildRepoCommit signs the repo's current head and shapes it as the lexicon
-// signedCommit for JSON responses. It surfaces errEmptyRepo and
-// spacecommit.ErrNoSigner from signRepoHead so callers can omit the commit.
+// signedCommit for JSON responses. It surfaces errEmptyRepo
+// from signRepoHead so callers can omit the commit.
 func (s *Server) buildRepoCommit(
 	ctx context.Context,
 	spaceURI habitat_syntax.SpaceURI,
@@ -839,53 +836,79 @@ func (s *Server) buildRepoCommit(
 	}, nil
 }
 
+// GetLatestCommit returns the current signed commit over a repo's head state
+// within a space. It is callable with OAuth (for the caller's own data) or a
+// space credential (for syncing services); either way the caller must be a
+// member of the space.
+func (s *Server) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
+	if !ok {
+		return
+	}
+	var params habitat.NetworkHabitatSpaceGetLatestCommitParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid query params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
+		return
+	}
+	if !isMember {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
+		return
+	}
+
+	commit, err := s.buildRepoCommit(ctx, spaceURI, repoDID)
+	switch {
+	case err == nil:
+	case errors.Is(err, errEmptyRepo):
+		httpx.WriteRepoNotFound(ctx, w, err)
+		return
+	default:
+		httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))
+		return
+	}
+
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetLatestCommitOutput{Commit: commit})
+}
+
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
-
 	var input habitat.NetworkHabitatSpaceDeleteRecordInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "decode request body", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
 	}
-
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
 	if !ok {
 		return
 	}
-
 	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
 	if !ok {
 		return
 	}
-
 	if credInfo.Subject != repo {
-		httpx.WriteInvalidRequest(
-			ctx,
-			w,
-			"can't write to other repo",
-			fmt.Errorf("wrong repo"),
-		)
+		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", nil)
 	}
-
-	authorized, err := s.authorize(
-		r.Context(),
-		credInfo.Org.DID(),
-		credInfo.Subject,
-		spaceURI,
-		fgastore.RelationSpaceOwner,
-	)
+	authorized, err := s.authorize(ctx, credInfo.Org.DID(), credInfo.Subject, spaceURI,
+		fgastore.RelationSpaceOwner)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check delete permission",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("authorize: %w", err))
 		return
 	}
 	if !authorized {
@@ -895,7 +918,6 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not authorized to delete"))
 		return
 	}
-
 	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
 	if !ok {
 		return
@@ -904,15 +926,12 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "invalid collection", err)
 		return
 	}
-
-	err = s.store.DeleteRecord(r.Context(), spaceURI, repo, collection, input.Rkey)
+	err = s.store.DeleteRecord(ctx, spaceURI, repo, collection, input.Rkey)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "delete record", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("delete record: %w", err))
 		return
 	}
-
-	output := habitat.NetworkHabitatSpaceDeleteRecordOutput{}
-	httpx.WriteJSON(r.Context(), w, output)
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceDeleteRecordOutput{})
 }
 
 func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
@@ -970,6 +989,45 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) GetDelegationToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth)).Validate(w, r)
+	if !ok {
+		return
+	}
+	space, ok := httpx.ParseSpaceURIInput(ctx, w, r.URL.Query().Get("space"), "space")
+	if !ok {
+		return
+	}
+	privKey, err := s.hive.PrivateKeyForDID(ctx, credInfo.Subject)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get private key: %w", err))
+		return
+	}
+	token, err := new(jwt.Token{
+		Method: jwt.GetSigningMethod("ES256K"),
+		Claims: jwt.MapClaims{
+			"iss": credInfo.Subject,
+			"sub": space.String(),
+			"aud": space.SpaceOwner().String() + "#" + "#atproto_space_host",
+			"iat": time.Now().Unix(),
+			"exp": time.Now().Add(time.Minute).Unix(),
+			"jti": utils.RandomNonce(16),
+		},
+		Header: map[string]any{
+			"typ": "atproto-space-delegation+jwt",
+			"kid": "#atproto",
+		},
+	}).SignedString(privKey)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("sign token: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetDelegationTokenOutput{
+		Token: token,
+	})
 }
 
 func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {

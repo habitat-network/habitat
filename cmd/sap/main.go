@@ -13,9 +13,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/log"
-	"github.com/habitat-network/habitat/internal/oauthclient"
-	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/habitat-network/habitat/internal/telemetry"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
+	"github.com/habitat-network/habitat/pkg/sap"
 	"github.com/urfave/cli/v3"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
@@ -77,7 +77,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("set client secret: %w", err)
 	}
 
-	oauthApp := oauthclient.NewApp(&config, store)
+	oauthApp := oauth.NewClientApp(&config, store)
 
 	s, err := sap.NewSap(sap.SapConfig{
 		DB:          db,

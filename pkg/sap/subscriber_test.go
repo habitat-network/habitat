@@ -11,10 +11,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sync"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -208,12 +208,13 @@ func setupSubscriber(
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauthclient.NewApp(&cfg, store)
+	oauthApp := newSessionGetter(oauth.NewClientApp(&cfg, store))
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:  "did:plc:testorg",
-		SessionID:   "sess1",
-		HostURL:     srv.URL,
-		AccessToken: testJWT(t),
+		AccountDID:              "did:plc:testorg",
+		SessionID:               "sess1",
+		HostURL:                 srv.URL,
+		AccessToken:             testJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 	complete := crawlStateComplete
 	require.NoError(t, db.Save(&managedOrg{

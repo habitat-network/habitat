@@ -10,8 +10,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/gorilla/websocket"
 	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/oauthclient"
-	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
+	"github.com/habitat-network/habitat/pkg/sap"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -29,7 +29,7 @@ func openOutboxTestServer(t *testing.T) (*httptest.Server, *sap.Sap, *gorm.DB) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauthclient.NewApp(&cfg, store)
+	oauthApp := oauth.NewClientApp(&cfg, store)
 
 	s, err := sap.NewSap(sap.SapConfig{
 		DB:          db,

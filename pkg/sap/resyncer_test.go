@@ -11,9 +11,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm/clause"
 )
@@ -66,16 +66,17 @@ func TestResyncer_SyncRepo(t *testing.T) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauthclient.NewApp(&cfg, store)
+	oauthApp := newSessionGetter(oauth.NewClientApp(&cfg, store))
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1, newTestMetrics(t))
 
 	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:  "did:plc:testorg",
-		SessionID:   "sess1",
-		HostURL:     srv.URL,
-		AccessToken: tk,
+		AccountDID:              "did:plc:testorg",
+		SessionID:               "sess1",
+		HostURL:                 srv.URL,
+		AccessToken:             tk,
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",
@@ -130,16 +131,17 @@ func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauthclient.NewApp(&cfg, store)
+	oauthApp := newSessionGetter(oauth.NewClientApp(&cfg, store))
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1, newTestMetrics(t))
 
 	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:  "did:plc:testorg",
-		SessionID:   "sess1",
-		HostURL:     srv.URL,
-		AccessToken: tk,
+		AccountDID:              "did:plc:testorg",
+		SessionID:               "sess1",
+		HostURL:                 srv.URL,
+		AccessToken:             tk,
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",
@@ -199,7 +201,7 @@ func TestResyncer_Dispatcher(t *testing.T) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauthclient.NewApp(&cfg, store)
+	oauthApp := newSessionGetter(oauth.NewClientApp(&cfg, store))
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	resyncer := newResyncer(
 		db,
@@ -213,10 +215,11 @@ func TestResyncer_Dispatcher(t *testing.T) {
 
 	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
-		AccountDID:  "did:plc:testorg",
-		SessionID:   "sess1",
-		HostURL:     srv.URL,
-		AccessToken: tk,
+		AccountDID:              "did:plc:testorg",
+		SessionID:               "sess1",
+		HostURL:                 srv.URL,
+		AccessToken:             tk,
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",

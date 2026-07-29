@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -33,9 +34,11 @@ func effectiveHost(r *http.Request) string {
 // Does not serve the MintIdentity endpoint.
 type Server struct {
 	hive          hive.Hive
+	directory     identity.Directory
 	oauth         authn.Method
 	orgStore      org.Store
 	pdsForwarding *forwarding.PDSForwarding
+	domain        string
 }
 
 // NewServer constructs the hive HTTP server. The OAuth method is required to
@@ -46,8 +49,16 @@ func NewServer(
 	oauth authn.Method,
 	orgStore org.Store,
 	pdsForwarding *forwarding.PDSForwarding,
+	domain string,
 ) (*Server, error) {
-	return &Server{hive: hive, oauth: oauth, orgStore: orgStore, pdsForwarding: pdsForwarding}, nil
+	return &Server{
+		hive:          hive,
+		directory:     NewWrappedDirectory(hive, identity.DefaultDirectory()),
+		oauth:         oauth,
+		orgStore:      orgStore,
+		pdsForwarding: pdsForwarding,
+		domain:        domain,
+	}, nil
 }
 
 type didDocWithContext struct {
@@ -172,4 +183,100 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	_, _ = w.Write([]byte(ident.DID.String()))
+}
+
+// ResolveDID implements com.atproto.identity.resolveDid.
+func (s *Server) ResolveDID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	did, ok := httpx.ParseDIDInput(ctx, w, r.URL.Query().Get("did"), "did")
+	if !ok {
+		return
+	}
+	ident, err := s.directory.LookupDID(ctx, did)
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		httpx.WriteError(ctx, w, "DidNotFound", "DID not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("resolving DID: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w, atproto.IdentityResolveDid_Output{
+		DidDoc: s.overriddenDidDoc(ident),
+	})
+}
+
+// ResolveHandle implements com.atproto.identity.resolveHandle.
+func (s *Server) ResolveHandle(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	handleStr := r.URL.Query().Get("handle")
+	if handleStr == "" {
+		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: handle", nil)
+		return
+	}
+	handle, err := syntax.ParseHandle(handleStr)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid handle", err)
+		return
+	}
+	ident, err := s.directory.LookupHandle(ctx, handle)
+	if errors.Is(err, identity.ErrHandleNotFound) {
+		httpx.WriteError(ctx, w, "HandleNotFound", "handle not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("resolving handle: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w, atproto.IdentityResolveHandle_Output{
+		Did: ident.DID.String(),
+	})
+}
+
+// ResolveIdentity implements com.atproto.identity.resolveIdentity.
+func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	identifier := r.URL.Query().Get("identifier")
+	if identifier == "" {
+		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: identifier", nil)
+		return
+	}
+	atid, err := syntax.ParseAtIdentifier(identifier)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid identifier", err)
+		return
+	}
+	ident, err := s.directory.Lookup(ctx, atid)
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		httpx.WriteError(ctx, w, "DidNotFound", "DID not found", http.StatusNotFound)
+		return
+	}
+	if errors.Is(err, identity.ErrHandleNotFound) {
+		httpx.WriteError(ctx, w, "HandleNotFound", "handle not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("resolving identity: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w, atproto.IdentityDefs_IdentityInfo{
+		Did:    ident.DID.String(),
+		Handle: ident.Handle.String(),
+		DidDoc: s.overriddenDidDoc(ident),
+	})
+}
+
+func (s *Server) overriddenDidDoc(ident *identity.Identity) identity.DIDDocument {
+	return identity.DIDDocument{
+		DID:                ident.DID,
+		AlsoKnownAs:        ident.AlsoKnownAs,
+		VerificationMethod: ident.DIDDocument().VerificationMethod,
+		Service: []identity.DocService{
+			{
+				ID:              "#atproto_pds",
+				Type:            "AtprotoPersonalDataServer",
+				ServiceEndpoint: "https://" + s.domain,
+			},
+		},
+	}
 }

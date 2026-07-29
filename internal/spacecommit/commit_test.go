@@ -76,18 +76,6 @@ func TestBuild_MemberSignedForManagedAuthor(t *testing.T) {
 	require.NoError(t, Verify(c, SpecProtocolTag, testSpace, author, hash, memberPub))
 }
 
-func TestBuild_NoSignerFails(t *testing.T) {
-	authority := NewAuthority(nil, &fakeMember{managed: false})
-	_, err := authority.Build(
-		context.Background(),
-		testSpace,
-		"did:plc:alice",
-		"3lart",
-		(&LtHash{}).Sum(),
-	)
-	require.ErrorIs(t, err, ErrNoSigner)
-}
-
 func TestBuild_FreshIkmPerCall(t *testing.T) {
 	hostKey, _ := newKey(t)
 	authority := NewAuthority(hostKey, &fakeMember{managed: false})
