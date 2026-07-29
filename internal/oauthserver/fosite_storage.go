@@ -32,6 +32,103 @@ type store struct {
 	approvedJwtBearerClients ApprovedClientStore
 }
 
+// OAuthRequest is the single row type backing every short-lived piece of OAuth
+// flow state: pushed authorization requests, in-flight authorization requests
+// bridging the PDS redirect, and issued authorization codes. Which one a row is
+// depends only on what its Key is (a PAR request_uri, a cookie-held request key,
+// or an authorization code signature).
+type OAuthRequest struct {
+	Key      string `gorm:"primaryKey"`
+	ClientID string `gorm:"size:1024"`
+	// Subject is the resolved DID this flow authenticates. Empty until the login
+	// hint is resolved (at PAR time) or the handle is resolved (at authorize time).
+	Subject             string    `gorm:"size:255"`
+	Scopes              string    `gorm:"size:512"` // space-separated
+	CodeChallenge       string    `gorm:"size:255"`
+	CodeChallengeMethod string    `gorm:"size:32"`
+	RedirectURI         string    `gorm:"size:1024"`
+	State               string    `gorm:"size:1024"` // the client's own OAuth state param
+	ResponseType        string    `gorm:"size:64"`
+	ExpiresAt           time.Time `gorm:"index"`
+}
+
+// toAuthorizeRequest rebuilds the fosite.AuthorizeRequest this row was stored
+// from. The redirect URI is parsed rather than left in the form because
+// WriteAuthorizeResponse reads the struct field, not the form.
+func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) (*fosite.AuthorizeRequest, error) {
+	scopes := fosite.Arguments{}
+	if r.Scopes != "" {
+		scopes = strings.Split(r.Scopes, " ")
+	}
+	form := url.Values{}
+	setIfNotEmpty := func(k, v string) {
+		if v != "" {
+			form.Set(k, v)
+		}
+	}
+	setIfNotEmpty("client_id", r.ClientID)
+	setIfNotEmpty("redirect_uri", r.RedirectURI)
+	setIfNotEmpty("response_type", r.ResponseType)
+	setIfNotEmpty("scope", r.Scopes)
+	setIfNotEmpty("state", r.State)
+	setIfNotEmpty("code_challenge", r.CodeChallenge)
+	setIfNotEmpty("code_challenge_method", r.CodeChallengeMethod)
+
+	var redirectURI *url.URL
+	if r.RedirectURI != "" {
+		var err error
+		redirectURI, err = url.Parse(r.RedirectURI)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse stored redirect uri: %w", err)
+		}
+	}
+
+	return &fosite.AuthorizeRequest{
+		ResponseTypes:        fosite.Arguments(strings.Fields(r.ResponseType)),
+		HandledResponseTypes: fosite.Arguments{},
+		RedirectURI:          redirectURI,
+		State:                r.State,
+		Request: fosite.Request{
+			Client:         client,
+			Session:        &session{Subject: r.Subject, ClientID: r.ClientID, Scopes: scopes},
+			RequestedScope: scopes,
+			GrantedScope:   scopes,
+			Form:           form,
+			RequestedAt:    time.Now().UTC(),
+		},
+	}, nil
+}
+
+// fromRequester populates the OAuthRequest columns from a fosite.Requester.
+func (r *OAuthRequest) fromRequester(key string, requester fosite.Requester, expiresAt time.Time) {
+	form := requester.GetRequestForm()
+	r.Key = key
+	r.ClientID = requester.GetClient().GetID()
+	r.Scopes = strings.Join(requester.GetRequestedScopes(), " ")
+	r.RedirectURI = form.Get("redirect_uri")
+	r.State = form.Get("state")
+	r.ResponseType = form.Get("response_type")
+	r.CodeChallenge = form.Get("code_challenge")
+	r.CodeChallengeMethod = form.Get("code_challenge_method")
+	r.ExpiresAt = expiresAt
+	if sess := requester.GetSession(); sess != nil {
+		r.Subject = sess.GetSubject()
+	}
+}
+
+// pkceForm reconstructs the code_challenge/code_challenge_method form values
+// for the PKCE handler from a stored request row.
+func (r *OAuthRequest) pkceForm() url.Values {
+	v := url.Values{}
+	if r.CodeChallenge != "" {
+		v.Set("code_challenge", r.CodeChallenge)
+	}
+	if r.CodeChallengeMethod != "" {
+		v.Set("code_challenge_method", r.CodeChallengeMethod)
+	}
+	return v
+}
+
 type OAuthSession struct {
 	Signature string `gorm:"primaryKey"`
 	ClientID  string
