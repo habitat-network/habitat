@@ -53,7 +53,7 @@ type OAuthRequest struct {
 // toAuthorizeRequest rebuilds the fosite.AuthorizeRequest this row was stored
 // from. The redirect URI is parsed rather than left in the form because
 // WriteAuthorizeResponse reads the struct field, not the form.
-func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) (*fosite.AuthorizeRequest, error) {
+func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) *fosite.AuthorizeRequest {
 	scopes := fosite.Arguments(strings.Fields(r.Scopes))
 	var redirectURI *url.URL
 	redirectURI, _ = url.Parse(r.RedirectURI)
@@ -77,7 +77,7 @@ func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) (*fosite.Authori
 			},
 			RequestedAt: time.Now().UTC(),
 		},
-	}, nil
+	}
 }
 
 // fromRequester populates the OAuthRequest columns from a fosite.Requester.
@@ -187,7 +187,7 @@ func (s *store) GetPARSession(
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
-	return r.toAuthorizeRequest(client)
+	return r.toAuthorizeRequest(client), nil
 }
 
 func (s *store) UpdatePARSessionSubject(
@@ -360,28 +360,18 @@ func (s *store) GetAuthorizeCodeSession(
 	span.SetAttributes(attribute.String("auth_signature", signature))
 
 	var r OAuthRequest
-	err = s.db.WithContext(ctx).First(&r, "key = ?", signature).Error
+	err = s.db.WithContext(ctx).
+		Where("expires_at > ?", time.Now()).
+		First(&r, "key = ?", signature).
+		Error
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
-	}
-	if time.Now().After(r.ExpiresAt) {
-		return nil, fosite.ErrNotFound
 	}
 	client, err := s.GetClient(ctx, r.ClientID)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
-	ar, err := r.toAuthorizeRequest(client)
-	if err != nil {
-		return nil, err
-	}
-	ar.Session = &session{
-		Subject:           r.Subject,
-		ClientID:          r.ClientID,
-		Scopes:            strings.Fields(r.Scopes),
-		AuthCodeExpiresAt: r.ExpiresAt,
-	}
-	return &ar.Request, nil
+	return r.toAuthorizeRequest(client), nil
 }
 
 // InvalidateAuthorizeCodeSession implements oauth2.CoreStorage.
