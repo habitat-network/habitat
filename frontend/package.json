@@ -19,7 +19,7 @@
     "boring-avatars": "catalog:",
     "canvas-confetti": "^1.9.4",
     "internal": "workspace:*",
-    "lucide-react": "^0.577.0",
+    "lucide-react": "^1.0.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
