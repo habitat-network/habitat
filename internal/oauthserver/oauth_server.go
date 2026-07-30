@@ -35,6 +35,7 @@ const (
 	sessionName = "auth-session"
 
 	disambiguationPath = "/ui/login/disambiguate"
+	consentPath        = "/ui/login/consent"
 
 	// requestKeyCookie holds the opaque key of the in-flight authorization
 	// request row. It is what lets the callback find the request without
@@ -65,10 +66,6 @@ type OAuthServer struct {
 
 	// issuer origin (https URL, no path) the discovery metadata is built from.
 	issuer string
-
-	// consentPath is the URL the user is redirected to after successful login
-	// to approve the requested OAuth scopes. Defaults to /ui/login/consent.
-	consentPath string
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -161,7 +158,6 @@ func NewOAuthServer(
 		storage:      storage,
 		orgStore:     orgStore,
 		issuer:       issuer,
-		consentPath:  "/ui/login/consent",
 	}, nil
 }
 
@@ -195,7 +191,7 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get cookie: %w", err))
 		return
 	}
-	requester := o.retrieveAuthorizeRequest(w, r, session)
+	requester, _ := o.retrieveAuthorizeRequest(w, r, session)
 	if requester == nil {
 		return
 	}
@@ -235,7 +231,7 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 	w http.ResponseWriter,
 	r *http.Request,
 	cookieSession *sessions.Session,
-) fosite.AuthorizeRequester {
+) (fosite.AuthorizeRequester, string) {
 	ctx := r.Context()
 	if r.FormValue("response_type") == "code" {
 		// non-par authorize requests start with /oauth/authorize with a "code" response_type
@@ -246,12 +242,12 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 		did, err := o.resolveLoginHint(loginHint)
 		if err != nil {
 			httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
-			return nil
+			return nil, ""
 		}
 		requester, err := o.provider.NewAuthorizeRequest(ctx, r)
 		if err != nil {
 			o.provider.WriteAuthorizeError(ctx, w, requester, err)
-			return nil
+			return nil, ""
 		}
 		sess := newSession()
 		sess.SetSubject(did.String())
@@ -260,7 +256,7 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 		uri := requester.GetID()
 		if err := o.storage.CreatePARSession(ctx, uri, requester); err != nil {
 			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save request session: %w", err))
-			return nil
+			return nil, ""
 		}
 		cookieSession.Values[requestKeyCookie] = uri
 	} else if r.FormValue("request_uri") != "" {
@@ -271,25 +267,25 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 		did, err := o.resolveLoginHint(r.FormValue("disambiguation"))
 		if err != nil {
 			httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
-			return nil
+			return nil, ""
 		}
 		if err := o.storage.UpdatePARSessionSubject(ctx, requestKey, did); err != nil {
 			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to update PAR subject: %w", err))
-			return nil
+			return nil, ""
 		}
 	}
 	requester, err := o.storage.GetPARSession(ctx, requestKey)
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to get request", err)
-		return nil
+		return nil, ""
 	}
 	if r.FormValue("client_id") != "" {
 		if r.FormValue("client_id") != requester.GetClient().GetID() {
 			httpx.WriteInvalidRequest(ctx, w, "client_id mismatch", nil)
-			return nil
+			return nil, ""
 		}
 	}
-	return requester
+	return requester, requestKey
 }
 
 // HandlePAR processes RFC 9126 Pushed Authorization Requests. The client POSTs
@@ -356,22 +352,15 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to get cookie", err)
 		return
 	}
-	requestKey, _ := cookie.Values[requestKeyCookie].(string)
+
+	requester, requestKey := o.retrieveAuthorizeRequest(w, r, cookie)
+	if requester == nil {
+		return
+	}
+
 	providerState, _ := cookie.Values[providerStateCookie].([]byte)
 	cookie.Values[providerStateCookie] = nil
-
-	requester, err := o.storage.GetPARSession(ctx, requestKey)
-	if err != nil {
-		o.metrics.callbackErr(ctx, err, "get_request")
-		httpx.WriteInvalidRequest(ctx, w, "failed to get request", err)
-		return
-	}
-	did, err := syntax.ParseDID(requester.GetSession().GetSubject())
-	if err != nil {
-		o.metrics.callbackErr(ctx, err, "parse_did")
-		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to parse stored subject: %w", err))
-		return
-	}
+	did := syntax.DID(requester.GetSession().GetSubject())
 
 	if err := o.loginRouter.Exchange(ctx, did, r.URL.Query(), providerState); err != nil {
 		o.metrics.callbackErr(ctx, err, "complete_login")
@@ -386,7 +375,7 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, o.consentPath, http.StatusSeeOther)
+	http.Redirect(w, r, consentPath, http.StatusSeeOther)
 	o.metrics.callbackSuccess()
 }
 
@@ -435,16 +424,6 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
-// ConsentInfo describes the pending authorization request, as served by a GET
-// to /oauth/consent, so the consent page can render the requesting client and
-// the scopes it's asking for.
-type ConsentInfo struct {
-	Scopes     []string `json:"scopes"`
-	ClientName string   `json:"clientName"`
-	ClientUri  string   `json:"clientUri"`
-	LogoUri    string   `json:"logoUri"`
-}
-
 // HandleConsent serves the pending authorization request's details on GET
 // and processes the user's approval of the requested OAuth scopes on POST.
 // Both retrieve the stored authorization request via the request_key held in
@@ -456,31 +435,26 @@ type ConsentInfo struct {
 func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	cookie, err := o.sessionStore.Get(r, sessionName)
+	session, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, "get_cookie")
 		httpx.WriteInvalidRequest(ctx, w, "failed to get cookie", err)
 		return
 	}
-	requestKey, _ := cookie.Values[requestKeyCookie].(string)
-
-	requester, err := o.storage.GetPARSession(ctx, requestKey)
-	if err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "failed to get request", err)
+	requester, requestKey := o.retrieveAuthorizeRequest(w, r, session)
+	if requester == nil {
 		return
 	}
-
 	if r.Method == http.MethodGet {
-		info := ConsentInfo{Scopes: requester.GetRequestedScopes()}
-		if c, ok := requester.GetClient().(*client); ok {
-			info.ClientName = c.ClientName
-			info.ClientUri = c.ClientUri
-			info.LogoUri = c.LogoUri
-		}
-		httpx.WriteJSON(ctx, w, info)
+		c, _ := requester.GetClient().(*client)
+		httpx.WriteJSON(ctx, w, map[string]any{
+			"scopes":     requester.GetRequestedScopes(),
+			"clientName": c.ClientName,
+			"clientUri":  c.ClientUri,
+			"logoUri":    c.LogoUri,
+		})
 		return
 	}
-
 	o.finishAuthorize(ctx, w, requestKey, requester)
 }
 
