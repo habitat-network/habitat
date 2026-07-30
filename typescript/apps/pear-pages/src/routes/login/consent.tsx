@@ -25,9 +25,7 @@ function ConsentPage() {
       <h1 className="text-2xl font-semibold">Authorize</h1>
       {clientName && (
         <div className="flex items-center gap-3">
-          {logoUri && (
-            <img src={logoUri} alt="" className="h-8 w-8 rounded" />
-          )}
+          {logoUri && <img src={logoUri} alt="" className="h-8 w-8 rounded" />}
           <div>
             <p className="font-medium">{clientName}</p>
             {clientUri && (
