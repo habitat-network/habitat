@@ -90,8 +90,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 			oauthSrv.HandleAuthorize(w, r)
 		case "/oauth-callback":
 			oauthSrv.HandleCallback(w, r)
-		case "/consent":
-			oauthSrv.HandleConsent(w, r)
 		case "/token":
 			oauthSrv.HandleToken(w, r)
 		case "/resource":
@@ -101,7 +99,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	oauthSrv.consentPath = server.URL + "/consent"
 
 	t.Run("CanHandle returns true for oauth header", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
@@ -192,8 +189,6 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 			oauthServer.HandleAuthorize(w, r)
 		case "/oauth-callback":
 			oauthServer.HandleCallback(w, r)
-		case "/consent":
-			oauthServer.HandleConsent(w, r)
 		case "/token":
 			oauthServer.HandleToken(w, r)
 		default:
@@ -206,7 +201,6 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	require.NoError(t, err)
 	server.Client().Jar = jar
 	pds.RedirectURI = server.URL + "/oauth-callback"
-	oauthServer.consentPath = server.URL + "/consent"
 
 	verifier := oauth2.GenerateVerifier()
 	config := &oauth2.Config{
@@ -269,9 +263,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		}
 	}
 
-	// No scopes were requested, so the callback redirects straight to the
-	// client (skipping the consent page) with a SeeOther.
-	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+	require.Equal(t, http.StatusSeeOther /* What fosite authorize error uses */, resp.StatusCode)
 }
 
 func TestOAuthServerE2E(t *testing.T) {
@@ -309,9 +301,6 @@ func TestOAuthServerE2E(t *testing.T) {
 		case "/oauth-callback":
 			oauthServer.HandleCallback(w, r)
 			return
-		case "/consent":
-			oauthServer.HandleConsent(w, r)
-			return
 		case "/token":
 			oauthServer.HandleToken(w, r)
 			return
@@ -331,7 +320,6 @@ func TestOAuthServerE2E(t *testing.T) {
 	server.Client().Jar = jar
 	// set the server's oauthClient redirectUri now that we know the url
 	pds.RedirectURI = server.URL + "/oauth-callback"
-	oauthServer.consentPath = server.URL + "/consent"
 
 	// setup client app that oauth server can make requests to
 	verifier := oauth2.GenerateVerifier()
@@ -518,9 +506,6 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		case "/oauth-callback":
 			oauthServer.HandleCallback(w, r)
 			return
-		case "/consent":
-			oauthServer.HandleConsent(w, r)
-			return
 		case "/token":
 			oauthServer.HandleToken(w, r)
 			return
@@ -539,7 +524,6 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	server.Client().Jar = jar
 	// set the server's oauthClient redirectUri now that we know the url
 	pds.RedirectURI = server.URL + "/oauth-callback"
-	oauthServer.consentPath = server.URL + "/consent"
 
 	// setup client app that oauth server can make requests to
 	verifier := oauth2.GenerateVerifier()
@@ -654,8 +638,6 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 			oauthServer.HandleAuthorize(w, r)
 		case "/oauth-callback":
 			oauthServer.HandleCallback(w, r)
-		case "/consent":
-			oauthServer.HandleConsent(w, r)
 		case "/token":
 			oauthServer.HandleToken(w, r)
 		default:
@@ -668,7 +650,6 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	require.NoError(t, err)
 	server.Client().Jar = jar
 	pds.RedirectURI = server.URL + "/oauth-callback"
-	oauthServer.consentPath = server.URL + "/consent"
 
 	verifier := oauth2.GenerateVerifier()
 	config := &oauth2.Config{
@@ -759,8 +740,6 @@ func acquireAccessToken(
 				srv.HandleAuthorize(w, r)
 			case "/oauth-callback":
 				srv.HandleCallback(w, r)
-			case "/consent":
-				srv.HandleConsent(w, r)
 			case "/token":
 				srv.HandleToken(w, r)
 			default:
@@ -774,7 +753,6 @@ func acquireAccessToken(
 	require.NoError(t, err)
 	flowServer.Client().Jar = jar
 	pds.RedirectURI = flowServer.URL + "/oauth-callback"
-	srv.consentPath = flowServer.URL + "/consent"
 
 	verifier := oauth2.GenerateVerifier()
 	oauthCfg := &oauth2.Config{
@@ -1028,12 +1006,10 @@ func TestIndigoClientApp(t *testing.T) {
 		case "/ui/login/disambiguate":
 			// Stand in for the disambiguation page + user: re-issue the
 			// authorization request with the preserved params plus a handle.
-			http.Redirect(
-				w,
-				r,
-				"/oauth/authorize?disambiguation=example.handle.com",
-				http.StatusSeeOther,
-			)
+			http.Redirect(w, r, "/oauth/authorize?disambiguation=example.handle.com",
+				http.StatusSeeOther)
+		case "/ui/login/consent":
+			w.WriteHeader(http.StatusTeapot)
 		case "/oauth-callback":
 			oauthServer.HandleCallback(w, r)
 		case "/oauth/consent":
@@ -1053,10 +1029,6 @@ func TestIndigoClientApp(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	loginProvider.RedirectURI = "https://habitat.example/oauth-callback"
-	// Must stay on the habitat.example host (rewritten to the real server by
-	// roundTripper) rather than server.URL directly, so the request_key
-	// session cookie set for that host is sent back on the consent request.
-	oauthServer.consentPath = "https://habitat.example/oauth/consent"
 
 	// Client app serves the client metadata document and echoes back the
 	// fosite authorization code at its own callback URL.
@@ -1120,10 +1092,8 @@ func TestIndigoClientApp(t *testing.T) {
 	// finishing the flow.
 	consentGetResp, err := client.Get(redirect)
 	require.NoError(t, err)
-	var consentInfo ConsentInfo
-	require.NoError(t, json.NewDecoder(consentGetResp.Body).Decode(&consentInfo))
-	require.NoError(t, consentGetResp.Body.Close())
-	require.Equal(t, []string{"atproto"}, consentInfo.Scopes)
+	t.Cleanup(func() { _ = consentGetResp.Body.Close() })
+	require.Equal(t, consentGetResp.StatusCode, http.StatusTeapot)
 
 	// Submitting consent (POST) grants the requested scopes and completes the
 	// authorization, redirecting to the client's callback with a code.
@@ -1133,6 +1103,7 @@ func TestIndigoClientApp(t *testing.T) {
 		http.NoBody,
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = consentResp.Body.Close() })
 	var respJson map[string]string
 	require.NoError(t, json.NewDecoder(consentResp.Body).Decode(&respJson))
 	require.NoError(t, consentResp.Body.Close())
@@ -1208,8 +1179,6 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 			oauthServer.HandleAuthorize(w, r)
 		case "/oauth-callback":
 			oauthServer.HandleCallback(w, r)
-		case "/oauth/consent":
-			oauthServer.HandleConsent(w, r)
 		case "/oauth/token":
 			oauthServer.HandleToken(w, r)
 		case "/ui/login/disambiguate":
@@ -1227,7 +1196,6 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 	require.NoError(t, err)
 	server.Client().Jar = jar
 	pds.RedirectURI = server.URL + "/oauth-callback"
-	oauthServer.consentPath = server.URL + "/oauth/consent"
 
 	verifier := oauth2.GenerateVerifier()
 	config := &oauth2.Config{
