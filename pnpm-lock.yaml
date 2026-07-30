@@ -324,8 +324,8 @@ importers:
         specifier: 5.0.51
         version: 5.0.51
       '@multiformats/multiaddr':
-        specifier: ^12.5.1
-        version: 12.5.1
+        specifier: ^13.0.0
+        version: 13.0.3
       '@posthog/react':
         specifier: ^1.10.3
         version: 1.10.3(@types/react@19.2.17)(posthog-js@1.407.5)(react@19.2.8)
