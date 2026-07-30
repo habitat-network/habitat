@@ -64,6 +64,7 @@ export class AuthManager {
       response_type: "code",
       handle,
       state,
+      scope: "atproto transition:generic",
     });
   }
 

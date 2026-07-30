@@ -28,7 +28,7 @@ catalog:
   '@vitejs/plugin-react': 6.0.4
   boring-avatars: ^2.0.4
   idb: ^8.0.0
-  jsdom: ^27.4.0
+  jsdom: ^30.0.0
   react: ^19.2.8
   react-dom: ^19.2.8
   react-hook-form: 7.83.0

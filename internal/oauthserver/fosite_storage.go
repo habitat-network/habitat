@@ -228,10 +228,21 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 // fetchClientMetadata fetches and decodes the client metadata document
 // published at id (the client's client_id URL). See
 // https://atproto.com/specs/oauth#client-id-metadata-document.
+//
+// Localhost client_ids are the exception: nothing is fetched, the metadata is
+// derived from the client_id itself.
 func (s *store) fetchClientMetadata(
 	ctx context.Context,
 	id string,
 ) (*pdsclient.ClientMetadata, error) {
+	parsed, err := url.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse client id: %w", err)
+	}
+	if isLocalhostClientId(parsed) {
+		return localhostClientMetadata(id, parsed)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, id, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)

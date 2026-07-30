@@ -38,7 +38,7 @@
     "@tiptap/y-tiptap": "^3.0.7",
     "cid": "github:multiformats/cid",
     "internal": "workspace:*",
-    "it-byte-stream": "^2.0.6",
+    "it-byte-stream": "^3.0.0",
     "lib0": "^0.2.117",
     "libp2p": "2.10.0",
     "lucide-react": "^0.577.0",
