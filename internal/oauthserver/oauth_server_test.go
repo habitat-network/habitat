@@ -1006,14 +1006,14 @@ func TestIndigoClientApp(t *testing.T) {
 		case "/ui/login/disambiguate":
 			// Stand in for the disambiguation page + user: re-issue the
 			// authorization request with the preserved params plus a handle.
-			http.Redirect(
-				w,
-				r,
-				"/oauth/authorize?disambiguation=example.handle.com",
-				http.StatusSeeOther,
-			)
+			http.Redirect(w, r, "/oauth/authorize?disambiguation=example.handle.com",
+				http.StatusSeeOther)
+		case "/ui/login/consent":
+			w.WriteHeader(http.StatusTeapot)
 		case "/oauth-callback":
 			oauthServer.HandleCallback(w, r)
+		case "/oauth/consent":
+			oauthServer.HandleConsent(w, r)
 		case "/oauth/token":
 			oauthServer.HandleToken(w, r)
 		case "/resource":
@@ -1087,11 +1087,26 @@ func TestIndigoClientApp(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	resp, err := client.Get(redirect)
+	// The flow lands on the consent page: a GET to /oauth/consent returns the
+	// pending request's info as JSON (scopes + client metadata) instead of
+	// finishing the flow.
+	consentGetResp, err := client.Get(redirect)
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = consentGetResp.Body.Close() })
+	require.Equal(t, consentGetResp.StatusCode, http.StatusTeapot)
+
+	// Submitting consent (POST) grants the requested scopes and completes the
+	// authorization, redirecting to the client's callback with a code.
+	consentResp, err := client.Post(
+		"https://habitat.example/oauth/consent",
+		"application/x-www-form-urlencoded",
+		http.NoBody,
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = consentResp.Body.Close() })
 	var respJson map[string]string
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&respJson))
-	require.NoError(t, err, resp.Body.Close())
+	require.NoError(t, json.NewDecoder(consentResp.Body).Decode(&respJson))
+	require.NoError(t, consentResp.Body.Close())
 	t.Logf("respJson: %v", respJson)
 	require.NotEmpty(t, respJson["code"])
 
