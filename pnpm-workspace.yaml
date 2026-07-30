@@ -33,6 +33,9 @@ catalog:
   react-dom: ^19.2.8
   react-hook-form: 7.83.0
   typescript: ^5.9.3
-  vite: 7.3.6
+  vite: ^8.2.0
   vite-tsconfig-paths: ^5.1.4
   vitest: ^3.2.7
+
+minimumReleaseAgeExclude:
+  - vite@8.2.0
