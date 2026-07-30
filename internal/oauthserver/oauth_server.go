@@ -65,6 +65,10 @@ type OAuthServer struct {
 
 	// issuer origin (https URL, no path) the discovery metadata is built from.
 	issuer string
+
+	// consentPath is the URL the user is redirected to after successful login
+	// to approve the requested OAuth scopes. Defaults to /ui/login/consent.
+	consentPath string
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -157,6 +161,7 @@ func NewOAuthServer(
 		storage:      storage,
 		orgStore:     orgStore,
 		issuer:       issuer,
+		consentPath:  "/ui/login/consent",
 	}, nil
 }
 
@@ -361,11 +366,6 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to get request", err)
 		return
 	}
-	if err := o.storage.DeletePARSession(ctx, requestKey); err != nil {
-		o.metrics.callbackErr(ctx, err, "delete_request")
-		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to delete request: %w", err))
-		return
-	}
 	did, err := syntax.ParseDID(requester.GetSession().GetSubject())
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, "parse_did")
@@ -379,27 +379,14 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Grant the requested scopes so they are bound to the authorization code and
-	// echoed back in the token response. Without this the token response carries
-	// an empty scope, which atproto clients reject (they require a valid scope
-	// containing "atproto"). The client's allowed scopes were already validated
-	// when the authorize request was parsed.
-	for _, scope := range requester.GetRequestedScopes() {
-		requester.GrantScope(scope)
-	}
-
-	resp, err := o.provider.NewAuthorizeResponse(ctx, requester, &session{
-		Subject:  did.String(),
-		ClientID: requester.GetClient().GetID(),
-		Scopes:   requester.GetRequestedScopes(),
-	})
-	if err != nil {
-		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
-		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to create response: %w", err))
+	// Nothing for the user to approve: finish the flow immediately instead of
+	// bouncing through the consent page.
+	if len(requester.GetRequestedScopes()) == 0 {
+		o.finishAuthorize(ctx, w, requestKey, requester)
 		return
 	}
-	resp.AddParameter("iss", o.issuer)
-	o.provider.WriteAuthorizeResponse(ctx, w, requester, resp)
+
+	http.Redirect(w, r, o.consentPath, http.StatusSeeOther)
 	o.metrics.callbackSuccess()
 }
 
@@ -446,6 +433,97 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	// TODO: implement real DPoP proof validation and key binding.
 	resp.SetTokenType("DPoP")
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
+}
+
+// ConsentInfo describes the pending authorization request, as served by a GET
+// to /oauth/consent, so the consent page can render the requesting client and
+// the scopes it's asking for.
+type ConsentInfo struct {
+	Scopes     []string `json:"scopes"`
+	ClientName string   `json:"clientName"`
+	ClientUri  string   `json:"clientUri"`
+	LogoUri    string   `json:"logoUri"`
+}
+
+// HandleConsent serves the pending authorization request's details on GET
+// and processes the user's approval of the requested OAuth scopes on POST.
+// Both retrieve the stored authorization request via the request_key held in
+// the session cookie (the same one set by HandleAuthorize). The POST
+// additionally:
+//  1. Grants all requested scopes
+//  2. Creates and writes the OAuth authorization response, redirecting the
+//     user agent back to the client application with an authorization code.
+func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	cookie, err := o.sessionStore.Get(r, sessionName)
+	if err != nil {
+		o.metrics.callbackErr(ctx, err, "get_cookie")
+		httpx.WriteInvalidRequest(ctx, w, "failed to get cookie", err)
+		return
+	}
+	requestKey, _ := cookie.Values[requestKeyCookie].(string)
+
+	requester, err := o.storage.GetPARSession(ctx, requestKey)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to get request", err)
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		info := ConsentInfo{Scopes: requester.GetRequestedScopes()}
+		if c, ok := requester.GetClient().(*client); ok {
+			info.ClientName = c.ClientName
+			info.ClientUri = c.ClientUri
+			info.LogoUri = c.LogoUri
+		}
+		httpx.WriteJSON(ctx, w, info)
+		return
+	}
+
+	o.finishAuthorize(ctx, w, requestKey, requester)
+}
+
+// finishAuthorize grants the requester's requested scopes and writes the
+// fosite authorize response, redirecting the user agent back to the client
+// application with an authorization code. It deletes the underlying PAR
+// session, since the authorization request is now complete.
+func (o *OAuthServer) finishAuthorize(
+	ctx context.Context,
+	w http.ResponseWriter,
+	requestKey string,
+	requester fosite.AuthorizeRequester,
+) {
+	if err := o.storage.DeletePARSession(ctx, requestKey); err != nil {
+		o.metrics.callbackErr(ctx, err, "delete_request")
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to delete request: %w", err))
+		return
+	}
+
+	did, err := syntax.ParseDID(requester.GetSession().GetSubject())
+	if err != nil {
+		o.metrics.callbackErr(ctx, err, "parse_did")
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to parse stored subject: %w", err))
+		return
+	}
+
+	for _, scope := range requester.GetRequestedScopes() {
+		requester.GrantScope(scope)
+	}
+
+	resp, err := o.provider.NewAuthorizeResponse(ctx, requester, &session{
+		Subject:  did.String(),
+		ClientID: requester.GetClient().GetID(),
+		Scopes:   requester.GetRequestedScopes(),
+	})
+	if err != nil {
+		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to create response: %w", err))
+		return
+	}
+	resp.AddParameter("iss", o.issuer)
+	o.provider.WriteAuthorizeResponse(ctx, w, requester, resp)
+	o.metrics.callbackSuccess()
 }
 
 func logError(ctx context.Context, err error) {
