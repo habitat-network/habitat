@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/alexedwards/argon2id"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
@@ -293,6 +294,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup oauth server: %w", err)
 	}
+	oauthGC := oauthserver.NewCollector(db.WithContext(startupCtx), 5*time.Minute)
 
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir, pdsClientFactory))
@@ -546,6 +548,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	eg.Go(func() error {
 		slog.InfoContext(egCtx, "starting sequencer")
 		return eventStore.StartSequencer(egCtx)
+	})
+	eg.Go(func() error {
+		return oauthGC.Run(egCtx)
 	})
 	eg.Go(func() error {
 		slog.InfoContext(egCtx, "starting server", "port", port)
