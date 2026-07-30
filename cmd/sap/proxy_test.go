@@ -12,8 +12,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/oauthclient"
-	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
+	"github.com/habitat-network/habitat/pkg/sap"
 	"github.com/stretchr/testify/require"
 )
 
@@ -153,7 +153,7 @@ func TestServerProxyUnknownDIDReturnsBadGateway(t *testing.T) {
 	req, err := http.NewRequest(
 		http.MethodGet,
 		httpServer.URL+"/proxy/network.habitat.space.listSpaces",
-		nil,
+		http.NoBody,
 	)
 	require.NoError(t, err)
 	req.Header.Set(habitatDIDHeader, "did:plc:unknownorg")

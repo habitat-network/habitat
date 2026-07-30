@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/oauthclient"
-	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/pkg/sap"
 )
 
 // serviceID is the fragment in the home server's did:web service entry. The
@@ -24,7 +24,7 @@ type Server struct {
 	orgHandle   string
 	groups      *GroupService
 	collections *CollectionService
-	oauthApp    *oauthclient.App
+	oauthApp    *oauth.ClientApp
 	sap         *sap.Sap
 	store       *Store
 	serviceAuth authn.Method
@@ -34,7 +34,7 @@ func NewServer(
 	domain, orgHandle string,
 	groups *GroupService,
 	collections *CollectionService,
-	oauthApp *oauthclient.App,
+	oauthApp *oauth.ClientApp,
 	s *sap.Sap,
 	store *Store,
 	serviceAuth authn.Method,

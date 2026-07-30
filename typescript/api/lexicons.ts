@@ -4069,6 +4069,96 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceGetDelegationToken: {
+    lexicon: 1,
+    id: 'network.habitat.space.getDelegationToken',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Mint a delegation token for a space, proving the requesting app is acting on the user's behalf. Exchanged with the space authority for a space credential. Served by the requesting user's PDS. Requires OAuth auth.",
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['token'],
+            properties: {
+              token: {
+                type: 'string',
+                description: 'A signed JWT delegation token.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceGetLatestCommit: {
+    lexicon: 1,
+    id: 'network.habitat.space.getLatestCommit',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Get the current signed commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        parameters: {
+          type: 'params',
+          required: ['space', 'repo'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            repo: {
+              type: 'string',
+              format: 'did',
+              description:
+                'The DID of the account whose latest commit to retrieve.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              commit: {
+                type: 'ref',
+                ref: 'lex:network.habitat.space.defs#signedCommit',
+                description: "The account's current signed commit.",
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatSpaceGetRecord: {
     lexicon: 1,
     id: 'network.habitat.space.getRecord',
@@ -5007,6 +5097,9 @@ export const ids = {
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
   NetworkHabitatSpaceGetBlob: 'network.habitat.space.getBlob',
+  NetworkHabitatSpaceGetDelegationToken:
+    'network.habitat.space.getDelegationToken',
+  NetworkHabitatSpaceGetLatestCommit: 'network.habitat.space.getLatestCommit',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
   ComAtprotoSpaceGetRepo: 'com.atproto.space.getRepo',
   NetworkHabitatSpaceGetSpaceCredential:

@@ -229,7 +229,7 @@ func generateQueryCode(
 
 	typeName := toTypeName(id)
 	if defName != "main" {
-		typeName = typeName + toFieldName(defName)
+		typeName += toFieldName(defName)
 	}
 
 	// Generate input params struct
@@ -305,7 +305,7 @@ func generateProcedureCode(
 
 	typeName := toTypeName(id)
 	if defName != "main" {
-		typeName = typeName + toFieldName(defName)
+		typeName += toFieldName(defName)
 	}
 
 	// Generate input struct
@@ -376,7 +376,7 @@ func generateRecordCode(id string, defName string, defData *lex.TypeSchema) (str
 
 	typeName := toTypeName(id)
 	if defName != "main" {
-		typeName = typeName + toFieldName(defName)
+		typeName += toFieldName(defName)
 	}
 
 	if defData.Record != nil {
@@ -521,7 +521,7 @@ func toFieldName(name string) string {
 	parts := strings.Split(name, "_")
 	var result string
 	for _, part := range parts {
-		if len(part) > 0 {
+		if part != "" {
 			result += strings.ToUpper(part[0:1]) + part[1:]
 		}
 	}
@@ -529,7 +529,7 @@ func toFieldName(name string) string {
 	parts = strings.Split(result, "-")
 	result = ""
 	for _, part := range parts {
-		if len(part) > 0 {
+		if part != "" {
 			result += strings.ToUpper(part[0:1]) + part[1:]
 		}
 	}

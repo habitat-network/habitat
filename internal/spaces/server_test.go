@@ -31,7 +31,9 @@ import (
 )
 
 func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) (*spaces.Server, spaces.Store) {
-	return newTestServerWithSigners(t, oauth, serviceAuth, nil)
+	host, err := atcrypto.GeneratePrivateKeyK256()
+	require.NoError(t, err)
+	return newTestServerWithSigners(t, oauth, serviceAuth, host)
 }
 
 func newTestServerWithSigners(
@@ -133,7 +135,11 @@ func TestServer_ListSpaces(t *testing.T) {
 	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "my-space")
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.space.listSpaces", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listSpaces",
+		http.NoBody,
+	)
 	w := httptest.NewRecorder()
 	s.ListSpaces(w, req)
 
@@ -160,7 +166,7 @@ func TestServer_ListRepos(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepos?space="+uri.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepos(w, req)
@@ -187,7 +193,7 @@ func TestServer_ListRepos_CursorLimitNotSupported(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepos?space="+uri.String()+"&cursor=abc",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepos(w, req)
@@ -196,7 +202,7 @@ func TestServer_ListRepos_CursorLimitNotSupported(t *testing.T) {
 	req = httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepos?space="+uri.String()+"&limit=10",
-		nil,
+		http.NoBody,
 	)
 	w = httptest.NewRecorder()
 	s.ListRepos(w, req)
@@ -212,7 +218,7 @@ func TestServer_ListRepos_Unauthorized(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepos?space="+uri.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepos(w, req)
@@ -267,7 +273,7 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 	getReq := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getRecord?space="+uri.String()+"&collection=network.habitat.note&rkey=my-note&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	getW := httptest.NewRecorder()
 	s.GetRecord(getW, getReq)
@@ -333,7 +339,7 @@ func TestServer_ListRecords(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRecords?space="+uri.String()+"&collection=network.habitat.note&repo="+owner.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRecords(w, req)
@@ -367,7 +373,7 @@ func TestServer_GetRepo(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+owner.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.GetRepo(w, req)
@@ -426,7 +432,7 @@ func TestServer_GetRepo_RepoNotFound(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+alice.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.GetRepo(w, req)
@@ -586,7 +592,7 @@ func TestServer_ListRepoOps(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -632,7 +638,7 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo="+owner.String(),
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -659,10 +665,15 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	require.Equal(t, wantHash, hash)
 }
 
-// TestServer_ListRepoOps_NoCommitWithoutSigner confirms the commit is omitted
-// when no signer can cover the repo owner.
-func TestServer_ListRepoOps_NoCommitWithoutSigner(t *testing.T) {
-	s, store := newOwnerServer(t) // no host key configured
+// TestServer_GetLatestCommit returns a host-signed commit over the repo's head
+// that verifies against the host key and carries the repo's LtHash.
+func TestServer_GetLatestCommit(t *testing.T) {
+	hostKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	pub, err := hostKey.PublicKey()
+	require.NoError(t, err)
+	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
+	s, store := newTestServerWithSigners(t, m, m, hostKey)
 
 	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
@@ -671,17 +682,74 @@ func TestServer_ListRepoOps_NoCommitWithoutSigner(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo="+owner.String(),
-		nil,
+		"/xrpc/network.habitat.space.getLatestCommit?space="+uri.String()+"&repo="+owner.String(),
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
-	s.ListRepoOps(w, req)
+	s.GetLatestCommit(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var out habitat.NetworkHabitatSpaceListRepoOpsOutput
+	var out habitat.NetworkHabitatSpaceGetLatestCommitOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
-	require.Len(t, out.Ops, 1)
-	require.Zero(t, out.Commit.Ver, "commit omitted when no signer is available")
+	require.Equal(t, int64(spacecommit.Version), out.Commit.Ver)
+
+	hash := decodeB64(t, out.Commit.Hash)
+	ikm := decodeB64(t, out.Commit.Ikm)
+	sig := decodeB64(t, out.Commit.Sig)
+	require.Len(t, ikm, 32)
+
+	ctxBytes := spacecommit.Ctx(spacecommit.HostProtocolTag, uri, owner, out.Commit.Rev, ikm)
+	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
+
+	rev, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, wantHash, hash)
+	require.Equal(t, rev, out.Commit.Rev)
+}
+
+// TestServer_GetLatestCommit_EmptyRepo returns repo-not-found when the repo
+// holds no records in the space.
+func TestServer_GetLatestCommit_EmptyRepo(t *testing.T) {
+	hostKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
+	s, store := newTestServerWithSigners(t, m, m, hostKey)
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getLatestCommit?space="+uri.String()+"&repo="+owner.String(),
+		http.NoBody,
+	)
+	w := httptest.NewRecorder()
+	s.GetLatestCommit(w, req)
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// TestServer_GetLatestCommit_Unauthorized returns space-not-found when the
+// caller is not a member of the space.
+func TestServer_GetLatestCommit_Unauthorized(t *testing.T) {
+	hostKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	m := authntest.NewSuccessMethodWithOrg(alice, orgId)
+	s, store := newTestServerWithSigners(t, m, m, hostKey)
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getLatestCommit?space="+uri.String()+"&repo="+owner.String(),
+		http.NoBody,
+	)
+	w := httptest.NewRecorder()
+	s.GetLatestCommit(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_ListRepoOps_Since(t *testing.T) {
@@ -700,7 +768,7 @@ func TestServer_ListRepoOps_Since(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -712,7 +780,7 @@ func TestServer_ListRepoOps_Since(t *testing.T) {
 	req = httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner&since="+first.Cursor,
-		nil,
+		http.NoBody,
 	)
 	w = httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -731,7 +799,7 @@ func TestServer_ListRepoOps_Unauthorized(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -759,7 +827,7 @@ func TestServer_ListRepoOps_IncludesValue(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)
@@ -795,7 +863,7 @@ func TestServer_ListRepoOps_ExcludeValues(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner&excludeValues=true",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRepoOps(w, req)

@@ -231,7 +231,7 @@ func (s *serviceProxy) fetchRemoteServiceAuth(
 			"aud": {proxyHeader},
 			"lxm": {nsid.String()},
 		}.Encode(),
-		nil,
+		http.NoBody,
 	)
 	slog.WarnContext(ctx, "fetching remove service auth", "req", req.URL.String())
 	if err != nil {

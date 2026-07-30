@@ -18,8 +18,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/oauthclient"
-	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
+	"github.com/habitat-network/habitat/pkg/sap"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/errgroup"
 )
@@ -31,8 +31,7 @@ func main() {
 		Flags:  getFlags(),
 		Action: run,
 	}
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	ctx := context.Background()
 	if err := app.Run(ctx, os.Args); err != nil {
 		slog.ErrorContext(ctx, "error running command", "err", err)
 		os.Exit(1)
@@ -40,6 +39,8 @@ func main() {
 }
 
 func run(ctx context.Context, cmd *cli.Command) error {
+	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 	otelShutdown, err := telemetry.SetupOpenTelemetry(ctx, "home")
 	if err != nil {
 		return fmt.Errorf("setup opentelemetry: %w", err)
@@ -48,7 +49,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	slog.SetDefault(log.New(log.WithLevel(cmd.String(fLogLevel))))
 
-	db, err := db.New(cmd.String(fDB))
+	gormDB, err := db.New(cmd.String(fDB))
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
 	}
@@ -62,7 +63,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	domain := cmd.String(fDomain)
 	dir := identity.DefaultDirectory()
 
-	oauthStore, err := oauthclient.NewGormStore(db)
+	oauthStore, err := oauthclient.NewGormStore(gormDB)
 	if err != nil {
 		return fmt.Errorf("create oauth store: %w", err)
 	}
@@ -78,10 +79,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err := config.SetClientSecret(secret, "home"); err != nil {
 		return fmt.Errorf("set client secret: %w", err)
 	}
-	oauthApp := oauthclient.NewApp(&config, oauthStore)
+	oauthApp := oauth.NewClientApp(&config, oauthStore)
 
 	s, err := sap.NewSap(sap.SapConfig{
-		DB:          db,
+		DB:          gormDB,
 		Directory:   dir,
 		OAuthClient: oauthApp,
 	})
@@ -89,7 +90,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	store, err := NewStore(db)
+	store, err := NewStore(gormDB)
 	if err != nil {
 		return fmt.Errorf("create store: %w", err)
 	}

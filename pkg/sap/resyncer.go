@@ -245,8 +245,12 @@ func (r *resyncer) syncRepo(
 		}
 		params.Set("limit", "1000")
 
-		req, err := http.NewRequestWithContext(ctx, "GET",
-			session.Data.HostURL+"/xrpc/network.habitat.space.listRepoOps?"+params.Encode(), nil)
+		req, err := http.NewRequestWithContext(
+			ctx,
+			"GET",
+			session.Data.HostURL+"/xrpc/network.habitat.space.listRepoOps?"+params.Encode(),
+			http.NoBody,
+		)
 		if err != nil {
 			return r.handleSyncError(ctx, space, repoDID, fmt.Errorf("create request: %w", err))
 		}

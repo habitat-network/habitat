@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ func TestDelegationAuthMethod_CanHandle(t *testing.T) {
 		Method: jwt.SigningMethodHS256,
 	}).SignedString([]byte("secret"))
 	require.NoError(t, err)
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
 	require.True(t, NewDelegationTokenAuthMethod(nil, nil).CanHandle(r))
 }
@@ -54,7 +55,7 @@ func TestDelegationAuthMethod_Validate(t *testing.T) {
 			fgastore.SpaceObjectKey(spaceURI),
 		))
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "/", nil)
+		r := httptest.NewRequest("GET", "/", http.NoBody)
 		r.Header.Set("Authorization", "Bearer "+token)
 		credInfo, ok := NewDelegationTokenAuthMethod(dir, fga).Validate(w, r)
 		require.True(t, ok)
@@ -65,7 +66,7 @@ func TestDelegationAuthMethod_Validate(t *testing.T) {
 		fga, err := fgastore.NewMemory(t.Context())
 		require.NoError(t, err)
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "/", nil)
+		r := httptest.NewRequest("GET", "/", http.NoBody)
 		r.Header.Set("Authorization", "Bearer "+token)
 		_, ok := NewDelegationTokenAuthMethod(dir, fga).Validate(w, r)
 		require.False(t, ok)

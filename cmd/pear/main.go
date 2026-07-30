@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/alexedwards/argon2id"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
@@ -294,6 +295,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup oauth server: %w", err)
 	}
+	oauthGC := oauthserver.NewCollector(db.WithContext(startupCtx), 5*time.Minute)
 
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir, pdsClientFactory))
@@ -408,7 +410,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		defaultDir,
 	)
 
-	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore, pdsForwarding)
+	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore, pdsForwarding, domain)
 	if err != nil {
 		return fmt.Errorf("setup hive server: %w", err)
 	}
@@ -472,6 +474,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/par", oauthServer.HandlePAR)
+	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsent)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
@@ -486,10 +489,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.permissions.removePermission",
-		pearServer.RemovePermission,
-	)
+	mux.HandleFunc("/xrpc/network.habitat.permissions.removePermission",
+		pearServer.RemovePermission)
 
 	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", cliqueServer.CreateClique)
 	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", cliqueServer.AddCliqueMembers)
@@ -509,33 +510,33 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
-	mux.HandleFunc("/xrpc/com.atproto.space.getRepo", spacesServer.GetRepo)
+	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit", spacesServer.GetLatestCommit)
+	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
 	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
+	mux.HandleFunc("/xrpc/network.habitat.space.getDelegationToken",
+		spacesServer.GetDelegationToken)
+	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
+		spacesServer.GetSpaceCredential)
 
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.writeTuple",
-		relationshipServer.WriteTuple,
-	)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.deleteTuple",
-		relationshipServer.DeleteTuple,
-	)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.writeTuple",
+		relationshipServer.WriteTuple)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteTuple",
+		relationshipServer.DeleteTuple)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.listTuples", relationshipServer.ListTuples)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.check", relationshipServer.Check)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.listSubjects",
-		relationshipServer.ListSubjects,
-	)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.listObjects",
-		relationshipServer.ListObjects,
-	)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listSubjects",
+		relationshipServer.ListSubjects)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listObjects",
+		relationshipServer.ListObjects)
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
 
 	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", idServer.GetServiceAuth)
+	mux.HandleFunc("/xrpc/com.atproto.identity.resolveDid", idServer.ResolveDID)
+	mux.HandleFunc("/xrpc/com.atproto.identity.resolveHandle", idServer.ResolveHandle)
+	mux.HandleFunc("/xrpc/com.atproto.identity.resolveIdentity", idServer.ResolveIdentity)
 
 	uiHandler, err := webui.New(cmd.String(fUiDevProxy))
 	if err != nil {
@@ -557,6 +558,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	eg.Go(func() error {
 		slog.InfoContext(egCtx, "starting sequencer")
 		return eventStore.StartSequencer(egCtx)
+	})
+	eg.Go(func() error {
+		return oauthGC.Run(egCtx)
 	})
 	eg.Go(func() error {
 		slog.InfoContext(egCtx, "starting server", "port", port)

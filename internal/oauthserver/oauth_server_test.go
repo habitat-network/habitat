@@ -101,7 +101,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	defer server.Close()
 
 	t.Run("CanHandle returns true for oauth header", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{}).
 			SignedString(secret)
 		require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	})
 
 	t.Run("CanHandle returns false without oauth header", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		require.False(t, oauthSrv.CanHandle(r))
 	})
 
@@ -150,7 +150,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	})
 
 	t.Run("Validate rejects malformed JWT", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, server.URL+"/resource", nil)
+		req, err := http.NewRequest(http.MethodGet, server.URL+"/resource", http.NoBody)
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer not.a.valid.jwt")
 		resp, err := server.Client().Do(req)
@@ -234,7 +234,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle=did:web:example.did.com", nil)
+	)+"&handle=did:web:example.did.com", http.NoBody)
 	require.NoError(t, err)
 
 	// CheckRedirect stops the client from following past the callback so we can
@@ -253,7 +253,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	// Follow redirects manually until we reach /oauth-callback.
 	for resp.StatusCode == http.StatusSeeOther {
 		loc := resp.Header.Get("Location")
-		nextReq, reqErr := http.NewRequest(http.MethodGet, loc, nil)
+		nextReq, reqErr := http.NewRequest(http.MethodGet, loc, http.NoBody)
 		require.NoError(t, reqErr)
 		resp, err = httpClient.Do(nextReq)
 		require.NoError(t, err)
@@ -368,7 +368,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle=did:web:example.did.com", nil)
+	)+"&handle=did:web:example.did.com", http.NoBody)
 	require.NoError(t, err)
 
 	// make authorize requests which will follow redirects all thw way to token response
@@ -572,7 +572,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle="+member.Handle.String(), nil)
+	)+"&handle="+member.Handle.String(), http.NoBody)
 	require.NoError(t, err)
 
 	// make authorize requests which will follow redirects all the way to token response
@@ -684,7 +684,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle=did:web:example.did.com&scope=org:*", nil)
+	)+"&handle=did:web:example.did.com&scope=org:*", http.NoBody)
 	require.NoError(t, err)
 
 	server.Client().CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -698,7 +698,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 
 	for resp.StatusCode == http.StatusSeeOther {
 		loc := resp.Header.Get("Location")
-		nextReq, reqErr := http.NewRequest(http.MethodGet, loc, nil)
+		nextReq, reqErr := http.NewRequest(http.MethodGet, loc, http.NoBody)
 		require.NoError(t, reqErr)
 		resp, err = httpClient.Do(nextReq)
 		require.NoError(t, err)
@@ -791,18 +791,14 @@ func acquireAccessToken(
 	oauthCfg.ClientID = clientApp.URL + "/client-metadata.json"
 	oauthCfg.RedirectURL = clientApp.URL + "/oauth-callback"
 
-	authReq, err := http.NewRequest(
-		http.MethodGet,
-		oauthCfg.AuthCodeURL(
-			"test-state",
-			oauth2.S256ChallengeOption(verifier),
-		)+"&handle=did:web:example.did.com",
-		nil,
-	)
+	authReq, err := http.NewRequest(http.MethodGet, oauthCfg.AuthCodeURL(
+		"test-state",
+		oauth2.S256ChallengeOption(verifier),
+	)+"&handle=did:web:example.did.com", http.NoBody)
 	require.NoError(t, err)
 	resp, err := flowServer.Client().Do(authReq)
-	defer func() { _ = resp.Body.Close() }()
 	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 	require.NotEmpty(t, capturedToken, "no access token captured during OAuth flow")
 	return capturedToken
 }
@@ -859,7 +855,7 @@ func TestValidate(t *testing.T) {
 			}),
 		)
 		defer httpSrv.Close()
-		req, reqErr := http.NewRequest(http.MethodGet, httpSrv.URL+"/", nil)
+		req, reqErr := http.NewRequest(http.MethodGet, httpSrv.URL+"/", http.NoBody)
 		require.NoError(t, reqErr)
 		if bearerToken != "" {
 			req.Header.Set("Authorization", "Bearer "+bearerToken)
@@ -972,7 +968,38 @@ func TestValidateWithScopeChecking(t *testing.T) {
 // oauth.ClientApp. Unlike the existing TestOAuthServerE2E which uses Go's
 // standard x/oauth2 library, this test drives the flow with indigo's DPoP-bound
 // SendInitialTokenRequest, ResumeSession, and ClientSession.DoWithAuth.
+//
+// The flow is run for both kinds of public client: one whose metadata is
+// fetched from a published client metadata document, and a localhost
+// development client whose metadata the server synthesizes from the client_id
+// itself (see localhost.go).
 func TestIndigoClientApp(t *testing.T) {
+	t.Run("client metadata document", func(t *testing.T) {
+		runIndigoClientAppFlow(t, func(clientAppURL string) oauth.ClientConfig {
+			return oauth.NewPublicConfig(
+				clientAppURL+"/client-metadata.json",
+				clientAppURL+"/oauth-callback",
+				[]string{"atproto"},
+			)
+		})
+	})
+
+	// The client app is served on a loopback address, so its callback URL is a
+	// valid localhost-client redirect_uri.
+	t.Run("localhost client id", func(t *testing.T) {
+		runIndigoClientAppFlow(t, func(clientAppURL string) oauth.ClientConfig {
+			return oauth.NewLocalhostConfig(
+				clientAppURL+"/oauth-callback",
+				[]string{"atproto"},
+			)
+		})
+	})
+}
+
+// runIndigoClientAppFlow drives one full indigo ClientApp authorization code
+// flow. config builds the client configuration from the URL the client app's
+// test server ends up listening on.
+func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth.ClientConfig) {
 	// The disambiguation page returns a handle, which the OAuth server resolves
 	// (via hive) to the member's hive-served DID; the org store then routes that
 	// DID's login to the atproto (passthrough) provider. The passthrough stands
@@ -1010,9 +1037,14 @@ func TestIndigoClientApp(t *testing.T) {
 		case "/ui/login/disambiguate":
 			// Stand in for the disambiguation page + user: re-issue the
 			// authorization request with the preserved params plus a handle.
-			http.Redirect(w, r, "/oauth/authorize?handle=example.handle.com", http.StatusSeeOther)
+			http.Redirect(w, r, "/oauth/authorize?disambiguation=example.handle.com",
+				http.StatusSeeOther)
+		case "/ui/login/consent":
+			w.WriteHeader(http.StatusTeapot)
 		case "/oauth-callback":
 			oauthServer.HandleCallback(w, r)
+		case "/oauth/consent":
+			oauthServer.HandleConsent(w, r)
 		case "/oauth/token":
 			oauthServer.HandleToken(w, r)
 		case "/resource":
@@ -1065,11 +1097,7 @@ func TestIndigoClientApp(t *testing.T) {
 	// TLS certificate and override the identity directory with our dummy so
 	// that ProcessCallback (not called here but kept for consistency) can
 	// resolve DIDs.
-	indigoApp := oauth.NewClientApp(new(oauth.NewPublicConfig(
-		clientApp.URL+"/client-metadata.json",
-		clientApp.URL+"/oauth-callback",
-		[]string{"atproto"},
-	)), oauth.NewMemStore())
+	indigoApp := oauth.NewClientApp(new(config(clientApp.URL)), oauth.NewMemStore())
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
@@ -1086,11 +1114,26 @@ func TestIndigoClientApp(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	resp, err := client.Get(redirect)
+	// The flow lands on the consent page: a GET to /oauth/consent returns the
+	// pending request's info as JSON (scopes + client metadata) instead of
+	// finishing the flow.
+	consentGetResp, err := client.Get(redirect)
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = consentGetResp.Body.Close() })
+	require.Equal(t, consentGetResp.StatusCode, http.StatusTeapot)
+
+	// Submitting consent (POST) grants the requested scopes and completes the
+	// authorization, redirecting to the client's callback with a code.
+	consentResp, err := client.Post(
+		"https://habitat.example/oauth/consent",
+		"application/x-www-form-urlencoded",
+		http.NoBody,
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = consentResp.Body.Close() })
 	var respJson map[string]string
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&respJson))
-	require.NoError(t, err, resp.Body.Close())
+	require.NoError(t, json.NewDecoder(consentResp.Body).Decode(&respJson))
+	require.NoError(t, consentResp.Body.Close())
 	t.Logf("respJson: %v", respJson)
 	require.NotEmpty(t, respJson["code"])
 
@@ -1168,7 +1211,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		case "/ui/login/disambiguate":
 			disambiguateVisited = true
 			params := r.URL.Query()
-			params.Set("handle", "did:web:example.did.com")
+			params.Set("disambiguation", "did:web:example.did.com")
 			http.Redirect(w, r, "/oauth/authorize?"+params.Encode(), http.StatusSeeOther)
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -1228,7 +1271,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 	authReq, err := http.NewRequest(
 		http.MethodGet,
 		config.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier)),
-		nil,
+		http.NoBody,
 	)
 	require.NoError(t, err)
 

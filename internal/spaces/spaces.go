@@ -39,6 +39,7 @@ type spaceRecord struct {
 	Cid        string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	DeletedAt  gorm.DeletedAt
 }
 
 // spaceRepo caches a permissioned repo's LtHash so reads (listRepos,
@@ -51,6 +52,7 @@ type spaceRepo struct {
 	Hash      []byte
 	Rev       syntax.TID
 	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt
 }
 
 // SpaceView is the public representation of a space
@@ -391,8 +393,8 @@ func loadRepoHash(
 	repo syntax.DID,
 ) (spacecommit.LtHash, syntax.TID, bool, error) {
 	var row spaceRepo
-	err := tx.Where("space = ? AND repo = ?", space, repo).First(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	err := tx.Unscoped().Where("space = ? AND repo = ?", space, repo).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) || row.DeletedAt.Valid {
 		return spacecommit.LtHash{}, "", false, nil
 	}
 	if err != nil {
@@ -862,36 +864,45 @@ func (s *store) ListRepoOps(
 	limit int,
 ) ([]Record, error) {
 	query := s.db.WithContext(ctx).
+		Unscoped().
 		Model(&spaceRecord{}).
 		Where("space = ? AND repo = ?", uri, repo)
-
 	if since != "" {
 		query = query.Where("rev > ?", since)
 	}
-
 	if limit <= 0 {
 		limit = 100
 	}
-
 	var rows []spaceRecord
 	if err := query.Order("rev ASC").Limit(limit).Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list repo ops: %w", err)
 	}
-
 	records := make([]Record, len(rows))
 	for i, row := range rows {
 		value, err := atdata.UnmarshalCBOR(row.Value)
 		if err != nil {
 			return nil, err
 		}
-		records[i] = Record{
-			Owner:      row.Repo,
-			Collection: row.Collection,
-			Rkey:       row.Rkey,
-			Value:      value,
-			Rev:        string(row.Rev),
-			UpdatedAt:  row.UpdatedAt,
-			Cid:        cid.MustParse(row.Cid),
+		if row.DeletedAt.Valid {
+			records[i] = Record{
+				Owner:      row.Repo,
+				Collection: row.Collection,
+				Rkey:       row.Rkey,
+				Value:      nil,
+				Rev:        string(row.Rev),
+				UpdatedAt:  row.DeletedAt.Time,
+				// empty cid
+			}
+		} else {
+			records[i] = Record{
+				Owner:      row.Repo,
+				Collection: row.Collection,
+				Rkey:       row.Rkey,
+				Value:      value,
+				Rev:        string(row.Rev),
+				UpdatedAt:  row.UpdatedAt,
+				Cid:        cid.MustParse(row.Cid),
+			}
 		}
 	}
 	return records, nil
@@ -901,7 +912,7 @@ func (s *store) RepoHead(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 	repo syntax.DID,
-) (string, []byte, bool, error) {
+) (revision string, sum []byte, found bool, err error) {
 	h, rev, found, err := loadRepoHash(s.db.WithContext(ctx), uri, repo)
 	if err != nil {
 		return "", nil, false, fmt.Errorf("repo head: %w", err)
@@ -909,7 +920,7 @@ func (s *store) RepoHead(
 	if !found {
 		return "", nil, false, nil
 	}
-	return string(rev), h.Sum(), true, nil
+	return rev.String(), h.Sum(), true, nil
 }
 
 func (s *store) DeleteRecord(
@@ -929,7 +940,6 @@ func (s *store) DeleteRecord(
 				return err
 			}
 		}
-
 		var rows []spaceRecord
 		if err := tx.
 			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
@@ -940,24 +950,25 @@ func (s *store) DeleteRecord(
 		if len(rows) == 0 {
 			return nil
 		}
-		if err := tx.
+		rev := s.clock.Next()
+		if err := tx.Model(&spaceRecord{}).
 			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
 				uri, repo, collection, rkey).
-			Delete(&spaceRecord{}).Error; err != nil {
-			return err
+			Updates(map[string]any{
+				"deleted_at": time.Now(),
+				"rev":        rev,
+			}).Error; err != nil {
+			return fmt.Errorf("delete record: %w", err)
 		}
-
 		// Fold the deleted records out of the cached LtHash.
-		h, rev, _, err := loadRepoHash(tx, uri, repo)
+		h, _, _, err := loadRepoHash(tx, uri, repo)
 		if err != nil {
 			return err
 		}
 		for _, row := range rows {
 			h.Remove(spacecommit.RecordElement(row.Collection, row.Rkey, row.Cid))
 		}
-
-		// Drop the hash row entirely once the repo holds no more records, so it
-		// leaves the writer set reported by ListRepos.
+		// Drop the hash row entirely once the repo holds no more records
 		var remaining int64
 		if err := tx.Model(&spaceRecord{}).
 			Where("space = ? AND repo = ?", uri, repo).
