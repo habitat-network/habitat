@@ -797,8 +797,8 @@ func acquireAccessToken(
 	)+"&handle=did:web:example.did.com", http.NoBody)
 	require.NoError(t, err)
 	resp, err := flowServer.Client().Do(authReq)
-	defer func() { _ = resp.Body.Close() }()
 	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 	require.NotEmpty(t, capturedToken, "no access token captured during OAuth flow")
 	return capturedToken
 }
@@ -1006,7 +1006,12 @@ func TestIndigoClientApp(t *testing.T) {
 		case "/ui/login/disambiguate":
 			// Stand in for the disambiguation page + user: re-issue the
 			// authorization request with the preserved params plus a handle.
-			http.Redirect(w, r, "/oauth/authorize?handle=example.handle.com", http.StatusSeeOther)
+			http.Redirect(
+				w,
+				r,
+				"/oauth/authorize?disambiguation=example.handle.com",
+				http.StatusSeeOther,
+			)
 		case "/oauth-callback":
 			oauthServer.HandleCallback(w, r)
 		case "/oauth/token":
@@ -1164,7 +1169,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		case "/ui/login/disambiguate":
 			disambiguateVisited = true
 			params := r.URL.Query()
-			params.Set("handle", "did:web:example.did.com")
+			params.Set("disambiguation", "did:web:example.did.com")
 			http.Redirect(w, r, "/oauth/authorize?"+params.Encode(), http.StatusSeeOther)
 		default:
 			w.WriteHeader(http.StatusNotFound)

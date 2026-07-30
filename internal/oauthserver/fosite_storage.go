@@ -69,9 +69,6 @@ func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) (*fosite.Authori
 				ClientID: r.ClientID,
 				Scopes:   scopes,
 			},
-			// The row records the scopes the user authorized. Mark them granted
-			// (not just requested) so fosite echoes them in the token response;
-			// atproto clients reject a token response with an empty scope.
 			RequestedScope: scopes,
 			GrantedScope:   scopes,
 			Form: url.Values{
@@ -87,14 +84,16 @@ func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) (*fosite.Authori
 func fromRequester(uri string, requester fosite.Requester, expiresAt time.Time) (r *OAuthRequest) {
 	form := requester.GetRequestForm()
 	return &OAuthRequest{
-		Key:          uri,
-		ClientID:     requester.GetClient().GetID(),
-		Scopes:       strings.Join(requester.GetRequestedScopes(), " "),
-		RedirectURI:  form.Get("redirect_uri"),
-		State:        form.Get("state"),
-		ResponseType: form.Get("response_type"),
-		ExpiresAt:    expiresAt,
-		Subject:      requester.GetSession().GetSubject(),
+		Key:                 uri,
+		ClientID:            requester.GetClient().GetID(),
+		Scopes:              strings.Join(requester.GetRequestedScopes(), " "),
+		CodeChallenge:       form.Get("code_challenge"),
+		CodeChallengeMethod: form.Get("code_challenge_method"),
+		RedirectURI:         form.Get("redirect_uri"),
+		State:               form.Get("state"),
+		ResponseType:        form.Get("response_type"),
+		ExpiresAt:           expiresAt,
+		Subject:             requester.GetSession().GetSubject(),
 	}
 }
 

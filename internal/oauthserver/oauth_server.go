@@ -232,7 +232,7 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 	cookieSession *sessions.Session,
 ) fosite.AuthorizeRequester {
 	ctx := r.Context()
-	if r.URL.Query().Get("response_type") == "code" {
+	if r.FormValue("response_type") == "code" {
 		// non-par authorize requests start with /oauth/authorize with a "code" response_type
 		loginHint := r.URL.Query().Get("login_hint")
 		if loginHint == "" {
@@ -258,13 +258,12 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 			return nil
 		}
 		cookieSession.Values[requestKeyCookie] = uri
-	} else if r.URL.Query().Get("request_uri") != "" {
+	} else if r.FormValue("request_uri") != "" {
 		cookieSession.Values[requestKeyCookie] = r.URL.Query().Get("request_uri")
 	}
 	requestKey, _ := cookieSession.Values[requestKeyCookie].(string)
-	slog.WarnContext(ctx, "request key", "key", requestKey)
-	if r.URL.Query().Get("disambiguation") != "" {
-		did, err := o.resolveLoginHint(r.URL.Query().Get("disambiguation"))
+	if r.FormValue("disambiguation") != "" {
+		did, err := o.resolveLoginHint(r.FormValue("disambiguation"))
 		if err != nil {
 			httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 			return nil
@@ -279,8 +278,8 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 		httpx.WriteInvalidRequest(ctx, w, "failed to get request", err)
 		return nil
 	}
-	if r.URL.Query().Get("client_id") != "" {
-		if r.URL.Query().Get("client_id") != requester.GetClient().GetID() {
+	if r.FormValue("client_id") != "" {
+		if r.FormValue("client_id") != requester.GetClient().GetID() {
 			httpx.WriteInvalidRequest(ctx, w, "client_id mismatch", nil)
 			return nil
 		}
@@ -295,7 +294,7 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	sess := newSession()
-	did, err := o.resolveLoginHint(r.URL.Query().Get("login_hint"))
+	did, err := o.resolveLoginHint(r.FormValue("login_hint"))
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 		return
