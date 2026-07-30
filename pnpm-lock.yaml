@@ -369,8 +369,8 @@ importers:
         specifier: workspace:*
         version: link:../../internal
       it-byte-stream:
-        specifier: ^2.0.6
-        version: 2.0.6
+        specifier: ^3.0.0
+        version: 3.0.0
       lib0:
         specifier: ^0.2.117
         version: 0.2.117
@@ -7176,6 +7176,9 @@ packages:
 
   it-byte-stream@2.0.6:
     resolution: {integrity: sha512-lcPo7azQjSfQvLq+Rkb9Wq+ZERK/MGD9Z67BG5c/zcT96S6xO0dY+Lma1+fSuNspYgJNZq7yETWZim8eOfN9ag==}
+
+  it-byte-stream@3.0.0:
+    resolution: {integrity: sha512-dpTm5CaRFuz7Wp8VRo8TLkhVNx4KCNT7fAtVorAz/CxrwBJwyz6a6Au9inPxqDN6kN7VVN3WUweJCziG39T48w==}
 
   it-drain@3.0.12:
     resolution: {integrity: sha512-RaFA9X1PF2Pf1Jlqhgf5PlXLgf6CaZt7tSzhia+EkEVcAJRKa0Uhr8UnjVv0GmOA3Air9jDJfIX2KIvz5hZ1Ag==}
@@ -19133,6 +19136,14 @@ snapshots:
       it-stream-types: 2.0.4
       race-signal: 2.0.0
       uint8arraylist: 2.4.9
+
+  it-byte-stream@3.0.0:
+    dependencies:
+      abort-error: 1.0.2
+      it-queueless-pushable: 2.0.5
+      it-stream-types: 2.0.4
+      race-signal: 2.0.0
+      uint8arraylist: 3.0.2
 
   it-drain@3.0.12: {}
 
