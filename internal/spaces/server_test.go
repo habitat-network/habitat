@@ -120,7 +120,7 @@ func TestServer_UploadAndGetBlob(t *testing.T) {
 	getURL := "/xrpc/network.habitat.space.getBlob?space=" +
 		url.QueryEscape(uri.String()) + "&cid=" + out.Cid
 	getW := httptest.NewRecorder()
-	s.GetBlob(getW, httptest.NewRequest(http.MethodGet, getURL, nil))
+	s.GetBlob(getW, httptest.NewRequest(http.MethodGet, getURL, http.NoBody))
 
 	require.Equal(t, http.StatusOK, getW.Code)
 	require.Equal(t, "text/plain", getW.Header().Get("Content-Type"))
