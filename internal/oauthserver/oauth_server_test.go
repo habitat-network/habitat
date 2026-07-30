@@ -968,7 +968,38 @@ func TestValidateWithScopeChecking(t *testing.T) {
 // oauth.ClientApp. Unlike the existing TestOAuthServerE2E which uses Go's
 // standard x/oauth2 library, this test drives the flow with indigo's DPoP-bound
 // SendInitialTokenRequest, ResumeSession, and ClientSession.DoWithAuth.
+//
+// The flow is run for both kinds of public client: one whose metadata is
+// fetched from a published client metadata document, and a localhost
+// development client whose metadata the server synthesizes from the client_id
+// itself (see localhost.go).
 func TestIndigoClientApp(t *testing.T) {
+	t.Run("client metadata document", func(t *testing.T) {
+		runIndigoClientAppFlow(t, func(clientAppURL string) oauth.ClientConfig {
+			return oauth.NewPublicConfig(
+				clientAppURL+"/client-metadata.json",
+				clientAppURL+"/oauth-callback",
+				[]string{"atproto"},
+			)
+		})
+	})
+
+	// The client app is served on a loopback address, so its callback URL is a
+	// valid localhost-client redirect_uri.
+	t.Run("localhost client id", func(t *testing.T) {
+		runIndigoClientAppFlow(t, func(clientAppURL string) oauth.ClientConfig {
+			return oauth.NewLocalhostConfig(
+				clientAppURL+"/oauth-callback",
+				[]string{"atproto"},
+			)
+		})
+	})
+}
+
+// runIndigoClientAppFlow drives one full indigo ClientApp authorization code
+// flow. config builds the client configuration from the URL the client app's
+// test server ends up listening on.
+func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth.ClientConfig) {
 	// The disambiguation page returns a handle, which the OAuth server resolves
 	// (via hive) to the member's hive-served DID; the org store then routes that
 	// DID's login to the atproto (passthrough) provider. The passthrough stands
@@ -1066,11 +1097,7 @@ func TestIndigoClientApp(t *testing.T) {
 	// TLS certificate and override the identity directory with our dummy so
 	// that ProcessCallback (not called here but kept for consistency) can
 	// resolve DIDs.
-	indigoApp := oauth.NewClientApp(new(oauth.NewPublicConfig(
-		clientApp.URL+"/client-metadata.json",
-		clientApp.URL+"/oauth-callback",
-		[]string{"atproto"},
-	)), oauth.NewMemStore())
+	indigoApp := oauth.NewClientApp(new(config(clientApp.URL)), oauth.NewMemStore())
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
