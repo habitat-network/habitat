@@ -318,8 +318,8 @@ importers:
         specifier: ^5.2.24
         version: 5.2.24(react-native@0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.8))
       '@libp2p/websockets':
-        specifier: ^9.2.19
-        version: 9.2.19
+        specifier: ^10.0.0
+        version: 10.1.18
       '@libp2p/webtransport':
         specifier: 5.0.51
         version: 5.0.51
@@ -3216,8 +3216,8 @@ packages:
   '@libp2p/webrtc@5.2.24':
     resolution: {integrity: sha512-0Ne/GDR0FBnKQ/KpJDdQ0Ohii1jyhSCJvbKRxLISm8XItCuJtE1WA2awiWZddZwp2lPDPh9iQmFaYUvv8Zel2w==}
 
-  '@libp2p/websockets@9.2.19':
-    resolution: {integrity: sha512-+g2qI9Lgvyofoc6GFztPoPVZV+z/lg9pIUfneHht6j88Y7tH3NrAQ7Ki+9lqS5XBX2h1O1bHULWbCaVYCj9TZg==}
+  '@libp2p/websockets@10.1.18':
+    resolution: {integrity: sha512-wviGyNQUOkuIlHMDvkRGcmtw4eV18sbY8rHVdyVkrns8kDwgnDl6qevoZAgYV+Ao+tJYUp1jnrNZYWDPNDY9+g==}
 
   '@libp2p/webtransport@5.0.51':
     resolution: {integrity: sha512-wiAUy5Z31TkoSGJ5DRF28J3F4V1drRUT4EACYUlA7w7Amx6dNoN+sblUPeYJDEp/Bd0o4bfa9WjGcFHH8QEwbA==}
@@ -3254,8 +3254,8 @@ packages:
   '@multiformats/multiaddr-matcher@3.0.2':
     resolution: {integrity: sha512-iphGQJliZxe2yKu57bdRDgeS+3znc5uXtMybDO1Wau3rIjas4zjrjlyxmFz3wqyUL9f3VDQwas/ZqA7N4QeSfw==}
 
-  '@multiformats/multiaddr-to-uri@11.0.2':
-    resolution: {integrity: sha512-SiLFD54zeOJ0qMgo9xv1Tl9O5YktDKAVDP4q4hL16mSq4O4sfFNagNADz8eAofxd6TfQUzGQ3TkRRG9IY2uHRg==}
+  '@multiformats/multiaddr-to-uri@12.0.0':
+    resolution: {integrity: sha512-3uIEBCiy8tfzxYYBl81x1tISiNBQ7mHU4pGjippbJRoQYHzy/ZdZM/7JvTldr8pc/dzpkaNJxnsuxxlhsPOJsA==}
 
   '@multiformats/multiaddr@12.5.1':
     resolution: {integrity: sha512-+DDlr9LIRUS8KncI1TX/FfUn8F2dl6BIxJgshS/yFQCNB5IAF0OGzcwB39g5NLE22s4qqDePv0Qof6HdpJ/4aQ==}
@@ -6358,9 +6358,6 @@ packages:
     resolution: {integrity: sha512-EzV94NYKoO09GLXGjXj9JIlXijVck4ONSr5wiCWDvhsvj5jxSrzTmRU/9C1DyB6uToszLs8aifA6NQ7lEQdvFw==}
     engines: {node: '>= 0.8'}
 
-  event-iterator@2.0.0:
-    resolution: {integrity: sha512-KGft0ldl31BZVV//jj+IAIGCxkvvUkkON+ScH6zfoX+l+omX6001ggyRSpI0Io2Hlro0ThXotswCtfzS8UkIiQ==}
-
   event-target-shim@5.0.1:
     resolution: {integrity: sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ==}
     engines: {node: '>=6'}
@@ -7439,10 +7436,6 @@ packages:
 
   it-take@3.0.11:
     resolution: {integrity: sha512-zvoeEjLViGFyhYT5KNCgmcIH90Si8lCve4aTMvgej/ZQRfB9YzrcJW3UHIJjbQ9TiAnsT4vsWDImEFQNk5xmnA==}
-
-  it-ws@6.1.5:
-    resolution: {integrity: sha512-uWjMtpy5HqhSd/LlrlP3fhYrr7rUfJFFMABv0F5d6n13Q+0glhZthwUKpEAVhDrXY95Tb1RB5lLqqef+QbVNaw==}
-    engines: {node: '>=16.0.0', npm: '>=7.0.0'}
 
   jake@10.9.4:
     resolution: {integrity: sha512-wpHYzhxiVQL+IV05BLE2Xn34zW1S223hvjtqk0+gsPrwd/8JNLXJgZZM/iPFsYc1xyphF+6M6EvdE5E9MBGkDA==}
@@ -8709,10 +8702,6 @@ packages:
   p-defer@4.0.1:
     resolution: {integrity: sha512-Mr5KC5efvAK5VUptYEIopP1bakB85k2IWXaRC0rsh1uwn1L6M0LVml8OIQ4Gudg4oyZakf7FmeRLkMMtZW1i5A==}
     engines: {node: '>=12'}
-
-  p-event@6.0.1:
-    resolution: {integrity: sha512-Q6Bekk5wpzW5qIyUP4gdMEujObYstZl6DMMOSenwBvV0BlE5LkDwkjs5yHbZmdCEq2o4RJx4tE1vwxFVf2FG1w==}
-    engines: {node: '>=16.17'}
 
   p-event@7.1.0:
     resolution: {integrity: sha512-/lkPs5W1aC3cp6vqZefpdosOn65J571sWodyfOQiF0+tmDCpU+H8Atwpu0vQROCVUlZuToDN5eyTLsMLLc54mg==}
@@ -15240,20 +15229,18 @@ snapshots:
       - react-native
       - supports-color
 
-  '@libp2p/websockets@9.2.19':
+  '@libp2p/websockets@10.1.18':
     dependencies:
-      '@libp2p/interface': 2.11.0
-      '@libp2p/utils': 6.7.2
-      '@multiformats/multiaddr': 12.5.1
-      '@multiformats/multiaddr-matcher': 2.0.2
-      '@multiformats/multiaddr-to-uri': 11.0.2
-      '@types/ws': 8.18.1
-      it-ws: 6.1.5
+      '@libp2p/interface': 3.2.5
+      '@libp2p/utils': 7.3.1
+      '@multiformats/multiaddr': 13.0.3
+      '@multiformats/multiaddr-matcher': 3.0.2
+      '@multiformats/multiaddr-to-uri': 12.0.0
       main-event: 1.0.4
-      p-defer: 4.0.1
-      p-event: 6.0.1
+      p-event: 7.1.0
       progress-events: 1.1.0
-      race-signal: 1.1.3
+      uint8arraylist: 3.0.2
+      uint8arrays: 6.1.1
       ws: 8.21.1
     transitivePeerDependencies:
       - bufferutil
@@ -15358,9 +15345,9 @@ snapshots:
     dependencies:
       '@multiformats/multiaddr': 13.0.3
 
-  '@multiformats/multiaddr-to-uri@11.0.2':
+  '@multiformats/multiaddr-to-uri@12.0.0':
     dependencies:
-      '@multiformats/multiaddr': 12.5.1
+      '@multiformats/multiaddr': 13.0.3
 
   '@multiformats/multiaddr@12.5.1':
     dependencies:
@@ -18777,8 +18764,6 @@ snapshots:
       '@types/node': 26.1.2
       require-like: 0.1.2
 
-  event-iterator@2.0.0: {}
-
   event-target-shim@5.0.1: {}
 
   eventemitter3@4.0.7: {}
@@ -20052,17 +20037,6 @@ snapshots:
   it-stream-types@2.0.4: {}
 
   it-take@3.0.11: {}
-
-  it-ws@6.1.5:
-    dependencies:
-      '@types/ws': 8.18.1
-      event-iterator: 2.0.0
-      it-stream-types: 2.0.4
-      uint8arrays: 5.1.1
-      ws: 8.21.1
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
 
   jake@10.9.4:
     dependencies:
@@ -21998,10 +21972,6 @@ snapshots:
   p-cancelable@3.0.0: {}
 
   p-defer@4.0.1: {}
-
-  p-event@6.0.1:
-    dependencies:
-      p-timeout: 6.1.4
 
   p-event@7.1.0:
     dependencies:
