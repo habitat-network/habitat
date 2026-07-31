@@ -197,10 +197,8 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	views := make([]habitat.NetworkHabitatSpaceListSpacesSpaceView, len(spaces))
 	for i, sp := range spaces {
 		views[i] = habitat.NetworkHabitatSpaceListSpacesSpaceView{
-			Uri:         sp.URI.String(),
-			Type:        sp.Type.String(),
-			Skey:        sp.Skey.String(),
-			MemberCount: int64(sp.MemberCount),
+			Uri:     sp.URI.String(),
+			IsOwner: sp.URI.SpaceOwner() == credInfo.Subject,
 		}
 	}
 

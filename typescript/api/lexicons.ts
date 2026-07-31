@@ -4659,25 +4659,28 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'List the spaces that the authenticated user participates in, optionally filtered by type and/or owner DID. Requires auth.',
+          "List the spaces the authenticated user holds a repo in (i.e. spaces the user has written data to), optionally filtered by type and/or owner DID. Note this is not 'spaces I'm a member of' — a member's PDS only tracks spaces its user has written to. Requires auth, implemented by PDS.",
         parameters: {
           type: 'params',
           properties: {
             type: {
               type: 'string',
               format: 'nsid',
-              description: 'Filter to spaces of this type.',
+              description:
+                "Filter to spaces of this type. Required if the caller's OAuth scope is narrower than `space:*`.",
             },
             did: {
               type: 'string',
               format: 'did',
-              description: 'Filter to spaces owned by this DID.',
+              description:
+                "Filter to spaces owned by this DID. Required if the caller's OAuth scope is narrower than `?did=*`.",
             },
             limit: {
               type: 'integer',
               minimum: 1,
               maximum: 100,
               default: 50,
+              description: 'The number of spaces to return.',
             },
             cursor: {
               type: 'string',
@@ -4706,24 +4709,17 @@ export const schemaDict = {
       },
       spaceView: {
         type: 'object',
-        required: ['uri', 'type'],
+        required: ['uri', 'isOwner'],
         properties: {
           uri: {
             type: 'string',
+            format: 'at-uri',
             description: 'URI of the space.',
           },
-          type: {
-            type: 'string',
-            format: 'nsid',
-            description: 'The NSID of the space type.',
-          },
-          skey: {
-            type: 'string',
-            description: 'The space key.',
-          },
-          memberCount: {
-            type: 'integer',
-            description: 'Number of members in the space.',
+          isOwner: {
+            type: 'boolean',
+            description:
+              'Whether the authenticated user is the owner of the space.',
           },
         },
       },
