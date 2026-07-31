@@ -4169,7 +4169,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Create a new space. The authenticated user becomes the space owner. Requires auth, implemented by PDS.',
+          'DEPRECATED. Use network.habitat.simplespace.createSpace instead.',
         input: {
           encoding: 'application/json',
           schema: {

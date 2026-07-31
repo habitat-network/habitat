@@ -6634,7 +6634,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.createSpace",
-        "description": "Create a new space. The authenticated user becomes the space owner. Requires auth, implemented by PDS.",
+        "description": "DEPRECATED. Use network.habitat.simplespace.createSpace instead.",
         "operationId": "network.habitat.space.createSpace",
         "security": [
           {

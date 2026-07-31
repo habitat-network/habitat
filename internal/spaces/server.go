@@ -97,6 +97,7 @@ func (s *Server) authorize(
 }
 
 func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth),
 		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
@@ -104,53 +105,40 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
-	var input habitat.NetworkHabitatSpaceCreateSpaceInput
+	var input habitat.NetworkHabitatSimplespaceCreateSpaceInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
 	}
-
-	spaceType, ok := httpx.ParseNSIDInput(r.Context(), w, input.Type, "space type")
+	spaceType, ok := httpx.ParseNSIDInput(ctx, w, input.Type, "space type")
 	if !ok {
 		return
 	}
-
 	var skey habitat_syntax.SpaceKey
 	if input.Skey != "" {
 		parsedKey, err := habitat_syntax.ParseSkey(input.Skey)
 		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse space key", http.StatusBadRequest)
+			httpx.WriteInvalidRequest(ctx, w, "invalid skey", err)
 			return
 		}
 		skey = parsedKey
 	}
-
-	callerOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), credInfo.Subject)
+	callerOrg, _, err := s.orgStore.GetOrgForDID(ctx, credInfo.Subject)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"get org for caller",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get org for caller: %w", err))
 		return
 	}
-
-	uri, err := s.store.CreateSpace(r.Context(), callerOrg.DID(), credInfo.Subject, spaceType, skey)
+	uri, err := s.store.CreateSpace(ctx, callerOrg.DID(), credInfo.Subject, spaceType, skey)
 	if errors.Is(err, ErrSpaceAlreadyExists) {
-		http.Error(w, err.Error(), http.StatusConflict)
+		httpx.WriteError(ctx, w, "SpaceAlreadyExists", "" /* msg */, http.StatusBadRequest)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "create space", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("create space: %w", err))
 		return
 	}
-
-	output := habitat.NetworkHabitatSpaceCreateSpaceOutput{
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSimplespaceCreateSpaceOutput{
 		Uri: uri.String(),
-	}
-	httpx.WriteJSON(r.Context(), w, output)
+	})
 }
 
 func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
