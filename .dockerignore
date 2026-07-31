@@ -4,10 +4,34 @@
 
 bin/
 
-node_modules/
+# Docker ignore patterns match the full context-relative path and are NOT
+# recursive, so a bare `node_modules/` would only exclude the root-level one.
+**/node_modules
+
+.worktrees/
 
 dev.env
 
 .habitat
+
+# Local dev SQLite databases (gitignored, but they are rewritten on every
+# `moon pear:dev` run and would otherwise bust the `COPY . /app/` layer).
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# Build outputs. internal/webui/dist is safe to exclude because the Dockerfile's
+# UI stage recreates it via `COPY --from=ui` before the Go build embeds it.
+frontend/dist/
+api-docs/build/
+website/dist/
+internal/webui/dist/
+
+# Local-only TS build artifacts. These are gitignored (CI builds without them,
+# and pear-pages consumes its workspace deps from source), but a local
+# `moon :build` regenerates them and would bust the UI stage's source layer.
+typescript/**/dist/
+**/tsconfig.tsbuildinfo
+**/.tanstack
 
 **/.DS_Store
