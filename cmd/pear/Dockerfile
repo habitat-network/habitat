@@ -28,7 +28,7 @@ FROM golang:1.26-alpine AS build
 WORKDIR /app
 
 # Copy go module files first for better layer caching
-COPY go.mod go.sum* ./
+COPY go.mod go.sum* go.work go.work.sum ./
 COPY cmd/pear/go.mod cmd/pear/go.sum ./cmd/pear/
 
 
@@ -55,4 +55,3 @@ COPY --from=build /app/bin/pear /app/pear
 
 # Run the binary
 CMD ["/app/pear"]
-
