@@ -3800,6 +3800,321 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSimplespaceAddMember: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.addMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Add a member to a space's member list. The member list is host-internal state consulted at credential-mint time when the space's policy is 'member-list'. It is not a synced protocol structure and is not enumerated to the network. Requires auth as the space owner.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'did'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              did: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the member to add.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'NotSpaceOwner',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSimplespaceCheckUserAccess: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.checkUserAccess',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Ask a space's managing app whether to authorize a requesting user for a space credential. Served by the managingApp (not the PDS), called by the space authority at mint time when policy is 'managing-app'. Authenticated with service auth from the authority.",
+        parameters: {
+          type: 'params',
+          required: ['space', 'user'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            user: {
+              type: 'string',
+              format: 'did',
+              description: 'The DID of the requesting user.',
+            },
+            clientId: {
+              type: 'string',
+              description:
+                'The attested client_id, if a client attestation was presented.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['authorized'],
+            properties: {
+              authorized: {
+                type: 'boolean',
+                description: 'Whether the managing app authorizes the request.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSimplespaceCreateSpace: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.createSpace',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Create a new space managed by the simplespace implementation. The authenticated user becomes the space owner. Requires auth, implemented by PDS.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['did', 'type'],
+            properties: {
+              did: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the space.',
+              },
+              type: {
+                type: 'string',
+                format: 'nsid',
+                description:
+                  'The NSID of the space type, describing the modality of the space (e.g. app.bsky.group, app.bsky.personal).',
+              },
+              skey: {
+                type: 'string',
+                maxLength: 512,
+                description:
+                  'The space key. Used to differentiate multiple spaces of the same type under the same owner. If not provided, one will be auto-generated (TID).',
+              },
+              config: {
+                type: 'ref',
+                ref: 'lex:network.habitat.simplespace.defs#spaceConfig',
+                description:
+                  "Initial configuration for the space. If omitted, the host applies its defaults (policy 'member-list', appAccess '#open').",
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'URI of the created space.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceAlreadyExists',
+            description:
+              'A space with this owner, type, and skey already exists.',
+          },
+          {
+            name: 'InvalidType',
+            description:
+              'The provided space type NSID is not a recognized or valid space type.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSimplespaceDefs: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.defs',
+    defs: {
+      spaceConfig: {
+        type: 'object',
+        description:
+          'Configuration for a space managed by the simplespace implementation. A credential is minted only when the user is authorized by `policy` and their app by `appAccess`.',
+        required: ['policy', 'appAccess'],
+        properties: {
+          policy: {
+            type: 'string',
+            knownValues: ['public', 'member-list', 'managing-app'],
+            description:
+              "How the authority decides whether to authorize a requesting user. 'member-list' (default) consults the member list, 'public' authorizes anyone, 'managing-app' asks the managingApp via checkUserAccess.",
+          },
+          appAccess: {
+            type: 'union',
+            description:
+              'How the authority decides whether to authorize a requesting app.',
+            refs: [
+              'lex:network.habitat.simplespace.defs#open',
+              'lex:network.habitat.simplespace.defs#allowList',
+            ],
+          },
+          managingApp: {
+            type: 'string',
+            description:
+              "Service identifier (e.g. did:web:example.com#forum) of the app that manages this space. Routes application-level requests and is the checkUserAccess target when policy is 'managing-app'.",
+          },
+        },
+      },
+      open: {
+        type: 'object',
+        description:
+          'App access policy: any app may access the space. No client attestation required.',
+        properties: {},
+      },
+      allowList: {
+        type: 'object',
+        description:
+          'App access policy: only the named clients may access the space, evaluated against the attested client_id.',
+        required: ['allowed'],
+        properties: {
+          allowed: {
+            type: 'array',
+            description: 'The OAuth client IDs permitted to access the space.',
+            items: {
+              type: 'string',
+              description: 'An OAuth client ID.',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSimplespaceListMembers: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.listMembers',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the members in a space's host-internal member list. Must be called on the space owner's PDS, by the space owner. This reflects the simplespace member list, not a protocol-level reader set.",
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 1000,
+              default: 100,
+              description: 'Maximum number of members to return.',
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              members: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.simplespace.listMembers#member',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'NotSpaceOwner',
+          },
+        ],
+      },
+      member: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSimplespaceRemoveMember: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.removeMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Remove a member from a space's member list. The member list is host-internal state consulted at credential-mint time when the space's policy is 'member-list'. Requires auth as the space owner.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'did'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              did: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the member to remove.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'NotSpaceOwner',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatSpaceAddMember: {
     lexicon: 1,
     id: 'network.habitat.space.addMember',
@@ -5087,6 +5402,16 @@ export const ids = {
   NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',
   NetworkHabitatSearchQuery: 'network.habitat.search.query',
+  NetworkHabitatSimplespaceAddMember: 'network.habitat.simplespace.addMember',
+  NetworkHabitatSimplespaceCheckUserAccess:
+    'network.habitat.simplespace.checkUserAccess',
+  NetworkHabitatSimplespaceCreateSpace:
+    'network.habitat.simplespace.createSpace',
+  NetworkHabitatSimplespaceDefs: 'network.habitat.simplespace.defs',
+  NetworkHabitatSimplespaceListMembers:
+    'network.habitat.simplespace.listMembers',
+  NetworkHabitatSimplespaceRemoveMember:
+    'network.habitat.simplespace.removeMember',
   NetworkHabitatSpaceAddMember: 'network.habitat.space.addMember',
   NetworkHabitatSpaceCreateSpace: 'network.habitat.space.createSpace',
   NetworkHabitatSpaceDefs: 'network.habitat.space.defs',
