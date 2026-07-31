@@ -30,7 +30,7 @@ import {
 } from "internal/components/ui";
 import { X } from "lucide-react";
 import { spaceReposQueryOptions } from "@/queries/spaces";
-import { SpacesBreadcrumb, shortenDid } from "@/components/SpacesBreadcrumb";
+import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
 
 export const Route = createFileRoute(
   "/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/",
@@ -125,7 +125,7 @@ function SpaceMembers() {
                       className="hover:underline"
                       title={repo.did}
                     >
-                      {shortenDid(repo.did)}
+                      {repo.did}
                     </Link>
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">

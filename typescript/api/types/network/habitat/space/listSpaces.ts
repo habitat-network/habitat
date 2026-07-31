@@ -16,10 +16,11 @@ const is$typed = _is$typed,
 const id = 'network.habitat.space.listSpaces'
 
 export type QueryParams = {
-  /** Filter to spaces of this type. */
+  /** Filter to spaces of this type. Required if the caller's OAuth scope is narrower than `space:*`. */
   type?: string
-  /** Filter to spaces owned by this DID. */
+  /** Filter to spaces owned by this DID. Required if the caller's OAuth scope is narrower than `?did=*`. */
   did?: string
+  /** The number of spaces to return. */
   limit?: number
   cursor?: string
 }
@@ -49,12 +50,8 @@ export interface SpaceView {
   $type?: 'network.habitat.space.listSpaces#spaceView'
   /** URI of the space. */
   uri: string
-  /** The NSID of the space type. */
-  type: string
-  /** The space key. */
-  skey?: string
-  /** Number of members in the space. */
-  memberCount?: number
+  /** Whether the authenticated user is the owner of the space. */
+  isOwner: boolean
 }
 
 const hashSpaceView = 'spaceView'

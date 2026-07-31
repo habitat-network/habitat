@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { procedure, parseSpaceURI } from "internal";
+import { procedure, parseSpaceURI, SpaceURIParts } from "internal";
 import {
   Button,
   Card,
@@ -32,9 +32,8 @@ export const Route = createFileRoute("/_requireAuth/spaces/")({
 });
 
 interface SpaceTypeSummary {
-  type: string;
+  parts: SpaceURIParts;
   spaceCount: number;
-  memberCount: number;
 }
 
 // summarizeByType rolls the flat space list up into one row per space type,
@@ -42,16 +41,16 @@ interface SpaceTypeSummary {
 function summarizeByType(spaces: SpaceView[]): SpaceTypeSummary[] {
   const byType = new Map<string, SpaceTypeSummary>();
   for (const space of spaces) {
-    const summary = byType.get(space.type) ?? {
-      type: space.type,
+    const parts = parseSpaceURI(space.uri);
+    if (!parts) continue;
+    const summary = byType.get(parts.spaceType) ?? {
+      parts: parts,
       spaceCount: 0,
-      memberCount: 0,
     };
     summary.spaceCount += 1;
-    summary.memberCount += space.memberCount ?? 0;
-    byType.set(space.type, summary);
+    byType.set(parts.spaceType, summary);
   }
-  return [...byType.values()].sort((a, b) => a.type.localeCompare(b.type));
+  return [...byType.values()];
 }
 
 function SpaceTypesList() {
@@ -81,26 +80,22 @@ function SpaceTypesList() {
             <TableRow>
               <TableHead>Type</TableHead>
               <TableHead className="text-right">Spaces</TableHead>
-              <TableHead className="text-right">Members</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {types.map((summary) => (
-              <TableRow key={summary.type}>
+              <TableRow key={summary.parts.spaceType}>
                 <TableCell>
                   <Link
                     to="/spaces/type/$spaceType"
-                    params={{ spaceType: summary.type }}
+                    params={{ spaceType: summary.parts.spaceType }}
                     className="font-mono hover:underline"
                   >
-                    {summary.type}
+                    {summary.parts.spaceType}
                   </Link>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {summary.spaceCount}
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {summary.memberCount}
                 </TableCell>
               </TableRow>
             ))}

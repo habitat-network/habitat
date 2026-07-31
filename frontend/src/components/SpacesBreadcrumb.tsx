@@ -10,12 +10,6 @@ import {
 } from "internal/components/ui";
 import type { SpaceURIParts } from "internal";
 
-// shortenDid keeps a DID recognizable in a breadcrumb without letting it push
-// the rest of the trail off the line.
-export function shortenDid(did: string): string {
-  return did.length > 24 ? `${did.slice(0, 12)}…${did.slice(-8)}` : did;
-}
-
 export interface SpacesBreadcrumbProps {
   // Each level the current page has drilled into. The deepest one provided is
   // rendered as the current page; the rest link back up the chain.
@@ -72,7 +66,7 @@ export function SpacesBreadcrumb({
     if (recordOwner) {
       crumbs.push({
         key: "recordOwner",
-        label: shortenDid(recordOwner),
+        label: recordOwner,
         mono: true,
         link: (
           <Link
@@ -80,7 +74,7 @@ export function SpacesBreadcrumb({
             params={{ ...space, recordOwner }}
             title={recordOwner}
           >
-            {shortenDid(recordOwner)}
+            {recordOwner}
           </Link>
         ),
       });
