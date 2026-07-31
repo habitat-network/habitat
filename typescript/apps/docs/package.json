@@ -18,7 +18,7 @@
     "@libp2p/dcutr": "^3.0.0",
     "@libp2p/identify": "^3.0.39",
     "@libp2p/interface": "^2.11.0",
-    "@libp2p/peer-id": "^5.1.9",
+    "@libp2p/peer-id": "^6.0.0",
     "@libp2p/ping": "3.1.10",
     "@libp2p/webrtc": "^5.2.24",
     "@libp2p/websockets": "^9.2.19",
