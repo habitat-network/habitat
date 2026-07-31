@@ -10,7 +10,6 @@ import { routeTree } from "./routeTree.gen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { reportWebVitals, AuthManager } from "internal";
 
-console.log(import.meta.env.VITE_BASE_URL);
 const domainUrl = new URL(import.meta.env.VITE_BASE_URL);
 const authManager = new AuthManager(
   "Habitat",
