@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 #### UI BUILD STAGE
 #### Builds the pear-pages static site that the Go binary embeds and serves
 #### under /ui/ (member login + instance admin pages). The output must land in
