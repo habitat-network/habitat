@@ -21,7 +21,6 @@ import {
   toast,
 } from "internal/components/ui";
 import { spacesListQueryOptions, type SpaceView } from "@/queries/spaces";
-import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
 
 export const Route = createFileRoute("/_requireAuth/spaces/")({
   loader: ({ context }) =>
