@@ -8832,7 +8832,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.removeMember",
-        "description": "Remove a member from a space. Caller must have can_manage_members.",
+        "description": "DEPRECATED. Use network.habitat.simplespace.removeMember instead.",
         "operationId": "network.habitat.space.removeMember",
         "security": [
           {
