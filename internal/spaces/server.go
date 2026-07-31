@@ -5,13 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/schema"
+	"github.com/ipfs/go-cid"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -38,13 +43,15 @@ type Server struct {
 	orgStore    org.Store
 	commit      *spacecommit.Authority
 	hive        hive.Hive
+	blobs       BlobStore
 }
 
 // NewServer constructs the spaces server. host and member are the commit
 // signers: member signs commits for habitat-managed repo owners with their own
 // key (proposal spec), and host signs for owners on external PDSes with
 // Habitat's single host key. Either may be nil; when neither can sign an
-// author, listRepoOps omits the signed commit.
+// author, listRepoOps omits the signed commit. blobs backs the uploadBlob and
+// getBlob endpoints.
 func NewServer(
 	store Store,
 	fga fgastore.Store,
@@ -54,6 +61,7 @@ func NewServer(
 	orgStore org.Store,
 	hostPrivateKey atcrypto.PrivateKey,
 	hive hive.Hive,
+	blobs BlobStore,
 ) *Server {
 	return &Server{
 		store:       store,
@@ -65,6 +73,7 @@ func NewServer(
 		commit:      spacecommit.NewAuthority(hostPrivateKey, hive),
 		hive:        hive,
 		delegation:  delegation,
+		blobs:       blobs,
 	}
 }
 
@@ -584,6 +593,104 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		Value: rec.Value,
 	}
 	httpx.WriteJSON(r.Context(), w, output)
+}
+
+// blobRef is the atproto blob reference returned by uploadBlob. It matches the
+// "blob" lexicon type: https://atproto.com/specs/data-model#blob-type
+type blobRef struct {
+	Type     string         `json:"$type"`
+	Ref      atdata.CIDLink `json:"ref"`
+	MimeType string         `json:"mimeType"`
+	Size     int64          `json:"size"`
+}
+
+// UploadBlob stores an uploaded blob content-addressed by its CID and returns
+// the blob reference. Implements network.habitat.repo.uploadBlob.
+func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	_, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	mimeType := r.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to read request body", err)
+		return
+	}
+	c, size, err := s.blobs.PutBlob(ctx, mimeType, data)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("store blob: %w", err))
+		return
+	}
+	output := habitat.NetworkHabitatRepoUploadBlobOutput{
+		Cid: c.String(),
+		Blob: blobRef{
+			Type:     "blob",
+			Ref:      atdata.CIDLink(c),
+			MimeType: mimeType,
+			Size:     size,
+		},
+	}
+	httpx.WriteJSON(ctx, w, output)
+}
+
+// GetBlob streams a blob stored within a space back to a caller with read
+// access. Implements network.habitat.space.getBlob.
+func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
+	if !ok {
+		return
+	}
+	var params habitat.NetworkHabitatSpaceGetBlobParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	if credInfo.Subject != "" {
+		isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
+			return
+		}
+		if !isMember {
+			httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
+			return
+		}
+	}
+	c, err := cid.Parse(params.Cid)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse cid", err)
+		return
+	}
+	mimeType, data, err := s.blobs.GetBlob(ctx, c)
+	if errors.Is(err, ErrBlobNotFound) {
+		httpx.WriteError(ctx, w, "BlobNotFound", "blob not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get blob: %w", err))
+		return
+	}
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", mimeType)
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	if _, err := w.Write(data); err != nil {
+		slog.ErrorContext(ctx, "failed to write blob", "err", err)
+		return
+	}
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {

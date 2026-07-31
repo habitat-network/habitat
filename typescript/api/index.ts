@@ -93,6 +93,7 @@ import * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/c
 import * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 import * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
+import * as NetworkHabitatSpaceGetBlob from './types/network/habitat/space/getBlob.js'
 import * as NetworkHabitatSpaceGetDelegationToken from './types/network/habitat/space/getDelegationToken.js'
 import * as NetworkHabitatSpaceGetLatestCommit from './types/network/habitat/space/getLatestCommit.js'
 import * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
@@ -192,6 +193,7 @@ export * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/c
 export * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 export * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
+export * as NetworkHabitatSpaceGetBlob from './types/network/habitat/space/getBlob.js'
 export * as NetworkHabitatSpaceGetDelegationToken from './types/network/habitat/space/getDelegationToken.js'
 export * as NetworkHabitatSpaceGetLatestCommit from './types/network/habitat/space/getLatestCommit.js'
 export * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
@@ -1941,6 +1943,17 @@ export class NetworkHabitatSpaceNS {
       .call('network.habitat.space.deleteSpace', opts?.qp, data, opts)
       .catch((e) => {
         throw NetworkHabitatSpaceDeleteSpace.toKnownErr(e)
+      })
+  }
+
+  getBlob(
+    params?: NetworkHabitatSpaceGetBlob.QueryParams,
+    opts?: NetworkHabitatSpaceGetBlob.CallOptions,
+  ): Promise<NetworkHabitatSpaceGetBlob.Response> {
+    return this._client
+      .call('network.habitat.space.getBlob', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceGetBlob.toKnownErr(e)
       })
   }
 
