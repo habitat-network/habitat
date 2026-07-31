@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { constructSpaceURI, procedure, type AuthManager } from "internal";
 import {
   Button,
@@ -25,8 +25,6 @@ import {
   TableRow,
   Textarea,
   toast,
-  ToggleGroup,
-  ToggleGroupItem,
 } from "internal/components/ui";
 import { X } from "lucide-react";
 import { spaceReposQueryOptions } from "@/queries/spaces";
@@ -61,7 +59,7 @@ function SpaceMembers() {
   const { mutate: removeMember } = useMutation({
     async mutationFn(did: string) {
       await procedure(
-        "network.habitat.space.removeMember",
+        "network.habitat.simplespace.removeMember",
         { space, did },
         { authManager },
       );
@@ -152,7 +150,6 @@ function SpaceMembers() {
 
 interface AddMemberForm {
   did: string;
-  access: "read" | "write";
 }
 
 function AddMemberForm({
@@ -165,14 +162,14 @@ function AddMemberForm({
   onAdded: () => void;
 }) {
   const form = useForm<AddMemberForm>({
-    defaultValues: { did: "", access: "read" },
+    defaultValues: { did: "" },
   });
 
   const { mutate: addMember, isPending } = useMutation({
-    async mutationFn({ did, access }: AddMemberForm) {
+    async mutationFn({ did }: AddMemberForm) {
       await procedure(
-        "network.habitat.space.addMember",
-        { space, did, access },
+        "network.habitat.simplespace.addMember",
+        { space, did },
         { authManager },
       );
     },
@@ -196,26 +193,6 @@ function AddMemberForm({
           {...form.register("did", { required: true })}
           placeholder="did:plc:…"
           className="w-80 font-mono"
-        />
-      </Field>
-      <Field>
-        <FieldLabel>Access</FieldLabel>
-        <Controller
-          control={form.control}
-          name="access"
-          render={({ field: { onChange, value, ...field } }) => (
-            <ToggleGroup
-              variant="outline"
-              {...field}
-              value={[value]}
-              onValueChange={(v) => {
-                if (v.length > 0) onChange(v[v.length - 1]);
-              }}
-            >
-              <ToggleGroupItem value="read">Read</ToggleGroupItem>
-              <ToggleGroupItem value="write">Write</ToggleGroupItem>
-            </ToggleGroup>
-          )}
         />
       </Field>
       <Button disabled={isPending} type="submit">

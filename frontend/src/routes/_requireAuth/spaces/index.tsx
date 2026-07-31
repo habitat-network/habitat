@@ -112,8 +112,8 @@ function CreateSpaceForm() {
   const { mutate: createSpace, isPending } = useMutation({
     async mutationFn(type: string) {
       const { uri } = await procedure(
-        "network.habitat.space.createSpace",
-        { type },
+        "network.habitat.simplespace.createSpace",
+        { did: authManager.getAuthInfo()!.did, type },
         { authManager },
       );
       return uri;
