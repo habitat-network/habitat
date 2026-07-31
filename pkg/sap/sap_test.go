@@ -291,6 +291,7 @@ func setupPear(
 		orgStore,
 		nil,
 		orgHive,
+		nil,
 	)
 
 	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
