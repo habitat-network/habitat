@@ -519,6 +519,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		spacesServer.GetSpaceCredential)
 
 	mux.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", spacesServer.CreateSpace)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.addMember", spacesServer.AddMember)
 
 	mux.HandleFunc("/xrpc/network.habitat.relationship.writeTuple",
 		relationshipServer.WriteTuple)

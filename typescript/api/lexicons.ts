@@ -4122,7 +4122,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Add a member to a space. Caller must have can_manage_members.',
+          'DEPRECATED. Use network.habitat.simplespace.addMember instead.',
         input: {
           encoding: 'application/json',
           schema: {
@@ -4143,8 +4143,7 @@ export const schemaDict = {
                 type: 'string',
                 enum: ['read', 'write'],
                 default: 'read',
-                description:
-                  'The access level to give the user. Defaults to read.',
+                description: 'WARNING: Ignored since deprecation.',
               },
             },
           },
