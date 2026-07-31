@@ -21,13 +21,13 @@ import {
   toast,
 } from "internal/components/ui";
 import { spacesListQueryOptions, type SpaceView } from "@/queries/spaces";
+import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 
 export const Route = createFileRoute("/_requireAuth/spaces/")({
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(
       spacesListQueryOptions(context.authManager),
     ),
-  pendingComponent: () => <p className="py-8">Loading spaces…</p>,
   component: SpaceTypesList,
 });
 
@@ -58,14 +58,10 @@ function SpaceTypesList() {
   const types = summarizeByType(spaces);
 
   return (
-    <div className="flex flex-col gap-6 py-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Spaces</h1>
-        <p className="text-muted-foreground text-sm">
-          The spaces you have permission to, grouped by type.
-        </p>
-      </div>
-
+    <SpacesPageLayout
+      title="Spaces"
+      subtitle="The spaces you have permission to, grouped by type."
+    >
       <CreateSpaceForm />
 
       {types.length === 0 ? (
@@ -102,7 +98,7 @@ function SpaceTypesList() {
           </TableBody>
         </Table>
       )}
-    </div>
+    </SpacesPageLayout>
   );
 }
 

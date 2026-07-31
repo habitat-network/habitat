@@ -20,6 +20,7 @@ import {
 import { ChevronRight, X } from "lucide-react";
 import { spaceRecordsQueryOptions, type SpaceRecord } from "@/queries/spaces";
 import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
+import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 
 export const Route = createFileRoute(
   "/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/",
@@ -34,7 +35,6 @@ export const Route = createFileRoute(
       ),
     );
   },
-  pendingComponent: () => <p className="py-8">Loading records…</p>,
   component: MemberRecords,
 });
 
@@ -59,23 +59,24 @@ function MemberRecords() {
   const collections = groupByCollection(records);
 
   return (
-    <div className="flex flex-col gap-6 py-6">
-      <SpacesBreadcrumb
-        space={{ spaceOwner, spaceType, spaceKey }}
-        recordOwner={recordOwner}
-      />
-
-      <div>
-        <h1 className="text-2xl font-semibold font-mono break-all">
-          {recordOwner}
-        </h1>
-        <p className="text-muted-foreground text-sm">
+    <SpacesPageLayout
+      breadcrumb={
+        <SpacesBreadcrumb
+          spaceOwner={spaceOwner}
+          spaceType={spaceType}
+          spaceKey={spaceKey}
+          recordOwner={recordOwner}
+        />
+      }
+      title={<span className="font-mono break-all">{recordOwner}</span>}
+      subtitle={
+        <>
           {records.length} record{records.length === 1 ? "" : "s"} across{" "}
           {collections.length} collection
           {collections.length === 1 ? "" : "s"} in this space.
-        </p>
-      </div>
-
+        </>
+      }
+    >
       {collections.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
@@ -95,7 +96,7 @@ function MemberRecords() {
           ))}
         </div>
       )}
-    </div>
+    </SpacesPageLayout>
   );
 }
 

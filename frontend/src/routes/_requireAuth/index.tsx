@@ -48,7 +48,6 @@ export const Route = createFileRoute("/_requireAuth/")({
       orgName,
     };
   },
-  pendingComponent: () => <p>Loading...</p>,
   component() {
     return <AuthenticatedHome />;
   },

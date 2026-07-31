@@ -10,7 +10,6 @@ export const Route = createFileRoute("/_requireAuth/collections/")({
     context.queryClient.ensureQueryData(
       collectionsListQueryOptions(context.authManager),
     ),
-  pendingComponent: () => <p className="py-8">Loading collections…</p>,
   component: CollectionsGrid,
 });
 
