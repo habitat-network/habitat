@@ -97,6 +97,7 @@ func (s *Server) authorize(
 }
 
 func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth),
 		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
@@ -104,53 +105,40 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
-	var input habitat.NetworkHabitatSpaceCreateSpaceInput
+	var input habitat.NetworkHabitatSimplespaceCreateSpaceInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
 	}
-
-	spaceType, ok := httpx.ParseNSIDInput(r.Context(), w, input.Type, "space type")
+	spaceType, ok := httpx.ParseNSIDInput(ctx, w, input.Type, "space type")
 	if !ok {
 		return
 	}
-
 	var skey habitat_syntax.SpaceKey
 	if input.Skey != "" {
 		parsedKey, err := habitat_syntax.ParseSkey(input.Skey)
 		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse space key", http.StatusBadRequest)
+			httpx.WriteInvalidRequest(ctx, w, "invalid skey", err)
 			return
 		}
 		skey = parsedKey
 	}
-
-	callerOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), credInfo.Subject)
+	callerOrg, _, err := s.orgStore.GetOrgForDID(ctx, credInfo.Subject)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"get org for caller",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get org for caller: %w", err))
 		return
 	}
-
-	uri, err := s.store.CreateSpace(r.Context(), callerOrg.DID(), credInfo.Subject, spaceType, skey)
+	uri, err := s.store.CreateSpace(ctx, callerOrg.DID(), credInfo.Subject, spaceType, skey)
 	if errors.Is(err, ErrSpaceAlreadyExists) {
-		http.Error(w, err.Error(), http.StatusConflict)
+		httpx.WriteError(ctx, w, "SpaceAlreadyExists", "" /* msg */, http.StatusBadRequest)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "create space", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("create space: %w", err))
 		return
 	}
-
-	output := habitat.NetworkHabitatSpaceCreateSpaceOutput{
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSimplespaceCreateSpaceOutput{
 		Uri: uri.String(),
-	}
-	httpx.WriteJSON(r.Context(), w, output)
+	})
 }
 
 func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
@@ -209,6 +197,7 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth, s.serviceAuth),
 		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
@@ -216,70 +205,51 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
-	var input habitat.NetworkHabitatSpaceAddMemberInput
+	var input habitat.NetworkHabitatSimplespaceAddMemberInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
 		return
 	}
-
-	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
 	if !ok {
 		return
 	}
-
-	memberDID, ok := httpx.ParseDIDInput(r.Context(), w, input.Did, "did")
+	memberDID, ok := httpx.ParseDIDInput(ctx, w, input.Did, "did")
 	if !ok {
 		return
 	}
-
 	authorized, err := s.authorize(
-		r.Context(),
+		ctx,
 		credInfo.Org.DID(),
 		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceMemberManager,
 	)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check manage members permission",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check manage members permission: %w", err))
 		return
 	}
 	if !authorized {
 		// TODO: we don't know if they're not authorize because they're not a member or
 		// because they don't have the right role. assume worst case and return not found
 		// need to return a reason from authorize
-		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not authorized to manage members"))
 		return
 	}
-
-	access, err := ParseSpaceAccess(input.Access)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse access", http.StatusBadRequest)
-		return
-	}
-
-	err = s.store.AddMember(r.Context(), spaceURI, memberDID, access)
+	err = s.store.AddMember(r.Context(), spaceURI, memberDID, SpaceAccessWrite)
 	if errors.Is(err, ErrSpaceNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	} else if errors.Is(err, ErrUserAlreadyMember) {
-		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "add member", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("add member: %w", err))
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth, s.serviceAuth),
 		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
@@ -287,38 +257,28 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
-	var input habitat.NetworkHabitatSpaceRemoveMemberInput
+	var input habitat.NetworkHabitatSimplespaceRemoveMemberInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
 		return
 	}
-
-	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
 	if !ok {
 		return
 	}
-
-	memberDID, ok := httpx.ParseDIDInput(r.Context(), w, input.Did, "did")
+	memberDID, ok := httpx.ParseDIDInput(ctx, w, input.Did, "did")
 	if !ok {
 		return
 	}
-
 	authorized, err := s.authorize(
-		r.Context(),
+		ctx,
 		credInfo.Org.DID(),
 		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceMemberManager,
 	)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check manage members permission",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check manage members permission: %w", err))
 		return
 	}
 	if !authorized {
@@ -328,23 +288,21 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
 		return
 	}
-
 	err = s.store.RemoveMember(r.Context(), spaceURI, memberDID)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	} else if errors.Is(err, ErrNotAMember) {
-		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	} else if errors.Is(err, ErrCannotRemoveOrg) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "cannot remove org", err)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "remove member", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("remove member: %w", err))
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {

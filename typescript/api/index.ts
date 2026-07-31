@@ -88,6 +88,12 @@ import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/lis
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 import * as NetworkHabitatSearchQuery from './types/network/habitat/search/query.js'
+import * as NetworkHabitatSimplespaceAddMember from './types/network/habitat/simplespace/addMember.js'
+import * as NetworkHabitatSimplespaceCheckUserAccess from './types/network/habitat/simplespace/checkUserAccess.js'
+import * as NetworkHabitatSimplespaceCreateSpace from './types/network/habitat/simplespace/createSpace.js'
+import * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplespace/defs.js'
+import * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
+import * as NetworkHabitatSimplespaceRemoveMember from './types/network/habitat/simplespace/removeMember.js'
 import * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
 import * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
 import * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
@@ -188,6 +194,12 @@ export * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/lis
 export * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 export * as NetworkHabitatSearchQuery from './types/network/habitat/search/query.js'
+export * as NetworkHabitatSimplespaceAddMember from './types/network/habitat/simplespace/addMember.js'
+export * as NetworkHabitatSimplespaceCheckUserAccess from './types/network/habitat/simplespace/checkUserAccess.js'
+export * as NetworkHabitatSimplespaceCreateSpace from './types/network/habitat/simplespace/createSpace.js'
+export * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplespace/defs.js'
+export * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
+export * as NetworkHabitatSimplespaceRemoveMember from './types/network/habitat/simplespace/removeMember.js'
 export * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
 export * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
 export * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
@@ -709,6 +721,7 @@ export class NetworkHabitatNS {
   render: NetworkHabitatRenderNS
   repo: NetworkHabitatRepoNS
   search: NetworkHabitatSearchNS
+  simplespace: NetworkHabitatSimplespaceNS
   space: NetworkHabitatSpaceNS
 
   constructor(client: XrpcClient) {
@@ -727,6 +740,7 @@ export class NetworkHabitatNS {
     this.render = new NetworkHabitatRenderNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
     this.search = new NetworkHabitatSearchNS(client)
+    this.simplespace = new NetworkHabitatSimplespaceNS(client)
     this.space = new NetworkHabitatSpaceNS(client)
     this.photo = new NetworkHabitatPhotoRecord(client)
   }
@@ -1892,6 +1906,70 @@ export class NetworkHabitatSearchNS {
       undefined,
       opts,
     )
+  }
+}
+
+export class NetworkHabitatSimplespaceNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  addMember(
+    data?: NetworkHabitatSimplespaceAddMember.InputSchema,
+    opts?: NetworkHabitatSimplespaceAddMember.CallOptions,
+  ): Promise<NetworkHabitatSimplespaceAddMember.Response> {
+    return this._client
+      .call('network.habitat.simplespace.addMember', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSimplespaceAddMember.toKnownErr(e)
+      })
+  }
+
+  checkUserAccess(
+    params?: NetworkHabitatSimplespaceCheckUserAccess.QueryParams,
+    opts?: NetworkHabitatSimplespaceCheckUserAccess.CallOptions,
+  ): Promise<NetworkHabitatSimplespaceCheckUserAccess.Response> {
+    return this._client.call(
+      'network.habitat.simplespace.checkUserAccess',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  createSpace(
+    data?: NetworkHabitatSimplespaceCreateSpace.InputSchema,
+    opts?: NetworkHabitatSimplespaceCreateSpace.CallOptions,
+  ): Promise<NetworkHabitatSimplespaceCreateSpace.Response> {
+    return this._client
+      .call('network.habitat.simplespace.createSpace', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSimplespaceCreateSpace.toKnownErr(e)
+      })
+  }
+
+  listMembers(
+    params?: NetworkHabitatSimplespaceListMembers.QueryParams,
+    opts?: NetworkHabitatSimplespaceListMembers.CallOptions,
+  ): Promise<NetworkHabitatSimplespaceListMembers.Response> {
+    return this._client
+      .call('network.habitat.simplespace.listMembers', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSimplespaceListMembers.toKnownErr(e)
+      })
+  }
+
+  removeMember(
+    data?: NetworkHabitatSimplespaceRemoveMember.InputSchema,
+    opts?: NetworkHabitatSimplespaceRemoveMember.CallOptions,
+  ): Promise<NetworkHabitatSimplespaceRemoveMember.Response> {
+    return this._client
+      .call('network.habitat.simplespace.removeMember', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSimplespaceRemoveMember.toKnownErr(e)
+      })
   }
 }
 

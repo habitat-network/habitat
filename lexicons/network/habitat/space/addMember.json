@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Add a member to a space. Caller must have can_manage_members.",
+            "description": "DEPRECATED. Use network.habitat.simplespace.addMember instead.",
             "input": {
                 "encoding": "application/json",
                 "schema": {
@@ -31,7 +31,7 @@
                                 "write"
                             ],
                             "default": "read",
-                            "description": "The access level to give the user. Defaults to read."
+                            "description": "WARNING: Ignored since deprecation."
                         }
                     }
                 }

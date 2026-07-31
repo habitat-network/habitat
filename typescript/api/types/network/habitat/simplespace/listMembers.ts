@@ -13,29 +13,31 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.space.addMember'
+const id = 'network.habitat.simplespace.listMembers'
 
-export type QueryParams = {}
-
-export interface InputSchema {
+export type QueryParams = {
   /** Reference to the space. */
   space: string
-  /** The DID of the user to add. */
-  did: string
-  /** WARNING: Ignored since deprecation. */
-  access?: 'read' | 'write'
+  /** Maximum number of members to return. */
+  limit?: number
+  cursor?: string
+}
+export type InputSchema = undefined
+
+export interface OutputSchema {
+  cursor?: string
+  members: Member[]
 }
 
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
-  qp?: QueryParams
-  encoding?: 'application/json'
 }
 
 export interface Response {
   success: boolean
   headers: HeadersMap
+  data: OutputSchema
 }
 
 export class SpaceNotFoundError extends XRPCError {
@@ -44,7 +46,7 @@ export class SpaceNotFoundError extends XRPCError {
   }
 }
 
-export class UserAlreadyMemberError extends XRPCError {
+export class NotSpaceOwnerError extends XRPCError {
   constructor(src: XRPCError) {
     super(src.status, src.error, src.message, src.headers, { cause: src })
   }
@@ -53,8 +55,23 @@ export class UserAlreadyMemberError extends XRPCError {
 export function toKnownErr(e: any) {
   if (e instanceof XRPCError) {
     if (e.error === 'SpaceNotFound') return new SpaceNotFoundError(e)
-    if (e.error === 'UserAlreadyMember') return new UserAlreadyMemberError(e)
+    if (e.error === 'NotSpaceOwner') return new NotSpaceOwnerError(e)
   }
 
   return e
+}
+
+export interface Member {
+  $type?: 'network.habitat.simplespace.listMembers#member'
+  did: string
+}
+
+const hashMember = 'member'
+
+export function isMember<V>(v: V) {
+  return is$typed(v, id, hashMember)
+}
+
+export function validateMember<V>(v: V) {
+  return validate<Member & V>(v, id, hashMember)
 }

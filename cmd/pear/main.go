@@ -518,6 +518,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
 		spacesServer.GetSpaceCredential)
 
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", spacesServer.CreateSpace)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.addMember", spacesServer.AddMember)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", spacesServer.RemoveMember)
+
 	mux.HandleFunc("/xrpc/network.habitat.relationship.writeTuple",
 		relationshipServer.WriteTuple)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteTuple",
