@@ -22,7 +22,7 @@ export interface InputSchema {
   space: string
   /** The DID of the user to add. */
   did: string
-  /** The access level to give the user. Defaults to read. */
+  /** WARNING: Ignored since deprecation. */
   access?: 'read' | 'write'
 }
 

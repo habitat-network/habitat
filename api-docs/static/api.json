@@ -6522,7 +6522,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.addMember",
-        "description": "Add a member to a space. Caller must have can_manage_members.",
+        "description": "DEPRECATED. Use network.habitat.simplespace.addMember instead.",
         "operationId": "network.habitat.space.addMember",
         "security": [
           {
@@ -6552,7 +6552,7 @@
                   },
                   "access": {
                     "type": "string",
-                    "description": "The access level to give the user. Defaults to read.",
+                    "description": "WARNING: Ignored since deprecation.",
                     "default": "read"
                   }
                 }
