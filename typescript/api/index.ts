@@ -89,7 +89,6 @@ import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRe
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 import * as NetworkHabitatSearchQuery from './types/network/habitat/search/query.js'
 import * as NetworkHabitatSimplespaceAddMember from './types/network/habitat/simplespace/addMember.js'
-import * as NetworkHabitatSimplespaceCheckUserAccess from './types/network/habitat/simplespace/checkUserAccess.js'
 import * as NetworkHabitatSimplespaceCreateSpace from './types/network/habitat/simplespace/createSpace.js'
 import * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplespace/defs.js'
 import * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
@@ -195,7 +194,6 @@ export * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRe
 export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 export * as NetworkHabitatSearchQuery from './types/network/habitat/search/query.js'
 export * as NetworkHabitatSimplespaceAddMember from './types/network/habitat/simplespace/addMember.js'
-export * as NetworkHabitatSimplespaceCheckUserAccess from './types/network/habitat/simplespace/checkUserAccess.js'
 export * as NetworkHabitatSimplespaceCreateSpace from './types/network/habitat/simplespace/createSpace.js'
 export * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplespace/defs.js'
 export * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
@@ -1925,18 +1923,6 @@ export class NetworkHabitatSimplespaceNS {
       .catch((e) => {
         throw NetworkHabitatSimplespaceAddMember.toKnownErr(e)
       })
-  }
-
-  checkUserAccess(
-    params?: NetworkHabitatSimplespaceCheckUserAccess.QueryParams,
-    opts?: NetworkHabitatSimplespaceCheckUserAccess.CallOptions,
-  ): Promise<NetworkHabitatSimplespaceCheckUserAccess.Response> {
-    return this._client.call(
-      'network.habitat.simplespace.checkUserAccess',
-      params,
-      undefined,
-      opts,
-    )
   }
 
   createSpace(

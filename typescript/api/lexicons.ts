@@ -3838,51 +3838,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatSimplespaceCheckUserAccess: {
-    lexicon: 1,
-    id: 'network.habitat.simplespace.checkUserAccess',
-    defs: {
-      main: {
-        type: 'query',
-        description:
-          "Ask a space's managing app whether to authorize a requesting user for a space credential. Served by the managingApp (not the PDS), called by the space authority at mint time when policy is 'managing-app'. Authenticated with service auth from the authority.",
-        parameters: {
-          type: 'params',
-          required: ['space', 'user'],
-          properties: {
-            space: {
-              type: 'string',
-              format: 'at-uri',
-              description: 'Reference to the space.',
-            },
-            user: {
-              type: 'string',
-              format: 'did',
-              description: 'The DID of the requesting user.',
-            },
-            clientId: {
-              type: 'string',
-              description:
-                'The attested client_id, if a client attestation was presented.',
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['authorized'],
-            properties: {
-              authorized: {
-                type: 'boolean',
-                description: 'Whether the managing app authorizes the request.',
-              },
-            },
-          },
-        },
-      },
-    },
-  },
   NetworkHabitatSimplespaceCreateSpace: {
     lexicon: 1,
     id: 'network.habitat.simplespace.createSpace',
@@ -5402,8 +5357,6 @@ export const ids = {
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',
   NetworkHabitatSearchQuery: 'network.habitat.search.query',
   NetworkHabitatSimplespaceAddMember: 'network.habitat.simplespace.addMember',
-  NetworkHabitatSimplespaceCheckUserAccess:
-    'network.habitat.simplespace.checkUserAccess',
   NetworkHabitatSimplespaceCreateSpace:
     'network.habitat.simplespace.createSpace',
   NetworkHabitatSimplespaceDefs: 'network.habitat.simplespace.defs',
