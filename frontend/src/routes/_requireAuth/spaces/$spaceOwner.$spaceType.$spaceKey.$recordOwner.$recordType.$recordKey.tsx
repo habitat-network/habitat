@@ -4,6 +4,7 @@ import { constructSpaceURI } from "internal";
 import { Card, CardContent } from "internal/components/ui";
 import { spaceRecordQueryOptions } from "@/queries/spaces";
 import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
+import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 
 export const Route = createFileRoute(
   "/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey",
@@ -22,7 +23,6 @@ export const Route = createFileRoute(
       ),
     );
   },
-  pendingComponent: () => <p className="py-8">Loading record…</p>,
   component: RecordView,
 });
 
@@ -38,30 +38,33 @@ function RecordView() {
   const data = Route.useLoaderData();
 
   return (
-    <div className="flex flex-col gap-6 py-6">
-      <SpacesBreadcrumb
-        space={{ spaceOwner, spaceType, spaceKey }}
-        recordOwner={recordOwner}
-        record={{ recordType, recordKey }}
-      />
-
-      <div>
-        <h1 className="text-2xl font-semibold font-mono break-all">
-          {recordKey}
-        </h1>
-        <p className="text-muted-foreground text-sm font-mono">{recordType}</p>
-        {data.cid && (
-          // CIDs are long enough to wrap onto several lines and swamp the
-          // header, so they get their own truncated line.
-          <p
-            className="max-w-full truncate text-xs text-muted-foreground/70 font-mono"
-            title={data.cid}
-          >
-            {data.cid}
-          </p>
-        )}
-      </div>
-
+    <SpacesPageLayout
+      breadcrumb={
+        <SpacesBreadcrumb
+          spaceOwner={spaceOwner}
+          spaceType={spaceType}
+          spaceKey={spaceKey}
+          recordOwner={recordOwner}
+          record={{ recordType, recordKey }}
+        />
+      }
+      title={<span className="font-mono break-all">{recordKey}</span>}
+      subtitle={
+        <>
+          <p className="font-mono">{recordType}</p>
+          {data.cid && (
+            // CIDs are long enough to wrap onto several lines and swamp the
+            // header, so they get their own truncated line.
+            <p
+              className="max-w-full truncate text-xs text-muted-foreground/70 font-mono"
+              title={data.cid}
+            >
+              {data.cid}
+            </p>
+          )}
+        </>
+      }
+    >
       <Card>
         <CardContent className="overflow-x-auto">
           <ReactJson
@@ -72,6 +75,6 @@ function RecordView() {
           />
         </CardContent>
       </Card>
-    </div>
+    </SpacesPageLayout>
   );
 }

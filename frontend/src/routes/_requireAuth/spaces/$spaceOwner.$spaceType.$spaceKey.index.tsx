@@ -31,6 +31,7 @@ import {
 import { X } from "lucide-react";
 import { spaceReposQueryOptions } from "@/queries/spaces";
 import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
+import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 
 export const Route = createFileRoute(
   "/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/",
@@ -39,7 +40,6 @@ export const Route = createFileRoute(
     context.queryClient.ensureQueryData(
       spaceReposQueryOptions(constructSpaceURI(params), context.authManager),
     ),
-  pendingComponent: () => <p className="py-8">Loading members…</p>,
   component: SpaceMembers,
 });
 
@@ -76,16 +76,11 @@ function SpaceMembers() {
   });
 
   return (
-    <div className="flex flex-col gap-6 py-6">
-      <SpacesBreadcrumb space={params} />
-
-      <div>
-        <h1 className="text-2xl font-semibold font-mono">{params.spaceKey}</h1>
-        <p className="text-muted-foreground text-sm font-mono break-all">
-          {space}
-        </p>
-      </div>
-
+    <SpacesPageLayout
+      breadcrumb={<SpacesBreadcrumb {...params} />}
+      title={<span className="font-mono break-all">{params.spaceKey}</span>}
+      subtitle={<span className="font-mono break-all">{space}</span>}
+    >
       <div className="flex items-center justify-between">
         {/* Deliberately "Repos", not "Members": listRepos returns the writer
             set (repos that have written data), which is narrower than the
@@ -106,46 +101,44 @@ function SpaceMembers() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>DID</TableHead>
-                <TableHead>Rev</TableHead>
-                <TableHead className="w-0" />
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>DID</TableHead>
+              <TableHead>Rev</TableHead>
+              <TableHead className="w-0" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {repos.map((repo) => (
+              <TableRow key={repo.did}>
+                <TableCell className="font-mono">
+                  <Link
+                    to="/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner"
+                    params={{ ...params, recordOwner: repo.did }}
+                    className="hover:underline"
+                    title={repo.did}
+                  >
+                    {repo.did}
+                  </Link>
+                </TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">
+                  {repo.rev ?? "—"}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="destructive"
+                    size="icon-xs"
+                    aria-label={`Remove ${repo.did}`}
+                    onClick={() => removeMember(repo.did)}
+                  >
+                    <X />
+                  </Button>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {repos.map((repo) => (
-                <TableRow key={repo.did}>
-                  <TableCell className="font-mono">
-                    <Link
-                      to="/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner"
-                      params={{ ...params, recordOwner: repo.did }}
-                      className="hover:underline"
-                      title={repo.did}
-                    >
-                      {repo.did}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {repo.rev ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="destructive"
-                      size="icon-xs"
-                      aria-label={`Remove ${repo.did}`}
-                      onClick={() => removeMember(repo.did)}
-                    >
-                      <X />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       <AddMemberForm
@@ -153,7 +146,7 @@ function SpaceMembers() {
         authManager={authManager}
         onAdded={invalidateRepos}
       />
-    </div>
+    </SpacesPageLayout>
   );
 }
 
@@ -277,8 +270,8 @@ function CreateRecordDialog({
       // The new record lands in the caller's own repo, which may also be a
       // brand new member of the space.
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["space-records", space] }),
-        queryClient.invalidateQueries({ queryKey: ["space-repos", space] }),
+        queryClient.invalidateQueries({ queryKey: ["listRecords", space] }),
+        queryClient.invalidateQueries({ queryKey: ["listRepos", space] }),
       ]);
       await router.invalidate();
     },

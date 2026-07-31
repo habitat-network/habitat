@@ -12,16 +12,27 @@ export type { SpaceView, Repo, SpaceRecord };
 // 501 if limit or cursor is sent at all. So none of these pass pagination
 // params. Revisit when the server grows real pagination.
 
-// spacesListQueryOptions lists every space the calling user participates in.
-// It backs both the type summary and the per-type listing so navigating
-// between them is served from cache.
-export function spacesListQueryOptions(authManager: AuthManager) {
+// SpacesFilter narrows a listing to one owner and/or one space type. Both are
+// applied server-side by listSpaces; an empty filter lists everything the
+// calling user participates in.
+export interface SpacesFilter {
+  did?: string;
+  type?: string;
+}
+
+// spacesListQueryOptions lists the spaces the calling user participates in,
+// optionally narrowed by owner DID and/or type. Each filter combination is
+// cached under its own key.
+export function spacesListQueryOptions(
+  authManager: AuthManager,
+  filter: SpacesFilter = {},
+) {
   return queryOptions({
-    queryKey: ["listSpaces"],
+    queryKey: ["listSpaces", filter.did ?? null, filter.type ?? null],
     queryFn: async (): Promise<SpaceView[]> => {
       const { spaces } = await query(
         "network.habitat.space.listSpaces",
-        {},
+        { did: filter.did, type: filter.type },
         { authManager },
       );
       return spaces;

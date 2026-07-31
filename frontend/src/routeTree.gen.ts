@@ -37,7 +37,9 @@ import { Route as RequireAuthSpacesIndexRouteImport } from './routes/_requireAut
 import { Route as RequireAuthPermissionsLexiconsIndexRouteImport } from './routes/_requireAuth/permissions/lexicons/index'
 import { Route as RequireAuthPermissionsLexiconsCollectionRouteImport } from './routes/_requireAuth/permissions/lexicons/$collection'
 import { Route as RequireAuthPermissionsPeopleDidRouteImport } from './routes/_requireAuth/permissions/people/$did'
+import { Route as RequireAuthSpacesSpaceOwnerIndexRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.index'
 import { Route as RequireAuthSpacesTypeSpaceTypeRouteImport } from './routes/_requireAuth/spaces/type.$spaceType'
+import { Route as RequireAuthSpacesSpaceOwnerSpaceTypeIndexRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.$spaceType.index'
 import { Route as RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.$spaceType.$spaceKey.index'
 import { Route as RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerIndexRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.$spaceType.$spaceKey.$recordOwner.index'
 import { Route as RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerRecordTypeRecordKeyRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.$spaceType.$spaceKey.$recordOwner.$recordType.$recordKey'
@@ -191,10 +193,22 @@ const RequireAuthPermissionsPeopleDidRoute =
     path: '/$did',
     getParentRoute: () => RequireAuthPermissionsPeopleRoute,
   } as any)
+const RequireAuthSpacesSpaceOwnerIndexRoute =
+  RequireAuthSpacesSpaceOwnerIndexRouteImport.update({
+    id: '/spaces/$spaceOwner/',
+    path: '/spaces/$spaceOwner/',
+    getParentRoute: () => RequireAuthRoute,
+  } as any)
 const RequireAuthSpacesTypeSpaceTypeRoute =
   RequireAuthSpacesTypeSpaceTypeRouteImport.update({
     id: '/spaces/type/$spaceType',
     path: '/spaces/type/$spaceType',
+    getParentRoute: () => RequireAuthRoute,
+  } as any)
+const RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute =
+  RequireAuthSpacesSpaceOwnerSpaceTypeIndexRouteImport.update({
+    id: '/spaces/$spaceOwner/$spaceType/',
+    path: '/spaces/$spaceOwner/$spaceType/',
     getParentRoute: () => RequireAuthRoute,
   } as any)
 const RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute =
@@ -249,6 +263,8 @@ export interface FileRoutesByFullPath {
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/spaces/type/$spaceType': typeof RequireAuthSpacesTypeSpaceTypeRoute
   '/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
+  '/spaces/$spaceOwner/': typeof RequireAuthSpacesSpaceOwnerIndexRoute
+  '/spaces/$spaceOwner/$spaceType/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerIndexRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerRecordTypeRecordKeyRoute
@@ -280,6 +296,8 @@ export interface FileRoutesByTo {
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/spaces/type/$spaceType': typeof RequireAuthSpacesTypeSpaceTypeRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsIndexRoute
+  '/spaces/$spaceOwner': typeof RequireAuthSpacesSpaceOwnerIndexRoute
+  '/spaces/$spaceOwner/$spaceType': typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerIndexRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerRecordTypeRecordKeyRoute
@@ -315,6 +333,8 @@ export interface FileRoutesById {
   '/_requireAuth/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/_requireAuth/spaces/type/$spaceType': typeof RequireAuthSpacesTypeSpaceTypeRoute
   '/_requireAuth/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
+  '/_requireAuth/spaces/$spaceOwner/': typeof RequireAuthSpacesSpaceOwnerIndexRoute
+  '/_requireAuth/spaces/$spaceOwner/$spaceType/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute
   '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute
   '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerIndexRoute
   '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerRecordTypeRecordKeyRoute
@@ -350,6 +370,8 @@ export interface FileRouteTypes {
     | '/permissions/people/$did'
     | '/spaces/type/$spaceType'
     | '/permissions/lexicons/'
+    | '/spaces/$spaceOwner/'
+    | '/spaces/$spaceOwner/$spaceType/'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey/'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey'
@@ -381,6 +403,8 @@ export interface FileRouteTypes {
     | '/permissions/people/$did'
     | '/spaces/type/$spaceType'
     | '/permissions/lexicons'
+    | '/spaces/$spaceOwner'
+    | '/spaces/$spaceOwner/$spaceType'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey'
@@ -415,6 +439,8 @@ export interface FileRouteTypes {
     | '/_requireAuth/permissions/people/$did'
     | '/_requireAuth/spaces/type/$spaceType'
     | '/_requireAuth/permissions/lexicons/'
+    | '/_requireAuth/spaces/$spaceOwner/'
+    | '/_requireAuth/spaces/$spaceOwner/$spaceType/'
     | '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/'
     | '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/'
     | '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey'
@@ -630,11 +656,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthPermissionsPeopleDidRouteImport
       parentRoute: typeof RequireAuthPermissionsPeopleRoute
     }
+    '/_requireAuth/spaces/$spaceOwner/': {
+      id: '/_requireAuth/spaces/$spaceOwner/'
+      path: '/spaces/$spaceOwner'
+      fullPath: '/spaces/$spaceOwner/'
+      preLoaderRoute: typeof RequireAuthSpacesSpaceOwnerIndexRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
     '/_requireAuth/spaces/type/$spaceType': {
       id: '/_requireAuth/spaces/type/$spaceType'
       path: '/spaces/type/$spaceType'
       fullPath: '/spaces/type/$spaceType'
       preLoaderRoute: typeof RequireAuthSpacesTypeSpaceTypeRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/spaces/$spaceOwner/$spaceType/': {
+      id: '/_requireAuth/spaces/$spaceOwner/$spaceType/'
+      path: '/spaces/$spaceOwner/$spaceType'
+      fullPath: '/spaces/$spaceOwner/$spaceType/'
+      preLoaderRoute: typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/': {
@@ -727,6 +767,8 @@ interface RequireAuthRouteChildren {
   RequireAuthPearTestIndexRoute: typeof RequireAuthPearTestIndexRoute
   RequireAuthSpacesIndexRoute: typeof RequireAuthSpacesIndexRoute
   RequireAuthSpacesTypeSpaceTypeRoute: typeof RequireAuthSpacesTypeSpaceTypeRoute
+  RequireAuthSpacesSpaceOwnerIndexRoute: typeof RequireAuthSpacesSpaceOwnerIndexRoute
+  RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute: typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute
   RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute: typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute
   RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerIndexRoute: typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerIndexRoute
   RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerRecordTypeRecordKeyRoute: typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerRecordTypeRecordKeyRoute
@@ -746,6 +788,9 @@ const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthPearTestIndexRoute: RequireAuthPearTestIndexRoute,
   RequireAuthSpacesIndexRoute: RequireAuthSpacesIndexRoute,
   RequireAuthSpacesTypeSpaceTypeRoute: RequireAuthSpacesTypeSpaceTypeRoute,
+  RequireAuthSpacesSpaceOwnerIndexRoute: RequireAuthSpacesSpaceOwnerIndexRoute,
+  RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute:
+    RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute,
   RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute:
     RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute,
   RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerIndexRoute:

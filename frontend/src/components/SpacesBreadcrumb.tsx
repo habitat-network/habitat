@@ -8,13 +8,11 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "internal/components/ui";
-import type { SpaceURIParts } from "internal";
 
 export interface SpacesBreadcrumbProps {
-  // Each level the current page has drilled into. The deepest one provided is
-  // rendered as the current page; the rest link back up the chain.
+  spaceOwner?: string;
   spaceType?: string;
-  space?: SpaceURIParts;
+  spaceKey?: string;
   recordOwner?: string;
   record?: { recordType: string; recordKey: string };
 }
@@ -28,8 +26,9 @@ interface Crumb {
 }
 
 export function SpacesBreadcrumb({
+  spaceOwner,
   spaceType,
-  space,
+  spaceKey,
   recordOwner,
   record,
 }: SpacesBreadcrumbProps) {
@@ -37,28 +36,54 @@ export function SpacesBreadcrumb({
     { key: "root", label: "Spaces", link: <Link to="/spaces">Spaces</Link> },
   ];
 
-  const type = space?.spaceType ?? spaceType;
-  if (type) {
+  if (spaceOwner) {
     crumbs.push({
-      key: "type",
-      label: type,
+      key: "owner",
+      label: spaceOwner,
       mono: true,
       link: (
-        <Link to="/spaces/type/$spaceType" params={{ spaceType: type }}>
-          {type}
+        <Link
+          to="/spaces/$spaceOwner"
+          params={{ spaceOwner }}
+          title={spaceOwner}
+        >
+          {spaceOwner}
         </Link>
       ),
     });
   }
 
-  if (space) {
+  if (spaceType) {
+    crumbs.push({
+      key: "type",
+      label: spaceType,
+      mono: true,
+      link: spaceOwner ? (
+        <Link
+          to="/spaces/$spaceOwner/$spaceType"
+          params={{ spaceOwner, spaceType }}
+        >
+          {spaceType}
+        </Link>
+      ) : (
+        <Link to="/spaces/type/$spaceType" params={{ spaceType }}>
+          {spaceType}
+        </Link>
+      ),
+    });
+  }
+
+  if (spaceOwner && spaceType && spaceKey) {
     crumbs.push({
       key: "space",
-      label: space.spaceKey,
+      label: spaceKey,
       mono: true,
       link: (
-        <Link to="/spaces/$spaceOwner/$spaceType/$spaceKey" params={space}>
-          {space.spaceKey}
+        <Link
+          to="/spaces/$spaceOwner/$spaceType/$spaceKey"
+          params={{ spaceOwner, spaceType, spaceKey }}
+        >
+          {spaceKey}
         </Link>
       ),
     });
@@ -71,7 +96,7 @@ export function SpacesBreadcrumb({
         link: (
           <Link
             to="/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner"
-            params={{ ...space, recordOwner }}
+            params={{ spaceOwner, spaceType, spaceKey, recordOwner }}
             title={recordOwner}
           >
             {recordOwner}

@@ -30,7 +30,6 @@ export const Route = createFileRoute("/_requireAuth/groups/")({
     context.queryClient.ensureQueryData(
       groupsListQueryOptions(context.authManager),
     ),
-  pendingComponent: () => <p className="py-8">Loading groups…</p>,
   component: GroupsList,
 });
 
