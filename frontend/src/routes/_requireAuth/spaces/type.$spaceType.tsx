@@ -31,9 +31,9 @@ function SpacesOfType() {
     .flatMap((space) => {
       const parts = parseSpaceURI(space.uri);
       if (!parts) return [];
-      return { ...space, parts }
+      return { ...space, parts };
     })
-    .filter(({ parts }) => parts.spaceType === spaceType)
+    .filter(({ parts }) => parts.spaceType === spaceType);
 
   return (
     <div className="flex flex-col gap-6 py-6">
@@ -72,7 +72,7 @@ function SpacesOfType() {
                       {space.parts.spaceKey}
                     </Link>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground" >
+                  <TableCell className="font-mono text-xs text-muted-foreground">
                     {space.parts.spaceOwner}
                   </TableCell>
                 </TableRow>

@@ -40,7 +40,7 @@ func TestCrawler(t *testing.T) {
 							"ats://%s/network.habitat.space/my-space",
 							strings.TrimPrefix(r.Header.Get("Authorization"), "DPoP "),
 						),
-						Type: "network.habitat.space",
+						IsOwner: false,
 					},
 				},
 			})
@@ -140,7 +140,7 @@ func TestCrawler_Error(t *testing.T) {
 							"ats://%s/network.habitat.space/my-space",
 							strings.TrimPrefix(r.Header.Get("Authorization"), "DPoP "),
 						),
-						Type: "network.habitat.space",
+						IsOwner: false,
 					},
 				},
 			})
