@@ -36,9 +36,11 @@ const router = createRouter({
   defaultPreloadStaleTime: 0,
   basepath: import.meta.env.VITE_HASH_ROUTING ? undefined : domainUrl.pathname,
   history: import.meta.env.VITE_HASH_ROUTING ? createHashHistory() : undefined,
-  defaultPendingComponent: () => <div className="flex justify-center py-16">
-    <Spinner className="size-8" />
-  </div>
+  defaultPendingComponent: () => (
+    <div className="flex justify-center py-16">
+      <Spinner className="size-8" />
+    </div>
+  ),
 });
 
 // Register the router instance for type safety
