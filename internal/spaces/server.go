@@ -249,6 +249,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth, s.serviceAuth),
 		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
@@ -256,38 +257,28 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
-	var input habitat.NetworkHabitatSpaceRemoveMemberInput
+	var input habitat.NetworkHabitatSimplespaceRemoveMemberInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
 		return
 	}
-
-	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
 	if !ok {
 		return
 	}
-
-	memberDID, ok := httpx.ParseDIDInput(r.Context(), w, input.Did, "did")
+	memberDID, ok := httpx.ParseDIDInput(ctx, w, input.Did, "did")
 	if !ok {
 		return
 	}
-
 	authorized, err := s.authorize(
-		r.Context(),
+		ctx,
 		credInfo.Org.DID(),
 		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceMemberManager,
 	)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check manage members permission",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check manage members permission: %w", err))
 		return
 	}
 	if !authorized {
@@ -297,23 +288,21 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
 		return
 	}
-
 	err = s.store.RemoveMember(r.Context(), spaceURI, memberDID)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	} else if errors.Is(err, ErrNotAMember) {
-		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	} else if errors.Is(err, ErrCannotRemoveOrg) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "cannot remove org", err)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "remove member", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("remove member: %w", err))
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {

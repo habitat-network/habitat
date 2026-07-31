@@ -5244,7 +5244,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Remove a member from a space. Caller must have can_manage_members.',
+          'DEPRECATED. Use network.habitat.simplespace.removeMember instead.',
         input: {
           encoding: 'application/json',
           schema: {
