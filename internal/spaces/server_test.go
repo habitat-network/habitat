@@ -248,6 +248,36 @@ func TestServer_RemoveMember(t *testing.T) {
 	require.False(t, isMember)
 }
 
+func TestServer_ListMembers(t *testing.T) {
+	s, store := newOwnerServer(t)
+
+	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "shared")
+	require.NoError(t, err)
+
+	err = store.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.simplespace.listMembers?space="+uri.String(),
+		http.NoBody,
+	)
+	w := httptest.NewRecorder()
+	s.ListMembers(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var output habitat.NetworkHabitatSimplespaceListMembersOutput
+	err = json.NewDecoder(w.Body).Decode(&output)
+	require.NoError(t, err)
+
+	var dids []string
+	for _, m := range output.Members {
+		dids = append(dids, m.Did)
+	}
+	require.ElementsMatch(t, []string{owner.String(), alice.String(), orgId.String()}, dids)
+}
+
 func TestServer_PutAndGetRecord(t *testing.T) {
 	s, store := newOwnerServer(t)
 

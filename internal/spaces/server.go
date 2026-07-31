@@ -305,6 +305,50 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) ListMembers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
+	if !ok {
+		return
+	}
+	var params habitat.NetworkHabitatSimplespaceListMembersParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	if params.Cursor != "" {
+		httpx.WriteNotSupported(ctx, w, "cursor is not yet supported")
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	users, err := s.fga.ListUsers(
+		ctx,
+		fgastore.SpaceObjectKey(spaceURI),
+		fgastore.RelationSpaceReader,
+		ownerContextualTuple(spaceURI),
+		fgastore.OrgMemberContextualTuple(credInfo.Org.DID()),
+	)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list members: %w", err))
+		return
+	}
+	var members []habitat.NetworkHabitatSimplespaceListMembersMember
+	for _, user := range users {
+		did, err := fgastore.MemberUserToDID(user)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to convert user to did", "user", user, "err", err)
+			continue
+		}
+		members = append(
+			members,
+			habitat.NetworkHabitatSimplespaceListMembersMember{Did: did.String()},
+		)
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSimplespaceListMembersOutput{Members: members})
+}
+
 func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
