@@ -47,3 +47,8 @@ jobs:
             pnpm-store-${{ runner.os }}-
 
       - run: moon ci --color -g --summary detailed --dependents deep
+
+      - uses: moonrepo/run-report-action@v1
+        if: success() || failure()
+        with:
+          access-token: ${{ secrets.GITHUB_TOKEN }}
