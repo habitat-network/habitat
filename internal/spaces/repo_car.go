@@ -10,6 +10,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-car"
 	util "github.com/ipld/go-car/util"
+	"github.com/multiformats/go-multihash"
 
 	"github.com/habitat-network/habitat/internal/spacecommit"
 )
@@ -40,7 +41,7 @@ func signedCommitBlock(c spacecommit.SignedCommit) ([]byte, cid.Cid, error) {
 	if err != nil {
 		return nil, cid.Cid{}, fmt.Errorf("marshal signed commit: %w", err)
 	}
-	commitCID, err := cid.V1Builder{}.WithCodec(cid.DagCBOR).Sum(bytes)
+	commitCID, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
 	if err != nil {
 		return nil, cid.Cid{}, fmt.Errorf("compute signed commit cid: %w", err)
 	}
@@ -56,7 +57,7 @@ func buildIndexBlock(blocks []recordBlock) ([]byte, cid.Cid, error) {
 	if err != nil {
 		return nil, cid.Cid{}, fmt.Errorf("marshal repo index: %w", err)
 	}
-	indexCID, err := cid.V1Builder{}.WithCodec(cid.DagCBOR).Sum(bytes)
+	indexCID, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
 	if err != nil {
 		return nil, cid.Cid{}, fmt.Errorf("compute repo index cid: %w", err)
 	}

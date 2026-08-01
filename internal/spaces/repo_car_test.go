@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-car"
+	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/spacecommit"
@@ -23,7 +24,7 @@ func testRecordBlock(
 	t.Helper()
 	raw, err := atdata.MarshalCBOR(value)
 	require.NoError(t, err)
-	c, err := cid.V1Builder{}.WithCodec(cid.DagCBOR).Sum(raw)
+	c, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(raw)
 	require.NoError(t, err)
 	return recordBlock{Collection: coll, Rkey: rkey, Cid: c, Bytes: raw}
 }
@@ -105,7 +106,7 @@ func TestSerializeRepoCAR(t *testing.T) {
 
 	recordCIDs := make(map[cid.Cid][]byte, len(recordBlocks))
 	for _, raw := range recordBlocks {
-		recordCID, err := cid.V1Builder{}.WithCodec(cid.DagCBOR).Sum(raw)
+		recordCID, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(raw)
 		require.NoError(t, err)
 		recordCIDs[recordCID] = raw
 	}
