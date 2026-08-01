@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/tuple"
 	"gorm.io/gorm"
@@ -603,7 +604,7 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	cid, err := cid.V1Builder{}.WithCodec(cid.DagCBOR).Sum(bytes)
+	cid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
