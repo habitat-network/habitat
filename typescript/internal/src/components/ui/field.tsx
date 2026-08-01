@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Field as FieldPrimitive } from "@base-ui/react/field";
+import { Fieldset as FieldSetPrimitive } from "@base-ui/react/fieldset";
 
 import { cn } from "../lib/utils";
 import { Label } from "./label";
@@ -7,7 +9,7 @@ import { Separator } from "./separator";
 
 function FieldSet({ className, ...props }: React.ComponentProps<"fieldset">) {
   return (
-    <fieldset
+    <FieldSetPrimitive.Root
       data-slot="field-set"
       className={cn(
         "flex flex-col gap-6 has-[>[data-slot=checkbox-group]]:gap-3 has-[>[data-slot=radio-group]]:gap-3",
@@ -22,9 +24,10 @@ function FieldLegend({
   className,
   variant = "legend",
   ...props
-}: React.ComponentProps<"legend"> & { variant?: "legend" | "label" }) {
+}: React.ComponentProps<typeof FieldSetPrimitive.Legend> & { variant?: "legend" | "label" }) {
   return (
-    <legend
+    <FieldSetPrimitive.Legend
+      render={<legend />}
       data-slot="field-legend"
       data-variant={variant}
       className={cn(
@@ -73,7 +76,7 @@ function Field({
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof fieldVariants>) {
   return (
-    <div
+    <FieldPrimitive.Root
       role="group"
       data-slot="field"
       data-orientation={orientation}
