@@ -35,14 +35,14 @@ import type {
   NetworkHabitatOrgLoginMember,
   NetworkHabitatOrgCreate,
   NetworkHabitatOrgMintMemberIdentity,
-  NetworkHabitatSpaceAddMember,
+  NetworkHabitatSimplespaceAddMember,
+  NetworkHabitatSimplespaceCreateSpace,
+  NetworkHabitatSimplespaceRemoveMember,
   NetworkHabitatSpaceDeleteRecord,
   NetworkHabitatSpaceListRepos,
   NetworkHabitatSpaceGetRecord,
   NetworkHabitatSpaceListRecords,
   NetworkHabitatSpaceListSpaces,
-  NetworkHabitatSpaceRemoveMember,
-  NetworkHabitatSpaceCreateSpace,
   NetworkHabitatSpacePutRecord,
   NetworkHabitatInstanceDescribeInstance,
   NetworkHabitatDocsCreateDoc,
@@ -298,21 +298,21 @@ type ProcedureEndpoints = {
     NetworkHabitatOrgMintMemberIdentity.InputSchema,
     NetworkHabitatOrgMintMemberIdentity.OutputSchema
   >;
-  "network.habitat.space.addMember": Procedure<
-    NetworkHabitatSpaceAddMember.InputSchema,
+  "network.habitat.simplespace.addMember": Procedure<
+    NetworkHabitatSimplespaceAddMember.InputSchema,
     void
   >;
   "network.habitat.space.deleteRecord": Procedure<
     NetworkHabitatSpaceDeleteRecord.InputSchema,
     NetworkHabitatSpaceDeleteRecord.OutputSchema
   >;
-  "network.habitat.space.removeMember": Procedure<
-    NetworkHabitatSpaceRemoveMember.InputSchema,
+  "network.habitat.simplespace.removeMember": Procedure<
+    NetworkHabitatSimplespaceRemoveMember.InputSchema,
     void
   >;
-  "network.habitat.space.createSpace": Procedure<
-    NetworkHabitatSpaceCreateSpace.InputSchema,
-    NetworkHabitatSpaceCreateSpace.OutputSchema
+  "network.habitat.simplespace.createSpace": Procedure<
+    NetworkHabitatSimplespaceCreateSpace.InputSchema,
+    NetworkHabitatSimplespaceCreateSpace.OutputSchema
   >;
   "network.habitat.space.putRecord": Procedure<
     NetworkHabitatSpacePutRecord.InputSchema,

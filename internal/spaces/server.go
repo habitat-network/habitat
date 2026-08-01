@@ -123,6 +123,16 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		}
 		skey = parsedKey
 	}
+	if input.Did != "" {
+		parsedDID, ok := httpx.ParseDIDInput(ctx, w, input.Did, "did")
+		if !ok {
+			return
+		}
+		if parsedDID != credInfo.Subject || parsedDID != credInfo.Org.DID() {
+			httpx.WriteInvalidRequest(ctx, w, "only caller did or caller org are allowed", nil)
+			return
+		}
+	}
 	callerOrg, _, err := s.orgStore.GetOrgForDID(ctx, credInfo.Subject)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("get org for caller: %w", err))
