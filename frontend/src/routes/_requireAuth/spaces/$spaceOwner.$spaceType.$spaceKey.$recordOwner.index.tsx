@@ -131,9 +131,8 @@ function LatestCommitCard({ commit }: { commit: SpaceCommit | null }) {
       <CardHeader>
         <CardTitle className="text-base">Latest commit</CardTitle>
         <CardDescription>
-          Revision{" "}
-          <span className="font-mono">{commit.rev}</span>, commit format v
-          {commit.ver}.
+          Revision <span className="font-mono">{commit.rev}</span>, commit
+          format v{commit.ver}.
         </CardDescription>
       </CardHeader>
       <CardContent>
