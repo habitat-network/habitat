@@ -21,23 +21,23 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
             <>
               {org && (
                 <li>
-                  <Button variant="link" render={<Link to="/org" />}>
+                  <Button variant="link" nativeButton={false} render={<Link to="/org" />}>
                     {org.name}
                   </Button>
                 </li>
               )}
               <li>
-                <Button variant="link" render={<Link to="/spaces" />}>
+                <Button variant="link" nativeButton={false} render={<Link to="/spaces" />}>
                   Spaces
                 </Button>
               </li>
               <li>
-                <Button variant="link" render={<Link to="/groups" />}>
+                <Button variant="link" nativeButton={false} render={<Link to="/groups" />}>
                   Groups
                 </Button>
               </li>
               <li>
-                <Button variant="link" render={<Link to="/collections" />}>
+                <Button variant="link" nativeButton={false} render={<Link to="/collections" />}>
                   Collections
                 </Button>
               </li>
@@ -47,7 +47,7 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
         {profile ? (
           <ul className="flex items-center gap-2">
             {import.meta.env.DEV && (
-              <Button variant="ghost" render={<Link to="/devtools" />}>
+              <Button variant="ghost" nativeButton={false} render={<Link to="/devtools" />}>
                 Devtools
               </Button>
             )}
