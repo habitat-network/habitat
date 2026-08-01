@@ -27,17 +27,28 @@ import {
   toast,
 } from "internal/components/ui";
 import { X } from "lucide-react";
-import { spaceReposQueryOptions } from "@/queries/spaces";
+import {
+  spaceMembersQueryOptions,
+  spaceReposQueryOptions,
+} from "@/queries/spaces";
 import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
 import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 
 export const Route = createFileRoute(
   "/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/",
 )({
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(
-      spaceReposQueryOptions(constructSpaceURI(params), context.authManager),
-    ),
+  async loader({ context, params }) {
+    const space = constructSpaceURI(params);
+    const [members, repos] = await Promise.all([
+      context.queryClient.fetchQuery(
+        spaceMembersQueryOptions(space, context.authManager),
+      ),
+      context.queryClient.fetchQuery(
+        spaceReposQueryOptions(space, context.authManager),
+      ),
+    ]);
+    return { members, repos };
+  },
   component: SpaceMembers,
 });
 
@@ -47,11 +58,11 @@ function SpaceMembers() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const space = constructSpaceURI(params);
-  const repos = Route.useLoaderData();
+  const { members, repos } = Route.useLoaderData();
 
-  const invalidateRepos = async () => {
+  const invalidateMembers = async () => {
     await queryClient.invalidateQueries(
-      spaceReposQueryOptions(space, authManager),
+      spaceMembersQueryOptions(space, authManager),
     );
     await router.invalidate();
   };
@@ -64,7 +75,7 @@ function SpaceMembers() {
         { authManager },
       );
     },
-    onSuccess: invalidateRepos,
+    onSuccess: invalidateMembers,
     onError(error) {
       toast.add({
         title: "Couldn't remove member",
@@ -79,71 +90,106 @@ function SpaceMembers() {
       title={<span className="font-mono break-all">{params.spaceKey}</span>}
       subtitle={<span className="font-mono break-all">{space}</span>}
     >
-      <div className="flex items-center justify-between">
-        {/* Deliberately "Repos", not "Members": listRepos returns the writer
-            set (repos that have written data), which is narrower than the
-            space's ACL membership shown as memberCount on the type page. */}
-        <h2 className="text-lg font-medium">
-          Repos ({repos.length})
-          <span className="ml-2 text-sm font-normal text-muted-foreground">
-            accounts holding data in this space
-          </span>
-        </h2>
-        <CreateRecordDialog space={space} authManager={authManager} />
-      </div>
+      <section className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium">
+            Members ({members.length})
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              accounts granted read access to this space
+            </span>
+          </h2>
+          <AddMemberDialog
+            space={space}
+            authManager={authManager}
+            onAdded={invalidateMembers}
+          />
+        </div>
 
-      {repos.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">
-            No accounts hold data in this space yet.
-          </CardContent>
-        </Card>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>DID</TableHead>
-              <TableHead>Rev</TableHead>
-              <TableHead className="w-0" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {repos.map((repo) => (
-              <TableRow key={repo.did}>
-                <TableCell className="font-mono">
-                  <Link
-                    to="/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner"
-                    params={{ ...params, recordOwner: repo.did }}
-                    className="hover:underline"
-                    title={repo.did}
-                  >
-                    {repo.did}
-                  </Link>
-                </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
-                  {repo.rev ?? "—"}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="destructive"
-                    size="icon-xs"
-                    aria-label={`Remove ${repo.did}`}
-                    onClick={() => removeMember(repo.did)}
-                  >
-                    <X />
-                  </Button>
-                </TableCell>
+        {members.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center text-muted-foreground">
+              This space has no members yet.
+            </CardContent>
+          </Card>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>DID</TableHead>
+                <TableHead className="w-0" />
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+            </TableHeader>
+            <TableBody>
+              {members.map((member) => (
+                <TableRow key={member.did}>
+                  <TableCell className="font-mono">{member.did}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="destructive"
+                      size="icon-xs"
+                      aria-label={`Remove ${member.did}`}
+                      onClick={() => removeMember(member.did)}
+                    >
+                      <X />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </section>
 
-      <AddMemberForm
-        space={space}
-        authManager={authManager}
-        onAdded={invalidateRepos}
-      />
+      <section className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          {/* Deliberately "Repos", not "Members": listRepos returns the writer
+              set — the members who have actually written data — so it is a
+              subset of the member list above. */}
+          <h2 className="text-lg font-medium">
+            Repos ({repos.length})
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              accounts holding data in this space
+            </span>
+          </h2>
+          <CreateRecordDialog space={space} authManager={authManager} />
+        </div>
+
+        {repos.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center text-muted-foreground">
+              No accounts hold data in this space yet.
+            </CardContent>
+          </Card>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>DID</TableHead>
+                <TableHead>Rev</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {repos.map((repo) => (
+                <TableRow key={repo.did}>
+                  <TableCell className="font-mono">
+                    <Link
+                      to="/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner"
+                      params={{ ...params, recordOwner: repo.did }}
+                      className="hover:underline"
+                      title={repo.did}
+                    >
+                      {repo.did}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {repo.rev ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </section>
     </SpacesPageLayout>
   );
 }
@@ -152,7 +198,7 @@ interface AddMemberForm {
   did: string;
 }
 
-function AddMemberForm({
+function AddMemberDialog({
   space,
   authManager,
   onAdded,
@@ -161,11 +207,18 @@ function AddMemberForm({
   authManager: AuthManager;
   onAdded: () => void;
 }) {
+  const [open, setOpen] = useState(false);
+
   const form = useForm<AddMemberForm>({
     defaultValues: { did: "" },
   });
 
-  const { mutate: addMember, isPending } = useMutation({
+  const {
+    mutate: addMember,
+    isPending,
+    error: addError,
+    reset: resetMutation,
+  } = useMutation({
     async mutationFn({ did }: AddMemberForm) {
       await procedure(
         "network.habitat.simplespace.addMember",
@@ -175,30 +228,53 @@ function AddMemberForm({
     },
     onSuccess() {
       form.reset();
+      setOpen(false);
       onAdded();
-    },
-    onError(error) {
-      toast.add({ title: "Couldn't add member", description: error.message });
     },
   });
 
   return (
-    <form
-      onSubmit={form.handleSubmit((data) => addMember(data))}
-      className="flex items-end gap-3"
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) {
+          form.reset();
+          resetMutation();
+        }
+      }}
     >
-      <Field>
-        <FieldLabel>DID</FieldLabel>
-        <Input
-          {...form.register("did", { required: true })}
-          placeholder="did:plc:…"
-          className="w-80 font-mono"
-        />
-      </Field>
-      <Button disabled={isPending} type="submit">
-        Add member
-      </Button>
-    </form>
+      <DialogTrigger render={<Button>Add member</Button>} />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add member</DialogTitle>
+        </DialogHeader>
+        <form
+          id="add-member-form"
+          onSubmit={form.handleSubmit((data) => addMember(data))}
+          className="flex flex-col gap-4"
+        >
+          <Field>
+            <FieldLabel>DID</FieldLabel>
+            <Input
+              {...form.register("did", { required: "DID is required" })}
+              placeholder="did:plc:…"
+              className="font-mono"
+            />
+            <FieldError errors={[form.formState.errors.did]} />
+          </Field>
+          {/* The dialog stays open on failure so the reason lands next to the
+              field that caused it — addMember rejects a DID the org doesn't
+              know, and that is worth reading. */}
+          {addError && <FieldError>{addError.message}</FieldError>}
+        </form>
+        <DialogFooter>
+          <Button type="submit" form="add-member-form" disabled={isPending}>
+            Add
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -245,10 +321,12 @@ function CreateRecordDialog({
       form.reset();
       setOpen(false);
       // The new record lands in the caller's own repo, which may also be a
-      // brand new member of the space.
+      // brand new member of the space. The keys are prefixes, so every repo's
+      // records and commit under this space are covered.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["listRecords", space] }),
         queryClient.invalidateQueries({ queryKey: ["listRepos", space] }),
+        queryClient.invalidateQueries({ queryKey: ["getLatestCommit", space] }),
       ]);
       await router.invalidate();
     },

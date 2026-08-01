@@ -25,9 +25,7 @@ import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 
 export const Route = createFileRoute("/_requireAuth/spaces/")({
   loader: ({ context }) =>
-    context.queryClient.ensureQueryData(
-      spacesListQueryOptions(context.authManager),
-    ),
+    context.queryClient.fetchQuery(spacesListQueryOptions(context.authManager)),
   component: SpaceTypesList,
 });
 
@@ -120,7 +118,9 @@ function CreateSpaceForm() {
     },
     async onSuccess(uri) {
       setSpaceType("");
-      await queryClient.invalidateQueries(spacesListQueryOptions(authManager));
+      // Prefix key, not spacesListQueryOptions': a new space also belongs in
+      // the owner- and type-filtered listings, which are cached separately.
+      await queryClient.invalidateQueries({ queryKey: ["listSpaces"] });
       await router.invalidate();
       const parts = parseSpaceURI(uri);
       if (parts) {

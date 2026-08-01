@@ -6,6 +6,9 @@ import {
   Button,
   Card,
   CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -18,22 +21,30 @@ import {
   toast,
 } from "internal/components/ui";
 import { ChevronRight, X } from "lucide-react";
-import { spaceRecordsQueryOptions, type SpaceRecord } from "@/queries/spaces";
+import {
+  spaceLatestCommitQueryOptions,
+  spaceRecordsQueryOptions,
+  type SpaceCommit,
+  type SpaceRecord,
+} from "@/queries/spaces";
 import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
 import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 
 export const Route = createFileRoute(
   "/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/",
 )({
-  loader({ context, params }) {
+  async loader({ context, params }) {
     const { spaceOwner, spaceType, spaceKey, recordOwner } = params;
-    return context.queryClient.ensureQueryData(
-      spaceRecordsQueryOptions(
-        constructSpaceURI({ spaceOwner, spaceType, spaceKey }),
-        recordOwner,
-        context.authManager,
+    const space = constructSpaceURI({ spaceOwner, spaceType, spaceKey });
+    const [records, commit] = await Promise.all([
+      context.queryClient.fetchQuery(
+        spaceRecordsQueryOptions(space, recordOwner, context.authManager),
       ),
-    );
+      context.queryClient.fetchQuery(
+        spaceLatestCommitQueryOptions(space, recordOwner, context.authManager),
+      ),
+    ]);
+    return { records, commit };
   },
   component: MemberRecords,
 });
@@ -55,7 +66,7 @@ function MemberRecords() {
   const space = constructSpaceURI({ spaceOwner, spaceType, spaceKey });
   const { authManager } = Route.useRouteContext();
 
-  const records = Route.useLoaderData();
+  const { records, commit } = Route.useLoaderData();
   const collections = groupByCollection(records);
 
   return (
@@ -77,6 +88,8 @@ function MemberRecords() {
         </>
       }
     >
+      <LatestCommitCard commit={commit} />
+
       {collections.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
@@ -97,6 +110,54 @@ function MemberRecords() {
         </div>
       )}
     </SpacesPageLayout>
+  );
+}
+
+// LatestCommitCard shows the host-signed commit over this repo's state in the
+// space: the revision it covers, and the raw crypto material behind it.
+function LatestCommitCard({ commit }: { commit: SpaceCommit | null }) {
+  if (!commit) {
+    return (
+      <Card>
+        <CardContent className="py-6 text-center text-sm text-muted-foreground">
+          No signed commit for this repo in this space yet.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Latest commit</CardTitle>
+        <CardDescription>
+          Revision <span className="font-mono">{commit.rev}</span>, commit
+          format v{commit.ver}.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
+          <CommitField label="Hash" value={commit.hash} />
+          <CommitField label="MAC" value={commit.mac} />
+          <CommitField label="IKM" value={commit.ikm} />
+          <CommitField label="Signature" value={commit.sig} />
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
+
+// CommitField renders one base64 field of the commit. The values are long
+// enough to wrap over several lines, so they truncate with the full value in a
+// tooltip.
+function CommitField({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="truncate font-mono" title={value}>
+        {value}
+      </dd>
+    </>
   );
 }
 
@@ -125,9 +186,16 @@ function CollectionSection({
       );
     },
     async onSuccess() {
-      await queryClient.invalidateQueries(
-        spaceRecordsQueryOptions(space, params.recordOwner, authManager),
-      );
+      // Deleting a record moves the repo's head, so the signed commit shown
+      // above the collections is stale too.
+      await Promise.all([
+        queryClient.invalidateQueries(
+          spaceRecordsQueryOptions(space, params.recordOwner, authManager),
+        ),
+        queryClient.invalidateQueries(
+          spaceLatestCommitQueryOptions(space, params.recordOwner, authManager),
+        ),
+      ]);
       await router.invalidate();
     },
     onError(error) {
