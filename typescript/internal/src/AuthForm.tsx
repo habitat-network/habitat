@@ -2,7 +2,18 @@ import type { AuthManager } from "./authManager";
 import { useForm } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
 import { useId } from "react";
-import { Button, Card, CardContent, CardHeader, CardTitle, FieldError, FieldLegend, FieldSet, FieldTitle, Input } from "./components/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  FieldError,
+  FieldLegend,
+  FieldSet,
+  FieldTitle,
+  Input,
+} from "./components/ui";
 import { Field, FieldGroup, FieldLabel } from "./components/ui/field";
 import { truthy } from "./utils/arrays";
 
@@ -25,7 +36,11 @@ export default function AuthForm({
   defaultHandle,
   orgLoginUrl,
 }: AuthFormProps) {
-  const { register, handleSubmit, formState: { errors } } = useForm<AuthFormData>();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<AuthFormData>();
   const {
     mutate: login,
     isPending,
@@ -34,7 +49,7 @@ export default function AuthForm({
     async mutationFn({ handle }: AuthFormData) {
       const url = authManager.loginUrl(handle, redirectUrl);
       window.location.href = url.toString();
-      await new Promise(() => { })
+      await new Promise(() => {});
     },
   });
   return (
@@ -43,9 +58,7 @@ export default function AuthForm({
         <CardContent>
           <form onSubmit={handleSubmit((data) => login(data))}>
             <FieldSet>
-              <FieldLegend>
-                Sign In
-              </FieldLegend>
+              <FieldLegend>Sign In</FieldLegend>
               <FieldGroup>
                 <Field>
                   <FieldLabel>Handle</FieldLabel>
@@ -54,7 +67,13 @@ export default function AuthForm({
                     defaultValue={defaultHandle}
                     placeholder="alice.bsky.social"
                   />
-                  <FieldError errors={[error, { message: serverError }, errors.handle].filter(truthy)} />
+                  <FieldError
+                    errors={[
+                      error,
+                      { message: serverError },
+                      errors.handle,
+                    ].filter(truthy)}
+                  />
                 </Field>
                 <Field>
                   <Button loading={isPending} type="submit" className="w-full">

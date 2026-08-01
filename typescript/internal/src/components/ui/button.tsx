@@ -40,7 +40,7 @@ const buttonVariants = cva(
 );
 
 interface ButtonProps {
-  loading?: boolean
+  loading?: boolean;
 }
 
 function Button({

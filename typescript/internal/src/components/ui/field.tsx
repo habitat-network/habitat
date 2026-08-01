@@ -24,7 +24,9 @@ function FieldLegend({
   className,
   variant = "legend",
   ...props
-}: React.ComponentProps<typeof FieldSetPrimitive.Legend> & { variant?: "legend" | "label" }) {
+}: React.ComponentProps<typeof FieldSetPrimitive.Legend> & {
+  variant?: "legend" | "label";
+}) {
   return (
     <FieldSetPrimitive.Legend
       render={<legend />}
