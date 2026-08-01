@@ -7,7 +7,7 @@ import { parseSpaceURI } from "internal";
 
 export const Route = createFileRoute("/_requireAuth/spaces/$spaceOwner/")({
   loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(
+    context.queryClient.fetchQuery(
       spacesListQueryOptions(context.authManager, { did: params.spaceOwner }),
     ),
   component: SpacesByOwner,
