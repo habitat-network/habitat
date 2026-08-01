@@ -505,7 +505,7 @@ func TestServer_RemoveMember_Unauthorized(t *testing.T) {
 }
 
 func TestServer_PutRecord_Unauthorized(t *testing.T) {
-	s, store := newAliceServer(t)
+	s, store := newOwnerServer(t)
 
 	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
@@ -522,7 +522,7 @@ func TestServer_PutRecord_Unauthorized(t *testing.T) {
 }
 
 func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
-	s, store := newAliceServer(t)
+	s, store := newOwnerServer(t)
 
 	uri, err := store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
