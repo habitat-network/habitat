@@ -1,5 +1,5 @@
 import type {
-  NetworkHabitatSpaceCreateSpace,
+  NetworkHabitatSimplespaceCreateSpace,
   NetworkHabitatSpacePutRecord,
   NetworkHabitatSpaceGetRecord,
   NetworkHabitatRelationshipWriteTuple,
@@ -74,17 +74,18 @@ export class PearClient {
     return (await res.json()) as T;
   }
 
-  // createSpace creates a new doc space owned by the given org. pear generates
-  // the skey.
+  // createSpace creates a new doc space owned by the given org. The host
+  // generates the skey.
   async createSpace(org: string): Promise<SpaceRef> {
     const created =
-      await this.call<NetworkHabitatSpaceCreateSpace.OutputSchema>(
+      await this.call<NetworkHabitatSimplespaceCreateSpace.OutputSchema>(
         org,
-        "network.habitat.space.createSpace",
+        "network.habitat.simplespace.createSpace",
         "POST",
         {
+          did: org,
           type: DOCS_SPACE_TYPE,
-        } satisfies NetworkHabitatSpaceCreateSpace.InputSchema,
+        } satisfies NetworkHabitatSimplespaceCreateSpace.InputSchema,
       );
     return { uri: created.uri, skey: skeyOf(created.uri) };
   }
@@ -161,18 +162,17 @@ export class PearClient {
 
   // addMember grants a member access to a doc's space so they can read the
   // canonical records directly via their own OAuth session.
-  async addMember(
-    org: string,
-    space: string,
-    did: string,
-    access: "read" | "write",
-  ): Promise<void> {
+  async addMember(org: string, space: string, did: string): Promise<void> {
     try {
-      await this.call<unknown>(org, "network.habitat.space.addMember", "POST", {
-        space,
-        did,
-        access,
-      });
+      await this.call<unknown>(
+        org,
+        "network.habitat.simplespace.addMember",
+        "POST",
+        {
+          space,
+          did,
+        },
+      );
     } catch {
       // Already a member, or a benign race — safe to ignore.
     }
@@ -180,7 +180,7 @@ export class PearClient {
 
   // grantRole grants a user a role on a space via a relationship tuple. sap
   // proxies as the org (the space owner), which passes writeTuple's manager
-  // check. Unlike addMember (read/write only), this can grant "owner", which
+  // check. Unlike addMember (member list only), this can grant "owner", which
   // includes the manage-members permission needed to share the doc onward.
   async grantRole(
     org: string,
