@@ -21,7 +21,13 @@ const authManager = new AuthManager(
     router.navigate({ to: "/oauth-login" });
   },
 );
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2, // 2 minutes default stale time
+    }
+  }
+});
 
 // Create a new router instance
 const router = createRouter({

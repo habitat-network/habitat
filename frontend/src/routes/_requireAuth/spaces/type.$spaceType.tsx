@@ -6,7 +6,7 @@ import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 
 export const Route = createFileRoute("/_requireAuth/spaces/type/$spaceType")({
   loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(
+    context.queryClient.fetchQuery(
       spacesListQueryOptions(context.authManager, { type: params.spaceType }),
     ),
   component: SpacesOfType,

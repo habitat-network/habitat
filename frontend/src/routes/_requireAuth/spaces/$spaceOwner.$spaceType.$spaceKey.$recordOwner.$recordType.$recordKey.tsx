@@ -11,7 +11,7 @@ export const Route = createFileRoute(
 )({
   loader({ context, params }) {
     const { spaceOwner, spaceType, spaceKey, recordOwner } = params;
-    return context.queryClient.ensureQueryData(
+    return context.queryClient.fetchQuery(
       spaceRecordQueryOptions(
         {
           space: constructSpaceURI({ spaceOwner, spaceType, spaceKey }),

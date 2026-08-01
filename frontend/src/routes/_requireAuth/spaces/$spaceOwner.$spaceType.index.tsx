@@ -8,7 +8,7 @@ export const Route = createFileRoute(
   "/_requireAuth/spaces/$spaceOwner/$spaceType/",
 )({
   loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(
+    context.queryClient.fetchQuery(
       spacesListQueryOptions(context.authManager, {
         did: params.spaceOwner,
         type: params.spaceType,

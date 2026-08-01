@@ -37,8 +37,10 @@ import type {
   NetworkHabitatOrgMintMemberIdentity,
   NetworkHabitatSimplespaceAddMember,
   NetworkHabitatSimplespaceCreateSpace,
+  NetworkHabitatSimplespaceListMembers,
   NetworkHabitatSimplespaceRemoveMember,
   NetworkHabitatSpaceDeleteRecord,
+  NetworkHabitatSpaceGetLatestCommit,
   NetworkHabitatSpaceListRepos,
   NetworkHabitatSpaceGetRecord,
   NetworkHabitatSpaceListRecords,
@@ -176,6 +178,14 @@ type QueryEndpoints = {
   "network.habitat.space.listRepos": Query<
     NetworkHabitatSpaceListRepos.QueryParams,
     NetworkHabitatSpaceListRepos.OutputSchema
+  >;
+  "network.habitat.simplespace.listMembers": Query<
+    NetworkHabitatSimplespaceListMembers.QueryParams,
+    NetworkHabitatSimplespaceListMembers.OutputSchema
+  >;
+  "network.habitat.space.getLatestCommit": Query<
+    NetworkHabitatSpaceGetLatestCommit.QueryParams,
+    NetworkHabitatSpaceGetLatestCommit.OutputSchema
   >;
   "network.habitat.space.getRecord": Query<
     NetworkHabitatSpaceGetRecord.QueryParams,
@@ -392,15 +402,19 @@ export const query = async <T extends keyof QueryEndpoints>(
         options.headers,
         (options as AuthedOptions).fetchOptions,
       );
+  // Only the parse is guarded: wrapping the XRPCError throw in the same try
+  // caught it here and replaced it with a generic Error, so callers could
+  // never see which lexicon error came back.
+  let data;
   try {
-    const data = await response.json();
-    if (!response.ok) {
-      throw new XRPCError(response.status, data);
-    }
-    return data;
+    data = await response.json();
   } catch {
-    throw new Error(`Invalid error response: ${response.status}`);
+    throw new Error(`Invalid response body: ${response.status}`);
   }
+  if (!response.ok) {
+    throw new XRPCError(response.status, data ?? { error: "UnknownError" });
+  }
+  return data;
 };
 
 export const procedure = async <T extends keyof ProcedureEndpoints>(
