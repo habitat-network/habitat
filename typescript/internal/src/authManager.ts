@@ -151,7 +151,7 @@ export class AuthManager {
               this.setAuthState(token);
             }
           })
-          .then(() => {})
+          .then(() => { })
           .finally(() => {
             this.refreshPromise = undefined;
           });
@@ -210,4 +210,4 @@ export class AuthManager {
   }
 }
 
-export class UnauthenticatedError extends Error {}
+export class UnauthenticatedError extends Error { }
