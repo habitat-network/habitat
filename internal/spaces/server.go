@@ -417,88 +417,52 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
 	var input habitat.NetworkHabitatSpacePutRecordInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
 		return
 	}
-
 	if input.Validate {
 		httpx.WriteNotSupported(ctx, w, "validate is not yet supported")
+		return
 	}
-
 	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
 	if !ok {
 		return
 	}
-
 	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
 	if !ok {
 		return
 	}
-
 	if credInfo.Subject != repo {
 		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", fmt.Errorf("wrong repo"))
 		return
 	}
-
-	authorized, err := s.authorize(
-		r.Context(),
-		credInfo.Org.DID(),
-		credInfo.Subject,
-		spaceURI,
-		fgastore.RelationSpaceWriter,
-	)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check write permission",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-	if !authorized {
-		// TODO: we don't know if they're not authorize because they're not a member or
-		// because they don't have the right role. assume worst case and return not found
-		// need to return a reason from authorize
-		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
-		return
-	}
-
-	collection, ok := httpx.ParseNSIDInput(r.Context(), w, input.Collection, "collection")
+	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
 	if !ok {
 		return
 	}
 	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
-		http.Error(
-			w,
-			"relationship tuples must be managed via network.habitat.relationship.* endpoints",
-			http.StatusForbidden,
-		)
+		httpx.WriteInvalidRequest(ctx, w,
+			"relationship tuples must be managed via network.habitat.relationship.* endpoints", nil)
 		return
 	}
-
 	var rkey syntax.RecordKey
 	if input.Rkey != "" {
 		parsedRkey, err := syntax.ParseRecordKey(input.Rkey)
 		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse rkey", http.StatusBadRequest)
+			httpx.WriteInvalidRequest(ctx, w, "invalid rkey", err)
 			return
 		}
 		rkey = parsedRkey
 	}
-
 	value, ok := input.Record.(map[string]any)
 	if !ok {
-		http.Error(w, "record must be a JSON object", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "record must be a JSON object", nil)
 		return
 	}
-
-	recordUri, cid, err := s.store.PutRecord(
-		r.Context(),
+	recordURI, cid, err := s.store.PutRecord(
+		ctx,
 		spaceURI,
 		repo,
 		collection,
@@ -506,18 +470,16 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		value,
 	)
 	if errors.Is(err, ErrSpaceNotFound) {
-		httpx.WriteSpaceNotFound(r.Context(), w, err)
+		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "put record", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("put record: %w", err))
 		return
 	}
-
-	output := habitat.NetworkHabitatSpacePutRecordOutput{
-		Uri: recordUri.String(),
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpacePutRecordOutput{
+		Uri: recordURI.String(),
 		Cid: cid.String(),
-	}
-	httpx.WriteJSON(r.Context(), w, output)
+	})
 }
 
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
@@ -1012,33 +974,19 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	if credInfo.Subject != repo {
 		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", nil)
 	}
-	authorized, err := s.authorize(ctx, credInfo.Org.DID(), credInfo.Subject, spaceURI,
-		fgastore.RelationSpaceOwner)
-	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("authorize: %w", err))
-		return
-	}
-	if !authorized {
-		// TODO: we don't know if they're not authorize because they're not a member or
-		// because they don't have the right role. assume worst case and return not found
-		// need to return a reason from authorize
-		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not authorized to delete"))
-		return
-	}
 	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
 	if !ok {
 		return
 	}
 	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
-		httpx.WriteInvalidRequest(ctx, w, "invalid collection", err)
+		httpx.WriteInvalidRequest(ctx, w, "invalid collection", nil)
 		return
 	}
-	err = s.store.DeleteRecord(ctx, spaceURI, repo, collection, input.Rkey)
-	if err != nil {
+	if err := s.store.DeleteRecord(ctx, spaceURI, repo, collection, input.Rkey); err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("delete record: %w", err))
 		return
 	}
-	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceDeleteRecordOutput{})
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceDeleteRecordOutput{})
 }
 
 func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
