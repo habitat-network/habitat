@@ -471,6 +471,24 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "record must be a JSON object", nil)
 		return
 	}
+	authorized, err := s.authorize(
+		ctx,
+		credInfo.Org.DID(),
+		credInfo.Subject,
+		spaceURI,
+		fgastore.RelationSpaceWriter,
+	)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("authorize: %w", err))
+		return
+	}
+	if !authorized {
+		// TODO: we don't know if they're not authorize because they're not a member or
+		// because they don't have the right role. assume worst case and return not found
+		// need to return a reason from authorize
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
+		return
+	}
 	recordURI, cid, err := s.store.PutRecord(
 		ctx,
 		spaceURI,
