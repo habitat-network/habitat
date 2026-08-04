@@ -457,11 +457,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to get host public key: %w", err)
 	}
-	instanceDoc := did.Web(domain).
-		HabitatKey(hostPublicKey.Multibase()).
-		Habitat("https://" + domain).
-		Build()
-	mux.Handle("/.well-known/did.json", did.NewHandler(instanceDoc))
+	mux.Handle("/.well-known/did.json", did.NewHandler(
+		did.Web(domain).
+			HabitatKey(hostPublicKey.Multibase()).
+			Habitat("https://"+domain).
+			Build(),
+	))
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(r.Context(), w, oauthClient.ClientMetadata())
 	})
