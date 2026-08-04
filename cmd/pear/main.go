@@ -24,12 +24,12 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -457,7 +457,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to get host public key: %w", err)
 	}
-	mux.HandleFunc("/.well-known/did.json", serveDid(domain, hostPublicKey))
+	mux.Handle("/.well-known/did.json", did.NewHandler(
+		did.Web(domain).
+			HabitatKey(hostPublicKey.Multibase()).
+			Habitat("https://"+domain).
+			Build(),
+	))
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(r.Context(), w, oauthClient.ClientMetadata())
 	})
@@ -596,30 +601,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		slog.ErrorContext(startupCtx, "server shut down returned an error", "err", err)
 	}
 	return err
-}
-
-func serveDid(domain string, hostKey atcrypto.PublicKey) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		did := syntax.DID(fmt.Sprintf("did:web:%s", domain))
-		httpx.WriteJSON(r.Context(), w, identity.DIDDocument{
-			DID: did,
-			VerificationMethod: []identity.DocVerificationMethod{
-				{
-					ID:                 "habitat",
-					Type:               "Multikey",
-					Controller:         did.String(),
-					PublicKeyMultibase: hostKey.Multibase(),
-				},
-			},
-			Service: []identity.DocService{
-				{
-					ID:              "#habitat",
-					ServiceEndpoint: "https://" + domain,
-					Type:            "HabitatServer",
-				},
-			},
-		})
-	}
 }
 
 func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {

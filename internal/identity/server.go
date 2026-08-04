@@ -1,7 +1,6 @@
 package identity
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -59,17 +59,6 @@ func NewServer(
 		pdsForwarding: pdsForwarding,
 		domain:        domain,
 	}, nil
-}
-
-type didDocWithContext struct {
-	Context []string `json:"@context"`
-	identity.DIDDocument
-}
-
-var didCtx = []string{
-	"https://www.w3.org/ns/did/v1",
-	"https://w3id.org/security/multikey/v1",
-	"https://w3id.org/security/suites/secp256k1-2019/v1",
 }
 
 // GetServiceAuth implements com.atproto.server.getServiceAuth for habitat-hosted
@@ -136,31 +125,19 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )
 func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	// Get the requested DID
-	did, err := syntax.ParseDID("did:web:" + effectiveHost(r))
+	reqDID, err := syntax.ParseDID("did:web:" + effectiveHost(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	ident, err := s.hive.LookupDID(r.Context(), did)
+	ident, err := s.hive.LookupDID(r.Context(), reqDID)
 	// TODO: better status codes dependening on the identity.Err type
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-
-	doc := didDocWithContext{
-		Context:     didCtx,
-		DIDDocument: ident.DIDDocument(),
-	}
-
-	w.Header().Set("Content-Type", "application/did+ld+json")
-	w.Header().Set("Cache-Control", "max-age=3600")
-	err = json.NewEncoder(w).Encode(doc)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	did.NewHandler(ident.DIDDocument()).ServeHTTP(w, r)
 }
 
 // Serve handle DID ( satisfy /{handle}/.well-known/atproto-did )
@@ -268,16 +245,14 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) overriddenDidDoc(ident *identity.Identity) identity.DIDDocument {
-	return identity.DIDDocument{
-		DID:                ident.DID,
-		AlsoKnownAs:        ident.AlsoKnownAs,
-		VerificationMethod: ident.DIDDocument().VerificationMethod,
-		Service: []identity.DocService{
-			{
-				ID:              "#atproto_pds",
-				Type:            "AtprotoPersonalDataServer",
-				ServiceEndpoint: "https://" + s.domain,
-			},
-		},
+	b := did.New(ident.DID).AlsoKnownAs(ident.AlsoKnownAs...)
+	for k, vm := range ident.Keys {
+		b.VerificationMethod(
+			fmt.Sprintf("%s#%s", ident.DID, k),
+			vm.Type,
+			ident.DID.String(),
+			vm.PublicKeyMultibase,
+		)
 	}
+	return b.ATProtoPDS("https://" + s.domain).Build()
 }

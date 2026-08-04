@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/did"
 	"gorm.io/gorm"
 )
 
@@ -56,28 +57,16 @@ var _ Hive = &hive{}
 func idTemplateBuilder(memberDomain, pearDomain string) idTemplate {
 	return func(handleInternal, opaqueID, signingPublicKey string) *identity.Identity {
 		handle := syntax.Handle(handleInternal + "." + memberDomain)
-		DID := syntax.DID("did:web:" + opaqueID + "." + memberDomain)
-		return &identity.Identity{
-			DID:         DID,
-			Handle:      handle,
-			AlsoKnownAs: []string{"at://" + string(handle)},
-			Keys: map[string]identity.VerificationMethod{
-				"atproto": {
-					Type:               "Multikey",
-					PublicKeyMultibase: signingPublicKey,
-				},
-			},
-			Services: map[string]identity.ServiceEndpoint{
-				"habitat": {
-					Type: "HabitatServer",
-					URL:  "https://" + pearDomain,
-				},
-				"atproto_pds": {
-					Type: "AtprotoPersonalDataServer",
-					URL:  "https://" + pearDomain,
-				},
-			},
-		}
+		doc := did.Web(opaqueID + "." + memberDomain).
+			AlsoKnownAs("at://" + string(handle)).
+			AtprotoKey(signingPublicKey).
+			Habitat("https://" + pearDomain).
+			ATProtoPDS("https://" + pearDomain).
+			Build()
+		// ParseIdentity sets Handle to handle.invalid; overwrite with the real one.
+		ident := identity.ParseIdentity(&doc)
+		ident.Handle = handle
+		return &ident
 	}
 }
 
