@@ -23,6 +23,7 @@ import (
 
 func main() {
 	if err := run(os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, "sap:", err)
 		slog.ErrorContext(context.Background(), "error running command", "err", err)
 		os.Exit(1)
 	}
