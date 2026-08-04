@@ -1,0 +1,64 @@
+---
+id: getting-started
+slug: /space-proxy/getting-started
+sidebar_label: Getting started
+sidebar_position: 1
+---
+
+# Getting started
+
+The only integration step is **using Habitat as your identity resolver**. Habitat resolves the identity through the public network (or its own directory) and then rewrites the `#atproto_pds` service entry in the returned DID document to point at Habitat. Every downstream piece of the atproto stack — OAuth discovery, XRPC routing — follows that pointer, so your app talks to Habitat without knowing anything special.
+
+## TypeScript
+
+```bash
+npm install @habitat-network/habitat
+```
+
+```ts
+import { BrowserOAuthClient } from "@atproto/oauth-client-browser";
+import { HabitatIdentityResolver } from "@habitat-network/habitat";
+
+const client = new BrowserOAuthClient({
+  clientMetadata,
+  identityResolver: new HabitatIdentityResolver(), // defaults to https://pear.habitat.network
+});
+
+const session = await client.signIn("alice.bsky.social");
+```
+
+The resolver satisfies `@atproto-labs/identity-resolver`'s `IdentityResolver` interface, so it drops into the standard browser OAuth client. Pass a service URL to target a self-hosted instance: `new HabitatIdentityResolver("https://pear.example.com")`.
+
+Note that the resolver performs no client-side bidirectional handle/DID verification — it trusts the Habitat instance you point it at.
+
+## Go
+
+Use indigo's API directory with Habitat as the host:
+
+```go
+import "github.com/bluesky-social/indigo/atproto/identity/apidir"
+
+dir := apidir.NewAPIDirectory("https://pear.habitat.network")
+ident, err := dir.LookupHandle(ctx, syntax.Handle("alice.bsky.social"))
+// ident.PDSEndpoint() == "https://pear.habitat.network"
+```
+
+## Direct XRPC
+
+```bash
+curl "https://pear.habitat.network/xrpc/com.atproto.identity.resolveIdentity?identifier=alice.bsky.social"
+```
+
+Or reach the same endpoint through the user's own PDS with atproto service proxying:
+
+```
+Atproto-Proxy: did:web:pear.habitat.network#habitat
+```
+
+## Authentication
+
+Because the resolved DID document names Habitat as the PDS, a standard atproto OAuth client discovers Habitat's `/.well-known/oauth-protected-resource` and authorizes against Habitat. Habitat brokers that flow: it runs its own OAuth server for your app while acting as an OAuth client against the user's real PDS, so the user still authenticates with their own provider. Habitat advertises `atproto` in `scopes_supported`; requested scopes are validated against the `scope` field of your client metadata document.
+
+Space endpoints accept the resulting Habitat access token as a bearer token, or an atproto service-auth JWT.
+
+Next: [Working with spaces](./working-with-spaces.mdx).

@@ -1,0 +1,47 @@
+---
+id: overview
+slug: /space-proxy
+sidebar_label: Overview
+sidebar_position: 0
+---
+
+# Space Proxy
+
+Habitat implements the AT Protocol [permissioned data proposal](https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md) and offers it as a service in front of the public network. If your users have accounts on Bluesky or any other public PDS, you can use Habitat as their space host without them migrating, re-keying, or self-hosting anything: point your identity resolution at Habitat and the rest of the atproto client stack works unchanged.
+
+Start with [Getting started](./getting-started.mdx) to wire up identity resolution and auth, then [Working with spaces](./working-with-spaces.mdx) for the read/write endpoints.
+
+## How spaces work
+
+A **space** is an authorization and sync boundary for a set of permissioned records, identified by an `(authority, type, skey)` triple. Records inside a space are _not_ public and never appear in a user's public repo or on the firehose.
+
+- Each member of a space writes to their **own permissioned repo** scoped to that space. A space is the union of its members' repos, not one shared document.
+- The space **authority** (host) decides who may read the space, enumerates the writer set, and routes write notifications.
+- A repo's state is summarized by a **signed commit** over an [LtHash](https://engineering.fb.com/2019/03/01/security/homomorphic-hashing/) — an order-independent, incrementally updatable hash — so a syncer can fold in ops and verify the result without replaying history. Signatures are deliberately deniable: the signature covers only random per-commit bytes, and a MAC binds the state digest to them.
+
+## How Habitat's implementation differs
+
+Habitat is a working implementation, not a literal one. The differences that matter to you:
+
+|                    | Proposal                                                          | Habitat                                                      |
+| ------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------ |
+| Endpoint NSIDs     | `com.atproto.space.*`, `com.atproto.simplespace.*`                | `network.habitat.space.*`, `network.habitat.simplespace.*`   |
+| Space URI          | `at://{authority}/space/{type}/{skey}`                            | `ats://{authority}/{type}/{skey}`                            |
+| Record URI         | `at://{authority}/space/{type}/{skey}/{repo}/{collection}/{rkey}` | `ats://{authority}/{type}/{skey}/{repo}/{collection}/{rkey}` |
+| Authority          | The creating user's DID                                           | `did:web:public.habitat.network`                             |
+| Repo host          | The member's own PDS                                              | Habitat (also the space host)                                |
+| Commit signing key | The repo owner's atproto signing key                              | A shared Habitat host key                                    |
+
+Two of these are worth expanding on.
+
+**Every public space is owned by `did:web:public.habitat.network`.** When a user who is not a member of a Habitat organization creates a space, Habitat assigns the authority to its shared public identity rather than to the caller. This is what lets Habitat manage access control on behalf of users whose identities live elsewhere. The creator still gets the owner role in Habitat's ACL store, so they alone can add/remove members and delete the space.
+
+**Commits are signed with a Habitat key, not the user's.** The proposal has the repo owner's PDS sign commits with the owner's atproto signing key. Habitat does not hold the private keys of accounts on public PDSes, so it signs their commits with a single host key and uses a distinct protocol tag in the signature context — `habitat-space-host-v1` instead of `atproto-space-v1` — so host-signed commits can never be confused with spec-compliant ones. The corresponding public key is published as the `habitat` verification method in `https://pear.habitat.network/.well-known/did.json`.
+
+Access control is backed by a relationship-based (Zanzibar-style) store, so membership is a `read` or `write` relation on the space object rather than a flat member list.
+
+## Not implemented yet
+
+- **Delegation tokens and space credentials** (`getDelegationToken`, `getSpaceCredential`) only work for Habitat-managed `did:web` identities. They cannot be minted for accounts on external PDSes, and the `did:web:public.habitat.network` DID document is not served yet. Read access for public spaces goes through OAuth, not credentials.
+- `limit`/`cursor` are accepted but not honored on `listRepos` and `listMembers`; `validate` on `putRecord` returns an error.
+- `network.habitat.space.createSpace`, `addMember`, and `removeMember` are deprecated aliases of the `simplespace` equivalents.

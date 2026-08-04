@@ -72,9 +72,22 @@ const config: Config = {
       },
       items: [
         {
-          to: "docs/api",
+          type: "docSidebar",
+          sidebarId: "ods",
           position: "left",
-          label: "API Reference",
+          label: "Organization Data Server (WIP)",
+        },
+        {
+          type: "docSidebar",
+          sidebarId: "spaceProxy",
+          position: "left",
+          label: "Space Proxy",
+        },
+        {
+          type: "docSidebar",
+          sidebarId: "httpReference",
+          position: "left",
+          label: "HTTP Reference",
         },
         {
           href: "https://github.com/habitat-network/habitat",

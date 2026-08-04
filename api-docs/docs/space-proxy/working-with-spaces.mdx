@@ -1,0 +1,74 @@
+---
+id: working-with-spaces
+slug: /space-proxy/working-with-spaces
+sidebar_label: Working with spaces
+sidebar_position: 2
+---
+
+# Working with spaces
+
+All examples assume `$TOKEN` is an access token from the [OAuth flow](./getting-started.mdx#authentication).
+
+## Create a space
+
+The authority is assigned by Habitat, so omit `did`:
+
+```bash
+curl -X POST https://pear.habitat.network/xrpc/network.habitat.simplespace.createSpace \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"type": "network.habitat.group"}'
+# {"uri": "ats://did:web:public.habitat.network/network.habitat.group/3lartabcd2s22"}
+```
+
+The `type` NSID describes the modality of the space (personal data, group, gated content). `skey` is optional and auto-generated as a TID when omitted; supply it to keep multiple spaces of the same type distinguishable under a stable key.
+
+## Add a member
+
+Members get write access to their own repo in the space, and read access to everyone else's:
+
+```bash
+curl -X POST https://pear.habitat.network/xrpc/network.habitat.simplespace.addMember \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"space": "'$SPACE'", "did": "did:plc:bob"}'
+```
+
+Only the space creator can add or remove members. `network.habitat.simplespace.listMembers` enumerates them.
+
+## Write a record
+
+`repo` must be the authenticated caller's own DID — you can only write to your own repo:
+
+```bash
+curl -X POST https://pear.habitat.network/xrpc/network.habitat.space.putRecord \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+        "space": "'$SPACE'",
+        "repo": "'$MY_DID'",
+        "collection": "community.lexicon.calendar.event",
+        "record": {"name": "Standup"}
+      }'
+# {"uri": "ats://.../3lart.../did:plc:alice/community.lexicon.calendar.event/3lb...", "cid": "bafy..."}
+```
+
+`network.habitat.space.deleteRecord` removes one, and `network.habitat.repo.uploadBlob` / `network.habitat.space.getBlob` handle binary attachments.
+
+## Read records
+
+Any space member can read any member's repo:
+
+```bash
+curl -G https://pear.habitat.network/xrpc/network.habitat.space.listRecords \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode "space=$SPACE" --data-urlencode "repo=did:plc:alice"
+```
+
+Pass `excludeValues=true` for a metadata-only listing, or use `network.habitat.space.getRecord` for a single record.
+
+## Enumerate and sync
+
+- `network.habitat.space.listSpaces` — the spaces the caller can read, optionally filtered by `type` or owner `did`.
+- `network.habitat.space.listRepos` — the writer set, with each repo's current rev and commit hash.
+- `network.habitat.space.listRepoOps` — a repo's ops after a given rev, for incremental sync. The last page includes the current signed commit.
+- `network.habitat.space.getLatestCommit` / `getRepo` — the signed head, and full state as a CAR file.
+
+See the [HTTP reference](/docs/api/habitat-api) for request and response schemas.
