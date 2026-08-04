@@ -245,6 +245,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup password login provider: %w", err)
 	}
+	everyoneOrg := org.NewEveryoneOrg(domain)
 	orgStore, err := org.NewStore(
 		db.WithContext(startupCtx),
 		hive,
@@ -252,6 +253,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		domain,
 		passwordProvider,
 		fgaStore,
+		everyoneOrg,
 	)
 	if err != nil {
 		return fmt.Errorf("setup org store: %w", err)
@@ -328,7 +330,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	defer func() { _ = blobBucket.Close() }()
 	blobStore := spaces.NewBlobStore(blobBucket)
-	serviceAuth := authn.NewServiceAuthMethod(defaultDir, fmt.Sprintf("did:web:%s#habitat", domain))
+	serviceAuth := authn.NewServiceAuthMethod(
+		everyoneOrg,
+		defaultDir,
+		fmt.Sprintf("did:web:%s#habitat", domain),
+	)
 
 	// Habitat's single host signing key signs permissioned-repo commits for repo
 	// owners on external PDSes (habitat-managed owners sign with their own hive
@@ -459,8 +465,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	mux.Handle("/.well-known/did.json", did.NewHandler(
 		did.Web(domain).
-			HabitatKey(hostPublicKey.Multibase()).
+			ATProtoSpaceKey(hostPublicKey.Multibase()).
 			Habitat("https://"+domain).
+			ATProtoSpaceHost("https://"+domain).
 			Build(),
 	))
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {

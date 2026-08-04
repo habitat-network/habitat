@@ -36,6 +36,7 @@ func NewTestStore(t *testing.T) org.Store {
 		"pear.example.com",
 		passwordProvider,
 		fga,
+		org.NewEveryoneOrg("everyone.example.com"),
 	)
 	require.NoError(t, err)
 	return store

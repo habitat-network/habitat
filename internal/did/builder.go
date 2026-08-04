@@ -51,11 +51,9 @@ func (b *Builder) AtprotoKey(multibase string) *Builder {
 	)
 }
 
-// HabitatKey registers the host signing key as a Multikey verification method
-// at <did>#habitat.
-func (b *Builder) HabitatKey(multibase string) *Builder {
+func (b *Builder) ATProtoSpaceKey(multibase string) *Builder {
 	return b.VerificationMethod(
-		fmt.Sprintf("%s#habitat", b.id),
+		fmt.Sprintf("%s#atproto_space", b.id),
 		"Multikey",
 		b.id.String(),
 		multibase,
@@ -70,6 +68,10 @@ func (b *Builder) Habitat(endpoint string) *Builder {
 // ATProtoPDS adds the #atproto_pds AtprotoPersonalDataServer service.
 func (b *Builder) ATProtoPDS(endpoint string) *Builder {
 	return b.Service("#atproto_pds", "AtprotoPersonalDataServer", endpoint)
+}
+
+func (b *Builder) ATProtoSpaceHost(endpoint string) *Builder {
+	return b.Service("#atproto_space_host", "AtprotoSpaceHost", endpoint)
 }
 
 // VerificationMethod adds a custom verification method.
