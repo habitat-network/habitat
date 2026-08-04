@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/habitat-network/habitat/internal/did"
 	"github.com/urfave/cli/v3"
 )
 
@@ -71,31 +71,32 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// This uses the "Multikey" format: compressed key bytes with multicodec prefix, base58btc encoded, 'z' prefix
 	multibaseKey := pubKey.(*atcrypto.PublicKeyK256).Multibase()
 
-	// Create the DID identifier (did:web format)
-	// Per did:web spec: ports must be percent-encoded (:8443 becomes %3A8443)
-	// and paths are colon-separated (example.com/user/alice becomes example.com:user:alice)
-	did := formatDidWeb(didHost)
+	// Create the DID document from the builder (did:web with port percent-encoding).
+	doc := did.Web(didHost).
+		Atproto(multibaseKey).
+		ATProtoPDS(pdsURL).
+		Build()
 
-	// Create the DID document
+	// Marshal with the same @context as before so the generated file is unchanged.
 	didDoc := map[string]interface{}{
 		"@context": []string{
 			"https://www.w3.org/ns/did/v1",
 			"https://w3id.org/security/suites/secp256k1-2019/v1",
 		},
-		"id": did,
+		"id": doc.DID.String(),
 		"verificationMethod": []map[string]interface{}{
 			{
-				"id":                 fmt.Sprintf("%s#atproto", did),
-				"type":               "Multikey", // Current/preferred format per atproto spec
-				"controller":         did,
-				"publicKeyMultibase": multibaseKey,
+				"id":                 doc.VerificationMethod[0].ID,
+				"type":               doc.VerificationMethod[0].Type,
+				"controller":         doc.VerificationMethod[0].Controller,
+				"publicKeyMultibase": doc.VerificationMethod[0].PublicKeyMultibase,
 			},
 		},
 		"service": []map[string]interface{}{
 			{
-				"id":              "#atproto_pds",
-				"type":            "AtprotoPersonalDataServer",
-				"serviceEndpoint": pdsURL,
+				"id":              doc.Service[0].ID,
+				"type":            doc.Service[0].Type,
+				"serviceEndpoint": doc.Service[0].ServiceEndpoint,
 			},
 		},
 	}
@@ -131,7 +132,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	fmt.Println("  DID Keypair Generated")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println()
-	fmt.Printf("DID:\n  %s\n\n", did)
+	fmt.Printf("DID:\n  %s\n\n", doc.DID.String())
 	fmt.Printf("Public Key (Multibase):\n  %s\n\n", multibaseKey)
 	fmt.Printf("Private Key (Hex):\n  %s\n\n", privKeyHex)
 	fmt.Printf("PDS Service Endpoint:\n  %s\n\n", pdsURL)
@@ -141,19 +142,4 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	return nil
-}
-
-// formatDidWeb converts a hostname (with optional port) into a did:web identifier
-// Per did:web specification, ports are percent-encoded: example.com:8443 -> did:web:example.com%3A8443
-func formatDidWeb(host string) string {
-	// Check if host contains a port
-	if strings.Contains(host, ":") {
-		parts := strings.SplitN(host, ":", 2)
-		if len(parts) == 2 {
-			// Percent-encode the port separator
-			return fmt.Sprintf("did:web:%s%%3A%s", parts[0], parts[1])
-		}
-	}
-
-	return fmt.Sprintf("did:web:%s", host)
 }
