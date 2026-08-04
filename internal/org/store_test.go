@@ -76,7 +76,7 @@ func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 	o, _, err := s.GetOrgForDID(t.Context(), external)
 	require.NoError(t, err)
 
-	require.Equal(t, "did:web:everyone.example.com", o.DID())
+	require.Equal(t, syntax.DID("did:web:everyone.example.com"), o.DID())
 }
 
 func TestStore_GetMember_Existing(t *testing.T) {

@@ -19,7 +19,7 @@ type everyoneOrg struct {
 // DID implements [Org].
 func (e *everyoneOrg) DID() syntax.DID {
 	// TODO: actually serve the did doc for this
-	return syntax.DID("did:web:public.habitat.network")
+	return syntax.DID("did:web:" + e.pearDomain)
 }
 
 func (e *everyoneOrg) LoginMethod(ctx context.Context) LoginMethod {

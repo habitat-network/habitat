@@ -9,14 +9,14 @@ import (
 )
 
 func TestEveryoneOrg_IsMember(t *testing.T) {
-	o := NewEveryoneOrg()
+	o := NewEveryoneOrg("everyone.example.com")
 	ok, err := o.IsMember(context.Background(), "did:plc:test")
 	require.NoError(t, err)
 	require.True(t, ok)
 }
 
 func TestEveryoneOrg_ErrorMethods(t *testing.T) {
-	o := NewEveryoneOrg()
+	o := NewEveryoneOrg("everyone.example.com")
 	ctx := context.Background()
 	did := syntax.DID("did:plc:test")
 
