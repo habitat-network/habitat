@@ -16,9 +16,7 @@ func WriteJSON(ctx context.Context, w http.ResponseWriter, v any) {
 		WriteError(ctx, w, "marshal json", err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if w.Header().Get("Content-Type") == "" {
-		w.Header().Set("Content-Type", "application/json")
-	}
+	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(bytes)
 	if err != nil {
 		slog.ErrorContext(ctx, "write json", "err", err)

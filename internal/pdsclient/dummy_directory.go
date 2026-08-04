@@ -7,8 +7,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-
-	"github.com/habitat-network/habitat/internal/did"
 )
 
 type options struct {
@@ -67,8 +65,8 @@ func (d *DummyDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier) er
 	return fmt.Errorf("unimplemented")
 }
 
-func (d *DummyDirectory) getIdentity(handle syntax.Handle, reqDID syntax.DID) *identity.Identity {
-	resolvedDID := reqDID
+func (d *DummyDirectory) getIdentity(handle syntax.Handle, did syntax.DID) *identity.Identity {
+	resolvedDID := did
 	if resolvedDID == "" {
 		resolvedDID = "did:web:example.did.com"
 	}
@@ -77,16 +75,28 @@ func (d *DummyDirectory) getIdentity(handle syntax.Handle, reqDID syntax.DID) *i
 		resolvedHandle = "example.handle.com"
 	}
 	publicKey, _ := d.PrivateKey.PublicKey()
-	b := did.New(resolvedDID).
-		AlsoKnownAs("at://" + resolvedHandle.String()).
-		AtprotoKey(publicKey.Multibase()).
-		ATProtoPDS(d.pdsUrl)
-	if d.options.withHabitatService != "" {
-		b.Habitat(d.options.withHabitatService)
+	id := &identity.Identity{
+		DID:    resolvedDID,
+		Handle: resolvedHandle,
+		AlsoKnownAs: []string{
+			"at://" + resolvedHandle.String(),
+		},
+		Services: map[string]identity.ServiceEndpoint{
+			"atproto_pds": {
+				URL: d.pdsUrl,
+			},
+		},
+		Keys: map[string]identity.VerificationMethod{
+			"atproto": {
+				Type:               "Multikey",
+				PublicKeyMultibase: publicKey.Multibase(),
+			},
+		},
 	}
-	doc := b.Build()
-	// ParseIdentity sets Handle to handle.invalid; overwrite with the real one.
-	ident := identity.ParseIdentity(&doc)
-	ident.Handle = resolvedHandle
-	return &ident
+	if d.options.withHabitatService != "" {
+		id.Services["habitat"] = identity.ServiceEndpoint{
+			URL: d.options.withHabitatService,
+		}
+	}
+	return id
 }
