@@ -77,32 +77,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		ATProtoPDS(pdsURL).
 		Build()
 
-	// Marshal with the same @context as before so the generated file is unchanged.
-	didDoc := map[string]interface{}{
-		"@context": []string{
-			"https://www.w3.org/ns/did/v1",
-			"https://w3id.org/security/suites/secp256k1-2019/v1",
-		},
-		"id": doc.DID.String(),
-		"verificationMethod": []map[string]interface{}{
-			{
-				"id":                 doc.VerificationMethod[0].ID,
-				"type":               doc.VerificationMethod[0].Type,
-				"controller":         doc.VerificationMethod[0].Controller,
-				"publicKeyMultibase": doc.VerificationMethod[0].PublicKeyMultibase,
-			},
-		},
-		"service": []map[string]interface{}{
-			{
-				"id":              doc.Service[0].ID,
-				"type":            doc.Service[0].Type,
-				"serviceEndpoint": doc.Service[0].ServiceEndpoint,
-			},
-		},
-	}
-
 	// Marshal the DID document to JSON
-	didDocJSON, err := json.MarshalIndent(didDoc, "", "  ")
+	didDocJSON, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal DID document: %w", err)
 	}
