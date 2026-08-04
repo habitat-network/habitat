@@ -21,7 +21,7 @@ func TestHandler(t *testing.T) {
 	)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, "application/did+ld+json", rec.Header().Get("Content-Type"))
+	require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
 	require.Equal(t, "max-age=3600", rec.Header().Get("Cache-Control"))
 
 	var body map[string]any
