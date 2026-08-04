@@ -39,6 +39,7 @@ type Server struct {
 	oauth       authn.Method
 	serviceAuth authn.Method
 	delegation  authn.Method
+	spaceToken  *authn.SpaceCredentialAuthMethod
 	decoder     *schema.Decoder
 	orgStore    org.Store
 	commit      *spacecommit.Authority
@@ -146,52 +147,49 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("create space: %w", err))
 		return
 	}
-	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSimplespaceCreateSpaceOutput{
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSimplespaceCreateSpaceOutput{
 		Uri: uri.String(),
 	})
 }
 
 func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
-
 	var params habitat.NetworkHabitatSpaceListSpacesParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "decode query params", err)
 		return
 	}
 	var filterOwner *syntax.DID
 	if params.Did != "" {
-		ownerDid, ok := httpx.ParseDIDInput(r.Context(), w, params.Did, "did")
+		ownerDid, ok := httpx.ParseDIDInput(ctx, w, params.Did, "did")
 		if !ok {
 			return
 		}
 		filterOwner = &ownerDid
 	}
-
 	var filterType *syntax.NSID
 	if params.Type != "" {
-		t, ok := httpx.ParseNSIDInput(r.Context(), w, params.Type, "type filter")
+		t, ok := httpx.ParseNSIDInput(ctx, w, params.Type, "type filter")
 		if !ok {
 			return
 		}
 		filterType = &t
 	}
-
 	spaces, err := s.store.ListSpaces(
-		r.Context(),
+		ctx,
 		credInfo.Org.DID(),
 		credInfo.Subject,
 		filterOwner,
 		filterType,
 	)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "list spaces", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list spaces: %w", err))
 		return
 	}
-
 	views := make([]habitat.NetworkHabitatSpaceListSpacesSpaceView, len(spaces))
 	for i, sp := range spaces {
 		views[i] = habitat.NetworkHabitatSpaceListSpacesSpaceView{
@@ -199,11 +197,9 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 			IsOwner: sp.URI.SpaceOwner() == credInfo.Subject,
 		}
 	}
-
-	output := habitat.NetworkHabitatSpaceListSpacesOutput{
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListSpacesOutput{
 		Spaces: views,
-	}
-	httpx.WriteJSON(r.Context(), w, output)
+	})
 }
 
 func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
@@ -300,13 +296,11 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	}
 	err = s.store.RemoveMember(r.Context(), spaceURI, memberDID)
 	if errors.Is(err, ErrSpaceNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	} else if errors.Is(err, ErrNotAMember) {
 		return
 	} else if errors.Is(err, ErrCannotRemoveOrg) {
-		http.Error(w, err.Error(), http.StatusBadRequest)
 		httpx.WriteInvalidRequest(ctx, w, "cannot remove org", err)
 		return
 	} else if err != nil {
@@ -360,52 +354,43 @@ func (s *Server) ListMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
-	if !ok {
-		return
-	}
-
+	ctx := r.Context()
 	var params habitat.NetworkHabitatSpaceListReposParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
 		return
 	}
-
 	if params.Cursor != "" || params.Limit != 0 {
-		http.Error(w, "cursor and limit are not yet supported", http.StatusNotImplemented)
+		httpx.WriteNotSupported(ctx, w, "cursor and limit are not yet supported")
 		return
 	}
-
-	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
 	if !ok {
 		return
 	}
-
-	isMember, err := s.store.IsMember(r.Context(), credInfo.Org.DID(), spaceURI, credInfo.Subject)
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth, s.spaceToken), authn.WithSpace(spaceURI)).
+		Validate(w, r)
+	if !ok {
+		return
+	}
+	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check membership",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
 		return
 	}
 	if !isMember {
-		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not a member"))
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
 		return
 	}
 
 	repos, err := s.store.ListRepos(r.Context(), spaceURI)
 	if errors.Is(err, ErrSpaceNotFound) {
-		httpx.WriteSpaceNotFound(r.Context(), w, err)
+		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "list repos", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list repos: %w", err))
 		return
 	}
-
 	repoViews := make([]habitat.NetworkHabitatSpaceListReposRepo, len(repos))
 	for i, r := range repos {
 		repoViews[i] = habitat.NetworkHabitatSpaceListReposRepo{
@@ -414,11 +399,9 @@ func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 			Hash: r.Hash,
 		}
 	}
-
-	output := habitat.NetworkHabitatSpaceListReposOutput{
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListReposOutput{
 		Repos: repoViews,
-	}
-	httpx.WriteJSON(r.Context(), w, output)
+	})
 }
 
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
@@ -486,7 +469,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		// TODO: we don't know if they're not authorize because they're not a member or
 		// because they don't have the right role. assume worst case and return not found
 		// need to return a reason from authorize
-		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not authorized to manage members"))
 		return
 	}
 	recordURI, cid, err := s.store.PutRecord(
@@ -512,20 +495,19 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-	).Validate(w, r)
+	var params habitat.NetworkHabitatSpaceGetRecordParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
 	if !ok {
 		return
 	}
-
-	var params habitat.NetworkHabitatSpaceGetRecordParams
-	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "decode query params", http.StatusBadRequest)
-		return
-	}
-
-	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth, s.spaceToken),
+		authn.WithSpace(spaceURI),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -537,13 +519,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 			credInfo.Subject,
 		)
 		if err != nil {
-			utils.LogAndHTTPError(
-				ctx,
-				w,
-				err,
-				"check membership",
-				http.StatusInternalServerError,
-			)
+			httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
 			return
 		}
 		if !isMember {
@@ -555,34 +531,29 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
 	rkey, err := syntax.ParseRecordKey(params.Rkey)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse rkey", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "invalid rkey", err)
 		return
 	}
-
 	repo, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
 	if !ok {
 		return
 	}
-
-	rec, err := s.store.GetRecord(r.Context(), spaceURI, repo, collection, rkey)
+	rec, err := s.store.GetRecord(ctx, spaceURI, repo, collection, rkey)
 	if errors.Is(err, ErrRecordNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteRecordNotFound(ctx, w, err)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "get record", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get record: %w", err))
 		return
 	}
-
-	uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, collection, rec.Rkey)
-	output := habitat.NetworkHabitatSpaceGetRecordOutput{
-		Uri:   uri.String(),
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceGetRecordOutput{
+		Uri: habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, collection, rec.Rkey).
+			String(),
 		Cid:   rec.Cid.String(),
 		Value: rec.Value,
-	}
-	httpx.WriteJSON(r.Context(), w, output)
+	})
 }
 
 // blobRef is the atproto blob reference returned by uploadBlob. It matches the
@@ -600,7 +571,6 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	_, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth),
-		authn.WithSupportedCredentials(authn.UserCredential),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -635,16 +605,17 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 // access. Implements network.habitat.space.getBlob.
 func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
-	if !ok {
-		return
-	}
 	var params habitat.NetworkHabitatSpaceGetBlobParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
 		return
 	}
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth, s.spaceToken), authn.WithSpace(spaceURI)).
+		Validate(w, r)
 	if !ok {
 		return
 	}
@@ -685,58 +656,46 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
-	if !ok {
-		return
-	}
-
 	var params habitat.NetworkHabitatSpaceListRecordsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
 		return
 	}
-
-	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
 	if !ok {
 		return
 	}
-
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth, s.spaceToken), authn.WithSpace(spaceURI)).
+		Validate(w, r)
+	if !ok {
+		return
+	}
 	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check membership",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
 		return
 	}
 	if !isMember {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	}
-
 	var filterCollection *syntax.NSID
 	if params.Collection != "" {
-		c, ok := httpx.ParseNSIDInput(r.Context(), w, params.Collection, "collection filter")
+		c, ok := httpx.ParseNSIDInput(ctx, w, params.Collection, "collection filter")
 		if !ok {
 			return
 		}
 		filterCollection = &c
 	}
-
-	repo, ok := httpx.ParseDIDInput(r.Context(), w, params.Repo, "repo")
+	repo, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
 	if !ok {
 		return
 	}
-
 	records, err := s.store.ListRecords(r.Context(), spaceURI, repo, filterCollection)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "list records", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list records: %w", err))
 		return
 	}
-
 	recViews := make([]habitat.NetworkHabitatSpaceListRecordsRecord, len(records))
 	for i, rec := range records {
 		recViews[i] = habitat.NetworkHabitatSpaceListRecordsRecord{
@@ -748,21 +707,22 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			recViews[i].Value = rec.Value
 		}
 	}
-	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceListRecordsOutput{Records: recViews})
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListRecordsOutput{Records: recViews})
 }
 
 func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
-	if !ok {
-		return
-	}
 	var params habitat.ComAtprotoSpaceGetRepoParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
 		return
 	}
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth, s.spaceToken), authn.WithSpace(spaceURI)).
+		Validate(w, r)
 	if !ok {
 		return
 	}
@@ -815,18 +775,19 @@ func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
 	var params habitat.NetworkHabitatSpaceListRepoOpsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "invalid query params", err)
 		return
 	}
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth, s.spaceToken),
+		authn.WithSpace(spaceURI),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -939,16 +900,17 @@ func (s *Server) buildRepoCommit(
 // member of the space.
 func (s *Server) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
-	if !ok {
-		return
-	}
 	var params habitat.NetworkHabitatSpaceGetLatestCommitParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "invalid query params", err)
 		return
 	}
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth, s.spaceToken), authn.WithSpace(spaceURI)).
+		Validate(w, r)
 	if !ok {
 		return
 	}
@@ -1115,10 +1077,6 @@ func (s *Server) GetDelegationToken(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.delegation)).Validate(w, r)
-	if !ok {
-		return
-	}
 	var input habitat.NetworkHabitatSpaceGetSpaceCredentialInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
@@ -1131,8 +1089,8 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if credInfo.Space != spaceURI {
-		httpx.WriteInvalidRequest(ctx, w, "param doesn't match token", nil)
+	if _, ok = authn.NewValidator(authn.WithAuthMethods(s.delegation), authn.WithSpace(spaceURI)).
+		Validate(w, r); !ok {
 		return
 	}
 	privKey, err := s.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
