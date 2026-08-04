@@ -10,7 +10,7 @@ import (
 
 func TestBuilder_Atproto(t *testing.T) {
 	doc := New(syntax.DID("did:web:alice.example.com")).
-		Atproto("zpubkey").
+		AtprotoKey("zpubkey").
 		Build()
 
 	require.Equal(t, syntax.DID("did:web:alice.example.com"), doc.DID)

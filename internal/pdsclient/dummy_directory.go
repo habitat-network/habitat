@@ -79,7 +79,7 @@ func (d *DummyDirectory) getIdentity(handle syntax.Handle, reqDID syntax.DID) *i
 	publicKey, _ := d.PrivateKey.PublicKey()
 	b := did.New(resolvedDID).
 		AlsoKnownAs("at://" + resolvedHandle.String()).
-		Atproto(publicKey.Multibase()).
+		AtprotoKey(publicKey.Multibase()).
 		ATProtoPDS(d.pdsUrl)
 	if d.options.withHabitatService != "" {
 		b.Habitat(d.options.withHabitatService)

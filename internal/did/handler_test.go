@@ -12,7 +12,7 @@ import (
 
 func TestHandler(t *testing.T) {
 	doc := New(syntax.DID("did:web:alice.example.com")).
-		Atproto("zkey").
+		AtprotoKey("zkey").
 		Build()
 	rec := httptest.NewRecorder()
 	(&Handler{Doc: doc}).ServeHTTP(

@@ -40,9 +40,9 @@ func (b *Builder) AlsoKnownAs(uris ...string) *Builder {
 	return b
 }
 
-// Atproto registers the atproto repo signing key as a Multikey verification
+// AtprotoKey registers the atproto repo signing key as a Multikey verification
 // method at <did>#atproto.
-func (b *Builder) Atproto(multibase string) *Builder {
+func (b *Builder) AtprotoKey(multibase string) *Builder {
 	return b.VerificationMethod(
 		fmt.Sprintf("%s#atproto", b.id),
 		"Multikey",

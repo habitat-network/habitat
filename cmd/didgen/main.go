@@ -73,7 +73,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	// Create the DID document from the builder (did:web with port percent-encoding).
 	doc := did.Web(didHost).
-		Atproto(multibaseKey).
+		AtprotoKey(multibaseKey).
 		ATProtoPDS(pdsURL).
 		Build()
 
