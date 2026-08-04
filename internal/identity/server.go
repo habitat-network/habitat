@@ -137,8 +137,7 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-
-	(&did.Handler{Doc: ident.DIDDocument()}).ServeHTTP(w, r)
+	did.NewHandler(ident.DIDDocument()).ServeHTTP(w, r)
 }
 
 // Serve handle DID ( satisfy /{handle}/.well-known/atproto-did )

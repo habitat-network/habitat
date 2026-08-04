@@ -56,7 +56,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	instanceDoc := did.Web(s.domain).
 		Service("#"+serviceID, "HabitatGroupsServer", "https://"+s.domain).
 		Build()
-	mux.Handle("GET /.well-known/did.json", &did.Handler{Doc: instanceDoc})
+	mux.Handle("GET /.well-known/did.json", did.NewHandler(instanceDoc))
 	mux.HandleFunc("GET /client-metadata.json", s.handleClientMetadata)
 	mux.HandleFunc("GET /oauth/login", s.handleOAuthLogin)
 	mux.HandleFunc("GET /oauth-callback", s.handleOAuthCallback)

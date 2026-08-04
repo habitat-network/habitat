@@ -1,10 +1,10 @@
 package did
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/habitat-network/habitat/internal/httpx"
 )
 
 // didCtx is the @context of served DID documents: the DID Core context plus the
@@ -22,22 +22,22 @@ type docWithContext struct {
 	identity.DIDDocument
 }
 
-// Handler serves a DID document as application/did+ld+json.
-type Handler struct {
-	// Doc is the DID document to serve.
-	Doc identity.DIDDocument
+// handler serves a DID document as application/did+ld+json.
+type handler struct {
+	// doc is the DID document to serve.
+	doc identity.DIDDocument
+}
+
+func NewHandler(doc identity.DIDDocument) *handler {
+	return &handler{doc: doc}
 }
 
 // ServeHTTP implements http.Handler.
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/did+ld+json")
 	w.Header().Set("Cache-Control", "max-age=3600")
-	err := json.NewEncoder(w).Encode(docWithContext{
+	httpx.WriteJSON(r.Context(), w, docWithContext{
 		Context:     didCtx,
-		DIDDocument: h.Doc,
+		DIDDocument: h.doc,
 	})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 }

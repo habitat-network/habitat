@@ -15,7 +15,7 @@ func TestHandler(t *testing.T) {
 		AtprotoKey("zkey").
 		Build()
 	rec := httptest.NewRecorder()
-	(&Handler{Doc: doc}).ServeHTTP(
+	NewHandler(doc).ServeHTTP(
 		rec,
 		httptest.NewRequest(http.MethodGet, "/.well-known/did.json", http.NoBody),
 	)

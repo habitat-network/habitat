@@ -461,7 +461,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		HabitatKey(hostPublicKey.Multibase()).
 		Habitat("https://" + domain).
 		Build()
-	mux.Handle("/.well-known/did.json", &did.Handler{Doc: instanceDoc})
+	mux.Handle("/.well-known/did.json", did.NewHandler(instanceDoc))
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(r.Context(), w, oauthClient.ClientMetadata())
 	})
