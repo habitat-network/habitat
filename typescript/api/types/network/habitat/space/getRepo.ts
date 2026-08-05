@@ -13,7 +13,7 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'com.atproto.space.getRepo'
+const id = 'network.habitat.space.getRepo'
 
 export type QueryParams = {
   /** Reference to the space. */

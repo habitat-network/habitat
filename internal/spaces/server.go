@@ -710,7 +710,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var params habitat.ComAtprotoSpaceGetRepoParams
+	var params habitat.NetworkHabitatSpaceGetRepoParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
 		return
