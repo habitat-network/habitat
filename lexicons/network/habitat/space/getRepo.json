@@ -1,6 +1,6 @@
 {
   "lexicon": 1,
-  "id": "com.atproto.space.getRepo",
+  "id": "network.habitat.space.getRepo",
   "defs": {
     "main": {
       "type": "query",
