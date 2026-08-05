@@ -75,7 +75,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	doc := did.Web(didHost).
 		AtprotoKey(multibaseKey).
 		ATProtoPDS(pdsURL).
-		Build()
+		Build().DIDDocument()
 
 	// Marshal the DID document to JSON
 	didDocJSON, err := json.MarshalIndent(doc, "", "  ")

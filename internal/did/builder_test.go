@@ -9,54 +9,66 @@ import (
 )
 
 func TestBuilder_Atproto(t *testing.T) {
-	doc := New(syntax.DID("did:web:alice.example.com")).
+	ident := New(syntax.DID("did:web:alice.example.com")).
 		AtprotoKey("zpubkey").
 		Build()
 
-	require.Equal(t, syntax.DID("did:web:alice.example.com"), doc.DID)
-	require.Equal(t, []identity.DocVerificationMethod{{
-		ID:                 "did:web:alice.example.com#atproto",
-		Type:               "Multikey",
-		Controller:         "did:web:alice.example.com",
-		PublicKeyMultibase: "zpubkey",
-	}}, doc.VerificationMethod)
+	require.Equal(t, syntax.DID("did:web:alice.example.com"), ident.DID)
+	require.Equal(t, map[string]identity.VerificationMethod{
+		"atproto": {
+			Type:               "Multikey",
+			PublicKeyMultibase: "zpubkey",
+		},
+	}, ident.Keys)
 }
 
 func TestBuilder_Services(t *testing.T) {
-	doc := New(syntax.DID("did:web:alice.example.com")).
+	ident := New(syntax.DID("did:web:alice.example.com")).
 		Habitat("https://pear.example.com").
 		ATProtoPDS("https://pear.example.com").
 		Build()
 
-	require.Equal(t, []identity.DocService{
-		{ID: "#habitat", Type: "HabitatServer", ServiceEndpoint: "https://pear.example.com"},
-		{
-			ID:              "#atproto_pds",
-			Type:            "AtprotoPersonalDataServer",
-			ServiceEndpoint: "https://pear.example.com",
+	require.Equal(t, map[string]identity.ServiceEndpoint{
+		"habitat": {
+			Type: "HabitatServer",
+			URL:  "https://pear.example.com",
 		},
-	}, doc.Service)
+		"atproto_pds": {
+			Type: "AtprotoPersonalDataServer",
+			URL:  "https://pear.example.com",
+		},
+	}, ident.Services)
 }
 
 func TestBuilder_Custom(t *testing.T) {
-	doc := New(syntax.DID("did:web:alice.example.com")).
+	ident := New(syntax.DID("did:web:alice.example.com")).
 		AlsoKnownAs("at://alice.example.com").
-		VerificationMethod("did:web:alice.example.com#custom", "CustomType", "did:web:alice.example.com", "zcust").
-		Service("#custom", "CustomServer", "https://custom.example.com").
+		VerificationMethod("custom", "CustomType", "zcust").
+		Service("custom", "CustomServer", "https://custom.example.com").
 		Build()
 
-	require.Equal(t, []string{"at://alice.example.com"}, doc.AlsoKnownAs)
-	require.Equal(t, []identity.DocVerificationMethod{{
-		ID:                 "did:web:alice.example.com#custom",
-		Type:               "CustomType",
-		Controller:         "did:web:alice.example.com",
-		PublicKeyMultibase: "zcust",
-	}}, doc.VerificationMethod)
-	require.Equal(t, []identity.DocService{{
-		ID:              "#custom",
-		Type:            "CustomServer",
-		ServiceEndpoint: "https://custom.example.com",
-	}}, doc.Service)
+	require.Equal(t, []string{"at://alice.example.com"}, ident.AlsoKnownAs)
+	require.Equal(t, map[string]identity.VerificationMethod{
+		"custom": {
+			Type:               "CustomType",
+			PublicKeyMultibase: "zcust",
+		},
+	}, ident.Keys)
+	require.Equal(t, map[string]identity.ServiceEndpoint{
+		"custom": {
+			Type: "CustomServer",
+			URL:  "https://custom.example.com",
+		},
+	}, ident.Services)
+}
+
+func TestBuilder_Handle(t *testing.T) {
+	ident := New(syntax.DID("did:web:alice.example.com")).
+		Handle(syntax.Handle("alice.example.com")).
+		Build()
+
+	require.Equal(t, syntax.Handle("alice.example.com"), ident.Handle)
+	require.Equal(t, []string{"at://alice.example.com"}, ident.AlsoKnownAs)
 }
 
 func TestBuilder_Web(t *testing.T) {
