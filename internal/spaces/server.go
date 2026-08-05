@@ -1056,7 +1056,7 @@ func (s *Server) GetDelegationToken(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		privKey = s.hostKey
 		kid = "#habitat"
-	} else {
+	} else if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("get private key: %w", err))
 		return
 	}
