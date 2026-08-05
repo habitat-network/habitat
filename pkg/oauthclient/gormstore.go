@@ -25,7 +25,7 @@ func (sessionRow) TableName() string { return "client_sessions" }
 // authRequestRow stores oauth.AuthRequestData keyed by state.
 type authRequestRow struct {
 	State     string `gorm:"column:state;primaryKey;type:text"`
-	Data      []byte `gorm:"column:data;type:blob"`
+	Data      []byte `gorm:"column:data"`
 	CreatedAt time.Time
 }
 
