@@ -13,6 +13,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/atdata"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/schema"
@@ -39,12 +40,13 @@ type Server struct {
 	oauth       authn.Method
 	serviceAuth authn.Method
 	delegation  authn.Method
-	spaceToken  *authn.SpaceCredentialAuthMethod
+	spaceToken  authn.Method
 	decoder     *schema.Decoder
 	orgStore    org.Store
 	commit      *spacecommit.Authority
 	hive        hive.Hive
 	blobs       BlobStore
+	hostKey     atcrypto.PrivateKey
 }
 
 // NewServer constructs the spaces server. host and member are the commit
@@ -59,6 +61,7 @@ func NewServer(
 	oauth authn.Method,
 	serviceAuth authn.Method,
 	delegation *authn.DelegationTokenAuthMethod,
+	spaceToken *authn.SpaceCredentialAuthMethod,
 	orgStore org.Store,
 	hostPrivateKey atcrypto.PrivateKey,
 	hive hive.Hive,
@@ -69,12 +72,14 @@ func NewServer(
 		fga:         fga,
 		oauth:       oauth,
 		serviceAuth: serviceAuth,
+		spaceToken:  spaceToken,
 		decoder:     schema.NewDecoder(),
 		orgStore:    orgStore,
 		commit:      spacecommit.NewAuthority(hostPrivateKey, hive),
 		hive:        hive,
 		delegation:  delegation,
 		blobs:       blobs,
+		hostKey:     hostPrivateKey,
 	}
 }
 
@@ -1046,8 +1051,12 @@ func (s *Server) GetDelegationToken(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	kid := "#atproto"
 	privKey, err := s.hive.PrivateKeyForDID(ctx, credInfo.Subject)
-	if err != nil {
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		privKey = s.hostKey
+		kid = "#habitat"
+	} else {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("get private key: %w", err))
 		return
 	}
@@ -1063,7 +1072,8 @@ func (s *Server) GetDelegationToken(w http.ResponseWriter, r *http.Request) {
 		},
 		Header: map[string]any{
 			"typ": "atproto-space-delegation+jwt",
-			"kid": "#atproto",
+			"kid": kid,
+			"alg": "ES256K",
 		},
 	}).SignedString(privKey)
 	if err != nil {
@@ -1093,8 +1103,12 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 		Validate(w, r); !ok {
 		return
 	}
+	kid := "#atproto"
 	privKey, err := s.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
-	if err != nil {
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		privKey = s.hostKey
+		kid = "#atproto_space_host"
+	} else if err != nil {
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
 		return
 	}
@@ -1109,7 +1123,8 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 		},
 		Header: map[string]any{
 			"typ": "atproto-space-credential+jwt",
-			"kid": "#atproto", // TODO: should probably switch to #atproto_space when hive supports it
+			"kid": kid,
+			"alg": "ES256K",
 		},
 	}).SignedString(privKey)
 	if err != nil {

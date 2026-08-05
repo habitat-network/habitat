@@ -23,7 +23,7 @@ func TestSpaceCredentialAuthMethod_CanHandle(t *testing.T) {
 	require.NoError(t, err)
 	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
-	require.True(t, NewSpaceCredentialAuthMethod(nil).CanHandle(r))
+	require.True(t, NewSpaceCredentialAuthMethod(nil, nil).CanHandle(r))
 }
 
 func TestSpaceCredentialAuthMethod_Validate(t *testing.T) {
@@ -47,7 +47,7 @@ func TestSpaceCredentialAuthMethod_Validate(t *testing.T) {
 	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
 
-	credInfo, ok := NewSpaceCredentialAuthMethod(dir).Validate(w, r)
+	credInfo, ok := NewSpaceCredentialAuthMethod(dir, nil).Validate(w, r)
 	require.True(t, ok)
 	require.Equal(t, credInfo, &CredentialInfo{
 		Space: spaceURI,

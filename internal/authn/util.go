@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
@@ -25,11 +26,23 @@ func getBearerToken(r *http.Request) string {
 func fetchIssuerKeyFunc(
 	ctx context.Context,
 	dir identity.Directory,
+	hostKey atcrypto.PrivateKey,
 ) func(*jwt.Token) (any, error) {
 	return func(token *jwt.Token) (any, error) {
 		issuer, err := token.Claims.GetIssuer()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get issuer: %w", err)
+		}
+		kid, ok := token.Header["kid"].(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to get kid: %s", issuer)
+		}
+		if kid == "#habitat" {
+			publicKey, err := hostKey.PublicKey()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get host public key: %w", err)
+			}
+			return publicKey, nil
 		}
 		issuerDID, err := syntax.ParseDID(issuer)
 		if err != nil {
@@ -39,13 +52,9 @@ func fetchIssuerKeyFunc(
 		if err != nil {
 			return nil, fmt.Errorf("failed to lookup issuer: %w", err)
 		}
-		kid, ok := token.Header["kid"].(string)
-		if !ok {
-			return nil, fmt.Errorf("failed to get kid")
-		}
 		publicKey, err := ident.GetPublicKey(strings.TrimPrefix(kid, "#"))
 		if err != nil {
-			return nil, fmt.Errorf("failed to get public key: %w", err)
+			return nil, fmt.Errorf("failed to get public key: %w %s", err, kid)
 		}
 		return publicKey, nil
 	}

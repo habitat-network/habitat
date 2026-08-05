@@ -74,12 +74,10 @@ func (v *Validator) Validate(w http.ResponseWriter, r *http.Request) (*Credentia
 		if method.CanHandle(r) {
 			credInfo, ok := method.Validate(w, r)
 			if !ok {
-				httpx.WriteUnauthorized(ctx, w, "failed to validate credential")
 				return nil, false
 			}
 			if len(v.supportedCredentials) > 0 &&
 				!slices.Contains(v.supportedCredentials, credInfo.Type) {
-				w.WriteHeader(http.StatusUnauthorized)
 				httpx.WriteUnauthorized(ctx, w, "unsupported credential type")
 				return nil, false
 			}
@@ -90,6 +88,6 @@ func (v *Validator) Validate(w http.ResponseWriter, r *http.Request) (*Credentia
 			return credInfo, true
 		}
 	}
-	w.WriteHeader(http.StatusUnauthorized)
+	httpx.WriteUnauthorized(ctx, w, "no auth method found")
 	return nil, false
 }
