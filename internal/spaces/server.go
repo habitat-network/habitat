@@ -325,9 +325,6 @@ func (s *Server) ListMembers(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
 		return
 	}
-	if params.Cursor != "" {
-		httpx.WriteNotSupported(ctx, w, "cursor is not yet supported")
-	}
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
 	if !ok {
 		return
@@ -363,10 +360,6 @@ func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 	var params habitat.NetworkHabitatSpaceListReposParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
-		return
-	}
-	if params.Cursor != "" || params.Limit != 0 {
-		httpx.WriteNotSupported(ctx, w, "cursor and limit are not yet supported")
 		return
 	}
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
