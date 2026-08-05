@@ -57,16 +57,12 @@ var _ Hive = &hive{}
 func idTemplateBuilder(memberDomain, pearDomain string) idTemplate {
 	return func(handleInternal, opaqueID, signingPublicKey string) *identity.Identity {
 		handle := syntax.Handle(handleInternal + "." + memberDomain)
-		doc := did.Web(opaqueID + "." + memberDomain).
-			AlsoKnownAs("at://" + string(handle)).
+		return did.Web(opaqueID + "." + memberDomain).
+			Handle(handle).
 			AtprotoKey(signingPublicKey).
 			Habitat("https://" + pearDomain).
 			ATProtoPDS("https://" + pearDomain).
 			Build()
-		// ParseIdentity sets Handle to handle.invalid; overwrite with the real one.
-		ident := identity.ParseIdentity(&doc)
-		ident.Handle = handle
-		return &ident
 	}
 }
 

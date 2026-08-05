@@ -11,9 +11,10 @@ import (
 // Builder accumulates verification methods and services for a DID document.
 type Builder struct {
 	id       syntax.DID
+	handle   syntax.Handle
 	aka      []string
-	methods  []identity.DocVerificationMethod
-	services []identity.DocService
+	keys     map[string]identity.VerificationMethod
+	services map[string]identity.ServiceEndpoint
 }
 
 // New returns a builder for an arbitrary DID.
@@ -34,6 +35,13 @@ func Web(host string) *Builder {
 	return New(syntax.DID(didStr))
 }
 
+// Handle sets the identity's handle and adds the corresponding at:// URI to
+// alsoKnownAs.
+func (b *Builder) Handle(handle syntax.Handle) *Builder {
+	b.handle = handle
+	return b.AlsoKnownAs("at://" + string(handle))
+}
+
 // AlsoKnownAs appends alsoKnownAs URIs (e.g. "at://handle.example.com").
 func (b *Builder) AlsoKnownAs(uris ...string) *Builder {
 	b.aka = append(b.aka, uris...)
@@ -43,64 +51,60 @@ func (b *Builder) AlsoKnownAs(uris ...string) *Builder {
 // AtprotoKey registers the atproto repo signing key as a Multikey verification
 // method at <did>#atproto.
 func (b *Builder) AtprotoKey(multibase string) *Builder {
-	return b.VerificationMethod(
-		fmt.Sprintf("%s#atproto", b.id),
-		"Multikey",
-		b.id.String(),
-		multibase,
-	)
+	return b.VerificationMethod("atproto", "Multikey", multibase)
 }
 
 func (b *Builder) ATProtoSpaceKey(multibase string) *Builder {
-	return b.VerificationMethod(
-		fmt.Sprintf("%s#atproto_space", b.id),
-		"Multikey",
-		b.id.String(),
-		multibase,
-	)
+	return b.VerificationMethod("atproto_space", "Multikey", multibase)
 }
 
 // Habitat adds the #habitat HabitatServer service.
 func (b *Builder) Habitat(endpoint string) *Builder {
-	return b.Service("#habitat", "HabitatServer", endpoint)
+	return b.Service("habitat", "HabitatServer", endpoint)
 }
 
 // ATProtoPDS adds the #atproto_pds AtprotoPersonalDataServer service.
 func (b *Builder) ATProtoPDS(endpoint string) *Builder {
-	return b.Service("#atproto_pds", "AtprotoPersonalDataServer", endpoint)
+	return b.Service("atproto_pds", "AtprotoPersonalDataServer", endpoint)
 }
 
 func (b *Builder) ATProtoSpaceHost(endpoint string) *Builder {
-	return b.Service("#atproto_space_host", "AtprotoSpaceHost", endpoint)
+	return b.Service("atproto_space_host", "AtprotoSpaceHost", endpoint)
 }
 
-// VerificationMethod adds a custom verification method.
-func (b *Builder) VerificationMethod(id, typ, controller, multibase string) *Builder {
-	b.methods = append(b.methods, identity.DocVerificationMethod{
-		ID:                 id,
+// VerificationMethod adds a custom verification method under the given
+// fragment, without the leading '#'.
+func (b *Builder) VerificationMethod(fragment, typ, multibase string) *Builder {
+	if b.keys == nil {
+		b.keys = make(map[string]identity.VerificationMethod)
+	}
+	b.keys[fragment] = identity.VerificationMethod{
 		Type:               typ,
-		Controller:         controller,
 		PublicKeyMultibase: multibase,
-	})
+	}
 	return b
 }
 
-// Service adds a custom service.
-func (b *Builder) Service(id, typ, endpoint string) *Builder {
-	b.services = append(b.services, identity.DocService{
-		ID:              id,
-		Type:            typ,
-		ServiceEndpoint: endpoint,
-	})
+// Service adds a custom service under the given fragment, without the
+// leading '#'.
+func (b *Builder) Service(fragment, typ, endpoint string) *Builder {
+	if b.services == nil {
+		b.services = make(map[string]identity.ServiceEndpoint)
+	}
+	b.services[fragment] = identity.ServiceEndpoint{
+		Type: typ,
+		URL:  endpoint,
+	}
 	return b
 }
 
-// Build assembles the DID document.
-func (b *Builder) Build() identity.DIDDocument {
-	return identity.DIDDocument{
-		DID:                b.id,
-		AlsoKnownAs:        b.aka,
-		VerificationMethod: b.methods,
-		Service:            b.services,
+// Build assembles the identity.
+func (b *Builder) Build() *identity.Identity {
+	return &identity.Identity{
+		DID:         b.id,
+		Handle:      b.handle,
+		AlsoKnownAs: b.aka,
+		Keys:        b.keys,
+		Services:    b.services,
 	}
 }
