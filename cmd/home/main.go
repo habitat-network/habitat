@@ -18,6 +18,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
 	"github.com/urfave/cli/v3"
@@ -99,8 +100,18 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	collections := NewCollectionService(store, oauthApp)
 	indexer := NewIndexer(store, s.Outbox)
 	server := NewServer(
-		domain, cmd.String(fOrgHandle), groups, collections, oauthApp, s, store,
-		authn.NewServiceAuthMethod(dir, "did:web:"+domain+"#"+serviceID),
+		domain,
+		cmd.String(fOrgHandle),
+		groups,
+		collections,
+		oauthApp,
+		s,
+		store,
+		authn.NewServiceAuthMethod(
+			org.NewEveryoneOrg(domain),
+			dir,
+			"did:web:"+domain+"#"+serviceID,
+		),
 	)
 
 	mux := http.NewServeMux()

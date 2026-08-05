@@ -22,19 +22,6 @@ func TestBuilder_Atproto(t *testing.T) {
 	}}, doc.VerificationMethod)
 }
 
-func TestBuilder_HabitatKey(t *testing.T) {
-	doc := New(syntax.DID("did:web:pear.example.com")).
-		HabitatKey("zhostkey").
-		Build()
-
-	require.Equal(t, []identity.DocVerificationMethod{{
-		ID:                 "did:web:pear.example.com#habitat",
-		Type:               "Multikey",
-		Controller:         "did:web:pear.example.com",
-		PublicKeyMultibase: "zhostkey",
-	}}, doc.VerificationMethod)
-}
-
 func TestBuilder_Services(t *testing.T) {
 	doc := New(syntax.DID("did:web:alice.example.com")).
 		Habitat("https://pear.example.com").

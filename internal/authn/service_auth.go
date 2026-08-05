@@ -13,8 +13,13 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-func NewServiceAuthMethod(directory identity.Directory, audience string) *AtprotoServiceAuthMethod {
+func NewServiceAuthMethod(
+	everyoneOrg org.Org,
+	directory identity.Directory,
+	audience string,
+) *AtprotoServiceAuthMethod {
 	return &AtprotoServiceAuthMethod{
+		everyoneOrg: everyoneOrg,
 		validator: &auth.ServiceAuthValidator{
 			Dir:      directory,
 			Audience: audience,
@@ -23,7 +28,8 @@ func NewServiceAuthMethod(directory identity.Directory, audience string) *Atprot
 }
 
 type AtprotoServiceAuthMethod struct {
-	validator *auth.ServiceAuthValidator
+	validator   *auth.ServiceAuthValidator
+	everyoneOrg org.Org
 }
 
 var _ Method = (*AtprotoServiceAuthMethod)(nil)
@@ -63,7 +69,7 @@ func (p *AtprotoServiceAuthMethod) Validate(
 	return &CredentialInfo{
 		Subject: did,
 		Type:    UserCredential,
-		Org:     &org.EveryoneOrg{},
+		Org:     p.everyoneOrg,
 	}, true
 }
 
@@ -76,5 +82,5 @@ func (p *AtprotoServiceAuthMethod) ValidateRaw(
 	if err != nil {
 		return nil, false, err
 	}
-	return &CredentialInfo{Subject: did, Type: UserCredential, Org: &org.EveryoneOrg{}}, true, nil
+	return &CredentialInfo{Subject: did, Type: UserCredential, Org: p.everyoneOrg}, true, nil
 }
