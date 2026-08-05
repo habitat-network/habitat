@@ -24,12 +24,12 @@ type docWithContext struct {
 
 // handler serves a DID document as application/did+ld+json.
 type handler struct {
-	// doc is the DID document to serve.
-	doc identity.DIDDocument
+	// ident is the identity whose DID document is served.
+	ident *identity.Identity
 }
 
-func NewHandler(doc identity.DIDDocument) *handler {
-	return &handler{doc: doc}
+func NewHandler(ident *identity.Identity) *handler {
+	return &handler{ident: ident}
 }
 
 // ServeHTTP implements http.Handler.
@@ -38,6 +38,6 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "max-age=3600")
 	httpx.WriteJSON(r.Context(), w, docWithContext{
 		Context:     didCtx,
-		DIDDocument: h.doc,
+		DIDDocument: h.ident.DIDDocument(),
 	})
 }

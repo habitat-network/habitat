@@ -11,6 +11,7 @@ import (
 // Builder accumulates verification methods and services for a DID document.
 type Builder struct {
 	id       syntax.DID
+	handle   syntax.Handle
 	aka      []string
 	methods  []identity.DocVerificationMethod
 	services []identity.DocService
@@ -32,6 +33,12 @@ func Web(host string) *Builder {
 		}
 	}
 	return New(syntax.DID(didStr))
+}
+
+// Handle sets the identity's handle.
+func (b *Builder) Handle(handle syntax.Handle) *Builder {
+	b.handle = handle
+	return b
 }
 
 // AlsoKnownAs appends alsoKnownAs URIs (e.g. "at://handle.example.com").
@@ -95,12 +102,35 @@ func (b *Builder) Service(id, typ, endpoint string) *Builder {
 	return b
 }
 
-// Build assembles the DID document.
-func (b *Builder) Build() identity.DIDDocument {
-	return identity.DIDDocument{
-		DID:                b.id,
-		AlsoKnownAs:        b.aka,
-		VerificationMethod: b.methods,
-		Service:            b.services,
+// Build assembles the identity.
+func (b *Builder) Build() *identity.Identity {
+	keys := make(map[string]identity.VerificationMethod, len(b.methods))
+	for _, m := range b.methods {
+		_, frag, ok := strings.Cut(m.ID, "#")
+		if !ok {
+			continue
+		}
+		keys[frag] = identity.VerificationMethod{
+			Type:               m.Type,
+			PublicKeyMultibase: m.PublicKeyMultibase,
+		}
+	}
+	services := make(map[string]identity.ServiceEndpoint, len(b.services))
+	for _, s := range b.services {
+		_, frag, ok := strings.Cut(s.ID, "#")
+		if !ok {
+			continue
+		}
+		services[frag] = identity.ServiceEndpoint{
+			Type: s.Type,
+			URL:  s.ServiceEndpoint,
+		}
+	}
+	return &identity.Identity{
+		DID:         b.id,
+		Handle:      b.handle,
+		AlsoKnownAs: b.aka,
+		Keys:        keys,
+		Services:    services,
 	}
 }

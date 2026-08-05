@@ -137,7 +137,7 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	did.NewHandler(ident.DIDDocument()).ServeHTTP(w, r)
+	did.NewHandler(ident).ServeHTTP(w, r)
 }
 
 // Serve handle DID ( satisfy /{handle}/.well-known/atproto-did )
@@ -254,5 +254,5 @@ func (s *Server) overriddenDidDoc(ident *identity.Identity) identity.DIDDocument
 			vm.PublicKeyMultibase,
 		)
 	}
-	return b.ATProtoPDS("https://" + s.domain).Build()
+	return b.ATProtoPDS("https://" + s.domain).Build().DIDDocument()
 }
