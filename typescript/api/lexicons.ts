@@ -4502,9 +4502,9 @@ export const schemaDict = {
       },
     },
   },
-  ComAtprotoSpaceGetRepo: {
+  NetworkHabitatSpaceGetRepo: {
     lexicon: 1,
-    id: 'com.atproto.space.getRepo',
+    id: 'network.habitat.space.getRepo',
     defs: {
       main: {
         type: 'query',
@@ -5374,7 +5374,7 @@ export const ids = {
     'network.habitat.space.getDelegationToken',
   NetworkHabitatSpaceGetLatestCommit: 'network.habitat.space.getLatestCommit',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
-  ComAtprotoSpaceGetRepo: 'com.atproto.space.getRepo',
+  NetworkHabitatSpaceGetRepo: 'network.habitat.space.getRepo',
   NetworkHabitatSpaceGetSpaceCredential:
     'network.habitat.space.getSpaceCredential',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',
