@@ -13,8 +13,8 @@ type Builder struct {
 	id       syntax.DID
 	handle   syntax.Handle
 	aka      []string
-	methods  []identity.DocVerificationMethod
-	services []identity.DocService
+	keys     map[string]identity.VerificationMethod
+	services map[string]identity.ServiceEndpoint
 }
 
 // New returns a builder for an arbitrary DID.
@@ -53,7 +53,6 @@ func (b *Builder) AtprotoKey(multibase string) *Builder {
 	return b.VerificationMethod(
 		fmt.Sprintf("%s#atproto", b.id),
 		"Multikey",
-		b.id.String(),
 		multibase,
 	)
 }
@@ -62,7 +61,6 @@ func (b *Builder) ATProtoSpaceKey(multibase string) *Builder {
 	return b.VerificationMethod(
 		fmt.Sprintf("%s#atproto_space", b.id),
 		"Multikey",
-		b.id.String(),
 		multibase,
 	)
 }
@@ -81,56 +79,45 @@ func (b *Builder) ATProtoSpaceHost(endpoint string) *Builder {
 	return b.Service("#atproto_space_host", "AtprotoSpaceHost", endpoint)
 }
 
-// VerificationMethod adds a custom verification method.
-func (b *Builder) VerificationMethod(id, typ, controller, multibase string) *Builder {
-	b.methods = append(b.methods, identity.DocVerificationMethod{
-		ID:                 id,
+// VerificationMethod adds a custom verification method keyed by the fragment of id.
+func (b *Builder) VerificationMethod(id, typ, multibase string) *Builder {
+	_, frag, ok := strings.Cut(id, "#")
+	if !ok {
+		return b
+	}
+	if b.keys == nil {
+		b.keys = make(map[string]identity.VerificationMethod)
+	}
+	b.keys[frag] = identity.VerificationMethod{
 		Type:               typ,
-		Controller:         controller,
 		PublicKeyMultibase: multibase,
-	})
+	}
 	return b
 }
 
-// Service adds a custom service.
+// Service adds a custom service keyed by the fragment of id.
 func (b *Builder) Service(id, typ, endpoint string) *Builder {
-	b.services = append(b.services, identity.DocService{
-		ID:              id,
-		Type:            typ,
-		ServiceEndpoint: endpoint,
-	})
+	_, frag, ok := strings.Cut(id, "#")
+	if !ok {
+		return b
+	}
+	if b.services == nil {
+		b.services = make(map[string]identity.ServiceEndpoint)
+	}
+	b.services[frag] = identity.ServiceEndpoint{
+		Type: typ,
+		URL:  endpoint,
+	}
 	return b
 }
 
 // Build assembles the identity.
 func (b *Builder) Build() *identity.Identity {
-	keys := make(map[string]identity.VerificationMethod, len(b.methods))
-	for _, m := range b.methods {
-		_, frag, ok := strings.Cut(m.ID, "#")
-		if !ok {
-			continue
-		}
-		keys[frag] = identity.VerificationMethod{
-			Type:               m.Type,
-			PublicKeyMultibase: m.PublicKeyMultibase,
-		}
-	}
-	services := make(map[string]identity.ServiceEndpoint, len(b.services))
-	for _, s := range b.services {
-		_, frag, ok := strings.Cut(s.ID, "#")
-		if !ok {
-			continue
-		}
-		services[frag] = identity.ServiceEndpoint{
-			Type: s.Type,
-			URL:  s.ServiceEndpoint,
-		}
-	}
 	return &identity.Identity{
 		DID:         b.id,
 		Handle:      b.handle,
 		AlsoKnownAs: b.aka,
-		Keys:        keys,
-		Services:    services,
+		Keys:        b.keys,
+		Services:    b.services,
 	}
 }

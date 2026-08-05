@@ -43,7 +43,7 @@ func TestBuilder_Services(t *testing.T) {
 func TestBuilder_Custom(t *testing.T) {
 	ident := New(syntax.DID("did:web:alice.example.com")).
 		AlsoKnownAs("at://alice.example.com").
-		VerificationMethod("did:web:alice.example.com#custom", "CustomType", "did:web:alice.example.com", "zcust").
+		VerificationMethod("did:web:alice.example.com#custom", "CustomType", "zcust").
 		Service("#custom", "CustomServer", "https://custom.example.com").
 		Build()
 

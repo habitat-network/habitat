@@ -250,7 +250,6 @@ func (s *Server) overriddenDidDoc(ident *identity.Identity) identity.DIDDocument
 		b.VerificationMethod(
 			fmt.Sprintf("%s#%s", ident.DID, k),
 			vm.Type,
-			ident.DID.String(),
 			vm.PublicKeyMultibase,
 		)
 	}
