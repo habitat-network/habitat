@@ -50,61 +50,47 @@ func (b *Builder) AlsoKnownAs(uris ...string) *Builder {
 // AtprotoKey registers the atproto repo signing key as a Multikey verification
 // method at <did>#atproto.
 func (b *Builder) AtprotoKey(multibase string) *Builder {
-	return b.VerificationMethod(
-		fmt.Sprintf("%s#atproto", b.id),
-		"Multikey",
-		multibase,
-	)
+	return b.VerificationMethod("atproto", "Multikey", multibase)
 }
 
 func (b *Builder) ATProtoSpaceKey(multibase string) *Builder {
-	return b.VerificationMethod(
-		fmt.Sprintf("%s#atproto_space", b.id),
-		"Multikey",
-		multibase,
-	)
+	return b.VerificationMethod("atproto_space", "Multikey", multibase)
 }
 
 // Habitat adds the #habitat HabitatServer service.
 func (b *Builder) Habitat(endpoint string) *Builder {
-	return b.Service("#habitat", "HabitatServer", endpoint)
+	return b.Service("habitat", "HabitatServer", endpoint)
 }
 
 // ATProtoPDS adds the #atproto_pds AtprotoPersonalDataServer service.
 func (b *Builder) ATProtoPDS(endpoint string) *Builder {
-	return b.Service("#atproto_pds", "AtprotoPersonalDataServer", endpoint)
+	return b.Service("atproto_pds", "AtprotoPersonalDataServer", endpoint)
 }
 
 func (b *Builder) ATProtoSpaceHost(endpoint string) *Builder {
-	return b.Service("#atproto_space_host", "AtprotoSpaceHost", endpoint)
+	return b.Service("atproto_space_host", "AtprotoSpaceHost", endpoint)
 }
 
-// VerificationMethod adds a custom verification method keyed by the fragment of id.
-func (b *Builder) VerificationMethod(id, typ, multibase string) *Builder {
-	_, frag, ok := strings.Cut(id, "#")
-	if !ok {
-		return b
-	}
+// VerificationMethod adds a custom verification method under the given
+// fragment, without the leading '#'.
+func (b *Builder) VerificationMethod(fragment, typ, multibase string) *Builder {
 	if b.keys == nil {
 		b.keys = make(map[string]identity.VerificationMethod)
 	}
-	b.keys[frag] = identity.VerificationMethod{
+	b.keys[fragment] = identity.VerificationMethod{
 		Type:               typ,
 		PublicKeyMultibase: multibase,
 	}
 	return b
 }
 
-// Service adds a custom service keyed by the fragment of id.
-func (b *Builder) Service(id, typ, endpoint string) *Builder {
-	_, frag, ok := strings.Cut(id, "#")
-	if !ok {
-		return b
-	}
+// Service adds a custom service under the given fragment, without the
+// leading '#'.
+func (b *Builder) Service(fragment, typ, endpoint string) *Builder {
 	if b.services == nil {
 		b.services = make(map[string]identity.ServiceEndpoint)
 	}
-	b.services[frag] = identity.ServiceEndpoint{
+	b.services[fragment] = identity.ServiceEndpoint{
 		Type: typ,
 		URL:  endpoint,
 	}

@@ -248,7 +248,7 @@ func (s *Server) overriddenDidDoc(ident *identity.Identity) identity.DIDDocument
 	b := did.New(ident.DID).AlsoKnownAs(ident.AlsoKnownAs...)
 	for k, vm := range ident.Keys {
 		b.VerificationMethod(
-			fmt.Sprintf("%s#%s", ident.DID, k),
+			k,
 			vm.Type,
 			vm.PublicKeyMultibase,
 		)
