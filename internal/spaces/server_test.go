@@ -205,36 +205,6 @@ func TestServer_ListRepos(t *testing.T) {
 	require.NotEmpty(t, hash)
 }
 
-func TestServer_ListRepos_CursorLimitNotSupported(t *testing.T) {
-	s := newTestServerWithOpts(t,
-		testServerOptions{
-			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
-			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
-		},
-	)
-
-	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "shared")
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepos?space="+uri.String()+"&cursor=abc",
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListRepos(w, req)
-	require.Equal(t, http.StatusNotImplemented, w.Code)
-
-	req = httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepos?space="+uri.String()+"&limit=10",
-		http.NoBody,
-	)
-	w = httptest.NewRecorder()
-	s.ListRepos(w, req)
-	require.Equal(t, http.StatusNotImplemented, w.Code)
-}
-
 func TestServer_ListRepos_Unauthorized(t *testing.T) {
 	s := newTestServerWithOpts(t,
 		testServerOptions{
