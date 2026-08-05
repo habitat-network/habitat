@@ -336,6 +336,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		fmt.Sprintf("did:web:%s#habitat", domain),
 	)
 
+	// TODO: use this to validate the space credential in the spaces server
+
 	// Habitat's single host signing key signs permissioned-repo commits for repo
 	// owners on external PDSes (habitat-managed owners sign with their own hive
 	// key instead). Optional: if unset, host-signed commits are omitted.
@@ -343,18 +345,24 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("parse space-host signing key: %w", err)
 	}
+
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir, hostKey)
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
 		oauthServer,
 		serviceAuth,
-		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore),
+		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore, hostKey),
+		spaceCredential,
 		orgStore,
 		hostKey,
 		hive,
 		blobStore,
 	)
-	notifyServer := notify.NewServer(notifyStore, authn.NewSpaceCredentialAuthMethod(defaultDir))
+	notifyServer := notify.NewServer(
+		notifyStore,
+		spaceCredential,
+	)
 
 	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
