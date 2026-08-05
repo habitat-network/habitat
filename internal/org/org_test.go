@@ -43,6 +43,7 @@ func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 		"pear.example.com",
 		passwordProvider,
 		fga,
+		NewEveryoneOrg("pear.example.com"),
 	)
 	require.NoError(t, err)
 	store := st.(*storeImpl)

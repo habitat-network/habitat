@@ -457,7 +457,15 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	require.NoError(t, err, "failed to setup password provider")
 	fgaStore, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err, "failed to setup fga store")
-	orgStore, err := org.NewStore(hiveDB, h, dummyDir, pearDomain, passwordProvider, fgaStore)
+	orgStore, err := org.NewStore(
+		hiveDB,
+		h,
+		dummyDir,
+		pearDomain,
+		passwordProvider,
+		fgaStore,
+		org.NewEveryoneOrg(pearDomain),
+	)
 	require.NoError(t, err, "failed to setup org store")
 
 	_, member, err := orgStore.CreateOrg(

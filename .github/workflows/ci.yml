@@ -51,7 +51,7 @@ jobs:
           restore-keys: |
             pnpm-store-${{ runner.os }}-
 
-      - run: moon ci --color -g --summary detailed --dependents deep
+      - run: moon ci --color -g --summary detailed --downstream deep
 
       - uses: moonrepo/run-report-action@v1
         if: success() || failure()

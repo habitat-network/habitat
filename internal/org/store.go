@@ -88,6 +88,7 @@ func NewStore(
 	pearDomain string,
 	passwordProvider *login.PasswordLoginProvider,
 	fga fgastore.Store,
+	everyoneOrg *everyoneOrg,
 ) (Store, error) {
 	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
 		return nil, err
@@ -97,7 +98,7 @@ func NewStore(
 		hive:             hve,
 		dir:              dir,
 		pearDomain:       pearDomain,
-		everyone:         NewEveryoneOrg(),
+		everyone:         everyoneOrg,
 		passwordProvider: passwordProvider,
 		fga:              fga,
 	}, nil

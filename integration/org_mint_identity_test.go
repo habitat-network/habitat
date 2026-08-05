@@ -39,7 +39,15 @@ func TestMintThenLookup(t *testing.T) {
 	dir := identity.DefaultDirectory()
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
-	orgStore, err := org.NewStore(db, h, dir, "pear.example.com", nil, fga)
+	orgStore, err := org.NewStore(
+		db,
+		h,
+		dir,
+		"pear.example.com",
+		nil,
+		fga,
+		org.NewEveryoneOrg("pear.example.com"),
+	)
 	require.NoError(t, err)
 
 	orgIdIdent, _, err := orgStore.CreateOrg(

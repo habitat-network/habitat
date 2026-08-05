@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,13 +19,13 @@ func TestWriteJSON_Success(t *testing.T) {
 
 func TestWriteInvalidRequest(t *testing.T) {
 	w := httptest.NewRecorder()
-	WriteInvalidRequest(t.Context(), w, "foo", nil)
+	WriteInvalidRequest(t.Context(), w, "foo", fmt.Errorf("bar"))
 	require.JSONEq(t, `{"error":"InvalidRequest", "message":"foo"}`, w.Body.String())
 }
 
 func TestWriteSpaceNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
-	WriteSpaceNotFound(t.Context(), w, nil)
+	WriteSpaceNotFound(t.Context(), w, fmt.Errorf("foo"))
 	require.JSONEq(t, `{"error":"SpaceNotFound"}`, w.Body.String())
 }
 
@@ -32,4 +33,22 @@ func TestWriteNotSupported(t *testing.T) {
 	w := httptest.NewRecorder()
 	WriteNotSupported(t.Context(), w, "foo")
 	require.JSONEq(t, `{"error":"NotSupported", "message":"foo"}`, w.Body.String())
+}
+
+func TestWriteRepoNotFound(t *testing.T) {
+	w := httptest.NewRecorder()
+	WriteRepoNotFound(t.Context(), w, fmt.Errorf("foo"))
+	require.JSONEq(t, `{"error":"RepoNotFound"}`, w.Body.String())
+}
+
+func TestWriteUnauthorized(t *testing.T) {
+	w := httptest.NewRecorder()
+	WriteUnauthorized(t.Context(), w, "foo")
+	require.JSONEq(t, `{"error":"Unauthorized", "message":"foo"}`, w.Body.String())
+}
+
+func TestWriteServerError(t *testing.T) {
+	w := httptest.NewRecorder()
+	WriteServerError(t.Context(), w, fmt.Errorf("foo"))
+	require.JSONEq(t, `{"error":"ServerError", "message":"foo"}`, w.Body.String())
 }

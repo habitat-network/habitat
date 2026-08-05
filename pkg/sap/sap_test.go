@@ -255,6 +255,7 @@ func setupPear(
 		server.URL,
 		nil,
 		fgaStore,
+		org.NewEveryoneOrg(server.URL),
 	)
 	require.NoError(t, err)
 
@@ -287,7 +288,8 @@ func setupPear(
 		fgaStore,
 		oauthServer,
 		authn_testutil.NewFailMethod(),
-		authn.NewDelegationTokenAuthMethod(nil, nil),
+		authn.NewDelegationTokenAuthMethod(nil, nil, nil),
+		authn.NewSpaceCredentialAuthMethod(nil, nil),
 		orgStore,
 		nil,
 		orgHive,
