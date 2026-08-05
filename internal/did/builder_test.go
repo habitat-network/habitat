@@ -68,6 +68,7 @@ func TestBuilder_Handle(t *testing.T) {
 		Build()
 
 	require.Equal(t, syntax.Handle("alice.example.com"), ident.Handle)
+	require.Equal(t, []string{"at://alice.example.com"}, ident.AlsoKnownAs)
 }
 
 func TestBuilder_Web(t *testing.T) {

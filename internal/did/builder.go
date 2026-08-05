@@ -35,10 +35,11 @@ func Web(host string) *Builder {
 	return New(syntax.DID(didStr))
 }
 
-// Handle sets the identity's handle.
+// Handle sets the identity's handle and adds the corresponding at:// URI to
+// alsoKnownAs.
 func (b *Builder) Handle(handle syntax.Handle) *Builder {
 	b.handle = handle
-	return b
+	return b.AlsoKnownAs("at://" + string(handle))
 }
 
 // AlsoKnownAs appends alsoKnownAs URIs (e.g. "at://handle.example.com").
