@@ -255,6 +255,7 @@ func setupPear(
 		server.URL,
 		nil,
 		fgaStore,
+		org.NewEveryoneOrg(server.URL),
 	)
 	require.NoError(t, err)
 
