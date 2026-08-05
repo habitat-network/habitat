@@ -542,6 +542,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.simplespace.addMember", spacesServer.AddMember)
 	mux.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", spacesServer.RemoveMember)
 	mux.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", spacesServer.ListMembers)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.deleteSpace", spacesServer.DeleteSpace)
 
 	mux.HandleFunc("/xrpc/network.habitat.relationship.writeTuple",
 		relationshipServer.WriteTuple)

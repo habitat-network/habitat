@@ -985,60 +985,48 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth, s.serviceAuth),
 	).Validate(w, r)
 	if !ok {
 		return
 	}
-
-	var input habitat.NetworkHabitatSpaceDeleteSpaceInput
+	var input habitat.NetworkHabitatSimplespaceDeleteSpaceInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
 	}
-
-	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
 	if !ok {
 		return
 	}
-
 	authorized, err := s.authorize(
-		r.Context(),
+		ctx,
 		credInfo.Org.DID(),
 		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceOwner,
 	)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check owner permission",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check owner permission: %w", err))
 		return
 	}
 	if !authorized {
 		// TODO: we don't know if they're not authorize because they're not a member or
 		// because they don't have the right role. assume worst case and return not found
 		// need to return a reason from authorize
-		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to delete space"))
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not authorized to delete space"))
 		return
 	}
-
-	err = s.store.DeleteSpace(r.Context(), spaceURI)
+	err = s.store.DeleteSpace(ctx, spaceURI)
 	if errors.Is(err, ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(r.Context(), w, err)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "delete space", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("delete space: %w", err))
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) GetDelegationToken(w http.ResponseWriter, r *http.Request) {
