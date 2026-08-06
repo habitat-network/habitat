@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
@@ -23,9 +25,13 @@ func TestServiceAuthValidate(t *testing.T) {
 		directory.PrivateKey,
 	)
 	require.NoError(t, err)
-	serviceAuth := NewServiceAuthMethod(directory, "https://pds.com")
+	serviceAuth := NewServiceAuthMethod(
+		org.NewEveryoneOrg("everyone.example.com"),
+		directory,
+		"https://pds.com",
+	)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/xrpc/io.example.test", nil)
+	r := httptest.NewRequest("GET", "/xrpc/io.example.test", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
 
 	credInfo, ok := serviceAuth.Validate(w, r)
@@ -36,9 +42,13 @@ func TestServiceAuthValidate(t *testing.T) {
 
 func TestServiceAuthValidate_InvalidToken(t *testing.T) {
 	directory := pdsclient.NewDummyDirectory("https://pds.com")
-	serviceAuth := NewServiceAuthMethod(directory, "https://pds.com")
+	serviceAuth := NewServiceAuthMethod(
+		org.NewEveryoneOrg("everyone.example.com"),
+		directory,
+		"https://pds.com",
+	)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/xrpc/lxm", nil)
+	r := httptest.NewRequest("GET", "/xrpc/lxm", http.NoBody)
 	r.Header.Set("Authorization", "Bearer invalid")
 	_, ok := serviceAuth.Validate(w, r)
 	require.False(t, ok)
@@ -53,8 +63,12 @@ func TestServiceAuthCanHandle(t *testing.T) {
 	tok.Header["kid"] = "#atproto"
 	token, err := tok.SignedString(directory.PrivateKey)
 	require.NoError(t, err)
-	serviceAuth := NewServiceAuthMethod(directory, "https://pds.com")
-	r := httptest.NewRequest("GET", "/", nil)
+	serviceAuth := NewServiceAuthMethod(
+		org.NewEveryoneOrg("everyone.example.com"),
+		directory,
+		"https://pds.com",
+	)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
 	require.True(t, serviceAuth.CanHandle(r))
 }

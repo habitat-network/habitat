@@ -1,0 +1,20 @@
+language: typescript
+
+workspace:
+  inheritedTasks:
+    exclude:
+      - start
+      - dev
+
+tasks:
+  build:
+    deps: []
+    options:
+      mergeDeps: replace
+  test:
+    command: pnpm test
+    inputs:
+      - src/**/*
+      - package.json
+      - tsconfig.json
+      - vitest.config.ts

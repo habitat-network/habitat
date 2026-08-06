@@ -92,9 +92,7 @@ type permission struct {
 	UpdatedAt  time.Time
 }
 
-var (
-	ErrCollectionLevelNotSupported = errors.New("collection-level permissions are not supported")
-)
+var ErrCollectionLevelNotSupported = errors.New("collection-level permissions are not supported")
 
 // NewStore creates a new db-backed permission store.
 // The store manages permissions at different granularities:
@@ -169,7 +167,7 @@ func (s *store) HasPermission(
 		}
 	}
 
-	// Default = deny
+	// Default deny
 	return false, nil
 }
 
@@ -265,7 +263,7 @@ func (s *store) ListGranteePermissions(
 	owners []syntax.DID,
 ) ([]Permission, error) {
 	// Direct permission grants
-	direct, err := s.listPermissions(ctx, []Grantee{DIDGrantee(grantee)}, owners, collection, "")
+	perms, err := s.listPermissions(ctx, []Grantee{DIDGrantee(grantee)}, owners, collection, "")
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +286,7 @@ func (s *store) ListGranteePermissions(
 		}
 	}
 
-	perms := append(direct, indirect...)
+	perms = append(perms, indirect...)
 	return perms, nil
 }
 

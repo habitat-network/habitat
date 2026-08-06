@@ -50,6 +50,8 @@ export type { TypedRecord } from "./habitatClient";
 export { default as GranteeAvatars } from "./components/GranteeAvatars";
 
 // Utilities
+export { parseSpaceURI, constructSpaceURI } from "./syntax";
+export type { SpaceURIParts } from "./syntax";
 export { default as clientMetadata } from "./clientMetadata";
 export { default as reportWebVitals } from "./reportWebVitals";
 export {

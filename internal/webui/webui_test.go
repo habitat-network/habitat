@@ -35,7 +35,7 @@ func TestStaticHandlerServesPaths(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req := httptest.NewRequest(http.MethodGet, tc.path, http.NoBody)
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, req)
 
@@ -48,7 +48,7 @@ func TestStaticHandlerServesPaths(t *testing.T) {
 func TestStaticHandlerNotFoundWithoutFallback(t *testing.T) {
 	h := &staticHandler{files: fstest.MapFS{"assets/app.js": {Data: []byte("js")}}}
 
-	req := httptest.NewRequest(http.MethodGet, "/ui/missing", nil)
+	req := httptest.NewRequest(http.MethodGet, "/ui/missing", http.NoBody)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -65,7 +65,7 @@ func TestNewReverseProxiesInDev(t *testing.T) {
 	h, err := New(upstream.URL)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodGet, "/ui/login/habitat", nil)
+	req := httptest.NewRequest(http.MethodGet, "/ui/login/habitat", http.NoBody)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 

@@ -43,6 +43,7 @@ tasks:
       - typescript/internal:build
     inputs:
       - /pnpm-lock.yaml
+      - '**/*'
     command: pnpm 
     args: build
   start:

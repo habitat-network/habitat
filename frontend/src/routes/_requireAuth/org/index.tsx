@@ -8,7 +8,7 @@ import {
 } from "@/queries/org";
 import { Button, Input } from "internal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "internal/components/ui";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Route as RootRoute } from "../../__root";
 import { useState } from "react";
@@ -102,7 +102,7 @@ function InviteSection({
   const copy = () => {
     if (!inviteUrl) return;
     navigator.clipboard.writeText(inviteUrl).then(() => {
-      toast("Copied to clipboard");
+      toast.add({ title: "Copied to clipboard" });
     });
   };
 

@@ -18,8 +18,6 @@ type NetworkHabitatSpaceListSpacesOutput struct {
 
 // NetworkHabitatSpaceListSpacesSpaceView represents a spaceView object
 type NetworkHabitatSpaceListSpacesSpaceView struct {
-	MemberCount int64  `json:"memberCount,omitempty"`
-	Skey        string `json:"skey,omitempty"`
-	Type        string `json:"type"`
-	Uri         string `json:"uri"`
+	IsOwner bool   `json:"isOwner"`
+	Uri     string `json:"uri"`
 }

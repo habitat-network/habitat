@@ -1,9 +1,9 @@
-proto= "0.58.2"
+proto= "0.59.0"
 go = "1.26.5"
 golangci-lint = "2.12.2"
-moon = "2.4.5"
-node = "26.5.0"
-pnpm = "11.5.1"
+moon = "2.4.6"
+node = "26.5.1"
+pnpm = "11.18.0"
 caddy = "2.11.3"
 
 [plugins.tools]
