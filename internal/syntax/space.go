@@ -34,11 +34,18 @@ func ParseSkey(s string) (SpaceKey, error) {
 }
 
 // SpaceURI identifies a space, in the proposal 0016 format:
-// "at://spaceDID/space/spaceType/skey"
+// "at://spaceDID/space/spaceType/skey".
+// The pre-0016 format "ats://spaceDID/spaceType/skey" is still accepted when
+// parsing, so URIs held by older clients and stored data keep resolving, but is
+// never produced by ConstructSpaceURI.
 type SpaceURI string
 
 var spaceURIRegex = regexp.MustCompile(
 	`^at:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/space\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})$`,
+)
+
+var legacySpaceURIRegex = regexp.MustCompile(
+	`^ats:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})$`,
 )
 
 func ConstructSpaceURI(spaceDID syntax.DID, spaceType syntax.NSID, skey SpaceKey) SpaceURI {
@@ -50,6 +57,9 @@ func ParseSpaceURI(raw string) (SpaceURI, error) {
 		return "", errors.New("SpaceURI is too long (8192 chars max)")
 	}
 	parts := spaceURIRegex.FindStringSubmatch(raw)
+	if parts == nil {
+		parts = legacySpaceURIRegex.FindStringSubmatch(raw)
+	}
 	if parts == nil {
 		return "", errors.New("invalid space URI format")
 	}
@@ -65,8 +75,10 @@ func ParseSpaceURI(raw string) (SpaceURI, error) {
 }
 
 func (s SpaceURI) parse() (did, nsid, skey string) {
-	if parts := spaceURIRegex.FindStringSubmatch(string(s)); parts != nil {
-		return parts[1], parts[2], parts[3]
+	for _, re := range []*regexp.Regexp{spaceURIRegex, legacySpaceURIRegex} {
+		if parts := re.FindStringSubmatch(string(s)); parts != nil {
+			return parts[1], parts[2], parts[3]
+		}
 	}
 	return "", "", ""
 }
@@ -112,6 +124,13 @@ var spaceRecordURIRegex = regexp.MustCompile(
 		`\/(?P<repo>[a-zA-Z0-9._:%-]+)\/(?P<collection>[a-zA-Z0-9-.]+)\/(?P<rkey>[a-zA-Z0-9_~.:-]{1,512})$`,
 )
 
+// legacySpaceRecordURIRegex matches the pre-0016 form:
+// ats://{did}/{type}/{skey}/{repo}/{collection}/{rkey}
+var legacySpaceRecordURIRegex = regexp.MustCompile(
+	`^ats:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})` +
+		`\/(?P<repo>[a-zA-Z0-9._:%-]+)\/(?P<collection>[a-zA-Z0-9-.]+)\/(?P<rkey>[a-zA-Z0-9_~.:-]{1,512})$`,
+)
+
 func ConstructSpaceRecordURI(
 	spaceUri SpaceURI,
 	repo syntax.DID,
@@ -126,7 +145,7 @@ func (s SpaceRecordURI) String() string {
 }
 
 // spaceRecordURIParts holds the raw, unvalidated components of a
-// SpaceRecordURI. All fields are "" when the URI is malformed.
+// SpaceRecordURI. All fields are "" when the URI matches neither format.
 type spaceRecordURIParts struct {
 	did        string
 	nsid       string
@@ -137,18 +156,21 @@ type spaceRecordURIParts struct {
 }
 
 func (s SpaceRecordURI) parse() spaceRecordURIParts {
-	parts := spaceRecordURIRegex.FindStringSubmatch(string(s))
-	if parts == nil {
-		return spaceRecordURIParts{}
+	for _, re := range []*regexp.Regexp{spaceRecordURIRegex, legacySpaceRecordURIRegex} {
+		parts := re.FindStringSubmatch(string(s))
+		if parts == nil {
+			continue
+		}
+		return spaceRecordURIParts{
+			did:        parts[1],
+			nsid:       parts[2],
+			skey:       parts[3],
+			repo:       parts[4],
+			collection: parts[5],
+			rkey:       parts[6],
+		}
 	}
-	return spaceRecordURIParts{
-		did:        parts[1],
-		nsid:       parts[2],
-		skey:       parts[3],
-		repo:       parts[4],
-		collection: parts[5],
-		rkey:       parts[6],
-	}
+	return spaceRecordURIParts{}
 }
 
 // Collection extracts the NSID of the record's collection from the URI.
@@ -165,8 +187,9 @@ func (s SpaceRecordURI) Collection() syntax.NSID {
 	return nsid
 }
 
-// SpaceURI extracts the SpaceURI prefix of a SpaceRecordURI.
-// Returns "" if the URI doesn't match the expected format.
+// SpaceURI extracts the SpaceURI prefix of a SpaceRecordURI, always in the
+// current at:// format: a legacy record URI yields a current-format space URI.
+// Returns "" if the URI doesn't match either format.
 func (s SpaceRecordURI) SpaceURI() SpaceURI {
 	parts := s.parse()
 	if parts.did == "" {

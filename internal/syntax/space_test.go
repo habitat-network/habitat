@@ -49,9 +49,12 @@ func TestParseSpaceURI(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("legacy ats format is rejected", func(t *testing.T) {
-		_, err := ParseSpaceURI("ats://did:plc:abc123/network.habitat.space/my-space")
-		require.Error(t, err)
+	t.Run("legacy ats format", func(t *testing.T) {
+		uri, err := ParseSpaceURI("ats://did:plc:abc123/network.habitat.space/my-space_1")
+		require.NoError(t, err)
+		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
+		require.Equal(t, "network.habitat.space", uri.SpaceType().String())
+		require.Equal(t, SpaceKey("my-space_1"), uri.Skey())
 	})
 
 	t.Run("missing space segment", func(t *testing.T) {
@@ -144,6 +147,23 @@ func TestSpaceRecordURI_SpaceURI(t *testing.T) {
 			uri.SpaceURI(),
 		)
 		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
+	})
+
+	// A legacy record URI still parses, and normalizes to a current-format
+	// space URI.
+	t.Run("legacy ats format", func(t *testing.T) {
+		uri := SpaceRecordURI(
+			"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		)
+		require.Equal(
+			t,
+			SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space"),
+			uri.SpaceURI(),
+		)
+		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
+		require.Equal(t, "network.habitat.note", uri.Collection().String())
+		require.Equal(t, "did:plc:repo456", uri.Repo().String())
+		require.Equal(t, "rkey789", uri.Rkey().String())
 	})
 
 	t.Run("invalid format returns empty", func(t *testing.T) {

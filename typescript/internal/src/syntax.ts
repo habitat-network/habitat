@@ -12,11 +12,17 @@ export interface SpaceURIParts {
 const spaceURIRegex =
   /^at:\/\/([a-zA-Z0-9._:%-]+)\/space\/([a-zA-Z0-9-.]+)\/([a-zA-Z0-9_~.:-]{1,512})$/;
 
+// The pre-0016 format: ats://<did>/<type>/<skey>. Still accepted when parsing so
+// URIs held by older clients keep resolving, but never produced by
+// constructSpaceURI.
+const legacySpaceURIRegex =
+  /^ats:\/\/([a-zA-Z0-9._:%-]+)\/([a-zA-Z0-9-.]+)\/([a-zA-Z0-9_~.:-]{1,512})$/;
+
 // parseSpaceURI splits a space URI into its components, returning null if the
-// URI is malformed.
+// URI is malformed. Both the current and legacy formats are accepted.
 export function parseSpaceURI(uri: string): SpaceURIParts | null {
   if (uri.length > 8192) return null;
-  const match = spaceURIRegex.exec(uri);
+  const match = spaceURIRegex.exec(uri) ?? legacySpaceURIRegex.exec(uri);
   if (!match) return null;
   const [, spaceOwner, spaceType, spaceKey] = match;
   return { spaceOwner, spaceType, spaceKey };
