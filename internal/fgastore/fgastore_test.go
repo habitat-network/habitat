@@ -552,17 +552,20 @@ func TestEncodingHelpers_RoundTripEscapedIdentifiers(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, did, parsedDID)
 
-	spaceURI := habitat_syntax.SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space")
-	objectKey := SpaceObjectKey(spaceURI)
-	require.Equal(
-		t,
-		"space:ats%3A%2F%2Fdid%3Aplc%3Aabc123%2Fnetwork.habitat.space%2Fmy-space",
-		objectKey,
+	// Object keys are stored in the legacy "ats://" form, so a space addressed
+	// in either URI format maps onto the same FGA object.
+	const legacyKey = "space:ats%3A%2F%2Fdid%3Aplc%3Aabc123%2Fnetwork.habitat.space%2Fmy-space"
+	canonicalURI := habitat_syntax.SpaceURI(
+		"at://did:plc:abc123/space/network.habitat.space/my-space",
 	)
+	legacyURI := habitat_syntax.SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space")
+	require.Equal(t, legacyKey, SpaceObjectKey(canonicalURI))
+	require.Equal(t, legacyKey, SpaceObjectKey(legacyURI))
 
-	parsedSpaceURI, err := ParseSpaceObjectKey(objectKey)
+	// Parsing hands the URI back in the canonical form clients expect.
+	parsedSpaceURI, err := ParseSpaceObjectKey(legacyKey)
 	require.NoError(t, err)
-	require.Equal(t, spaceURI, parsedSpaceURI)
+	require.Equal(t, canonicalURI, parsedSpaceURI)
 }
 
 func TestEncodingHelpers_ReturnErrorsForInvalidInput(t *testing.T) {

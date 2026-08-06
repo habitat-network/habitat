@@ -63,7 +63,7 @@ func ParseSpaceURI(raw string) (SpaceURI, error) {
 	if parts == nil {
 		parts = legacySpaceURIRegex.FindStringSubmatch(raw)
 	}
-	if parts == nil || parts[0] == "" {
+	if parts == nil {
 		return "", errors.New("invalid space URI format")
 	}
 	_, err := syntax.ParseDID(parts[1])
@@ -116,6 +116,30 @@ func (s SpaceURI) Skey() SpaceKey {
 	return SpaceKey(skeyStr)
 }
 
+// Legacy returns the pre-proposal-0016 "ats://{did}/{type}/{skey}" form of the
+// URI. Identifiers that were persisted before the at:// migration (notably FGA
+// object keys, see fgastore.SpaceObjectKey) are still written in this form, so
+// that a space addressed in either format resolves to the same stored data.
+// Returns "" if the URI doesn't match either format.
+func (s SpaceURI) Legacy() SpaceURI {
+	did, nsid, skey := s.parse()
+	if did == "" {
+		return ""
+	}
+	return SpaceURI(fmt.Sprintf("ats://%s/%s/%s", did, nsid, skey))
+}
+
+// Canonical returns the proposal 0016 "at://{did}/space/{type}/{skey}" form of
+// the URI. This is the format spaces are handed back to clients in. Returns ""
+// if the URI doesn't match either format.
+func (s SpaceURI) Canonical() SpaceURI {
+	did, nsid, skey := s.parse()
+	if did == "" {
+		return ""
+	}
+	return SpaceURI(fmt.Sprintf("at://%s/space/%s/%s", did, nsid, skey))
+}
+
 func (s SpaceURI) String() string {
 	return string(s)
 }
@@ -147,24 +171,43 @@ func (s SpaceRecordURI) String() string {
 	return string(s)
 }
 
-func (s SpaceRecordURI) parse() (did, nsid, skey, repo, collection, rkey string) {
-	if parts := newSpaceRecordURIRegex.FindStringSubmatch(string(s)); parts != nil {
-		return parts[1], parts[2], parts[3], parts[4], parts[5], parts[6]
+// spaceRecordURIParts holds the raw, unvalidated components of a
+// SpaceRecordURI. All fields are "" when the URI matches neither format.
+type spaceRecordURIParts struct {
+	did        string
+	nsid       string
+	skey       string
+	repo       string
+	collection string
+	rkey       string
+}
+
+func (s SpaceRecordURI) parse() spaceRecordURIParts {
+	for _, re := range []*regexp.Regexp{newSpaceRecordURIRegex, legacySpaceRecordURIRegex} {
+		parts := re.FindStringSubmatch(string(s))
+		if parts == nil {
+			continue
+		}
+		return spaceRecordURIParts{
+			did:        parts[1],
+			nsid:       parts[2],
+			skey:       parts[3],
+			repo:       parts[4],
+			collection: parts[5],
+			rkey:       parts[6],
+		}
 	}
-	if parts := legacySpaceRecordURIRegex.FindStringSubmatch(string(s)); parts != nil {
-		return parts[1], parts[2], parts[3], parts[4], parts[5], parts[6]
-	}
-	return "", "", "", "", "", ""
+	return spaceRecordURIParts{}
 }
 
 // Collection extracts the NSID of the record's collection from the URI.
 // Returns "" if the URI doesn't match the expected format.
 func (s SpaceRecordURI) Collection() syntax.NSID {
-	_, _, _, _, collStr, _ := s.parse()
-	if collStr == "" {
+	parts := s.parse()
+	if parts.collection == "" {
 		return ""
 	}
-	nsid, err := syntax.ParseNSID(collStr)
+	nsid, err := syntax.ParseNSID(parts.collection)
 	if err != nil {
 		return ""
 	}
@@ -174,11 +217,13 @@ func (s SpaceRecordURI) Collection() syntax.NSID {
 // SpaceURI extracts the SpaceURI prefix of a SpaceRecordURI.
 // Returns "" if the URI doesn't match the expected format.
 func (s SpaceRecordURI) SpaceURI() SpaceURI {
-	didStr, nsidStr, skeyStr, _, _, _ := s.parse()
-	if didStr == "" {
+	parts := s.parse()
+	if parts.did == "" {
 		return ""
 	}
-	spaceURI, err := ParseSpaceURI(fmt.Sprintf("at://%s/space/%s/%s", didStr, nsidStr, skeyStr))
+	spaceURI, err := ParseSpaceURI(
+		fmt.Sprintf("at://%s/space/%s/%s", parts.did, parts.nsid, parts.skey),
+	)
 	if err != nil {
 		return ""
 	}
@@ -195,11 +240,11 @@ func (s SpaceRecordURI) SpaceOwner() syntax.DID {
 // Repo extracts the DID of the repo that owns the record from the URI.
 // Returns "" if the URI doesn't match the expected format.
 func (s SpaceRecordURI) Repo() syntax.DID {
-	_, _, _, repoStr, _, _ := s.parse()
-	if repoStr == "" {
+	parts := s.parse()
+	if parts.repo == "" {
 		return ""
 	}
-	did, err := syntax.ParseDID(repoStr)
+	did, err := syntax.ParseDID(parts.repo)
 	if err != nil {
 		return ""
 	}
@@ -209,11 +254,11 @@ func (s SpaceRecordURI) Repo() syntax.DID {
 // Rkey extracts the record key from the URI.
 // Returns "" if the URI doesn't match the expected format.
 func (s SpaceRecordURI) Rkey() syntax.RecordKey {
-	_, _, _, _, _, rkeyStr := s.parse()
-	if rkeyStr == "" {
+	parts := s.parse()
+	if parts.rkey == "" {
 		return ""
 	}
-	rkey, err := syntax.ParseRecordKey(rkeyStr)
+	rkey, err := syntax.ParseRecordKey(parts.rkey)
 	if err != nil {
 		return ""
 	}

@@ -68,11 +68,39 @@ func TestParseSpaceURI(t *testing.T) {
 	})
 }
 
+func TestSpaceURILegacyAndCanonical(t *testing.T) {
+	const (
+		canonical = SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space")
+		legacy    = SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space")
+	)
+
+	tests := []struct {
+		name string
+		uri  SpaceURI
+	}{
+		{"from canonical", canonical},
+		{"from legacy", legacy},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, legacy, tt.uri.Legacy())
+			require.Equal(t, canonical, tt.uri.Canonical())
+		})
+	}
+
+	t.Run("idempotent", func(t *testing.T) {
+		require.Equal(t, legacy, legacy.Legacy().Legacy())
+		require.Equal(t, canonical, canonical.Canonical().Canonical())
+	})
+}
+
 func TestSpaceURIAccessorsReturnEmptyForInvalidURI(t *testing.T) {
 	uri := SpaceURI("not-a-space-uri")
 	require.Empty(t, uri.SpaceOwner())
 	require.Empty(t, uri.SpaceType())
 	require.Empty(t, uri.Skey())
+	require.Empty(t, uri.Legacy())
+	require.Empty(t, uri.Canonical())
 
 	uri = SpaceURI("ats://not-a-did/network.habitat.space/my-space")
 	require.Empty(t, uri.SpaceOwner())
