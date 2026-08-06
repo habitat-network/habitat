@@ -1,42 +1,55 @@
+import {
+  Button,
+  Card,
+  CardContent,
+  Field,
+  FieldError,
+  FieldLabel,
+  Input,
+} from "internal/components/ui";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { XRPCError } from "internal";
 
 export const Route = createFileRoute("/_requireAuth/blob-test/")({
   component: RouteComponent,
 });
 
+interface UploadFormValues {
+  file: FileList | null;
+}
+
+interface GetBlobFormValues {
+  space: string;
+  cid: string;
+}
+
+interface FetchedBlob {
+  size: number;
+  type: string;
+  url: string;
+}
+
 function RouteComponent() {
   const { authManager } = Route.useRouteContext();
 
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [response, setResponse] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
+  const uploadForm = useForm<UploadFormValues>({
+    defaultValues: { file: null },
+  });
 
-  const [cid, setCid] = useState("");
-  const [getBlobLoading, setGetBlobLoading] = useState(false);
-  const [getBlobResponse, setGetBlobResponse] = useState<any>(null);
-  const [getBlobError, setGetBlobError] = useState<string | null>(null);
+  const {
+    mutate: upload,
+    isPending: uploading,
+    isSuccess: uploadSucceeded,
+    data: uploadResponse,
+  } = useMutation({
+    async mutationFn(values: UploadFormValues) {
+      const file = values.file?.[0];
+      if (!file) {
+        throw new Error("Please select a file");
+      }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      setFile(e.target.files[0]);
-      setError(null);
-      setResponse(null);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!file) {
-      setError("Please select a file");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setResponse(null);
-
-    try {
       const buf = await file.arrayBuffer();
       const headers = new Headers();
       headers.append("Content-Type", file.type || "application/octet-stream");
@@ -48,249 +61,151 @@ function RouteComponent() {
       );
 
       if (!res) {
-        throw new Error(`Upload failed: no response`);
+        throw new Error("Upload failed: no response");
       } else if (!res.ok) {
         const errorText = await res.text();
         throw new Error(`Upload failed: ${res.status} ${errorText}`);
       }
 
-      const data = await res.json();
-      setResponse(data);
-      setFile(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  };
+      return res.json();
+    },
+    onSuccess: () => {
+      uploadForm.reset({ file: null });
+    },
+    onError: (err) => {
+      uploadForm.setError("root", {
+        message: err instanceof Error ? err.message : "Unknown error",
+      });
+    },
+  });
 
-  const handleGetBlob = async () => {
-    if (!cid) {
-      setGetBlobError("Please paste a CID");
-      return;
-    }
+  const getBlobForm = useForm<GetBlobFormValues>({
+    defaultValues: { space: "", cid: "" },
+  });
 
-    setGetBlobLoading(true);
-    setGetBlobError(null);
-    setGetBlobResponse(null);
-
-    try {
+  const {
+    mutate: getBlob,
+    isPending: fetchingBlob,
+    isSuccess: getBlobSucceeded,
+    data: fetchedBlob,
+  } = useMutation({
+    async mutationFn(values: GetBlobFormValues): Promise<FetchedBlob> {
       const res = await authManager.fetch(
-        `/xrpc/network.habitat.repo.getBlob?cid=${encodeURIComponent(cid)}&did=${authManager.getAuthInfo()?.did}`,
+        `/xrpc/network.habitat.space.getBlob?space=${encodeURIComponent(values.space)}&cid=${encodeURIComponent(values.cid)}`,
         "GET",
       );
 
       if (!res) {
-        throw new Error(`Get blob failed: no response`);
+        throw new Error("Get blob failed: no response");
       } else if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Get blob failed: ${res.status} ${errorText}`);
+        const data = await res.json().catch(() => undefined);
+        throw new XRPCError(res.status, data ?? { error: "UnknownError" });
       }
 
       const contentType = res.headers.get("content-type");
-
-      if (contentType?.includes("application/json")) {
-        const data = await res.json();
-        setGetBlobResponse(data);
-      } else if (
-        contentType?.includes("image/png") ||
-        contentType?.startsWith("image/")
-      ) {
-        const blob = await res.blob();
-        setGetBlobResponse({
-          blob: blob,
-          size: blob.size,
-          type: contentType || "application/octet-stream",
-          url: URL.createObjectURL(blob),
-        });
-      } else {
-        const blob = await res.blob();
-        setGetBlobResponse({
-          blob: blob,
-          size: blob.size,
-          type: contentType || "application/octet-stream",
-          url: URL.createObjectURL(blob),
-        });
-      }
-    } catch (err) {
-      setGetBlobError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setGetBlobLoading(false);
-    }
-  };
+      const blob = await res.blob();
+      return {
+        size: blob.size,
+        type: contentType || "application/octet-stream",
+        url: URL.createObjectURL(blob),
+      };
+    },
+    onError: (err) => {
+      getBlobForm.setError("root", {
+        message: err instanceof Error ? err.message : "Unknown error",
+      });
+    },
+  });
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Blob Upload Test</h1>
-
-      <div style={{ marginBottom: "20px" }}>
-        <input
-          type="file"
-          onChange={handleFileChange}
-          disabled={loading}
-          style={{ marginRight: "10px" }}
-        />
-        <button
-          onClick={handleUpload}
-          disabled={loading || !file}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: loading || !file ? "#ccc" : "#007bff",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: loading || !file ? "not-allowed" : "pointer",
-          }}
+    <div className="flex flex-col gap-8 p-6">
+      <div className="flex flex-col gap-4">
+        <h1 className="text-2xl font-semibold">Blob Upload Test</h1>
+        <form
+          onSubmit={uploadForm.handleSubmit((values) => upload(values))}
+          className="flex flex-col gap-4"
         >
-          {loading ? "Uploading..." : "Upload"}
-        </button>
+          <fieldset disabled={uploading} className="flex flex-col gap-4">
+            <Field>
+              <FieldLabel>File</FieldLabel>
+              <Input type="file" {...uploadForm.register("file")} />
+              <FieldError errors={[uploadForm.formState.errors.file]} />
+            </Field>
+            <FieldError errors={[uploadForm.formState.errors.root]} />
+            <Button type="submit" className="w-fit">
+              {uploading ? "Uploading..." : "Upload"}
+            </Button>
+          </fieldset>
+        </form>
+
+        {uploadSucceeded && (
+          <Card>
+            <CardContent>
+              <h3 className="font-medium mb-2">Upload Successful!</h3>
+              <pre className="overflow-auto text-sm">
+                {JSON.stringify(uploadResponse, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {file && (
-        <div style={{ marginBottom: "10px", fontSize: "14px", color: "#666" }}>
-          Selected: {file.name} ({(file.size / 1024).toFixed(2)} KB)
-        </div>
-      )}
-
-      {error && (
-        <div
-          style={{
-            padding: "10px",
-            marginBottom: "10px",
-            backgroundColor: "#f8d7da",
-            color: "#721c24",
-            borderRadius: "4px",
-          }}
+      <div className="flex flex-col gap-4">
+        <h2 className="text-xl font-semibold">Get Blob</h2>
+        <form
+          onSubmit={getBlobForm.handleSubmit((values) => getBlob(values))}
+          className="flex flex-col gap-4"
         >
-          {error}
-        </div>
-      )}
+          <fieldset disabled={fetchingBlob} className="flex flex-col gap-4">
+            <Field>
+              <FieldLabel>Space</FieldLabel>
+              <Input
+                placeholder="habitat://..."
+                {...getBlobForm.register("space", { required: true })}
+              />
+              <FieldError errors={[getBlobForm.formState.errors.space]} />
+            </Field>
+            <Field>
+              <FieldLabel>CID</FieldLabel>
+              <Input
+                placeholder="bafy..."
+                {...getBlobForm.register("cid", { required: true })}
+              />
+              <FieldError errors={[getBlobForm.formState.errors.cid]} />
+            </Field>
+            <FieldError errors={[getBlobForm.formState.errors.root]} />
+            <Button type="submit" className="w-fit">
+              {fetchingBlob ? "Fetching..." : "Get Blob"}
+            </Button>
+          </fieldset>
+        </form>
 
-      {response && (
-        <div
-          style={{
-            padding: "10px",
-            backgroundColor: "#d4edda",
-            color: "#155724",
-            borderRadius: "4px",
-          }}
-        >
-          <h3>Upload Successful!</h3>
-          <pre style={{ overflow: "auto" }}>
-            {JSON.stringify(response, null, 2)}
-          </pre>
-        </div>
-      )}
-
-      <hr style={{ margin: "40px 0" }} />
-
-      <h2>Get Blob</h2>
-
-      <div style={{ marginBottom: "20px" }}>
-        <textarea
-          value={cid}
-          onChange={(e) => {
-            setCid(e.target.value);
-            setGetBlobError(null);
-            setGetBlobResponse(null);
-          }}
-          placeholder="Paste CID here..."
-          disabled={getBlobLoading}
-          style={{
-            width: "100%",
-            height: "60px",
-            padding: "8px",
-            marginBottom: "10px",
-            fontFamily: "monospace",
-            fontSize: "14px",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
-          }}
-        />
-        <button
-          onClick={handleGetBlob}
-          disabled={getBlobLoading || !cid}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: getBlobLoading || !cid ? "#ccc" : "#28a745",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: getBlobLoading || !cid ? "not-allowed" : "pointer",
-          }}
-        >
-          {getBlobLoading ? "Fetching..." : "Get Blob"}
-        </button>
-      </div>
-
-      {getBlobError && (
-        <div
-          style={{
-            padding: "10px",
-            marginBottom: "10px",
-            backgroundColor: "#f8d7da",
-            color: "#721c24",
-            borderRadius: "4px",
-          }}
-        >
-          {getBlobError}
-        </div>
-      )}
-
-      {getBlobResponse && (
-        <div
-          style={{
-            padding: "10px",
-            backgroundColor: "#d4edda",
-            color: "#155724",
-            borderRadius: "4px",
-          }}
-        >
-          <h3>Blob Retrieved!</h3>
-          {getBlobResponse.url ? (
-            <div>
+        {getBlobSucceeded && fetchedBlob && (
+          <Card>
+            <CardContent className="flex flex-col gap-2">
+              <h3 className="font-medium">Blob Retrieved!</h3>
               <p>
-                <strong>Type:</strong> {getBlobResponse.type}
+                <strong>Type:</strong> {fetchedBlob.type}
               </p>
               <p>
-                <strong>Size:</strong>{" "}
-                {(getBlobResponse.size / 1024).toFixed(2)} KB
+                <strong>Size:</strong> {(fetchedBlob.size / 1024).toFixed(2)}{" "}
+                KB
               </p>
-              {getBlobResponse.type.startsWith("image/") && (
+              {fetchedBlob.type.startsWith("image/") ? (
                 <img
-                  src={getBlobResponse.url}
+                  src={fetchedBlob.url}
                   alt="Retrieved blob"
-                  style={{ maxWidth: "100%", maxHeight: "400px" }}
+                  className="max-w-full max-h-[400px]"
                 />
+              ) : (
+                <a href={fetchedBlob.url} download="blob">
+                  Download Blob
+                </a>
               )}
-              {getBlobResponse.type.startsWith("text/") && (
-                <pre
-                  style={{
-                    overflow: "auto",
-                    backgroundColor: "#f5f5f5",
-                    padding: "10px",
-                  }}
-                >
-                  {/* Note: actual text content would need to be fetched differently */}
-                  [Binary content - {getBlobResponse.size} bytes]
-                </pre>
-              )}
-              {!getBlobResponse.type.startsWith("image/") &&
-                !getBlobResponse.type.startsWith("text/") && (
-                  <div>
-                    <a href={getBlobResponse.url} download="blob">
-                      Download Blob
-                    </a>
-                  </div>
-                )}
-            </div>
-          ) : (
-            <pre style={{ overflow: "auto" }}>
-              {JSON.stringify(getBlobResponse, null, 2)}
-            </pre>
-          )}
-        </div>
-      )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
