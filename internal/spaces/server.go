@@ -554,15 +554,6 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// blobRef is the atproto blob reference returned by uploadBlob. It matches the
-// "blob" lexicon type: https://atproto.com/specs/data-model#blob-type
-type blobRef struct {
-	Type     string         `json:"$type"`
-	Ref      atdata.CIDLink `json:"ref"`
-	MimeType string         `json:"mimeType"`
-	Size     int64          `json:"size"`
-}
-
 // UploadBlob stores an uploaded blob content-addressed by its CID and returns
 // the blob reference. Implements network.habitat.repo.uploadBlob.
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
@@ -577,8 +568,12 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 500*1024))
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		httpx.WriteError(ctx, w, "BlobTooLarge", "max 500kb", http.StatusRequestEntityTooLarge)
+		return
+	} else if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to read request body", err)
 		return
 	}
@@ -587,16 +582,14 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("store blob: %w", err))
 		return
 	}
-	output := habitat.NetworkHabitatRepoUploadBlobOutput{
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRepoUploadBlobOutput{
 		Cid: c.String(),
-		Blob: blobRef{
-			Type:     "blob",
+		Blob: atdata.Blob{
 			Ref:      atdata.CIDLink(c),
 			MimeType: mimeType,
 			Size:     size,
 		},
-	}
-	httpx.WriteJSON(ctx, w, output)
+	})
 }
 
 // GetBlob streams a blob stored within a space back to a caller with read

@@ -142,6 +142,28 @@ func TestServer_UploadAndGetBlob(t *testing.T) {
 	require.Equal(t, "hello blobs", string(body))
 }
 
+func TestServer_UploadBlob_RejectsOversized(t *testing.T) {
+	s := newTestServerWithOpts(t,
+		testServerOptions{
+			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
+			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
+		},
+	)
+
+	// 500 KiB upload limit + 1 byte must be rejected.
+	oversized := make([]byte, 500*1024+1)
+	upReq := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.repo.uploadBlob",
+		bytes.NewReader(oversized),
+	)
+	upReq.Header.Set("Content-Type", "application/octet-stream")
+	upW := httptest.NewRecorder()
+	s.UploadBlob(upW, upReq)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, upW.Code)
+}
+
 func TestServer_ListSpaces(t *testing.T) {
 	s := newTestServerWithOpts(t,
 		testServerOptions{
