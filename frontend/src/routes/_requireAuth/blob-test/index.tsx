@@ -137,7 +137,6 @@ function RouteComponent() {
             </Button>
           </fieldset>
         </form>
-
         {uploadSucceeded && (
           <Card>
             <CardContent>
