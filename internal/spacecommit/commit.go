@@ -21,15 +21,9 @@ import (
 const (
 	// Version is the signed-commit format version.
 	Version = 1
-	// SpecProtocolTag prefixes the ctx for habitat-managed authors, whose commits
-	// are signed by the repo owner's own signing key per the atproto
-	// permissioned-data proposal.
-	SpecProtocolTag = "atproto-space-v1"
-	// HostProtocolTag prefixes the ctx for authors whose identity lives on a PDS
-	// we do not control. Habitat cannot use their signing key, so it signs with
-	// its single host key instead; the distinct tag keeps these signatures from
-	// being confused with proposal-spec commits.
-	HostProtocolTag = "habitat-space-host-v1"
+	// ProtocolTag is the domain-separation prefix of the commit ctx, fixed by the
+	// atproto permissioned-data proposal.
+	ProtocolTag = "atproto-space-v1"
 	// ikmLen is the per-commit nonce length in bytes.
 	ikmLen = 32
 )
@@ -44,9 +38,11 @@ type MemberSigner interface {
 	PrivateKeyForDID(ctx context.Context, did syntax.DID) (atcrypto.PrivateKey, error)
 }
 
-// Authority selects how to sign a commit for a given author: the repo owner's
-// own key (habitat-managed authors, spec tag) or the host key (non-managed
-// authors, host tag).
+// Authority selects which key signs a commit for a given author: the repo
+// owner's own key for habitat-managed authors, or the host key for authors
+// whose identity lives on a PDS we do not control. The commit itself carries no
+// indication of which was used, so verifiers must know out of band which key to
+// check a given author's commits against.
 type Authority struct {
 	host   atcrypto.PrivateKey
 	member MemberSigner
@@ -59,19 +55,19 @@ func NewAuthority(host atcrypto.PrivateKey, member MemberSigner) *Authority {
 	return &Authority{host: host, member: member}
 }
 
-// resolve returns the protocol tag and signing key for author.
+// resolve returns the signing key for author.
 func (a *Authority) resolve(
 	ctx context.Context,
 	author syntax.DID,
-) (string, atcrypto.PrivateKey, error) {
+) (atcrypto.PrivateKey, error) {
 	key, err := a.member.PrivateKeyForDID(ctx, author)
 	if err == nil {
-		return SpecProtocolTag, key, nil
+		return key, nil
 	}
 	if !errors.Is(err, identity.ErrDIDNotFound) {
-		return "", nil, err
+		return nil, err
 	}
-	return HostProtocolTag, a.host, nil
+	return a.host, nil
 }
 
 // SignedCommit is the in-memory form of network.habitat.space.defs#signedCommit.
@@ -88,14 +84,13 @@ type SignedCommit struct {
 // variable field length-prefixed with a big-endian uint16 (TLS 1.3 vector
 // convention): space, author DID, rev, ikm.
 func Ctx(
-	tag string,
 	space habitat_syntax.SpaceURI,
 	author syntax.DID,
 	rev string,
 	ikm []byte,
 ) []byte {
-	b := make([]byte, 0, len(tag)+len(space)+len(author)+len(rev)+len(ikm)+8)
-	b = append(b, []byte(tag)...)
+	b := make([]byte, 0, len(ProtocolTag)+len(space)+len(author)+len(rev)+len(ikm)+8)
+	b = append(b, []byte(ProtocolTag)...)
 	b = appendVec(b, []byte(space.String()))
 	b = appendVec(b, []byte(author.String()))
 	b = appendVec(b, []byte(rev))
@@ -133,7 +128,7 @@ func (a *Authority) Build(
 	rev string,
 	hash []byte,
 ) (SignedCommit, error) {
-	tag, privKey, err := a.resolve(ctx, author)
+	privKey, err := a.resolve(ctx, author)
 	if err != nil {
 		return SignedCommit{}, err
 	}
@@ -142,7 +137,7 @@ func (a *Authority) Build(
 	if _, err := io.ReadFull(rand.Reader, ikm); err != nil {
 		return SignedCommit{}, fmt.Errorf("generate ikm: %w", err)
 	}
-	cctx := Ctx(tag, space, author, rev, ikm)
+	cctx := Ctx(space, author, rev, ikm)
 
 	macBytes, err := mac(ikm, cctx, hash)
 	if err != nil {
@@ -164,14 +159,16 @@ func (a *Authority) Build(
 	}, nil
 }
 
-// Verify checks a commit against a locally recomputed hash and the author's
-// public key. tag selects the protocol tag (SpecProtocolTag for habitat-managed
-// authors, HostProtocolTag for host-signed ones). It confirms the commit's hash
-// matches expectedHash, the mac binds that hash to the ctx, and the signature
-// verifies over the ctx. Returns ErrInvalidCommit on any mismatch.
+// Verify checks a commit against a locally recomputed hash and pub. It confirms
+// the commit's hash matches expectedHash, the mac binds that hash to the ctx,
+// and the signature verifies over the ctx. Returns ErrInvalidCommit on any
+// mismatch.
+//
+// Commits carry no marker for which key signed them, so the caller must supply
+// the right pub: the author's own key for habitat-managed authors, the host key
+// for everyone else.
 func Verify(
 	c SignedCommit,
-	tag string,
 	space habitat_syntax.SpaceURI,
 	author syntax.DID,
 	expectedHash []byte,
@@ -180,7 +177,7 @@ func Verify(
 	if !hmac.Equal(c.Hash, expectedHash) {
 		return fmt.Errorf("%w: hash mismatch", ErrInvalidCommit)
 	}
-	cctx := Ctx(tag, space, author, c.Rev, c.Ikm)
+	cctx := Ctx(space, author, c.Rev, c.Ikm)
 	wantMac, err := mac(c.Ikm, cctx, c.Hash)
 	if err != nil {
 		return err
