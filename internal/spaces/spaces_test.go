@@ -502,10 +502,10 @@ func TestParseSpaceURI_Invalid(t *testing.T) {
 		name  string
 	}{
 		{"", "empty"},
-		{"ats://notadid/network.habitat.group/key", "invalid did"},
+		{"at://notadid/space/network.habitat.group/key", "invalid did"},
 		{"notaspace", "no scheme"},
-		{"ats://did:plc:abc", "missing type and key"},
-		{"ats://did:plc:abc/notansid/key", "invalid type"},
+		{"at://did:plc:abc", "missing type and key"},
+		{"at://did:plc:abc/space/notansid/key", "invalid type"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

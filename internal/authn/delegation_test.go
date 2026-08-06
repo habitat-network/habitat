@@ -35,7 +35,7 @@ func TestDelegationAuthMethod_Validate(t *testing.T) {
 	publicKey, _ := key.PublicKey()
 	dir := identity.NewMockDirectory()
 	dir.Insert(*did.Web("example.com").AtprotoKey(publicKey.Multibase()).Build())
-	spaceURI := habitat_syntax.SpaceURI("ats://did:web:example.com/test.space.type/abc")
+	spaceURI := habitat_syntax.SpaceURI("at://did:web:example.com/space/test.space.type/abc")
 	token, err := new(jwt.Token{
 		Header: map[string]any{
 			"typ": "atproto-space-credential+jwt",
@@ -81,7 +81,7 @@ func TestDelegationAuthMethod_Validate(t *testing.T) {
 func TestDelegationAuthMethod_Validate_HostToken(t *testing.T) {
 	key, _ := atcrypto.GeneratePrivateKeyK256()
 	dir := identity.NewMockDirectory()
-	spaceURI := habitat_syntax.SpaceURI("ats://did:web:example.com/test.space.type/abc")
+	spaceURI := habitat_syntax.SpaceURI("at://did:web:example.com/space/test.space.type/abc")
 	token, err := new(jwt.Token{
 		Header: map[string]any{
 			"typ": "atproto-space-credential+jwt",

@@ -30,7 +30,7 @@ func (d *dummySubscriber) Subscribe(ctx context.Context, since uint64) <-chan ev
 
 func TestSubscriber(t *testing.T) {
 	db, eventsCh, _ := setupSubscriber(t)
-	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/test.space/my-space")
+	space := habitat_syntax.SpaceURI("at://did:plc:testorg/space/test.space/my-space")
 	require.NoError(t, db.Create(&managedRepo{
 		Space: space,
 		DID:   "did:plc:repo1",
@@ -51,7 +51,7 @@ func TestSubscriber(t *testing.T) {
 		Rev:   clock.Next(),
 		Ops: []events.EventOps{
 			{
-				Uri:    "ats://did:plc:testorg/test.space/my-space/did:plc:repo1/test.collection/foo",
+				Uri:    "at://did:plc:testorg/space/test.space/my-space/did:plc:repo1/test.collection/foo",
 				Action: "create",
 				Value: map[string]any{
 					"foo": "bar",
@@ -69,7 +69,7 @@ func TestSubscriber(t *testing.T) {
 		Rev:   clock.Next(),
 		Ops: []events.EventOps{
 			{
-				Uri:    "ats://did:plc:testorg/test.space/my-space/did:plc:repo2/test.collection/foo",
+				Uri:    "at://did:plc:testorg/space/test.space/my-space/did:plc:repo2/test.collection/foo",
 				Action: "update",
 				Value: map[string]any{
 					"foo": "baz",
@@ -88,7 +88,7 @@ func TestSubscriber(t *testing.T) {
 		Since: event1.Rev,
 		Ops: []events.EventOps{
 			{
-				Uri:    "ats://did:plc:testorg/test.space/my-space/did:plc:repo1/test.collection/foo",
+				Uri:    "at://did:plc:testorg/space/test.space/my-space/did:plc:repo1/test.collection/foo",
 				Action: "update",
 				Value: map[string]any{
 					"foo": "baz",
@@ -115,7 +115,7 @@ func TestSubscriber(t *testing.T) {
 
 func TestSubscriber_MissedEvent(t *testing.T) {
 	db, eventsCh, _ := setupSubscriber(t)
-	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/test.space/my-space")
+	space := habitat_syntax.SpaceURI("at://did:plc:testorg/space/test.space/my-space")
 	require.NoError(t, db.Create(&managedRepo{
 		Space: space,
 		DID:   "did:plc:repo1",
@@ -133,7 +133,7 @@ func TestSubscriber_MissedEvent(t *testing.T) {
 		Since: prev,
 		Ops: []events.EventOps{
 			{
-				Uri:    "ats://did:plc:testorg/test.space/my-space/did:plc:repo1/test.collection/foo",
+				Uri:    "at://did:plc:testorg/space/test.space/my-space/did:plc:repo1/test.collection/foo",
 				Action: "create",
 				Value: map[string]any{
 					"foo": "bar",
@@ -160,7 +160,7 @@ func TestSubscriber_BuffersWhileCrawlRunning(t *testing.T) {
 		Where("did = ?", "did:plc:testorg").
 		Update("crawl_state", running).Error)
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/test.space/my-space")
+	space := habitat_syntax.SpaceURI("at://did:plc:testorg/space/test.space/my-space")
 	clock := syntax.NewTIDClock(0)
 	eventsCh <- events.Event{
 		Seq:   1,
@@ -170,7 +170,7 @@ func TestSubscriber_BuffersWhileCrawlRunning(t *testing.T) {
 		Rev:   clock.Next(),
 		Ops: []events.EventOps{
 			{
-				Uri:    "ats://did:plc:testorg/test.space/my-space/did:plc:repo1/test.collection/foo",
+				Uri:    "at://did:plc:testorg/space/test.space/my-space/did:plc:repo1/test.collection/foo",
 				Action: "create",
 				Value:  map[string]any{"foo": "bar"},
 			},

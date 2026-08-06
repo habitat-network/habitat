@@ -552,20 +552,17 @@ func TestEncodingHelpers_RoundTripEscapedIdentifiers(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, did, parsedDID)
 
-	// Object keys are stored in the legacy "ats://" form, so a space addressed
-	// in either URI format maps onto the same FGA object.
-	const legacyKey = "space:ats%3A%2F%2Fdid%3Aplc%3Aabc123%2Fnetwork.habitat.space%2Fmy-space"
-	canonicalURI := habitat_syntax.SpaceURI(
-		"at://did:plc:abc123/space/network.habitat.space/my-space",
+	spaceURI := habitat_syntax.SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space")
+	objectKey := SpaceObjectKey(spaceURI)
+	require.Equal(
+		t,
+		"space:at%3A%2F%2Fdid%3Aplc%3Aabc123%2Fspace%2Fnetwork.habitat.space%2Fmy-space",
+		objectKey,
 	)
-	legacyURI := habitat_syntax.SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space")
-	require.Equal(t, legacyKey, SpaceObjectKey(canonicalURI))
-	require.Equal(t, legacyKey, SpaceObjectKey(legacyURI))
 
-	// Parsing hands the URI back in the canonical form clients expect.
-	parsedSpaceURI, err := ParseSpaceObjectKey(legacyKey)
+	parsedSpaceURI, err := ParseSpaceObjectKey(objectKey)
 	require.NoError(t, err)
-	require.Equal(t, canonicalURI, parsedSpaceURI)
+	require.Equal(t, spaceURI, parsedSpaceURI)
 }
 
 func TestEncodingHelpers_ReturnErrorsForInvalidInput(t *testing.T) {
@@ -634,11 +631,11 @@ func TestOrgMemberContextualTuple_ProducesCorrectTuple(t *testing.T) {
 }
 
 func TestSpaceUsersetString(t *testing.T) {
-	uri := habitat_syntax.SpaceURI("ats://did:plc:abc/network.habitat.space/my-space")
+	uri := habitat_syntax.SpaceURI("at://did:plc:abc/space/network.habitat.space/my-space")
 	result := SpaceUsersetString(uri, RelationSpaceReader)
 	require.Equal(
 		t,
-		"space:ats%3A%2F%2Fdid%3Aplc%3Aabc%2Fnetwork.habitat.space%2Fmy-space#can_read",
+		"space:at%3A%2F%2Fdid%3Aplc%3Aabc%2Fspace%2Fnetwork.habitat.space%2Fmy-space#can_read",
 		result,
 	)
 }

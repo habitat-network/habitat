@@ -16,11 +16,8 @@ import (
 
 // SpaceObjectKey returns the FGA object key for a space.
 // The key is the full SpaceURI URL-encoded so OpenFGA can parse it as a typed object.
-// The legacy "ats://" form is used so that a space addressed in either URI
-// format maps onto the same object, and tuples written before the at:// URI
-// migration keep resolving.
 func SpaceObjectKey(uri habitat_syntax.SpaceURI) string {
-	return "space:" + url.QueryEscape(uri.Legacy().String())
+	return "space:" + url.QueryEscape(uri.String())
 }
 
 // MemberUserString returns the FGA user string for a DID member.
@@ -43,7 +40,7 @@ func OrgMemberUsersetString(did syntax.DID) string {
 
 // OrgMemberContextualTuple returns a Tuple granting org members (via the
 // organization:#member userset) the can_read relation on the org's self space
-// (ats://<org>/network.habitat.organization/self).  This lets org membership
+// (at://<org>/space/network.habitat.organization/self).  This lets org membership
 // chain through stored tuples like "self#reader → can_read → <space>" without
 // storing per-member tuples on every space.
 func OrgMemberContextualTuple(org syntax.DID) Tuple {
@@ -79,8 +76,6 @@ func MemberUserToDID(user string) (syntax.DID, error) {
 }
 
 // ParseSpaceObjectKey parses an FGA space object key back into a SpaceURI.
-// Keys are stored in the legacy "ats://" form, so the URI is returned in the
-// canonical "at://.../space/..." form that clients expect.
 func ParseSpaceObjectKey(key string) (habitat_syntax.SpaceURI, error) {
 	if !strings.HasPrefix(key, "space:") {
 		return "", fmt.Errorf("invalid space object key: %s", key)
@@ -89,9 +84,5 @@ func ParseSpaceObjectKey(key string) (habitat_syntax.SpaceURI, error) {
 	if err != nil {
 		return "", fmt.Errorf("parse space object key: %w", err)
 	}
-	uri, err := habitat_syntax.ParseSpaceURI(raw)
-	if err != nil {
-		return "", err
-	}
-	return uri.Canonical(), nil
+	return habitat_syntax.ParseSpaceURI(raw)
 }

@@ -9,21 +9,14 @@ export interface SpaceURIParts {
   spaceKey: string;
 }
 
-// The proposal 0016 format: at://<did>/space/<type>/<skey>.
 const spaceURIRegex =
   /^at:\/\/([a-zA-Z0-9._:%-]+)\/space\/([a-zA-Z0-9-.]+)\/([a-zA-Z0-9_~.:-]{1,512})$/;
 
-// The pre-proposal-0016 format: ats://<did>/<type>/<skey>. Still accepted when
-// parsing so URIs persisted before the migration keep resolving, but never
-// produced by constructSpaceURI.
-const legacySpaceURIRegex =
-  /^ats:\/\/([a-zA-Z0-9._:%-]+)\/([a-zA-Z0-9-.]+)\/([a-zA-Z0-9_~.:-]{1,512})$/;
-
 // parseSpaceURI splits a space URI into its components, returning null if the
-// URI is malformed. Both the current and legacy formats are accepted.
+// URI is malformed.
 export function parseSpaceURI(uri: string): SpaceURIParts | null {
   if (uri.length > 8192) return null;
-  const match = spaceURIRegex.exec(uri) ?? legacySpaceURIRegex.exec(uri);
+  const match = spaceURIRegex.exec(uri);
   if (!match) return null;
   const [, spaceOwner, spaceType, spaceKey] = match;
   return { spaceOwner, spaceType, spaceKey };
