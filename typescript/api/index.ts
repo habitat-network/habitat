@@ -91,6 +91,7 @@ import * as NetworkHabitatSearchQuery from './types/network/habitat/search/query
 import * as NetworkHabitatSimplespaceAddMember from './types/network/habitat/simplespace/addMember.js'
 import * as NetworkHabitatSimplespaceCreateSpace from './types/network/habitat/simplespace/createSpace.js'
 import * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplespace/defs.js'
+import * as NetworkHabitatSimplespaceDeleteSpace from './types/network/habitat/simplespace/deleteSpace.js'
 import * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
 import * as NetworkHabitatSimplespaceRemoveMember from './types/network/habitat/simplespace/removeMember.js'
 import * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
@@ -196,6 +197,7 @@ export * as NetworkHabitatSearchQuery from './types/network/habitat/search/query
 export * as NetworkHabitatSimplespaceAddMember from './types/network/habitat/simplespace/addMember.js'
 export * as NetworkHabitatSimplespaceCreateSpace from './types/network/habitat/simplespace/createSpace.js'
 export * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplespace/defs.js'
+export * as NetworkHabitatSimplespaceDeleteSpace from './types/network/habitat/simplespace/deleteSpace.js'
 export * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
 export * as NetworkHabitatSimplespaceRemoveMember from './types/network/habitat/simplespace/removeMember.js'
 export * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
@@ -1912,6 +1914,17 @@ export class NetworkHabitatSimplespaceNS {
       .call('network.habitat.simplespace.createSpace', opts?.qp, data, opts)
       .catch((e) => {
         throw NetworkHabitatSimplespaceCreateSpace.toKnownErr(e)
+      })
+  }
+
+  deleteSpace(
+    data?: NetworkHabitatSimplespaceDeleteSpace.InputSchema,
+    opts?: NetworkHabitatSimplespaceDeleteSpace.CallOptions,
+  ): Promise<NetworkHabitatSimplespaceDeleteSpace.Response> {
+    return this._client
+      .call('network.habitat.simplespace.deleteSpace', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSimplespaceDeleteSpace.toKnownErr(e)
       })
   }
 
