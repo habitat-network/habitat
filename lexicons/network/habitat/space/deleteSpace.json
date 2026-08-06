@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Delete an entire space. Only the space owner can delete. All records in the space and all member relationships are removed.",
+            "description": "DEPRECATED. Use network.habitat.simplespace.deleteSpace instead.",
             "input": {
                 "encoding": "application/json",
                 "schema": {
