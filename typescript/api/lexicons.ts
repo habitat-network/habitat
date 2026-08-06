@@ -3963,6 +3963,39 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSimplespaceDeleteSpace: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.deleteSpace',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Delete a space. The authenticated user must be the space owner. The authority's own repo in the space is deleted along with it, since the space host and the repo host are the same service here; other members' repos are flagged as belonging to a deleted space rather than erased. After deletion, all reads and writes against the space fail with SpaceNotFound, and getSpaceCredential answers SpaceDeleted so a syncer that missed the notification still learns to drop its copy. Idempotent. Requires auth, implemented by PDS.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'uri',
+                description: 'Reference to the space to delete.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'NotSpaceOwner',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatSimplespaceListMembers: {
     lexicon: 1,
     id: 'network.habitat.simplespace.listMembers',
@@ -4276,7 +4309,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Delete an entire space. Only the space owner can delete. All records in the space and all member relationships are removed.',
+          'DEPRECATED. Use network.habitat.simplespace.deleteSpace instead.',
         input: {
           encoding: 'application/json',
           schema: {
@@ -4502,9 +4535,9 @@ export const schemaDict = {
       },
     },
   },
-  ComAtprotoSpaceGetRepo: {
+  NetworkHabitatSpaceGetRepo: {
     lexicon: 1,
-    id: 'com.atproto.space.getRepo',
+    id: 'network.habitat.space.getRepo',
     defs: {
       main: {
         type: 'query',
@@ -5360,6 +5393,8 @@ export const ids = {
   NetworkHabitatSimplespaceCreateSpace:
     'network.habitat.simplespace.createSpace',
   NetworkHabitatSimplespaceDefs: 'network.habitat.simplespace.defs',
+  NetworkHabitatSimplespaceDeleteSpace:
+    'network.habitat.simplespace.deleteSpace',
   NetworkHabitatSimplespaceListMembers:
     'network.habitat.simplespace.listMembers',
   NetworkHabitatSimplespaceRemoveMember:
@@ -5374,7 +5409,7 @@ export const ids = {
     'network.habitat.space.getDelegationToken',
   NetworkHabitatSpaceGetLatestCommit: 'network.habitat.space.getLatestCommit',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
-  ComAtprotoSpaceGetRepo: 'com.atproto.space.getRepo',
+  NetworkHabitatSpaceGetRepo: 'network.habitat.space.getRepo',
   NetworkHabitatSpaceGetSpaceCredential:
     'network.habitat.space.getSpaceCredential',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',

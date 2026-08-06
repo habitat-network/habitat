@@ -6149,6 +6149,107 @@
         }
       }
     },
+    "/network.habitat.simplespace.deleteSpace": {
+      "post": {
+        "tags": [
+          "network.habitat.simplespace"
+        ],
+        "summary": "network.habitat.simplespace.deleteSpace",
+        "description": "Delete a space. The authenticated user must be the space owner. The authority's own repo in the space is deleted along with it, since the space host and the repo host are the same service here; other members' repos are flagged as belonging to a deleted space rather than erased. After deletion, all reads and writes against the space fail with SpaceNotFound, and getSpaceCredential answers SpaceDeleted so a syncer that missed the notification still learns to drop its copy. Idempotent. Requires auth, implemented by PDS.",
+        "operationId": "network.habitat.simplespace.deleteSpace",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the space to delete.",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "NotSpaceOwner"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.simplespace.listMembers": {
       "get": {
         "tags": [
@@ -6756,7 +6857,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.deleteSpace",
-        "description": "Delete an entire space. Only the space owner can delete. All records in the space and all member relationships are removed.",
+        "description": "DEPRECATED. Use network.habitat.simplespace.deleteSpace instead.",
         "operationId": "network.habitat.space.deleteSpace",
         "security": [
           {
@@ -7342,14 +7443,14 @@
         }
       }
     },
-    "/com.atproto.space.getRepo": {
+    "/network.habitat.space.getRepo": {
       "get": {
         "tags": [
-          "com.atproto.space"
+          "network.habitat.space"
         ],
-        "summary": "com.atproto.space.getRepo",
+        "summary": "network.habitat.space.getRepo",
         "description": "Download an account's permissioned repo within a space as a CAR file, for full-state recovery. The CAR declares two roots in order: the signed commit, then a DRISL (DAG-CBOR) index mapping '{collection}/{rkey}' to record CID. Record blocks follow in lexicographic order. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
-        "operationId": "com.atproto.space.getRepo",
+        "operationId": "network.habitat.space.getRepo",
         "security": [
           {
             "Bearer": []
@@ -9758,9 +9859,6 @@
     },
     {
       "name": "network.habitat.space"
-    },
-    {
-      "name": "com.atproto.space"
     }
   ]
 }

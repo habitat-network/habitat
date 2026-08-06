@@ -91,6 +91,7 @@ import * as NetworkHabitatSearchQuery from './types/network/habitat/search/query
 import * as NetworkHabitatSimplespaceAddMember from './types/network/habitat/simplespace/addMember.js'
 import * as NetworkHabitatSimplespaceCreateSpace from './types/network/habitat/simplespace/createSpace.js'
 import * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplespace/defs.js'
+import * as NetworkHabitatSimplespaceDeleteSpace from './types/network/habitat/simplespace/deleteSpace.js'
 import * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
 import * as NetworkHabitatSimplespaceRemoveMember from './types/network/habitat/simplespace/removeMember.js'
 import * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
@@ -102,7 +103,7 @@ import * as NetworkHabitatSpaceGetBlob from './types/network/habitat/space/getBl
 import * as NetworkHabitatSpaceGetDelegationToken from './types/network/habitat/space/getDelegationToken.js'
 import * as NetworkHabitatSpaceGetLatestCommit from './types/network/habitat/space/getLatestCommit.js'
 import * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
-import * as ComAtprotoSpaceGetRepo from './types/com/atproto/space/getRepo.js'
+import * as NetworkHabitatSpaceGetRepo from './types/network/habitat/space/getRepo.js'
 import * as NetworkHabitatSpaceGetSpaceCredential from './types/network/habitat/space/getSpaceCredential.js'
 import * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
 import * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
@@ -196,6 +197,7 @@ export * as NetworkHabitatSearchQuery from './types/network/habitat/search/query
 export * as NetworkHabitatSimplespaceAddMember from './types/network/habitat/simplespace/addMember.js'
 export * as NetworkHabitatSimplespaceCreateSpace from './types/network/habitat/simplespace/createSpace.js'
 export * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplespace/defs.js'
+export * as NetworkHabitatSimplespaceDeleteSpace from './types/network/habitat/simplespace/deleteSpace.js'
 export * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
 export * as NetworkHabitatSimplespaceRemoveMember from './types/network/habitat/simplespace/removeMember.js'
 export * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
@@ -207,7 +209,7 @@ export * as NetworkHabitatSpaceGetBlob from './types/network/habitat/space/getBl
 export * as NetworkHabitatSpaceGetDelegationToken from './types/network/habitat/space/getDelegationToken.js'
 export * as NetworkHabitatSpaceGetLatestCommit from './types/network/habitat/space/getLatestCommit.js'
 export * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
-export * as ComAtprotoSpaceGetRepo from './types/com/atproto/space/getRepo.js'
+export * as NetworkHabitatSpaceGetRepo from './types/network/habitat/space/getRepo.js'
 export * as NetworkHabitatSpaceGetSpaceCredential from './types/network/habitat/space/getSpaceCredential.js'
 export * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
 export * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
@@ -275,13 +277,11 @@ export class ComAtprotoNS {
   _client: XrpcClient
   repo: ComAtprotoRepoNS
   server: ComAtprotoServerNS
-  space: ComAtprotoSpaceNS
 
   constructor(client: XrpcClient) {
     this._client = client
     this.repo = new ComAtprotoRepoNS(client)
     this.server = new ComAtprotoServerNS(client)
-    this.space = new ComAtprotoSpaceNS(client)
   }
 }
 
@@ -376,25 +376,6 @@ export class ComAtprotoServerNS {
       .call('com.atproto.server.getServiceAuth', params, undefined, opts)
       .catch((e) => {
         throw ComAtprotoServerGetServiceAuth.toKnownErr(e)
-      })
-  }
-}
-
-export class ComAtprotoSpaceNS {
-  _client: XrpcClient
-
-  constructor(client: XrpcClient) {
-    this._client = client
-  }
-
-  getRepo(
-    params?: ComAtprotoSpaceGetRepo.QueryParams,
-    opts?: ComAtprotoSpaceGetRepo.CallOptions,
-  ): Promise<ComAtprotoSpaceGetRepo.Response> {
-    return this._client
-      .call('com.atproto.space.getRepo', params, undefined, opts)
-      .catch((e) => {
-        throw ComAtprotoSpaceGetRepo.toKnownErr(e)
       })
   }
 }
@@ -1936,6 +1917,17 @@ export class NetworkHabitatSimplespaceNS {
       })
   }
 
+  deleteSpace(
+    data?: NetworkHabitatSimplespaceDeleteSpace.InputSchema,
+    opts?: NetworkHabitatSimplespaceDeleteSpace.CallOptions,
+  ): Promise<NetworkHabitatSimplespaceDeleteSpace.Response> {
+    return this._client
+      .call('network.habitat.simplespace.deleteSpace', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSimplespaceDeleteSpace.toKnownErr(e)
+      })
+  }
+
   listMembers(
     params?: NetworkHabitatSimplespaceListMembers.QueryParams,
     opts?: NetworkHabitatSimplespaceListMembers.CallOptions,
@@ -2052,6 +2044,17 @@ export class NetworkHabitatSpaceNS {
       .call('network.habitat.space.getRecord', params, undefined, opts)
       .catch((e) => {
         throw NetworkHabitatSpaceGetRecord.toKnownErr(e)
+      })
+  }
+
+  getRepo(
+    params?: NetworkHabitatSpaceGetRepo.QueryParams,
+    opts?: NetworkHabitatSpaceGetRepo.CallOptions,
+  ): Promise<NetworkHabitatSpaceGetRepo.Response> {
+    return this._client
+      .call('network.habitat.space.getRepo', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceGetRepo.toKnownErr(e)
       })
   }
 

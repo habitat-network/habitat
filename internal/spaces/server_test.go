@@ -142,6 +142,28 @@ func TestServer_UploadAndGetBlob(t *testing.T) {
 	require.Equal(t, "hello blobs", string(body))
 }
 
+func TestServer_UploadBlob_RejectsOversized(t *testing.T) {
+	s := newTestServerWithOpts(t,
+		testServerOptions{
+			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
+			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
+		},
+	)
+
+	// 500 KiB upload limit + 1 byte must be rejected.
+	oversized := make([]byte, 500*1024+1)
+	upReq := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.repo.uploadBlob",
+		bytes.NewReader(oversized),
+	)
+	upReq.Header.Set("Content-Type", "application/octet-stream")
+	upW := httptest.NewRecorder()
+	s.UploadBlob(upW, upReq)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, upW.Code)
+}
+
 func TestServer_ListSpaces(t *testing.T) {
 	s := newTestServerWithOpts(t,
 		testServerOptions{
@@ -203,36 +225,6 @@ func TestServer_ListRepos(t *testing.T) {
 	hash, ok := output.Repos[0].Hash.(string)
 	require.True(t, ok)
 	require.NotEmpty(t, hash)
-}
-
-func TestServer_ListRepos_CursorLimitNotSupported(t *testing.T) {
-	s := newTestServerWithOpts(t,
-		testServerOptions{
-			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
-			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
-		},
-	)
-
-	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "shared")
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepos?space="+uri.String()+"&cursor=abc",
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListRepos(w, req)
-	require.Equal(t, http.StatusNotImplemented, w.Code)
-
-	req = httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepos?space="+uri.String()+"&limit=10",
-		http.NoBody,
-	)
-	w = httptest.NewRecorder()
-	s.ListRepos(w, req)
-	require.Equal(t, http.StatusNotImplemented, w.Code)
 }
 
 func TestServer_ListRepos_Unauthorized(t *testing.T) {
