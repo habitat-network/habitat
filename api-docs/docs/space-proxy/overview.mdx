@@ -7,9 +7,9 @@ sidebar_position: 0
 
 # Space Proxy
 
-Habitat implements the AT Protocol [permissioned data proposal](https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md) and offers it as a service in front of the public network. If your users have accounts on Bluesky or any other public PDS, you can use Habitat as their space host without them migrating, re-keying, or self-hosting anything: point your identity resolution at Habitat and the rest of the atproto client stack works unchanged.
+In order to let developers start experimenting with the recently published [ATProto permissioned data proposal](https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md), Habitat is offering a PDS wrapper that implements the proposal. When apps sign in to user PDSs through Habitat, standardized PDS endpoints will be forwarded directly to the PDS. Spaces endpoints are handled by us and repos are maintained centrally. Once permissioned data is finalized and implemented, we'll migrate these repos to the real PDSs.
 
-Start with [Getting started](./getting-started.mdx) to wire up identity resolution and auth, then [Working with spaces](./working-with-spaces.mdx) for the read/write endpoints.
+Start with [Getting started](./getting-started.mdx) to use Habitat for identity resolution. Habitat overrides the resolved DID's PDS endpoint so that auth and requests work as normal from there. Your app OAuth's with Habitat using the standard atproto OAuth protocol and we OAuth with the user PDS.
 
 ## How spaces work
 
@@ -21,27 +21,28 @@ A **space** is an authorization and sync boundary for a set of permissioned reco
 
 ## How Habitat's implementation differs
 
-Habitat is a working implementation, not a literal one. The differences that matter to you:
+Habitat makes some deviations to the proposal to get things working in the proxy arrangment.
 
-|                    | Proposal                                                          | Habitat                                                      |
-| ------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------ |
-| Endpoint NSIDs     | `com.atproto.space.*`, `com.atproto.simplespace.*`                | `network.habitat.space.*`, `network.habitat.simplespace.*`   |
-| Space URI          | `at://{authority}/space/{type}/{skey}`                            | `ats://{authority}/{type}/{skey}`                            |
-| Record URI         | `at://{authority}/space/{type}/{skey}/{repo}/{collection}/{rkey}` | `ats://{authority}/{type}/{skey}/{repo}/{collection}/{rkey}` |
-| Authority          | The creating user's DID                                           | `did:web:public.habitat.network`                             |
-| Repo host          | The member's own PDS                                              | Habitat (also the space host)                                |
-| Commit signing key | The repo owner's atproto signing key                              | A shared Habitat host key                                    |
+## Endpoint NSIDs
 
-Two of these are worth expanding on.
+Once the proposal is finalized, the spaces endpoints are expected to live under the `com.atproto.*` namespace like other PDS endpoints. However, since Habitat is using the WIP spec and also because our semantics are slightly different (as seen below), we're namespacing the new spaces endpoints under the `network.habitat.*` namespace. This will also make migrating to the finalized APIs more clear in your app.
 
-**Every public space is owned by `did:web:public.habitat.network`.** When a user who is not a member of a Habitat organization creates a space, Habitat assigns the authority to its shared public identity rather than to the caller. This is what lets Habitat manage access control on behalf of users whose identities live elsewhere. The creator still gets the owner role in Habitat's ACL store, so they alone can add/remove members and delete the space.
+## Simple Spaces
 
-**Commits are signed with a Habitat key, not the user's.** The proposal has the repo owner's PDS sign commits with the owner's atproto signing key. Habitat does not hold the private keys of accounts on public PDSes, so it signs their commits with a single host key and uses a distinct protocol tag in the signature context — `habitat-space-host-v1` instead of `atproto-space-v1` — so host-signed commits can never be confused with spec-compliant ones. The corresponding public key is published as the `habitat` verification method in `https://pear.habitat.network/.well-known/did.json`.
+The proposal calls for a `simplespace` protocol implemented by all PDSs. Habitat plans on offering our own space management protocol that will be compatible with simple spaces. For now we offer a limited version of the protocol that just implements the member list. We'll bring client attestation, managing app, and public spaces support in upcoming releases. Another key difference is that all spaces created using the Habitat's `simplespace` APIs will be owned by Habitat so that we can manage the ACL ourselves. The creating user still has "owner" level permissions over the space but the space authority will be `did:web:pear.habitat.network`. This shouldn't impact applications except that syncing the space will point to Habitat instead of the space owner.
 
-Access control is backed by a relationship-based (Zanzibar-style) store, so membership is a `read` or `write` relation on the space object rather than a flat member list.
 
-## Not implemented yet
+## Signing
 
-- **Delegation tokens and space credentials** (`getDelegationToken`, `getSpaceCredential`) only work for Habitat-managed `did:web` identities. They cannot be minted for accounts on external PDSes, and the `did:web:public.habitat.network` DID document is not served yet. Read access for public spaces goes through OAuth, not credentials.
-- `limit`/`cursor` are accepted but not honored on `listRepos` and `listMembers`; `validate` on `putRecord` returns an error.
-- `network.habitat.space.createSpace`, `addMember`, and `removeMember` are deprecated aliases of the `simplespace` equivalents.
+Since Habitat doesn't have access to a user's private key, we can't sign commits and token using it. Instead we use the `did:web:pear.habitat.network#habitat` verification method. This is encoded in the signed artifacts themselves so verifying clients know when to use which verification method.
+
+### Commits
+
+Repo commit signatures use the `habitat-space-host-v1` as the protocol tag in the ctx instead of `atproto-space-v1`. This signals to verifiers to use the space authority's public key instead of the repo owner when verifying the commit.
+
+### Tokens
+
+The delegation tokens should be signed by the user's private key so that the space authority can verify their access before granting space credentials. Since Habitat is handling `space.getDelegationToken` we just use Habitat's private key to sign the token. The proposal requires `"kid": "#atproto"` in the space delegation JWT. Habitat set `"kid": "#habitat"` instead. Verifiers (which will mostly just be Habitat's `space.getSpaceCredential`) case based on kid to verify the token.
+
+
+[Endpoints](./endpoints.mdx) lists the full surface method by method along with deviations from the proposal.

@@ -1,0 +1,69 @@
+---
+id: endpoints
+slug: /space-proxy/endpoints
+sidebar_label: Endpoints
+sidebar_position: 3
+---
+
+# Endpoints
+
+Every endpoint is served at `https://pear.habitat.network/xrpc/{nsid}`. Each row links to its full request/response schema in the [HTTP reference](/docs/api/habitat-api) and names the method it corresponds to in the [permissioned data proposal](https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md).
+
+## Space management
+
+Proposal `com.atproto.simplespace.*`. All of these take OAuth; Habitat does not implement the proposal's `manage` scope operations, so authorization is the space's owner relation instead.
+
+| Habitat                                                                                           | Proposal       | Status                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| [`network.habitat.simplespace.createSpace`](/docs/api/network-habitat-simplespace-create-space)   | `createSpace`  | Implemented. The authority is assigned by Habitat rather than taken from the caller; `did` may only name the caller or the caller's org. |
+| [`network.habitat.simplespace.addMember`](/docs/api/network-habitat-simplespace-add-member)       | `addMember`    | Implemented, owner only. One membership relation grants read across the space and write to the member's own repo.                        |
+| [`network.habitat.simplespace.removeMember`](/docs/api/network-habitat-simplespace-remove-member) | `removeMember` | Implemented, owner only.                                                                                                                 |
+| [`network.habitat.simplespace.listMembers`](/docs/api/network-habitat-simplespace-list-members)   | `listMembers`  | Implemented. `cursor` is accepted but ignored — one unpaginated page.                                                                    |
+| [`network.habitat.simplespace.deleteSpace`](/docs/api/network-habitat-simplespace-delete-space)   | `deleteSpace`  | Implemented, owner only; fans out `notifySpaceDeleted`.                                                                                  |
+
+## Records and blobs
+
+Proposal `com.atproto.space.*`. Writes take OAuth and only ever target the caller's own repo; reads additionally accept a space credential or service auth.
+
+| Habitat                                                                               | Proposal       | Status                                                                                                                    |
+| ------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| [`network.habitat.space.putRecord`](/docs/api/network-habitat-space-put-record)       | `putRecord`    | Implemented. `validate` returns `NotSupported` — records are not checked against their lexicon.                           |
+| [`network.habitat.space.getRecord`](/docs/api/network-habitat-space-get-record)       | `getRecord`    | Implemented.                                                                                                              |
+| [`network.habitat.space.listRecords`](/docs/api/network-habitat-space-list-records)   | `listRecords`  | Implemented, including `excludeValues`. `limit`, `cursor`, and `reverse` are accepted but ignored — one unpaginated page. |
+| [`network.habitat.space.deleteRecord`](/docs/api/network-habitat-space-delete-record) | `deleteRecord` | Implemented.                                                                                                              |
+| [`network.habitat.space.getBlob`](/docs/api/network-habitat-space-get-blob)           | `getBlob`      | Implemented.                                                                                                              |
+| [`network.habitat.repo.uploadBlob`](/docs/api/network-habitat-repo-upload-blob)       | —              | Habitat extension. Upload a blob here first, then reference the returned blob in a space record.                          |
+
+## Sync
+
+Served by Habitat in both the space host and repo host roles, since it is both for every space it hosts. Callable with OAuth, a space credential, or service auth.
+
+| Habitat                                                                                      | Proposal          | Status                                                                                                                                                               |
+| -------------------------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`network.habitat.space.listSpaces`](/docs/api/network-habitat-space-list-spaces)            | `listSpaces`      | Implemented with `type`/`did` filters, but returns the spaces the caller can **read**, not just those it holds a repo in. `limit`/`cursor` accepted and ignored.     |
+| [`network.habitat.space.listRepos`](/docs/api/network-habitat-space-list-repos)              | `listRepos`       | Implemented. `limit`/`cursor` are accepted but ignored — one unpaginated page.                                                                                       |
+| [`network.habitat.space.listRepoOps`](/docs/api/network-habitat-space-list-repo-ops)         | `listRepoOps`     | Implemented with `since` and `limit` (default 100). The final page carries the signed commit; it is omitted when Habitat holds no signing key for that repo's owner. |
+| [`network.habitat.space.getLatestCommit`](/docs/api/network-habitat-space-get-latest-commit) | `getLatestCommit` | Implemented.                                                                                                                                                         |
+| [`network.habitat.space.getRepo`](/docs/api/network-habitat-space-get-repo)                  | `getRepo`         | Implemented. Returns the CAR with the signed commit and the DRISL index as its two roots.                                                                            |
+
+## Notifications
+
+| Habitat                                                                                            | Proposal             | Status                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`network.habitat.space.registerNotify`](/docs/api/network-habitat-space-register-notify)          | `registerNotify`     | Implemented on the space host, space credential only. Registrations expire after 24 hours and must be renewed.                             |
+| [`network.habitat.space.notifyWrite`](/docs/api/network-habitat-space-notify-write)                | `notifyWrite`        | Outbound only. Habitat delivers these to registered endpoints; it does not accept inbound ones, because it hosts every repo in its spaces. |
+| [`network.habitat.space.notifySpaceDeleted`](/docs/api/network-habitat-space-notify-space-deleted) | `notifySpaceDeleted` | Outbound only, same as `notifyWrite`.                                                                                                      |
+
+## Credentials
+
+| Habitat                                                                                            | Proposal             | Status                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`network.habitat.space.getDelegationToken`](/docs/api/network-habitat-space-get-delegation-token) | `getDelegationToken` | Implemented, OAuth, 60-second tokens. Signed with the user's own key for Habitat-managed identities and with Habitat's host key (`#habitat`) for accounts on external PDSes. |
+| [`network.habitat.space.getSpaceCredential`](/docs/api/network-habitat-space-get-space-credential) | `getSpaceCredential` | Implemented; requires a delegation token. Credentials last 1 hour (proposal default is 2), and `clientAttestation` returns `NotSupported`.                                   |
+
+## Not implemented
+
+- `com.atproto.space.createRecord` and `com.atproto.space.applyWrites` — use `putRecord`; there is no batched write.
+- `com.atproto.space.getSpace` and `com.atproto.simplespace.updateSpace` — spaces carry no host-specific `config` to describe or update.
+- `com.atproto.simplespace.checkUserAccess` — access is decided by Habitat's ACL store, with no callback to a managing app.
+- The `space:` OAuth scopes. Habitat access tokens carry the `atproto` scope, and per-space, per-collection, and per-action authorization is enforced in the ACL store instead.

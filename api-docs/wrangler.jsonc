@@ -1,0 +1,14 @@
+{
+  "name": "habitat-api-docs",
+  "compatibility_date": "2026-08-05",
+  "observability": {
+    "enabled": true,
+  },
+  "assets": {
+    // Docusaurus output; `pnpm build` honors OUT_DIR but defaults here.
+    "directory": "build",
+    // Serve Docusaurus' prerendered 404.html for unknown paths. This is a
+    // static site, not an SPA, so there is no client-side router to hand off to.
+    "not_found_handling": "404-page",
+  },
+}
