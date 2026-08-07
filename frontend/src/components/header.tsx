@@ -19,7 +19,7 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
           </li>
           {profile && (
             <>
-              {org && (
+              {org?.orgId && (
                 <li>
                   <Button variant="link" render={<Link to="/org" />}>
                     {org.name}

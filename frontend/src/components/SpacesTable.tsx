@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "internal/components/ui";
 import type { SpaceView } from "@/queries/spaces";
+import { DidHoverCard } from "@/components/DidHoverCard";
 
 export interface SpacesTableProps {
   spaces: SpaceView[];
@@ -77,13 +78,15 @@ export function SpacesTable({
                   className="font-mono text-xs text-muted-foreground"
                   title={parts?.spaceOwner}
                 >
-                  <Link
-                    to="/spaces/$spaceOwner"
-                    params={{ spaceOwner: parts.spaceOwner }}
-                    className="hover:underline"
-                  >
-                    {parts.spaceOwner}
-                  </Link>
+                  <DidHoverCard did={parts.spaceOwner}>
+                    <Link
+                      to="/spaces/$spaceOwner"
+                      params={{ spaceOwner: parts.spaceOwner }}
+                      className="hover:underline"
+                    >
+                      {parts.spaceOwner}
+                    </Link>
+                  </DidHoverCard>
                 </TableCell>
               )}
             </TableRow>

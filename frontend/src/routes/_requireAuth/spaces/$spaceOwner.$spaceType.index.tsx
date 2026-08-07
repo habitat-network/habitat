@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { spacesListQueryOptions } from "@/queries/spaces";
+import { DidHoverCard } from "@/components/DidHoverCard";
 import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
 import { SpacesTable } from "@/components/SpacesTable";
 import { SpacesPageLayout } from "@/components/SpacesPageLayout";
@@ -30,7 +31,11 @@ function SpacesByOwnerAndType() {
       subtitle={
         <>
           {spaces.length} space{spaces.length === 1 ? "" : "s"} of this type
-          owned by <span className="font-mono break-all">{spaceOwner}</span>.
+          owned by{" "}
+          <DidHoverCard did={spaceOwner} className="font-mono break-all">
+            {spaceOwner}
+          </DidHoverCard>
+          .
         </>
       }
     >
