@@ -59,28 +59,102 @@ func TestCreateSpace_OwnerIsMember(t *testing.T) {
 func TestListSpaces(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	_, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "space1")
+	space1, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "space1")
 	require.NoError(t, err)
 
-	spaceUri2, err := s.CreateSpace(t.Context(), orgId, alice, groupType, "space2")
+	space2, err := s.CreateSpace(t.Context(), orgId, alice, groupType, "space2")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), spaceUri2, owner, spaces.SpaceAccessRead)
+	// A read grant alone doesn't put a space on a member's listing: listSpaces
+	// reports the spaces the caller holds a repo in — the ones it has written
+	// to — and consults no access store.
+	err = s.AddMember(t.Context(), space2, owner, spaces.SpaceAccessRead)
 	require.NoError(t, err)
 
-	// Owner should see both
-	spaces, err := s.ListSpaces(t.Context(), orgId, owner, nil, nil)
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), space1, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	require.Len(t, spaces, 2)
+	_, _, err = s.PutRecord(t.Context(), space2, alice, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
 
-	// memberCount should be populated (at least 1 — the owner)
-	for _, sp := range spaces {
-		require.GreaterOrEqual(t, sp.MemberCount, 1)
-	}
-	// Alice should see 1
-	spaces, err = s.ListSpaces(t.Context(), orgId, alice, nil, nil)
+	// Owner sees the space it wrote to, not the one it was merely granted read
+	// access to.
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
+	require.Equal(t, space1, spaces[0])
+
+	// Alice sees the space she wrote to.
+	spaces, err = s.ListSpaces(t.Context(), alice, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, spaces, 1)
+	require.Equal(t, space2, spaces[0])
+}
+
+func TestListSpaces_OwningASpaceIsNotWritingToIt(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	space1, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "space1")
+	require.NoError(t, err)
+	space2, err := s.CreateSpace(t.Context(), orgId, alice, groupType, "space2")
+	require.NoError(t, err)
+
+	// Owning a space is not writing to it: the org holds no repo in either
+	// space yet, so it lists neither.
+	spaces, err := s.ListSpaces(t.Context(), orgId, nil, nil)
+	require.NoError(t, err)
+	require.Empty(t, spaces)
+
+	// A write on the org's behalf — how relationship tuples land in a space —
+	// puts that one space, and only that one, on its listing.
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), space1, orgId, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	spaces, err = s.ListSpaces(t.Context(), orgId, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, []habitat_syntax.SpaceURI{space1}, spaces)
+	require.NotContains(t, spaces, space2)
+}
+
+func TestListSpaces_LeavesListingAfterSpaceIsDeleted(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "space1")
+	require.NoError(t, err)
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	// Deleting the space drops its permissioned repos, so it leaves the
+	// listings of everyone who had written to it.
+	require.NoError(t, s.DeleteSpace(t.Context(), uri))
+
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
+	require.NoError(t, err)
+	require.Empty(t, spaces)
+}
+
+func TestListSpaces_LeavesListingAfterDeletingAllRecords(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, spaces, 1)
+
+	// Deleting the only record removes the repo from the writer set, so the
+	// space drops out of the caller's listing.
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))
+	spaces, err = s.ListSpaces(t.Context(), owner, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, spaces, 0)
 }
 
 func TestListSpaces_FilterByType(t *testing.T) {
@@ -88,16 +162,48 @@ func TestListSpaces_FilterByType(t *testing.T) {
 
 	personal := syntax.NSID("network.habitat.personal")
 
-	_, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "group1")
+	group1, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "group1")
 	require.NoError(t, err)
 
-	_, err = s.CreateSpace(t.Context(), orgId, owner, personal, "personal1")
+	personal1, err := s.CreateSpace(t.Context(), orgId, owner, personal, "personal1")
 	require.NoError(t, err)
 
-	spaces, err := s.ListSpaces(t.Context(), orgId, owner, nil, &groupType)
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), group1, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	require.Len(t, spaces, 1)
-	require.Equal(t, groupType, spaces[0].Type)
+	_, _, err = s.PutRecord(t.Context(), personal1, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, &groupType)
+	require.NoError(t, err)
+	require.Equal(t, []habitat_syntax.SpaceURI{group1}, spaces)
+}
+
+// The owner filter matches the DID inside the stored URI, so a DID carrying a
+// LIKE wildcard — a did:web percent-encodes the port it holds — must not match
+// any other owner.
+func TestListSpaces_FilterByOwnerWithWildcardInDID(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	orgWithPort := syntax.DID("did:web:example.com%3A8080")
+	// Differs from orgWithPort only where the % sits, so it matches if the %
+	// is left to act as a wildcard.
+	otherOrg := syntax.DID("did:web:example.comZZ3A8080")
+
+	wanted, err := s.CreateSpace(t.Context(), orgWithPort, owner, groupType, "space1")
+	require.NoError(t, err)
+	other, err := s.CreateSpace(t.Context(), otherOrg, owner, groupType, "space2")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), wanted, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(t.Context(), other, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	spaces, err := s.ListSpaces(t.Context(), owner, &orgWithPort, nil)
+	require.NoError(t, err)
+	require.Equal(t, []habitat_syntax.SpaceURI{wanted}, spaces)
 }
 
 func TestListSpaces_NilOwnerFilterSpansAllOrgs(t *testing.T) {
@@ -112,21 +218,23 @@ func TestListSpaces_NilOwnerFilterSpansAllOrgs(t *testing.T) {
 	spaceB, err := s.CreateSpace(t.Context(), orgB, member, groupType, "space-b")
 	require.NoError(t, err)
 
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), spaceA, member, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(t.Context(), spaceB, member, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
 	// With no owner filter, the member sees spaces across every org they
 	// belong to, not just one.
-	spaces, err := s.ListSpaces(t.Context(), orgA, member, nil, nil)
+	spaces, err := s.ListSpaces(t.Context(), member, nil, nil)
 	require.NoError(t, err)
-	uris := make([]habitat_syntax.SpaceURI, len(spaces))
-	for i, sp := range spaces {
-		uris[i] = sp.URI
-	}
-	require.ElementsMatch(t, []habitat_syntax.SpaceURI{spaceA, spaceB}, uris)
+	require.ElementsMatch(t, []habitat_syntax.SpaceURI{spaceA, spaceB}, spaces)
 
 	// Filtering by a specific org owner restricts the results to that org.
-	spaces, err = s.ListSpaces(t.Context(), orgA, member, &orgA, nil)
+	spaces, err = s.ListSpaces(t.Context(), member, &orgA, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
-	require.Equal(t, spaceA, spaces[0].URI)
+	require.Equal(t, spaceA, spaces[0])
 }
 
 func TestListRepos_Empty(t *testing.T) {

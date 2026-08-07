@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
@@ -56,14 +57,6 @@ type spaceRepo struct {
 	DeletedAt gorm.DeletedAt
 }
 
-// SpaceView is the public representation of a space
-type SpaceView struct {
-	URI         habitat_syntax.SpaceURI
-	Type        syntax.NSID
-	Skey        habitat_syntax.SpaceKey
-	MemberCount int
-}
-
 // RepoInfo holds a repo's DID and latest rev within a space
 type RepoInfo struct {
 	DID  syntax.DID
@@ -110,14 +103,16 @@ type Store interface {
 		spaceType syntax.NSID,
 		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
-	// ListSpaces returns the spaces that `member` is a part of
+	// ListSpaces returns the URIs of the spaces `member` holds a permissioned
+	// repo in — the spaces it has written at least one record to — most
+	// recently written first. A space `member` owns but has never written to is
+	// not listed, and neither is one whose records it has since deleted.
 	ListSpaces(
 		ctx context.Context,
-		org syntax.DID,
 		member syntax.DID,
 		filterOwner *syntax.DID,
 		filterType *syntax.NSID,
-	) ([]SpaceView, error)
+	) ([]habitat_syntax.SpaceURI, error)
 
 	// Member operations
 	AddMember(
@@ -318,72 +313,53 @@ func (s *store) CreateSpace(
 
 func (s *store) ListSpaces(
 	ctx context.Context,
-	org syntax.DID,
 	member syntax.DID,
 	filterOwner *syntax.DID,
 	filterType *syntax.NSID,
-) ([]SpaceView, error) {
-	var conditions *gorm.DB
-	if member == "" {
-		conditions = s.db
-	} else {
-		// If member is the org itself, include all the org's spaces. This initial condition
-		// is always false for user members since they are never owners of a space.
-		conditions = s.db.Where("owner = ?", member)
-		fgaObjects, err := s.fga.ListObjects(
-			ctx,
-			fgastore.MemberUserString(member),
-			"can_read",
-			"space",
-			fgastore.OrgMemberContextualTuple(org),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("list fga spaces: %w", err)
-		}
-		for _, key := range fgaObjects {
-			uri, err := fgastore.ParseSpaceObjectKey(key)
-			if err != nil {
-				return nil, fmt.Errorf("parse space object key: %w", err)
-			}
-			conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey())
-		}
+) ([]habitat_syntax.SpaceURI, error) {
+	// The writer set is the whole answer: spaceRepo holds one row per repo a
+	// member has written into a space, keyed by the space URI, so the URIs are
+	// read straight out of it. The spaces table is not consulted, which means a
+	// space nobody has written to is not listed at all.
+	query := s.db.WithContext(ctx).
+		Model(&spaceRepo{}).
+		Where("repo = ?", member)
+	if filterOwner != nil || filterType != nil {
+		query = query.Where(`space LIKE ? ESCAPE '\'`, spaceURIPattern(filterOwner, filterType))
 	}
 
-	query := s.db.WithContext(ctx).Model(&space{}).Where(conditions).Distinct()
-	if filterOwner != nil {
-		query = query.Where("owner = ?", *filterOwner)
+	var uris []habitat_syntax.SpaceURI
+	if err := query.Order("updated_at DESC").Pluck("space", &uris).Error; err != nil {
+		return nil, fmt.Errorf("list written spaces: %w", err)
 	}
-	if filterType != nil {
-		query = query.Where("type = ?", *filterType)
-	}
+	return uris, nil
+}
 
-	var rows []space
-	if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
-		return nil, err
+// spaceURIPattern builds a LIKE pattern matching the stored space URIs with the
+// given owner and type; a nil filter matches any value. Stored URIs are always
+// in the current format ("at://<did>/space/<type>/<skey>"), whose literal
+// separators anchor each component — and since neither a DID nor an NSID can
+// contain "/", a wildcard cannot spill into the neighbouring component.
+func spaceURIPattern(owner *syntax.DID, spaceType *syntax.NSID) string {
+	ownerPattern := "%"
+	if owner != nil {
+		ownerPattern = escapeLike(owner.String())
 	}
+	typePattern := "%"
+	if spaceType != nil {
+		typePattern = escapeLike(spaceType.String())
+	}
+	return fmt.Sprintf("at://%s/space/%s/%%", ownerPattern, typePattern)
+}
 
-	views := make([]SpaceView, len(rows))
-	for i, row := range rows {
-		uri := habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey)
-		fgaUsers, err := s.fga.ListUsers(
-			ctx,
-			fgastore.SpaceObjectKey(uri),
-			"can_read",
-			ownerContextualTuple(uri),
-			fgastore.OrgMemberContextualTuple(org),
-		)
-		memberCount := 0
-		if err == nil {
-			memberCount = len(fgaUsers)
-		}
-		views[i] = SpaceView{
-			URI:         uri,
-			Type:        row.Type,
-			Skey:        row.Skey,
-			MemberCount: memberCount,
-		}
-	}
-	return views, nil
+// likeEscaper escapes the LIKE wildcards in a value interpolated into a
+// pattern, for use with "ESCAPE '\'". A DID can legitimately carry both: a
+// did:web holding a port percent-encodes it (did:web:example.com%3A8080), and %
+// would otherwise match anything.
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+func escapeLike(s string) string {
+	return likeEscaper.Replace(s)
 }
 
 // loadRepoHash reads a repo's cached LtHash state and rev, or the zero hash and
@@ -829,6 +805,15 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 		if err := tx.
 			Where("space = ?", uri).
 			Delete(&spaceRecord{}).Error; err != nil {
+			return err
+		}
+
+		// Drop the permissioned repos along with the records they cached a
+		// hash of. They are the writer set listSpaces reads, so leaving them
+		// behind would keep a deleted space on its writers' listings.
+		if err := tx.
+			Where("space = ?", uri).
+			Delete(&spaceRepo{}).Error; err != nil {
 			return err
 		}
 

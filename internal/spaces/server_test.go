@@ -235,6 +235,10 @@ func TestServer_ListSpaces(t *testing.T) {
 	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "my-space")
 	require.NoError(t, err)
 
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listSpaces",
