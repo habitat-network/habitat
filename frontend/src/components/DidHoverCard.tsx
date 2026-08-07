@@ -38,7 +38,9 @@ export function DidHoverCard({ did, children, className }: DidHoverCardProps) {
 
   return (
     <HoverCard open={open} onOpenChange={setOpen}>
-      <HoverCardTrigger render={<span className={className}>{children}</span>} />
+      <HoverCardTrigger
+        render={<span className={className}>{children}</span>}
+      />
       <HoverCardContent>
         {profile ? (
           <div className="flex flex-col gap-2">

@@ -34,7 +34,8 @@ function SpacesByOwnerAndType() {
           owned by{" "}
           <DidHoverCard did={spaceOwner} className="font-mono break-all">
             {spaceOwner}
-          </DidHoverCard>.
+          </DidHoverCard>
+          .
         </>
       }
     >
