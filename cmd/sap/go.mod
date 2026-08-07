@@ -3,7 +3,7 @@ module github.com/habitat-network/habitat/cmd/sap
 go 1.26.3
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537
+	github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/stretchr/testify v1.11.1
