@@ -28,8 +28,8 @@ func (s *stubIndex) Query(ctx context.Context, params QueryParams) (QueryResult,
 func TestServer_HandleQuery_FiltersByResolvedOrg(t *testing.T) {
 	index := &stubIndex{result: QueryResult{
 		Results: []Result{{
-			URI:        "ats://did:plc:org1/.../rkey1",
-			SpaceURI:   "ats://did:plc:org1/app.space/skey1",
+			URI:        "at://did:plc:org1/space/.../rkey1",
+			SpaceURI:   "at://did:plc:org1/space/app.space/skey1",
 			Collection: "network.habitat.note",
 			Snippet:    "<b>budget</b> notes",
 			Rank:       0.5,
@@ -50,7 +50,7 @@ func TestServer_HandleQuery_FiltersByResolvedOrg(t *testing.T) {
 	var out habitat.NetworkHabitatSearchQueryOutput
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
 	require.Len(t, out.Results, 1)
-	require.Equal(t, "ats://did:plc:org1/.../rkey1", out.Results[0].Uri)
+	require.Equal(t, "at://did:plc:org1/space/.../rkey1", out.Results[0].Uri)
 	require.Equal(t, int64(500000), out.Results[0].Rank)
 }
 

@@ -12,7 +12,7 @@ documents for the orgs sap manages.
   forwarding to pear. The docs server holds no credential and no per-org config.
 - Resolves the **caller's org from membership**: sap's `/org/list` names the
   managed orgs, and `network.habitat.relationship.listSubjects` on each org's
-  self space (`ats://<org>/network.habitat.organization/self`, relation
+  self space (`at://<org>/space/network.habitat.organization/self`, relation
   `reader`) yields its members. The resulting user→org map is cached briefly
   and consulted on every request.
 - Is the **sole writer** of the canonical doc record. It writes

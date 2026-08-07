@@ -37,7 +37,7 @@ func TestCrawler(t *testing.T) {
 				Spaces: []habitat.NetworkHabitatSpaceListSpacesSpaceView{
 					{
 						Uri: fmt.Sprintf(
-							"ats://%s/network.habitat.space/my-space",
+							"at://%s/space/network.habitat.space/my-space",
 							strings.TrimPrefix(r.Header.Get("Authorization"), "DPoP "),
 						),
 						IsOwner: false,
@@ -137,7 +137,7 @@ func TestCrawler_Error(t *testing.T) {
 				Spaces: []habitat.NetworkHabitatSpaceListSpacesSpaceView{
 					{
 						Uri: fmt.Sprintf(
-							"ats://%s/network.habitat.space/my-space",
+							"at://%s/space/network.habitat.space/my-space",
 							strings.TrimPrefix(r.Header.Get("Authorization"), "DPoP "),
 						),
 						IsOwner: false,

@@ -21,8 +21,8 @@ func recordURI(space, repo, collection, rkey string) habitat_syntax.SpaceRecordU
 }
 
 const (
-	space1 = "ats://did:web:org/network.habitat.space/spaceone"
-	space2 = "ats://did:web:org/network.habitat.space/spacetwo"
+	space1 = "at://did:web:org/space/network.habitat.space/spaceone"
+	space2 = "at://did:web:org/space/network.habitat.space/spacetwo"
 )
 
 // seedRecords indexes a small fixture: record A lives in both spaces, B only in

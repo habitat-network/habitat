@@ -22,7 +22,7 @@ func writeOutboxEvent(
 ) {
 	t.Helper()
 	recordURI := habitat_syntax.SpaceRecordURI(fmt.Sprintf(
-		"ats://did:plc:testorg/network.habitat.space/my-space/%s/network.habitat.note/%s",
+		"at://did:plc:testorg/space/network.habitat.space/my-space/%s/network.habitat.note/%s",
 		repoDID, rev,
 	))
 	event := events.Event{
@@ -47,7 +47,7 @@ func TestOutbox_PollOrdersByIDAndRespectsLimit(t *testing.T) {
 	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
 	out := newOutbox(db, utils.NewPollNotifier())
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
+	space := habitat_syntax.SpaceURI("at://did:plc:testorg/space/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
 	require.NoError(t, ensureRepo(db, t.Context(), space, repoDID))
 	require.NoError(t, setActive(db, t.Context(), space, repoDID, ""))
@@ -73,7 +73,7 @@ func TestOutbox_AckPreventsRedelivery(t *testing.T) {
 	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
 	out := newOutbox(db, utils.NewPollNotifier())
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
+	space := habitat_syntax.SpaceURI("at://did:plc:testorg/space/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
 	require.NoError(t, ensureRepo(db, t.Context(), space, repoDID))
 	require.NoError(t, setActive(db, t.Context(), space, repoDID, ""))
@@ -99,7 +99,7 @@ func TestOutbox_PollRedeliversUnackedMessages(t *testing.T) {
 	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
 	out := newOutbox(db, utils.NewPollNotifier())
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
+	space := habitat_syntax.SpaceURI("at://did:plc:testorg/space/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
 	require.NoError(t, ensureRepo(db, t.Context(), space, repoDID))
 	require.NoError(t, setActive(db, t.Context(), space, repoDID, ""))
@@ -125,7 +125,7 @@ func TestOutbox_WatchNotifiesOnNewMessage(t *testing.T) {
 	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), outboxNotif)
 	out := newOutbox(db, outboxNotif)
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
+	space := habitat_syntax.SpaceURI("at://did:plc:testorg/space/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
 	require.NoError(t, ensureRepo(db, t.Context(), space, repoDID))
 	require.NoError(t, setActive(db, t.Context(), space, repoDID, ""))

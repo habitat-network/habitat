@@ -71,7 +71,7 @@ func mustMarshal(t *testing.T, v any) json.RawMessage {
 
 func TestIndexer_UpsertsMessageWithValue(t *testing.T) {
 	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:org1/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+		"at://did:plc:org1/space/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
 	index := &fakeIndex{}
 	outbox := newFakeOutbox([]sap.OutboxMessage{
@@ -87,7 +87,7 @@ func TestIndexer_UpsertsMessageWithValue(t *testing.T) {
 	require.Equal(t, recordURI, index.upserted[0].URI)
 	require.Equal(
 		t,
-		habitat_syntax.SpaceURI("ats://did:plc:org1/network.habitat.space/skey1"),
+		habitat_syntax.SpaceURI("at://did:plc:org1/space/network.habitat.space/skey1"),
 		index.upserted[0].SpaceURI,
 	)
 	require.Equal(t, "did:plc:org1", index.upserted[0].OrgDID.String())
@@ -98,7 +98,7 @@ func TestIndexer_UpsertsMessageWithValue(t *testing.T) {
 
 func TestIndexer_DeletesOnNullValue(t *testing.T) {
 	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:org1/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+		"at://did:plc:org1/space/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
 	index := &fakeIndex{}
 	outbox := newFakeOutbox([]sap.OutboxMessage{
@@ -115,7 +115,7 @@ func TestIndexer_DeletesOnNullValue(t *testing.T) {
 
 func TestIndexer_DoesNotAckOnHandleFailure(t *testing.T) {
 	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:org1/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+		"at://did:plc:org1/space/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
 	index := &fakeIndex{}
 	// Malformed JSON: handleMessage fails to unmarshal it, so it must be

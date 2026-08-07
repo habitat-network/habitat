@@ -79,7 +79,7 @@ func TestServer_OutboxChannelDeliversAndAcks(t *testing.T) {
 
 	httpServer, s, db := openOutboxTestServer(t)
 
-	uri := "ats://did:plc:org/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1"
+	uri := "at://did:plc:org/space/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1"
 	id := createOutboxRow(t, db, uri, `{"text":"hello"}`)
 
 	conn := dialOutboxChannel(t, httpServer)
@@ -113,7 +113,7 @@ func TestServer_OutboxChannelRedeliversUnackedAfterReconnect(t *testing.T) {
 
 	httpServer, _, db := openOutboxTestServer(t)
 
-	uri := "ats://did:plc:org/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1"
+	uri := "at://did:plc:org/space/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1"
 	id := createOutboxRow(t, db, uri, `{"text":"hello"}`)
 
 	conn := dialOutboxChannel(t, httpServer)

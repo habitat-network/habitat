@@ -166,7 +166,7 @@ func (rb *resyncBuffer) drainRepo(
 func (rb *resyncBuffer) drainOrg(ctx context.Context, orgDID syntax.DID) error {
 	var repos []managedRepo
 	if err := rb.db.WithContext(ctx).
-		Where("space LIKE ? AND state = ?", "ats://"+orgDID.String()+"/%", RepoStateActive).
+		Where("space LIKE ? AND state = ?", "at://"+orgDID.String()+"/space/%", RepoStateActive).
 		Find(&repos).Error; err != nil {
 		return fmt.Errorf("load active repos: %w", err)
 	}
@@ -189,7 +189,7 @@ func (rb *resyncBuffer) drainOrg(ctx context.Context, orgDID syntax.DID) error {
 
 func (rb *resyncBuffer) clearOrg(ctx context.Context, orgDID syntax.DID) error {
 	return rb.db.WithContext(ctx).
-		Where("space LIKE ?", "ats://"+orgDID.String()+"/%").
+		Where("space LIKE ?", "at://"+orgDID.String()+"/space/%").
 		Delete(&bufferedEvent{}).Error
 }
 

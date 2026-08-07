@@ -99,7 +99,11 @@ func TestServer_CreateSpace(t *testing.T) {
 	var output habitat.NetworkHabitatSpaceCreateSpaceOutput
 	err := json.NewDecoder(w.Body).Decode(&output)
 	require.NoError(t, err)
-	require.Contains(t, output.Uri, "ats://did:web:everyone.example.com/network.habitat.group/")
+	require.Contains(
+		t,
+		output.Uri,
+		"at://did:web:everyone.example.com/space/network.habitat.group/",
+	)
 }
 
 func TestServer_UploadAndGetBlob(t *testing.T) {
@@ -140,6 +144,28 @@ func TestServer_UploadAndGetBlob(t *testing.T) {
 	body, err := io.ReadAll(getW.Body)
 	require.NoError(t, err)
 	require.Equal(t, "hello blobs", string(body))
+}
+
+func TestServer_UploadBlob_RejectsOversized(t *testing.T) {
+	s := newTestServerWithOpts(t,
+		testServerOptions{
+			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
+			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
+		},
+	)
+
+	// 500 KiB upload limit + 1 byte must be rejected.
+	oversized := make([]byte, 500*1024+1)
+	upReq := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.repo.uploadBlob",
+		bytes.NewReader(oversized),
+	)
+	upReq.Header.Set("Content-Type", "application/octet-stream")
+	upW := httptest.NewRecorder()
+	s.UploadBlob(upW, upReq)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, upW.Code)
 }
 
 func TestServer_ListSpaces(t *testing.T) {
@@ -474,8 +500,8 @@ func TestServer_GetRepo(t *testing.T) {
 	hash, ok := commit["hash"].(atdata.Bytes)
 	require.True(t, ok)
 
-	// External author (did:plc:owner) → host-signed under the host tag.
-	ctxBytes := spacecommit.Ctx(spacecommit.HostProtocolTag, uri, owner, rev, ikm)
+	// External author (did:plc:owner) → host-signed, so verify with the host key.
+	ctxBytes := spacecommit.Ctx(uri, owner, rev, ikm)
 	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
 
 	// The committed hash matches the repo's current LtHash state.
@@ -765,8 +791,8 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	sig := decodeB64(t, out.Commit.Sig)
 	require.Len(t, ikm, 32)
 
-	// External author (did:plc:owner) → host-signed under the host tag.
-	ctxBytes := spacecommit.Ctx(spacecommit.HostProtocolTag, uri, owner, out.Commit.Rev, ikm)
+	// External author (did:plc:owner) → host-signed, so verify with the host key.
+	ctxBytes := spacecommit.Ctx(uri, owner, out.Commit.Rev, ikm)
 	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
 
 	_, wantHash, found, err := s.Store.RepoHead(t.Context(), uri, owner)
@@ -814,7 +840,7 @@ func TestServer_GetLatestCommit(t *testing.T) {
 	sig := decodeB64(t, out.Commit.Sig)
 	require.Len(t, ikm, 32)
 
-	ctxBytes := spacecommit.Ctx(spacecommit.HostProtocolTag, uri, owner, out.Commit.Rev, ikm)
+	ctxBytes := spacecommit.Ctx(uri, owner, out.Commit.Rev, ikm)
 	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
 
 	rev, wantHash, found, err := s.Store.RepoHead(t.Context(), uri, owner)

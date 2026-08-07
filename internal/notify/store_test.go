@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	space = habitat_syntax.SpaceURI("ats://did:plc:org/network.habitat.group/s1")
+	space = habitat_syntax.SpaceURI("at://did:plc:org/space/network.habitat.group/s1")
 	repo  = syntax.DID("did:plc:alice")
 	bob   = syntax.DID("did:plc:bob")
 )
@@ -66,7 +66,7 @@ func TestStoreRegisterRefreshesExpiry(t *testing.T) {
 func TestStoreListForSpace(t *testing.T) {
 	s := newTestStore(t)
 	future := time.Now().Add(time.Hour)
-	other := habitat_syntax.SpaceURI("ats://did:plc:org/network.habitat.group/other")
+	other := habitat_syntax.SpaceURI("at://did:plc:org/space/network.habitat.group/other")
 
 	require.NoError(t, s.Register(t.Context(), space, "", "https://sync.example/all", future))
 	require.NoError(t, s.Register(t.Context(), space, repo, "https://sync.example/alice", future))

@@ -31,7 +31,7 @@ func TestSpaceCredentialAuthMethod_CanHandle(t *testing.T) {
 
 func TestSpaceCredentialAuthMethod_Validate(t *testing.T) {
 	dir := pdsclient.NewDummyDirectory("https://pds.com")
-	spaceURI := habitat_syntax.SpaceURI("ats://did:web:example.com/test.space.type/abc")
+	spaceURI := habitat_syntax.SpaceURI("at://did:web:example.com/space/test.space.type/abc")
 	token, err := new(jwt.Token{
 		Header: map[string]any{
 			"typ": "atproto-space-credential+jwt",
@@ -80,7 +80,7 @@ func TestSpaceCredentialAuthMethod_Validate_InvalidToken(t *testing.T) {
 			},
 			Claims: jwt.MapClaims{
 				"iss": "did:web:example.com",
-				"sub": "ats://did:web:other.example.com/test.space.type/abc",
+				"sub": "at://did:web:other.example.com/space/test.space.type/abc",
 				"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			},
 			Method: jwt.GetSigningMethod("ES256K"),
