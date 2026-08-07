@@ -500,8 +500,8 @@ func TestServer_GetRepo(t *testing.T) {
 	hash, ok := commit["hash"].(atdata.Bytes)
 	require.True(t, ok)
 
-	// External author (did:plc:owner) → host-signed under the host tag.
-	ctxBytes := spacecommit.Ctx(spacecommit.HostProtocolTag, uri, owner, rev, ikm)
+	// External author (did:plc:owner) → host-signed, so verify with the host key.
+	ctxBytes := spacecommit.Ctx(uri, owner, rev, ikm)
 	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
 
 	// The committed hash matches the repo's current LtHash state.
@@ -791,8 +791,8 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	sig := decodeB64(t, out.Commit.Sig)
 	require.Len(t, ikm, 32)
 
-	// External author (did:plc:owner) → host-signed under the host tag.
-	ctxBytes := spacecommit.Ctx(spacecommit.HostProtocolTag, uri, owner, out.Commit.Rev, ikm)
+	// External author (did:plc:owner) → host-signed, so verify with the host key.
+	ctxBytes := spacecommit.Ctx(uri, owner, out.Commit.Rev, ikm)
 	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
 
 	_, wantHash, found, err := s.Store.RepoHead(t.Context(), uri, owner)
@@ -840,7 +840,7 @@ func TestServer_GetLatestCommit(t *testing.T) {
 	sig := decodeB64(t, out.Commit.Sig)
 	require.Len(t, ikm, 32)
 
-	ctxBytes := spacecommit.Ctx(spacecommit.HostProtocolTag, uri, owner, out.Commit.Rev, ikm)
+	ctxBytes := spacecommit.Ctx(uri, owner, out.Commit.Rev, ikm)
 	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
 
 	rev, wantHash, found, err := s.Store.RepoHead(t.Context(), uri, owner)
