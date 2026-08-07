@@ -8,7 +8,6 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
-github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537 h1:rHaND0argSxgbmE2ix/YuF11xXTtiP3oGUz4fS2Diqo=
 github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb h1:OYUfO21BK5iO60+ij0L3ugCeawRqD/CbhoWDCpBw6tg=
 github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb/go.mod h1:JqQkz8lrOI6YZivP38GHmtVOTtzsNToITKj1gMpU5Jo=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=

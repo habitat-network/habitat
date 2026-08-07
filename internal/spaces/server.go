@@ -134,7 +134,7 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		if parsedDID != credInfo.Subject || parsedDID != credInfo.Org.DID() {
+		if parsedDID != credInfo.Subject && parsedDID != credInfo.Org.DID() {
 			httpx.WriteInvalidRequest(ctx, w, "only caller did or caller org are allowed", nil)
 			return
 		}
