@@ -58,14 +58,14 @@ function SpaceTypesList() {
   return (
     <SpacesPageLayout
       title="Spaces"
-      subtitle="The spaces you have permission to, grouped by type."
+      subtitle="The spaces you've written to, grouped by type."
     >
       <CreateSpaceForm />
 
       {types.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            You aren’t in any spaces yet. Create one to get started.
+            You haven’t written to any spaces yet. Create one to get started.
           </CardContent>
         </Card>
       ) : (

@@ -59,28 +59,78 @@ func TestCreateSpace_OwnerIsMember(t *testing.T) {
 func TestListSpaces(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	_, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "space1")
+	space1, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "space1")
 	require.NoError(t, err)
 
-	spaceUri2, err := s.CreateSpace(t.Context(), orgId, alice, groupType, "space2")
+	space2, err := s.CreateSpace(t.Context(), orgId, alice, groupType, "space2")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), spaceUri2, owner, spaces.SpaceAccessRead)
+	// A read grant alone doesn't put a space on a member's listing: listSpaces
+	// reports the spaces the caller holds a repo in — the ones it has written
+	// to — and consults no access store.
+	err = s.AddMember(t.Context(), space2, owner, spaces.SpaceAccessRead)
 	require.NoError(t, err)
 
-	// Owner should see both
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), space1, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(t.Context(), space2, alice, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	// Owner sees the space it wrote to, not the one it was merely granted read
+	// access to.
 	spaces, err := s.ListSpaces(t.Context(), orgId, owner, nil, nil)
 	require.NoError(t, err)
-	require.Len(t, spaces, 2)
+	require.Len(t, spaces, 1)
+	require.Equal(t, space1, spaces[0].URI)
 
-	// memberCount should be populated (at least 1 — the owner)
-	for _, sp := range spaces {
-		require.GreaterOrEqual(t, sp.MemberCount, 1)
-	}
-	// Alice should see 1
+	// Alice sees the space she wrote to.
 	spaces, err = s.ListSpaces(t.Context(), orgId, alice, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
+	require.Equal(t, space2, spaces[0].URI)
+}
+
+func TestListSpaces_OrgListsAllItsSpaces(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	space1, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "space1")
+	require.NoError(t, err)
+	space2, err := s.CreateSpace(t.Context(), orgId, alice, groupType, "space2")
+	require.NoError(t, err)
+
+	// The org is the space authority: it lists every space it owns even when
+	// it holds no repo there. This is the enumeration the sap crawler relies
+	// on, and it involves no FGA.
+	spaces, err := s.ListSpaces(t.Context(), orgId, orgId, nil, nil)
+	require.NoError(t, err)
+	uris := make([]habitat_syntax.SpaceURI, len(spaces))
+	for i, sp := range spaces {
+		uris[i] = sp.URI
+	}
+	require.ElementsMatch(t, []habitat_syntax.SpaceURI{space1, space2}, uris)
+}
+
+func TestListSpaces_LeavesListingAfterDeletingAllRecords(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	spaces, err := s.ListSpaces(t.Context(), orgId, owner, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, spaces, 1)
+
+	// Deleting the only record removes the repo from the writer set, so the
+	// space drops out of the caller's listing.
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))
+	spaces, err = s.ListSpaces(t.Context(), orgId, owner, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, spaces, 0)
 }
 
 func TestListSpaces_FilterByType(t *testing.T) {
@@ -88,10 +138,16 @@ func TestListSpaces_FilterByType(t *testing.T) {
 
 	personal := syntax.NSID("network.habitat.personal")
 
-	_, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "group1")
+	group1, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "group1")
 	require.NoError(t, err)
 
-	_, err = s.CreateSpace(t.Context(), orgId, owner, personal, "personal1")
+	personal1, err := s.CreateSpace(t.Context(), orgId, owner, personal, "personal1")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), group1, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(t.Context(), personal1, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
 	spaces, err := s.ListSpaces(t.Context(), orgId, owner, nil, &groupType)
@@ -110,6 +166,12 @@ func TestListSpaces_NilOwnerFilterSpansAllOrgs(t *testing.T) {
 	spaceA, err := s.CreateSpace(t.Context(), orgA, member, groupType, "space-a")
 	require.NoError(t, err)
 	spaceB, err := s.CreateSpace(t.Context(), orgB, member, groupType, "space-b")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), spaceA, member, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(t.Context(), spaceB, member, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
 	// With no owner filter, the member sees spaces across every org they

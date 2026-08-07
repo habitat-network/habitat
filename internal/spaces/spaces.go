@@ -58,10 +58,9 @@ type spaceRepo struct {
 
 // SpaceView is the public representation of a space
 type SpaceView struct {
-	URI         habitat_syntax.SpaceURI
-	Type        syntax.NSID
-	Skey        habitat_syntax.SpaceKey
-	MemberCount int
+	URI  habitat_syntax.SpaceURI
+	Type syntax.NSID
+	Skey habitat_syntax.SpaceKey
 }
 
 // RepoInfo holds a repo's DID and latest rev within a space
@@ -110,7 +109,9 @@ type Store interface {
 		spaceType syntax.NSID,
 		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
-	// ListSpaces returns the spaces that `member` is a part of
+	// ListSpaces returns the spaces `member` holds a permissioned repo in (has
+	// written at least one record to), plus every space `member` owns — the org
+	// authority listing all of its spaces. An empty member returns all spaces.
 	ListSpaces(
 		ctx context.Context,
 		org syntax.DID,
@@ -327,25 +328,28 @@ func (s *store) ListSpaces(
 	if member == "" {
 		conditions = s.db
 	} else {
-		// If member is the org itself, include all the org's spaces. This initial condition
-		// is always false for user members since they are never owners of a space.
+		// The caller sees the spaces it owns (the org authority enumerating
+		// all of its spaces, as the sap crawler relies on) plus the spaces it
+		// has written at least one record into. The writer set is the cached
+		// spaceRepo table, so no access store is consulted.
 		conditions = s.db.Where("owner = ?", member)
-		fgaObjects, err := s.fga.ListObjects(
-			ctx,
-			fgastore.MemberUserString(member),
-			"can_read",
-			"space",
-			fgastore.OrgMemberContextualTuple(org),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("list fga spaces: %w", err)
+		var spaceURIs []string
+		if err := s.db.WithContext(ctx).
+			Model(&spaceRepo{}).
+			Where("repo = ?", member).
+			Distinct().
+			Pluck("space", &spaceURIs).Error; err != nil {
+			return nil, fmt.Errorf("list written spaces: %w", err)
 		}
-		for _, key := range fgaObjects {
-			uri, err := fgastore.ParseSpaceObjectKey(key)
+		for _, uriStr := range spaceURIs {
+			uri, err := habitat_syntax.ParseSpaceURI(uriStr)
 			if err != nil {
-				return nil, fmt.Errorf("parse space object key: %w", err)
+				return nil, fmt.Errorf("parse space uri: %w", err)
 			}
-			conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey())
+			conditions = conditions.Or(
+				"owner = ? AND type = ? AND skey = ?",
+				uri.SpaceOwner(), uri.SpaceType(), uri.Skey(),
+			)
 		}
 	}
 
@@ -364,23 +368,10 @@ func (s *store) ListSpaces(
 
 	views := make([]SpaceView, len(rows))
 	for i, row := range rows {
-		uri := habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey)
-		fgaUsers, err := s.fga.ListUsers(
-			ctx,
-			fgastore.SpaceObjectKey(uri),
-			"can_read",
-			ownerContextualTuple(uri),
-			fgastore.OrgMemberContextualTuple(org),
-		)
-		memberCount := 0
-		if err == nil {
-			memberCount = len(fgaUsers)
-		}
 		views[i] = SpaceView{
-			URI:         uri,
-			Type:        row.Type,
-			Skey:        row.Skey,
-			MemberCount: memberCount,
+			URI:  habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey),
+			Type: row.Type,
+			Skey: row.Skey,
 		}
 	}
 	return views, nil
