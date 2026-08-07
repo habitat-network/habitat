@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
@@ -103,9 +104,9 @@ type Store interface {
 		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
 	// ListSpaces returns the URIs of the spaces `member` holds a permissioned
-	// repo in (has written at least one record to), plus every space `member`
-	// owns — the org authority listing all of its spaces. An empty member
-	// returns all spaces.
+	// repo in — the spaces it has written at least one record to — most
+	// recently written first. A space `member` owns but has never written to is
+	// not listed, and neither is one whose records it has since deleted.
 	ListSpaces(
 		ctx context.Context,
 		member syntax.DID,
@@ -316,37 +317,29 @@ func (s *store) ListSpaces(
 	filterOwner *syntax.DID,
 	filterType *syntax.NSID,
 ) ([]habitat_syntax.SpaceURI, error) {
-	query := s.db.WithContext(ctx).Model(&space{})
-	if member != "" {
-		// spaceRepo keys rows by the whole space URI, so the correlated subquery
-		// re-derives that URI from the space's (owner, type, skey) columns
-		// rather than reading the writer set in a second round trip.
-		writtenBy := s.db.
-			Model(&spaceRepo{}).
-			Select("1").
-			Where("repo = ?", member).
-			Where("space = ?", gorm.Expr("'at://' || spaces.owner || '/space/' || spaces.type || '/' || spaces.skey"))
-		query = query.Where(
-			s.db.Where("owner = ?", member).Or("EXISTS (?)", writtenBy),
-		)
-	}
-	if filterOwner != nil {
-		query = query.Where("owner = ?", *filterOwner)
-	}
-	if filterType != nil {
-		query = query.Where("type = ?", *filterType)
+	// The writer set is the whole answer: spaceRepo holds one row per repo a
+	// member has written into a space, keyed by the space URI, so the URIs are
+	// read straight out of it. The spaces table is not consulted, which means a
+	// space nobody has written to is not listed at all.
+	var uris []habitat_syntax.SpaceURI
+	if err := s.db.WithContext(ctx).
+		Model(&spaceRepo{}).
+		Where("repo = ?", member).
+		Order("updated_at DESC").
+		Pluck("space", &uris).Error; err != nil {
+		return nil, fmt.Errorf("list written spaces: %w", err)
 	}
 
-	var rows []space
-	if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
-		return nil, err
+	// The filters read the owner and type out of the URI rather than matching a
+	// prefix in SQL, so the URI encoding stays the syntax package's business. A
+	// member's writer set is small enough that this costs nothing.
+	if filterOwner == nil && filterType == nil {
+		return uris, nil
 	}
-
-	uris := make([]habitat_syntax.SpaceURI, len(rows))
-	for i, row := range rows {
-		uris[i] = habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey)
-	}
-	return uris, nil
+	return slices.DeleteFunc(uris, func(uri habitat_syntax.SpaceURI) bool {
+		return (filterOwner != nil && uri.SpaceOwner() != *filterOwner) ||
+			(filterType != nil && uri.SpaceType() != *filterType)
+	}), nil
 }
 
 // loadRepoHash reads a repo's cached LtHash state and rev, or the zero hash and
@@ -792,6 +785,15 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 		if err := tx.
 			Where("space = ?", uri).
 			Delete(&spaceRecord{}).Error; err != nil {
+			return err
+		}
+
+		// Drop the permissioned repos along with the records they cached a
+		// hash of. They are the writer set listSpaces reads, so leaving them
+		// behind would keep a deleted space on its writers' listings.
+		if err := tx.
+			Where("space = ?", uri).
+			Delete(&spaceRepo{}).Error; err != nil {
 			return err
 		}
 

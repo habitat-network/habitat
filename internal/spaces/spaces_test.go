@@ -91,7 +91,7 @@ func TestListSpaces(t *testing.T) {
 	require.Equal(t, space2, spaces[0])
 }
 
-func TestListSpaces_OrgListsAllItsSpaces(t *testing.T) {
+func TestListSpaces_OwningASpaceIsNotWritingToIt(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
 	space1, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "space1")
@@ -99,12 +99,40 @@ func TestListSpaces_OrgListsAllItsSpaces(t *testing.T) {
 	space2, err := s.CreateSpace(t.Context(), orgId, alice, groupType, "space2")
 	require.NoError(t, err)
 
-	// The org is the space authority: it lists every space it owns even when
-	// it holds no repo there. This is the enumeration the sap crawler relies
-	// on, and it involves no FGA.
+	// Owning a space is not writing to it: the org holds no repo in either
+	// space yet, so it lists neither.
 	spaces, err := s.ListSpaces(t.Context(), orgId, nil, nil)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []habitat_syntax.SpaceURI{space1, space2}, spaces)
+	require.Empty(t, spaces)
+
+	// A write on the org's behalf — how relationship tuples land in a space —
+	// puts that one space, and only that one, on its listing.
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), space1, orgId, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	spaces, err = s.ListSpaces(t.Context(), orgId, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, []habitat_syntax.SpaceURI{space1}, spaces)
+	require.NotContains(t, spaces, space2)
+}
+
+func TestListSpaces_LeavesListingAfterSpaceIsDeleted(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "space1")
+	require.NoError(t, err)
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	// Deleting the space drops its permissioned repos, so it leaves the
+	// listings of everyone who had written to it.
+	require.NoError(t, s.DeleteSpace(t.Context(), uri))
+
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
+	require.NoError(t, err)
+	require.Empty(t, spaces)
 }
 
 func TestListSpaces_LeavesListingAfterDeletingAllRecords(t *testing.T) {
