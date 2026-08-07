@@ -49,9 +49,15 @@ func TestParseSpaceURI(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	// A legacy URI parses, and is normalized to the current format.
 	t.Run("legacy ats format", func(t *testing.T) {
 		uri, err := ParseSpaceURI("ats://did:plc:abc123/network.habitat.space/my-space_1")
 		require.NoError(t, err)
+		require.Equal(
+			t,
+			SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space_1"),
+			uri,
+		)
 		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
 		require.Equal(t, "network.habitat.space", uri.SpaceType().String())
 		require.Equal(t, SpaceKey("my-space_1"), uri.Skey())
@@ -86,6 +92,23 @@ func TestSpaceURIAccessorsReturnEmptyForInvalidURI(t *testing.T) {
 
 	uri = SpaceURI("at://did:plc:abc123/space/not_a_nsid/my-space")
 	require.Empty(t, uri.SpaceType())
+}
+
+func TestSpaceURICanonicalAndLegacy(t *testing.T) {
+	current := SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space")
+	legacy := SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space")
+
+	// Both formats convert to either format, and converting is idempotent.
+	for _, uri := range []SpaceURI{current, legacy} {
+		require.Equal(t, current, uri.Canonical())
+		require.Equal(t, legacy, uri.Legacy())
+	}
+
+	// Unparseable URIs pass through untouched rather than collapsing to a
+	// well-formed-looking URI with empty components.
+	garbage := SpaceURI("not-a-space-uri")
+	require.Equal(t, garbage, garbage.Canonical())
+	require.Equal(t, garbage, garbage.Legacy())
 }
 
 func TestConstructSpaceRecordURI(t *testing.T) {
