@@ -28,6 +28,7 @@ import {
   type SpaceRecord,
 } from "@/queries/spaces";
 import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
+import { DidHoverCard } from "@/components/DidHoverCard";
 import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 
 export const Route = createFileRoute(
@@ -79,7 +80,11 @@ function MemberRecords() {
           recordOwner={recordOwner}
         />
       }
-      title={<span className="font-mono break-all">{recordOwner}</span>}
+      title={
+        <DidHoverCard did={recordOwner} className="font-mono break-all">
+          {recordOwner}
+        </DidHoverCard>
+      }
       subtitle={
         <>
           {records.length} record{records.length === 1 ? "" : "s"} across{" "}

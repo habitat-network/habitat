@@ -1,5 +1,6 @@
-import { Fragment, type ReactElement } from "react";
+import { Fragment, type ReactElement, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
+import { DidHoverCard } from "@/components/DidHoverCard";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -19,7 +20,7 @@ export interface SpacesBreadcrumbProps {
 
 interface Crumb {
   key: string;
-  label: string;
+  label: ReactNode;
   mono?: boolean;
   // Absent on the deepest crumb, which renders as the current page.
   link?: ReactElement;
@@ -37,18 +38,25 @@ export function SpacesBreadcrumb({
   ];
 
   if (spaceOwner) {
+    const owner = (
+      <DidHoverCard did={spaceOwner} className="font-mono">
+        {spaceOwner}
+      </DidHoverCard>
+    );
     crumbs.push({
       key: "owner",
-      label: spaceOwner,
+      label: owner,
       mono: true,
       link: (
-        <Link
-          to="/spaces/$spaceOwner"
-          params={{ spaceOwner }}
-          title={spaceOwner}
-        >
-          {spaceOwner}
-        </Link>
+        <DidHoverCard did={spaceOwner}>
+          <Link
+            to="/spaces/$spaceOwner"
+            params={{ spaceOwner }}
+            title={spaceOwner}
+          >
+            {spaceOwner}
+          </Link>
+        </DidHoverCard>
       ),
     });
   }
@@ -89,18 +97,25 @@ export function SpacesBreadcrumb({
     });
 
     if (recordOwner) {
+      const owner = (
+        <DidHoverCard did={recordOwner} className="font-mono">
+          {recordOwner}
+        </DidHoverCard>
+      );
       crumbs.push({
         key: "recordOwner",
-        label: recordOwner,
+        label: owner,
         mono: true,
         link: (
-          <Link
-            to="/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner"
-            params={{ spaceOwner, spaceType, spaceKey, recordOwner }}
-            title={recordOwner}
-          >
-            {recordOwner}
-          </Link>
+          <DidHoverCard did={recordOwner}>
+            <Link
+              to="/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner"
+              params={{ spaceOwner, spaceType, spaceKey, recordOwner }}
+              title={recordOwner}
+            >
+              {recordOwner}
+            </Link>
+          </DidHoverCard>
         ),
       });
 

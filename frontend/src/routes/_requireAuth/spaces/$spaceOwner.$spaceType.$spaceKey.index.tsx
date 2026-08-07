@@ -32,6 +32,7 @@ import {
   spaceReposQueryOptions,
 } from "@/queries/spaces";
 import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
+import { DidHoverCard } from "@/components/DidHoverCard";
 import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 
 export const Route = createFileRoute(
@@ -122,7 +123,9 @@ function SpaceMembers() {
             <TableBody>
               {members.map((member) => (
                 <TableRow key={member.did}>
-                  <TableCell className="font-mono">{member.did}</TableCell>
+                  <TableCell className="font-mono">
+                    <DidHoverCard did={member.did}>{member.did}</DidHoverCard>
+                  </TableCell>
                   <TableCell>
                     <Button
                       variant="destructive"
@@ -172,14 +175,16 @@ function SpaceMembers() {
               {repos.map((repo) => (
                 <TableRow key={repo.did}>
                   <TableCell className="font-mono">
-                    <Link
-                      to="/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner"
-                      params={{ ...params, recordOwner: repo.did }}
-                      className="hover:underline"
-                      title={repo.did}
-                    >
-                      {repo.did}
-                    </Link>
+                    <DidHoverCard did={repo.did}>
+                      <Link
+                        to="/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner"
+                        params={{ ...params, recordOwner: repo.did }}
+                        className="hover:underline"
+                        title={repo.did}
+                      >
+                        {repo.did}
+                      </Link>
+                    </DidHoverCard>
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {repo.rev ?? "—"}
