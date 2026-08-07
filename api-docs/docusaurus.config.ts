@@ -100,7 +100,7 @@ const config: Config = {
           position: "right",
         },
         {
-          href: "https://discord.gg/KggjDRrQH",
+          href: "https://discord.gg/6bhj73CSrr",
           label: "Discord",
           position: "right",
         },
