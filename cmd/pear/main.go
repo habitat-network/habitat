@@ -474,6 +474,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.Handle("/.well-known/did.json", did.NewHandler(
 		did.Web(domain).
 			ATProtoSpaceKey(hostPublicKey.Multibase()).
+			HabitatKey(hostPublicKey.Multibase()).
 			Habitat("https://"+domain).
 			ATProtoSpaceHost("https://"+domain).
 			Build(),

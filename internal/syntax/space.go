@@ -37,7 +37,7 @@ func ParseSkey(s string) (SpaceKey, error) {
 // "at://spaceDID/space/spaceType/skey".
 // The pre-0016 format "ats://spaceDID/spaceType/skey" is still accepted when
 // parsing, so URIs held by older clients and stored data keep resolving, but is
-// never produced by ConstructSpaceURI.
+// only produced by [SpaceURI.Legacy].
 type SpaceURI string
 
 var spaceURIRegex = regexp.MustCompile(
@@ -52,6 +52,10 @@ func ConstructSpaceURI(spaceDID syntax.DID, spaceType syntax.NSID, skey SpaceKey
 	return SpaceURI(fmt.Sprintf("at://%s/space/%s/%s", spaceDID, spaceType, skey))
 }
 
+// ParseSpaceURI validates raw as a space URI in either the current or the
+// pre-0016 format, and returns it in the current format: a legacy URI from an
+// older client or from stored data is normalized, so parsed URIs compare equal
+// to constructed ones and match the URIs held in the spaces tables.
 func ParseSpaceURI(raw string) (SpaceURI, error) {
 	if len(raw) > 8192 {
 		return "", errors.New("SpaceURI is too long (8192 chars max)")
@@ -71,7 +75,7 @@ func ParseSpaceURI(raw string) (SpaceURI, error) {
 	if err != nil {
 		return "", fmt.Errorf("space URI type is not a valid NSID: %s", parts[2])
 	}
-	return SpaceURI(raw), nil
+	return SpaceURI(raw).Canonical(), nil
 }
 
 func (s SpaceURI) parse() (did, nsid, skey string) {
@@ -114,6 +118,30 @@ func (s SpaceURI) Skey() SpaceKey {
 
 func (s SpaceURI) String() string {
 	return string(s)
+}
+
+// Canonical returns the URI in the current proposal 0016 format
+// ("at://<did>/space/<type>/<skey>"), converting a legacy URI. URIs that match
+// neither format are returned unchanged.
+func (s SpaceURI) Canonical() SpaceURI {
+	did, nsid, skey := s.parse()
+	if did == "" {
+		return s
+	}
+	return SpaceURI(fmt.Sprintf("at://%s/space/%s/%s", did, nsid, skey))
+}
+
+// Legacy returns the URI in the pre-0016 format ("ats://<did>/<type>/<skey>").
+// It is used where an encoding must stay byte-compatible with data written
+// before the 0016 migration — notably FGA object keys, whose stored tuples are
+// keyed on the URI string (see fgastore.SpaceObjectKey). URIs that match
+// neither format are returned unchanged.
+func (s SpaceURI) Legacy() SpaceURI {
+	did, nsid, skey := s.parse()
+	if did == "" {
+		return s
+	}
+	return SpaceURI(fmt.Sprintf("ats://%s/%s/%s", did, nsid, skey))
 }
 
 type SpaceRecordURI string

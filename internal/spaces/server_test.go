@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -104,6 +105,61 @@ func TestServer_CreateSpace(t *testing.T) {
 		output.Uri,
 		"at://did:web:everyone.example.com/space/network.habitat.group/",
 	)
+}
+
+func TestServer_CreateSpaceWithDidInput(t *testing.T) {
+	s := newTestServerWithOpts(
+		t,
+		testServerOptions{oauth: authntest.NewSuccessMethodWithOrg(owner, orgId)},
+	)
+
+	tests := []struct {
+		name    string
+		did     string
+		want    int
+		wantErr string
+	}{
+		{
+			name: "caller did",
+			did:  owner.String(),
+			want: http.StatusOK,
+		},
+		{
+			name: "caller org",
+			did:  orgId.String(),
+			want: http.StatusOK,
+		},
+		{
+			name:    "other did",
+			did:     alice.String(),
+			want:    http.StatusBadRequest,
+			wantErr: "only caller did or caller org are allowed",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, err := json.Marshal(habitat.NetworkHabitatSimplespaceCreateSpaceInput{
+				Did:  tt.did,
+				Type: "network.habitat.group",
+			})
+			require.NoError(t, err)
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/xrpc/network.habitat.simplespace.createSpace",
+				bytes.NewReader(body),
+			)
+			w := httptest.NewRecorder()
+			s.CreateSpace(w, req)
+
+			require.Equal(t, tt.want, w.Code)
+			if tt.wantErr != "" {
+				var apiErr atclient.ErrorBody
+				err := json.NewDecoder(w.Body).Decode(&apiErr)
+				require.NoError(t, err)
+				require.Equal(t, tt.wantErr, apiErr.Message)
+			}
+		})
+	}
 }
 
 func TestServer_UploadAndGetBlob(t *testing.T) {
