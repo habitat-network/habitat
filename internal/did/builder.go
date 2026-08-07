@@ -58,6 +58,12 @@ func (b *Builder) ATProtoSpaceKey(multibase string) *Builder {
 	return b.VerificationMethod("atproto_space", "Multikey", multibase)
 }
 
+// HabitatKey registers the Habitat host signing key as a Multikey verification
+// method at <did>#habitat.
+func (b *Builder) HabitatKey(multibase string) *Builder {
+	return b.VerificationMethod("habitat", "Multikey", multibase)
+}
+
 // Habitat adds the #habitat HabitatServer service.
 func (b *Builder) Habitat(endpoint string) *Builder {
 	return b.Service("habitat", "HabitatServer", endpoint)

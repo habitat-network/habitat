@@ -22,6 +22,20 @@ func TestBuilder_Atproto(t *testing.T) {
 	}, ident.Keys)
 }
 
+func TestBuilder_HabitatKey(t *testing.T) {
+	ident := New(syntax.DID("did:web:alice.example.com")).
+		HabitatKey("zhabitatkey").
+		Build()
+
+	require.Equal(t, syntax.DID("did:web:alice.example.com"), ident.DID)
+	require.Equal(t, map[string]identity.VerificationMethod{
+		"habitat": {
+			Type:               "Multikey",
+			PublicKeyMultibase: "zhabitatkey",
+		},
+	}, ident.Keys)
+}
+
 func TestBuilder_Services(t *testing.T) {
 	ident := New(syntax.DID("did:web:alice.example.com")).
 		Habitat("https://pear.example.com").
