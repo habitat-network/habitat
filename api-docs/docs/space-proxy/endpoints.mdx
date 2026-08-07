@@ -24,8 +24,8 @@ Proposal `com.atproto.simplespace.*`. All of these take OAuth; Habitat does not 
 | [`network.habitat.simplespace.removeMember`](/docs/api/network-habitat-simplespace-remove-member) | 🟢     | Owner only.                                                                                                                 |
 | [`network.habitat.simplespace.listMembers`](/docs/api/network-habitat-simplespace-list-members)   | 🟡     | `cursor` is accepted but ignored — one unpaginated page.                                                                    |
 | [`network.habitat.simplespace.deleteSpace`](/docs/api/network-habitat-simplespace-delete-space)   | 🟢     | Owner only; fans out `notifySpaceDeleted`.                                                                                  |
-| `com.atproto.space.getSpace`                                                                      | 🔴     | Spaces carry no host-specific `config` to describe.                                                                         |
-| `com.atproto.simplespace.updateSpace`                                                             | 🔴     | There is nothing on a space to update yet.                                                                                  |
+| `network.habitat.simplespace.getSpace`                                                                      | 🔴     | Spaces carry no host-specific `config` to describe.                                                                         |
+| `network.habitat.simplespace.updateSpace`                                                             | 🔴     | Spaces carry no host-specific `config` to describe.                                                                                                 |
 
 ## Records and blobs
 

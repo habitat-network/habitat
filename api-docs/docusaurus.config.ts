@@ -94,6 +94,16 @@ const config: Config = {
           label: "GitHub",
           position: "right",
         },
+        {
+          href: "https://habitat.leaflet.pub/",
+          label: "Blog",
+          position: "right",
+        },
+        {
+          href: "https://discord.gg/KggjDRrQH",
+          label: "Discord",
+          position: "right",
+        },
       ],
     },
     footer: {
