@@ -179,6 +179,33 @@ func TestListSpaces_FilterByType(t *testing.T) {
 	require.Equal(t, []habitat_syntax.SpaceURI{group1}, spaces)
 }
 
+// The owner filter matches the DID inside the stored URI, so a DID carrying a
+// LIKE wildcard — a did:web percent-encodes the port it holds — must not match
+// any other owner.
+func TestListSpaces_FilterByOwnerWithWildcardInDID(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	orgWithPort := syntax.DID("did:web:example.com%3A8080")
+	// Differs from orgWithPort only where the % sits, so it matches if the %
+	// is left to act as a wildcard.
+	otherOrg := syntax.DID("did:web:example.comZZ3A8080")
+
+	wanted, err := s.CreateSpace(t.Context(), orgWithPort, owner, groupType, "space1")
+	require.NoError(t, err)
+	other, err := s.CreateSpace(t.Context(), otherOrg, owner, groupType, "space2")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), wanted, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(t.Context(), other, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	spaces, err := s.ListSpaces(t.Context(), owner, &orgWithPort, nil)
+	require.NoError(t, err)
+	require.Equal(t, []habitat_syntax.SpaceURI{wanted}, spaces)
+}
+
 func TestListSpaces_NilOwnerFilterSpansAllOrgs(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 

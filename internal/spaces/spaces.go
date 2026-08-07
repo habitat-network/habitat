@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
@@ -321,25 +321,45 @@ func (s *store) ListSpaces(
 	// member has written into a space, keyed by the space URI, so the URIs are
 	// read straight out of it. The spaces table is not consulted, which means a
 	// space nobody has written to is not listed at all.
-	var uris []habitat_syntax.SpaceURI
-	if err := s.db.WithContext(ctx).
+	query := s.db.WithContext(ctx).
 		Model(&spaceRepo{}).
-		Where("repo = ?", member).
-		Order("updated_at DESC").
-		Pluck("space", &uris).Error; err != nil {
-		return nil, fmt.Errorf("list written spaces: %w", err)
+		Where("repo = ?", member)
+	if filterOwner != nil || filterType != nil {
+		query = query.Where(`space LIKE ? ESCAPE '\'`, spaceURIPattern(filterOwner, filterType))
 	}
 
-	// The filters read the owner and type out of the URI rather than matching a
-	// prefix in SQL, so the URI encoding stays the syntax package's business. A
-	// member's writer set is small enough that this costs nothing.
-	if filterOwner == nil && filterType == nil {
-		return uris, nil
+	var uris []habitat_syntax.SpaceURI
+	if err := query.Order("updated_at DESC").Pluck("space", &uris).Error; err != nil {
+		return nil, fmt.Errorf("list written spaces: %w", err)
 	}
-	return slices.DeleteFunc(uris, func(uri habitat_syntax.SpaceURI) bool {
-		return (filterOwner != nil && uri.SpaceOwner() != *filterOwner) ||
-			(filterType != nil && uri.SpaceType() != *filterType)
-	}), nil
+	return uris, nil
+}
+
+// spaceURIPattern builds a LIKE pattern matching the stored space URIs with the
+// given owner and type; a nil filter matches any value. Stored URIs are always
+// in the current format ("at://<did>/space/<type>/<skey>"), whose literal
+// separators anchor each component — and since neither a DID nor an NSID can
+// contain "/", a wildcard cannot spill into the neighbouring component.
+func spaceURIPattern(owner *syntax.DID, spaceType *syntax.NSID) string {
+	ownerPattern := "%"
+	if owner != nil {
+		ownerPattern = escapeLike(owner.String())
+	}
+	typePattern := "%"
+	if spaceType != nil {
+		typePattern = escapeLike(spaceType.String())
+	}
+	return fmt.Sprintf("at://%s/space/%s/%%", ownerPattern, typePattern)
+}
+
+// likeEscaper escapes the LIKE wildcards in a value interpolated into a
+// pattern, for use with "ESCAPE '\'". A DID can legitimately carry both: a
+// did:web holding a port percent-encodes it (did:web:example.com%3A8080), and %
+// would otherwise match anything.
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+func escapeLike(s string) string {
+	return likeEscaper.Replace(s)
 }
 
 // loadRepoHash reads a repo's cached LtHash state and rev, or the zero hash and
