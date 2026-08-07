@@ -49,16 +49,8 @@ ident, err := dir.LookupHandle(ctx, syntax.Handle("alice.bsky.social"))
 curl "https://pear.habitat.network/xrpc/com.atproto.identity.resolveIdentity?identifier=alice.bsky.social"
 ```
 
-Or reach the same endpoint through the user's own PDS with atproto service proxying:
-
-```
-Atproto-Proxy: did:web:pear.habitat.network#habitat
-```
-
 ## Authentication
 
-Because the resolved DID document names Habitat as the PDS, a standard atproto OAuth client discovers Habitat's `/.well-known/oauth-protected-resource` and authorizes against Habitat. Habitat brokers that flow: it runs its own OAuth server for your app while acting as an OAuth client against the user's real PDS, so the user still authenticates with their own provider. Habitat advertises `atproto` in `scopes_supported`; requested scopes are validated against the `scope` field of your client metadata document.
-
-Space endpoints accept the resulting Habitat access token as a bearer token, or an atproto service-auth JWT.
+Because the resolved DID document names Habitat as the PDS, a standard atproto OAuth client discovers Habitat's `/.well-known/oauth-protected-resource` and authorizes against Habitat. Habitat brokers that flow: it runs its own OAuth server for your app while acting as an OAuth client against the user's real PDS, so the user still authenticates with their own provider.
 
 Next: [Working with spaces](./working-with-spaces.mdx).
