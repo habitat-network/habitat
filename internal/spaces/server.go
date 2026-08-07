@@ -1038,7 +1038,7 @@ func (s *Server) GetDelegationToken(w http.ResponseWriter, r *http.Request) {
 		Claims: jwt.MapClaims{
 			"iss": credInfo.Subject,
 			"sub": space.String(),
-			"aud": space.SpaceOwner().String() + "#" + "#atproto_space_host",
+			"aud": space.SpaceOwner().String() + "#atproto_space_host",
 			"iat": time.Now().Unix(),
 			"exp": time.Now().Add(time.Minute).Unix(),
 			"jti": utils.RandomNonce(16),
