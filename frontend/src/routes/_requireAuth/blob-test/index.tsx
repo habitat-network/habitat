@@ -187,8 +187,7 @@ function RouteComponent() {
                 <strong>Type:</strong> {fetchedBlob.type}
               </p>
               <p>
-                <strong>Size:</strong> {(fetchedBlob.size / 1024).toFixed(2)}{" "}
-                KB
+                <strong>Size:</strong> {(fetchedBlob.size / 1024).toFixed(2)} KB
               </p>
               {fetchedBlob.type.startsWith("image/") ? (
                 <img
