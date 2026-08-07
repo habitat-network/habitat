@@ -554,15 +554,40 @@ func TestEncodingHelpers_RoundTripEscapedIdentifiers(t *testing.T) {
 
 	spaceURI := habitat_syntax.SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space")
 	objectKey := SpaceObjectKey(spaceURI)
+	// Object keys hold the legacy URI encoding, so tuples written before the
+	// proposal 0016 URI migration stay reachable.
 	require.Equal(
 		t,
-		"space:at%3A%2F%2Fdid%3Aplc%3Aabc123%2Fspace%2Fnetwork.habitat.space%2Fmy-space",
+		"space:ats%3A%2F%2Fdid%3Aplc%3Aabc123%2Fnetwork.habitat.space%2Fmy-space",
 		objectKey,
 	)
 
 	parsedSpaceURI, err := ParseSpaceObjectKey(objectKey)
 	require.NoError(t, err)
 	require.Equal(t, spaceURI, parsedSpaceURI)
+}
+
+// TestSpaceObjectKey_LegacyAndCurrentURIsShareOneKey pins the compatibility
+// property the legacy encoding exists for: a space referenced by either URI
+// format resolves to the same FGA object, so pre-0016 tuples and tuples written
+// after the migration describe the same space.
+func TestSpaceObjectKey_LegacyAndCurrentURIsShareOneKey(t *testing.T) {
+	current := habitat_syntax.SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space")
+	legacy := habitat_syntax.SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space")
+
+	require.Equal(t, SpaceObjectKey(current), SpaceObjectKey(legacy))
+	require.Equal(
+		t,
+		SpaceUsersetString(current, RelationSpaceReader),
+		SpaceUsersetString(legacy, RelationSpaceReader),
+	)
+
+	// Either way in, callers get the current format back out.
+	for _, uri := range []habitat_syntax.SpaceURI{current, legacy} {
+		parsed, err := ParseSpaceObjectKey(SpaceObjectKey(uri))
+		require.NoError(t, err)
+		require.Equal(t, current, parsed)
+	}
 }
 
 func TestEncodingHelpers_ReturnErrorsForInvalidInput(t *testing.T) {
@@ -635,7 +660,7 @@ func TestSpaceUsersetString(t *testing.T) {
 	result := SpaceUsersetString(uri, RelationSpaceReader)
 	require.Equal(
 		t,
-		"space:at%3A%2F%2Fdid%3Aplc%3Aabc%2Fspace%2Fnetwork.habitat.space%2Fmy-space#can_read",
+		"space:ats%3A%2F%2Fdid%3Aplc%3Aabc%2Fnetwork.habitat.space%2Fmy-space#can_read",
 		result,
 	)
 }
