@@ -56,13 +56,6 @@ type spaceRepo struct {
 	DeletedAt gorm.DeletedAt
 }
 
-// SpaceView is the public representation of a space
-type SpaceView struct {
-	URI  habitat_syntax.SpaceURI
-	Type syntax.NSID
-	Skey habitat_syntax.SpaceKey
-}
-
 // RepoInfo holds a repo's DID and latest rev within a space
 type RepoInfo struct {
 	DID  syntax.DID
@@ -109,16 +102,16 @@ type Store interface {
 		spaceType syntax.NSID,
 		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
-	// ListSpaces returns the spaces `member` holds a permissioned repo in (has
-	// written at least one record to), plus every space `member` owns — the org
-	// authority listing all of its spaces. An empty member returns all spaces.
+	// ListSpaces returns the URIs of the spaces `member` holds a permissioned
+	// repo in (has written at least one record to), plus every space `member`
+	// owns — the org authority listing all of its spaces. An empty member
+	// returns all spaces.
 	ListSpaces(
 		ctx context.Context,
-		org syntax.DID,
 		member syntax.DID,
 		filterOwner *syntax.DID,
 		filterType *syntax.NSID,
-	) ([]SpaceView, error)
+	) ([]habitat_syntax.SpaceURI, error)
 
 	// Member operations
 	AddMember(
@@ -319,41 +312,24 @@ func (s *store) CreateSpace(
 
 func (s *store) ListSpaces(
 	ctx context.Context,
-	org syntax.DID,
 	member syntax.DID,
 	filterOwner *syntax.DID,
 	filterType *syntax.NSID,
-) ([]SpaceView, error) {
-	var conditions *gorm.DB
-	if member == "" {
-		conditions = s.db
-	} else {
-		// The caller sees the spaces it owns (the org authority enumerating
-		// all of its spaces, as the sap crawler relies on) plus the spaces it
-		// has written at least one record into. The writer set is the cached
-		// spaceRepo table, so no access store is consulted.
-		conditions = s.db.Where("owner = ?", member)
-		var spaceURIs []string
-		if err := s.db.WithContext(ctx).
+) ([]habitat_syntax.SpaceURI, error) {
+	query := s.db.WithContext(ctx).Model(&space{})
+	if member != "" {
+		// spaceRepo keys rows by the whole space URI, so the correlated subquery
+		// re-derives that URI from the space's (owner, type, skey) columns
+		// rather than reading the writer set in a second round trip.
+		writtenBy := s.db.
 			Model(&spaceRepo{}).
+			Select("1").
 			Where("repo = ?", member).
-			Distinct().
-			Pluck("space", &spaceURIs).Error; err != nil {
-			return nil, fmt.Errorf("list written spaces: %w", err)
-		}
-		for _, uriStr := range spaceURIs {
-			uri, err := habitat_syntax.ParseSpaceURI(uriStr)
-			if err != nil {
-				return nil, fmt.Errorf("parse space uri: %w", err)
-			}
-			conditions = conditions.Or(
-				"owner = ? AND type = ? AND skey = ?",
-				uri.SpaceOwner(), uri.SpaceType(), uri.Skey(),
-			)
-		}
+			Where("space = ?", gorm.Expr("'at://' || spaces.owner || '/space/' || spaces.type || '/' || spaces.skey"))
+		query = query.Where(
+			s.db.Where("owner = ?", member).Or("EXISTS (?)", writtenBy),
+		)
 	}
-
-	query := s.db.WithContext(ctx).Model(&space{}).Where(conditions).Distinct()
 	if filterOwner != nil {
 		query = query.Where("owner = ?", *filterOwner)
 	}
@@ -366,15 +342,11 @@ func (s *store) ListSpaces(
 		return nil, err
 	}
 
-	views := make([]SpaceView, len(rows))
+	uris := make([]habitat_syntax.SpaceURI, len(rows))
 	for i, row := range rows {
-		views[i] = SpaceView{
-			URI:  habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey),
-			Type: row.Type,
-			Skey: row.Skey,
-		}
+		uris[i] = habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey)
 	}
-	return views, nil
+	return uris, nil
 }
 
 // loadRepoHash reads a repo's cached LtHash state and rev, or the zero hash and

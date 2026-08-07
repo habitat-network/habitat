@@ -79,16 +79,16 @@ func TestListSpaces(t *testing.T) {
 
 	// Owner sees the space it wrote to, not the one it was merely granted read
 	// access to.
-	spaces, err := s.ListSpaces(t.Context(), orgId, owner, nil, nil)
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
-	require.Equal(t, space1, spaces[0].URI)
+	require.Equal(t, space1, spaces[0])
 
 	// Alice sees the space she wrote to.
-	spaces, err = s.ListSpaces(t.Context(), orgId, alice, nil, nil)
+	spaces, err = s.ListSpaces(t.Context(), alice, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
-	require.Equal(t, space2, spaces[0].URI)
+	require.Equal(t, space2, spaces[0])
 }
 
 func TestListSpaces_OrgListsAllItsSpaces(t *testing.T) {
@@ -102,13 +102,9 @@ func TestListSpaces_OrgListsAllItsSpaces(t *testing.T) {
 	// The org is the space authority: it lists every space it owns even when
 	// it holds no repo there. This is the enumeration the sap crawler relies
 	// on, and it involves no FGA.
-	spaces, err := s.ListSpaces(t.Context(), orgId, orgId, nil, nil)
+	spaces, err := s.ListSpaces(t.Context(), orgId, nil, nil)
 	require.NoError(t, err)
-	uris := make([]habitat_syntax.SpaceURI, len(spaces))
-	for i, sp := range spaces {
-		uris[i] = sp.URI
-	}
-	require.ElementsMatch(t, []habitat_syntax.SpaceURI{space1, space2}, uris)
+	require.ElementsMatch(t, []habitat_syntax.SpaceURI{space1, space2}, spaces)
 }
 
 func TestListSpaces_LeavesListingAfterDeletingAllRecords(t *testing.T) {
@@ -121,14 +117,14 @@ func TestListSpaces_LeavesListingAfterDeletingAllRecords(t *testing.T) {
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
-	spaces, err := s.ListSpaces(t.Context(), orgId, owner, nil, nil)
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
 
 	// Deleting the only record removes the repo from the writer set, so the
 	// space drops out of the caller's listing.
 	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))
-	spaces, err = s.ListSpaces(t.Context(), orgId, owner, nil, nil)
+	spaces, err = s.ListSpaces(t.Context(), owner, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 0)
 }
@@ -150,10 +146,9 @@ func TestListSpaces_FilterByType(t *testing.T) {
 	_, _, err = s.PutRecord(t.Context(), personal1, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
-	spaces, err := s.ListSpaces(t.Context(), orgId, owner, nil, &groupType)
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, &groupType)
 	require.NoError(t, err)
-	require.Len(t, spaces, 1)
-	require.Equal(t, groupType, spaces[0].Type)
+	require.Equal(t, []habitat_syntax.SpaceURI{group1}, spaces)
 }
 
 func TestListSpaces_NilOwnerFilterSpansAllOrgs(t *testing.T) {
@@ -176,19 +171,15 @@ func TestListSpaces_NilOwnerFilterSpansAllOrgs(t *testing.T) {
 
 	// With no owner filter, the member sees spaces across every org they
 	// belong to, not just one.
-	spaces, err := s.ListSpaces(t.Context(), orgA, member, nil, nil)
+	spaces, err := s.ListSpaces(t.Context(), member, nil, nil)
 	require.NoError(t, err)
-	uris := make([]habitat_syntax.SpaceURI, len(spaces))
-	for i, sp := range spaces {
-		uris[i] = sp.URI
-	}
-	require.ElementsMatch(t, []habitat_syntax.SpaceURI{spaceA, spaceB}, uris)
+	require.ElementsMatch(t, []habitat_syntax.SpaceURI{spaceA, spaceB}, spaces)
 
 	// Filtering by a specific org owner restricts the results to that org.
-	spaces, err = s.ListSpaces(t.Context(), orgA, member, &orgA, nil)
+	spaces, err = s.ListSpaces(t.Context(), member, &orgA, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
-	require.Equal(t, spaceA, spaces[0].URI)
+	require.Equal(t, spaceA, spaces[0])
 }
 
 func TestListRepos_Empty(t *testing.T) {
