@@ -1,5 +1,5 @@
 {
-  "name": "habitat-api-docs",
+  "name": "api-docs",
   "compatibility_date": "2026-08-05",
   "observability": {
     "enabled": true,

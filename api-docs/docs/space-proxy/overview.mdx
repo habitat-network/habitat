@@ -31,7 +31,6 @@ Once the proposal is finalized, the spaces endpoints are expected to live under 
 
 The proposal calls for a `simplespace` protocol implemented by all PDSs. Habitat plans on offering our own space management protocol that will be compatible with simple spaces. For now we offer a limited version of the protocol that just implements the member list. We'll bring client attestation, managing app, and public spaces support in upcoming releases. Another key difference is that all spaces created using the Habitat's `simplespace` APIs will be owned by Habitat so that we can manage the ACL ourselves. The creating user still has "owner" level permissions over the space but the space authority will be `did:web:pear.habitat.network`. This shouldn't impact applications except that syncing the space will point to Habitat instead of the space owner.
 
-
 ## Signing
 
 Since Habitat doesn't have access to a user's private key, we can't sign commits and token using it. Instead we use the `did:web:pear.habitat.network#habitat` verification method. This is encoded in the signed artifacts themselves so verifying clients know when to use which verification method.
@@ -40,9 +39,78 @@ Since Habitat doesn't have access to a user's private key, we can't sign commits
 
 Repo commit signatures use the `habitat-space-host-v1` as the protocol tag in the ctx instead of `atproto-space-v1`. This signals to verifiers to use the space authority's public key instead of the repo owner when verifying the commit.
 
+A commit, as returned by [`space.getLatestCommit`](/docs/api/network-habitat-space-get-latest-commit). `hash`, `ikm`, `mac`, and `sig` are lexicon `bytes`, so they come over the wire base64-encoded:
+
+```json
+{
+  "commit": {
+    "ver": 1,
+    "rev": "3lb4kq7xk2s2r",
+    "hash": "LqNCJLJrLIbFH+pi92xHXlM1G/Dw7B80QrTEB+eIXmk=",
+    "ikm": "k6GBHtC90lx3BzMf2KtBMpV9pfONCZBvn9v74ZyuWbU=",
+    "mac": "NBHp3dymaH+trC9QlXDtji4USh2ebLH1DufpPTK3774=",
+    "sig": "MJI8qifG00/hFbXBPm8Acy9k1TBh/XkO4WR5cbDaExgNbNThcDXWzzGsXlSN7S5Mmuo5INiP358XqjZ5jz0EbQ=="
+  }
+}
+```
+
+`sig` covers only the ctx, which is the protocol tag followed by the space, author DID, rev, and ikm, each length-prefixed with a big-endian uint16:
+
+```
+habitat-space-host-v1
+0x0046 ats://did:web:pear.habitat.network/network.habitat.group/3lartabcd2s22
+0x000d did:plc:alice
+0x000d 3lb4kq7xk2s2r
+0x0020 <the 32 ikm bytes>
+```
+
+Everything below the first line is byte-identical to a spec commit, so the tag is the only thing a verifier keys off: rebuild this ctx with `habitat-space-host-v1` and check it against `did:web:pear.habitat.network#habitat` rather than the repo owner's `#atproto` key. The repo hash stays out of the signature and is bound in by `mac` — `HMAC-SHA256(hash)` keyed by `HKDF-SHA256(ikm, info=ctx)` — which is what keeps a leaked commit deniable.
+
 ### Tokens
 
 The delegation tokens should be signed by the user's private key so that the space authority can verify their access before granting space credentials. Since Habitat is handling `space.getDelegationToken` we just use Habitat's private key to sign the token. The proposal requires `"kid": "#atproto"` in the space delegation JWT. Habitat set `"kid": "#habitat"` instead. Verifiers (which will mostly just be Habitat's `space.getSpaceCredential`) case based on kid to verify the token.
 
+The token itself is a compact JWS. Decoded, a delegation token for Alice against a public space looks like:
+
+```json
+// header
+{
+  "alg": "ES256K",
+  "kid": "#habitat",
+  "typ": "atproto-space-delegation+jwt"
+}
+// claims
+{
+  "iss": "did:plc:alice",
+  "sub": "ats://did:web:pear.habitat.network/network.habitat.group/3lartabcd2s22",
+  "aud": "did:web:pear.habitat.network##atproto_space_host",
+  "iat": 1785974400,
+  "exp": 1785974460,
+  "jti": "qX3n8Yh2VjKpLmR7sTuAwQ"
+}
+```
+
+Note that `iss` is still Alice — the token asserts her access, Habitat only holds the key that signs it — and that it is good for 60 seconds. Had Alice been a Habitat-managed identity, this would be signed with her own key under `"kid": "#atproto"` and nothing else would change.
+
+`space.getSpaceCredential` trades that in for a credential signed by the space authority, which for a Habitat-owned space means the host key again:
+
+```json
+// header
+{
+  "alg": "ES256K",
+  "kid": "#atproto_space_host",
+  "typ": "atproto-space-credential+jwt"
+}
+// claims
+{
+  "iss": "did:web:pear.habitat.network",
+  "sub": "ats://did:web:pear.habitat.network/network.habitat.group/3lartabcd2s22",
+  "iat": 1785974400,
+  "exp": 1785978000,
+  "jti": "8vTc1Qm4NpZrYbWs0KdEjA"
+}
+```
+
+There is no `aud`: the credential is multi-use across every repo in the space, and lasts an hour.
 
 [Endpoints](./endpoints.mdx) lists the full surface method by method along with deviations from the proposal.
