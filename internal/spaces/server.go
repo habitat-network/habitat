@@ -186,7 +186,6 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	}
 	spaces, err := s.store.ListSpaces(
 		ctx,
-		credInfo.Org.DID(),
 		credInfo.Subject,
 		filterOwner,
 		filterType,
@@ -196,10 +195,10 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	views := make([]habitat.NetworkHabitatSpaceListSpacesSpaceView, len(spaces))
-	for i, sp := range spaces {
+	for i, uri := range spaces {
 		views[i] = habitat.NetworkHabitatSpaceListSpacesSpaceView{
-			Uri:     sp.URI.String(),
-			IsOwner: sp.URI.SpaceOwner() == credInfo.Subject,
+			Uri:     uri.String(),
+			IsOwner: uri.SpaceOwner() == credInfo.Subject,
 		}
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListSpacesOutput{
