@@ -7,7 +7,7 @@ replace github.com/docker/docker/api => github.com/moby/moby/api v1.55.0
 exclude google.golang.org/genproto v0.0.0-20190626174449-989357319d63
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537
+	github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/mdelapenya/tlscert v0.2.0
 	github.com/stretchr/testify v1.11.1
