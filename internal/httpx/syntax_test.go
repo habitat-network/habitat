@@ -69,13 +69,13 @@ func TestParseSpaceURIInput_Valid(t *testing.T) {
 	uri, ok := ParseSpaceURIInput(
 		t.Context(),
 		w,
-		"ats://did:web:example.com/com.example.space/tidvalue",
+		"at://did:web:example.com/space/com.example.space/tidvalue",
 		"space",
 	)
 	require.True(t, ok)
 	require.Equal(
 		t,
-		habitat_syntax.SpaceURI("ats://did:web:example.com/com.example.space/tidvalue"),
+		habitat_syntax.SpaceURI("at://did:web:example.com/space/com.example.space/tidvalue"),
 		uri,
 	)
 	require.Equal(t, 0, w.Body.Len())
@@ -108,7 +108,7 @@ func TestParseSpaceURIInput_Empty(t *testing.T) {
 
 func TestParseSpaceURIInput_InvalidFormat(t *testing.T) {
 	w := httptest.NewRecorder()
-	_, ok := ParseSpaceURIInput(t.Context(), w, "ats://did/invalid/space/format/extra", "space")
+	_, ok := ParseSpaceURIInput(t.Context(), w, "at://did/space/invalid/format/extra", "space")
 	require.False(t, ok)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.JSONEq(

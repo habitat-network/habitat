@@ -57,14 +57,14 @@ func TestResyncBuffer_AppendAndDrain(t *testing.T) {
 	db := openTestDB(t)
 	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
+	space := habitat_syntax.SpaceURI("at://did:plc:testorg/space/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
 	require.NoError(t, ensureRepo(db, t.Context(), space, repoDID))
 
 	clock := syntax.NewTIDClock(0)
 	rev := clock.Next()
 	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:testorg/network.habitat.space/my-space/did:plc:member1/network.habitat.note/k1",
+		"at://did:plc:testorg/space/network.habitat.space/my-space/did:plc:member1/network.habitat.note/k1",
 	)
 	event := events.Event{
 		Seq:   1,
@@ -109,7 +109,7 @@ func TestResyncBuffer_DrainSkipsAlreadyCovered(t *testing.T) {
 	db := openTestDB(t)
 	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
+	space := habitat_syntax.SpaceURI("at://did:plc:testorg/space/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
 
 	clock := syntax.NewTIDClock(0)
@@ -120,7 +120,7 @@ func TestResyncBuffer_DrainSkipsAlreadyCovered(t *testing.T) {
 	require.NoError(t, setActive(db, t.Context(), space, repoDID, rev2))
 
 	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:testorg/network.habitat.space/my-space/did:plc:member1/network.habitat.note/k1",
+		"at://did:plc:testorg/space/network.habitat.space/my-space/did:plc:member1/network.habitat.note/k1",
 	)
 
 	bufferedEventData := events.Event{
@@ -166,7 +166,7 @@ func TestResyncBuffer_DrainDesyncsOnFutureSince(t *testing.T) {
 	db := openTestDB(t)
 	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
+	space := habitat_syntax.SpaceURI("at://did:plc:testorg/space/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
 
 	clock := syntax.NewTIDClock(0)
@@ -177,7 +177,7 @@ func TestResyncBuffer_DrainDesyncsOnFutureSince(t *testing.T) {
 	require.NoError(t, setActive(db, t.Context(), space, repoDID, rev1))
 
 	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:testorg/network.habitat.space/my-space/did:plc:member1/network.habitat.note/k1",
+		"at://did:plc:testorg/space/network.habitat.space/my-space/did:plc:member1/network.habitat.note/k1",
 	)
 
 	bufferedEventData := events.Event{

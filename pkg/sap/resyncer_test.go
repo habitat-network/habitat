@@ -21,7 +21,7 @@ import (
 func TestResyncer_SyncRepo(t *testing.T) {
 	t.Parallel()
 
-	spaceURI := "ats://did:plc:testorg/network.habitat.space/my-space"
+	spaceURI := "at://did:plc:testorg/space/network.habitat.space/my-space"
 	clock := syntax.NewTIDClock(0)
 	rev1 := clock.Next().String()
 	rev2 := clock.Next().String()
@@ -148,7 +148,7 @@ func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
 		SessionID: "sess1",
 	}).Error)
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
+	space := habitat_syntax.SpaceURI("at://did:plc:testorg/space/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
 	require.NoError(
 		t,
@@ -232,7 +232,7 @@ func TestResyncer_Dispatcher(t *testing.T) {
 				Create(
 					&managedRepo{
 						Space: habitat_syntax.SpaceURI(fmt.Sprintf(
-							"ats://did:plc:testorg/network.habitat.space/space-%d",
+							"at://did:plc:testorg/space/network.habitat.space/space-%d",
 							i,
 						)),
 						DID:   syntax.DID(fmt.Sprintf("did:plc:member-%d", j)),

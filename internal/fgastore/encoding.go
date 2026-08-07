@@ -40,7 +40,7 @@ func OrgMemberUsersetString(did syntax.DID) string {
 
 // OrgMemberContextualTuple returns a Tuple granting org members (via the
 // organization:#member userset) the can_read relation on the org's self space
-// (ats://<org>/network.habitat.organization/self).  This lets org membership
+// (at://<org>/space/network.habitat.organization/self).  This lets org membership
 // chain through stored tuples like "self#reader → can_read → <space>" without
 // storing per-member tuples on every space.
 func OrgMemberContextualTuple(org syntax.DID) Tuple {

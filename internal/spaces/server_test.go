@@ -99,7 +99,11 @@ func TestServer_CreateSpace(t *testing.T) {
 	var output habitat.NetworkHabitatSpaceCreateSpaceOutput
 	err := json.NewDecoder(w.Body).Decode(&output)
 	require.NoError(t, err)
-	require.Contains(t, output.Uri, "ats://did:web:everyone.example.com/network.habitat.group/")
+	require.Contains(
+		t,
+		output.Uri,
+		"at://did:web:everyone.example.com/space/network.habitat.group/",
+	)
 }
 
 func TestServer_UploadAndGetBlob(t *testing.T) {
