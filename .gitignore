@@ -50,6 +50,7 @@ cmd/pear/repo.db
 # Ignore local claude artifacts
 .claude/worktrees
 .claude/settings.local.json
+.cursor/rules
 
 # Ignore git worktrees
 .worktrees/
