@@ -44,6 +44,7 @@ cmd/pear/repo.db
 *repo.db*
 
 # Ignore custom VSCode/Cursor settings
+.vscode/
 .vscode/settings.json
 
 # Ignore local claude artifacts
