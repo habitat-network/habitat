@@ -56,3 +56,6 @@ cmd/pear/repo.db
 **/*.db
 **/*-shm
 **/*-wal
+
+# Ignore plans + specs
+docs/
