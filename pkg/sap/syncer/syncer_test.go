@@ -1071,3 +1071,58 @@ func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 	require.Equal(t, []byte("null"),
 		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/k1"])
 }
+
+// TestEngineCheckRequeuesDriftedRepo pins that a backfill crawl's rev/hash
+// comparison requeues an active repo that has drifted from the host (a write
+// that slipped past the notifier).
+func TestEngineCheckRequeuesDriftedRepo(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	repoDID := syntax.DID("did:plc:alice")
+	clock := syntax.NewTIDClock(0)
+	rev1, rev2 := clock.Next().String(), clock.Next().String()
+
+	e, _, db := newTestEngine(t, "https://example.test")
+	var lt spacecommit.LtHash
+	lt.Add(spacecommit.RecordElement("network.habitat.test", "k1", "bafyaaa"))
+	require.NoError(t, e.Track(t.Context(), space, repoDID))
+	require.NoError(t, db.Model(&repo{}).
+		Where("space = ? AND did = ?", space, repoDID).
+		Updates(map[string]any{
+			"state": stateActive,
+			"rev":   rev1,
+			"hash":  lt.State(),
+		}).Error)
+
+	// Host reports a newer rev (a write happened that we missed).
+	require.NoError(t, e.Check(t.Context(), space, repoDID, syntax.TID(rev2), base64.StdEncoding.EncodeToString(lt.Sum())))
+
+	var r repo
+	require.NoError(t, db.First(&r, "space = ? AND did = ?", space, repoDID).Error)
+	require.Equal(t, statePending, r.State)
+}
+
+// TestEngineCheckLeavesCurrentReposActive pins that an up-to-date repo is not
+// requeued by the crawl.
+func TestEngineCheckLeavesCurrentReposActive(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	repoDID := syntax.DID("did:plc:alice")
+	rev := syntax.NewTIDClock(0).Next().String()
+
+	e, _, db := newTestEngine(t, "https://example.test")
+	var lt spacecommit.LtHash
+	lt.Add(spacecommit.RecordElement("network.habitat.test", "k1", "bafyaaa"))
+	require.NoError(t, e.Track(t.Context(), space, repoDID))
+	require.NoError(t, db.Model(&repo{}).
+		Where("space = ? AND did = ?", space, repoDID).
+		Updates(map[string]any{"state": stateActive, "rev": rev, "hash": lt.State()}).Error)
+
+	require.NoError(t, e.Check(t.Context(), space, repoDID, syntax.TID(rev), base64.StdEncoding.EncodeToString(lt.Sum())))
+
+	var r repo
+	require.NoError(t, db.First(&r, "space = ? AND did = ?", space, repoDID).Error)
+	require.Equal(t, stateActive, r.State)
+}

@@ -66,9 +66,17 @@ type Access interface {
 	) error
 }
 
-// Tracker receives discovered repos. Satisfied by syncer.Engine.
+// Tracker receives discovered repos and reports host-observed rev/hash for
+// drift detection. Satisfied by syncer.Engine.
 type Tracker interface {
 	Track(ctx context.Context, space habitat_syntax.SpaceURI, repo syntax.DID) error
+	Check(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		rev syntax.TID,
+		hashB64 string,
+	) error
 }
 
 // Notify subscribes sap to a discovered space's push notifications. Satisfied
@@ -322,7 +330,12 @@ func (c *Crawler) enumerateRepos(
 	}
 
 	for _, r := range output.Repos {
-		if err := c.tracker.Track(ctx, space, syntax.DID(r.Did)); err != nil {
+		did := syntax.DID(r.Did)
+		hashB64 := ""
+		if h, ok := r.Hash.(string); ok {
+			hashB64 = h
+		}
+		if err := c.tracker.Check(ctx, space, did, syntax.TID(r.Rev), hashB64); err != nil {
 			return err
 		}
 	}

@@ -9,6 +9,7 @@ package syncer
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -194,6 +195,61 @@ func (e *Engine) NotifyWrite(
 	})
 	if err != nil {
 		return fmt.Errorf("notify write: %w", err)
+	}
+	e.notif.Notify()
+	return nil
+}
+
+// Check is the backfill-crawl counterpart of NotifyWrite: it requeues a repo
+// whose stored rev/hash no longer matches what the host's listRepos reported
+// (a write that slipped past the notifier). Unknown repos are tracked.
+func (e *Engine) Check(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	did syntax.DID,
+	rev syntax.TID,
+	hashB64 string,
+) error {
+	err := e.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var r repo
+		err := tx.Where("space = ? AND did = ?", space, did).First(&r).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return tx.Create(&repo{Space: space, DID: did, State: statePending}).Error
+		}
+		if err != nil {
+			return err
+		}
+		switch r.State {
+		case statePending, stateDesynced:
+			// Already claimable (or headed for full recovery); nothing to do.
+			return nil
+		}
+		// The host's listRepos output is the ground truth. An active repo that
+		// is at the host's rev with a matching hash is current; anything else
+		// is requeued (error/syncing repos get another pass anyway).
+		matches := r.Rev == rev
+		if matches && hashB64 != "" {
+			hostSum, err := base64.StdEncoding.DecodeString(hashB64)
+			if err != nil {
+				return fmt.Errorf("decode host hash: %w", err)
+			}
+			lt := spacecommit.Load(r.Hash)
+			matches = bytes.Equal(lt.Sum(), hostSum)
+		}
+		if r.State == stateActive && matches {
+			return nil
+		}
+		return tx.Model(&repo{}).
+			Where("space = ? AND did = ?", space, did).
+			Updates(map[string]any{
+				"state":       statePending,
+				"retry_count": 0,
+				"retry_after": 0,
+				"dirty":       false,
+			}).Error
+	})
+	if err != nil {
+		return fmt.Errorf("check repo: %w", err)
 	}
 	e.notif.Notify()
 	return nil

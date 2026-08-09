@@ -38,6 +38,7 @@ type recorder struct {
 	mu      sync.Mutex
 	access  []habitat_syntax.SpaceURI
 	tracked []syntax.DID
+	checks  []syntax.DID
 }
 
 func (r *recorder) RecordSpaceAccess(
@@ -58,6 +59,20 @@ func (r *recorder) Track(
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.tracked = append(r.tracked, repo)
+	return nil
+}
+
+func (r *recorder) Check(
+	_ context.Context,
+	_ habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	_ syntax.TID,
+	_ string,
+) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.checks = append(r.checks, repo)
 	r.tracked = append(r.tracked, repo)
 	return nil
 }
@@ -251,4 +266,46 @@ type fakeNotifyRegistrar struct {
 func (f *fakeNotifyRegistrar) EnsureRegistered(_ context.Context, _ habitat_syntax.SpaceURI) error {
 	f.called = true
 	return nil
+}
+
+func mustParseURL(t *testing.T, raw string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(raw)
+	require.NoError(t, err)
+	return u
+}
+
+// TestCrawlerChecksRepoRevAndHash pins that the crawl compares the host's
+// listRepos rev/hash against the tracker (so drift requeues) instead of only
+// tracking newly-seen repos.
+func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
+	space := habitat_syntax.SpaceURI("ats://did:web:owner/network.habitat.space/s1")
+	repoDID := syntax.DID("did:web:alice")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/xrpc/network.habitat.space.listSpaces":
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListSpacesOutput{
+				Spaces: []habitat.NetworkHabitatSpaceListSpacesSpaceView{{Uri: space.String()}},
+			})
+		case "/xrpc/network.habitat.space.listRepos":
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
+				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
+					{Did: repoDID.String(), Rev: "3lrev2", Hash: "aGFzaA=="},
+				},
+			})
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	rec := &recorder{}
+	c, err := New(db_testutil.NewDB(t), fakeClients{base: mustParseURL(t, srv.URL)}, rec, rec, nil, nil, nil)
+	require.NoError(t, err)
+
+	client := &http.Client{Transport: rewriteTransport{base: mustParseURL(t, srv.URL)}}
+	require.NoError(t, c.enumerateRepos(t.Context(), client, space))
+
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	require.Contains(t, rec.checks, repoDID)
 }
