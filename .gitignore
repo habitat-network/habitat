@@ -60,4 +60,4 @@ cmd/pear/repo.db
 **/*-wal
 
 # Ignore plans + specs
-docs/
+./docs/
