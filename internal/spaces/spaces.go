@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/tuple"
 	"gorm.io/gorm"
@@ -39,6 +41,7 @@ type spaceRecord struct {
 	Cid        string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	DeletedAt  gorm.DeletedAt
 }
 
 // spaceRepo caches a permissioned repo's LtHash so reads (listRepos,
@@ -51,14 +54,7 @@ type spaceRepo struct {
 	Hash      []byte
 	Rev       syntax.TID
 	UpdatedAt time.Time
-}
-
-// SpaceView is the public representation of a space
-type SpaceView struct {
-	URI         habitat_syntax.SpaceURI
-	Type        syntax.NSID
-	Skey        habitat_syntax.SpaceKey
-	MemberCount int
+	DeletedAt gorm.DeletedAt
 }
 
 // RepoInfo holds a repo's DID and latest rev within a space
@@ -107,14 +103,16 @@ type Store interface {
 		spaceType syntax.NSID,
 		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
-	// ListSpaces returns the spaces that `member` is a part of
+	// ListSpaces returns the URIs of the spaces `member` holds a permissioned
+	// repo in — the spaces it has written at least one record to — most
+	// recently written first. A space `member` owns but has never written to is
+	// not listed, and neither is one whose records it has since deleted.
 	ListSpaces(
 		ctx context.Context,
-		org syntax.DID,
 		member syntax.DID,
 		filterOwner *syntax.DID,
 		filterType *syntax.NSID,
-	) ([]SpaceView, error)
+	) ([]habitat_syntax.SpaceURI, error)
 
 	// Member operations
 	AddMember(
@@ -315,72 +313,53 @@ func (s *store) CreateSpace(
 
 func (s *store) ListSpaces(
 	ctx context.Context,
-	org syntax.DID,
 	member syntax.DID,
 	filterOwner *syntax.DID,
 	filterType *syntax.NSID,
-) ([]SpaceView, error) {
-	var conditions *gorm.DB
-	if member == "" {
-		conditions = s.db
-	} else {
-		// If member is the org itself, include all the org's spaces. This initial condition
-		// is always false for user members since they are never owners of a space.
-		conditions = s.db.Where("owner = ?", member)
-		fgaObjects, err := s.fga.ListObjects(
-			ctx,
-			fgastore.MemberUserString(member),
-			"can_read",
-			"space",
-			fgastore.OrgMemberContextualTuple(org),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("list fga spaces: %w", err)
-		}
-		for _, key := range fgaObjects {
-			uri, err := fgastore.ParseSpaceObjectKey(key)
-			if err != nil {
-				return nil, fmt.Errorf("parse space object key: %w", err)
-			}
-			conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey())
-		}
+) ([]habitat_syntax.SpaceURI, error) {
+	// The writer set is the whole answer: spaceRepo holds one row per repo a
+	// member has written into a space, keyed by the space URI, so the URIs are
+	// read straight out of it. The spaces table is not consulted, which means a
+	// space nobody has written to is not listed at all.
+	query := s.db.WithContext(ctx).
+		Model(&spaceRepo{}).
+		Where("repo = ?", member)
+	if filterOwner != nil || filterType != nil {
+		query = query.Where(`space LIKE ? ESCAPE '\'`, spaceURIPattern(filterOwner, filterType))
 	}
 
-	query := s.db.WithContext(ctx).Model(&space{}).Where(conditions).Distinct()
-	if filterOwner != nil {
-		query = query.Where("owner = ?", *filterOwner)
+	var uris []habitat_syntax.SpaceURI
+	if err := query.Order("updated_at DESC").Pluck("space", &uris).Error; err != nil {
+		return nil, fmt.Errorf("list written spaces: %w", err)
 	}
-	if filterType != nil {
-		query = query.Where("type = ?", *filterType)
-	}
+	return uris, nil
+}
 
-	var rows []space
-	if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
-		return nil, err
+// spaceURIPattern builds a LIKE pattern matching the stored space URIs with the
+// given owner and type; a nil filter matches any value. Stored URIs are always
+// in the current format ("at://<did>/space/<type>/<skey>"), whose literal
+// separators anchor each component — and since neither a DID nor an NSID can
+// contain "/", a wildcard cannot spill into the neighbouring component.
+func spaceURIPattern(owner *syntax.DID, spaceType *syntax.NSID) string {
+	ownerPattern := "%"
+	if owner != nil {
+		ownerPattern = escapeLike(owner.String())
 	}
+	typePattern := "%"
+	if spaceType != nil {
+		typePattern = escapeLike(spaceType.String())
+	}
+	return fmt.Sprintf("at://%s/space/%s/%%", ownerPattern, typePattern)
+}
 
-	views := make([]SpaceView, len(rows))
-	for i, row := range rows {
-		uri := habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey)
-		fgaUsers, err := s.fga.ListUsers(
-			ctx,
-			fgastore.SpaceObjectKey(uri),
-			"can_read",
-			ownerContextualTuple(uri),
-			fgastore.OrgMemberContextualTuple(org),
-		)
-		memberCount := 0
-		if err == nil {
-			memberCount = len(fgaUsers)
-		}
-		views[i] = SpaceView{
-			URI:         uri,
-			Type:        row.Type,
-			Skey:        row.Skey,
-			MemberCount: memberCount,
-		}
-	}
-	return views, nil
+// likeEscaper escapes the LIKE wildcards in a value interpolated into a
+// pattern, for use with "ESCAPE '\'". A DID can legitimately carry both: a
+// did:web holding a port percent-encodes it (did:web:example.com%3A8080), and %
+// would otherwise match anything.
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+func escapeLike(s string) string {
+	return likeEscaper.Replace(s)
 }
 
 // loadRepoHash reads a repo's cached LtHash state and rev, or the zero hash and
@@ -391,8 +370,8 @@ func loadRepoHash(
 	repo syntax.DID,
 ) (spacecommit.LtHash, syntax.TID, bool, error) {
 	var row spaceRepo
-	err := tx.Where("space = ? AND repo = ?", space, repo).First(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	err := tx.Unscoped().Where("space = ? AND repo = ?", space, repo).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) || row.DeletedAt.Valid {
 		return spacecommit.LtHash{}, "", false, nil
 	}
 	if err != nil {
@@ -601,7 +580,7 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	cid, err := cid.V1Builder{}.WithCodec(cid.DagCBOR).Sum(bytes)
+	cid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
@@ -829,6 +808,15 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 			return err
 		}
 
+		// Drop the permissioned repos along with the records they cached a
+		// hash of. They are the writer set listSpaces reads, so leaving them
+		// behind would keep a deleted space on its writers' listings.
+		if err := tx.
+			Where("space = ?", uri).
+			Delete(&spaceRepo{}).Error; err != nil {
+			return err
+		}
+
 		// delete all stored FGA tuples for this space
 		var deletes []*openfgav1.TupleKeyWithoutCondition
 		for _, t := range tuples {
@@ -862,36 +850,45 @@ func (s *store) ListRepoOps(
 	limit int,
 ) ([]Record, error) {
 	query := s.db.WithContext(ctx).
+		Unscoped().
 		Model(&spaceRecord{}).
 		Where("space = ? AND repo = ?", uri, repo)
-
 	if since != "" {
 		query = query.Where("rev > ?", since)
 	}
-
 	if limit <= 0 {
 		limit = 100
 	}
-
 	var rows []spaceRecord
 	if err := query.Order("rev ASC").Limit(limit).Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list repo ops: %w", err)
 	}
-
 	records := make([]Record, len(rows))
 	for i, row := range rows {
 		value, err := atdata.UnmarshalCBOR(row.Value)
 		if err != nil {
 			return nil, err
 		}
-		records[i] = Record{
-			Owner:      row.Repo,
-			Collection: row.Collection,
-			Rkey:       row.Rkey,
-			Value:      value,
-			Rev:        string(row.Rev),
-			UpdatedAt:  row.UpdatedAt,
-			Cid:        cid.MustParse(row.Cid),
+		if row.DeletedAt.Valid {
+			records[i] = Record{
+				Owner:      row.Repo,
+				Collection: row.Collection,
+				Rkey:       row.Rkey,
+				Value:      nil,
+				Rev:        string(row.Rev),
+				UpdatedAt:  row.DeletedAt.Time,
+				// empty cid
+			}
+		} else {
+			records[i] = Record{
+				Owner:      row.Repo,
+				Collection: row.Collection,
+				Rkey:       row.Rkey,
+				Value:      value,
+				Rev:        string(row.Rev),
+				UpdatedAt:  row.UpdatedAt,
+				Cid:        cid.MustParse(row.Cid),
+			}
 		}
 	}
 	return records, nil
@@ -901,7 +898,7 @@ func (s *store) RepoHead(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 	repo syntax.DID,
-) (string, []byte, bool, error) {
+) (revision string, sum []byte, found bool, err error) {
 	h, rev, found, err := loadRepoHash(s.db.WithContext(ctx), uri, repo)
 	if err != nil {
 		return "", nil, false, fmt.Errorf("repo head: %w", err)
@@ -909,7 +906,7 @@ func (s *store) RepoHead(
 	if !found {
 		return "", nil, false, nil
 	}
-	return string(rev), h.Sum(), true, nil
+	return rev.String(), h.Sum(), true, nil
 }
 
 func (s *store) DeleteRecord(
@@ -929,7 +926,6 @@ func (s *store) DeleteRecord(
 				return err
 			}
 		}
-
 		var rows []spaceRecord
 		if err := tx.
 			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
@@ -940,24 +936,25 @@ func (s *store) DeleteRecord(
 		if len(rows) == 0 {
 			return nil
 		}
-		if err := tx.
+		rev := s.clock.Next()
+		if err := tx.Model(&spaceRecord{}).
 			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
 				uri, repo, collection, rkey).
-			Delete(&spaceRecord{}).Error; err != nil {
-			return err
+			Updates(map[string]any{
+				"deleted_at": time.Now(),
+				"rev":        rev,
+			}).Error; err != nil {
+			return fmt.Errorf("delete record: %w", err)
 		}
-
 		// Fold the deleted records out of the cached LtHash.
-		h, rev, _, err := loadRepoHash(tx, uri, repo)
+		h, _, _, err := loadRepoHash(tx, uri, repo)
 		if err != nil {
 			return err
 		}
 		for _, row := range rows {
 			h.Remove(spacecommit.RecordElement(row.Collection, row.Rkey, row.Cid))
 		}
-
-		// Drop the hash row entirely once the repo holds no more records, so it
-		// leaves the writer set reported by ListRepos.
+		// Drop the hash row entirely once the repo holds no more records
 		var remaining int64
 		if err := tx.Model(&spaceRecord{}).
 			Where("space = ? AND repo = ?", uri, repo).

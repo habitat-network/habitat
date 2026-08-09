@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"github.com/habitat-network/habitat/internal/sap/outbox"
+	"github.com/habitat-network/habitat/pkg/sap/outbox"
 )
 
 const outboxPollLimit = 100

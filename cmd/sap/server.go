@@ -14,8 +14,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/sap"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/pkg/sap"
 )
 
 // habitatDIDHeader and habitatSessionHeader name the OAuth session the caller

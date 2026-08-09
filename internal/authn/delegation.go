@@ -1,9 +1,11 @@
 package authn
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
@@ -12,8 +14,9 @@ import (
 )
 
 type DelegationTokenAuthMethod struct {
-	dir identity.Directory
-	fga fgastore.Store
+	dir     identity.Directory
+	fga     fgastore.Store
+	hostKey atcrypto.PrivateKey
 }
 
 var _ Method = (*DelegationTokenAuthMethod)(nil)
@@ -21,10 +24,12 @@ var _ Method = (*DelegationTokenAuthMethod)(nil)
 func NewDelegationTokenAuthMethod(
 	directory identity.Directory,
 	fga fgastore.Store,
+	hostKey atcrypto.PrivateKey,
 ) *DelegationTokenAuthMethod {
 	return &DelegationTokenAuthMethod{
-		dir: directory,
-		fga: fga,
+		dir:     directory,
+		fga:     fga,
+		hostKey: hostKey,
 	}
 }
 
@@ -32,6 +37,7 @@ func NewDelegationTokenAuthMethod(
 func (d *DelegationTokenAuthMethod) CanHandle(r *http.Request) bool {
 	token, err := getBearerJwt(r)
 	if err != nil {
+		slog.WarnContext(r.Context(), "failed to get token", "err", err)
 		return false
 	}
 	return token.Header["typ"] == "atproto-space-delegation+jwt"
@@ -47,7 +53,7 @@ func (d *DelegationTokenAuthMethod) Validate(
 	token, err := jwt.ParseWithClaims(
 		getBearerToken(r),
 		jwt.MapClaims{},
-		fetchIssuerKeyFunc(ctx, d.dir),
+		fetchIssuerKeyFunc(ctx, d.dir, d.hostKey),
 		jwt.WithExpirationRequired(),
 		jwt.WithIssuedAt(),
 		jwt.WithLeeway(time.Second*10),

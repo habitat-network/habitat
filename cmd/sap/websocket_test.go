@@ -10,8 +10,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/gorilla/websocket"
 	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/oauthclient"
-	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
+	"github.com/habitat-network/habitat/pkg/sap"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -79,7 +79,7 @@ func TestServer_OutboxChannelDeliversAndAcks(t *testing.T) {
 
 	httpServer, s, db := openOutboxTestServer(t)
 
-	uri := "ats://did:plc:org/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1"
+	uri := "at://did:plc:org/space/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1"
 	id := createOutboxRow(t, db, uri, `{"text":"hello"}`)
 
 	conn := dialOutboxChannel(t, httpServer)
@@ -113,7 +113,7 @@ func TestServer_OutboxChannelRedeliversUnackedAfterReconnect(t *testing.T) {
 
 	httpServer, _, db := openOutboxTestServer(t)
 
-	uri := "ats://did:plc:org/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1"
+	uri := "at://did:plc:org/space/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1"
 	id := createOutboxRow(t, db, uri, `{"text":"hello"}`)
 
 	conn := dialOutboxChannel(t, httpServer)

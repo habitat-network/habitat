@@ -16,8 +16,14 @@ import (
 
 // SpaceObjectKey returns the FGA object key for a space.
 // The key is the full SpaceURI URL-encoded so OpenFGA can parse it as a typed object.
+//
+// The URI is always encoded in the pre-0016 legacy format
+// ("ats://<did>/<type>/<skey>"): FGA tuples are keyed on the URI string, so
+// tuples written before the proposal 0016 URI migration would become
+// unreachable if we switched the key encoding. Encoding both old and new URIs
+// to the legacy form keeps a single key per space either way.
 func SpaceObjectKey(uri habitat_syntax.SpaceURI) string {
-	return "space:" + url.QueryEscape(uri.String())
+	return "space:" + url.QueryEscape(uri.Legacy().String())
 }
 
 // MemberUserString returns the FGA user string for a DID member.
@@ -40,7 +46,7 @@ func OrgMemberUsersetString(did syntax.DID) string {
 
 // OrgMemberContextualTuple returns a Tuple granting org members (via the
 // organization:#member userset) the can_read relation on the org's self space
-// (ats://<org>/network.habitat.organization/self).  This lets org membership
+// (at://<org>/space/network.habitat.organization/self).  This lets org membership
 // chain through stored tuples like "self#reader → can_read → <space>" without
 // storing per-member tuples on every space.
 func OrgMemberContextualTuple(org syntax.DID) Tuple {
@@ -76,6 +82,8 @@ func MemberUserToDID(user string) (syntax.DID, error) {
 }
 
 // ParseSpaceObjectKey parses an FGA space object key back into a SpaceURI.
+// Keys hold the legacy URI encoding (see [SpaceObjectKey]), so the result is
+// normalized to the current format before being handed back to callers.
 func ParseSpaceObjectKey(key string) (habitat_syntax.SpaceURI, error) {
 	if !strings.HasPrefix(key, "space:") {
 		return "", fmt.Errorf("invalid space object key: %s", key)
@@ -84,5 +92,6 @@ func ParseSpaceObjectKey(key string) (habitat_syntax.SpaceURI, error) {
 	if err != nil {
 		return "", fmt.Errorf("parse space object key: %w", err)
 	}
+	// ParseSpaceURI normalizes the legacy encoding back to the current format.
 	return habitat_syntax.ParseSpaceURI(raw)
 }

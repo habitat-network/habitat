@@ -5910,13 +5910,595 @@
         }
       }
     },
+    "/network.habitat.simplespace.addMember": {
+      "post": {
+        "tags": [
+          "network.habitat.simplespace"
+        ],
+        "summary": "network.habitat.simplespace.addMember",
+        "description": "Add a member to a space's member list. The member list is host-internal state consulted at credential-mint time when the space's policy is 'member-list'. It is not a synced protocol structure and is not enumerated to the network. Requires auth as the space owner.",
+        "operationId": "network.habitat.simplespace.addMember",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space",
+                  "did"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the space.",
+                    "format": "at-uri"
+                  },
+                  "did": {
+                    "type": "string",
+                    "description": "The DID of the member to add.",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "NotSpaceOwner"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.simplespace.createSpace": {
+      "post": {
+        "tags": [
+          "network.habitat.simplespace"
+        ],
+        "summary": "network.habitat.simplespace.createSpace",
+        "description": "Create a new space managed by the simplespace implementation. The authenticated user becomes the space owner. Requires auth, implemented by PDS.",
+        "operationId": "network.habitat.simplespace.createSpace",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "did",
+                  "type"
+                ],
+                "properties": {
+                  "did": {
+                    "type": "string",
+                    "description": "The DID of the space.",
+                    "format": "did"
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "The NSID of the space type, describing the modality of the space (e.g. app.bsky.group, app.bsky.personal).",
+                    "format": "nsid"
+                  },
+                  "skey": {
+                    "type": "string",
+                    "description": "The space key. Used to differentiate multiple spaces of the same type under the same owner. If not provided, one will be auto-generated (TID).",
+                    "maxLength": 512
+                  },
+                  "config": {
+                    "$ref": "#/components/schemas/network.habitat.simplespace.defs.spaceConfig"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "uri"
+                  ],
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "description": "URI of the created space.",
+                      "format": "at-uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceAlreadyExists"
+                        },
+                        {
+                          "const": "InvalidType"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.simplespace.deleteSpace": {
+      "post": {
+        "tags": [
+          "network.habitat.simplespace"
+        ],
+        "summary": "network.habitat.simplespace.deleteSpace",
+        "description": "Delete a space. The authenticated user must be the space owner. The authority's own repo in the space is deleted along with it, since the space host and the repo host are the same service here; other members' repos are flagged as belonging to a deleted space rather than erased. After deletion, all reads and writes against the space fail with SpaceNotFound, and getSpaceCredential answers SpaceDeleted so a syncer that missed the notification still learns to drop its copy. Idempotent. Requires auth, implemented by PDS.",
+        "operationId": "network.habitat.simplespace.deleteSpace",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the space to delete.",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "NotSpaceOwner"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.simplespace.listMembers": {
+      "get": {
+        "tags": [
+          "network.habitat.simplespace"
+        ],
+        "summary": "network.habitat.simplespace.listMembers",
+        "description": "List the members in a space's host-internal member list. Must be called on the space owner's PDS, by the space owner. This reflects the simplespace member list, not a protocol-level reader set.",
+        "operationId": "network.habitat.simplespace.listMembers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Reference to the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Reference to the space.",
+              "format": "at-uri"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of members to return.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "members"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.simplespace.listMembers.member"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "NotSpaceOwner"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.simplespace.removeMember": {
+      "post": {
+        "tags": [
+          "network.habitat.simplespace"
+        ],
+        "summary": "network.habitat.simplespace.removeMember",
+        "description": "Remove a member from a space's member list. The member list is host-internal state consulted at credential-mint time when the space's policy is 'member-list'. Requires auth as the space owner.",
+        "operationId": "network.habitat.simplespace.removeMember",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space",
+                  "did"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the space.",
+                    "format": "at-uri"
+                  },
+                  "did": {
+                    "type": "string",
+                    "description": "The DID of the member to remove.",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "NotSpaceOwner"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.addMember": {
       "post": {
         "tags": [
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.addMember",
-        "description": "Add a member to a space. Caller must have can_manage_members.",
+        "description": "DEPRECATED. Use network.habitat.simplespace.addMember instead.",
         "operationId": "network.habitat.space.addMember",
         "security": [
           {
@@ -5946,7 +6528,7 @@
                   },
                   "access": {
                     "type": "string",
-                    "description": "The access level to give the user. Defaults to read.",
+                    "description": "WARNING: Ignored since deprecation.",
                     "default": "read"
                   }
                 }
@@ -6028,7 +6610,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.createSpace",
-        "description": "Create a new space. The authenticated user becomes the space owner. Requires auth, implemented by PDS.",
+        "description": "DEPRECATED. Use network.habitat.simplespace.createSpace instead.",
         "operationId": "network.habitat.space.createSpace",
         "security": [
           {
@@ -6275,7 +6857,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.deleteSpace",
-        "description": "Delete an entire space. Only the space owner can delete. All records in the space and all member relationships are removed.",
+        "description": "DEPRECATED. Use network.habitat.simplespace.deleteSpace instead.",
         "operationId": "network.habitat.space.deleteSpace",
         "security": [
           {
@@ -6331,6 +6913,218 @@
                         },
                         {
                           "const": "SpaceNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.space.getBlob": {
+      "get": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.getBlob",
+        "description": "Get a blob stored within a permissioned space, addressed by its CID. Requires read access to the space.",
+        "operationId": "network.habitat.space.getBlob",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Reference to the space the blob belongs to.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Reference to the space the blob belongs to.",
+              "format": "at-uri"
+            }
+          },
+          {
+            "name": "cid",
+            "in": "query",
+            "description": "The CID of the blob to fetch.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The CID of the blob to fetch.",
+              "format": "cid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {}
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "BlobNotFound"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.space.getDelegationToken": {
+      "get": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.getDelegationToken",
+        "description": "Mint a delegation token for a space, proving the requesting app is acting on the user's behalf. Exchanged with the space authority for a space credential. Served by the requesting user's PDS. Requires OAuth auth.",
+        "operationId": "network.habitat.space.getDelegationToken",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Reference to the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Reference to the space.",
+              "format": "at-uri"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "token"
+                  ],
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "description": "A signed JWT delegation token."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
                         }
                       ]
                     },
@@ -6649,14 +7443,14 @@
         }
       }
     },
-    "/com.atproto.space.getRepo": {
+    "/network.habitat.space.getRepo": {
       "get": {
         "tags": [
-          "com.atproto.space"
+          "network.habitat.space"
         ],
-        "summary": "com.atproto.space.getRepo",
+        "summary": "network.habitat.space.getRepo",
         "description": "Download an account's permissioned repo within a space as a CAR file, for full-state recovery. The CAR declares two roots in order: the signed commit, then a DRISL (DAG-CBOR) index mapping '{collection}/{rkey}' to record CID. Record blocks follow in lexicographic order. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
-        "operationId": "com.atproto.space.getRepo",
+        "operationId": "network.habitat.space.getRepo",
         "security": [
           {
             "Bearer": []
@@ -7390,7 +8184,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.listSpaces",
-        "description": "List the spaces that the authenticated user participates in, optionally filtered by type and/or owner DID. Requires auth.",
+        "description": "List the spaces the authenticated user holds a repo in (i.e. spaces the user has written data to), optionally filtered by type and/or owner DID. Note this is not 'spaces I'm a member of' — a member's PDS only tracks spaces its user has written to. Requires auth, implemented by PDS.",
         "operationId": "network.habitat.space.listSpaces",
         "security": [
           {
@@ -7401,28 +8195,29 @@
           {
             "name": "type",
             "in": "query",
-            "description": "Filter to spaces of this type.",
+            "description": "Filter to spaces of this type. Required if the caller's OAuth scope is narrower than `space:*`.",
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Filter to spaces of this type.",
+              "description": "Filter to spaces of this type. Required if the caller's OAuth scope is narrower than `space:*`.",
               "format": "nsid"
             }
           },
           {
             "name": "did",
             "in": "query",
-            "description": "Filter to spaces owned by this DID.",
+            "description": "Filter to spaces owned by this DID. Required if the caller's OAuth scope is narrower than `?did=*`.",
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Filter to spaces owned by this DID.",
+              "description": "Filter to spaces owned by this DID. Required if the caller's OAuth scope is narrower than `?did=*`.",
               "format": "did"
             }
           },
           {
             "name": "limit",
             "in": "query",
+            "description": "The number of spaces to return.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -8013,7 +8808,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.removeMember",
-        "description": "Remove a member from a space. Caller must have can_manage_members.",
+        "description": "DEPRECATED. Use network.habitat.simplespace.removeMember instead.",
         "operationId": "network.habitat.space.removeMember",
         "security": [
           {
@@ -8796,6 +9591,72 @@
           }
         }
       },
+      "network.habitat.simplespace.defs.spaceConfig": {
+        "type": "object",
+        "description": "Configuration for a space managed by the simplespace implementation. A credential is minted only when the user is authorized by `policy` and their app by `appAccess`.",
+        "required": [
+          "policy",
+          "appAccess"
+        ],
+        "properties": {
+          "policy": {
+            "type": "string",
+            "description": "How the authority decides whether to authorize a requesting user. 'member-list' (default) consults the member list, 'public' authorizes anyone, 'managing-app' asks the managingApp via checkUserAccess.",
+            "enum": [
+              "public",
+              "member-list",
+              "managing-app"
+            ]
+          },
+          "appAccess": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/network.habitat.simplespace.defs.open"
+              },
+              {
+                "$ref": "#/components/schemas/network.habitat.simplespace.defs.allowList"
+              }
+            ]
+          },
+          "managingApp": {
+            "type": "string",
+            "description": "Service identifier (e.g. did:web:example.com#forum) of the app that manages this space. Routes application-level requests and is the checkUserAccess target when policy is 'managing-app'."
+          }
+        }
+      },
+      "network.habitat.simplespace.defs.open": {
+        "type": "object",
+        "description": "App access policy: any app may access the space. No client attestation required.",
+        "properties": {}
+      },
+      "network.habitat.simplespace.defs.allowList": {
+        "type": "object",
+        "description": "App access policy: only the named clients may access the space, evaluated against the attested client_id.",
+        "required": [
+          "allowed"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "An OAuth client ID."
+            }
+          }
+        }
+      },
+      "network.habitat.simplespace.listMembers.member": {
+        "type": "object",
+        "required": [
+          "did"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          }
+        }
+      },
       "network.habitat.space.defs.signedCommit": {
         "type": "object",
         "description": "A signed commit over the current state of a permissioned repo.",
@@ -8919,24 +9780,17 @@
         "type": "object",
         "required": [
           "uri",
-          "type"
+          "isOwner"
         ],
         "properties": {
           "uri": {
             "type": "string",
-            "description": "URI of the space."
+            "description": "URI of the space.",
+            "format": "at-uri"
           },
-          "type": {
-            "type": "string",
-            "description": "The NSID of the space type.",
-            "format": "nsid"
-          },
-          "skey": {
-            "type": "string",
-            "description": "The space key."
-          },
-          "memberCount": {
-            "type": "integer"
+          "isOwner": {
+            "type": "boolean",
+            "description": "Whether the authenticated user is the owner of the space."
           }
         }
       }
@@ -9001,10 +9855,10 @@
       "name": "network.habitat.search"
     },
     {
-      "name": "network.habitat.space"
+      "name": "network.habitat.simplespace"
     },
     {
-      "name": "com.atproto.space"
+      "name": "network.habitat.space"
     }
   ]
 }

@@ -23,7 +23,7 @@ func newTestServer(t *testing.T) (*Server, AdminStore, string) {
 func sessionCookie(t *testing.T, store AdminStore) *http.Cookie {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/admin/login", nil)
+	req := httptest.NewRequest(http.MethodPost, "/admin/login", http.NoBody)
 	require.NoError(t, store.CreateSession(rec, req))
 	cookies := rec.Result().Cookies()
 	require.Len(t, cookies, 1)
@@ -33,7 +33,7 @@ func sessionCookie(t *testing.T, store AdminStore) *http.Cookie {
 func TestServeLoginPage(t *testing.T) {
 	server, _, _ := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/login", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin/login", http.NoBody)
 	rec := httptest.NewRecorder()
 	server.ServeLoginPage(rec, req)
 
@@ -85,7 +85,11 @@ func TestHandleLogin_WrongPassword(t *testing.T) {
 func TestRequireSessionAPI_FailsWithoutCookie(t *testing.T) {
 	server, _, _ := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.admin.getSettings", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.admin.getSettings",
+		http.NoBody,
+	)
 	rec := httptest.NewRecorder()
 	ok := server.requireSessionAPI(rec, req)
 
@@ -96,7 +100,7 @@ func TestRequireSessionAPI_FailsWithoutCookie(t *testing.T) {
 func TestRequireSessionAPI_PassesWithValidCookie(t *testing.T) {
 	server, store, _ := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin", http.NoBody)
 	req.AddCookie(sessionCookie(t, store))
 	rec := httptest.NewRecorder()
 	ok := server.requireSessionAPI(rec, req)
@@ -108,12 +112,12 @@ func TestHandleLogout_ClearsSessionAndCookie(t *testing.T) {
 	server, store, _ := newTestServer(t)
 
 	createRec := httptest.NewRecorder()
-	createReq := httptest.NewRequest(http.MethodPost, "/admin/login", nil)
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/login", http.NoBody)
 	require.NoError(t, store.CreateSession(createRec, createReq))
 	sessionCookies := createRec.Result().Cookies()
 	require.Len(t, sessionCookies, 1)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/logout", nil)
+	req := httptest.NewRequest(http.MethodPost, "/admin/logout", http.NoBody)
 	req.AddCookie(sessionCookies[0])
 	rec := httptest.NewRecorder()
 	server.HandleLogout(rec, req)
@@ -125,7 +129,7 @@ func TestHandleLogout_ClearsSessionAndCookie(t *testing.T) {
 	require.Len(t, cookies, 1)
 	require.LessOrEqual(t, cookies[0].MaxAge, 0)
 
-	finalReq := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	finalReq := httptest.NewRequest(http.MethodGet, "/admin", http.NoBody)
 	finalReq.AddCookie(cookies[0])
 	ok, err := store.ValidateSession(finalReq)
 	require.NoError(t, err)
@@ -135,7 +139,7 @@ func TestHandleLogout_ClearsSessionAndCookie(t *testing.T) {
 func TestServeAdminHome_RedirectsToEmbeddedPage(t *testing.T) {
 	server, _, _ := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin", http.NoBody)
 	rec := httptest.NewRecorder()
 	server.ServeAdminHome(rec, req)
 
@@ -146,7 +150,7 @@ func TestServeAdminHome_RedirectsToEmbeddedPage(t *testing.T) {
 func TestServeConfig_RequiresSession(t *testing.T) {
 	server, _, _ := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/config", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin/config", http.NoBody)
 	rec := httptest.NewRecorder()
 	server.ServeConfig(rec, req)
 
@@ -156,7 +160,7 @@ func TestServeConfig_RequiresSession(t *testing.T) {
 func TestServeConfig_ReturnsFrontendDomain(t *testing.T) {
 	server, store, _ := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/config", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin/config", http.NoBody)
 	req.AddCookie(sessionCookie(t, store))
 	rec := httptest.NewRecorder()
 	server.ServeConfig(rec, req)
@@ -172,7 +176,11 @@ func TestServeConfig_ReturnsFrontendDomain(t *testing.T) {
 func TestGetSettings_RequiresSession(t *testing.T) {
 	server, _, _ := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.admin.getSettings", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.admin.getSettings",
+		http.NoBody,
+	)
 	rec := httptest.NewRecorder()
 	server.GetSettings(rec, req)
 
@@ -182,7 +190,11 @@ func TestGetSettings_RequiresSession(t *testing.T) {
 func TestGetSettings_ReturnsDefaults(t *testing.T) {
 	server, store, _ := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.admin.getSettings", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.admin.getSettings",
+		http.NoBody,
+	)
 	req.AddCookie(sessionCookie(t, store))
 	rec := httptest.NewRecorder()
 	server.GetSettings(rec, req)
@@ -261,7 +273,11 @@ func TestUpdateSettings_OmittedFieldLeavesItUnchanged(t *testing.T) {
 func TestIssueInvite_ReturnsToken(t *testing.T) {
 	server, store, _ := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.admin.issueInvite", nil)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.admin.issueInvite",
+		http.NoBody,
+	)
 	req.AddCookie(sessionCookie(t, store))
 	rec := httptest.NewRecorder()
 	server.IssueInvite(rec, req)
@@ -279,7 +295,7 @@ func TestDescribeInstance_NoAuthRequired(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.instance.describeInstance",
-		nil,
+		http.NoBody,
 	)
 	rec := httptest.NewRecorder()
 	server.DescribeInstance(rec, req)

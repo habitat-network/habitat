@@ -30,15 +30,27 @@ interface ParsedRecordUri {
   collection: string;
 }
 
-// parseSpaceRecordUri splits a space-record URI of the form
-// ats://<owner>/<type>/<skey>/<repo>/<collection>/<rkey> into the parts the
-// crawler needs. Returns undefined if the URI isn't a well-formed record URI.
+// parseSpaceRecordUri splits a space-record URI into the parts the crawler
+// needs. Both the current form
+// at://<owner>/space/<type>/<skey>/<repo>/<collection>/<rkey> and the legacy
+// form ats://<owner>/<type>/<skey>/<repo>/<collection>/<rkey> are accepted;
+// spaceUri is always returned in the current form. Returns undefined if the URI
+// isn't a well-formed record URI.
 export function parseSpaceRecordUri(uri: string): ParsedRecordUri | undefined {
-  if (!uri.startsWith("ats://")) {
-    return undefined;
-  }
-  const parts = uri.slice("ats://".length).split("/");
-  if (parts.length !== 6) {
+  let parts: string[];
+  if (uri.startsWith("at://")) {
+    parts = uri.slice("at://".length).split("/");
+    // Drop the literal "space" segment that separates owner from type.
+    if (parts.length !== 7 || parts[1] !== "space") {
+      return undefined;
+    }
+    parts.splice(1, 1);
+  } else if (uri.startsWith("ats://")) {
+    parts = uri.slice("ats://".length).split("/");
+    if (parts.length !== 6) {
+      return undefined;
+    }
+  } else {
     return undefined;
   }
   const [owner, type, skey, , collection] = parts;
@@ -46,7 +58,7 @@ export function parseSpaceRecordUri(uri: string): ParsedRecordUri | undefined {
     return undefined;
   }
   return {
-    spaceUri: `ats://${owner}/${type}/${skey}`,
+    spaceUri: `at://${owner}/space/${type}/${skey}`,
     owner,
     type,
     skey,

@@ -72,13 +72,36 @@ const config: Config = {
       },
       items: [
         {
-          to: "docs/api",
+          type: "docSidebar",
+          sidebarId: "ods",
           position: "left",
-          label: "API Reference",
+          label: "Organization Data Server (WIP)",
+        },
+        {
+          type: "docSidebar",
+          sidebarId: "spaceProxy",
+          position: "left",
+          label: "Space Proxy",
+        },
+        {
+          type: "docSidebar",
+          sidebarId: "httpReference",
+          position: "left",
+          label: "HTTP Reference",
         },
         {
           href: "https://github.com/habitat-network/habitat",
           label: "GitHub",
+          position: "right",
+        },
+        {
+          href: "https://habitat.leaflet.pub/",
+          label: "Blog",
+          position: "right",
+        },
+        {
+          href: "https://discord.gg/6bhj73CSrr",
+          label: "Discord",
           position: "right",
         },
       ],

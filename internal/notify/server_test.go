@@ -45,7 +45,7 @@ func (m *oauthMethod) Validate(
 	_ *http.Request,
 	_ ...string,
 ) (*authn.CredentialInfo, bool) {
-	return &authn.CredentialInfo{Subject: m.did, Org: &org.EveryoneOrg{}}, true
+	return &authn.CredentialInfo{Subject: m.did, Org: org.NewEveryoneOrg("pear.example.com")}, true
 }
 
 // fakeMembers is a MembershipChecker returning a fixed answer.
@@ -144,7 +144,7 @@ func TestServerRegisterNotifyOAuthNonMember(t *testing.T) {
 
 func TestServerRegisterNotifyRejectsSpaceMismatch(t *testing.T) {
 	// The credential authorizes a different space than the one in the body.
-	other := habitat_syntax.SpaceURI("ats://did:plc:org/network.habitat.group/other")
+	other := habitat_syntax.SpaceURI("at://did:plc:org/space/network.habitat.group/other")
 	s := newTestServer(t, other)
 
 	body := `{"space": "` + space.String() + `", "endpoint": "https://sync.example/all"}`

@@ -37,7 +37,6 @@ export const Route = createFileRoute("/_requireAuth/groups/$group")({
     ]);
     return { uri, group, orgMembers, allGroups };
   },
-  pendingComponent: () => <p className="py-8">Loading group…</p>,
   component: GroupDetail,
 });
 

@@ -55,7 +55,7 @@ func newSpace(
 }
 
 func TestParseSubjectParams(t *testing.T) {
-	space := habitat_syntax.SpaceURI("ats://did:plc:abc123/network.habitat.space/team")
+	space := habitat_syntax.SpaceURI("at://did:plc:abc123/space/network.habitat.space/team")
 
 	t.Run("user did", func(t *testing.T) {
 		subject, err := parseSubjectParams(alice.String(), "")

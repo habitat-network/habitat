@@ -63,7 +63,7 @@ func TestDpopHttpClient_InitialValidNonce(t *testing.T) {
 	client := NewDpopHttpClient(key, nonceProvider)
 
 	// Create request
-	req, err := http.NewRequest("GET", server.URL+"/test", nil)
+	req, err := http.NewRequest("GET", server.URL+"/test", http.NoBody)
 	require.NoError(t, err)
 
 	// Execute request
@@ -127,7 +127,7 @@ func TestDpopHttpClient_NoNonceAtBeginning(t *testing.T) {
 	client := NewDpopHttpClient(key, nonceProvider)
 
 	// Create request
-	req, err := http.NewRequest("GET", server.URL+"/test", nil)
+	req, err := http.NewRequest("GET", server.URL+"/test", http.NoBody)
 	require.NoError(t, err)
 
 	// Execute request
@@ -274,7 +274,7 @@ func TestAuthedDpopHttpClient(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create request with Authorization header
-	req, err := http.NewRequest("GET", "/test", nil)
+	req, err := http.NewRequest("GET", "/test", http.NoBody)
 	require.NoError(t, err)
 
 	// Execute request
@@ -301,7 +301,7 @@ func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create request with Authorization header
-	req, err := http.NewRequest("GET", "/test", nil)
+	req, err := http.NewRequest("GET", "/test", http.NoBody)
 	require.NoError(t, err)
 
 	// Execute request
@@ -466,7 +466,7 @@ func TestDpopHttpClient_NonceProviderError(t *testing.T) {
 	client := NewDpopHttpClient(key, nonceProvider)
 
 	// Create request
-	req, err := http.NewRequest("GET", server.URL+"/test", nil)
+	req, err := http.NewRequest("GET", server.URL+"/test", http.NoBody)
 	require.NoError(t, err)
 
 	// Execute request - should succeed even without nonce
@@ -498,7 +498,7 @@ func TestDpopHttpClient_ErrorHandling(t *testing.T) {
 	client := NewDpopHttpClient(key, nonceProvider)
 
 	// Create request
-	req, err := http.NewRequest("GET", server.URL+"/test", nil)
+	req, err := http.NewRequest("GET", server.URL+"/test", http.NoBody)
 	require.NoError(t, err)
 
 	// Execute request
