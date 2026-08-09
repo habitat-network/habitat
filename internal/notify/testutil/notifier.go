@@ -16,6 +16,7 @@ type writeCall struct {
 	Space habitat_syntax.SpaceURI
 	Repo  syntax.DID
 	Rev   syntax.TID
+	Hash  []byte
 }
 
 func (n *TestNotifier) NotifyWrite(
@@ -23,8 +24,9 @@ func (n *TestNotifier) NotifyWrite(
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
 	rev syntax.TID,
+	hash []byte,
 ) {
-	n.Writes = append(n.Writes, writeCall{Space: space, Repo: repo, Rev: rev})
+	n.Writes = append(n.Writes, writeCall{Space: space, Repo: repo, Rev: rev, Hash: hash})
 }
 
 func (n *TestNotifier) NotifySpaceDeleted(

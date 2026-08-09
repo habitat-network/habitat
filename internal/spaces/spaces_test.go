@@ -801,3 +801,26 @@ func TestListRepoOpsPrevCreateIsEmpty(t *testing.T) {
 	require.Len(t, ops, 1)
 	require.Empty(t, ops[0].Prev)
 }
+
+// TestPutRecordNotifiesRepoHash pins that the notifier receives the repo's
+// LtHash state so syncers can detect writes that arrive with the same rev but
+// a different hash (i.e. a write we missed).
+func TestPutRecordNotifiesRepoHash(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"v": 2})
+	require.NoError(t, err)
+
+	require.Len(t, s.Notifier.Writes, 2)
+
+	var expected spacecommit.LtHash
+	expected.Add(spacecommit.RecordElement(coll, "k1", cid1.String()))
+	expected.Add(spacecommit.RecordElement(coll, "k2", cid2.String()))
+	require.Equal(t, expected.Sum(), s.Notifier.Writes[1].Hash)
+}
