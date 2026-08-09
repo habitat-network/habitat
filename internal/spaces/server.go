@@ -806,6 +806,11 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	records, err := s.store.ListRepoOps(ctx, spaceURI, repoDID, params.Since, limit)
+	if errors.Is(err, ErrRevTooFar) {
+		httpx.WriteError(ctx, w, "RevNotFound",
+			"since revision is ahead of the repo head", http.StatusBadRequest)
+		return
+	}
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list repo ops: %w", err))
 		return
@@ -817,6 +822,7 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 			Rev:        rec.Rev,
 			Collection: rec.Collection.String(),
 			Rkey:       rec.Rkey.String(),
+			Prev:       rec.Prev,
 			Cid:        rec.Cid.String(),
 		}
 		if !params.ExcludeValues {

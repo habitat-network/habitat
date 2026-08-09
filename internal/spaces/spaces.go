@@ -39,6 +39,7 @@ type spaceRecord struct {
 	Value      []byte
 	Rev        syntax.TID `gorm:"uniqueIndex"`
 	Cid        string
+	PrevCid    string // cid of the record's prior version, for the oplog
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	DeletedAt  gorm.DeletedAt
@@ -71,6 +72,7 @@ type Record struct {
 	Rkey       syntax.RecordKey
 	Value      map[string]any
 	Rev        string
+	Prev       string
 	Cid        cid.Cid
 	UpdatedAt  time.Time
 }
@@ -218,6 +220,7 @@ var (
 	ErrNotAMember         = errors.New("user is not a member of the space")
 	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
 	ErrRepoNotFound       = errors.New("repo not found")
+	ErrRevTooFar          = errors.New("since revision is ahead of the repo head")
 )
 
 // ---- Store implementation ----
@@ -654,6 +657,10 @@ func (s *store) PutRecord(
 		if err := saveRepoHash(tx, spaceUri, repo, h, tid); err != nil {
 			return fmt.Errorf("failed to save repo hash: %w", err)
 		}
+		prevCid := ""
+		if err == nil {
+			prevCid = existing.Cid
+		}
 
 		return tx.Save(&spaceRecord{
 			Repo:       repo,
@@ -662,6 +669,7 @@ func (s *store) PutRecord(
 			Rkey:       rkey,
 			Value:      bytes,
 			Rev:        tid,
+			PrevCid:    prevCid,
 			Cid:        cid.String(),
 		}).Error
 	})
@@ -849,6 +857,19 @@ func (s *store) ListRepoOps(
 	since string,
 	limit int,
 ) ([]Record, error) {
+	// A since beyond the repo's head revision is a client error: nothing will
+	// ever be listed after it, and an empty page would be indistinguishable
+	// from the normal at-head case. Syncers use the RevNotFound error to detect
+	// they are ahead of the host and resync from scratch.
+	if since != "" {
+		var head spaceRepo
+		err := s.db.WithContext(ctx).
+			Where("space = ? AND repo = ?", uri, repo).
+			First(&head).Error
+		if err == nil && since > string(head.Rev) {
+			return nil, ErrRevTooFar
+		}
+	}
 	query := s.db.WithContext(ctx).
 		Unscoped().
 		Model(&spaceRecord{}).
@@ -876,6 +897,7 @@ func (s *store) ListRepoOps(
 				Rkey:       row.Rkey,
 				Value:      nil,
 				Rev:        string(row.Rev),
+				Prev:       row.PrevCid,
 				UpdatedAt:  row.DeletedAt.Time,
 				// empty cid
 			}
@@ -886,6 +908,7 @@ func (s *store) ListRepoOps(
 				Rkey:       row.Rkey,
 				Value:      value,
 				Rev:        string(row.Rev),
+				Prev:       row.PrevCid,
 				UpdatedAt:  row.UpdatedAt,
 				Cid:        cid.MustParse(row.Cid),
 			}
@@ -943,6 +966,7 @@ func (s *store) DeleteRecord(
 			Updates(map[string]any{
 				"deleted_at": time.Now(),
 				"rev":        rev,
+				"prev_cid":   rows[0].Cid,
 			}).Error; err != nil {
 			return fmt.Errorf("delete record: %w", err)
 		}
