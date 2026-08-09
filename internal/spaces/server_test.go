@@ -1157,3 +1157,37 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uri.String(), claims["sub"])
 }
+
+// TestServer_ListRepoOpsSinceAheadRejects pins that a since beyond the repo
+// head is an error (not an empty page), so an ahead-of-host syncer falls back
+// to a full recovery instead of silently stopping.
+func TestServer_ListRepoOpsSinceAheadRejects(t *testing.T) {
+	s := newTestServerWithOpts(t,
+		testServerOptions{
+			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
+			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
+		},
+	)
+	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+
+	// A TID-like string that sorts after any real TID (base32 is a-z + 2-7).
+	ahead := strings.Repeat("z", 13)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+
+			"&repo="+owner.String()+"&since="+ahead,
+		http.NoBody,
+	)
+	w := httptest.NewRecorder()
+	s.ListRepoOps(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+
+	var body atclient.ErrorBody
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "RevNotFound", body.Name)
+}
