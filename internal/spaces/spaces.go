@@ -201,12 +201,15 @@ type Store interface {
 // Notifier is notified when a space changes so it can deliver events to
 // registered syncers. Implementations must be non-blocking and best-effort.
 type Notifier interface {
-	// NotifyWrite reports that a repo advanced to a new revision within a space.
+	// NotifyWrite reports that a repo advanced to a new revision within a
+	// space, carrying the repo's LtHash commit state so syncers can detect
+	// writes that arrive at the same rev but a different hash.
 	NotifyWrite(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
 		rev syntax.TID,
+		hash []byte,
 	)
 	// NotifySpaceDeleted reports that a space was deleted.
 	NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI)
@@ -590,6 +593,7 @@ func (s *store) PutRecord(
 
 	var recordUri habitat_syntax.SpaceRecordURI
 	var newRev syntax.TID
+	var repoHash []byte
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if tx.Name() == "postgres" {
 			// acquire lock on permissioned repo within space
@@ -657,6 +661,7 @@ func (s *store) PutRecord(
 		if err := saveRepoHash(tx, spaceUri, repo, h, tid); err != nil {
 			return fmt.Errorf("failed to save repo hash: %w", err)
 		}
+		repoHash = h.Sum()
 		prevCid := ""
 		if err == nil {
 			prevCid = existing.Cid
@@ -677,8 +682,9 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
 	s.eventStore.NotifyEvent(ctx)
-	// Best-effort: notify registered syncers that this repo advanced.
-	s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev)
+	// Best-effort: notify registered syncers that this repo advanced, with the
+	// LtHash state it now has so they can compare hashes.
+	s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev, repoHash)
 	return recordUri, &cid, nil
 }
 

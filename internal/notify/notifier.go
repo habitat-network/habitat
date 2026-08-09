@@ -3,6 +3,7 @@ package notify
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -47,6 +48,7 @@ func (d *Deliverer) NotifyWrite(
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
 	rev syntax.TID,
+	hash []byte,
 ) {
 	regs, err := d.store.ListForRepo(ctx, space, repo)
 	if err != nil {
@@ -62,7 +64,7 @@ func (d *Deliverer) NotifyWrite(
 		Space: space.String(),
 		Repo:  repo.String(),
 		Rev:   rev.String(),
-		Hash:  "",
+		Hash:  base64.StdEncoding.EncodeToString(hash),
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: marshal notifyWrite", "err", err)
