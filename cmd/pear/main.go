@@ -442,18 +442,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		Path("/.well-known/atproto-did").
 		HandlerFunc(idServer.ServeHandle)
 
-	waitlistSvc, err := NewWaitlistService(
-		startupCtx,
-		os.Getenv("WAITLIST_SHEET_ID"),
-		os.Getenv("WAITLIST_SVC_ACCOUNT_CREDS"),
-	)
-	if err == nil {
-		slog.InfoContext(startupCtx, "successfully set up waitlist service")
-		mux.HandleFunc("/waitlist", waitlistSvc.HandleWaitlistEmailSignup)
-	} else {
-		slog.ErrorContext(startupCtx, "unable to set up waitlist service", "err", err)
-	}
-
 	mux.HandleFunc("/admin/login", instanceAdminServer.ServeLoginPage).Methods("GET")
 	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
 	mux.HandleFunc("/admin/logout", instanceAdminServer.HandleLogout).Methods("POST")
