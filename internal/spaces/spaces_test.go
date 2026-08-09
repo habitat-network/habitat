@@ -751,3 +751,53 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 	require.NoError(t, s.DeleteSpace(t.Context(), uri))
 	require.Equal(t, []habitat_syntax.SpaceURI{uri}, s.Notifier.Deleted)
 }
+
+// TestListRepoOpsPrev tracks the previous cid of each op so a syncer can fold
+// the prior element out of its LtHash on updates and deletes.
+func TestListRepoOpsPrev(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 2})
+	require.NoError(t, err)
+
+	// An update overwrites in place: one op whose prev is the old cid.
+	ops, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
+	require.NoError(t, err)
+	require.Len(t, ops, 1)
+	require.Equal(t, cid1.String(), ops[0].Prev)
+	require.Equal(t, cid2.String(), ops[0].Cid.String())
+	require.NotNil(t, ops[0].Value)
+
+	// A delete soft-removes the row: one op whose prev is the last cid, with no
+	// cid and no value.
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))
+	ops, err = s.ListRepoOps(t.Context(), uri, owner, "", 100)
+	require.NoError(t, err)
+	require.Len(t, ops, 1)
+	require.Equal(t, cid2.String(), ops[0].Prev)
+	require.Empty(t, ops[0].Cid)
+	require.Nil(t, ops[0].Value)
+}
+
+// TestListRepoOpsPrevCreateIsEmpty pins that a create op has no prev.
+func TestListRepoOpsPrevCreateIsEmpty(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+
+	ops, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
+	require.NoError(t, err)
+	require.Len(t, ops, 1)
+	require.Empty(t, ops[0].Prev)
+}
