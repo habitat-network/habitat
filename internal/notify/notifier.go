@@ -122,7 +122,11 @@ func (d *Deliverer) deliver(
 	endpoint string,
 	body []byte,
 ) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	// The registered endpoint is a service base URL; deliver the XRPC call to
+	// <endpoint>/xrpc/<nsid> so the receiver can route and validate by method,
+	// while keeping the base endpoint as the service-auth audience.
+	url := endpoint + "/xrpc/" + method.String()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: build request", "err", err, "endpoint", endpoint)
 		return
