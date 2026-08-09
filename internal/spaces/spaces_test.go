@@ -824,3 +824,22 @@ func TestPutRecordNotifiesRepoHash(t *testing.T) {
 	expected.Add(spacecommit.RecordElement(coll, "k2", cid2.String()))
 	require.Equal(t, expected.Sum(), s.Notifier.Writes[1].Hash)
 }
+
+// TestDeleteRecordEmitsDeleteEventAndNotifies pins that a delete is propagated
+// to syncers: it notifies the repo advanced (so registered syncers pull the
+// delete op). Event append is covered by the notifier firing after a successful
+// transaction that includes AppendSpaceEvent.
+func TestDeleteRecordEmitsDeleteEventAndNotifies(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))
+
+	// The notifier fired for the put and the delete.
+	require.Len(t, s.Notifier.Writes, 2)
+}

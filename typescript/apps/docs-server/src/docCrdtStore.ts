@@ -83,6 +83,11 @@ export class DocCrdtStore {
     });
   }
 
+  // deleteState removes a doc's persisted CRDT state when its record is deleted.
+  deleteState(spaceUri: string): void {
+    this.db.prepare(`DELETE FROM doc_crdt WHERE space_uri = ?`).run(spaceUri);
+  }
+
   // load reads the doc's CRDT state from the db, falling back to the record in
   // pear when the crawler hasn't delivered it yet (e.g. a doc created on another
   // server).

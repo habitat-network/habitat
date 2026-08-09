@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc --build --force",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@atproto/crypto": "^0.5.4",

@@ -48,16 +48,21 @@ func (f fakeClients) ClientForSpace(
 type memEmitter struct {
 	mu      sync.Mutex
 	emitted []habitat_syntax.SpaceRecordURI
+	values  map[habitat_syntax.SpaceRecordURI][]byte
 }
 
 func (e *memEmitter) Emit(
 	_ context.Context,
 	uri habitat_syntax.SpaceRecordURI,
-	_ []byte,
+	value []byte,
 ) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.emitted = append(e.emitted, uri)
+	if e.values == nil {
+		e.values = make(map[habitat_syntax.SpaceRecordURI][]byte)
+	}
+	e.values[uri] = value
 	return nil
 }
 
@@ -1019,4 +1024,50 @@ func TestEngineRecoverRepoUsesHabitatNsid(t *testing.T) {
 
 	require.NoError(t, e.recoverRepo(t.Context(), space, repoDID))
 	require.Equal(t, "/xrpc/network.habitat.space.getRepo", requestedPath)
+}
+
+// TestEngineSyncRepoEmitsDeleteTombstone pins that a delete op (cid empty,
+// value null) is emitted to the outbox as a JSON null so consumers can remove
+// their copy, rather than skipped.
+func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	repoDID := syntax.DID("did:plc:alice")
+	clock := syntax.NewTIDClock(0)
+	rev1, rev2 := clock.Next().String(), clock.Next().String()
+
+	ops := []habitat.NetworkHabitatSpaceListRepoOpsOpEntry{
+		{Rev: rev1, Collection: "network.habitat.test", Rkey: "k1", Cid: "bafyaaa",
+			Value: map[string]any{"n": 1}},
+		{Rev: rev2, Collection: "network.habitat.test", Rkey: "k1", Prev: "bafyaaa"},
+	}
+	var lt spacecommit.LtHash
+	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
+		Ver:  int64(spacecommit.Version),
+		Rev:  rev2,
+		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		out := habitat.NetworkHabitatSpaceListRepoOpsOutput{Commit: commit}
+		if r.URL.Query().Get("since") == "" {
+			out.Ops = ops
+			out.Cursor = rev2
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	}))
+	t.Cleanup(srv.Close)
+
+	e, emitter, db := newTestEngine(t, srv.URL)
+	require.NoError(t, e.Track(t.Context(), space, repoDID))
+	require.NoError(t, db.Model(&repo{}).
+		Where("space = ? AND did = ?", space, repoDID).
+		Update("state", stateSyncing).Error)
+
+	require.NoError(t, e.syncRepo(t.Context(), space, repoDID))
+
+	require.Len(t, emitter.emitted, 2)
+	require.Equal(t, []byte("null"),
+		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/k1"])
 }

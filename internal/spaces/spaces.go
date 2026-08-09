@@ -945,7 +945,9 @@ func (s *store) DeleteRecord(
 	collection syntax.NSID,
 	rkey string,
 ) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var outRev syntax.TID
+	var outHash []byte
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if tx.Name() == "postgres" {
 			if err := tx.Exec(
 				`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`,
@@ -976,6 +978,27 @@ func (s *store) DeleteRecord(
 			}).Error; err != nil {
 			return fmt.Errorf("delete record: %w", err)
 		}
+		// Propagate the delete to syncers as a space event carrying no value.
+		for _, row := range rows {
+			recordUri := habitat_syntax.ConstructSpaceRecordURI(uri, repo, row.Collection, row.Rkey)
+			if err := s.eventStore.WithTx(tx).AppendSpaceEvent(
+				ctx,
+				uri,
+				repo,
+				rev,
+				row.Rev,
+				[]events.EventOps{
+					{
+						Action: "delete",
+						Uri:    recordUri,
+						Value:  nil,
+						Cid:    "",
+					},
+				},
+			); err != nil {
+				return fmt.Errorf("append delete event: %w", err)
+			}
+		}
 		// Fold the deleted records out of the cached LtHash.
 		h, _, _, err := loadRepoHash(tx, uri, repo)
 		if err != nil {
@@ -984,6 +1007,8 @@ func (s *store) DeleteRecord(
 		for _, row := range rows {
 			h.Remove(spacecommit.RecordElement(row.Collection, row.Rkey, row.Cid))
 		}
+		outRev = rev
+		outHash = h.Sum()
 		// Drop the hash row entirely once the repo holds no more records
 		var remaining int64
 		if err := tx.Model(&spaceRecord{}).
@@ -996,4 +1021,14 @@ func (s *store) DeleteRecord(
 		}
 		return saveRepoHash(tx, uri, repo, h, rev)
 	})
+	if err != nil {
+		return fmt.Errorf("delete record: %w", err)
+	}
+	if outRev == "" {
+		return nil
+	}
+	s.eventStore.NotifyEvent(ctx)
+	// Best-effort: tell syncers the repo advanced so they pull the delete op.
+	s.notifier.NotifyWrite(ctx, uri, repo, outRev, outHash)
+	return nil
 }

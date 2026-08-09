@@ -135,6 +135,12 @@ func (e *Engine) applyOps(
 		}
 
 		if op.Value == nil {
+			// A delete: emit a JSON null tombstone so consumers remove their
+			// copy. The URI identifies the deleted record.
+			uri := habitat_syntax.ConstructSpaceRecordURI(space, repoDID, collection, rkey)
+			if err := emitter.Emit(ctx, uri, []byte("null")); err != nil {
+				return err
+			}
 			continue
 		}
 		value, err := json.Marshal(op.Value)
