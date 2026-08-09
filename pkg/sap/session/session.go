@@ -80,17 +80,22 @@ func (s *Store) List(ctx context.Context) ([]syntax.DID, error) {
 }
 
 // ClientForSession returns an HTTP client authenticated as the session's
-// account against its host.
+// account against its host (OAuth).
 func (s *Store) ClientForSession(ctx context.Context, did syntax.DID) (*http.Client, error) {
-	var sess session
-	if err := s.db.WithContext(ctx).First(&sess, "did = ?", did).Error; err != nil {
-		return nil, fmt.Errorf("load session %s: %w", did, err)
-	}
-	resumed, err := s.getter.resume(ctx, sess.DID, sess.SessionID)
+	resumed, err := s.resumeFor(ctx, did)
 	if err != nil {
 		return nil, err
 	}
 	return resumed.authClient(), nil
+}
+
+// resumeFor loads and resumes the session for a DID.
+func (s *Store) resumeFor(ctx context.Context, did syntax.DID) (*resumed, error) {
+	var sess session
+	if err := s.db.WithContext(ctx).First(&sess, "did = ?", did).Error; err != nil {
+		return nil, fmt.Errorf("load session %s: %w", did, err)
+	}
+	return s.getter.resume(ctx, sess.DID, sess.SessionID)
 }
 
 // RecordSpaceAccess records that the session can access the space.
@@ -104,9 +109,10 @@ func (s *Store) RecordSpaceAccess(
 		Create(&spaceAccess{Space: space, DID: did}).Error
 }
 
-// ClientForSpace returns a client for any session that can access the space:
-// the recorded accessors first, then the space owner (often — but not always —
-// a session itself).
+// ClientForSpace returns a client for any session that can access the space,
+// authenticated with a space credential (not the member's OAuth session): the
+// recorded accessors first, then the space owner (often — but not always — a
+// session itself).
 func (s *Store) ClientForSpace(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
@@ -134,12 +140,12 @@ func (s *Store) ClientForSpace(
 
 	var errs []error
 	for _, did := range candidates {
-		client, err := s.ClientForSession(ctx, did)
+		resumed, err := s.resumeFor(ctx, did)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		return client, nil
+		return resumed.credentialClient(space), nil
 	}
 	return nil, fmt.Errorf("no session with access to %s: %w", space, errors.Join(errs...))
 }
@@ -156,8 +162,10 @@ func (s *Store) Spaces(ctx context.Context) ([]habitat_syntax.SpaceURI, error) {
 	return spaces, nil
 }
 
-// DropSpace forgets all access records for a deleted space.
+// DropSpace forgets all access records for a deleted space and evicts any
+// cached space credentials.
 func (s *Store) DropSpace(ctx context.Context, space habitat_syntax.SpaceURI) error {
+	s.getter.dropSpaceCredential(space)
 	return s.db.WithContext(ctx).
 		Where("space = ?", space).
 		Delete(&spaceAccess{}).Error

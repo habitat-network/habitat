@@ -21,11 +21,13 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
+	"github.com/habitat-network/habitat/api/habitat"
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -285,6 +287,16 @@ func setupPear(t *testing.T) *pearHost {
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
 	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
+	mux.HandleFunc("/xrpc/network.habitat.space.getDelegationToken",
+		func(w http.ResponseWriter, r *http.Request) {
+			httpx.WriteJSON(r.Context(), w,
+				habitat.NetworkHabitatSpaceGetDelegationTokenOutput{Token: "test-delegation"})
+		})
+	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
+		func(w http.ResponseWriter, r *http.Request) {
+			httpx.WriteJSON(r.Context(), w,
+				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "test-credential"})
+		})
 
 	go func() {
 		require.ErrorIs(t, eventStore.StartSequencer(t.Context()), context.Canceled)
