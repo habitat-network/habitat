@@ -46,3 +46,7 @@ func NewTestStore(t *testing.T, cfgs ...Config) *testStore {
 	require.NoError(t, err)
 	return &testStore{Store: s, Notifier: notifier, EventStore: eventStore, FGA: cfg.FgaStore}
 }
+
+// FGAStore exposes the underlying FGA store for tests that rebuild a Server
+// against an existing test store.
+func (t *testStore) FGAStore() fgastore.Store { return t.FGA }

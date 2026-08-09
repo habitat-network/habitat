@@ -26,6 +26,7 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/did"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/org"
 	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
@@ -34,15 +35,24 @@ import (
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 )
 
+type testSpaceStore interface {
+	spaces.Store
+	FGAStore() fgastore.Store
+}
+
 type testServerOptions struct {
 	hostKey     atcrypto.PrivateKey
 	oauth       authn.Method
 	serviceAuth authn.Method
+	spaceToken  authn.Method
+	// store, when set, reuses an existing test store (and its FGA) so a second
+	// Server can be built against the same data with different auth methods.
+	store testSpaceStore
 }
 
 type testServer struct {
 	*spaces.Server
-	Store   spaces.Store
+	Store   testSpaceStore
 	HostKey atcrypto.PrivateKey
 }
 
@@ -59,19 +69,26 @@ func newTestServerWithOpts(t *testing.T, opts testServerOptions) *testServer {
 	if opts.serviceAuth == nil {
 		opts.serviceAuth = authntest.NewSuccessMethod(alice)
 	}
-	store := spaces_testutil.NewTestStore(t)
+	store := opts.store
+	if store == nil {
+		store = spaces_testutil.NewTestStore(t)
+	}
 	h, err := hive.NewHive("example.com", "pear.example.com", db_testutil.NewDB(t))
 	require.NoError(t, err)
+	if opts.spaceToken == nil {
+		opts.spaceToken = authn.NewSpaceCredentialAuthMethod(h, opts.hostKey)
+	}
 	dir := identity.NewMockDirectory()
 	dir.Insert(*did.New(alice).AtprotoKey("zpubkey").Build())
+	fga := store.FGAStore()
 	return &testServer{
 		Server: spaces.NewServer(
 			store,
-			store.FGA,
+			fga,
 			opts.oauth,
 			opts.serviceAuth,
-			authn.NewDelegationTokenAuthMethod(dir, store.FGA, opts.hostKey),
-			authn.NewSpaceCredentialAuthMethod(h, opts.hostKey),
+			authn.NewDelegationTokenAuthMethod(dir, fga, opts.hostKey),
+			opts.spaceToken,
 			org_testutil.NewTestStore(t),
 			opts.hostKey,
 			h,
@@ -1190,4 +1207,63 @@ func TestServer_ListRepoOpsSinceAheadRejects(t *testing.T) {
 	var body atclient.ErrorBody
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, "RevNotFound", body.Name)
+}
+
+// TestServer_ListReposWithSpaceCredential pins that a credential naming the
+// space authorizes a repo-host read without a membership check (subject is
+// empty for space credentials).
+func TestServer_ListReposWithSpaceCredential(t *testing.T) {
+	everyoneOrg := org.NewEveryoneOrg("everyone.example.com")
+	s := newTestServerWithOpts(t, testServerOptions{
+		oauth: authntest.NewSuccessMethodWithOrg(owner, everyoneOrg.DID()),
+	})
+	uri, err := s.Store.CreateSpace(t.Context(), everyoneOrg.DID(), owner, groupType, "test")
+	require.NoError(t, err)
+	_, _, err = s.Store.PutRecord(t.Context(), uri, owner,
+		syntax.NSID("network.habitat.note"), "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+
+	// Rebuild against the same store with only a space credential auth method
+	// (oauth/serviceAuth must not CanHandle, or they shadow spaceToken).
+	s2 := newTestServerWithOpts(t, testServerOptions{
+		store:       s.Store,
+		oauth:       authntest.NewNeverMethod(),
+		serviceAuth: authntest.NewNeverMethod(),
+		spaceToken:  authntest.NewSuccessMethodForSpace(uri),
+	})
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listRepos?space="+uri.String(),
+		http.NoBody,
+	)
+	req.Header.Set("Authorization", "Bearer space-credential")
+	w := httptest.NewRecorder()
+	s2.ListRepos(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+}
+
+// TestServer_ListReposRequiresMembershipWithoutSpaceCredential pins that a
+// non-member with an ordinary (subject-bearing) credential is still rejected.
+func TestServer_ListReposRequiresMembershipWithoutSpaceCredential(t *testing.T) {
+	everyoneOrg := org.NewEveryoneOrg("everyone.example.com")
+	s := newTestServerWithOpts(t, testServerOptions{
+		oauth: authntest.NewSuccessMethodWithOrg(owner, everyoneOrg.DID()),
+	})
+	uri, err := s.Store.CreateSpace(t.Context(), everyoneOrg.DID(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	// alice is not a member (no AddMember); an ordinary credential must fail.
+	s2 := newTestServerWithOpts(t, testServerOptions{
+		store: s.Store,
+		oauth: authntest.NewSuccessMethodWithOrg(alice, everyoneOrg.DID()),
+	})
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listRepos?space="+uri.String(),
+		http.NoBody,
+	)
+	w := httptest.NewRecorder()
+	s2.ListRepos(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 }

@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
@@ -10,6 +11,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/org"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 // stubOrg implements org.Org for tests.
@@ -90,6 +92,25 @@ func NewSuccessMethodWithOrg(did, orgDID syntax.DID) authn.Method {
 	}
 }
 
+// successMethodForSpace authenticates as a space credential naming space.
+type successMethodForSpace struct{ space habitat_syntax.SpaceURI }
+
+// NewSuccessMethodForSpace returns a Method that always validates, yielding a
+// credential scoped to exactly space (like a real space credential).
+func NewSuccessMethodForSpace(space habitat_syntax.SpaceURI) authn.Method {
+	return &successMethodForSpace{space: space}
+}
+
+func (m *successMethodForSpace) CanHandle(r *http.Request) bool {
+	return strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
+}
+
+func (m *successMethodForSpace) Validate(
+	w http.ResponseWriter, r *http.Request, _ ...string,
+) (*authn.CredentialInfo, bool) {
+	return &authn.CredentialInfo{Space: m.space}, true
+}
+
 // failure implements authn.Method for tests, always failing auth.
 type failure struct{}
 
@@ -106,4 +127,19 @@ func (s *failure) Validate(
 
 func NewFailMethod() authn.Method {
 	return &failure{}
+}
+
+// never never matches a request, so later auth methods in the validator chain
+// can be exercised in isolation.
+type never struct{}
+
+// NewNeverMethod returns a Method that never CanHandle.
+func NewNeverMethod() authn.Method { return &never{} }
+
+func (*never) CanHandle(*http.Request) bool { return false }
+
+func (*never) Validate(
+	http.ResponseWriter, *http.Request, ...string,
+) (*authn.CredentialInfo, bool) {
+	return nil, false
 }

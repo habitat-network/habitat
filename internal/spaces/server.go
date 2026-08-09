@@ -61,7 +61,7 @@ func NewServer(
 	oauth authn.Method,
 	serviceAuth authn.Method,
 	delegation *authn.DelegationTokenAuthMethod,
-	spaceToken *authn.SpaceCredentialAuthMethod,
+	spaceToken authn.Method,
 	orgStore org.Store,
 	hostPrivateKey atcrypto.PrivateKey,
 	hive hive.Hive,
@@ -354,6 +354,37 @@ func (s *Server) ListMembers(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSimplespaceListMembersOutput{Members: members})
 }
 
+// spaceAuthorized checks the credential may read spaceURI: a space credential
+// must name exactly that space (enforced by the validator's WithSpace option),
+// and any other credential must belong to a member of the space. It writes the
+// error response and returns false when the caller is not authorized.
+func (s *Server) spaceAuthorized(
+	ctx context.Context,
+	w http.ResponseWriter,
+	credInfo *authn.CredentialInfo,
+	spaceURI habitat_syntax.SpaceURI,
+) bool {
+	if credInfo.Space != "" {
+		if credInfo.Space != spaceURI {
+			httpx.WriteInvalidRequest(ctx, w, "credential does not authorize this space",
+				fmt.Errorf("credential space %q does not match %q", credInfo.Space, spaceURI))
+			return false
+		}
+		return true
+	}
+
+	member, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
+		return false
+	}
+	if !member {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
+		return false
+	}
+	return true
+}
+
 func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var params habitat.NetworkHabitatSpaceListReposParams
@@ -370,13 +401,7 @@ func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
-	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
-		return
-	}
-	if !isMember {
-		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
+	if !s.spaceAuthorized(ctx, w, credInfo, spaceURI) {
 		return
 	}
 
@@ -508,21 +533,8 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(
-			ctx,
-			credInfo.Org.DID(),
-			spaceURI,
-			credInfo.Subject,
-		)
-		if err != nil {
-			httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
-			return
-		}
-		if !isMember {
-			httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
-			return
-		}
+	if !s.spaceAuthorized(ctx, w, credInfo, spaceURI) {
+		return
 	}
 	collection, ok := httpx.ParseNSIDInput(ctx, w, params.Collection, "collection")
 	if !ok {
@@ -609,16 +621,8 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
-		if err != nil {
-			httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
-			return
-		}
-		if !isMember {
-			httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
-			return
-		}
+	if !s.spaceAuthorized(ctx, w, credInfo, spaceURI) {
+		return
 	}
 	c, err := cid.Parse(params.Cid)
 	if err != nil {
@@ -660,13 +664,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
-	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
-		return
-	}
-	if !isMember {
-		httpx.WriteSpaceNotFound(ctx, w, err)
+	if !s.spaceAuthorized(ctx, w, credInfo, spaceURI) {
 		return
 	}
 	var filterCollection *syntax.NSID
@@ -720,13 +718,7 @@ func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
-	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
-		return
-	}
-	if !isMember {
-		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
+	if !s.spaceAuthorized(ctx, w, credInfo, spaceURI) {
 		return
 	}
 	// Sign the repo's current head; the signed commit is the CAR's first root. An
@@ -785,18 +777,7 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	isMember, err := s.store.IsMember(
-		ctx,
-		credInfo.Org.DID(),
-		spaceURI,
-		credInfo.Subject,
-	)
-	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
-		return
-	}
-	if !isMember {
-		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member: %w", err))
+	if !s.spaceAuthorized(ctx, w, credInfo, spaceURI) {
 		return
 	}
 
@@ -914,13 +895,7 @@ func (s *Server) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
-	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
-		return
-	}
-	if !isMember {
-		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
+	if !s.spaceAuthorized(ctx, w, credInfo, spaceURI) {
 		return
 	}
 
