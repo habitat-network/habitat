@@ -994,3 +994,29 @@ func TestEngineNotifyWriteAlreadyCurrent(t *testing.T) {
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
 	require.Equal(t, stateActive, r.State)
 }
+
+// TestEngineRecoverRepoUsesHabitatNsid pins that full recovery calls the
+// host's network.habitat.space.getRepo endpoint (com.atproto.space.getRepo
+// does not exist on the host).
+func TestEngineRecoverRepoUsesHabitatNsid(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	repoDID := syntax.DID("did:plc:alice")
+
+	var requestedPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPath = r.URL.Path
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+
+	e, _, db := newTestEngine(t, srv.URL)
+	require.NoError(t, e.Track(t.Context(), space, repoDID))
+	require.NoError(t, db.Model(&repo{}).
+		Where("space = ? AND did = ?", space, repoDID).
+		Update("state", stateDesynced).Error)
+
+	require.NoError(t, e.recoverRepo(t.Context(), space, repoDID))
+	require.Equal(t, "/xrpc/network.habitat.space.getRepo", requestedPath)
+}

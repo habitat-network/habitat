@@ -283,7 +283,7 @@ func setupPear(t *testing.T) *pearHost {
 	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
-	mux.HandleFunc("/xrpc/com.atproto.space.getRepo", spacesServer.GetRepo)
+	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
 	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
 
 	go func() {

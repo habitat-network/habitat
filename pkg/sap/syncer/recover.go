@@ -15,7 +15,7 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// recoverRepo rebuilds a desynced repo from a full com.atproto.space.getRepo
+// recoverRepo rebuilds a desynced repo from a full network.habitat.space.getRepo
 // CAR snapshot: it fetches the CAR, recomputes the repo's LtHash from the
 // recovered record set, verifies the CAR's signed commit, then emits the
 // records and settles the repo active in a single transaction. This is the
@@ -37,7 +37,7 @@ func (e *Engine) recoverRepo(
 		"repo":  []string{repoDID.String()},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"/xrpc/com.atproto.space.getRepo?"+params.Encode(), nil)
+		"/xrpc/network.habitat.space.getRepo?"+params.Encode(), nil)
 	if err != nil {
 		return e.scheduleRetry(ctx, space, repoDID, stateDesynced,
 			fmt.Errorf("create request: %w", err))
