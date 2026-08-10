@@ -682,8 +682,7 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
 	s.eventStore.NotifyEvent(ctx)
-	// Best-effort: notify registered syncers that this repo advanced, with the
-	// LtHash state it now has so they can compare hashes.
+	// Best-effort: notify registered syncers that this repo advanced.
 	s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev, repoHash)
 	return recordUri, &cid, nil
 }
