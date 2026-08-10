@@ -933,7 +933,8 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if credInfo.Subject != repo {
-		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", nil)
+		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", fmt.Errorf("wrong repo"))
+		return
 	}
 	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
 	if !ok {

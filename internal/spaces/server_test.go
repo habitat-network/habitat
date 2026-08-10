@@ -478,6 +478,51 @@ func TestServer_DeleteRecord(t *testing.T) {
 	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
 }
 
+// TestServer_DeleteRecordRejectsOtherRepo pins that a caller authenticated as
+// one repo cannot delete another repo's records by naming it in the request
+// body: the handler must reject and return before calling the store.
+func TestServer_DeleteRecordRejectsOtherRepo(t *testing.T) {
+	s := newTestServerWithOpts(t,
+		testServerOptions{
+			oauth:       authntest.NewSuccessMethodWithOrg(alice, orgId),
+			serviceAuth: authntest.NewSuccessMethodWithOrg(alice, orgId),
+		},
+	)
+
+	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	_, _, err = s.Store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"keep-me",
+		map[string]any{"x": 1},
+	)
+	require.NoError(t, err)
+
+	// alice is authenticated, but names owner's repo in the request.
+	body := `{"space": "` + uri.String() + `", "repo": "` + owner.String() + `", "collection": "network.habitat.note", "rkey": "keep-me"}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.deleteRecord",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.DeleteRecord(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+
+	_, err = s.Store.GetRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"keep-me",
+	)
+	require.NoError(t, err, "record must survive a rejected cross-repo delete")
+}
+
 func TestServer_ListRecords(t *testing.T) {
 	s := newTestServerWithOpts(t,
 		testServerOptions{
