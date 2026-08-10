@@ -3800,6 +3800,309 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSimplespaceAddMember: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.addMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Add a member to a space's member list. The member list is host-internal state consulted at credential-mint time when the space's policy is 'member-list'. It is not a synced protocol structure and is not enumerated to the network. Requires auth as the space owner.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'did'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              did: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the member to add.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'NotSpaceOwner',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSimplespaceCreateSpace: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.createSpace',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Create a new space managed by the simplespace implementation. The authenticated user becomes the space owner. Requires auth, implemented by PDS.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['did', 'type'],
+            properties: {
+              did: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the space.',
+              },
+              type: {
+                type: 'string',
+                format: 'nsid',
+                description:
+                  'The NSID of the space type, describing the modality of the space (e.g. app.bsky.group, app.bsky.personal).',
+              },
+              skey: {
+                type: 'string',
+                maxLength: 512,
+                description:
+                  'The space key. Used to differentiate multiple spaces of the same type under the same owner. If not provided, one will be auto-generated (TID).',
+              },
+              config: {
+                type: 'ref',
+                ref: 'lex:network.habitat.simplespace.defs#spaceConfig',
+                description:
+                  "Initial configuration for the space. If omitted, the host applies its defaults (policy 'member-list', appAccess '#open').",
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'URI of the created space.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceAlreadyExists',
+            description:
+              'A space with this owner, type, and skey already exists.',
+          },
+          {
+            name: 'InvalidType',
+            description:
+              'The provided space type NSID is not a recognized or valid space type.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSimplespaceDefs: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.defs',
+    defs: {
+      spaceConfig: {
+        type: 'object',
+        description:
+          'Configuration for a space managed by the simplespace implementation. A credential is minted only when the user is authorized by `policy` and their app by `appAccess`.',
+        required: ['policy', 'appAccess'],
+        properties: {
+          policy: {
+            type: 'string',
+            knownValues: ['public', 'member-list', 'managing-app'],
+            description:
+              "How the authority decides whether to authorize a requesting user. 'member-list' (default) consults the member list, 'public' authorizes anyone, 'managing-app' asks the managingApp via checkUserAccess.",
+          },
+          appAccess: {
+            type: 'union',
+            description:
+              'How the authority decides whether to authorize a requesting app.',
+            refs: [
+              'lex:network.habitat.simplespace.defs#open',
+              'lex:network.habitat.simplespace.defs#allowList',
+            ],
+          },
+          managingApp: {
+            type: 'string',
+            description:
+              "Service identifier (e.g. did:web:example.com#forum) of the app that manages this space. Routes application-level requests and is the checkUserAccess target when policy is 'managing-app'.",
+          },
+        },
+      },
+      open: {
+        type: 'object',
+        description:
+          'App access policy: any app may access the space. No client attestation required.',
+        properties: {},
+      },
+      allowList: {
+        type: 'object',
+        description:
+          'App access policy: only the named clients may access the space, evaluated against the attested client_id.',
+        required: ['allowed'],
+        properties: {
+          allowed: {
+            type: 'array',
+            description: 'The OAuth client IDs permitted to access the space.',
+            items: {
+              type: 'string',
+              description: 'An OAuth client ID.',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSimplespaceDeleteSpace: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.deleteSpace',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Delete a space. The authenticated user must be the space owner. The authority's own repo in the space is deleted along with it, since the space host and the repo host are the same service here; other members' repos are flagged as belonging to a deleted space rather than erased. After deletion, all reads and writes against the space fail with SpaceNotFound, and getSpaceCredential answers SpaceDeleted so a syncer that missed the notification still learns to drop its copy. Idempotent. Requires auth, implemented by PDS.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'uri',
+                description: 'Reference to the space to delete.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'NotSpaceOwner',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSimplespaceListMembers: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.listMembers',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the members in a space's host-internal member list. Must be called on the space owner's PDS, by the space owner. This reflects the simplespace member list, not a protocol-level reader set.",
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 1000,
+              default: 100,
+              description: 'Maximum number of members to return.',
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              members: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.simplespace.listMembers#member',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'NotSpaceOwner',
+          },
+        ],
+      },
+      member: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSimplespaceRemoveMember: {
+    lexicon: 1,
+    id: 'network.habitat.simplespace.removeMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Remove a member from a space's member list. The member list is host-internal state consulted at credential-mint time when the space's policy is 'member-list'. Requires auth as the space owner.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'did'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              did: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the member to remove.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'NotSpaceOwner',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatSpaceAddMember: {
     lexicon: 1,
     id: 'network.habitat.space.addMember',
@@ -3807,7 +4110,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Add a member to a space. Caller must have can_manage_members.',
+          'DEPRECATED. Use network.habitat.simplespace.addMember instead.',
         input: {
           encoding: 'application/json',
           schema: {
@@ -3828,8 +4131,7 @@ export const schemaDict = {
                 type: 'string',
                 enum: ['read', 'write'],
                 default: 'read',
-                description:
-                  'The access level to give the user. Defaults to read.',
+                description: 'WARNING: Ignored since deprecation.',
               },
             },
           },
@@ -3854,7 +4156,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Create a new space. The authenticated user becomes the space owner. Requires auth, implemented by PDS.',
+          'DEPRECATED. Use network.habitat.simplespace.createSpace instead.',
         input: {
           encoding: 'application/json',
           schema: {
@@ -4007,7 +4309,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Delete an entire space. Only the space owner can delete. All records in the space and all member relationships are removed.',
+          'DEPRECATED. Use network.habitat.simplespace.deleteSpace instead.',
         input: {
           encoding: 'application/json',
           schema: {
@@ -4028,6 +4330,79 @@ export const schemaDict = {
             description: 'The specified space does not exist.',
           },
         ],
+      },
+    },
+  },
+  NetworkHabitatSpaceGetBlob: {
+    lexicon: 1,
+    id: 'network.habitat.space.getBlob',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get a blob stored within a permissioned space, addressed by its CID. Requires read access to the space.',
+        parameters: {
+          type: 'params',
+          required: ['space', 'cid'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space the blob belongs to.',
+            },
+            cid: {
+              type: 'string',
+              format: 'cid',
+              description: 'The CID of the blob to fetch.',
+            },
+          },
+        },
+        output: {
+          encoding: '*/*',
+        },
+        errors: [
+          {
+            name: 'BlobNotFound',
+          },
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSpaceGetDelegationToken: {
+    lexicon: 1,
+    id: 'network.habitat.space.getDelegationToken',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Mint a delegation token for a space, proving the requesting app is acting on the user's behalf. Exchanged with the space authority for a space credential. Served by the requesting user's PDS. Requires OAuth auth.",
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['token'],
+            properties: {
+              token: {
+                type: 'string',
+                description: 'A signed JWT delegation token.',
+              },
+            },
+          },
+        },
       },
     },
   },
@@ -4160,9 +4535,9 @@ export const schemaDict = {
       },
     },
   },
-  ComAtprotoSpaceGetRepo: {
+  NetworkHabitatSpaceGetRepo: {
     lexicon: 1,
-    id: 'com.atproto.space.getRepo',
+    id: 'network.habitat.space.getRepo',
     defs: {
       main: {
         type: 'query',
@@ -4586,25 +4961,28 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'List the spaces that the authenticated user participates in, optionally filtered by type and/or owner DID. Requires auth.',
+          "List the spaces the authenticated user holds a repo in (i.e. spaces the user has written data to), optionally filtered by type and/or owner DID. Note this is not 'spaces I'm a member of' — a member's PDS only tracks spaces its user has written to. Requires auth, implemented by PDS.",
         parameters: {
           type: 'params',
           properties: {
             type: {
               type: 'string',
               format: 'nsid',
-              description: 'Filter to spaces of this type.',
+              description:
+                "Filter to spaces of this type. Required if the caller's OAuth scope is narrower than `space:*`.",
             },
             did: {
               type: 'string',
               format: 'did',
-              description: 'Filter to spaces owned by this DID.',
+              description:
+                "Filter to spaces owned by this DID. Required if the caller's OAuth scope is narrower than `?did=*`.",
             },
             limit: {
               type: 'integer',
               minimum: 1,
               maximum: 100,
               default: 50,
+              description: 'The number of spaces to return.',
             },
             cursor: {
               type: 'string',
@@ -4633,24 +5011,17 @@ export const schemaDict = {
       },
       spaceView: {
         type: 'object',
-        required: ['uri', 'type'],
+        required: ['uri', 'isOwner'],
         properties: {
           uri: {
             type: 'string',
+            format: 'at-uri',
             description: 'URI of the space.',
           },
-          type: {
-            type: 'string',
-            format: 'nsid',
-            description: 'The NSID of the space type.',
-          },
-          skey: {
-            type: 'string',
-            description: 'The space key.',
-          },
-          memberCount: {
-            type: 'integer',
-            description: 'Number of members in the space.',
+          isOwner: {
+            type: 'boolean',
+            description:
+              'Whether the authenticated user is the owner of the space.',
           },
         },
       },
@@ -4861,7 +5232,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Remove a member from a space. Caller must have can_manage_members.',
+          'DEPRECATED. Use network.habitat.simplespace.removeMember instead.',
         input: {
           encoding: 'application/json',
           schema: {
@@ -5018,14 +5389,27 @@ export const ids = {
   NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',
   NetworkHabitatSearchQuery: 'network.habitat.search.query',
+  NetworkHabitatSimplespaceAddMember: 'network.habitat.simplespace.addMember',
+  NetworkHabitatSimplespaceCreateSpace:
+    'network.habitat.simplespace.createSpace',
+  NetworkHabitatSimplespaceDefs: 'network.habitat.simplespace.defs',
+  NetworkHabitatSimplespaceDeleteSpace:
+    'network.habitat.simplespace.deleteSpace',
+  NetworkHabitatSimplespaceListMembers:
+    'network.habitat.simplespace.listMembers',
+  NetworkHabitatSimplespaceRemoveMember:
+    'network.habitat.simplespace.removeMember',
   NetworkHabitatSpaceAddMember: 'network.habitat.space.addMember',
   NetworkHabitatSpaceCreateSpace: 'network.habitat.space.createSpace',
   NetworkHabitatSpaceDefs: 'network.habitat.space.defs',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
+  NetworkHabitatSpaceGetBlob: 'network.habitat.space.getBlob',
+  NetworkHabitatSpaceGetDelegationToken:
+    'network.habitat.space.getDelegationToken',
   NetworkHabitatSpaceGetLatestCommit: 'network.habitat.space.getLatestCommit',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
-  ComAtprotoSpaceGetRepo: 'com.atproto.space.getRepo',
+  NetworkHabitatSpaceGetRepo: 'network.habitat.space.getRepo',
   NetworkHabitatSpaceGetSpaceCredential:
     'network.habitat.space.getSpaceCredential',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',

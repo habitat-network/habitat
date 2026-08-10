@@ -18,8 +18,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/oauthclient"
-	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
+	"github.com/habitat-network/habitat/pkg/sap"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/driver/postgres"
@@ -81,7 +81,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("set client secret: %w", err)
 	}
 
-	oauthApp := oauthclient.NewApp(&config, store)
+	oauthApp := oauth.NewClientApp(&config, store)
 
 	s, err := sap.NewSap(sap.SapConfig{
 		DB:          db,

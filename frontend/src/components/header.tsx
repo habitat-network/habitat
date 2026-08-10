@@ -19,7 +19,7 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
           </li>
           {profile && (
             <>
-              {org && (
+              {org?.orgId && (
                 <li>
                   <Button variant="link" render={<Link to="/org" />}>
                     {org.name}
@@ -31,16 +31,20 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
                   Spaces
                 </Button>
               </li>
-              <li>
-                <Button variant="link" render={<Link to="/groups" />}>
-                  Groups
-                </Button>
-              </li>
-              <li>
-                <Button variant="link" render={<Link to="/collections" />}>
-                  Collections
-                </Button>
-              </li>
+              {import.meta.env.DEV && (
+                <>
+                  <li>
+                    <Button variant="link" render={<Link to="/groups" />}>
+                      Groups
+                    </Button>
+                  </li>
+                  <li>
+                    <Button variant="link" render={<Link to="/collections" />}>
+                      Collections
+                    </Button>
+                  </li>
+                </>
+              )}
             </>
           )}
         </ul>

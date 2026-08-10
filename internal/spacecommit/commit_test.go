@@ -55,9 +55,8 @@ func TestBuild_HostSignedForExternalAuthor(t *testing.T) {
 	require.Equal(t, "3lart", c.Rev)
 	require.Len(t, c.Ikm, ikmLen)
 
-	// External authors are host-signed under the host tag and verify against the
-	// host key.
-	require.NoError(t, Verify(c, HostProtocolTag, testSpace, author, hash, hostPub))
+	// External authors are host-signed and verify against the host key.
+	require.NoError(t, Verify(c, testSpace, author, hash, hostPub))
 }
 
 func TestBuild_MemberSignedForManagedAuthor(t *testing.T) {
@@ -71,9 +70,9 @@ func TestBuild_MemberSignedForManagedAuthor(t *testing.T) {
 	c, err := authority.Build(context.Background(), testSpace, author, "3lart", hash)
 	require.NoError(t, err)
 
-	// Managed authors are signed by their own key under the spec tag, even though
-	// a host key is also configured.
-	require.NoError(t, Verify(c, SpecProtocolTag, testSpace, author, hash, memberPub))
+	// Managed authors are signed by their own key, even though a host key is also
+	// configured.
+	require.NoError(t, Verify(c, testSpace, author, hash, memberPub))
 }
 
 func TestBuild_FreshIkmPerCall(t *testing.T) {
@@ -104,7 +103,7 @@ func TestVerify_RejectsTampering(t *testing.T) {
 	other.Add(RecordElement("c", "k", "cid"))
 	require.ErrorIs(
 		t,
-		Verify(c, HostProtocolTag, testSpace, author, other.Sum(), hostPub),
+		Verify(c, testSpace, author, other.Sum(), hostPub),
 		ErrInvalidCommit,
 	)
 
@@ -114,14 +113,16 @@ func TestVerify_RejectsTampering(t *testing.T) {
 	badMac.Mac[0] ^= 0xff
 	require.ErrorIs(
 		t,
-		Verify(badMac, HostProtocolTag, testSpace, author, hash, hostPub),
+		Verify(badMac, testSpace, author, hash, hostPub),
 		ErrInvalidCommit,
 	)
 
-	// The wrong tag (verifying a host-signed commit as spec) is rejected.
+	// The wrong public key is rejected: commits carry no marker for which key
+	// signed them, so a caller that guesses wrong just fails verification.
+	_, otherPub := newKey(t)
 	require.ErrorIs(
 		t,
-		Verify(c, SpecProtocolTag, testSpace, author, hash, hostPub),
+		Verify(c, testSpace, author, hash, otherPub),
 		ErrInvalidCommit,
 	)
 }

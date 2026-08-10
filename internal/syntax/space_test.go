@@ -21,8 +21,8 @@ func TestSpaceKey(t *testing.T) {
 
 func TestConstructSpaceURI(t *testing.T) {
 	uri := ConstructSpaceURI("did:plc:abc123", "network.habitat.space", "my-space")
-	require.Equal(t, SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space"), uri)
-	require.Equal(t, "ats://did:plc:abc123/network.habitat.space/my-space", uri.String())
+	require.Equal(t, SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space"), uri)
+	require.Equal(t, "at://did:plc:abc123/space/network.habitat.space/my-space", uri.String())
 	require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
 	require.Equal(t, "network.habitat.space", uri.SpaceType().String())
 	require.Equal(t, SpaceKey("my-space"), uri.Skey())
@@ -30,7 +30,7 @@ func TestConstructSpaceURI(t *testing.T) {
 
 func TestParseSpaceURI(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		uri, err := ParseSpaceURI("ats://did:plc:abc123/network.habitat.space/my-space_1")
+		uri, err := ParseSpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space_1")
 		require.NoError(t, err)
 		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
 		require.Equal(t, "network.habitat.space", uri.SpaceType().String())
@@ -39,23 +39,42 @@ func TestParseSpaceURI(t *testing.T) {
 
 	t.Run("too long", func(t *testing.T) {
 		_, err := ParseSpaceURI(
-			"ats://did:plc:abc123/network.habitat.space/" + strings.Repeat("a", 8193),
+			"at://did:plc:abc123/space/network.habitat.space/" + strings.Repeat("a", 8193),
 		)
 		require.Error(t, err)
 	})
 
 	t.Run("invalid format", func(t *testing.T) {
-		_, err := ParseSpaceURI("habitat://did:plc:abc123/network.habitat.space/my-space")
+		_, err := ParseSpaceURI("habitat://did:plc:abc123/space/network.habitat.space/my-space")
+		require.Error(t, err)
+	})
+
+	// A legacy URI parses, and is normalized to the current format.
+	t.Run("legacy ats format", func(t *testing.T) {
+		uri, err := ParseSpaceURI("ats://did:plc:abc123/network.habitat.space/my-space_1")
+		require.NoError(t, err)
+		require.Equal(
+			t,
+			SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space_1"),
+			uri,
+		)
+		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
+		require.Equal(t, "network.habitat.space", uri.SpaceType().String())
+		require.Equal(t, SpaceKey("my-space_1"), uri.Skey())
+	})
+
+	t.Run("missing space segment", func(t *testing.T) {
+		_, err := ParseSpaceURI("at://did:plc:abc123/network.habitat.space/my-space")
 		require.Error(t, err)
 	})
 
 	t.Run("invalid DID", func(t *testing.T) {
-		_, err := ParseSpaceURI("ats://not-a-did/network.habitat.space/my-space")
+		_, err := ParseSpaceURI("at://not-a-did/space/network.habitat.space/my-space")
 		require.Error(t, err)
 	})
 
 	t.Run("invalid type", func(t *testing.T) {
-		_, err := ParseSpaceURI("ats://did:plc:abc123/not_a_nsid/my-space")
+		_, err := ParseSpaceURI("at://did:plc:abc123/space/not_a_nsid/my-space")
 		require.Error(t, err)
 	})
 }
@@ -66,18 +85,35 @@ func TestSpaceURIAccessorsReturnEmptyForInvalidURI(t *testing.T) {
 	require.Empty(t, uri.SpaceType())
 	require.Empty(t, uri.Skey())
 
-	uri = SpaceURI("ats://not-a-did/network.habitat.space/my-space")
+	uri = SpaceURI("at://not-a-did/space/network.habitat.space/my-space")
 	require.Empty(t, uri.SpaceOwner())
 	require.Equal(t, "network.habitat.space", uri.SpaceType().String())
 	require.Equal(t, SpaceKey("my-space"), uri.Skey())
 
-	uri = SpaceURI("ats://did:plc:abc123/not_a_nsid/my-space")
+	uri = SpaceURI("at://did:plc:abc123/space/not_a_nsid/my-space")
 	require.Empty(t, uri.SpaceType())
+}
+
+func TestSpaceURICanonicalAndLegacy(t *testing.T) {
+	current := SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space")
+	legacy := SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space")
+
+	// Both formats convert to either format, and converting is idempotent.
+	for _, uri := range []SpaceURI{current, legacy} {
+		require.Equal(t, current, uri.Canonical())
+		require.Equal(t, legacy, uri.Legacy())
+	}
+
+	// Unparseable URIs pass through untouched rather than collapsing to a
+	// well-formed-looking URI with empty components.
+	garbage := SpaceURI("not-a-space-uri")
+	require.Equal(t, garbage, garbage.Canonical())
+	require.Equal(t, garbage, garbage.Legacy())
 }
 
 func TestConstructSpaceRecordURI(t *testing.T) {
 	uri := ConstructSpaceRecordURI(
-		"ats://did:plc:abc123/network.habitat.space/my-space",
+		"at://did:plc:abc123/space/network.habitat.space/my-space",
 		"did:plc:repo456",
 		"network.habitat.note",
 		"rkey789",
@@ -85,13 +121,13 @@ func TestConstructSpaceRecordURI(t *testing.T) {
 	require.Equal(
 		t,
 		SpaceRecordURI(
-			"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+			"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
 		),
 		uri,
 	)
 	require.Equal(
 		t,
-		"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
 		uri.String(),
 	)
 	require.Equal(t, "network.habitat.note", uri.Collection().String())
@@ -100,7 +136,7 @@ func TestConstructSpaceRecordURI(t *testing.T) {
 func TestSpaceRecordURI_Collection(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		uri := SpaceRecordURI(
-			"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+			"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
 		)
 		require.Equal(t, "network.habitat.note", uri.Collection().String())
 	})
@@ -112,13 +148,13 @@ func TestSpaceRecordURI_Collection(t *testing.T) {
 
 	t.Run("invalid collection NSID returns empty", func(t *testing.T) {
 		uri := SpaceRecordURI(
-			"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/not_a_nsid/rkey789",
+			"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/not_a_nsid/rkey789",
 		)
 		require.Empty(t, uri.Collection())
 	})
 
 	t.Run("missing trailing segments returns empty", func(t *testing.T) {
-		uri := SpaceRecordURI("ats://did:plc:abc123/network.habitat.space/my-space")
+		uri := SpaceRecordURI("at://did:plc:abc123/space/network.habitat.space/my-space")
 		require.Empty(t, uri.Collection())
 	})
 }
@@ -126,14 +162,31 @@ func TestSpaceRecordURI_Collection(t *testing.T) {
 func TestSpaceRecordURI_SpaceURI(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		uri := SpaceRecordURI(
+			"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		)
+		require.Equal(
+			t,
+			SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space"),
+			uri.SpaceURI(),
+		)
+		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
+	})
+
+	// A legacy record URI still parses, and normalizes to a current-format
+	// space URI.
+	t.Run("legacy ats format", func(t *testing.T) {
+		uri := SpaceRecordURI(
 			"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
 		)
 		require.Equal(
 			t,
-			SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space"),
+			SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space"),
 			uri.SpaceURI(),
 		)
 		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
+		require.Equal(t, "network.habitat.note", uri.Collection().String())
+		require.Equal(t, "did:plc:repo456", uri.Repo().String())
+		require.Equal(t, "rkey789", uri.Rkey().String())
 	})
 
 	t.Run("invalid format returns empty", func(t *testing.T) {
@@ -143,14 +196,14 @@ func TestSpaceRecordURI_SpaceURI(t *testing.T) {
 	})
 
 	t.Run("missing trailing segments returns empty", func(t *testing.T) {
-		uri := SpaceRecordURI("ats://did:plc:abc123/network.habitat.space/my-space")
+		uri := SpaceRecordURI("at://did:plc:abc123/space/network.habitat.space/my-space")
 		require.Empty(t, uri.SpaceURI())
 		require.Empty(t, uri.SpaceOwner())
 	})
 
 	t.Run("invalid owner did returns empty", func(t *testing.T) {
 		uri := SpaceRecordURI(
-			"ats://not-a-did/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+			"at://not-a-did/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
 		)
 		require.Empty(t, uri.SpaceURI())
 		require.Empty(t, uri.SpaceOwner())

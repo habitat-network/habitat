@@ -23,14 +23,10 @@ export const Route = createFileRoute("/_requireAuth/collections/$collection")({
     context.queryClient.ensureQueryData(
       collectionRecordsQueryOptions(params.collection, context.authManager),
     ),
-  pendingComponent: () => {
-    const { collection } = Route.useParams();
-    return <p className="py-8">Loading {collection}…</p>;
-  },
   component: CollectionRecords,
 });
 
-// spaceLabel shortens a space URI (ats://did/type/skey) to its skey for display.
+// spaceLabel shortens a space URI (at://did/space/type/skey) to its skey for display.
 function spaceLabel(uri: string): string {
   const parts = uri.split("/");
   return parts[parts.length - 1] || uri;

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +18,36 @@ import (
 )
 
 var errSign = errors.New("sign failed")
+
+// fakeDirectory resolves a fixed set of identities, standing in for a real
+// identity.Directory in tests that don't need actual DID resolution.
+type fakeDirectory struct {
+	idents map[syntax.DID]*identity.Identity
+}
+
+func (d *fakeDirectory) LookupDID(_ context.Context, did syntax.DID) (*identity.Identity, error) {
+	ident, ok := d.idents[did]
+	if !ok {
+		return nil, identity.ErrDIDNotFound
+	}
+	return ident, nil
+}
+
+func (d *fakeDirectory) LookupHandle(context.Context, syntax.Handle) (*identity.Identity, error) {
+	return nil, identity.ErrHandleNotFound
+}
+
+func (d *fakeDirectory) Lookup(
+	ctx context.Context,
+	atid syntax.AtIdentifier,
+) (*identity.Identity, error) {
+	if did, err := atid.AsDID(); err == nil {
+		return d.LookupDID(ctx, did)
+	}
+	return nil, identity.ErrDIDNotFound
+}
+
+func (d *fakeDirectory) Purge(context.Context, syntax.AtIdentifier) error { return nil }
 
 // fakeSigner records the service-auth requests it is asked to sign and returns a
 // fixed token, or err when set.
@@ -58,8 +89,8 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
 
 	signer := &fakeSigner{t: t}
-	notifier := NewNotifier(s, subscriber.Client(), signer)
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev")
+	notifier := NewNotifier(s, subscriber.Client(), signer, &fakeDirectory{})
+	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
 
 	for range 2 {
 		select {
@@ -67,6 +98,7 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 			require.Equal(t, space.String(), d.in.Space)
 			require.Equal(t, repo.String(), d.in.Repo)
 			require.Equal(t, "3lrev", d.in.Rev)
+			require.Equal(t, "AQI=", d.in.Hash)
 		case <-time.After(2 * time.Second):
 			t.Fatal("timed out waiting for notifyWrite delivery")
 		}
@@ -91,7 +123,7 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
 
 	signer := &fakeSigner{t: t}
-	notifier := NewNotifier(s, subscriber.Client(), signer)
+	notifier := NewNotifier(s, subscriber.Client(), signer, &fakeDirectory{})
 	notifier.NotifySpaceDeleted(t.Context(), space)
 
 	for range 2 {
@@ -107,10 +139,10 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 func TestNotifierNoRegistrations(t *testing.T) {
 	s := newTestStore(t)
 	signer := &fakeSigner{t: t}
-	notifier := NewNotifier(s, http.DefaultClient, signer)
+	notifier := NewNotifier(s, http.DefaultClient, signer, &fakeDirectory{})
 
 	// With no registrations, neither path should sign or deliver anything.
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev")
+	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
 	notifier.NotifySpaceDeleted(t.Context(), space)
 }
 
@@ -128,8 +160,8 @@ func TestNotifierSignerErrorAbortsDelivery(t *testing.T) {
 	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, future))
 
 	signer := &fakeSigner{err: errSign}
-	notifier := NewNotifier(s, subscriber.Client(), signer)
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev")
+	notifier := NewNotifier(s, subscriber.Client(), signer, &fakeDirectory{})
+	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
 
 	select {
 	case <-delivered:
@@ -154,8 +186,8 @@ func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
 		s.Register(t.Context(), space, bob, subscriber.URL, time.Now().Add(time.Hour)),
 	)
 
-	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{t: t})
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev")
+	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{t: t}, &fakeDirectory{})
+	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
 
 	select {
 	case <-delivered:

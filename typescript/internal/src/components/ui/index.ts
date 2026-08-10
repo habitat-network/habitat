@@ -1,5 +1,6 @@
 export * from "./avatar";
 export * from "./badge";
+export * from "./breadcrumb";
 export * from "./button";
 export * from "./card";
 export * from "./combobox";
@@ -24,3 +25,4 @@ export * from "./tooltip";
 export * from "./hover-card";
 export * from "./toggle-group";
 export * from "./toggle";
+export * from "./toast";

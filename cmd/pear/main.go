@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/alexedwards/argon2id"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
@@ -23,12 +24,12 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -58,6 +59,7 @@ import (
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
+	"gocloud.dev/blob"
 
 	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
 )
@@ -243,6 +245,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup password login provider: %w", err)
 	}
+	everyoneOrg := org.NewEveryoneOrg(domain)
 	orgStore, err := org.NewStore(
 		db.WithContext(startupCtx),
 		hive,
@@ -250,6 +253,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		domain,
 		passwordProvider,
 		fgaStore,
+		everyoneOrg,
 	)
 	if err != nil {
 		return fmt.Errorf("setup org store: %w", err)
@@ -293,6 +297,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup oauth server: %w", err)
 	}
+	oauthGC := oauthserver.NewCollector(db.WithContext(startupCtx), 5*time.Minute)
 
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir, pdsClientFactory))
@@ -312,13 +317,26 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup notify store: %w", err)
 	}
-	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, hive)
+	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, hive, hiveDir)
 
 	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore, eventStore, notifier)
 	if err != nil {
 		return fmt.Errorf("setup spaces store: %w", err)
 	}
-	serviceAuth := authn.NewServiceAuthMethod(defaultDir, fmt.Sprintf("did:web:%s#habitat", domain))
+
+	blobBucket, err := blob.OpenBucket(startupCtx, cmd.String(fBlobBucket))
+	if err != nil {
+		return fmt.Errorf("open blob bucket: %w", err)
+	}
+	defer func() { _ = blobBucket.Close() }()
+	blobStore := spaces.NewBlobStore(blobBucket)
+	serviceAuth := authn.NewServiceAuthMethod(
+		everyoneOrg,
+		defaultDir,
+		fmt.Sprintf("did:web:%s#habitat", domain),
+	)
+
+	// TODO: use this to validate the space credential in the spaces server
 
 	// Habitat's single host signing key signs permissioned-repo commits for repo
 	// owners on external PDSes (habitat-managed owners sign with their own hive
@@ -327,22 +345,26 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("parse space-host signing key: %w", err)
 	}
+
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir, hostKey)
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
 		oauthServer,
 		serviceAuth,
-		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore),
+		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore, hostKey),
+		spaceCredential,
 		orgStore,
 		hostKey,
 		hive,
+		blobStore,
 	)
 	notifyServer := notify.NewServer(
 		notifyStore,
 		spacesStore,
 		oauthServer,
 		serviceAuth,
-		authn.NewSpaceCredentialAuthMethod(defaultDir),
+		spaceCredential,
 	)
 
 	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
@@ -405,7 +427,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		defaultDir,
 	)
 
-	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore, pdsForwarding)
+	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore, pdsForwarding, domain)
 	if err != nil {
 		return fmt.Errorf("setup hive server: %w", err)
 	}
@@ -422,18 +444,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.Headers(habitat_identity.HabitatHostHeader, "").
 		Path("/.well-known/atproto-did").
 		HandlerFunc(idServer.ServeHandle)
-
-	waitlistSvc, err := NewWaitlistService(
-		startupCtx,
-		os.Getenv("WAITLIST_SHEET_ID"),
-		os.Getenv("WAITLIST_SVC_ACCOUNT_CREDS"),
-	)
-	if err == nil {
-		slog.InfoContext(startupCtx, "successfully set up waitlist service")
-		mux.HandleFunc("/waitlist", waitlistSvc.HandleWaitlistEmailSignup)
-	} else {
-		slog.ErrorContext(startupCtx, "unable to set up waitlist service", "err", err)
-	}
 
 	mux.HandleFunc("/admin/login", instanceAdminServer.ServeLoginPage).Methods("GET")
 	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
@@ -452,7 +462,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to get host public key: %w", err)
 	}
-	mux.HandleFunc("/.well-known/did.json", serveDid(domain, hostPublicKey))
+	mux.Handle("/.well-known/did.json", did.NewHandler(
+		did.Web(domain).
+			ATProtoSpaceKey(hostPublicKey.Multibase()).
+			HabitatKey(hostPublicKey.Multibase()).
+			Habitat("https://"+domain).
+			ATProtoSpaceHost("https://"+domain).
+			Build(),
+	))
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(r.Context(), w, oauthClient.ClientMetadata())
 	})
@@ -469,6 +486,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/par", oauthServer.HandlePAR)
+	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsent)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
@@ -479,15 +497,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearServer.UploadBlob)
-	mux.HandleFunc("/xrpc/network.habitat.repo.getBlob", pearServer.GetBlob)
+	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", spacesServer.UploadBlob)
 
 	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.permissions.removePermission",
-		pearServer.RemovePermission,
-	)
+	mux.HandleFunc("/xrpc/network.habitat.permissions.removePermission",
+		pearServer.RemovePermission)
 
 	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", cliqueServer.CreateClique)
 	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", cliqueServer.AddCliqueMembers)
@@ -501,33 +516,37 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.removeMember", spacesServer.RemoveMember)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
 	mux.HandleFunc("/xrpc/network.habitat.space.putRecord", spacesServer.PutRecord)
+	mux.HandleFunc("/xrpc/network.habitat.space.createRecord", spacesServer.CreateRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRecord", spacesServer.GetRecord)
+	mux.HandleFunc("/xrpc/network.habitat.space.getBlob", spacesServer.GetBlob)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
 	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit", spacesServer.GetLatestCommit)
-	mux.HandleFunc("/xrpc/com.atproto.space.getRepo", spacesServer.GetRepo)
+	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
 	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
+	mux.HandleFunc("/xrpc/network.habitat.space.getDelegationToken",
+		spacesServer.GetDelegationToken)
+	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
+		spacesServer.GetSpaceCredential)
 
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.writeTuple",
-		relationshipServer.WriteTuple,
-	)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.deleteTuple",
-		relationshipServer.DeleteTuple,
-	)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", spacesServer.CreateSpace)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.addMember", spacesServer.AddMember)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", spacesServer.RemoveMember)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", spacesServer.ListMembers)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.deleteSpace", spacesServer.DeleteSpace)
+
+	mux.HandleFunc("/xrpc/network.habitat.relationship.writeTuple",
+		relationshipServer.WriteTuple)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteTuple",
+		relationshipServer.DeleteTuple)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.listTuples", relationshipServer.ListTuples)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.check", relationshipServer.Check)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.listSubjects",
-		relationshipServer.ListSubjects,
-	)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.relationship.listObjects",
-		relationshipServer.ListObjects,
-	)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listSubjects",
+		relationshipServer.ListSubjects)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listObjects",
+		relationshipServer.ListObjects)
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
@@ -560,6 +579,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return eventStore.StartSequencer(egCtx)
 	})
 	eg.Go(func() error {
+		return oauthGC.Run(egCtx)
+	})
+	eg.Go(func() error {
 		slog.InfoContext(egCtx, "starting server", "port", port)
 		if httpsCerts == "" {
 			return s.ListenAndServe()
@@ -588,30 +610,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		slog.ErrorContext(startupCtx, "server shut down returned an error", "err", err)
 	}
 	return err
-}
-
-func serveDid(domain string, hostKey atcrypto.PublicKey) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		did := syntax.DID(fmt.Sprintf("did:web:%s", domain))
-		httpx.WriteJSON(r.Context(), w, identity.DIDDocument{
-			DID: did,
-			VerificationMethod: []identity.DocVerificationMethod{
-				{
-					ID:                 did.String() + "#habitat",
-					Type:               "Multikey",
-					Controller:         did.String(),
-					PublicKeyMultibase: hostKey.Multibase(),
-				},
-			},
-			Service: []identity.DocService{
-				{
-					ID:              "#habitat",
-					ServiceEndpoint: "https://" + domain,
-					Type:            "HabitatServer",
-				},
-			},
-		})
-	}
 }
 
 func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {

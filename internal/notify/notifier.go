@@ -3,11 +3,14 @@ package notify
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -32,10 +35,16 @@ type Deliverer struct {
 	store  Store
 	client *http.Client
 	signer ServiceAuthSigner
+	dir    identity.Directory
 }
 
-func NewNotifier(store Store, client *http.Client, signer ServiceAuthSigner) *Deliverer {
-	return &Deliverer{store: store, client: client, signer: signer}
+func NewNotifier(
+	store Store,
+	client *http.Client,
+	signer ServiceAuthSigner,
+	dir identity.Directory,
+) *Deliverer {
+	return &Deliverer{store: store, client: client, signer: signer, dir: dir}
 }
 
 // NotifyWrite looks up the registrations that subscribe to a write on repo
@@ -47,6 +56,7 @@ func (d *Deliverer) NotifyWrite(
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
 	rev syntax.TID,
+	hash []byte,
 ) {
 	regs, err := d.store.ListForRepo(ctx, space, repo)
 	if err != nil {
@@ -62,7 +72,7 @@ func (d *Deliverer) NotifyWrite(
 		Space: space.String(),
 		Repo:  repo.String(),
 		Rev:   rev.String(),
-		Hash:  "",
+		Hash:  base64.StdEncoding.EncodeToString(hash),
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: marshal notifyWrite", "err", err)
@@ -96,6 +106,39 @@ func (d *Deliverer) NotifySpaceDeleted(
 	}
 
 	d.fanout(ctx, space.SpaceOwner(), nsidNotifySpaceDeleted, regs, body)
+}
+
+// RegisterAuthority auto-subscribes a shared space's authority to writes on
+// repo, mirroring what an explicit registerNotify call would do, per the
+// proposal: "On the first write into a repo for a shared space ... the repo
+// host resolves the space authority's #atproto_space_host endpoint and
+// auto-registers it as a subscriber for that repo." A no-op when repo is
+// itself the space's authority (nothing to auto-subscribe) or when the
+// authority publishes no space-host endpoint to register.
+func (d *Deliverer) RegisterAuthority(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) {
+	owner := space.SpaceOwner()
+	if owner == repo {
+		return
+	}
+	ident, err := d.dir.LookupDID(ctx, owner)
+	if err != nil {
+		slog.WarnContext(ctx, "notify: lookup space authority",
+			"err", err, "space", space, "authority", owner)
+		return
+	}
+	svc, ok := ident.Services["atproto_space_host"]
+	if !ok || svc.URL == "" {
+		return
+	}
+	expiresAt := time.Now().Add(registrationTTL)
+	if err := d.store.Register(ctx, space, repo, svc.URL, expiresAt); err != nil {
+		slog.WarnContext(ctx, "notify: auto-register authority",
+			"err", err, "space", space, "repo", repo, "authority", owner)
+	}
 }
 
 // fanout signs a per-endpoint service-auth JWT for the space authority and

@@ -1,0 +1,137 @@
+package session
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/require"
+
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
+)
+
+func testDPoPKey(t *testing.T) string {
+	t.Helper()
+	key, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	return key.Multibase()
+}
+
+func testJWT(t *testing.T) string {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	tok, err := jwt.NewWithClaims(jwt.SigningMethodPS256,
+		jwt.MapClaims{"exp": time.Now().Add(time.Hour).Unix(), "jti": "test"},
+	).SignedString(key)
+	require.NoError(t, err)
+	return tok
+}
+
+func TestStoreSessionsAndSpaceAccess(t *testing.T) {
+	t.Parallel()
+	db := db_testutil.NewDB(t)
+	require.NoError(t, AutoMigrate(db))
+
+	oauthStore, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	s := NewStore(db, oauth.NewClientApp(&cfg, oauthStore), nil)
+
+	require.NoError(t, oauthStore.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:              "did:plc:alice",
+		SessionID:               "sess1",
+		HostURL:                 "https://host.example",
+		AccessToken:             testJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
+	}))
+	require.NoError(t, s.Add(t.Context(), "did:plc:alice", "sess1", AuthOAuth))
+
+	dids, err := s.List(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, []string{"did:plc:alice"}, []string{dids[0].String()})
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	require.NoError(t, s.RecordSpaceAccess(t.Context(), space, "did:plc:alice"))
+	require.NoError(t, s.RecordSpaceAccess(t.Context(), space, "did:plc:alice")) // idempotent
+
+	spaces, err := s.Spaces(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, []habitat_syntax.SpaceURI{space}, spaces)
+
+	// A client is available via the recorded accessor even though the space
+	// owner has no session.
+	client, err := s.ClientForSpace(t.Context(), space)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	require.NoError(t, s.DropSpace(t.Context(), space))
+	spaces, err = s.Spaces(t.Context())
+	require.NoError(t, err)
+	require.Empty(t, spaces)
+}
+
+type fakeJWTClients struct {
+	client *http.Client
+	calls  int
+}
+
+func (f *fakeJWTClients) ClientForDID(ctx context.Context, did syntax.DID) (*http.Client, error) {
+	f.calls++
+	return f.client, nil
+}
+
+func TestClientForSessionDispatchesJWTBearer(t *testing.T) {
+	db := db_testutil.NewDB(t)
+	require.NoError(t, AutoMigrate(db))
+	sentinel := &http.Client{}
+	jwt := &fakeJWTClients{client: sentinel}
+	store := NewStore(db, nil, jwt)
+
+	did := syntax.DID("did:web:member.example")
+	require.NoError(t, store.Add(t.Context(), did, "", AuthJWTBearer))
+
+	got, err := store.ClientForSession(t.Context(), did)
+	require.NoError(t, err)
+	require.Same(t, sentinel, got)
+	require.Equal(t, 1, jwt.calls)
+}
+
+// TestClientForSpaceDispatchesJWTBearer verifies a repo-host read for a space
+// only a jwt-bearer session can access uses the jwt-bearer client rather than
+// attempting an OAuth resume, which has nothing to resume (a jwt-bearer
+// session has no underlying oauth.ClientSessionData) and would always fail.
+// ClientForSpace backs every syncer read (listRepoOps, getRepo, ...), so this
+// is what makes sync work at all for a jwt-bearer-only session.
+func TestClientForSpaceDispatchesJWTBearer(t *testing.T) {
+	db := db_testutil.NewDB(t)
+	require.NoError(t, AutoMigrate(db))
+	sentinel := &http.Client{}
+	jwt := &fakeJWTClients{client: sentinel}
+	store := NewStore(db, nil, jwt)
+
+	did := syntax.DID("did:web:member.example")
+	require.NoError(t, store.Add(t.Context(), did, "", AuthJWTBearer))
+
+	space := habitat_syntax.SpaceURI("at://did:web:member.example/space/network.habitat.group/s1")
+	require.NoError(t, store.RecordSpaceAccess(t.Context(), space, did))
+
+	got, err := store.ClientForSpace(t.Context(), space)
+	require.NoError(t, err)
+	require.Same(t, sentinel, got)
+	require.Equal(t, 1, jwt.calls)
+}

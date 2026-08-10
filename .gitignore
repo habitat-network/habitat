@@ -44,11 +44,13 @@ cmd/pear/repo.db
 *repo.db*
 
 # Ignore custom VSCode/Cursor settings
+.vscode/
 .vscode/settings.json
 
 # Ignore local claude artifacts
 .claude/worktrees
 .claude/settings.local.json
+.cursor/rules
 
 # Ignore git worktrees
 .worktrees/
@@ -56,3 +58,6 @@ cmd/pear/repo.db
 **/*.db
 **/*-shm
 **/*-wal
+
+# Ignore plans + specs
+./docs/

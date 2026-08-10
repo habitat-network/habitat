@@ -5,19 +5,25 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	atpidentity "github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 )
 
 func testResolveServer() *Server {
-	dir := atpidentity.NewMockDirectory()
-	dir.Insert(atpidentity.Identity{
+	dir := identity.NewMockDirectory()
+	dir.Insert(identity.Identity{
 		DID:         syntax.DID("did:web:alice.example.com"),
 		Handle:      syntax.Handle("alice.example.com"),
 		AlsoKnownAs: []string{"at://alice.example.com"},
+		Services: map[string]identity.ServiceEndpoint{
+			"atproto": {
+				Type: "AtprotoPersonalDataServer",
+				URL:  "https://public.pds",
+			},
+		},
 	})
-	return &Server{directory: dir}
+	return &Server{directory: dir, domain: "pear.domain"}
 }
 
 func TestResolveDID(t *testing.T) {
@@ -25,7 +31,7 @@ func TestResolveDID(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.identity.resolveDid?did=did:web:alice.example.com",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 
@@ -36,13 +42,15 @@ func TestResolveDID(t *testing.T) {
 		t,
 		`{
 			"didDoc": {
-				"@context": [
-					"https://www.w3.org/ns/did/v1",
-					"https://w3id.org/security/multikey/v1",
-					"https://w3id.org/security/suites/secp256k1-2019/v1"
-				],
 				"id": "did:web:alice.example.com",
-				"alsoKnownAs": ["at://alice.example.com"]
+				"alsoKnownAs": ["at://alice.example.com"],
+				"service": [
+					{
+						"id": "#atproto_pds",
+						"type": "AtprotoPersonalDataServer",
+						"serviceEndpoint": "https://pear.domain"
+					}
+				]
 			}
 		}`,
 		w.Body.String(),
@@ -54,7 +62,7 @@ func TestResolveHandle(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.identity.resolveHandle?handle=alice.example.com",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 
@@ -69,7 +77,7 @@ func TestResolveIdentity(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.identity.resolveIdentity?identifier=alice.example.com",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 
@@ -82,13 +90,15 @@ func TestResolveIdentity(t *testing.T) {
 			"did": "did:web:alice.example.com",
 			"handle": "alice.example.com",
 			"didDoc": {
-				"@context": [
-					"https://www.w3.org/ns/did/v1",
-					"https://w3id.org/security/multikey/v1",
-					"https://w3id.org/security/suites/secp256k1-2019/v1"
-				],
 				"id": "did:web:alice.example.com",
-				"alsoKnownAs": ["at://alice.example.com"]
+				"alsoKnownAs": ["at://alice.example.com"],
+				"service": [
+					{
+						"id": "#atproto_pds",
+						"type": "AtprotoPersonalDataServer",
+						"serviceEndpoint": "https://pear.domain"
+					}
+				]
 			}
 		}`,
 		w.Body.String(),
@@ -100,7 +110,7 @@ func TestResolveHandleNotFound(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.identity.resolveHandle?handle=nobody.example.com",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 

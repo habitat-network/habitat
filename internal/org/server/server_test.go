@@ -150,7 +150,7 @@ func TestGetMetadataViaSignedToken(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.org.getMetadata?OrgId="+orgId.String(),
-		nil,
+		http.NoBody,
 	)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -170,7 +170,7 @@ func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.org.getMetadata?OrgId="+orgId.String(),
-		nil,
+		http.NoBody,
 	)
 	req.Header.Set("Authorization", "Bearer not-a-valid-token")
 	w := httptest.NewRecorder()
@@ -183,11 +183,7 @@ func TestGetMetadataViaAuthenticatedCaller(t *testing.T) {
 
 	// No orgID query param: the caller is resolved to their org via the
 	// stub authn method configured in newTestServer (adminDID).
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.org.getMetadata",
-		nil,
-	)
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.org.getMetadata", http.NoBody)
 	w := httptest.NewRecorder()
 	srv.GetMetadata(w, req)
 	require.Equal(t, http.StatusOK, w.Code)

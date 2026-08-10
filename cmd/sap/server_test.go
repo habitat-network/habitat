@@ -16,10 +16,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/sap"
-	"github.com/habitat-network/habitat/internal/sap/jwtbearer"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
+	"github.com/habitat-network/habitat/pkg/sap"
+	"github.com/habitat-network/habitat/pkg/sap/jwtbearer"
 	"github.com/stretchr/testify/require"
 )
 

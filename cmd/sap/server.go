@@ -16,10 +16,10 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/sap"
-	"github.com/habitat-network/habitat/internal/sap/jwtbearer"
-	"github.com/habitat-network/habitat/internal/sap/session"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/pkg/sap"
+	"github.com/habitat-network/habitat/pkg/sap/jwtbearer"
+	"github.com/habitat-network/habitat/pkg/sap/session"
 )
 
 // habitatDIDHeader and habitatSessionHeader name the OAuth session the caller

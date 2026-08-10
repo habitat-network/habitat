@@ -6,12 +6,13 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/oauthclient"
-	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/pkg/sap"
 )
 
 // serviceID is the fragment in the home server's did:web service entry. The
@@ -24,7 +25,7 @@ type Server struct {
 	orgHandle   string
 	groups      *GroupService
 	collections *CollectionService
-	oauthApp    *oauthclient.App
+	oauthApp    *oauth.ClientApp
 	sap         *sap.Sap
 	store       *Store
 	serviceAuth authn.Method
@@ -34,7 +35,7 @@ func NewServer(
 	domain, orgHandle string,
 	groups *GroupService,
 	collections *CollectionService,
-	oauthApp *oauthclient.App,
+	oauthApp *oauth.ClientApp,
 	s *sap.Sap,
 	store *Store,
 	serviceAuth authn.Method,
@@ -52,7 +53,11 @@ func NewServer(
 }
 
 func (s *Server) Routes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /.well-known/did.json", s.handleDIDDoc)
+	mux.Handle("GET /.well-known/did.json", did.NewHandler(
+		did.Web(s.domain).
+			Service("#"+serviceID, "HabitatGroupsServer", "https://"+s.domain).
+			Build(),
+	))
 	mux.HandleFunc("GET /client-metadata.json", s.handleClientMetadata)
 	mux.HandleFunc("GET /oauth/login", s.handleOAuthLogin)
 	mux.HandleFunc("GET /oauth-callback", s.handleOAuthCallback)
@@ -66,22 +71,6 @@ func (s *Server) Routes(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /xrpc/network.habitat.collections.listCollections", s.handleListCollections)
 	mux.HandleFunc("GET /xrpc/network.habitat.collections.listRecords", s.handleListRecords)
-}
-
-// handleDIDDoc serves the did:web document. pear resolves did:web:<domain> here
-// and reads the #groups service endpoint to forward calls to this server.
-func (s *Server) handleDIDDoc(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, r, map[string]any{
-		"@context": []string{"https://www.w3.org/ns/did/v1"},
-		"id":       "did:web:" + s.domain,
-		"service": []map[string]any{
-			{
-				"id":              "#" + serviceID,
-				"type":            "HabitatGroupsServer",
-				"serviceEndpoint": "https://" + s.domain,
-			},
-		},
-	})
 }
 
 func (s *Server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {

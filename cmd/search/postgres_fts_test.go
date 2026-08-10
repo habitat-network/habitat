@@ -46,7 +46,7 @@ func setupPostgresFTSIndex(t *testing.T) *postgresFTSIndex {
 func doc(uri habitat_syntax.SpaceRecordURI, orgDID syntax.DID, content string) Document {
 	return Document{
 		URI:        uri,
-		SpaceURI:   habitat_syntax.SpaceURI("ats://" + orgDID.String() + "/app.space/skey1"),
+		SpaceURI:   habitat_syntax.SpaceURI("at://" + orgDID.String() + "/space/app.space/skey1"),
 		OrgDID:     orgDID,
 		Collection: "network.habitat.note",
 		Content:    content,
@@ -59,12 +59,12 @@ func TestPostgresFTSIndex_UpsertAndQuery(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, index.Upsert(ctx, doc(
-		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+		"at://did:plc:org1/space/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 		"did:plc:org1",
 		"the quarterly budget review notes",
 	)))
 	require.NoError(t, index.Upsert(ctx, doc(
-		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey2",
+		"at://did:plc:org1/space/app.space/skey1/did:plc:user1/network.habitat.note/rkey2",
 		"did:plc:org1",
 		"unrelated grocery list",
 	)))
@@ -78,7 +78,7 @@ func TestPostgresFTSIndex_UpsertAndQuery(t *testing.T) {
 	require.Equal(
 		t,
 		habitat_syntax.SpaceRecordURI(
-			"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+			"at://did:plc:org1/space/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 		),
 		result.Results[0].URI,
 	)
@@ -89,7 +89,7 @@ func TestPostgresFTSIndex_QueryFiltersByOrg(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, index.Upsert(ctx, doc(
-		"ats://did:plc:org2/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+		"at://did:plc:org2/space/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 		"did:plc:org2",
 		"budget notes for org2",
 	)))
@@ -107,7 +107,7 @@ func TestPostgresFTSIndex_Delete(t *testing.T) {
 	ctx := context.Background()
 
 	d := doc(
-		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+		"at://did:plc:org1/space/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 		"did:plc:org1",
 		"budget notes",
 	)

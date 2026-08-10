@@ -3,8 +3,6 @@ package oauthserver
 import (
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/rfc7523"
@@ -15,14 +13,6 @@ import (
 // Habitat's OAuth server supports: authorization code, refresh token, and
 // RFC 7523 (JWT bearer).
 //
-// One value travels through the whole token lifecycle:
-//   - The authorize endpoint builds it (newAuthorizeSession) and the strategy
-//     encrypts it, as the stateless authorization code, via CBOR — so every
-//     field is exported.
-//   - At the token endpoint fosite's grant handlers mutate it in place
-//     (SetSubject, SetExpiresAt) before minting tokens.
-//   - The store reads it back to persist refresh tokens.
-//
 // Because it implements oauth2.JWTSessionContainer, DefaultJWTStrategy mints
 // signed access tokens straight from it — the "sub" claim comes from Subject,
 // which is why SetSubject (used by the JWT bearer handler) is all that's needed
@@ -31,7 +21,6 @@ type session struct {
 	Subject               string
 	ClientID              string
 	Scopes                []string
-	PKCEChallenge         string
 	AuthCodeExpiresAt     time.Time
 	AccessTokenExpiresAt  time.Time
 	RefreshTokenExpiresAt time.Time
@@ -43,42 +32,11 @@ var (
 	_ oauth2.JWTSessionContainer = (*session)(nil)
 )
 
-// newAuthorizeSession builds the session embedded in a freshly issued
-// authorization code, capturing who authorized (did) and the request's scopes
-// and PKCE challenge.
-func newAuthorizeSession(req fosite.AuthorizeRequester, did syntax.DID) *session {
-	return &session{
-		Subject:       did.String(),
-		ClientID:      req.GetClient().GetID(),
-		Scopes:        req.GetRequestedScopes(),
-		PKCEChallenge: req.GetRequestForm().Get("code_challenge"),
-	}
-}
-
 // newSession returns the empty session handed to the token endpoint. Grant
 // handlers either populate it in place (the JWT bearer handler calls
 // SetSubject/SetExpiresAt) or replace it outright with one loaded from storage.
 func newSession() *session {
 	return &session{}
-}
-
-// getAuthCode serializes the session into the stateless authorization code: an
-// encrypted CBOR blob that is itself the code (and its signature). Only the
-// fields set at authorize time — subject, client, scopes, PKCE challenge — carry
-// meaning; the token-expiry fields are still zero and are filled in by fosite
-// once the code is redeemed.
-func (s *session) getAuthCode(encryptionKey []byte) (string, error) {
-	return encrypt.EncryptCBOR(s, encryptionKey)
-}
-
-// decodeSession decrypts an authorization code produced by getAuthCode back into
-// the session it was minted from.
-func decodeSession(authCode string, encryptionKey []byte) (*session, error) {
-	var s session
-	if err := encrypt.DecryptCBOR(authCode, encryptionKey, &s); err != nil {
-		return nil, err
-	}
-	return &s, nil
 }
 
 // GetJWTClaims implements oauth2.JWTSessionContainer. DefaultJWTStrategy calls

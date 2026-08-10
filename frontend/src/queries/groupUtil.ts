@@ -1,6 +1,8 @@
+import { constructSpaceURI } from "internal";
+
 // skeyOf extracts a space's skey (its last path segment) from a space URI like
-// ats://<orgDid>/network.habitat.group/<skey>. Used as the clean route param
-// for a group detail page.
+// at://<orgDid>/space/network.habitat.group/<skey>. Used as the clean route
+// param for a group detail page.
 export function skeyOf(uri: string): string {
   const parts = uri.split("/");
   return parts[parts.length - 1];
@@ -8,7 +10,11 @@ export function skeyOf(uri: string): string {
 
 // groupUri reconstructs a group-space URI from the org DID and skey.
 export function groupUri(orgDid: string, skey: string): string {
-  return `ats://${orgDid}/network.habitat.group/${skey}`;
+  return constructSpaceURI({
+    spaceOwner: orgDid,
+    spaceType: "network.habitat.group",
+    spaceKey: skey,
+  });
 }
 
 // displayDid renders a DID as a friendly handle: it prefers a known handle, then
