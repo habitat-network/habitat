@@ -1048,6 +1048,7 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 	}
 	if input.ClientAttestation != "" {
 		httpx.WriteNotSupported(ctx, w, "client attestation is not yet supported")
+		return
 	}
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
 	if !ok {
@@ -1057,11 +1058,19 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 		Validate(w, r); !ok {
 		return
 	}
+	// kid must name a verification method the signer's DID document actually
+	// publishes, since a verifier resolves the space authority's DID document
+	// and looks the fragment up as a verification method (not a service — the
+	// former "#atproto_space_host" named a service and could never resolve).
+	// A hive-managed author's DID document publishes only "#atproto" (see
+	// hive.Hive.mintDID), matching the proposal's fallback rule when
+	// "#atproto_space" is absent; the host's own DID document publishes
+	// "#atproto_space" directly.
 	kid := "#atproto"
 	privKey, err := s.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		privKey = s.hostKey
-		kid = "#atproto_space_host"
+		kid = "#atproto_space"
 	} else if err != nil {
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
 		return

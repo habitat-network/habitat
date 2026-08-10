@@ -594,13 +594,54 @@ func TestVerifierSignerExternalAuthor(t *testing.T) {
 	ownerIdent := &identity.Identity{
 		DID: spaceOwner,
 		Services: map[string]identity.ServiceEndpoint{
-			"habitat": {URL: "https://host.example.com"},
+			"atproto_space_host": {URL: "https://host.example.com"},
 		},
 	}
 	hostIdent := &identity.Identity{
 		DID: hostDID,
 		Keys: map[string]identity.VerificationMethod{
-			"habitat": {
+			"atproto_space": {
+				Type:               "Multikey",
+				PublicKeyMultibase: pub.Multibase(),
+			},
+		},
+	}
+
+	dir := &mockDir{idents: map[syntax.DID]*identity.Identity{
+		spaceOwner: ownerIdent,
+		hostDID:    hostIdent,
+	}}
+	v := NewVerifier(dir)
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+
+	got, err := v.signer(t.Context(), space, "did:plc:external")
+	require.NoError(t, err)
+	require.Equal(t, pub.Multibase(), got.Multibase())
+}
+
+// TestVerifierSignerExternalAuthorFallsBackToAtproto covers the proposal's
+// fallback rule: a host that publishes no "#atproto_space" verification
+// method is resolved through its "#atproto" key instead.
+func TestVerifierSignerExternalAuthorFallsBackToAtproto(t *testing.T) {
+	t.Parallel()
+
+	priv, err := atcrypto.GeneratePrivateKeyK256()
+	require.NoError(t, err)
+	pub, err := priv.PublicKey()
+	require.NoError(t, err)
+
+	spaceOwner := syntax.DID("did:plc:owner")
+	hostDID := syntax.DID("did:web:host.example.com")
+	ownerIdent := &identity.Identity{
+		DID: spaceOwner,
+		Services: map[string]identity.ServiceEndpoint{
+			"atproto_space_host": {URL: "https://host.example.com"},
+		},
+	}
+	hostIdent := &identity.Identity{
+		DID: hostDID,
+		Keys: map[string]identity.VerificationMethod{
+			"atproto": {
 				Type:               "Multikey",
 				PublicKeyMultibase: pub.Multibase(),
 			},
@@ -668,7 +709,7 @@ func TestVerifierSignerExternalOwnerLookupError(t *testing.T) {
 }
 
 // TestVerifierSignerExternalNoHabitatService covers the error path when the
-// space owner has no habitat service endpoint.
+// space owner has no atproto_space_host service endpoint.
 func TestVerifierSignerExternalNoHabitatService(t *testing.T) {
 	t.Parallel()
 
@@ -684,7 +725,7 @@ func TestVerifierSignerExternalNoHabitatService(t *testing.T) {
 
 	_, err := v.signer(t.Context(), space, "did:plc:external")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "no habitat service")
+	require.Contains(t, err.Error(), "no atproto_space_host service")
 }
 
 // TestVerifierSignerExternalHostLookupError covers the error path when the
@@ -696,7 +737,7 @@ func TestVerifierSignerExternalHostLookupError(t *testing.T) {
 	ownerIdent := &identity.Identity{
 		DID: spaceOwner,
 		Services: map[string]identity.ServiceEndpoint{
-			"habitat": {URL: "https://host.example.com"},
+			"atproto_space_host": {URL: "https://host.example.com"},
 		},
 	}
 
@@ -710,7 +751,7 @@ func TestVerifierSignerExternalHostLookupError(t *testing.T) {
 }
 
 // TestVerifierSignerExternalHostNoKey covers the error path when the host
-// has no habitat verification method.
+// has no atproto_space/atproto verification method.
 func TestVerifierSignerExternalHostNoKey(t *testing.T) {
 	t.Parallel()
 
@@ -719,7 +760,7 @@ func TestVerifierSignerExternalHostNoKey(t *testing.T) {
 	ownerIdent := &identity.Identity{
 		DID: spaceOwner,
 		Services: map[string]identity.ServiceEndpoint{
-			"habitat": {URL: "https://host.example.com"},
+			"atproto_space_host": {URL: "https://host.example.com"},
 		},
 	}
 	hostIdent := &identity.Identity{
