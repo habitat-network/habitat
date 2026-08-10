@@ -78,21 +78,24 @@ func (v *Verifier) signer(
 		return pub, nil
 	}
 
-	// External authors: the host signed with its own key. Discover the host
-	// through the space owner's DID doc (its "habitat" service endpoint), then
-	// read the key from the host DID doc's "habitat" verification method.
+	// External authors: the space host signed with its own key. Per the
+	// proposal's space-authority resolution, discover the host through the
+	// space owner's DID doc "#atproto_space_host" service, then read the
+	// signing key from the host DID doc's "#atproto_space" verification
+	// method, falling back to "#atproto" when the host publishes no dedicated
+	// space key.
 	owner := space.SpaceOwner()
 	ownerIdent, err := v.dir.LookupDID(ctx, owner)
 	if err != nil {
 		return nil, fmt.Errorf("lookup space owner: %w", err)
 	}
-	svc, ok := ownerIdent.Services["habitat"]
+	svc, ok := ownerIdent.Services["atproto_space_host"]
 	if !ok || svc.URL == "" {
-		return nil, fmt.Errorf("space owner %s has no habitat service", owner)
+		return nil, fmt.Errorf("space owner %s has no atproto_space_host service", owner)
 	}
 	u, err := url.Parse(svc.URL)
 	if err != nil {
-		return nil, fmt.Errorf("parse habitat service url: %w", err)
+		return nil, fmt.Errorf("parse atproto_space_host service url: %w", err)
 	}
 	// did:web encodes a port's colon as %3A.
 	hostDID := syntax.DID("did:web:" + strings.ReplaceAll(u.Host, ":", "%3A"))
@@ -100,7 +103,10 @@ func (v *Verifier) signer(
 	if err != nil {
 		return nil, fmt.Errorf("lookup host %s: %w", hostDID, err)
 	}
-	pub, err := hostIdent.GetPublicKey("habitat")
+	pub, err := hostIdent.GetPublicKey("atproto_space")
+	if err != nil {
+		pub, err = hostIdent.GetPublicKey("atproto")
+	}
 	if err != nil {
 		return nil, fmt.Errorf("host signing key: %w", err)
 	}

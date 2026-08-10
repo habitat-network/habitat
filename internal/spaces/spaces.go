@@ -144,6 +144,17 @@ type Store interface {
 		rkey syntax.RecordKey,
 		value map[string]any,
 	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
+	// CreateRecord writes a new record, failing with ErrRecordAlreadyExists if
+	// one is already present at collection/rkey (an empty rkey always creates,
+	// since one is minted fresh).
+	CreateRecord(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+		value map[string]any,
+	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
 	GetRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -216,14 +227,15 @@ type Notifier interface {
 }
 
 var (
-	ErrSpaceNotFound      = errors.New("space not found")
-	ErrSpaceAlreadyExists = errors.New("space already exists")
-	ErrRecordNotFound     = errors.New("record not found")
-	ErrUserAlreadyMember  = errors.New("user is already a member of the space")
-	ErrNotAMember         = errors.New("user is not a member of the space")
-	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
-	ErrRepoNotFound       = errors.New("repo not found")
-	ErrRevTooFar          = errors.New("since revision is ahead of the repo head")
+	ErrSpaceNotFound       = errors.New("space not found")
+	ErrSpaceAlreadyExists  = errors.New("space already exists")
+	ErrRecordNotFound      = errors.New("record not found")
+	ErrUserAlreadyMember   = errors.New("user is already a member of the space")
+	ErrNotAMember          = errors.New("user is not a member of the space")
+	ErrCannotRemoveOrg     = errors.New("cannot remove the org from the space")
+	ErrRepoNotFound        = errors.New("repo not found")
+	ErrRevTooFar           = errors.New("since revision is ahead of the repo head")
+	ErrRecordAlreadyExists = errors.New("record already exists")
 )
 
 // ---- Store implementation ----
@@ -569,6 +581,32 @@ func (s *store) PutRecord(
 	rkey syntax.RecordKey,
 	value map[string]any,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
+	return s.writeRecord(ctx, spaceUri, repo, collection, rkey, value, false)
+}
+
+// CreateRecord writes a new record, per network.habitat.space.createRecord:
+// unlike PutRecord, it fails with ErrRecordAlreadyExists rather than
+// overwriting one already present at collection/rkey.
+func (s *store) CreateRecord(
+	ctx context.Context,
+	spaceUri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	value map[string]any,
+) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
+	return s.writeRecord(ctx, spaceUri, repo, collection, rkey, value, true)
+}
+
+func (s *store) writeRecord(
+	ctx context.Context,
+	spaceUri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	value map[string]any,
+	requireNew bool,
+) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ?", spaceUri.SpaceOwner()).
@@ -594,6 +632,7 @@ func (s *store) PutRecord(
 	var recordUri habitat_syntax.SpaceRecordURI
 	var newRev syntax.TID
 	var repoHash []byte
+	firstWrite := false
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if tx.Name() == "postgres" {
 			// acquire lock on permissioned repo within space
@@ -605,6 +644,18 @@ func (s *store) PutRecord(
 				return fmt.Errorf("failed to acquire lock: %w", err)
 			}
 		}
+		if requireNew && rkey != "" {
+			var count int64
+			if err := tx.Model(&spaceRecord{}).
+				Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+					spaceUri, repo, collection, rkey).
+				Count(&count).Error; err != nil {
+				return fmt.Errorf("failed to check existing record: %w", err)
+			}
+			if count > 0 {
+				return ErrRecordAlreadyExists
+			}
+		}
 		action := "update"
 		var prev spaceRecord
 		err := tx.
@@ -614,6 +665,7 @@ func (s *store) PutRecord(
 			First(&prev).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			action = "create"
+			firstWrite = true
 		} else if err != nil {
 			return fmt.Errorf("failed to get previous record: %w", err)
 		}
