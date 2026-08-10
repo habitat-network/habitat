@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +18,36 @@ import (
 )
 
 var errSign = errors.New("sign failed")
+
+// fakeDirectory resolves a fixed set of identities, standing in for a real
+// identity.Directory in tests that don't need actual DID resolution.
+type fakeDirectory struct {
+	idents map[syntax.DID]*identity.Identity
+}
+
+func (d *fakeDirectory) LookupDID(_ context.Context, did syntax.DID) (*identity.Identity, error) {
+	ident, ok := d.idents[did]
+	if !ok {
+		return nil, identity.ErrDIDNotFound
+	}
+	return ident, nil
+}
+
+func (d *fakeDirectory) LookupHandle(context.Context, syntax.Handle) (*identity.Identity, error) {
+	return nil, identity.ErrHandleNotFound
+}
+
+func (d *fakeDirectory) Lookup(
+	ctx context.Context,
+	atid syntax.AtIdentifier,
+) (*identity.Identity, error) {
+	if did, err := atid.AsDID(); err == nil {
+		return d.LookupDID(ctx, did)
+	}
+	return nil, identity.ErrDIDNotFound
+}
+
+func (d *fakeDirectory) Purge(context.Context, syntax.AtIdentifier) error { return nil }
 
 // fakeSigner records the service-auth requests it is asked to sign and returns a
 // fixed token, or err when set.
@@ -58,7 +89,7 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
 
 	signer := &fakeSigner{t: t}
-	notifier := NewNotifier(s, subscriber.Client(), signer)
+	notifier := NewNotifier(s, subscriber.Client(), signer, &fakeDirectory{})
 	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
 
 	for range 2 {
@@ -92,7 +123,7 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
 
 	signer := &fakeSigner{t: t}
-	notifier := NewNotifier(s, subscriber.Client(), signer)
+	notifier := NewNotifier(s, subscriber.Client(), signer, &fakeDirectory{})
 	notifier.NotifySpaceDeleted(t.Context(), space)
 
 	for range 2 {
@@ -108,7 +139,7 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 func TestNotifierNoRegistrations(t *testing.T) {
 	s := newTestStore(t)
 	signer := &fakeSigner{t: t}
-	notifier := NewNotifier(s, http.DefaultClient, signer)
+	notifier := NewNotifier(s, http.DefaultClient, signer, &fakeDirectory{})
 
 	// With no registrations, neither path should sign or deliver anything.
 	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
@@ -129,7 +160,7 @@ func TestNotifierSignerErrorAbortsDelivery(t *testing.T) {
 	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, future))
 
 	signer := &fakeSigner{err: errSign}
-	notifier := NewNotifier(s, subscriber.Client(), signer)
+	notifier := NewNotifier(s, subscriber.Client(), signer, &fakeDirectory{})
 	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
 
 	select {
@@ -155,7 +186,7 @@ func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
 		s.Register(t.Context(), space, bob, subscriber.URL, time.Now().Add(time.Hour)),
 	)
 
-	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{t: t})
+	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{t: t}, &fakeDirectory{})
 	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
 
 	select {
@@ -163,4 +194,58 @@ func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
 		t.Fatal("delivered notifyWrite to a non-matching registration")
 	case <-time.After(200 * time.Millisecond):
 	}
+}
+
+// TestRegisterAuthorityRegistersHostEndpoint pins that a shared space's
+// authority is auto-subscribed to a repo through its published
+// "#atproto_space_host" service, per the proposal's auto-registration
+// behavior for a repo's first write.
+func TestRegisterAuthorityRegistersHostEndpoint(t *testing.T) {
+	s := newTestStore(t)
+
+	dir := &fakeDirectory{idents: map[syntax.DID]*identity.Identity{
+		space.SpaceOwner(): {
+			DID: space.SpaceOwner(),
+			Services: map[string]identity.ServiceEndpoint{
+				"atproto_space_host": {URL: "https://authority.example.com"},
+			},
+		},
+	}}
+	notifier := NewNotifier(s, http.DefaultClient, &fakeSigner{t: t}, dir)
+	notifier.RegisterAuthority(t.Context(), space, repo)
+
+	regs, err := s.ListForRepo(t.Context(), space, repo)
+	require.NoError(t, err)
+	require.Len(t, regs, 1)
+	require.Equal(t, "https://authority.example.com", regs[0].Endpoint)
+}
+
+// TestRegisterAuthoritySkipsOwnSpace pins that a repo owned by the space's own
+// authority is never auto-registered: there is no separate authority to
+// notify.
+func TestRegisterAuthoritySkipsOwnSpace(t *testing.T) {
+	s := newTestStore(t)
+
+	notifier := NewNotifier(s, http.DefaultClient, &fakeSigner{t: t}, &fakeDirectory{})
+	notifier.RegisterAuthority(t.Context(), space, space.SpaceOwner())
+
+	regs, err := s.ListForRepo(t.Context(), space, space.SpaceOwner())
+	require.NoError(t, err)
+	require.Empty(t, regs)
+}
+
+// TestRegisterAuthorityNoHostService pins that an authority publishing no
+// "#atproto_space_host" service is left unregistered rather than erroring.
+func TestRegisterAuthorityNoHostService(t *testing.T) {
+	s := newTestStore(t)
+
+	dir := &fakeDirectory{idents: map[syntax.DID]*identity.Identity{
+		space.SpaceOwner(): {DID: space.SpaceOwner()},
+	}}
+	notifier := NewNotifier(s, http.DefaultClient, &fakeSigner{t: t}, dir)
+	notifier.RegisterAuthority(t.Context(), space, repo)
+
+	regs, err := s.ListForRepo(t.Context(), space, repo)
+	require.NoError(t, err)
+	require.Empty(t, regs)
 }

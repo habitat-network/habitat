@@ -742,6 +742,45 @@ func TestPutRecordTriggersNotify(t *testing.T) {
 	require.NotEmpty(t, s.Notifier.Writes[0].Rev)
 }
 
+// TestPutRecordRegistersAuthorityOnFirstWrite pins the proposal's
+// auto-registration behavior: a repo's first write into a space owned by a
+// different DID (a shared space) auto-subscribes that authority, and a
+// second write to the same repo does not register it again.
+func TestPutRecordRegistersAuthorityOnFirstWrite(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	// orgId (the space authority) != owner (the repo writer): a shared space.
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "shared-space")
+	require.NoError(t, err)
+	require.NotEqual(t, uri.SpaceOwner(), owner)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	require.Len(t, s.Notifier.RegisteredAuthority, 1)
+	require.Equal(t, uri, s.Notifier.RegisteredAuthority[0].Space)
+	require.Equal(t, owner, s.Notifier.RegisteredAuthority[0].Repo)
+}
+
+// TestPutRecordSkipsAuthorityRegistrationForOwnSpace pins that a repo owned
+// by the space's own authority never triggers auto-registration.
+func TestPutRecordSkipsAuthorityRegistrationForOwnSpace(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	// The space authority (owner) writes its own repo into its own space.
+	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "own-space")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	require.Empty(t, s.Notifier.RegisteredAuthority)
+}
+
 func TestDeleteSpaceTriggersNotify(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 

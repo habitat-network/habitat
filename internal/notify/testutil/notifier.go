@@ -8,8 +8,14 @@ import (
 )
 
 type TestNotifier struct {
-	Writes  []writeCall
-	Deleted []habitat_syntax.SpaceURI
+	Writes              []writeCall
+	Deleted             []habitat_syntax.SpaceURI
+	RegisteredAuthority []authorityCall
+}
+
+type authorityCall struct {
+	Space habitat_syntax.SpaceURI
+	Repo  syntax.DID
 }
 
 type writeCall struct {
@@ -34,4 +40,12 @@ func (n *TestNotifier) NotifySpaceDeleted(
 	space habitat_syntax.SpaceURI,
 ) {
 	n.Deleted = append(n.Deleted, space)
+}
+
+func (n *TestNotifier) RegisterAuthority(
+	_ context.Context,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) {
+	n.RegisteredAuthority = append(n.RegisteredAuthority, authorityCall{Space: space, Repo: repo})
 }

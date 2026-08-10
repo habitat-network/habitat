@@ -261,7 +261,7 @@ func setupPear(t *testing.T) *pearHost {
 	require.NoError(t, err)
 	notifyStore, err := notify.NewStore(db)
 	require.NoError(t, err)
-	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, orgHive)
+	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, orgHive, orgHive)
 
 	spacesStore, err := spaces.NewStore(db, fgaStore, eventStore, notifier)
 	require.NoError(t, err)
