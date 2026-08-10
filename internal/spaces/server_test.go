@@ -26,6 +26,7 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/did"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/org"
 	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
@@ -34,15 +35,24 @@ import (
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 )
 
+type testSpaceStore interface {
+	spaces.Store
+	FGAStore() fgastore.Store
+}
+
 type testServerOptions struct {
 	hostKey     atcrypto.PrivateKey
 	oauth       authn.Method
 	serviceAuth authn.Method
+	spaceToken  authn.Method
+	// store, when set, reuses an existing test store (and its FGA) so a second
+	// Server can be built against the same data with different auth methods.
+	store testSpaceStore
 }
 
 type testServer struct {
 	*spaces.Server
-	Store   spaces.Store
+	Store   testSpaceStore
 	HostKey atcrypto.PrivateKey
 }
 
@@ -59,19 +69,26 @@ func newTestServerWithOpts(t *testing.T, opts testServerOptions) *testServer {
 	if opts.serviceAuth == nil {
 		opts.serviceAuth = authntest.NewSuccessMethod(alice)
 	}
-	store := spaces_testutil.NewTestStore(t)
+	store := opts.store
+	if store == nil {
+		store = spaces_testutil.NewTestStore(t)
+	}
 	h, err := hive.NewHive("example.com", "pear.example.com", db_testutil.NewDB(t))
 	require.NoError(t, err)
+	if opts.spaceToken == nil {
+		opts.spaceToken = authn.NewSpaceCredentialAuthMethod(h, opts.hostKey)
+	}
 	dir := identity.NewMockDirectory()
 	dir.Insert(*did.New(alice).AtprotoKey("zpubkey").Build())
+	fga := store.FGAStore()
 	return &testServer{
 		Server: spaces.NewServer(
 			store,
-			store.FGA,
+			fga,
 			opts.oauth,
 			opts.serviceAuth,
-			authn.NewDelegationTokenAuthMethod(dir, store.FGA, opts.hostKey),
-			authn.NewSpaceCredentialAuthMethod(h, opts.hostKey),
+			authn.NewDelegationTokenAuthMethod(dir, fga, opts.hostKey),
+			opts.spaceToken,
 			org_testutil.NewTestStore(t),
 			opts.hostKey,
 			h,
@@ -163,7 +180,8 @@ func TestServer_CreateSpaceWithDidInput(t *testing.T) {
 }
 
 func TestServer_UploadAndGetBlob(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -203,7 +221,8 @@ func TestServer_UploadAndGetBlob(t *testing.T) {
 }
 
 func TestServer_UploadBlob_RejectsOversized(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -225,7 +244,8 @@ func TestServer_UploadBlob_RejectsOversized(t *testing.T) {
 }
 
 func TestServer_ListSpaces(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -257,7 +277,8 @@ func TestServer_ListSpaces(t *testing.T) {
 }
 
 func TestServer_ListRepos(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -292,7 +313,8 @@ func TestServer_ListRepos(t *testing.T) {
 }
 
 func TestServer_ListRepos_Unauthorized(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(alice, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(alice, orgId),
@@ -313,7 +335,8 @@ func TestServer_ListRepos_Unauthorized(t *testing.T) {
 }
 
 func TestServer_RemoveMember(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -342,7 +365,8 @@ func TestServer_RemoveMember(t *testing.T) {
 }
 
 func TestServer_ListMembers(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -377,7 +401,8 @@ func TestServer_ListMembers(t *testing.T) {
 }
 
 func TestServer_PutAndGetRecord(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -420,8 +445,47 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 	require.Equal(t, "hello", val["text"])
 }
 
-func TestServer_DeleteRecord(t *testing.T) {
+// TestServer_CreateRecord covers network.habitat.space.createRecord's happy
+// path and its rejection of a repeat create at the same collection/rkey,
+// distinguishing it from putRecord's upsert behavior.
+func TestServer_CreateRecord(t *testing.T) {
 	s := newTestServerWithOpts(t,
+		testServerOptions{
+			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
+			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
+		},
+	)
+
+	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "my-note", "record": {"text": "hello"}}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.createRecord",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.CreateRecord(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var createOutput habitat.NetworkHabitatSpaceCreateRecordOutput
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&createOutput))
+	require.Contains(t, createOutput.Uri, "/network.habitat.note/my-note")
+
+	// A second create at the same rkey is rejected rather than overwriting.
+	req2 := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.createRecord",
+		strings.NewReader(body),
+	)
+	w2 := httptest.NewRecorder()
+	s.CreateRecord(w2, req2)
+	require.Equal(t, http.StatusConflict, w2.Code, w2.Body.String())
+}
+
+func TestServer_DeleteRecord(t *testing.T) {
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -461,8 +525,54 @@ func TestServer_DeleteRecord(t *testing.T) {
 	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
 }
 
-func TestServer_ListRecords(t *testing.T) {
+// TestServer_DeleteRecordRejectsOtherRepo pins that a caller authenticated as
+// one repo cannot delete another repo's records by naming it in the request
+// body: the handler must reject and return before calling the store.
+func TestServer_DeleteRecordRejectsOtherRepo(t *testing.T) {
 	s := newTestServerWithOpts(t,
+		testServerOptions{
+			oauth:       authntest.NewSuccessMethodWithOrg(alice, orgId),
+			serviceAuth: authntest.NewSuccessMethodWithOrg(alice, orgId),
+		},
+	)
+
+	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	_, _, err = s.Store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"keep-me",
+		map[string]any{"x": 1},
+	)
+	require.NoError(t, err)
+
+	// alice is authenticated, but names owner's repo in the request.
+	body := `{"space": "` + uri.String() + `", "repo": "` + owner.String() + `", "collection": "network.habitat.note", "rkey": "keep-me"}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.deleteRecord",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.DeleteRecord(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+
+	_, err = s.Store.GetRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"keep-me",
+	)
+	require.NoError(t, err, "record must survive a rejected cross-repo delete")
+}
+
+func TestServer_ListRecords(t *testing.T) {
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -503,7 +613,8 @@ func TestServer_GetRepo(t *testing.T) {
 	pub, err := hostKey.PublicKey()
 	require.NoError(t, err)
 	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       m,
 			serviceAuth: m,
@@ -572,7 +683,8 @@ func TestServer_GetRepo(t *testing.T) {
 }
 
 func TestServer_GetRepo_RepoNotFound(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -595,7 +707,8 @@ func TestServer_GetRepo_RepoNotFound(t *testing.T) {
 }
 
 func TestServer_AddMember_Unauthorized(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(alice, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(alice, orgId),
@@ -617,7 +730,8 @@ func TestServer_AddMember_Unauthorized(t *testing.T) {
 }
 
 func TestServer_RemoveMember_Unauthorized(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(alice, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(alice, orgId),
@@ -639,7 +753,8 @@ func TestServer_RemoveMember_Unauthorized(t *testing.T) {
 }
 
 func TestServer_PutRecord_Unauthorized(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -661,7 +776,8 @@ func TestServer_PutRecord_Unauthorized(t *testing.T) {
 }
 
 func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -693,7 +809,8 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 }
 
 func TestServer_Unauthorized(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewFailMethod(),
 			serviceAuth: authntest.NewFailMethod(),
@@ -712,7 +829,8 @@ func TestServer_Unauthorized(t *testing.T) {
 }
 
 func TestServer_DeleteSpace(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -740,7 +858,8 @@ func TestServer_DeleteSpace(t *testing.T) {
 }
 
 func TestServer_DeleteSpace_Unauthorized(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(alice, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(alice, orgId),
@@ -762,7 +881,8 @@ func TestServer_DeleteSpace_Unauthorized(t *testing.T) {
 }
 
 func TestServer_ListRepoOps(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -818,7 +938,8 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	pub, err := hostKey.PublicKey()
 	require.NoError(t, err)
 	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       m,
 			serviceAuth: m,
@@ -869,7 +990,8 @@ func TestServer_GetLatestCommit(t *testing.T) {
 	pub, err := hostKey.PublicKey()
 	require.NoError(t, err)
 	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       m,
 			serviceAuth: m,
@@ -916,7 +1038,8 @@ func TestServer_GetLatestCommit_EmptyRepo(t *testing.T) {
 	hostKey, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
 	m := authntest.NewSuccessMethodWithOrg(owner, orgId)
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       m,
 			serviceAuth: m,
@@ -943,7 +1066,8 @@ func TestServer_GetLatestCommit_Unauthorized(t *testing.T) {
 	hostKey, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
 	m := authntest.NewSuccessMethodWithOrg(alice, orgId)
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       m,
 			serviceAuth: m,
@@ -967,7 +1091,8 @@ func TestServer_GetLatestCommit_Unauthorized(t *testing.T) {
 }
 
 func TestServer_ListRepoOps_Since(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -1010,7 +1135,8 @@ func TestServer_ListRepoOps_Since(t *testing.T) {
 }
 
 func TestServer_ListRepoOps_Unauthorized(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(alice, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(alice, orgId),
@@ -1031,7 +1157,8 @@ func TestServer_ListRepoOps_Unauthorized(t *testing.T) {
 }
 
 func TestServer_ListRepoOps_IncludesValue(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -1072,7 +1199,8 @@ func TestServer_ListRepoOps_IncludesValue(t *testing.T) {
 }
 
 func TestServer_ListRepoOps_ExcludeValues(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -1112,7 +1240,8 @@ func TestServer_ListRepoOps_ExcludeValues(t *testing.T) {
 }
 
 func TestServer_GetSpaceCredential(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{},
 	)
 	everyoneOrg := org.NewEveryoneOrg("everyone.example.com")
@@ -1122,7 +1251,8 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 	require.NoError(t, s.Store.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead))
 
 	w := httptest.NewRecorder()
-	s.GetDelegationToken(w,
+	s.GetDelegationToken(
+		w,
 		httptest.NewRequest(
 			http.MethodGet,
 			"/xrpc/network.habitat.space.getDelegationToken?space="+uri.String(),
@@ -1162,7 +1292,8 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 // head is an error (not an empty page), so an ahead-of-host syncer falls back
 // to a full recovery instead of silently stopping.
 func TestServer_ListRepoOpsSinceAheadRejects(t *testing.T) {
-	s := newTestServerWithOpts(t,
+	s := newTestServerWithOpts(
+		t,
 		testServerOptions{
 			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
 			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
@@ -1190,4 +1321,63 @@ func TestServer_ListRepoOpsSinceAheadRejects(t *testing.T) {
 	var body atclient.ErrorBody
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, "RevNotFound", body.Name)
+}
+
+// TestServer_ListReposWithSpaceCredential pins that a credential naming the
+// space authorizes a repo-host read without a membership check (subject is
+// empty for space credentials).
+func TestServer_ListReposWithSpaceCredential(t *testing.T) {
+	everyoneOrg := org.NewEveryoneOrg("everyone.example.com")
+	s := newTestServerWithOpts(t, testServerOptions{
+		oauth: authntest.NewSuccessMethodWithOrg(owner, everyoneOrg.DID()),
+	})
+	uri, err := s.Store.CreateSpace(t.Context(), everyoneOrg.DID(), owner, groupType, "test")
+	require.NoError(t, err)
+	_, _, err = s.Store.PutRecord(t.Context(), uri, owner,
+		syntax.NSID("network.habitat.note"), "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+
+	// Rebuild against the same store with only a space credential auth method
+	// (oauth/serviceAuth must not CanHandle, or they shadow spaceToken).
+	s2 := newTestServerWithOpts(t, testServerOptions{
+		store:       s.Store,
+		oauth:       authntest.NewNeverMethod(),
+		serviceAuth: authntest.NewNeverMethod(),
+		spaceToken:  authntest.NewSuccessMethodForSpace(uri),
+	})
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listRepos?space="+uri.String(),
+		http.NoBody,
+	)
+	req.Header.Set("Authorization", "Bearer space-credential")
+	w := httptest.NewRecorder()
+	s2.ListRepos(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+}
+
+// TestServer_ListReposRequiresMembershipWithoutSpaceCredential pins that a
+// non-member with an ordinary (subject-bearing) credential is still rejected.
+func TestServer_ListReposRequiresMembershipWithoutSpaceCredential(t *testing.T) {
+	everyoneOrg := org.NewEveryoneOrg("everyone.example.com")
+	s := newTestServerWithOpts(t, testServerOptions{
+		oauth: authntest.NewSuccessMethodWithOrg(owner, everyoneOrg.DID()),
+	})
+	uri, err := s.Store.CreateSpace(t.Context(), everyoneOrg.DID(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	// alice is not a member (no AddMember); an ordinary credential must fail.
+	s2 := newTestServerWithOpts(t, testServerOptions{
+		store: s.Store,
+		oauth: authntest.NewSuccessMethodWithOrg(alice, everyoneOrg.DID()),
+	})
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listRepos?space="+uri.String(),
+		http.NoBody,
+	)
+	w := httptest.NewRecorder()
+	s2.ListRepos(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 }

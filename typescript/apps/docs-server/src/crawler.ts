@@ -30,6 +30,44 @@ interface ParsedRecordUri {
   collection: string;
 }
 
+// A single outbox message classifies into at most one store mutation.
+export type CrawlAction =
+  | { kind: "delete"; spaceUri: string }
+  | {
+      kind: "upsert";
+      spaceUri: string;
+      docId: string;
+      title: string;
+      blob?: string;
+    }
+  | { kind: "none" };
+
+// classify decides what the crawler should do with an outbox message: null
+// value means the record was deleted; otherwise the doc's markdown or CRDT
+// record is upserted.
+export function classify(msg: OutboxMessage, parsed: ParsedRecordUri): CrawlAction {
+  if (msg.value === null) {
+    return { kind: "delete", spaceUri: parsed.spaceUri };
+  }
+  if (parsed.collection === MARKDOWN_COLLECTION) {
+    const value = (msg.value ?? {}) as { title?: string };
+    return {
+      kind: "upsert",
+      spaceUri: parsed.spaceUri,
+      docId: parsed.skey,
+      title: value.title || "Untitled",
+    };
+  }
+  if (parsed.collection === CRDT_COLLECTION) {
+    const value = (msg.value ?? {}) as { blob?: string };
+    if (value.blob) {
+      return { kind: "upsert", spaceUri: parsed.spaceUri, docId: "", title: "", blob: value.blob };
+    }
+    return { kind: "none" };
+  }
+  return { kind: "none" };
+}
+
 // parseSpaceRecordUri splits a space-record URI into the parts the crawler
 // needs. Both the current form
 // at://<owner>/space/<type>/<skey>/<repo>/<collection>/<rkey> and the legacy
@@ -158,23 +196,23 @@ export class Crawler {
       await this.orgs.refresh(parsed.owner);
       return;
     }
-    if (parsed.collection === MARKDOWN_COLLECTION) {
-      const value = (msg.value ?? {}) as { title?: string };
-      this.meta.upsertDoc({
-        spaceUri: parsed.spaceUri,
-        docId: parsed.skey,
-        title: value.title || "Untitled",
-      });
+    const action = classify(msg, parsed);
+    if (action.kind === "delete") {
+      this.meta.deleteDoc(action.spaceUri);
+      this.crdt.deleteState(action.spaceUri);
       return;
     }
-    if (parsed.collection === CRDT_COLLECTION) {
-      const value = (msg.value ?? {}) as { blob?: string };
-      if (value.blob) {
-        await this.crdt.upsertState(parsed.spaceUri, value.blob);
+    if (action.kind === "upsert") {
+      if (action.blob) {
+        await this.crdt.upsertState(action.spaceUri, action.blob);
+      } else {
+        this.meta.upsertDoc({
+          spaceUri: action.spaceUri,
+          docId: action.docId,
+          title: action.title,
+        });
       }
-      return;
     }
-    // Some other collection; nothing to persist.
   }
 }
 

@@ -8,8 +8,14 @@ import (
 )
 
 type TestNotifier struct {
-	Writes  []writeCall
-	Deleted []habitat_syntax.SpaceURI
+	Writes              []writeCall
+	Deleted             []habitat_syntax.SpaceURI
+	RegisteredAuthority []authorityCall
+}
+
+type authorityCall struct {
+	Space habitat_syntax.SpaceURI
+	Repo  syntax.DID
 }
 
 type writeCall struct {

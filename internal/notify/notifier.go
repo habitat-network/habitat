@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -33,10 +34,16 @@ type Deliverer struct {
 	store  Store
 	client *http.Client
 	signer ServiceAuthSigner
+	dir    identity.Directory
 }
 
-func NewNotifier(store Store, client *http.Client, signer ServiceAuthSigner) *Deliverer {
-	return &Deliverer{store: store, client: client, signer: signer}
+func NewNotifier(
+	store Store,
+	client *http.Client,
+	signer ServiceAuthSigner,
+	dir identity.Directory,
+) *Deliverer {
+	return &Deliverer{store: store, client: client, signer: signer, dir: dir}
 }
 
 // NotifyWrite looks up the registrations that subscribe to a write on repo

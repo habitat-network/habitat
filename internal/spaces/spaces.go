@@ -144,6 +144,17 @@ type Store interface {
 		rkey syntax.RecordKey,
 		value map[string]any,
 	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
+	// CreateRecord writes a new record, failing with ErrRecordAlreadyExists if
+	// one is already present at collection/rkey (an empty rkey always creates,
+	// since one is minted fresh).
+	CreateRecord(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+		value map[string]any,
+	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
 	GetRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -201,7 +212,9 @@ type Store interface {
 // Notifier is notified when a space changes so it can deliver events to
 // registered syncers. Implementations must be non-blocking and best-effort.
 type Notifier interface {
-	// NotifyWrite reports that a repo advanced to a new revision within a space.
+	// NotifyWrite reports that a repo advanced to a new revision within a
+	// space, carrying the repo's LtHash commit state so syncers can detect
+	// writes that arrive at the same rev but a different hash.
 	NotifyWrite(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -214,14 +227,15 @@ type Notifier interface {
 }
 
 var (
-	ErrSpaceNotFound      = errors.New("space not found")
-	ErrSpaceAlreadyExists = errors.New("space already exists")
-	ErrRecordNotFound     = errors.New("record not found")
-	ErrUserAlreadyMember  = errors.New("user is already a member of the space")
-	ErrNotAMember         = errors.New("user is not a member of the space")
-	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
-	ErrRepoNotFound       = errors.New("repo not found")
-	ErrRevTooFar          = errors.New("since revision is ahead of the repo head")
+	ErrSpaceNotFound       = errors.New("space not found")
+	ErrSpaceAlreadyExists  = errors.New("space already exists")
+	ErrRecordNotFound      = errors.New("record not found")
+	ErrUserAlreadyMember   = errors.New("user is already a member of the space")
+	ErrNotAMember          = errors.New("user is not a member of the space")
+	ErrCannotRemoveOrg     = errors.New("cannot remove the org from the space")
+	ErrRepoNotFound        = errors.New("repo not found")
+	ErrRevTooFar           = errors.New("since revision is ahead of the repo head")
+	ErrRecordAlreadyExists = errors.New("record already exists")
 )
 
 // ---- Store implementation ----
@@ -567,6 +581,32 @@ func (s *store) PutRecord(
 	rkey syntax.RecordKey,
 	value map[string]any,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
+	return s.writeRecord(ctx, spaceUri, repo, collection, rkey, value, false)
+}
+
+// CreateRecord writes a new record, per network.habitat.space.createRecord:
+// unlike PutRecord, it fails with ErrRecordAlreadyExists rather than
+// overwriting one already present at collection/rkey.
+func (s *store) CreateRecord(
+	ctx context.Context,
+	spaceUri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	value map[string]any,
+) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
+	return s.writeRecord(ctx, spaceUri, repo, collection, rkey, value, true)
+}
+
+func (s *store) writeRecord(
+	ctx context.Context,
+	spaceUri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	value map[string]any,
+	requireNew bool,
+) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ?", spaceUri.SpaceOwner()).
@@ -592,6 +632,7 @@ func (s *store) PutRecord(
 	var recordUri habitat_syntax.SpaceRecordURI
 	var newRev syntax.TID
 	var repoHash []byte
+	firstWrite := false
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if tx.Name() == "postgres" {
 			// acquire lock on permissioned repo within space
@@ -603,6 +644,18 @@ func (s *store) PutRecord(
 				return fmt.Errorf("failed to acquire lock: %w", err)
 			}
 		}
+		if requireNew && rkey != "" {
+			var count int64
+			if err := tx.Model(&spaceRecord{}).
+				Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+					spaceUri, repo, collection, rkey).
+				Count(&count).Error; err != nil {
+				return fmt.Errorf("failed to check existing record: %w", err)
+			}
+			if count > 0 {
+				return ErrRecordAlreadyExists
+			}
+		}
 		action := "update"
 		var prev spaceRecord
 		err := tx.
@@ -612,6 +665,7 @@ func (s *store) PutRecord(
 			First(&prev).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			action = "create"
+			firstWrite = true
 		} else if err != nil {
 			return fmt.Errorf("failed to get previous record: %w", err)
 		}
@@ -942,7 +996,9 @@ func (s *store) DeleteRecord(
 	collection syntax.NSID,
 	rkey string,
 ) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var outRev syntax.TID
+	var outHash []byte
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if tx.Name() == "postgres" {
 			if err := tx.Exec(
 				`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`,
@@ -973,6 +1029,27 @@ func (s *store) DeleteRecord(
 			}).Error; err != nil {
 			return fmt.Errorf("delete record: %w", err)
 		}
+		// Propagate the delete to syncers as a space event carrying no value.
+		for _, row := range rows {
+			recordUri := habitat_syntax.ConstructSpaceRecordURI(uri, repo, row.Collection, row.Rkey)
+			if err := s.eventStore.WithTx(tx).AppendSpaceEvent(
+				ctx,
+				uri,
+				repo,
+				rev,
+				row.Rev,
+				[]events.EventOps{
+					{
+						Action: "delete",
+						Uri:    recordUri,
+						Value:  nil,
+						Cid:    "",
+					},
+				},
+			); err != nil {
+				return fmt.Errorf("append delete event: %w", err)
+			}
+		}
 		// Fold the deleted records out of the cached LtHash.
 		h, _, _, err := loadRepoHash(tx, uri, repo)
 		if err != nil {
@@ -981,6 +1058,8 @@ func (s *store) DeleteRecord(
 		for _, row := range rows {
 			h.Remove(spacecommit.RecordElement(row.Collection, row.Rkey, row.Cid))
 		}
+		outRev = rev
+		outHash = h.Sum()
 		// Drop the hash row entirely once the repo holds no more records
 		var remaining int64
 		if err := tx.Model(&spaceRecord{}).
@@ -993,4 +1072,14 @@ func (s *store) DeleteRecord(
 		}
 		return saveRepoHash(tx, uri, repo, h, rev)
 	})
+	if err != nil {
+		return fmt.Errorf("delete record: %w", err)
+	}
+	if outRev == "" {
+		return nil
+	}
+	s.eventStore.NotifyEvent(ctx)
+	// Best-effort: tell syncers the repo advanced so they pull the delete op.
+	s.notifier.NotifyWrite(ctx, uri, repo, outRev, outHash)
+	return nil
 }

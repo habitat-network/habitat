@@ -41,6 +41,11 @@ export class DocMetadataStore {
       .run(doc.spaceUri, doc.docId, doc.title, Date.now());
   }
 
+  // deleteDoc removes a doc when its record is deleted.
+  deleteDoc(spaceUri: string): void {
+    this.db.prepare(`DELETE FROM docs WHERE space_uri = ?`).run(spaceUri);
+  }
+
   // docsBySpaceUris returns the crawled docs for the given space URIs, newest
   // first. URIs the crawler hasn't seen yet are simply absent.
   docsBySpaceUris(spaceUris: string[]): DocView[] {

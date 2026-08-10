@@ -742,6 +742,100 @@ func TestPutRecordTriggersNotify(t *testing.T) {
 	require.NotEmpty(t, s.Notifier.Writes[0].Rev)
 }
 
+// TestPutRecordRegistersAuthorityOnFirstWrite pins the proposal's
+// auto-registration behavior: a repo's first write into a space owned by a
+// different DID (a shared space) auto-subscribes that authority, and a
+// second write to the same repo does not register it again.
+func TestPutRecordRegistersAuthorityOnFirstWrite(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	// orgId (the space authority) != owner (the repo writer): a shared space.
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "shared-space")
+	require.NoError(t, err)
+	require.NotEqual(t, uri.SpaceOwner(), owner)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	require.Len(t, s.Notifier.RegisteredAuthority, 1)
+	require.Equal(t, uri, s.Notifier.RegisteredAuthority[0].Space)
+	require.Equal(t, owner, s.Notifier.RegisteredAuthority[0].Repo)
+}
+
+// TestPutRecordSkipsAuthorityRegistrationForOwnSpace pins that a repo owned
+// by the space's own authority never triggers auto-registration.
+func TestPutRecordSkipsAuthorityRegistrationForOwnSpace(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	// The space authority (owner) writes its own repo into its own space.
+	uri, err := s.CreateSpace(t.Context(), owner, owner, groupType, "own-space")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	require.Empty(t, s.Notifier.RegisteredAuthority)
+}
+
+// TestCreateRecord covers network.habitat.space.createRecord's happy path: a
+// fresh collection/rkey is written just like PutRecord would.
+func TestCreateRecord(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	recordUri, _, err := s.CreateRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	require.NotEmpty(t, recordUri)
+
+	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "k1")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), rec.Value["x"])
+}
+
+// TestCreateRecordRejectsExisting pins createRecord's difference from
+// putRecord: it must fail rather than overwrite when the rkey is taken.
+func TestCreateRecordRejectsExisting(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.CreateRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	_, _, err = s.CreateRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 2})
+	require.ErrorIs(t, err, spaces.ErrRecordAlreadyExists)
+
+	// The original value must survive the rejected create.
+	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "k1")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), rec.Value["x"])
+}
+
+// TestCreateRecordEmptyRkeyAlwaysCreates pins that an empty rkey always mints
+// a fresh one, so it never collides regardless of prior writes.
+func TestCreateRecordEmptyRkeyAlwaysCreates(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	uri1, _, err := s.CreateRecord(t.Context(), uri, owner, coll, "", map[string]any{"x": 1})
+	require.NoError(t, err)
+	uri2, _, err := s.CreateRecord(t.Context(), uri, owner, coll, "", map[string]any{"x": 2})
+	require.NoError(t, err)
+	require.NotEqual(t, uri1, uri2)
+}
+
 func TestDeleteSpaceTriggersNotify(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
@@ -823,4 +917,23 @@ func TestPutRecordNotifiesRepoHash(t *testing.T) {
 	expected.Add(spacecommit.RecordElement(coll, "k1", cid1.String()))
 	expected.Add(spacecommit.RecordElement(coll, "k2", cid2.String()))
 	require.Equal(t, expected.Sum(), s.Notifier.Writes[1].Hash)
+}
+
+// TestDeleteRecordEmitsDeleteEventAndNotifies pins that a delete is propagated
+// to syncers: it notifies the repo advanced (so registered syncers pull the
+// delete op). Event append is covered by the notifier firing after a successful
+// transaction that includes AppendSpaceEvent.
+func TestDeleteRecordEmitsDeleteEventAndNotifies(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))
+
+	// The notifier fired for the put and the delete.
+	require.Len(t, s.Notifier.Writes, 2)
 }
