@@ -515,6 +515,101 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// CreateRecord handles network.habitat.space.createRecord: like PutRecord,
+// but fails rather than overwriting when a record already exists at the
+// given collection/rkey, per the proposal's PDS method table.
+func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
+	if !ok {
+		return
+	}
+	var input habitat.NetworkHabitatSpaceCreateRecordInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
+		return
+	}
+	if input.Validate {
+		httpx.WriteNotSupported(ctx, w, "validate is not yet supported")
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	if !ok {
+		return
+	}
+	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
+	if !ok {
+		return
+	}
+	if credInfo.Subject != repo {
+		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", fmt.Errorf("wrong repo"))
+		return
+	}
+	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
+	if !ok {
+		return
+	}
+	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
+		httpx.WriteInvalidRequest(ctx, w,
+			"relationship tuples must be managed via network.habitat.relationship.* endpoints", nil)
+		return
+	}
+	var rkey syntax.RecordKey
+	if input.Rkey != "" {
+		parsedRkey, err := syntax.ParseRecordKey(input.Rkey)
+		if err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "invalid rkey", err)
+			return
+		}
+		rkey = parsedRkey
+	}
+	value, ok := input.Record.(map[string]any)
+	if !ok {
+		httpx.WriteInvalidRequest(ctx, w, "record must be a JSON object", nil)
+		return
+	}
+	authorized, err := s.authorize(
+		ctx,
+		credInfo.Org.DID(),
+		credInfo.Subject,
+		spaceURI,
+		fgastore.RelationSpaceWriter,
+	)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("authorize: %w", err))
+		return
+	}
+	if !authorized {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not authorized to manage members"))
+		return
+	}
+	recordURI, cid, err := s.store.CreateRecord(
+		ctx,
+		spaceURI,
+		repo,
+		collection,
+		rkey,
+		value,
+	)
+	if errors.Is(err, ErrSpaceNotFound) {
+		httpx.WriteSpaceNotFound(ctx, w, err)
+		return
+	} else if errors.Is(err, ErrRecordAlreadyExists) {
+		httpx.WriteError(
+			ctx, w, "RecordAlreadyExists", "a record already exists at this collection/rkey",
+			http.StatusConflict,
+		)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("create record: %w", err))
+		return
+	}
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceCreateRecordOutput{
+		Uri: recordURI.String(),
+		Cid: cid.String(),
+	})
+}
+
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var params habitat.NetworkHabitatSpaceGetRecordParams

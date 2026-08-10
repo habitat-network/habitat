@@ -781,6 +781,61 @@ func TestPutRecordSkipsAuthorityRegistrationForOwnSpace(t *testing.T) {
 	require.Empty(t, s.Notifier.RegisteredAuthority)
 }
 
+// TestCreateRecord covers network.habitat.space.createRecord's happy path: a
+// fresh collection/rkey is written just like PutRecord would.
+func TestCreateRecord(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	recordUri, _, err := s.CreateRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	require.NotEmpty(t, recordUri)
+
+	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "k1")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), rec.Value["x"])
+}
+
+// TestCreateRecordRejectsExisting pins createRecord's difference from
+// putRecord: it must fail rather than overwrite when the rkey is taken.
+func TestCreateRecordRejectsExisting(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.CreateRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	_, _, err = s.CreateRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 2})
+	require.ErrorIs(t, err, spaces.ErrRecordAlreadyExists)
+
+	// The original value must survive the rejected create.
+	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "k1")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), rec.Value["x"])
+}
+
+// TestCreateRecordEmptyRkeyAlwaysCreates pins that an empty rkey always mints
+// a fresh one, so it never collides regardless of prior writes.
+func TestCreateRecordEmptyRkeyAlwaysCreates(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	uri1, _, err := s.CreateRecord(t.Context(), uri, owner, coll, "", map[string]any{"x": 1})
+	require.NoError(t, err)
+	uri2, _, err := s.CreateRecord(t.Context(), uri, owner, coll, "", map[string]any{"x": 2})
+	require.NoError(t, err)
+	require.NotEqual(t, uri1, uri2)
+}
+
 func TestDeleteSpaceTriggersNotify(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 

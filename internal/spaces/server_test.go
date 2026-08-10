@@ -437,6 +437,44 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 	require.Equal(t, "hello", val["text"])
 }
 
+// TestServer_CreateRecord covers network.habitat.space.createRecord's happy
+// path and its rejection of a repeat create at the same collection/rkey,
+// distinguishing it from putRecord's upsert behavior.
+func TestServer_CreateRecord(t *testing.T) {
+	s := newTestServerWithOpts(t,
+		testServerOptions{
+			oauth:       authntest.NewSuccessMethodWithOrg(owner, orgId),
+			serviceAuth: authntest.NewSuccessMethodWithOrg(owner, orgId),
+		},
+	)
+
+	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "my-note", "record": {"text": "hello"}}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.createRecord",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.CreateRecord(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var createOutput habitat.NetworkHabitatSpaceCreateRecordOutput
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&createOutput))
+	require.Contains(t, createOutput.Uri, "/network.habitat.note/my-note")
+
+	// A second create at the same rkey is rejected rather than overwriting.
+	req2 := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.createRecord",
+		strings.NewReader(body),
+	)
+	w2 := httptest.NewRecorder()
+	s.CreateRecord(w2, req2)
+	require.Equal(t, http.StatusConflict, w2.Code, w2.Body.String())
+}
+
 func TestServer_DeleteRecord(t *testing.T) {
 	s := newTestServerWithOpts(t,
 		testServerOptions{
