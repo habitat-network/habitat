@@ -117,8 +117,13 @@ func (s *resumed) DelegationToken(
 	space habitat_syntax.SpaceURI,
 ) (string, error) {
 	lxm := syntax.NSID("network.habitat.space.getDelegationToken")
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"/xrpc/network.habitat.space.getDelegationToken?space="+url.QueryEscape(space.String()), nil)
+	base, err := url.Parse(s.Data.HostURL)
+	if err != nil {
+		return "", fmt.Errorf("parse session host url: %w", err)
+	}
+	base.Path = "/xrpc/network.habitat.space.getDelegationToken"
+	base.RawQuery = "space=" + url.QueryEscape(space.String())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base.String(), nil)
 	if err != nil {
 		return "", err
 	}

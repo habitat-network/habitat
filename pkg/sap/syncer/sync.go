@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
 
@@ -15,6 +16,11 @@ import (
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
+
+// errRevTooFar reports a RevNotFound from the host: our since is ahead of the
+// repo head, so incremental sync cannot continue and the repo must be rebuilt
+// from a full getRepo snapshot.
+var errRevTooFar = errors.New("since is ahead of the repo head")
 
 // syncRepo pulls a repo's ops incrementally with listRepoOps, folding them
 // into the repo's stored LtHash state and emitting each record. At the head of
@@ -53,6 +59,9 @@ func (e *Engine) syncRepo(
 
 		output, err := listRepoOps(ctx, client, space, repoDID, since)
 		if err != nil {
+			if errors.Is(err, errRevTooFar) {
+				return e.scheduleRetry(ctx, space, repoDID, stateDesynced, err)
+			}
 			return e.scheduleRetry(ctx, space, repoDID, stateError, err)
 		}
 
@@ -183,11 +192,17 @@ func listRepoOps(
 	if err != nil {
 		return output, fmt.Errorf("list repo ops: %w", err)
 	}
-	decodeErr := json.NewDecoder(resp.Body).Decode(&output)
-	closeErr := resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		defer func() { _ = resp.Body.Close() }()
+		var body atclient.ErrorBody
+		decErr := json.NewDecoder(resp.Body).Decode(&body)
+		if decErr == nil && body.Name == "RevNotFound" {
+			return output, fmt.Errorf("%w: %s", errRevTooFar, body.Message)
+		}
 		return output, fmt.Errorf("list repo ops: %s", resp.Status)
 	}
+	decodeErr := json.NewDecoder(resp.Body).Decode(&output)
+	closeErr := resp.Body.Close()
 	if decodeErr != nil {
 		return output, fmt.Errorf("decode list repo ops: %w", decodeErr)
 	}

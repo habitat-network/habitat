@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -153,6 +154,40 @@ func TestEngineNotifyWriteRequeues(t *testing.T) {
 	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:new", "bbb", nil))
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:new").Error)
 	require.Equal(t, statePending, r.State)
+}
+
+// TestEngineSyncRepoSinceAheadMarksDesynced pins that a RevNotFound from the
+// host (our rev is ahead of the repo head) desyncs the repo so the dispatcher
+// rebuilds it from a full getRepo snapshot, instead of retrying forever as a
+// generic error.
+func TestEngineSyncRepoSinceAheadMarksDesynced(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	repoDID := syntax.DID("did:plc:alice")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NotEmpty(t, r.URL.Query().Get("since"))
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(atclient.ErrorBody{
+			Name:    "RevNotFound",
+			Message: "since revision is ahead of the repo head",
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	e, _, db := newTestEngine(t, srv.URL)
+	require.NoError(t, e.Track(t.Context(), space, repoDID))
+	require.NoError(t, db.Model(&repo{}).
+		Where("space = ? AND did = ?", space, repoDID).
+		Updates(map[string]any{"state": stateSyncing, "rev": "3lrev"}).Error)
+
+	require.NoError(t, e.syncRepo(t.Context(), space, repoDID))
+
+	var r repo
+	require.NoError(t, db.First(&r, "space = ? AND did = ?", space, repoDID).Error)
+	require.Equal(t, stateDesynced, r.State)
+	require.Contains(t, r.ErrorMsg, "ahead of the repo head")
 }
 
 // TestEngineNewDefaults tests that New normalizes a non-positive parallelism.
