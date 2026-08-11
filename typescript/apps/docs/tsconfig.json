@@ -4,11 +4,19 @@
     "baseUrl": ".",
     "noEmit": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     },
-    "types": ["vite/client"]
+    "types": [
+      "vite/client"
+    ],
+    "outDir": "../../../.moon/cache/types/typescript/apps/docs"
   },
-  "include": ["src/**/*", "../../globals.d.ts"],
+  "include": [
+    "src/**/*",
+    "../../globals.d.ts"
+  ],
   "references": [
     {
       "path": "../../internal"
