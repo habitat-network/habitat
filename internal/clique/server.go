@@ -17,26 +17,23 @@ import (
 )
 
 type Server struct {
-	store       Store
-	oauth       authn.Method
-	serviceAuth authn.Method
-	decoder     *schema.Decoder
+	store     Store
+	validator authn.RequestValidator
+	decoder   *schema.Decoder
 }
 
-func NewServer(store Store, oauth authn.Method, serviceAuth authn.Method) *Server {
+func NewServer(store Store, validator authn.RequestValidator) *Server {
 	return &Server{
-		store:       store,
-		oauth:       oauth,
-		serviceAuth: serviceAuth,
-		decoder:     schema.NewDecoder(),
+		store:     store,
+		validator: validator,
+		decoder:   schema.NewDecoder(),
 	}
 }
 
 func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -77,9 +74,8 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -126,9 +122,8 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -175,9 +170,8 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -241,9 +235,8 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 	).Validate(w, r)
 	if !ok {
 		return

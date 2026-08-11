@@ -33,7 +33,7 @@ var targetRoutedMethods = map[string]string{
 }
 
 type PDSForwarding struct {
-	oauth            authn.Method
+	validator        authn.RequestValidator
 	pdsClientFactory pdsclient.HttpClientFactory
 	dir              identity.Directory
 	plainHTTPClient  *http.Client
@@ -43,12 +43,12 @@ var _ http.Handler = (*PDSForwarding)(nil)
 
 func NewPDSForwarding(
 	credStore pdscred.PDSCredentialStore,
-	oauthServer authn.Method,
+	validator authn.RequestValidator,
 	pdsClientFactory pdsclient.HttpClientFactory,
 	dir identity.Directory,
 ) *PDSForwarding {
 	return &PDSForwarding{
-		oauth:            oauthServer,
+		validator:        validator,
 		pdsClientFactory: pdsClientFactory,
 		dir:              dir,
 		plainHTTPClient:  &http.Client{},
@@ -203,7 +203,9 @@ func (p *PDSForwarding) serveTargetPDS(
 }
 
 func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := p.oauth.Validate(w, r)
+	credInfo, ok := p.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
