@@ -27,7 +27,7 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "true"
+    "build": "tsc --build"
   },
   "dependencies": {
     "@atproto/api": "catalog:",
