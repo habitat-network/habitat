@@ -313,7 +313,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("parse space-host signing key: %w", err)
 	}
 
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir, hostKey)
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
 	validator := authn.NewValidator(
 		oauthServer,
 		serviceAuth,

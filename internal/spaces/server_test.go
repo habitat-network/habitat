@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/atdata"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/ipld/go-car"
@@ -24,6 +25,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/org"
 	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
@@ -35,11 +37,12 @@ import (
 type testServerOptions struct {
 	hostKey   atcrypto.PrivateKey
 	validator authn.RequestValidator
+	store     *spaces_testutil.TestStore
 }
 
 type testServer struct {
 	*spaces.Server
-	Store   spaces.Store
+	Store   *spaces_testutil.TestStore
 	HostKey atcrypto.PrivateKey
 }
 
@@ -53,20 +56,22 @@ func newTestServerWithOpts(t *testing.T, opts testServerOptions) *testServer {
 	if opts.validator == nil {
 		opts.validator = authntest.NewSuccessValidatorWithOrg(owner, orgId)
 	}
-	store := spaces_testutil.NewTestStore(t)
+	if opts.store == nil {
+		opts.store = spaces_testutil.NewTestStore(t)
+	}
 	h, err := hive.NewHive("example.com", "pear.example.com", db_testutil.NewDB(t))
 	require.NoError(t, err)
 	return &testServer{
 		Server: spaces.NewServer(
-			store,
-			store.FGA,
+			opts.store,
+			opts.store.FGA,
 			opts.validator,
 			org_testutil.NewTestStore(t),
 			opts.hostKey,
 			h,
 			spaces.NewBlobStore(memblob.OpenBucket(nil)),
 		),
-		Store:   store,
+		Store:   opts.store,
 		HostKey: opts.hostKey,
 	}
 }
@@ -452,16 +457,12 @@ func TestServer_ListRecords(t *testing.T) {
 // TestServer_GetRepo verifies getRepo returns a CAR whose first root is a real
 // signed commit over the repo's LtHash, verifiable against the host key.
 func TestServer_GetRepo(t *testing.T) {
-	hostKey, err := atcrypto.GeneratePrivateKeyP256()
-	require.NoError(t, err)
-	pub, err := hostKey.PublicKey()
-	require.NoError(t, err)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{
-			hostKey: hostKey,
-		},
+		testServerOptions{},
 	)
+	pub, err := s.HostKey.PublicKey()
+	require.NoError(t, err)
 
 	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
@@ -936,6 +937,14 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 
 	require.NoError(t, s.Store.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead))
 
+	// Both tokens are minted with the host key (the space owner is external), so
+	// the directory resolves the owner's atproto_space key and the delegation
+	// method falls back to the host key.
+	hostPub, err := s.HostKey.PublicKey()
+	require.NoError(t, err)
+	dir := identity.NewMockDirectory()
+	dir.Insert(*did.Web("everyone.example.com").ATProtoSpaceKey(hostPub.Multibase()).Build())
+
 	w := httptest.NewRecorder()
 	s.GetDelegationToken(
 		w,
@@ -948,6 +957,14 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	var delegationResp habitat.NetworkHabitatSpaceGetDelegationTokenOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&delegationResp))
+
+	// The minted delegation token validates against the delegation auth method.
+	credInfo, ok := authn.NewDelegationTokenAuthMethod(dir, s.Store.FGA, s.HostKey).Validate(
+		httptest.NewRecorder(),
+		authedRequest(delegationResp.Token),
+	)
+	require.True(t, ok)
+	require.Equal(t, uri.String(), credInfo.Space.String())
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -962,6 +979,15 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 	var spaceCredResp habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&spaceCredResp))
 
+	// The minted space credential validates against the space credential auth
+	// method, resolving the owner's atproto_space key from the directory.
+	credInfo, ok = authn.NewSpaceCredentialAuthMethod(dir).Validate(
+		httptest.NewRecorder(),
+		authedRequest(spaceCredResp.Credential),
+	)
+	require.True(t, ok)
+	require.Equal(t, uri.String(), credInfo.Space.String())
+
 	var claims jwt.MapClaims
 	_, err = jwt.ParseWithClaims(
 		spaceCredResp.Credential,
@@ -972,6 +998,14 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, uri.String(), claims["sub"])
+}
+
+// authedRequest returns a request carrying the given bearer token, for feeding
+// a minted token back into its validating auth method.
+func authedRequest(token string) *http.Request {
+	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+	req.Header.Set("Authorization", "Bearer "+token)
+	return req
 }
 
 // TestServer_ListRepoOpsSinceAheadRejects pins that a since beyond the repo
