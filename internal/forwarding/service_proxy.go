@@ -30,7 +30,7 @@ var hopByHopHeaders = []string{
 // session and forwards the request to the specified service using a service
 // auth JWT signed on the caller's behalf.
 type serviceProxy struct {
-	oauth            authn.Method
+	validator        authn.RequestValidator
 	hive             hive.Hive
 	dir              identity.Directory
 	httpClient       *http.Client
@@ -38,17 +38,17 @@ type serviceProxy struct {
 }
 
 // NewServiceProxy constructs a ServiceProxy, which is a MiddlewareFunc and intercepts requests that have atproto-proxy in the headers.
-// oauth validates the incoming caller's session.
+// validator validates the incoming caller's session.
 // hive signs service auth JWTs for forwarded requests via hive.SignServiceAuth.
 // dir resolves external DIDs to find service endpoints.
 func NewServiceProxy(
-	oauth authn.Method,
+	validator authn.RequestValidator,
 	hive hive.Hive,
 	dir identity.Directory,
 	clientFactory pdsclient.HttpClientFactory,
 ) func(http.Handler) http.Handler /* type of mux.MiddlewareFunc */ {
 	sp := &serviceProxy{
-		oauth:            oauth,
+		validator:        validator,
 		hive:             hive,
 		dir:              dir,
 		httpClient:       &http.Client{},
@@ -73,9 +73,8 @@ func NewServiceProxy(
 func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader string) {
 	ctx := r.Context()
 	// Validate the caller's OAuth session before acting on their behalf.
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth),
-		authn.WithSupportedCredentials(authn.UserCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
 		return

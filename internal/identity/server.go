@@ -35,18 +35,18 @@ func effectiveHost(r *http.Request) string {
 type Server struct {
 	hive          hive.Hive
 	directory     identity.Directory
-	oauth         authn.Method
+	validator     authn.RequestValidator
 	orgStore      org.Store
 	pdsForwarding *forwarding.PDSForwarding
 	domain        string
 }
 
-// NewServer constructs the hive HTTP server. The OAuth method is required to
+// NewServer constructs the hive HTTP server. The validator is required to
 // authenticate the caller for endpoints that mint things using the identity's
 // signing key (e.g. com.atproto.server.getServiceAuth).
 func NewServer(
 	hive hive.Hive,
-	oauth authn.Method,
+	validator authn.RequestValidator,
 	orgStore org.Store,
 	pdsForwarding *forwarding.PDSForwarding,
 	domain string,
@@ -54,7 +54,7 @@ func NewServer(
 	return &Server{
 		hive:          hive,
 		directory:     NewWrappedDirectory(hive, identity.DefaultDirectory()),
-		oauth:         oauth,
+		validator:     validator,
 		orgStore:      orgStore,
 		pdsForwarding: pdsForwarding,
 		domain:        domain,
@@ -68,8 +68,8 @@ func NewServer(
 // fetching the same signing key, with no changes needed on their end.
 func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
 		return

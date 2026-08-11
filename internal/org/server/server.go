@@ -27,7 +27,7 @@ var errNotMemberOfOrg = errors.New("not a member of an organization")
 
 type Server struct {
 	store          orgpkg.Store
-	auth           authn.Method
+	validator      authn.RequestValidator
 	pear           pear.Pear
 	domain         string
 	decoder        *schema.Decoder
@@ -37,7 +37,7 @@ type Server struct {
 
 func NewServer(
 	store orgpkg.Store,
-	auth authn.Method,
+	validator authn.RequestValidator,
 	p pear.Pear,
 	domain string,
 	dir identity.Directory,
@@ -45,7 +45,7 @@ func NewServer(
 ) (*Server, error) {
 	return &Server{
 		store:          store,
-		auth:           auth,
+		validator:      validator,
 		pear:           p,
 		domain:         domain,
 		decoder:        schema.NewDecoder(),
@@ -100,7 +100,9 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.auth)).Validate(w, r)
+		credInfo, ok := s.validator.Request(
+			authn.WithMethods(authn.ValidatorMethodOAuth),
+		).Validate(w, r)
 		if !ok {
 			return
 		}
@@ -244,9 +246,8 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.auth),
-		authn.WithSupportedCredentials(authn.OrgCredential, authn.UserCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -300,9 +301,8 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.auth),
-		authn.WithSupportedCredentials(authn.OrgCredential, authn.UserCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -356,9 +356,8 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.auth),
-		authn.WithSupportedCredentials(authn.OrgCredential, authn.UserCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -412,9 +411,8 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.auth),
-		authn.WithSupportedCredentials(authn.OrgCredential, authn.UserCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -469,9 +467,8 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.auth),
-		authn.WithSupportedCredentials(authn.OrgCredential, authn.UserCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -529,9 +526,8 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.auth),
-		authn.WithSupportedCredentials(authn.UserCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -602,9 +598,8 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.auth),
-		authn.WithSupportedCredentials(authn.UserCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
 		return

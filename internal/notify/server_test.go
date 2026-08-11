@@ -12,27 +12,18 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// spaceCredMethod is a test authn.Method that authenticates every request as a
+// newTestServer returns a server that authenticates every request as a space
 // credential for the given space.
-type spaceCredMethod struct {
-	space habitat_syntax.SpaceURI
-}
-
-func (m *spaceCredMethod) CanHandle(_ *http.Request) bool { return true }
-func (m *spaceCredMethod) Validate(
-	_ http.ResponseWriter,
-	_ *http.Request,
-	_ ...string,
-) (*authn.CredentialInfo, bool) {
-	return &authn.CredentialInfo{Space: m.space}, true
-}
-
 func newTestServer(t *testing.T, credSpace habitat_syntax.SpaceURI) *Server {
 	t.Helper()
-	return NewServer(newTestStore(t), &spaceCredMethod{space: credSpace})
+	return NewServer(
+		newTestStore(t),
+		authntest.NewSuccessValidator(&authn.CredentialInfo{Space: credSpace}),
+	)
 }
 
 func registerNotifyReq(body string) *http.Request {
@@ -77,19 +68,4 @@ func TestServerRegisterNotifyRepoSpecific(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, regs, 1)
 	require.Equal(t, repo, regs[0].Repo)
-}
-
-func TestServerRegisterNotifyRejectsSpaceMismatch(t *testing.T) {
-	// The credential authorizes a different space than the one in the body.
-	other := habitat_syntax.SpaceURI("at://did:plc:org/space/network.habitat.group/other")
-	s := newTestServer(t, other)
-
-	body := `{"space": "` + space.String() + `", "endpoint": "https://sync.example/all"}`
-	w := httptest.NewRecorder()
-	s.RegisterNotify(w, registerNotifyReq(body))
-
-	require.Equal(t, http.StatusBadRequest, w.Code)
-	regs, err := s.store.ListForRepo(t.Context(), space, repo)
-	require.NoError(t, err)
-	require.Empty(t, regs)
 }

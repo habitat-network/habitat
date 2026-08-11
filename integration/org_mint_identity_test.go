@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -68,7 +69,9 @@ func TestMintThenLookup(t *testing.T) {
 
 	orgServer, err := org_server.NewServer(
 		orgStore,
-		authntest.NewSuccessMethod(adminDID),
+		authntest.NewSuccessValidator(
+			&authn.CredentialInfo{Subject: adminDID, Type: authn.UserCredential},
+		),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -78,7 +81,9 @@ func TestMintThenLookup(t *testing.T) {
 
 	hiveServer, err := habitat_identity.NewServer(
 		h,
-		authntest.NewSuccessMethod(adminDID),
+		authntest.NewSuccessValidator(
+			&authn.CredentialInfo{Subject: adminDID, Type: authn.UserCredential},
+		),
 		orgStore,
 		nil,
 		"pear.example.com",
