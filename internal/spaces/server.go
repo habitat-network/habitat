@@ -9,13 +9,11 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/schema"
 	"github.com/ipfs/go-cid"
 
@@ -915,22 +913,7 @@ func (s *Server) GetDelegationToken(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("get private key: %w", err))
 		return
 	}
-	token, err := new(jwt.Token{
-		Method: jwt.GetSigningMethod("ES256K"),
-		Claims: jwt.MapClaims{
-			"iss": credInfo.Subject,
-			"sub": space.String(),
-			"aud": space.SpaceOwner().String() + "#atproto_space_host",
-			"iat": time.Now().Unix(),
-			"exp": time.Now().Add(time.Minute).Unix(),
-			"jti": utils.RandomNonce(16),
-		},
-		Header: map[string]any{
-			"typ": "atproto-space-delegation+jwt",
-			"kid": kid,
-			"alg": "ES256K",
-		},
-	}).SignedString(privKey)
+	token, err := utils.DelegationToken(privKey, credInfo.Subject, kid, space)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("sign token: %w", err))
 		return
@@ -964,26 +947,12 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 	privKey, err := s.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		privKey = s.hostKey
-		kid = "#atproto_space_host"
+		kid = "#atproto_space"
 	} else if err != nil {
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
 		return
 	}
-	token, err := new(jwt.Token{
-		Method: jwt.GetSigningMethod("ES256K"),
-		Claims: jwt.MapClaims{
-			"iss": spaceURI.SpaceOwner(),
-			"sub": spaceURI,
-			"iat": jwt.NewNumericDate(time.Now()),
-			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)),
-			"jti": utils.RandomNonce(16),
-		},
-		Header: map[string]any{
-			"typ": "atproto-space-credential+jwt",
-			"kid": kid,
-			"alg": "ES256K",
-		},
-	}).SignedString(privKey)
+	token, err := utils.SpaceCredential(privKey, kid, spaceURI)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign token: %w", err))
 		return

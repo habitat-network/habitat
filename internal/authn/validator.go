@@ -144,5 +144,6 @@ func (rv *EndpointOptions) Validate(
 		}
 		return credInfo, true
 	}
+	httpx.WriteUnauthorized(ctx, w, "no supported auth method")
 	return nil, false
 }

@@ -4,122 +4,123 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDelegationAuthMethod_CanHandle(t *testing.T) {
-	token, err := new(jwt.Token{
-		Header: map[string]any{
-			"typ": "atproto-space-delegation+jwt",
-			"alg": "HS256",
-		},
-		Method: jwt.SigningMethodHS256,
-	}).SignedString([]byte("secret"))
-	require.NoError(t, err)
-	r := httptest.NewRequest("GET", "/", http.NoBody)
-	r.Header.Set("Authorization", "Bearer "+token)
-	require.True(t, NewDelegationTokenAuthMethod(nil, nil, nil).CanHandle(r))
-}
-
-func TestDelegationAuthMethod_Validate(t *testing.T) {
-	key, _ := atcrypto.GeneratePrivateKeyK256()
-	publicKey, _ := key.PublicKey()
+func TestDelegationAuthMethod(t *testing.T) {
+	userKey, _ := atcrypto.GeneratePrivateKeyK256()
+	userPubKey, _ := userKey.PublicKey()
 	dir := identity.NewMockDirectory()
-	dir.Insert(*did.Web("example.com").AtprotoKey(publicKey.Multibase()).Build())
-	spaceURI := habitat_syntax.SpaceURI("at://did:web:example.com/space/test.space.type/abc")
-	token, err := new(jwt.Token{
-		Header: map[string]any{
-			"typ": "atproto-space-credential+jwt",
-			"alg": "ES256K",
-			"kid": "#atproto",
-		},
-		Claims: jwt.MapClaims{
-			"iss": "did:web:example.com",
-			"sub": spaceURI,
-			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)),
-		},
-		Method: jwt.GetSigningMethod("ES256K"),
-	}).SignedString(key)
-	require.NoError(t, err)
+	dir.Insert(*did.Web("pear.com").AtprotoKey(userPubKey.Multibase()).Build())
+	space := habitat_syntax.SpaceURI("at://did:web:pear.com/space/com.test.space/abc")
+	user := syntax.DID("did:web:pear.com")
+
+	t.Run("can handle", func(t *testing.T) {
+		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
+		require.NoError(t, err)
+		r := newAuthenticatedReqest(token)
+		require.True(t, NewDelegationTokenAuthMethod(dir, nil, nil).CanHandle(r))
+	})
+
 	t.Run("has permission", func(t *testing.T) {
 		fga, err := fgastore.NewMemory(t.Context())
 		require.NoError(t, err)
 		require.NoError(t, fga.Write(
 			t.Context(),
-			fgastore.MemberUserString(syntax.DID("did:web:example.com")),
-			fgastore.RelationSpaceMemberManager,
-			fgastore.SpaceObjectKey(spaceURI),
+			fgastore.MemberUserString(user),
+			fgastore.RelationSpaceReader,
+			fgastore.SpaceObjectKey(space),
 		))
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "/", http.NoBody)
-		r.Header.Set("Authorization", "Bearer "+token)
-		credInfo, ok := NewDelegationTokenAuthMethod(dir, fga, nil).Validate(w, r)
+		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
+		require.NoError(t, err)
+		r := newAuthenticatedReqest(token)
+		credInfo, ok := NewDelegationTokenAuthMethod(
+			dir,
+			fga,
+			nil,
+		).Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
-		require.Equal(t, credInfo, &CredentialInfo{Space: spaceURI})
+		require.Equal(t, credInfo, &CredentialInfo{Space: space})
 	})
 
 	t.Run("no permission", func(t *testing.T) {
 		fga, err := fgastore.NewMemory(t.Context())
 		require.NoError(t, err)
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "/", http.NoBody)
-		r.Header.Set("Authorization", "Bearer "+token)
-		_, ok := NewDelegationTokenAuthMethod(dir, fga, nil).Validate(w, r)
+		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
+		require.NoError(t, err)
+		r := newAuthenticatedReqest(token)
+		_, ok := NewDelegationTokenAuthMethod(dir, fga, nil).Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
 	})
-}
 
-func TestDelegationAuthMethod_Validate_HostToken(t *testing.T) {
-	key, _ := atcrypto.GeneratePrivateKeyK256()
-	dir := identity.NewMockDirectory()
-	spaceURI := habitat_syntax.SpaceURI("at://did:web:example.com/space/test.space.type/abc")
-	token, err := new(jwt.Token{
-		Header: map[string]any{
-			"typ": "atproto-space-credential+jwt",
-			"alg": "ES256K",
-			"kid": "#habitat",
-		},
-		Claims: jwt.MapClaims{
-			"iss": "did:web:example.com",
-			"sub": spaceURI,
-			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)),
-		},
-		Method: jwt.GetSigningMethod("ES256K"),
-	}).SignedString(key)
-	require.NoError(t, err)
-	t.Run("has permission", func(t *testing.T) {
+	t.Run("host key has permission", func(t *testing.T) {
+		hostKey, _ := atcrypto.GeneratePrivateKeyK256()
 		fga, err := fgastore.NewMemory(t.Context())
 		require.NoError(t, err)
 		require.NoError(t, fga.Write(
 			t.Context(),
-			fgastore.MemberUserString(syntax.DID("did:web:example.com")),
-			fgastore.RelationSpaceMemberManager,
-			fgastore.SpaceObjectKey(spaceURI),
+			fgastore.MemberUserString(user),
+			fgastore.RelationSpaceReader,
+			fgastore.SpaceObjectKey(space),
 		))
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "/", http.NoBody)
-		r.Header.Set("Authorization", "Bearer "+token)
-		credInfo, ok := NewDelegationTokenAuthMethod(dir, fga, key).Validate(w, r)
+		token, err := utils.DelegationToken(hostKey, user, "#habitat", space)
+		require.NoError(t, err)
+		r := newAuthenticatedReqest(token)
+		credInfo, ok := NewDelegationTokenAuthMethod(
+			dir,
+			fga,
+			hostKey,
+		).Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
-		require.Equal(t, credInfo, &CredentialInfo{Space: spaceURI})
+		require.Equal(t, credInfo, &CredentialInfo{Space: space})
 	})
 
-	t.Run("no permission", func(t *testing.T) {
+	t.Run("host key no permission", func(t *testing.T) {
+		hostKey, _ := atcrypto.GeneratePrivateKeyK256()
 		fga, err := fgastore.NewMemory(t.Context())
 		require.NoError(t, err)
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "/", http.NoBody)
-		r.Header.Set("Authorization", "Bearer "+token)
-		_, ok := NewDelegationTokenAuthMethod(dir, fga, key).Validate(w, r)
+		token, err := utils.DelegationToken(hostKey, user, "#habitat", space)
+		require.NoError(t, err)
+		r := newAuthenticatedReqest(token)
+		_, ok := NewDelegationTokenAuthMethod(dir, fga, hostKey).Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
+	})
+
+	t.Run("no token", func(t *testing.T) {
+		_, ok := NewDelegationTokenAuthMethod(dir, nil, nil).Validate(
+			httptest.NewRecorder(),
+			httptest.NewRequest("GET", "/", http.NoBody),
+		)
+		require.False(t, ok)
+	})
+
+	t.Run("invalid signature", func(t *testing.T) {
+		otherKey, _ := atcrypto.GeneratePrivateKeyK256()
+		fga, err := fgastore.NewMemory(t.Context())
+		require.NoError(t, err)
+		require.NoError(t, fga.Write(
+			t.Context(),
+			fgastore.MemberUserString(user),
+			fgastore.RelationSpaceReader,
+			fgastore.SpaceObjectKey(space),
+		))
+		token, err := utils.DelegationToken(otherKey, user, "#atproto", space)
+		require.NoError(t, err)
+		r := newAuthenticatedReqest(token)
+		credInfo, ok := NewDelegationTokenAuthMethod(
+			dir,
+			fga,
+			nil,
+		).Validate(httptest.NewRecorder(), r)
+		require.False(t, ok)
+		require.Nil(t, credInfo)
 	})
 }
