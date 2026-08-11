@@ -17,7 +17,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/spaces/testutil"
-	"github.com/habitat-network/habitat/internal/sync"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 
 	"github.com/habitat-network/habitat/internal/authn"
@@ -282,7 +281,6 @@ func setupPear(
 
 	spacesStore := testutil.NewTestStore(t)
 
-	syncServer := sync.NewServer(spacesStore.EventStore)
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
@@ -297,7 +295,6 @@ func setupPear(
 	)
 
 	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
-	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
@@ -321,10 +318,6 @@ func setupPear(
 		"contact@example.com",
 	)
 	require.NoError(t, err)
-
-	go func() {
-		require.ErrorIs(t, spacesStore.EventStore.StartSequencer(t.Context()), context.Canceled)
-	}()
 
 	return server, orgId, adminId, spacesStore, orgHive
 }

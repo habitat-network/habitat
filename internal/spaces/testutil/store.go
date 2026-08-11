@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/notify/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -19,9 +18,8 @@ type Config struct {
 
 type testStore struct {
 	spaces.Store
-	Notifier   *testutil.TestNotifier
-	EventStore events.Store
-	FGA        fgastore.Store
+	Notifier *testutil.TestNotifier
+	FGA      fgastore.Store
 }
 
 func NewTestStore(t *testing.T, cfgs ...Config) *testStore {
@@ -39,10 +37,8 @@ func NewTestStore(t *testing.T, cfgs ...Config) *testStore {
 	if cfg.DB == nil {
 		cfg.DB = db_testutil.NewDB(t)
 	}
-	eventStore, err := events.NewStore(cfg.DB)
-	require.NoError(t, err)
 	notifier := &testutil.TestNotifier{}
-	s, err := spaces.NewStore(cfg.DB, cfg.FgaStore, eventStore, notifier)
+	s, err := spaces.NewStore(cfg.DB, cfg.FgaStore, notifier)
 	require.NoError(t, err)
-	return &testStore{Store: s, Notifier: notifier, EventStore: eventStore, FGA: cfg.FgaStore}
+	return &testStore{Store: s, Notifier: notifier, FGA: cfg.FgaStore}
 }

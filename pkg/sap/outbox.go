@@ -8,13 +8,12 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/events"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
 
-func writeEventOps(tx *gorm.DB, ops []events.EventOps) error {
+func writeEventOps(tx *gorm.DB, ops []any) error {
 	for _, op := range ops {
 		value, err := json.Marshal(op.Value)
 		if err != nil {

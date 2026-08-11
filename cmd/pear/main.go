@@ -31,7 +31,6 @@ import (
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -43,7 +42,6 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
-	"github.com/habitat-network/habitat/internal/sync"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
@@ -306,12 +304,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup clique store: %w", err)
 	}
-
-	eventStore, err := events.NewStore(db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup event store: %w", err)
-	}
-	syncServer := sync.NewServer(eventStore)
 
 	notifyStore, err := notify.NewStore(db.WithContext(startupCtx))
 	if err != nil {
