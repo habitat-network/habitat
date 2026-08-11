@@ -370,14 +370,16 @@ func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
-	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
-		return
-	}
-	if !isMember {
-		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
-		return
+	if credInfo.Subject != "" {
+		isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
+			return
+		}
+		if !isMember {
+			httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
+			return
+		}
 	}
 
 	repos, err := s.store.ListRepos(r.Context(), spaceURI)
@@ -1086,7 +1088,7 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 	privKey, err := s.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		privKey = s.hostKey
-		kid = "#atproto_space_host"
+		kid = "#atproto_space"
 	} else if err != nil {
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
 		return
