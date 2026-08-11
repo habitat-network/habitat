@@ -94,11 +94,8 @@ import * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplesp
 import * as NetworkHabitatSimplespaceDeleteSpace from './types/network/habitat/simplespace/deleteSpace.js'
 import * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
 import * as NetworkHabitatSimplespaceRemoveMember from './types/network/habitat/simplespace/removeMember.js'
-import * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
-import * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
 import * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
-import * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 import * as NetworkHabitatSpaceGetBlob from './types/network/habitat/space/getBlob.js'
 import * as NetworkHabitatSpaceGetDelegationToken from './types/network/habitat/space/getDelegationToken.js'
 import * as NetworkHabitatSpaceGetLatestCommit from './types/network/habitat/space/getLatestCommit.js'
@@ -113,7 +110,6 @@ import * as NetworkHabitatSpaceNotifySpaceDeleted from './types/network/habitat/
 import * as NetworkHabitatSpaceNotifyWrite from './types/network/habitat/space/notifyWrite.js'
 import * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
 import * as NetworkHabitatSpaceRegisterNotify from './types/network/habitat/space/registerNotify.js'
-import * as NetworkHabitatSpaceRemoveMember from './types/network/habitat/space/removeMember.js'
 
 export * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
 export * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
@@ -200,11 +196,8 @@ export * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplesp
 export * as NetworkHabitatSimplespaceDeleteSpace from './types/network/habitat/simplespace/deleteSpace.js'
 export * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
 export * as NetworkHabitatSimplespaceRemoveMember from './types/network/habitat/simplespace/removeMember.js'
-export * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
-export * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
 export * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
-export * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 export * as NetworkHabitatSpaceGetBlob from './types/network/habitat/space/getBlob.js'
 export * as NetworkHabitatSpaceGetDelegationToken from './types/network/habitat/space/getDelegationToken.js'
 export * as NetworkHabitatSpaceGetLatestCommit from './types/network/habitat/space/getLatestCommit.js'
@@ -219,7 +212,6 @@ export * as NetworkHabitatSpaceNotifySpaceDeleted from './types/network/habitat/
 export * as NetworkHabitatSpaceNotifyWrite from './types/network/habitat/space/notifyWrite.js'
 export * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
 export * as NetworkHabitatSpaceRegisterNotify from './types/network/habitat/space/registerNotify.js'
-export * as NetworkHabitatSpaceRemoveMember from './types/network/habitat/space/removeMember.js'
 
 export const COMMUNITY_LEXICON_CALENDAR = {
   EventVirtual: 'community.lexicon.calendar.event#virtual',
@@ -1958,28 +1950,6 @@ export class NetworkHabitatSpaceNS {
     this._client = client
   }
 
-  addMember(
-    data?: NetworkHabitatSpaceAddMember.InputSchema,
-    opts?: NetworkHabitatSpaceAddMember.CallOptions,
-  ): Promise<NetworkHabitatSpaceAddMember.Response> {
-    return this._client
-      .call('network.habitat.space.addMember', opts?.qp, data, opts)
-      .catch((e) => {
-        throw NetworkHabitatSpaceAddMember.toKnownErr(e)
-      })
-  }
-
-  createSpace(
-    data?: NetworkHabitatSpaceCreateSpace.InputSchema,
-    opts?: NetworkHabitatSpaceCreateSpace.CallOptions,
-  ): Promise<NetworkHabitatSpaceCreateSpace.Response> {
-    return this._client
-      .call('network.habitat.space.createSpace', opts?.qp, data, opts)
-      .catch((e) => {
-        throw NetworkHabitatSpaceCreateSpace.toKnownErr(e)
-      })
-  }
-
   deleteRecord(
     data?: NetworkHabitatSpaceDeleteRecord.InputSchema,
     opts?: NetworkHabitatSpaceDeleteRecord.CallOptions,
@@ -1988,17 +1958,6 @@ export class NetworkHabitatSpaceNS {
       .call('network.habitat.space.deleteRecord', opts?.qp, data, opts)
       .catch((e) => {
         throw NetworkHabitatSpaceDeleteRecord.toKnownErr(e)
-      })
-  }
-
-  deleteSpace(
-    data?: NetworkHabitatSpaceDeleteSpace.InputSchema,
-    opts?: NetworkHabitatSpaceDeleteSpace.CallOptions,
-  ): Promise<NetworkHabitatSpaceDeleteSpace.Response> {
-    return this._client
-      .call('network.habitat.space.deleteSpace', opts?.qp, data, opts)
-      .catch((e) => {
-        throw NetworkHabitatSpaceDeleteSpace.toKnownErr(e)
       })
   }
 
@@ -2157,17 +2116,6 @@ export class NetworkHabitatSpaceNS {
       .call('network.habitat.space.registerNotify', opts?.qp, data, opts)
       .catch((e) => {
         throw NetworkHabitatSpaceRegisterNotify.toKnownErr(e)
-      })
-  }
-
-  removeMember(
-    data?: NetworkHabitatSpaceRemoveMember.InputSchema,
-    opts?: NetworkHabitatSpaceRemoveMember.CallOptions,
-  ): Promise<NetworkHabitatSpaceRemoveMember.Response> {
-    return this._client
-      .call('network.habitat.space.removeMember', opts?.qp, data, opts)
-      .catch((e) => {
-        throw NetworkHabitatSpaceRemoveMember.toKnownErr(e)
       })
   }
 }
