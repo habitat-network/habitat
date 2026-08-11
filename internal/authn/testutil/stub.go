@@ -97,3 +97,23 @@ func (s *failure) Validate(
 func NewFailMethod() authn.Method {
 	return &failure{}
 }
+
+type cantHandle struct{}
+
+// CanHandle implements [authn.Method].
+func (c *cantHandle) CanHandle(r *http.Request) bool {
+	return false
+}
+
+// Validate implements [authn.Method].
+func (c *cantHandle) Validate(
+	w http.ResponseWriter,
+	r *http.Request,
+	scopes ...string,
+) (*authn.CredentialInfo, bool) {
+	return nil, false
+}
+
+func NewCantHandleMethod() authn.Method {
+	return &cantHandle{}
+}
