@@ -3,12 +3,20 @@
   "compilerOptions": {
     "baseUrl": ".",
     "noEmit": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "paths": {
-      "@/*": ["./src/*"]
-    }
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "outDir": "../../../.moon/cache/types/typescript/apps/docs-server"
   },
-  "include": ["src/**/*", "../../globals.d.ts"],
+  "include": [
+    "src/**/*",
+    "../../globals.d.ts"
+  ],
   "references": [
     {
       "path": "../../api"
