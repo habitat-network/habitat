@@ -25,7 +25,6 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -259,13 +258,11 @@ func setupPear(t *testing.T) *pearHost {
 	author, err := orgHive.MintOrgIdentity(t.Context(), "author")
 	require.NoError(t, err)
 
-	eventStore, err := events.NewStore(db)
-	require.NoError(t, err)
 	notifyStore, err := notify.NewStore(db)
 	require.NoError(t, err)
 	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, orgHive)
 
-	spacesStore, err := spaces.NewStore(db, fgaStore, eventStore, notifier)
+	spacesStore, err := spaces.NewStore(db, fgaStore, notifier)
 	require.NoError(t, err)
 
 	everyone := org.NewEveryoneOrg(strings.TrimPrefix(server.URL, "https://"))
@@ -298,10 +295,6 @@ func setupPear(t *testing.T) *pearHost {
 			httpx.WriteJSON(r.Context(), w,
 				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "test-credential"})
 		})
-
-	go func() {
-		require.ErrorIs(t, eventStore.StartSequencer(t.Context()), context.Canceled)
-	}()
 
 	return &pearHost{server: server, store: spacesStore, hive: orgHive, author: author}
 }
