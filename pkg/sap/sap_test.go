@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/authn"
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
@@ -268,20 +269,19 @@ func setupPear(t *testing.T) *pearHost {
 	require.NoError(t, err)
 
 	everyone := org.NewEveryoneOrg(strings.TrimPrefix(server.URL, "https://"))
-	auth := authn_testutil.NewSuccessMethodForOrg(author.DID, everyone)
+	validator := authn_testutil.NewSuccessValidator(
+		&authn.CredentialInfo{Subject: author.DID, Type: authn.UserCredential, Org: everyone},
+	)
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
-		auth,
-		authn_testutil.NewFailMethod(),
-		nil, // delegation: getSpaceCredential is not mounted
-		nil, // space token: getSpaceCredential is not mounted
+		validator,
 		nil, // org store: only used by the CreateSpace handler, not mounted
 		nil, // host key: managed authors sign with their own hive keys
 		orgHive,
 		nil, // blobs: no blob handlers mounted
 	)
-	notifyServer := notify.NewServer(notifyStore, spacesStore, auth)
+	notifyServer := notify.NewServer(notifyStore, validator)
 
 	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)

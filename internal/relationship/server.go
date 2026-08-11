@@ -22,20 +22,18 @@ import (
 // require the manager role and reads require the reader role on the governing
 // space, checked via FGA exactly like internal/spaces.
 type Server struct {
-	store       *Store
-	fga         fgastore.Store
-	oauth       authn.Method
-	serviceAuth authn.Method
-	decoder     *schema.Decoder
+	store     *Store
+	fga       fgastore.Store
+	validator authn.RequestValidator
+	decoder   *schema.Decoder
 }
 
-func NewServer(store *Store, fga fgastore.Store, oauth, serviceAuth authn.Method) *Server {
+func NewServer(store *Store, fga fgastore.Store, validator authn.RequestValidator) *Server {
 	return &Server{
-		store:       store,
-		fga:         fga,
-		oauth:       oauth,
-		serviceAuth: serviceAuth,
-		decoder:     schema.NewDecoder(),
+		store:     store,
+		fga:       fga,
+		validator: validator,
+		decoder:   schema.NewDecoder(),
 	}
 }
 
@@ -57,42 +55,7 @@ func (s *Server) authorize(
 	)
 }
 
-// requireRole authorizes the caller or writes the appropriate error response,
-// returning false if the request should not proceed.
-func (s *Server) requireRole(
-	w http.ResponseWriter,
-	r *http.Request,
-	caller *authn.CredentialInfo,
-	space habitat_syntax.SpaceURI,
-	relation string,
-) bool {
-	authorized, err := s.authorize(r.Context(), caller, space, relation)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check permission",
-			http.StatusInternalServerError,
-		)
-		return false
-	}
-	if !authorized {
-		http.Error(w, "not authorized", http.StatusForbidden)
-		return false
-	}
-	return true
-}
-
 func (s *Server) WriteTuple(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
-
 	var input habitat.NetworkHabitatRelationshipWriteTupleInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
@@ -110,13 +73,10 @@ func (s *Server) WriteTuple(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.requireRole(
-		w,
-		r,
-		credInfo,
-		object,
-		fgastore.RelationSpaceMemberManager,
-	) {
+	if _, ok = s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+		authn.WithSpace(object, fgastore.RelationSpaceMemberManager),
+	).Validate(w, r); !ok {
 		return
 	}
 
@@ -136,14 +96,6 @@ func (s *Server) WriteTuple(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteTuple(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
-
 	var input habitat.NetworkHabitatRelationshipDeleteTupleInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
@@ -157,13 +109,10 @@ func (s *Server) DeleteTuple(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.requireRole(
-		w,
-		r,
-		credInfo,
-		space,
-		fgastore.RelationSpaceMemberManager,
-	) {
+	if _, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+		authn.WithSpace(space, fgastore.RelationSpaceMemberManager),
+	).Validate(w, r); !ok {
 		return
 	}
 
@@ -180,14 +129,6 @@ func (s *Server) DeleteTuple(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
-
 	var params habitat.NetworkHabitatRelationshipListTuplesParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
@@ -199,13 +140,10 @@ func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.requireRole(
-		w,
-		r,
-		credInfo,
-		space,
-		fgastore.RelationSpaceReader,
-	) {
+	if _, ok = s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+		authn.WithSpace(space, fgastore.RelationSpaceReader),
+	).Validate(w, r); !ok {
 		return
 	}
 
@@ -235,14 +173,6 @@ func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
-
 	var params habitat.NetworkHabitatRelationshipCheckParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
@@ -260,13 +190,11 @@ func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.requireRole(
-		w,
-		r,
-		credInfo,
-		space,
-		fgastore.RelationSpaceReader,
-	) {
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+		authn.WithSpace(space, fgastore.RelationSpaceReader),
+	).Validate(w, r)
+	if !ok {
 		return
 	}
 
@@ -285,14 +213,6 @@ func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
-
 	var params habitat.NetworkHabitatRelationshipListSubjectsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
@@ -304,13 +224,11 @@ func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.requireRole(
-		w,
-		r,
-		credInfo,
-		space,
-		fgastore.RelationSpaceReader,
-	) {
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+		authn.WithSpace(space, fgastore.RelationSpaceReader),
+	).Validate(w, r)
+	if !ok {
 		return
 	}
 
@@ -332,9 +250,8 @@ func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 	).Validate(w, r)
 	if !ok {
 		return

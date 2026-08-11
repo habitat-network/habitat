@@ -17,14 +17,14 @@ type Config struct {
 	DB       *gorm.DB
 }
 
-type testStore struct {
+type TestStore struct {
 	spaces.Store
 	Notifier   *testutil.TestNotifier
 	EventStore events.Store
 	FGA        fgastore.Store
 }
 
-func NewTestStore(t *testing.T, cfgs ...Config) *testStore {
+func NewTestStore(t *testing.T, cfgs ...Config) *TestStore {
 	t.Helper()
 	cfg := Config{}
 	if len(cfgs) > 0 {
@@ -44,9 +44,9 @@ func NewTestStore(t *testing.T, cfgs ...Config) *testStore {
 	notifier := &testutil.TestNotifier{}
 	s, err := spaces.NewStore(cfg.DB, cfg.FgaStore, eventStore, notifier)
 	require.NoError(t, err)
-	return &testStore{Store: s, Notifier: notifier, EventStore: eventStore, FGA: cfg.FgaStore}
+	return &TestStore{Store: s, Notifier: notifier, EventStore: eventStore, FGA: cfg.FgaStore}
 }
 
 // FGAStore exposes the underlying FGA store for tests that rebuild a Server
 // against an existing test store.
-func (t *testStore) FGAStore() fgastore.Store { return t.FGA }
+func (t *TestStore) FGAStore() fgastore.Store { return t.FGA }

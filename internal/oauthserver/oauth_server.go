@@ -502,7 +502,8 @@ func (o *OAuthServer) finishAuthorize(
 
 func logError(ctx context.Context, err error) {
 	if rfcErr, ok := errors.AsType[*fosite.RFC6749Error](err); ok {
-		slog.ErrorContext(ctx, "token access error",
+		slog.ErrorContext(
+			ctx, "token access error",
 			"err", err,
 			"error_field", rfcErr.ErrorField,
 			"hint", rfcErr.HintField,

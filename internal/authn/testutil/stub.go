@@ -129,17 +129,22 @@ func NewFailMethod() authn.Method {
 	return &failure{}
 }
 
-// never never matches a request, so later auth methods in the validator chain
-// can be exercised in isolation.
-type never struct{}
+type cantHandle struct{}
 
-// NewNeverMethod returns a Method that never CanHandle.
-func NewNeverMethod() authn.Method { return &never{} }
+// CanHandle implements [authn.Method].
+func (c *cantHandle) CanHandle(r *http.Request) bool {
+	return false
+}
 
-func (*never) CanHandle(*http.Request) bool { return false }
-
-func (*never) Validate(
-	http.ResponseWriter, *http.Request, ...string,
+// Validate implements [authn.Method].
+func (c *cantHandle) Validate(
+	w http.ResponseWriter,
+	r *http.Request,
+	scopes ...string,
 ) (*authn.CredentialInfo, bool) {
 	return nil, false
+}
+
+func NewCantHandleMethod() authn.Method {
+	return &cantHandle{}
 }

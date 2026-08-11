@@ -168,11 +168,6 @@ type Store interface {
 		repo syntax.DID,
 		collection *syntax.NSID,
 	) ([]Record, error)
-	ListRecordBlocks(
-		ctx context.Context,
-		space habitat_syntax.SpaceURI,
-		repo syntax.DID,
-	) ([]recordBlock, error)
 	// RepoSnapshot returns a repo's head rev/hash together with its record
 	// blocks, read as of the same point: on Postgres both reads happen inside
 	// the same advisory-locked transaction PutRecord/DeleteRecord use, so a
@@ -817,42 +812,6 @@ func (s *store) ListRecords(
 	}
 
 	return records, nil
-}
-
-func (s *store) ListRecordBlocks(
-	ctx context.Context,
-	uri habitat_syntax.SpaceURI,
-	repo syntax.DID,
-) ([]recordBlock, error) {
-	var sp space
-	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
-		First(&sp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, ErrSpaceNotFound
-	} else if err != nil {
-		return nil, err
-	}
-
-	var rows []spaceRecord
-	if err := s.db.WithContext(ctx).
-		Where("space = ?", uri).
-		Where("repo = ?", repo).
-		Order("collection ASC, rkey ASC").
-		Find(&rows).Error; err != nil {
-		return nil, err
-	}
-
-	blocks := make([]recordBlock, len(rows))
-	for i, row := range rows {
-		blocks[i] = recordBlock{
-			Collection: row.Collection,
-			Rkey:       row.Rkey,
-			Cid:        cid.MustParse(row.Cid),
-			Bytes:      row.Value,
-		}
-	}
-	return blocks, nil
 }
 
 func (s *store) RepoSnapshot(
