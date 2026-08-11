@@ -3,7 +3,6 @@ package authn
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 
@@ -49,7 +48,6 @@ func fetchIssuerKeyFunc(
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse issuer: %w", err)
 		}
-		slog.ErrorContext(ctx, "fetching issuer key", "issuer", issuerDID, "kid", kid)
 		ident, err := dir.LookupDID(ctx, issuerDID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to lookup issuer: %w", err)
