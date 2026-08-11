@@ -234,11 +234,6 @@ type Notifier interface {
 	)
 	// NotifySpaceDeleted reports that a space was deleted.
 	NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI)
-	// RegisterAuthority auto-subscribes a shared space's authority (a DID
-	// other than the repo owner) to writes on this repo, so it learns of
-	// updates without requiring an explicit registerNotify call. A no-op when
-	// the repo owner is themself the space's authority.
-	RegisterAuthority(ctx context.Context, space habitat_syntax.SpaceURI, repo syntax.DID)
 }
 
 var (
@@ -647,7 +642,6 @@ func (s *store) writeRecord(
 	var recordUri habitat_syntax.SpaceRecordURI
 	var newRev syntax.TID
 	var repoHash []byte
-	firstWrite := false
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if tx.Name() == "postgres" {
 			// acquire lock on permissioned repo within space
@@ -680,7 +674,6 @@ func (s *store) writeRecord(
 			First(&prev).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			action = "create"
-			firstWrite = true
 		} else if err != nil {
 			return fmt.Errorf("failed to get previous record: %w", err)
 		}
@@ -749,12 +742,6 @@ func (s *store) writeRecord(
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
 	s.eventStore.NotifyEvent(ctx)
-	if firstWrite && repo != spaceUri.SpaceOwner() {
-		// Best-effort: on a repo's first write into a shared space (one whose
-		// authority is not this repo's own owner), the space authority does
-		// not otherwise know this repo host exists to notify it.
-		s.notifier.RegisterAuthority(ctx, spaceUri, repo)
-	}
 	// Best-effort: notify registered syncers that this repo advanced.
 	s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev, repoHash)
 	return recordUri, &cid, nil
