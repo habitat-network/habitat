@@ -43,6 +43,11 @@ cmd/pear/key.jwk
 cmd/pear/repo.db
 *repo.db*
 
+# Binaries left behind by `go build ./...` run directly in a cmd/ dir
+# (the intended output path is bin/, see above).
+/cmd/pear/pear
+/cmd/sap/sap
+
 # Ignore custom VSCode/Cursor settings
 .vscode/
 .vscode/settings.json
