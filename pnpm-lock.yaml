@@ -7,8 +7,8 @@ settings:
 catalogs:
   default:
     '@atproto/api':
-      specifier: 0.20.38
-      version: 0.20.38
+      specifier: 0.20.39
+      version: 0.20.39
     '@atproto/lexicon':
       specifier: 0.7.11
       version: 0.7.11
@@ -79,7 +79,7 @@ importers:
     devDependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.38
+        version: 0.20.39
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.11
@@ -164,7 +164,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.38
+        version: 0.20.39
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.9
@@ -264,7 +264,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.38
+        version: 0.20.39
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.11
@@ -283,7 +283,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.38
+        version: 0.20.39
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.9
@@ -489,7 +489,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.38
+        version: 0.20.39
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.9
@@ -674,7 +674,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.38
+        version: 0.20.39
       '@atproto/identity':
         specifier: ^0.5.6
         version: 0.5.9
@@ -931,8 +931,8 @@ packages:
     resolution: {integrity: sha512-vfvoDhu6ds6BT3Pqe+d2/LBU1WpDRtt69y6zltlfMCoucPm82m1j50/Wb6xTvv+oZ+2j0JyZVXsmXQ12SWYQJg==}
     engines: {node: '>=22'}
 
-  '@atproto/api@0.20.38':
-    resolution: {integrity: sha512-bKDVNr1uW2MW9ZSXdQoyEoQO3ieX3Id35KuVNpEmgjOmeOS20sx94dav98MQ7hUUaFok31jYSgAildJ/lA27NA==}
+  '@atproto/api@0.20.39':
+    resolution: {integrity: sha512-FRjwAmYe0kKlWsAe8IvfbmAAKyjpXnl2NV67vWEEjux0FwIEIG6JbOo6YkD5tjK2xjL0Daa429R0E8phmxRrrQ==}
     engines: {node: '>=22'}
 
   '@atproto/common-web@0.5.9':
@@ -10636,7 +10636,7 @@ snapshots:
 
   '@atproto-labs/simple-store@0.5.1': {}
 
-  '@atproto/api@0.20.38':
+  '@atproto/api@0.20.39':
     dependencies:
       '@atproto/common-web': 0.5.9
       '@atproto/lexicon': 0.7.11
