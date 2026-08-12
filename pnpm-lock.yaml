@@ -275,8 +275,8 @@ importers:
         specifier: ^0.8.6
         version: 0.8.6
       multiformats:
-        specifier: ^13.4.2
-        version: 13.4.2
+        specifier: ^14.0.0
+        version: 14.0.5
     devDependencies:
       '@atproto/lex-cli':
         specifier: ^0.10.6
@@ -384,8 +384,8 @@ importers:
         specifier: ^1.0.0
         version: 1.27.0(react@19.2.8)
       multiformats:
-        specifier: ^13.4.2
-        version: 13.4.2
+        specifier: ^14.0.0
+        version: 14.0.5
       posthog-js:
         specifier: ^1.406.2
         version: 1.408.0
