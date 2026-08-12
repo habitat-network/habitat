@@ -848,6 +848,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	}
 	if credInfo.Subject != repo {
 		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", nil)
+		return
 	}
 	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
 	if !ok {
@@ -932,6 +933,7 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 	}
 	if input.ClientAttestation != "" {
 		httpx.WriteNotSupported(ctx, w, "client attestation is not yet supported")
+		return
 	}
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
 	if !ok {
