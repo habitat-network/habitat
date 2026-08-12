@@ -2,17 +2,22 @@ package oauthserver
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
@@ -234,7 +239,7 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 func (s *store) fetchClientMetadata(
 	ctx context.Context,
 	id string,
-) (*pdsclient.ClientMetadata, error) {
+) (*oauth.ClientMetadata, error) {
 	parsed, err := url.Parse(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse client id: %w", err)
@@ -259,7 +264,7 @@ func (s *store) fetchClientMetadata(
 		return nil, fmt.Errorf("failed to fetch client metadata: status %d", resp.StatusCode)
 	}
 
-	var metadata pdsclient.ClientMetadata
+	var metadata oauth.ClientMetadata
 	err = json.NewDecoder(resp.Body).Decode(&metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode client metadata: %w", err)
@@ -301,10 +306,67 @@ func (s *store) GetPublicKeys(
 	if err != nil {
 		return nil, err
 	}
-	if metadata.Jwks == nil || len(metadata.Jwks.Keys) == 0 {
+	if metadata.JWKS == nil || len(metadata.JWKS.Keys) == 0 {
 		return nil, fosite.ErrNotFound
 	}
-	return metadata.Jwks, nil
+	var keys []jose.JSONWebKey
+	for _, key := range metadata.JWKS.Keys {
+		if key.KeyID == nil {
+			continue
+		}
+		converted, err := atcryptoJWKtoJose(key)
+		if err != nil {
+			continue
+		}
+		keys = append(keys, *converted)
+	}
+	if len(keys) == 0 {
+		return nil, fosite.ErrNotFound
+	}
+	return &jose.JSONWebKeySet{
+		Keys: keys,
+	}, nil
+}
+
+// atcryptoJWKtoJose converts an atproto JWK (an EC public key, as used in
+// client metadata documents) into a go-jose JSONWebKey usable for signature
+// verification. Only the curves go-jose understands are supported; a JWT
+// client assertion is always ES256-signed, so secp256k1 keys are rejected.
+func atcryptoJWKtoJose(jwk atcrypto.JWK) (*jose.JSONWebKey, error) {
+	var curve elliptic.Curve
+	switch jwk.Curve {
+	case "P-256":
+		curve = elliptic.P256()
+	case "P-384":
+		curve = elliptic.P384()
+	case "P-521":
+		curve = elliptic.P521()
+	default:
+		return nil, fmt.Errorf("unsupported JWK curve %q", jwk.Curve)
+	}
+	if jwk.KeyType != "EC" {
+		return nil, fmt.Errorf("unsupported JWK key type %q", jwk.KeyType)
+	}
+	x, err := base64.RawURLEncoding.DecodeString(jwk.X)
+	if err != nil {
+		return nil, fmt.Errorf("invalid JWK x coordinate: %w", err)
+	}
+	y, err := base64.RawURLEncoding.DecodeString(jwk.Y)
+	if err != nil {
+		return nil, fmt.Errorf("invalid JWK y coordinate: %w", err)
+	}
+	var keyID string
+	if jwk.KeyID != nil {
+		keyID = *jwk.KeyID
+	}
+	return &jose.JSONWebKey{
+		Key: &ecdsa.PublicKey{
+			Curve: curve,
+			X:     new(big.Int).SetBytes(x),
+			Y:     new(big.Int).SetBytes(y),
+		},
+		KeyID: keyID,
+	}, nil
 }
 
 // GetPublicKeyScopes implements rfc7523.RFC7523KeyStorage.
@@ -357,7 +419,8 @@ func (s *store) CreateAuthorizeCodeSession(
 				signature,
 				requester,
 				requester.GetSession().GetExpiresAt(fosite.AuthorizeCode),
-			)).Error
+			),
+		).Error
 }
 
 // GetAuthorizeCodeSession implements oauth2.CoreStorage.

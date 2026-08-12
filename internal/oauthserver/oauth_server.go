@@ -31,7 +31,7 @@ import (
 
 const (
 	// this is the cookie name.
-	// TODO: hardcoding this means that only one oauth flow can be in progress at a time
+	// TODO: hardcoding this means that only one oauth flow per browser can be in progress at a time
 	sessionName = "auth-session"
 
 	disambiguationPath = "/ui/login/disambiguate"
@@ -406,7 +406,7 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.GetGrantTypes().ExactOne("refresh_token") {
-		o.metrics.refreshTokenRequestCtr.Add(context.Background(), 1)
+		o.metrics.refreshTokenRequestCtr.Add(ctx, 1)
 	}
 	resp, err := o.provider.NewAccessResponse(ctx, req)
 	if err != nil {
@@ -447,11 +447,21 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodGet {
 		c, _ := requester.GetClient().(*client)
+		var clientName, clientURI, logoURI string
+		if c.ClientName != nil {
+			clientName = *c.ClientName
+		}
+		if c.ClientURI != nil {
+			clientURI = *c.ClientURI
+		}
+		if c.LogoURI != nil {
+			logoURI = *c.LogoURI
+		}
 		httpx.WriteJSON(ctx, w, map[string]any{
 			"scopes":     requester.GetRequestedScopes(),
-			"clientName": c.ClientName,
-			"clientUri":  c.ClientUri,
-			"logoUri":    c.LogoUri,
+			"clientName": clientName,
+			"clientUri":  clientURI,
+			"logoUri":    logoURI,
 		})
 		return
 	}
@@ -642,12 +652,22 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 		}
 
 		c := fositeClient.(*client)
+		var clientName, clientURI, logoURI string
+		if c.ClientName != nil {
+			clientName = *c.ClientName
+		}
+		if c.ClientURI != nil {
+			clientURI = *c.ClientURI
+		}
+		if c.LogoURI != nil {
+			logoURI = *c.LogoURI
+		}
 		output.Apps[i] = habitat.NetworkHabitatListConnectedAppsApp{
 			ClientID:  row.ClientID,
-			ClientUri: c.ClientUri,
+			ClientUri: clientURI,
 			LastUsed:  row.UpdatedAt.Format(time.RFC3339Nano),
-			Name:      c.ClientName,
-			LogoUri:   c.LogoUri,
+			Name:      clientName,
+			LogoUri:   logoURI,
 		}
 	}
 	httpx.WriteJSON(ctx, w, output)

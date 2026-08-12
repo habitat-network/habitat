@@ -15,6 +15,9 @@ catalogs:
     '@tanstack/devtools-vite':
       specifier: ^0.8.1
       version: 0.8.3
+    '@tanstack/react-devtools':
+      specifier: ^0.10.8
+      version: 0.10.10
     '@tanstack/react-query':
       specifier: ^5.101.4
       version: 5.101.4
@@ -328,7 +331,7 @@ importers:
         version: 12.5.1
       '@posthog/react':
         specifier: ^1.10.3
-        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.415.1)(react@19.2.8)
+        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.415.5)(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.10(@neodrag/core@3.0.0-next.11)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -385,7 +388,7 @@ importers:
         version: 14.0.5
       posthog-js:
         specifier: ^1.406.2
-        version: 1.415.1
+        version: 1.415.5
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -495,7 +498,7 @@ importers:
         version: 0.5.9
       '@posthog/react':
         specifier: ^1.10.3
-        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.415.1)(react@19.2.8)
+        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.415.5)(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.10(@neodrag/core@3.0.0-next.11)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -534,7 +537,7 @@ importers:
         version: 1.27.0(react@19.2.8)
       posthog-js:
         specifier: ^1.406.2
-        version: 1.415.1
+        version: 1.415.5
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -713,7 +716,7 @@ importers:
         version: 1.27.0(react@19.2.8)
       openid-client:
         specifier: ^6.8.4
-        version: 6.8.4
+        version: 6.8.5
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -3228,8 +3231,8 @@ packages:
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
-  '@posthog/browser-common@0.4.0':
-    resolution: {integrity: sha512-W9DCGVks15docUMPvJ2nd8NS16Gn74bsGWuaeg31beEKFSjdW8wvnQ1ETY6WSql5pYxZb3GdJmEUZVVstKSrBQ==}
+  '@posthog/browser-common@0.5.0':
+    resolution: {integrity: sha512-8DaxVZS1bQPbA514RePurLNbYjei3P4jhnC206DwVv5XThmZM3QdlsXenI2ujE3pLbgQ79hYn9o1Kda8I3WK/Q==}
 
   '@posthog/core@1.47.0':
     resolution: {integrity: sha512-LW62V+9yx7G7mLd+EYpwW0PiaPZI8XRJ1tLuhw+9fXHpugLp8XQD5JuCQ2kIXvoUfyx1DpKfGQY3dUnzMOIn7Q==}
@@ -3244,8 +3247,8 @@ packages:
       '@types/react':
         optional: true
 
-  '@posthog/types@1.402.2':
-    resolution: {integrity: sha512-ZZTiS4dLwF4/D0YTzS3gGSLFnhuNOY5yu4d9VGS9trGe5GW6FjIXo20p18K5BPW2RZSYSld8sdnSAY3AUXleUQ==}
+  '@posthog/types@1.402.3':
+    resolution: {integrity: sha512-nnqKIGUqggeNbCZg6of/hYN+4shYZUoPFkILIIpYq0p9HDX8PgOrnrtBAUH8kr1MOmDh2nm+fY5Ceks7A5y6BQ==}
 
   '@react-native/assets-registry@0.86.0':
     resolution: {integrity: sha512-nIaXbm2jX1OTYp0qbviJ3O6KZivoE8z3BnhUQ2LsqfZSWRoOK/n1qsiAr6oALiNKWnXY3j2KPwtYORnZzp8xew==}
@@ -7778,8 +7781,8 @@ packages:
   oas-validator@5.0.8:
     resolution: {integrity: sha512-cu20/HE5N5HKqVygs3dt94eYJfBi0TsZvPVXDhbXQHiEityDN+RROTleefoKRKKJ9dFAF2JBkDHgvWj0sjKGmw==}
 
-  oauth4webapi@3.8.6:
-    resolution: {integrity: sha512-iwemM91xz8nryHti2yTmg5fhyEMVOkOXwHNqbvcATjyajb5oQxCQzrNOA6uElRHuMhQQTKUyFKV9y/CNyg25BQ==}
+  oauth4webapi@3.8.7:
+    resolution: {integrity: sha512-4RxcKxXjuItDFZ20RRPf4YTw3kpeXJyCgJFxVzJ068A7PNJ18st2Dg90tlC1LkSDS0GecroagCLHYEIVUhCAkw==}
 
   ob1@0.84.4:
     resolution: {integrity: sha512-eJXMpz4aQHXF/YBB9ddqZDIS+ooO91hObo9FoW/xBkr54/zCwYYCDqT/O54vNo8kOkWs5Ou/y28NgdrV0edQNA==}
@@ -7863,8 +7866,8 @@ packages:
     resolution: {integrity: sha512-ur5UIdyw5Y7yEj9wLzhqXiy6GZ3Mwx0yGI+5sMn2r0N0v3cKJvUmFH5yPP+WXh9e0xfyzyJX95D8l088DNFj7A==}
     hasBin: true
 
-  openid-client@6.8.4:
-    resolution: {integrity: sha512-QSw0BA08piujetEwfZsHoTrDpMEha7GDZDicQqVwX4u0ChCjefvjDB++TZ8BTg76UpwhzIQgdvvfgfl3HpCSAw==}
+  openid-client@6.8.5:
+    resolution: {integrity: sha512-jNGC/5wnTYwCcEUe2ss0IRUmVRQcgxM0A1nLb3eX/9llqNbMWOQd2xd+qDAgfVCpA5Qh96Y1cdnkfbva6+bSdA==}
 
   ora@8.2.0:
     resolution: {integrity: sha512-weP+BZ8MVNnlCm8c0Qdc1WSWq4Qn7I+9CJGm7Qali6g44e/PUzbjNqJX5NJ9ljlNMosfJvg1fKEGILklK9cwnw==}
@@ -8498,8 +8501,8 @@ packages:
     resolution: {integrity: sha512-v4sDNP3fdNiWMfabO7OwOQdOX8TiQSztKyT1Wj0w+j7LDallJThJRBBBmzVGyYj0crMh7jlV4zepPkiNu9UwDQ==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.415.1:
-    resolution: {integrity: sha512-42kmHsgzxAZ3fM6W/NcbBun6r39Zoc5v0l0RJRZ6O+2BdVGNCQXiZTe/mDG9+7Bf0yz/dKY5BDZXB85Vq0JGFw==}
+  posthog-js@1.415.5:
+    resolution: {integrity: sha512-IUmPFtZjwDZYnRmttl+Xo5f/zDVdMdfWdZFxHqtAqq4wMwElr4dIpXmEUzh4nO8NtWT3zBmrL9+c7zZ3avzJZw==}
 
   postman-code-generators@2.1.1:
     resolution: {integrity: sha512-+egQK1Jf9a92QP23vRTKcDLOthIQmI7WI4czEsZq/wgguLMnVHJ26KlT8AVtpAdVw28hqUbHwicerYxRWCfjoA==}
@@ -10738,7 +10741,7 @@ snapshots:
       '@atproto/jwk': 0.7.4
       '@atproto/oauth-types': 0.7.5
       '@atproto/xrpc': 0.8.10
-      core-js: 3.49.0
+      core-js: 3.50.0
       multiformats: 13.4.2
       zod: 3.25.76
 
@@ -14136,23 +14139,23 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
-  '@posthog/browser-common@0.4.0':
+  '@posthog/browser-common@0.5.0':
     dependencies:
       '@posthog/core': 1.47.0
-      '@posthog/types': 1.402.2
+      '@posthog/types': 1.402.3
 
   '@posthog/core@1.47.0':
     dependencies:
-      '@posthog/types': 1.402.2
+      '@posthog/types': 1.402.3
 
-  '@posthog/react@1.10.3(@types/react@19.2.17)(posthog-js@1.415.1)(react@19.2.8)':
+  '@posthog/react@1.10.3(@types/react@19.2.17)(posthog-js@1.415.5)(react@19.2.8)':
     dependencies:
-      posthog-js: 1.415.1
+      posthog-js: 1.415.5
       react: 19.2.8
     optionalDependencies:
       '@types/react': 19.2.17
 
-  '@posthog/types@1.402.2': {}
+  '@posthog/types@1.402.3': {}
 
   '@react-native/assets-registry@0.86.0': {}
 
@@ -19370,7 +19373,7 @@ snapshots:
       should: 13.2.3
       yaml: 1.10.3
 
-  oauth4webapi@3.8.6: {}
+  oauth4webapi@3.8.7: {}
 
   ob1@0.84.4:
     dependencies:
@@ -19473,10 +19476,10 @@ snapshots:
 
   opener@1.5.2: {}
 
-  openid-client@6.8.4:
+  openid-client@6.8.5:
     dependencies:
       jose: 6.2.8
-      oauth4webapi: 3.8.6
+      oauth4webapi: 3.8.7
 
   ora@8.2.0:
     dependencies:
@@ -20181,11 +20184,11 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  posthog-js@1.415.1:
+  posthog-js@1.415.5:
     dependencies:
-      '@posthog/browser-common': 0.4.0
+      '@posthog/browser-common': 0.5.0
       '@posthog/core': 1.47.0
-      '@posthog/types': 1.402.2
+      '@posthog/types': 1.402.3
       core-js: 3.50.0
       dompurify: 3.4.13
       fflate: 0.4.9

@@ -6,6 +6,7 @@ require (
 	github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/go-querystring v1.1.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.4.1
 	github.com/gorilla/sessions v1.4.0
@@ -108,7 +109,6 @@ require (
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang/mock v1.7.0-rc.1 // indirect
 	github.com/google/cel-go v0.28.1 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/wire v0.7.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.19 // indirect
