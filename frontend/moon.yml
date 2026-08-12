@@ -29,7 +29,7 @@ tasks:
       persistent: true
       runInCI: false
   gh-pages:
-    script: 'mkdir -p $projectRoot/dist/api && cp -r $workspaceRoot/api-docs/build/. $projectRoot/dist/api'
+    script: "mkdir -p $projectRoot/dist/api && cp -r $workspaceRoot/api-docs/build/. $projectRoot/dist/api"
     deps:
       - target: ~:build
       - target: docs:build
