@@ -53,6 +53,7 @@ import (
 	"github.com/habitat-network/habitat/internal/relationship"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/server"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/webui"
@@ -334,7 +335,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, hive)
 
-	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore, notifier)
+	spacesStore, err := spaces.NewStore(
+		db.WithContext(startupCtx), fgaStore, notifier, spacecommit.NewAuthority(hostKey, hive),
+	)
 	if err != nil {
 		return fmt.Errorf("setup spaces store: %w", err)
 	}

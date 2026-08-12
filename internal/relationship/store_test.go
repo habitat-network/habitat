@@ -464,7 +464,9 @@ func TestWriteTuple_RollsBackRecordOnFGAFailure(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = mem.Close() })
 	fga := &flakyFGA{Store: mem}
-	sp, err := spaces.NewStore(db, fga, &notify_testutil.TestNotifier{})
+	// No commit-signing dependents: this test never calls a method that signs
+	// a repo-head commit.
+	sp, err := spaces.NewStore(db, fga, &notify_testutil.TestNotifier{}, nil)
 	require.NoError(t, err)
 	rel := NewStore(db, sp, fga)
 

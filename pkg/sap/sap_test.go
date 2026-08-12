@@ -30,6 +30,7 @@ import (
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
@@ -262,7 +263,10 @@ func setupPear(t *testing.T) *pearHost {
 	require.NoError(t, err)
 	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, orgHive)
 
-	spacesStore, err := spaces.NewStore(db, fgaStore, notifier)
+	// Managed authors sign with their own hive keys; there is no host key here.
+	spacesStore, err := spaces.NewStore(
+		db, fgaStore, notifier, spacecommit.NewAuthority(nil, orgHive),
+	)
 	require.NoError(t, err)
 
 	everyone := org.NewEveryoneOrg(strings.TrimPrefix(server.URL, "https://"))

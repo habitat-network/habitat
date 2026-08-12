@@ -1,7 +1,6 @@
 package spaces
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,28 +27,21 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-// errEmptyRepo signals that a repo holds no records, so there is nothing to
-// commit over. It is handled internally and never returned to clients.
-var errEmptyRepo = errors.New("repo has no records")
-
 type Server struct {
 	store     Store
 	fga       fgastore.Store
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
 	orgStore  org.Store
-	commit    *spacecommit.Authority
 	hive      hive.Hive
 	blobs     BlobStore
 	hostKey   atcrypto.PrivateKey
 }
 
-// NewServer constructs the spaces server. host and member are the commit
-// signers: member signs commits for habitat-managed repo owners with their own
-// key (proposal spec), and host signs for owners on external PDSes with
-// Habitat's single host key. Either may be nil; when neither can sign an
-// author, listRepoOps omits the signed commit. blobs backs the uploadBlob and
-// getBlob endpoints.
+// NewServer constructs the spaces server. hostPrivateKey signs delegation
+// tokens and space credentials for authors hive does not manage (the store
+// holds its own commit-signing authority for repo-head commits). blobs backs
+// the uploadBlob and getBlob endpoints.
 func NewServer(
 	store Store,
 	fga fgastore.Store,
@@ -64,7 +56,6 @@ func NewServer(
 		fga:       fga,
 		decoder:   schema.NewDecoder(),
 		orgStore:  orgStore,
-		commit:    spacecommit.NewAuthority(hostPrivateKey, hive),
 		hive:      hive,
 		blobs:     blobs,
 		hostKey:   hostPrivateKey,
@@ -716,11 +707,11 @@ func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// Read the repo's head and its record blocks as of the same point (see
-	// RepoSnapshot), so the commit signed below always agrees with the blocks
+	// Read the repo's signed head commit and its record blocks as of the same
+	// point (see RepoSnapshot), so the commit always agrees with the blocks
 	// the CAR actually carries. An empty repo has no state to recover, so it
 	// reports as not found.
-	rev, hash, blocks, found, err := s.store.RepoSnapshot(ctx, spaceURI, repoDID)
+	commit, blocks, found, err := s.store.RepoSnapshot(ctx, spaceURI, repoDID)
 	if errors.Is(err, ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
@@ -729,17 +720,11 @@ func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !found {
-		httpx.WriteRepoNotFound(ctx, w, errEmptyRepo)
+		httpx.WriteRepoNotFound(ctx, w, ErrRepoNotFound)
 		return
 	}
 
 	// The signed commit is the CAR's first root.
-	commit, err := s.commit.Build(ctx, spaceURI, repoDID, rev, hash)
-	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("sign repo head: %w", err))
-		return
-	}
-
 	carBytes, err := SerializeRepoCAR(commit, blocks)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("serialize car: %w", err))
@@ -784,7 +769,7 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		limit = 100
 	}
 
-	records, err := s.store.ListRepoOps(ctx, spaceURI, repoDID, params.Since, limit)
+	records, commit, hasCommit, err := s.store.ListRepoOps(ctx, spaceURI, repoDID, params.Since, limit)
 	if errors.Is(err, ErrRevTooFar) {
 		httpx.WriteError(ctx, w, "RevNotFound",
 			"since revision is ahead of the repo head", http.StatusBadRequest)
@@ -813,77 +798,14 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	if len(records) > 0 {
 		output.Cursor = records[len(records)-1].Rev
 	}
-
-	// When this page reaches the head of the oplog (fewer ops than the limit) and
-	// a signer is available for the repo owner, include the current signed commit
-	// so a syncer can authenticate the state it has folded up to this point.
-	if len(records) < limit {
-		commit, err := s.buildRepoCommit(ctx, spaceURI, repoDID)
-		switch {
-		case err == nil:
-			// The ops and the head commit come from two separate reads, so a
-			// write landing between them produces a commit describing state
-			// these ops do not cover. A syncer folds the ops and compares its
-			// hash against the commit, so that mismatch reads as divergence
-			// and drops an otherwise healthy repo into full recovery. The
-			// commit's rev names the state it covers: include it only when
-			// that is exactly where these ops leave the syncer, and otherwise
-			// omit it so the syncer takes another page and asks again.
-			at := params.Since
-			if len(records) > 0 {
-				at = records[len(records)-1].Rev
-			}
-			if commit.Rev == at {
-				output.Commit = commit
-			}
-		case errors.Is(err, errEmptyRepo):
-			// Nothing has been written to the repo, so there is no head to
-			// describe and nothing for a syncer to verify against.
-		default:
-			httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))
-			return
-		}
+	// hasCommit is only ever true when the page reached the head of the
+	// oplog: the store reads the head and these ops inside the same locked
+	// transaction, so a syncer folding the ops and comparing its hash against
+	// this commit always sees the exact same state on both sides.
+	if hasCommit {
+		output.Commit = shapeSignedCommit(commit)
 	}
 	httpx.WriteJSON(r.Context(), w, output)
-}
-
-// signRepoHead computes and signs the repo's current head commit over its cached
-// LtHash. It returns errEmptyRepo when the repo holds no records
-func (s *Server) signRepoHead(
-	ctx context.Context,
-	spaceURI habitat_syntax.SpaceURI,
-	repo syntax.DID,
-) (spacecommit.SignedCommit, error) {
-	rev, hash, found, err := s.store.RepoHead(ctx, spaceURI, repo)
-	if err != nil {
-		return spacecommit.SignedCommit{}, fmt.Errorf("repo head: %w", err)
-	}
-	if !found {
-		return spacecommit.SignedCommit{}, errEmptyRepo
-	}
-	return s.commit.Build(ctx, spaceURI, repo, rev, hash)
-}
-
-// buildRepoCommit signs the repo's current head and shapes it as the lexicon
-// signedCommit for JSON responses. It surfaces errEmptyRepo
-// from signRepoHead so callers can omit the commit.
-func (s *Server) buildRepoCommit(
-	ctx context.Context,
-	spaceURI habitat_syntax.SpaceURI,
-	repo syntax.DID,
-) (habitat.NetworkHabitatSpaceDefsSignedCommit, error) {
-	commit, err := s.signRepoHead(ctx, spaceURI, repo)
-	if err != nil {
-		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, err
-	}
-	return habitat.NetworkHabitatSpaceDefsSignedCommit{
-		Ver:  int64(commit.Ver),
-		Hash: commit.Hash,
-		Ikm:  commit.Ikm,
-		Mac:  commit.Mac,
-		Sig:  commit.Sig,
-		Rev:  commit.Rev,
-	}, nil
 }
 
 // GetLatestCommit returns the current signed commit over a repo's head state
@@ -917,18 +839,32 @@ func (s *Server) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	commit, err := s.buildRepoCommit(ctx, spaceURI, repoDID)
-	switch {
-	case err == nil:
-	case errors.Is(err, errEmptyRepo):
-		httpx.WriteRepoNotFound(ctx, w, err)
+	commit, found, err := s.store.RepoHeadCommit(ctx, spaceURI, repoDID)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("repo head commit: %w", err))
 		return
-	default:
-		httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))
+	}
+	if !found {
+		httpx.WriteRepoNotFound(ctx, w, ErrRepoNotFound)
 		return
 	}
 
-	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetLatestCommitOutput{Commit: commit})
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetLatestCommitOutput{
+		Commit: shapeSignedCommit(commit),
+	})
+}
+
+// shapeSignedCommit shapes a domain signed commit as the lexicon signedCommit
+// for JSON responses.
+func shapeSignedCommit(c spacecommit.SignedCommit) habitat.NetworkHabitatSpaceDefsSignedCommit {
+	return habitat.NetworkHabitatSpaceDefsSignedCommit{
+		Ver:  int64(c.Ver),
+		Hash: c.Hash,
+		Ikm:  c.Ikm,
+		Mac:  c.Mac,
+		Sig:  c.Sig,
+		Rev:  c.Rev,
+	}
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
