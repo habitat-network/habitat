@@ -12,13 +12,11 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
-	"github.com/habitat-network/habitat/pkg/sap/jwtbearer"
 	"github.com/habitat-network/habitat/pkg/sap/session"
 )
 
@@ -36,11 +34,14 @@ var hopByHopHeaders = []string{
 }
 
 type server struct {
-	sap         *sap.Sap
-	oauthClient *oauth.ClientApp
-	// jwt builds sap's JWT-bearer confidential-client assertions and serves
-	// its public key for the client-metadata JWKS.
-	jwt *jwtbearer.Builder
+	sap *sap.Sap
+	// oauthClient is sap's atproto OAuth client: the browser-redirect flow
+	// (StartAuthFlow/ProcessCallback/ResumeSession, via the embedded
+	// *oauth.ClientApp) and the RFC 7523 JWT-bearer grant (SendJWTTokenRequest)
+	// both go through it, sharing one confidential-client key and session
+	// store — a JWT-bearer-minted session is resumable exactly like one from
+	// the browser flow.
+	oauthClient *oauthclient.Client
 	// domain is sap's publicly-accessible domain, used to build its
 	// client-metadata document.
 	domain string
@@ -51,15 +52,13 @@ type server struct {
 
 func NewSapServer(
 	sapInstance *sap.Sap,
-	oauthClient *oauth.ClientApp,
-	jwt *jwtbearer.Builder,
+	oauthClient *oauthclient.Client,
 	domain string,
 	serviceAuth *auth.ServiceAuthValidator,
 ) *server {
 	return &server{
 		sap:         sapInstance,
 		oauthClient: oauthClient,
-		jwt:         jwt,
 		domain:      domain,
 		serviceAuth: serviceAuth,
 	}
@@ -239,26 +238,32 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 // handleClientMetadata serves sap's atproto confidential-client metadata
 // document, used by hosts to fetch sap's JWKS when validating its JWT-bearer
-// assertions. See https://atproto.com/specs/oauth.
+// assertions (and any other client-assertion-signed request). See
+// https://atproto.com/specs/oauth.
 func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
 	clientID := "https://" + s.domain + "/client-metadata.json"
-	httpx.WriteJSON(r.Context(), w, &pdsclient.ClientMetadata{
-		ClientId:        clientID,
-		ClientName:      "Habitat Sap",
-		ClientUri:       "https://" + s.domain,
-		ApplicationType: "web",
+	clientURI := "https://" + s.domain
+	clientName := "Habitat Sap"
+	applicationType := "web"
+	authSigningAlg := "ES256"
+	jwks := s.oauthClient.Config.PublicJWKS()
+	httpx.WriteJSON(r.Context(), w, &oauth.ClientMetadata{
+		ClientID:        clientID,
+		ClientName:      &clientName,
+		ClientURI:       &clientURI,
+		ApplicationType: &applicationType,
 		GrantTypes: []string{
 			"authorization_code",
 			"refresh_token",
 			"urn:ietf:params:oauth:grant-type:jwt-bearer",
 		},
-		Scope:                   "atproto",
-		ResponseTypes:           []string{"code"},
-		RedirectUris:            []string{"https://" + s.domain + "/oauth-callback"},
-		TokenEndpointAuthMethod: "private_key_jwt",
-		TokenEndpointAuthSigner: "ES256",
-		DpopBoundAccessTokens:   true,
-		Jwks:                    &jose.JSONWebKeySet{Keys: []jose.JSONWebKey{s.jwt.PublicJWK()}},
+		Scope:                       "atproto",
+		ResponseTypes:               []string{"code"},
+		RedirectURIs:                []string{"https://" + s.domain + "/oauth-callback"},
+		TokenEndpointAuthMethod:     "private_key_jwt",
+		TokenEndpointAuthSigningAlg: &authSigningAlg,
+		DPoPBoundAccessTokens:       true,
+		JWKS:                        &jwks,
 	})
 }
 

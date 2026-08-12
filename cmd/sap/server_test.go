@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,14 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
-	"github.com/habitat-network/habitat/pkg/sap/jwtbearer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,12 +26,24 @@ import (
 // panicking the test binary.
 type fakeDirectory struct{}
 
-func (fakeDirectory) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
+func (fakeDirectory) LookupDID(context.Context, syntax.DID) (*identity.Identity, error) {
 	return nil, errors.New("fakeDirectory: not implemented")
 }
 
-// newTestServer wires a minimal sap + jwtbearer builder + server, same shape
-// as cmd/sap/main.go, for handler-level tests that don't need a live host.
+func (fakeDirectory) LookupHandle(context.Context, syntax.Handle) (*identity.Identity, error) {
+	return nil, errors.New("fakeDirectory: not implemented")
+}
+
+func (fakeDirectory) Lookup(context.Context, syntax.AtIdentifier) (*identity.Identity, error) {
+	return nil, errors.New("fakeDirectory: not implemented")
+}
+
+func (fakeDirectory) Purge(context.Context, syntax.AtIdentifier) error { return nil }
+
+// newTestServer wires a minimal sap + oauth/jwt-bearer client + server, same
+// shape as cmd/sap/main.go, for handler-level tests that don't need a live
+// host. The client's directory is faked so a background crawl triggered by
+// AddSession fails cleanly instead of reaching the real network.
 func newTestServer(t *testing.T) *server {
 	t.Helper()
 
@@ -48,16 +56,17 @@ func newTestServer(t *testing.T) *server {
 		"https://sap.example/oauth-callback",
 		[]string{},
 	)
+	key, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetClientSecret(key, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
+	oauthApp.Dir = fakeDirectory{}
+	jwtClient := oauthclient.NewJWTBearerClient(oauthApp)
 
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	jwtBuilder := jwtbearer.New("https://sap.example/client-metadata.json", key, fakeDirectory{})
-
-	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp, JWTBearer: jwtBuilder})
+	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp, JWTBearer: jwtClient})
 	require.NoError(t, err)
 
-	return NewSapServer(s, oauthApp, jwtBuilder, "sap.example", nil)
+	return NewSapServer(s, jwtClient, "sap.example", nil)
 }
 
 func TestHandleClientMetadataServesConfidentialClientDocument(t *testing.T) {
@@ -69,17 +78,17 @@ func TestHandleClientMetadataServesConfidentialClientDocument(t *testing.T) {
 	srv.handleClientMetadata(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got pdsclient.ClientMetadata
+	var got oauth.ClientMetadata
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 
-	require.Equal(t, "https://sap.example/client-metadata.json", got.ClientId)
+	require.Equal(t, "https://sap.example/client-metadata.json", got.ClientID)
 	require.Equal(t, "private_key_jwt", got.TokenEndpointAuthMethod)
-	require.Equal(t, "ES256", got.TokenEndpointAuthSigner)
-	require.True(t, got.DpopBoundAccessTokens)
+	require.Equal(t, "ES256", *got.TokenEndpointAuthSigningAlg)
+	require.True(t, got.DPoPBoundAccessTokens)
 	require.Equal(t, "atproto", got.Scope)
 	require.Contains(t, got.GrantTypes, "urn:ietf:params:oauth:grant-type:jwt-bearer")
-	require.NotNil(t, got.Jwks)
-	require.Len(t, got.Jwks.Keys, 1)
+	require.NotNil(t, got.JWKS)
+	require.Len(t, got.JWKS.Keys, 1)
 }
 
 func TestHandleAddJWTSessionAddsSession(t *testing.T) {

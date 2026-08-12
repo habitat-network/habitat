@@ -25,10 +25,13 @@ AddSession(did) ─────▶ session.Store ─────▶ crawl.Crawle
 ```
 
 - **`session`** owns every tracked session's auth and issues two kinds of HTTP
-  client: `ClientForSession` authenticates as the member itself (OAuth or, via
-  the JWT-bearer grant, an equivalent act-as-subject token) against *that
-  member's own* host, and backs member-scoped calls like `listSpaces`.
-  `ClientForSpace` backs every call that spans a space's members —
+  client: `ClientForSession` authenticates as the member itself against *that
+  member's own* host, and backs member-scoped calls like `listSpaces`. A
+  session added via the RFC 7523 JWT-bearer grant (`pkg/oauthclient.Client`,
+  no browser flow) mints its underlying OAuth session lazily on first use —
+  from then on it's resumed exactly like one from the browser flow, through
+  the same `oauth.ClientApp` session store. `ClientForSpace` backs every call
+  that spans a space's members —
   `listRepos`, `listRepoOps`, `getRepo`, `registerNotify` — per the
   permissioned-data proposal, which requires space-level authorization for
   those rather than a single member's access token: it hands out a
@@ -59,11 +62,9 @@ AddSession(did) ─────▶ session.Store ─────▶ crawl.Crawle
 - **`outbox`** is the durable handoff to sap's consumer: the syncer emits
   synced records here (in the same transaction as its state advance), and the
   consumer polls, processes, and acks them. Unacked messages redeliver.
-- **`credential`** and **`jwtbearer`** back `session`: `credential` mints and
-  caches per-space host credentials so reads are authorized as the space
-  rather than an individual member; `jwtbearer` lets sap authenticate to a
-  host directly (RFC 7523 JWT-bearer grant) for sessions added without an
-  OAuth flow.
+- **`credential`** backs `session`'s `ClientForSpace`: it mints and caches
+  per-space host credentials so reads are authorized as the space rather than
+  an individual member.
 
 ## Quick start
 

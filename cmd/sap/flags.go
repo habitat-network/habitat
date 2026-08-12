@@ -13,7 +13,6 @@ var (
 	fDomain        = "domain"
 	fLogLevel      = "log-level"
 	fSecret        = "secret"
-	fJwtSigningKey = "jwt-signing-key"
 	fCrawlInterval = "crawl-interval"
 )
 
@@ -50,15 +49,11 @@ func getFlags() []cli.Flag {
 			Sources: cli.EnvVars("SAP_LOG_LEVEL"),
 		},
 		&cli.StringFlag{
-			Name:    fSecret,
-			Usage:   "Secret used in OAuth flow",
+			Name: fSecret,
+			Usage: "Confidential-client secret, used both for the OAuth flow and to sign " +
+				"JWT-bearer grant assertions",
 			Value:   "secret",
 			Sources: cli.EnvVars("SAP_SECRET"),
-		},
-		&cli.StringFlag{
-			Name:    fJwtSigningKey,
-			Usage:   "Base64-encoded raw P-256 (ES256) private key for the JWT-bearer confidential client. Generated ephemerally if empty.",
-			Sources: cli.EnvVars("SAP_JWT_SIGNING_KEY"),
 		},
 		&cli.DurationFlag{
 			Name: fCrawlInterval,

@@ -60,7 +60,7 @@ type Config struct {
 
 	// JWTBearer, when set, lets sessions authenticate to their host via the
 	// JWT-bearer grant instead of OAuth. Chosen per session (see AddSession).
-	JWTBearer session.JWTBearerClients
+	JWTBearer session.JWTBearer
 
 	Meter  metric.Meter
 	Tracer trace.Tracer

@@ -56,17 +56,20 @@ func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&session{}, &spaceAccess{})
 }
 
-// JWTBearerClients builds an HTTP client that authenticates as a DID via the
-// JWT-bearer grant. Satisfied by jwtbearer.Builder; nil when unconfigured.
-type JWTBearerClients interface {
-	ClientForDID(ctx context.Context, did syntax.DID) (*http.Client, error)
+// JWTBearer mints a session for a DID via the RFC 7523 JWT-bearer grant,
+// persisting it the same way a completed browser OAuth flow would — the
+// returned session is then resumable like any other, through the same
+// oauth.ClientApp store. Satisfied by *oauthclient.Client; nil when
+// unconfigured.
+type JWTBearer interface {
+	SendJWTTokenRequest(ctx context.Context, identifier string) (*oauth.ClientSessionData, error)
 }
 
 // Store persists sessions and space access, and builds authenticated clients.
 type Store struct {
 	db     *gorm.DB
 	getter *getter
-	jwt    JWTBearerClients // may be nil
+	jwt    JWTBearer // may be nil
 
 	// mgr mints and caches space credentials, one per space regardless of
 	// which session was used to obtain it — a space credential authorizes
@@ -79,7 +82,7 @@ type Store struct {
 func NewStore(
 	db *gorm.DB,
 	oauth *oauth.ClientApp,
-	jwt JWTBearerClients,
+	jwt JWTBearer,
 	dir credential.Directory,
 ) *Store {
 	s := &Store{db: db, getter: newGetter(oauth), jwt: jwt}
@@ -121,7 +124,7 @@ func (s *Store) ClientForSession(ctx context.Context, did syntax.DID) (*http.Cli
 		return nil, err
 	}
 	if sess.AuthMethod == AuthJWTBearer {
-		return s.jwtClientForDID(ctx, did)
+		return s.jwtBearerClient(ctx, sess)
 	}
 	resumed, err := s.getter.resume(ctx, sess.DID, sess.SessionID)
 	if err != nil {
@@ -139,13 +142,33 @@ func (s *Store) loadSession(ctx context.Context, did syntax.DID) (session, error
 	return sess, nil
 }
 
-// jwtClientForDID returns a client authenticated as did via the JWT-bearer
-// grant, or an error if sap has no builder configured.
-func (s *Store) jwtClientForDID(ctx context.Context, did syntax.DID) (*http.Client, error) {
-	if s.jwt == nil {
-		return nil, fmt.Errorf("jwt-bearer client not configured for %s", did)
+// jwtBearerClient returns a client authenticated as sess's DID via the
+// JWT-bearer grant. A session minted by an earlier call is resumed like any
+// OAuth session; only the first call (or one after the minted session stops
+// resuming, e.g. it expired) actually performs the grant exchange.
+func (s *Store) jwtBearerClient(ctx context.Context, sess session) (*http.Client, error) {
+	if sess.SessionID != "" {
+		if resumed, err := s.getter.resume(ctx, sess.DID, sess.SessionID); err == nil {
+			return resumed.authClient(), nil
+		}
 	}
-	return s.jwt.ClientForDID(ctx, did)
+	if s.jwt == nil {
+		return nil, fmt.Errorf("jwt-bearer client not configured for %s", sess.DID)
+	}
+	sessData, err := s.jwt.SendJWTTokenRequest(ctx, sess.DID.String())
+	if err != nil {
+		return nil, fmt.Errorf("mint jwt-bearer session for %s: %w", sess.DID, err)
+	}
+	if err := s.db.WithContext(ctx).Model(&session{}).
+		Where("did = ?", sess.DID).
+		Update("session_id", sessData.SessionID).Error; err != nil {
+		return nil, fmt.Errorf("save jwt-bearer session id: %w", err)
+	}
+	resumed, err := s.getter.resume(ctx, sess.DID, sessData.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	return resumed.authClient(), nil
 }
 
 // RecordSpaceAccess records that the session can access the space.

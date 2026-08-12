@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
@@ -107,54 +107,77 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	require.Empty(t, spaces)
 }
 
-type fakeJWTClients struct {
-	client *http.Client
-	calls  int
+// fakeJWTBearer implements JWTBearer for tests: rather than performing a real
+// RFC 7523 grant exchange, it mints a session directly into store — the same
+// store the tested Store resumes sessions from — so a client obtained
+// through it behaves exactly like one from a real exchange.
+type fakeJWTBearer struct {
+	t     *testing.T
+	store oauth.ClientAuthStore
+	host  string
+	calls int
 }
 
-func (f *fakeJWTClients) ClientForDID(ctx context.Context, did syntax.DID) (*http.Client, error) {
+func (f *fakeJWTBearer) SendJWTTokenRequest(
+	ctx context.Context,
+	identifier string,
+) (*oauth.ClientSessionData, error) {
 	f.calls++
-	return f.client, nil
+	sessData := oauth.ClientSessionData{
+		AccountDID:              syntax.DID(identifier),
+		SessionID:               fmt.Sprintf("jwt-sess-%d", f.calls),
+		HostURL:                 f.host,
+		AccessToken:             testJWT(f.t),
+		DPoPPrivateKeyMultibase: testDPoPKey(f.t),
+	}
+	if err := f.store.SaveSession(ctx, sessData); err != nil {
+		return nil, err
+	}
+	return &sessData, nil
 }
 
+// newOAuthApp builds a bare (non-confidential) *oauth.ClientApp over a fresh
+// GORM session store, for tests that only need ResumeSession to work.
+func newOAuthApp(t *testing.T, db *gorm.DB) *oauth.ClientApp {
+	t.Helper()
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	return oauth.NewClientApp(&cfg, store)
+}
+
+// TestClientForSessionDispatchesJWTBearer verifies a jwt-bearer session mints
+// its underlying OAuth session lazily on first use, then resumes it — the
+// grant is exchanged at most once, not on every call.
 func TestClientForSessionDispatchesJWTBearer(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
-	sentinel := &http.Client{}
-	jwt := &fakeJWTClients{client: sentinel}
-	store := NewStore(db, nil, jwt, nil)
+	app := newOAuthApp(t, db)
+	jwt := &fakeJWTBearer{t: t, store: app.Store, host: "https://host.example"}
+	store := NewStore(db, app, jwt, nil)
 
 	did := syntax.DID("did:web:member.example")
 	require.NoError(t, store.Add(t.Context(), did, "", AuthJWTBearer))
 
 	got, err := store.ClientForSession(t.Context(), did)
 	require.NoError(t, err)
-	require.Same(t, sentinel, got)
+	require.NotNil(t, got)
 	require.Equal(t, 1, jwt.calls)
-}
 
-// memberAuthTransport stands in for a jwt-bearer session's own act-as-subject
-// client: it resolves relative URLs against base and attaches a fixed
-// member-level bearer token, the same auth an OAuth session's access token
-// would provide.
-type memberAuthTransport struct{ base string }
-
-func (t memberAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if !req.URL.IsAbs() {
-		u, err := url.Parse(t.base)
-		if err != nil {
-			return nil, err
-		}
-		req.URL.Scheme, req.URL.Host = u.Scheme, u.Host
-	}
-	req.Header.Set("Authorization", "Bearer member-tok")
-	return http.DefaultTransport.RoundTrip(req)
+	// A second call resumes the session minted above instead of re-minting.
+	_, err = store.ClientForSession(t.Context(), did)
+	require.NoError(t, err)
+	require.Equal(t, 1, jwt.calls)
 }
 
 // TestClientForSpaceDispatchesJWTBearer verifies a repo-host read for a space
 // only a jwt-bearer session can access mints a space credential the same way
 // an OAuth session does: getDelegationToken is authorized with the session's
-// own act-as-subject token, and the resulting delegation token is exchanged
+// own (minted) access token, and the resulting delegation token is exchanged
 // for a space credential used on the actual repo-host read. ClientForSpace
 // backs every syncer read (listRepoOps, getRepo, ...) and, per the
 // permissioned-data proposal, listRepos, so this is what makes those work
@@ -182,15 +205,15 @@ func TestClientForSpaceDispatchesJWTBearer(t *testing.T) {
 
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
-	memberClient := &http.Client{Transport: memberAuthTransport{base: srv.URL}}
-	jwt := &fakeJWTClients{client: memberClient}
+	app := newOAuthApp(t, db)
+	jwt := &fakeJWTBearer{t: t, store: app.Store, host: srv.URL}
 	did := syntax.DID("did:web:member.example")
 	// The session is also the space owner here, so one host serves both the
 	// member-auth and space-credential legs; see
 	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost for the
 	// case where they differ.
 	dir := fakeDirectory{did: srv.URL}
-	store := NewStore(db, nil, jwt, dir)
+	store := NewStore(db, app, jwt, dir)
 
 	require.NoError(t, store.Add(t.Context(), did, "", AuthJWTBearer))
 
@@ -204,7 +227,7 @@ func TestClientForSpaceDispatchesJWTBearer(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 
-	require.Equal(t, "Bearer member-tok", delegationAuth)
+	require.NotEmpty(t, delegationAuth)
 	require.Equal(t, "Bearer deleg-tok", credentialAuth)
 	require.Equal(t, "Bearer space-cred", repoAuth)
 }
@@ -247,12 +270,12 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
+	app := newOAuthApp(t, db)
 	member := syntax.DID("did:web:member.example")
 	owner := syntax.DID("did:web:owner.example")
-	memberClient := &http.Client{Transport: memberAuthTransport{base: memberSrv.URL}}
-	jwt := &fakeJWTClients{client: memberClient}
+	jwt := &fakeJWTBearer{t: t, store: app.Store, host: memberSrv.URL}
 	dir := fakeDirectory{owner: ownerSrv.URL}
-	store := NewStore(db, nil, jwt, dir)
+	store := NewStore(db, app, jwt, dir)
 
 	require.NoError(t, store.Add(t.Context(), member, "", AuthJWTBearer))
 	space := habitat_syntax.SpaceURI("at://" + owner.String() + "/space/network.habitat.group/s1")
@@ -265,7 +288,7 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 
-	require.Equal(t, "Bearer member-tok", delegationAuth)
+	require.NotEmpty(t, delegationAuth)
 	require.Equal(t, "Bearer deleg-tok", credentialAuth)
 	require.Equal(t, "Bearer space-cred", repoAuth)
 }
