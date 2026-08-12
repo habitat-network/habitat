@@ -129,11 +129,11 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       docusaurus-plugin-openapi-docs:
-        specifier: 5.1.2
-        version: 5.1.2(6fd3dfd736b5719e97b66ae5ae87e295)
+        specifier: 5.1.3
+        version: 5.1.3(6fd3dfd736b5719e97b66ae5ae87e295)
       docusaurus-theme-openapi-docs:
         specifier: 5.1.2
-        version: 5.1.2(@docusaurus/theme-common@3.10.2(dec3d73690fafed8ae38bd098b805247))(@rspack/core@1.7.12)(@types/react@19.2.17)(docusaurus-plugin-openapi-docs@5.1.2(6fd3dfd736b5719e97b66ae5ae87e295))(docusaurus-plugin-sass@0.2.6(ca24299a8c095977725b85d6414028ec))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21))
+        version: 5.1.2(@docusaurus/theme-common@3.10.2(dec3d73690fafed8ae38bd098b805247))(@rspack/core@1.7.12)(@types/react@19.2.17)(docusaurus-plugin-openapi-docs@5.1.3(6fd3dfd736b5719e97b66ae5ae87e295))(docusaurus-plugin-sass@0.2.6(ca24299a8c095977725b85d6414028ec))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21))
       prism-react-renderer:
         specifier: ^2.4.1
         version: 2.4.1(react@19.2.8)
@@ -5647,8 +5647,8 @@ packages:
     resolution: {integrity: sha512-l4gcSouhcgIKRvyy99RNVOgxXiicE+2jZoNmaNmZ6JXiGajBOJAesk1OBlJuM5k2c+eudGdLxDqXuPCKIj6kpw==}
     engines: {node: '>=6'}
 
-  docusaurus-plugin-openapi-docs@5.1.2:
-    resolution: {integrity: sha512-xlgl/8+2iqSQWdhTJay0lfXqWduaGVTYrn+9i+uT3Uk5gkeDjfQOIVnHGnIHfKg0pUjIm008fvEQVAxk3TvgaQ==}
+  docusaurus-plugin-openapi-docs@5.1.3:
+    resolution: {integrity: sha512-HnpblSBdXoR39VNTIW9zWERUsMJxXOpvdQoBKyaTkUBPwCM48Z76+ndo2yO2vADq+EhWjJlfxL1DUzCrgNjThQ==}
     engines: {node: '>=14'}
     peerDependencies:
       '@docusaurus/plugin-content-docs': ^3.10.0
@@ -16680,7 +16680,7 @@ snapshots:
     dependencies:
       '@leichtgewicht/ip-codec': 2.0.5
 
-  docusaurus-plugin-openapi-docs@5.1.2(6fd3dfd736b5719e97b66ae5ae87e295):
+  docusaurus-plugin-openapi-docs@5.1.3(6fd3dfd736b5719e97b66ae5ae87e295):
     dependencies:
       '@apidevtools/json-schema-ref-parser': 15.5.0(@types/json-schema@7.0.15)
       '@docusaurus/plugin-content-docs': 3.10.2(@docusaurus/faster@3.10.2(@docusaurus/types@3.10.2(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2))(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(postcss@8.5.21))(@mdx-js/react@3.1.1(@types/react@19.2.17)(react@19.2.8))(@rspack/core@1.7.12)(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(debug@4.4.3(supports-color@10.2.2))(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(typescript@5.9.3)
@@ -16716,7 +16716,7 @@ snapshots:
       - sass-embedded
       - webpack
 
-  docusaurus-theme-openapi-docs@5.1.2(@docusaurus/theme-common@3.10.2(dec3d73690fafed8ae38bd098b805247))(@rspack/core@1.7.12)(@types/react@19.2.17)(docusaurus-plugin-openapi-docs@5.1.2(6fd3dfd736b5719e97b66ae5ae87e295))(docusaurus-plugin-sass@0.2.6(ca24299a8c095977725b85d6414028ec))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)):
+  docusaurus-theme-openapi-docs@5.1.2(@docusaurus/theme-common@3.10.2(dec3d73690fafed8ae38bd098b805247))(@rspack/core@1.7.12)(@types/react@19.2.17)(docusaurus-plugin-openapi-docs@5.1.3(6fd3dfd736b5719e97b66ae5ae87e295))(docusaurus-plugin-sass@0.2.6(ca24299a8c095977725b85d6414028ec))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)):
     dependencies:
       '@docusaurus/theme-common': 3.10.2(dec3d73690fafed8ae38bd098b805247)
       '@hookform/error-message': 2.0.1(react-dom@19.2.8(react@19.2.8))(react-hook-form@7.83.0(react@19.2.8))(react@19.2.8)
@@ -16726,7 +16726,7 @@ snapshots:
       clsx: 2.1.1
       copy-text-to-clipboard: 3.2.2
       crypto-js: 4.2.0
-      docusaurus-plugin-openapi-docs: 5.1.2(6fd3dfd736b5719e97b66ae5ae87e295)
+      docusaurus-plugin-openapi-docs: 5.1.3(6fd3dfd736b5719e97b66ae5ae87e295)
       docusaurus-plugin-sass: 0.2.6(ca24299a8c095977725b85d6414028ec)
       file-saver: 2.0.5
       lodash: 4.18.1
