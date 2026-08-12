@@ -29,5 +29,8 @@
     {
       "path": "./typescript/internal"
     }
-  ]
+  ],
+  "compilerOptions": {
+    "outDir": ".moon/cache/types"
+  }
 }

@@ -7,11 +7,16 @@
     "noEmitOnError": true,
     "noEmit": false,
     "emitDeclarationOnly": true,
-    "outDir": "./dist",
+    "outDir": "../../.moon/cache/types/typescript/api",
     "strict": false,
     "noImplicitAny": false
   },
-  "include": ["**/*"],
-  "exclude": ["node_modules", "dist"],
+  "include": [
+    "**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ],
   "references": []
 }

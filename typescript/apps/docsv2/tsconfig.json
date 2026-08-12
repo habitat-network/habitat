@@ -6,7 +6,8 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "outDir": "../../../.moon/cache/types/typescript/apps/docsv2"
   },
   "include": ["src/**/*", "../../globals.d.ts"],
   "references": [
