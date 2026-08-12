@@ -41,21 +41,28 @@ func (e *Engine) recoverRepo(
 			return nil
 		}
 		// Narrow recovery is an optimization over the full snapshot, so a
-		// failure here is not itself terminal: fall through and rebuild.
+		// failure here is not itself terminal: fall through and rebuild. It
+		// left the DB untouched (it runs in its own transaction), so index is
+		// still an accurate view of what sap holds for the CAR path to diff
+		// against.
 		slog.WarnContext(ctx, "narrow recovery failed, falling back to getRepo",
 			"space", space, "repo", repoDID, "err", err)
 	}
-	return e.recoverFromCAR(ctx, space, repoDID)
+	return e.recoverFromCAR(ctx, space, repoDID, index)
 }
 
 // recoverFromCAR rebuilds a repo from a full network.habitat.space.getRepo CAR
 // snapshot: it fetches the CAR, recomputes the repo's LtHash from the
 // recovered record set, verifies the CAR's signed commit, then emits the
-// records and settles the repo active in a single transaction.
+// records and settles the repo active in a single transaction. held is
+// whatever sap's index holds for the repo going in (empty if none): paths it
+// names that are absent from the recovered snapshot were deleted and get a
+// tombstone emitted, the same as recoverByDiff does for its narrow diff.
 func (e *Engine) recoverFromCAR(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 	repoDID syntax.DID,
+	held map[string]string,
 ) error {
 	client, err := e.clients.ClientForSpace(ctx, space)
 	if err != nil {
@@ -102,6 +109,17 @@ func (e *Engine) recoverFromCAR(
 	}
 	e.metrics.verified(ctx, "verified")
 
+	present := make(map[string]struct{}, len(recovered.Records))
+	for _, rec := range recovered.Records {
+		present[recordPath(rec.Collection, rec.Rkey)] = struct{}{}
+	}
+	var deleted []string
+	for path := range held {
+		if _, ok := present[path]; !ok {
+			deleted = append(deleted, path)
+		}
+	}
+
 	err = e.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		emitter := e.emitter.InTx(tx)
 		rows := make([]repoRecord, 0, len(recovered.Records))
@@ -121,6 +139,16 @@ func (e *Engine) recoverFromCAR(
 				Rkey:       rec.Rkey,
 				Cid:        rec.Cid.String(),
 			})
+		}
+		for _, path := range deleted {
+			collection, rkey, err := parseRecordPath(path)
+			if err != nil {
+				return fmt.Errorf("parse held path %q: %w", path, err)
+			}
+			uri := habitat_syntax.ConstructSpaceRecordURI(space, repoDID, collection, rkey)
+			if err := emitter.Emit(ctx, uri, []byte("null")); err != nil {
+				return err
+			}
 		}
 		if err := replaceRecordIndex(ctx, tx, space, repoDID, rows); err != nil {
 			return fmt.Errorf("replace record index: %w", err)
@@ -191,10 +219,11 @@ func (e *Engine) recoverByDiff(
 	}
 	e.metrics.verified(ctx, "verified")
 
-	// Fetch only the paths whose CID sap does not already hold. Paths that
-	// vanished need no fetch; dropping them from the index is enough, since
-	// the outbox carries record values rather than deletions.
+	// Fetch only the paths whose CID sap does not already hold. Paths held
+	// before but absent from this listing were deleted: they need a tombstone
+	// emitted, not a fetch, mirroring the incremental sync path in sync.go.
 	rows := make([]repoRecord, 0, len(paths))
+	present := make(map[string]struct{}, len(paths))
 	type pending struct {
 		collection syntax.NSID
 		rkey       syntax.RecordKey
@@ -203,12 +232,20 @@ func (e *Engine) recoverByDiff(
 	var changed []pending
 	for _, p := range paths {
 		collection, rkey := syntax.NSID(p.Collection), syntax.RecordKey(p.Rkey)
+		path := recordPath(collection, rkey)
+		present[path] = struct{}{}
 		rows = append(rows, repoRecord{
 			Space: space, DID: repoDID,
 			Collection: collection, Rkey: rkey, Cid: p.Cid,
 		})
-		if held[recordPath(collection, rkey)] != p.Cid {
+		if held[path] != p.Cid {
 			changed = append(changed, pending{collection: collection, rkey: rkey, cid: p.Cid})
+		}
+	}
+	var deleted []string
+	for path := range held {
+		if _, ok := present[path]; !ok {
+			deleted = append(deleted, path)
 		}
 	}
 
@@ -227,13 +264,23 @@ func (e *Engine) recoverByDiff(
 
 	slog.InfoContext(ctx, "narrow recovery",
 		"space", space, "repo", repoDID,
-		"paths", len(paths), "refetched", len(changed))
+		"paths", len(paths), "refetched", len(changed), "deleted", len(deleted))
 
 	err = e.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		emitter := e.emitter.InTx(tx)
 		for _, c := range changed {
 			uri := habitat_syntax.ConstructSpaceRecordURI(space, repoDID, c.collection, c.rkey)
 			if err := emitter.Emit(ctx, uri, values[recordPath(c.collection, c.rkey)]); err != nil {
+				return err
+			}
+		}
+		for _, path := range deleted {
+			collection, rkey, err := parseRecordPath(path)
+			if err != nil {
+				return fmt.Errorf("parse held path %q: %w", path, err)
+			}
+			uri := habitat_syntax.ConstructSpaceRecordURI(space, repoDID, collection, rkey)
+			if err := emitter.Emit(ctx, uri, []byte("null")); err != nil {
 				return err
 			}
 		}

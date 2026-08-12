@@ -1226,6 +1226,110 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 	}, index)
 }
 
+// TestEngineRecoverByDiffEmitsDeleteTombstone pins that narrow recovery
+// tombstones a record sap's index holds but the host's current listing no
+// longer does, rather than silently dropping it from the index. A record can
+// reach this path deleted rather than through the incremental sync path
+// (e.g. host notifications were lost and sap only reconciles via recovery),
+// so recovery must emit the same null tombstone sync.go does or the delete
+// never reaches consumers.
+func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	repoDID := syntax.DID("did:plc:alice")
+	coll := syntax.NSID("network.habitat.test")
+	rev := syntax.NewTIDClock(0).Next().String()
+
+	// The host now holds only k1; k2 was deleted since sap last saw it.
+	var lt spacecommit.LtHash
+	lt.Add(spacecommit.RecordElement(coll, "k1", "bafyaaa"))
+	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
+		Ver:  int64(spacecommit.Version),
+		Rev:  rev,
+		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit",
+		func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetLatestCommitOutput{
+				Commit: commit,
+			})
+		})
+	mux.HandleFunc("/xrpc/network.habitat.space.listRecords",
+		func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRecordsOutput{
+				Records: []habitat.NetworkHabitatSpaceListRecordsRecord{
+					{Collection: coll.String(), Rkey: "k1", Cid: "bafyaaa"},
+				},
+			})
+		})
+	mux.HandleFunc("/xrpc/network.habitat.space.getRecord",
+		func(w http.ResponseWriter, r *http.Request) {
+			t.Errorf("unchanged record must not be refetched: %s", r.URL.Query().Get("rkey"))
+		})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	e, emitter, db := newTestEngine(t, srv.URL)
+	require.NoError(t, e.Track(t.Context(), space, repoDID))
+	for rkey, c := range map[syntax.RecordKey]string{"k1": "bafyaaa", "k2": "bafybbb"} {
+		require.NoError(t, indexRecord(t.Context(), db, space, repoDID, coll, rkey, c))
+	}
+
+	require.NoError(t, e.recoverRepo(t.Context(), space, repoDID))
+
+	require.Len(t, emitter.emitted, 1, "only the deleted record is emitted")
+	require.Equal(t, []byte("null"),
+		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/k2"])
+
+	index, err := recordIndex(t.Context(), db, space, repoDID)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"network.habitat.test/k1": "bafyaaa"}, index)
+}
+
+// TestEngineRecoverFromCAREmitsDeleteTombstone pins that full-snapshot
+// recovery also tombstones a record sap's index holds but the recovered CAR
+// no longer does, not just recoverByDiff's narrow path. recoverRepo reaches
+// the CAR path here because the narrow-diff endpoints 404, the same way a
+// failed narrow recovery falls back to it in production.
+func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	repoDID := syntax.DID("did:plc:alice")
+	car := buildMinimalCAR(t) // holds exactly network.habitat.test/rec1
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/vnd.ipld.car")
+		_, _ = w.Write(car)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	e, emitter, db := newTestEngine(t, srv.URL)
+	require.NoError(t, e.Track(t.Context(), space, repoDID))
+	// sap's index holds rec1 (still present in the CAR) and rec2 (deleted
+	// since sap last synced).
+	require.NoError(t, indexRecord(t.Context(), db, space, repoDID,
+		"network.habitat.test", "rec1", "bafyaaa"))
+	require.NoError(t, indexRecord(t.Context(), db, space, repoDID,
+		"network.habitat.test", "rec2", "bafybbb"))
+
+	require.NoError(t, e.recoverRepo(t.Context(), space, repoDID))
+
+	require.Len(t, emitter.emitted, 2, "the recovered record and the deleted one are both emitted")
+	require.Equal(t, []byte("null"),
+		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/rec2"])
+
+	index, err := recordIndex(t.Context(), db, space, repoDID)
+	require.NoError(t, err)
+	_, stillHeld := index["network.habitat.test/rec2"]
+	require.False(t, stillHeld, "deleted record must be dropped from the index")
+}
+
 // TestEngineRecoverRepoUsesHabitatNsid pins that full recovery calls the
 // host's network.habitat.space.getRepo endpoint (com.atproto.space.getRepo
 // does not exist on the host). The repo holds no local index, so recoverRepo

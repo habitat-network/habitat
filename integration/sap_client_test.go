@@ -218,6 +218,20 @@ func (c *pearClient) putRecord(
 	return out.Uri, err
 }
 
+// deleteRecord deletes member's record at rkey within space.
+func (c *pearClient) deleteRecord(
+	ctx context.Context,
+	member, space, collection, rkey string,
+) error {
+	return c.xrpc(ctx, "network.habitat.space.deleteRecord", member,
+		habitat.NetworkHabitatSpaceDeleteRecordInput{
+			Space:      space,
+			Repo:       member,
+			Collection: collection,
+			Rkey:       rkey,
+		}, nil)
+}
+
 // randJTI generates a random JWT ID, so replay protection on the token
 // endpoint doesn't reject repeated assertions.
 func randJTI() string {

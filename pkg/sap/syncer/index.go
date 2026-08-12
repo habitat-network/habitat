@@ -2,6 +2,8 @@ package syncer
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
@@ -112,4 +114,14 @@ func replaceRecordIndex(
 // recordPath is the index key for a record within a repo.
 func recordPath(collection syntax.NSID, rkey syntax.RecordKey) string {
 	return collection.String() + "/" + rkey.String()
+}
+
+// parseRecordPath reverses recordPath. Splitting on the first "/" is safe:
+// neither an NSID nor a record key may contain one.
+func parseRecordPath(path string) (syntax.NSID, syntax.RecordKey, error) {
+	collection, rkey, ok := strings.Cut(path, "/")
+	if !ok {
+		return "", "", fmt.Errorf("malformed record path %q", path)
+	}
+	return syntax.NSID(collection), syntax.RecordKey(rkey), nil
 }

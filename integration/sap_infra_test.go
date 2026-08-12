@@ -406,6 +406,10 @@ func startPostgres(ctx context.Context, t *testing.T, netName string) (habitatUR
 			"POSTGRES_PASSWORD": "habitat",
 			"POSTGRES_DB":       "habitat",
 		},
+		// pear opens one connection per concurrent request (no pool cap is set
+		// on its side), and the workload deliberately drives a lot of
+		// concurrency, so the default 100 connections is not enough headroom.
+		Cmd: []string{"postgres", "-c", "max_connections=400"},
 		WaitingFor: wait.ForLog("database system is ready to accept connections").
 			WithOccurrence(2).
 			WithStartupTimeout(60 * time.Second),
