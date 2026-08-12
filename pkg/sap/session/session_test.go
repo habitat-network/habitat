@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -42,6 +44,21 @@ func testJWT(t *testing.T) string {
 	return tok
 }
 
+// fakeDirectory resolves each DID's habitat host from a fixed map, standing
+// in for identity.Directory / credential.Directory.
+type fakeDirectory map[syntax.DID]string
+
+func (f fakeDirectory) LookupDID(_ context.Context, did syntax.DID) (*identity.Identity, error) {
+	host, ok := f[did]
+	if !ok {
+		return nil, fmt.Errorf("did %s not found", did)
+	}
+	return &identity.Identity{
+		DID:      did,
+		Services: map[string]identity.ServiceEndpoint{"habitat": {URL: host}},
+	}, nil
+}
+
 func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	t.Parallel()
 	db := db_testutil.NewDB(t)
@@ -54,7 +71,7 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	s := NewStore(db, oauth.NewClientApp(&cfg, oauthStore), nil)
+	s := NewStore(db, oauth.NewClientApp(&cfg, oauthStore), nil, nil)
 
 	require.NoError(t, oauthStore.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:              "did:plc:alice",
@@ -77,8 +94,9 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []habitat_syntax.SpaceURI{space}, spaces)
 
-	// A client is available via the recorded accessor even though the space
-	// owner has no session.
+	// ClientForSpace never fails for lack of a session up front: the
+	// credential is minted lazily on first use (see
+	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost).
 	client, err := s.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
 	require.NotNil(t, client)
@@ -91,7 +109,6 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 
 type fakeJWTClients struct {
 	client *http.Client
-	host   string
 	calls  int
 }
 
@@ -100,16 +117,12 @@ func (f *fakeJWTClients) ClientForDID(ctx context.Context, did syntax.DID) (*htt
 	return f.client, nil
 }
 
-func (f *fakeJWTClients) HostForDID(ctx context.Context, did syntax.DID) (string, error) {
-	return f.host, nil
-}
-
 func TestClientForSessionDispatchesJWTBearer(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 	sentinel := &http.Client{}
 	jwt := &fakeJWTClients{client: sentinel}
-	store := NewStore(db, nil, jwt)
+	store := NewStore(db, nil, jwt, nil)
 
 	did := syntax.DID("did:web:member.example")
 	require.NoError(t, store.Add(t.Context(), did, "", AuthJWTBearer))
@@ -170,14 +183,80 @@ func TestClientForSpaceDispatchesJWTBearer(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 	memberClient := &http.Client{Transport: memberAuthTransport{base: srv.URL}}
-	jwt := &fakeJWTClients{client: memberClient, host: srv.URL}
-	store := NewStore(db, nil, jwt)
-
+	jwt := &fakeJWTClients{client: memberClient}
 	did := syntax.DID("did:web:member.example")
+	// The session is also the space owner here, so one host serves both the
+	// member-auth and space-credential legs; see
+	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost for the
+	// case where they differ.
+	dir := fakeDirectory{did: srv.URL}
+	store := NewStore(db, nil, jwt, dir)
+
 	require.NoError(t, store.Add(t.Context(), did, "", AuthJWTBearer))
 
 	space := habitat_syntax.SpaceURI("at://did:web:member.example/space/network.habitat.group/s1")
 	require.NoError(t, store.RecordSpaceAccess(t.Context(), space, did))
+
+	client, err := store.ClientForSpace(t.Context(), space)
+	require.NoError(t, err)
+
+	resp, err := client.Get("/xrpc/network.habitat.space.listRepos")
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	require.Equal(t, "Bearer member-tok", delegationAuth)
+	require.Equal(t, "Bearer deleg-tok", credentialAuth)
+	require.Equal(t, "Bearer space-cred", repoAuth)
+}
+
+// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost verifies the
+// credential exchange and the actual repo-host read land on the space
+// owner's own host — resolved from the space URI, since a space's records
+// live in its owner's repo — even though the delegating session (the only
+// one with recorded access) lives on a completely different host. Getting
+// this wrong means the credential exchange, and every read it backs, targets
+// a host that has never heard of the space.
+func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) {
+	var delegationAuth, credentialAuth, repoAuth string
+
+	memberSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/xrpc/network.habitat.space.getDelegationToken" {
+			t.Errorf("unexpected path on member host: %s", r.URL.Path)
+			return
+		}
+		delegationAuth = r.Header.Get("Authorization")
+		_ = json.NewEncoder(w).Encode(
+			habitat.NetworkHabitatSpaceGetDelegationTokenOutput{Token: "deleg-tok"})
+	}))
+	t.Cleanup(memberSrv.Close)
+
+	ownerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/xrpc/network.habitat.space.getSpaceCredential":
+			credentialAuth = r.Header.Get("Authorization")
+			_ = json.NewEncoder(w).Encode(
+				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "space-cred"})
+		case "/xrpc/network.habitat.space.listRepos":
+			repoAuth = r.Header.Get("Authorization")
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{})
+		default:
+			t.Errorf("unexpected path on owner host: %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(ownerSrv.Close)
+
+	db := db_testutil.NewDB(t)
+	require.NoError(t, AutoMigrate(db))
+	member := syntax.DID("did:web:member.example")
+	owner := syntax.DID("did:web:owner.example")
+	memberClient := &http.Client{Transport: memberAuthTransport{base: memberSrv.URL}}
+	jwt := &fakeJWTClients{client: memberClient}
+	dir := fakeDirectory{owner: ownerSrv.URL}
+	store := NewStore(db, nil, jwt, dir)
+
+	require.NoError(t, store.Add(t.Context(), member, "", AuthJWTBearer))
+	space := habitat_syntax.SpaceURI("at://" + owner.String() + "/space/network.habitat.group/s1")
+	require.NoError(t, store.RecordSpaceAccess(t.Context(), space, member))
 
 	client, err := store.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)

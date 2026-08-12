@@ -37,9 +37,12 @@ type Config struct {
 	DB          *gorm.DB
 	OAuthClient *oauth.ClientApp
 
-	// Directory resolves identities for commit signature verification: the
+	// Directory resolves identities for commit signature verification (the
 	// author's own key for habitat-managed authors, the host's published key
-	// for external ones. When nil, commits are verified by hash only.
+	// for external ones) and for finding a space's own host when minting a
+	// space credential to read it. Required for sap to actually sync
+	// anything; when nil, commits are verified by hash only and every
+	// repo-host read fails for lack of a credential.
 	Directory identity.Directory
 
 	// Endpoint is sap's public base URL, registered with space hosts as the
@@ -94,7 +97,7 @@ func New(config Config) (*Sap, error) {
 		tracer = tracenoop.NewTracerProvider().Tracer("sap")
 	}
 
-	sessions := session.NewStore(config.DB, config.OAuthClient, config.JWTBearer)
+	sessions := session.NewStore(config.DB, config.OAuthClient, config.JWTBearer, config.Directory)
 	ob := outbox.NewStore(config.DB, utils.NewPollNotifier())
 
 	syncMetrics, err := syncer.NewMetrics(config.Meter, config.Tracer)

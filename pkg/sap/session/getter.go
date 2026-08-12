@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,10 +11,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"golang.org/x/sync/singleflight"
-
-	"github.com/habitat-network/habitat/api/habitat"
-	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/pkg/sap/credential"
 )
 
 // getter caches resumed OAuth client sessions so concurrent component work
@@ -31,9 +26,7 @@ type getter struct {
 // context that resumed it has ended.
 type resumed struct {
 	*oauth.ClientSession
-	wg    sync.WaitGroup
-	mgrMu sync.Mutex
-	mgr   *credential.Manager
+	wg sync.WaitGroup
 }
 
 func newGetter(oauthClient *oauth.ClientApp) *getter {
@@ -108,68 +101,4 @@ func (t *xrpcTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // this session's OAuth tokens.
 func (s *resumed) authClient() *http.Client {
 	return &http.Client{Transport: &xrpcTransport{sess: s}}
-}
-
-// DelegationToken implements credential.Delegator by calling the host's
-// getDelegationToken with this session's OAuth auth.
-func (s *resumed) DelegationToken(
-	ctx context.Context,
-	space habitat_syntax.SpaceURI,
-) (string, error) {
-	lxm := syntax.NSID("network.habitat.space.getDelegationToken")
-	base, err := url.Parse(s.Data.HostURL)
-	if err != nil {
-		return "", fmt.Errorf("parse session host url: %w", err)
-	}
-	base.Path = "/xrpc/network.habitat.space.getDelegationToken"
-	base.RawQuery = "space=" + url.QueryEscape(space.String())
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base.String(), nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := s.DoWithAuth(s.Client, req, lxm)
-	if err != nil {
-		return "", fmt.Errorf("get delegation token: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("get delegation token: %s", resp.Status)
-	}
-	var out habitat.NetworkHabitatSpaceGetDelegationTokenOutput
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", fmt.Errorf("decode delegation token: %w", err)
-	}
-	return out.Token, nil
-}
-
-// manager lazily builds the space-credential manager for this session.
-func (s *resumed) manager() *credential.Manager {
-	s.mgrMu.Lock()
-	defer s.mgrMu.Unlock()
-	if s.mgr == nil {
-		s.mgr = credential.NewManager(s.Data.HostURL, s.Client, s)
-	}
-	return s.mgr
-}
-
-// credentialClient returns a client that reads from space's host as the space
-// (via a space credential) instead of as this session's account.
-func (s *resumed) credentialClient(space habitat_syntax.SpaceURI) *http.Client {
-	return s.manager().ClientForSpace(space)
-}
-
-// dropCredential evicts the cached credential for space.
-func (s *resumed) dropCredential(space habitat_syntax.SpaceURI) {
-	s.manager().DropSpace(space)
-}
-
-// dropSpaceCredential evicts every resumed session's cached credential for a
-// deleted space.
-func (g *getter) dropSpaceCredential(space habitat_syntax.SpaceURI) {
-	g.sessions.Range(func(_, v any) bool {
-		if r, ok := v.(*resumed); ok {
-			r.dropCredential(space)
-		}
-		return true
-	})
 }

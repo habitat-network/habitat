@@ -26,15 +26,19 @@ AddSession(did) ─────▶ session.Store ─────▶ crawl.Crawle
 
 - **`session`** owns every tracked session's auth and issues two kinds of HTTP
   client: `ClientForSession` authenticates as the member itself (OAuth or, via
-  the JWT-bearer grant, an equivalent act-as-subject token) and backs
-  member-scoped calls like `listSpaces`; `ClientForSpace` exchanges that
-  member auth for a space credential (`getDelegationToken` +
-  `getSpaceCredential`) and backs every call that spans a space's members —
+  the JWT-bearer grant, an equivalent act-as-subject token) against *that
+  member's own* host, and backs member-scoped calls like `listSpaces`.
+  `ClientForSpace` backs every call that spans a space's members —
   `listRepos`, `listRepoOps`, `getRepo`, `registerNotify` — per the
   permissioned-data proposal, which requires space-level authorization for
-  those rather than a single member's access token. Every other package gets
-  its clients through `session` rather than touching OAuth/JWT-bearer state
-  directly.
+  those rather than a single member's access token: it hands out a
+  `credential.Manager`-backed client that resolves *the space's own host*
+  (its owner's habitat instance — a space's records live in its owner's
+  repo) and authenticates with a space credential, minted lazily by
+  exchanging a delegation token (`getDelegationToken`, fetched from some
+  accessing session's own host) for a credential at that space host
+  (`getSpaceCredential`). Every other package gets its clients through
+  `session` rather than touching OAuth/JWT-bearer state directly.
 - **`crawl`** backfills: for each session it pages `listSpaces` (member auth),
   records space access, and for each space calls `listRepos` (space-credential
   auth) into `Tracker.Check` (start tracking, or compare the listed rev/hash
