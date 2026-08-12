@@ -2,8 +2,6 @@ package oauthclient
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -15,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-querystring/query"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // JWTBearerGrantType is the RFC 7523 JWT Bearer grant type identifier.
@@ -123,7 +122,7 @@ func (c *Client) SendJWTTokenRequest(
 
 	sessData := oauth.ClientSessionData{
 		AccountDID: ident.DID,
-		SessionID:  secureRandomBase64(16),
+		SessionID:  utils.RandomNonce(16),
 
 		HostURL:                      ident.PDSEndpoint(),
 		AuthServerURL:                authserverURL,
@@ -151,15 +150,9 @@ func (c *Client) signJWTBearerAssertion(subject syntax.DID, audience string) (st
 		"aud": audience,
 		"iat": now.Unix(),
 		"exp": now.Add(time.Minute).Unix(),
-		"jti": secureRandomBase64(16),
+		"jti": utils.RandomNonce(16),
 	}
 	token := jwt.NewWithClaims(jwt.GetSigningMethod("ES256"), claims)
 	token.Header["kid"] = *c.Config.KeyID
 	return token.SignedString(c.Config.PrivateKey)
-}
-
-func secureRandomBase64(sizeBytes uint) string {
-	buf := make([]byte, sizeBytes)
-	_, _ = rand.Read(buf)
-	return base64.RawURLEncoding.EncodeToString(buf)
 }
