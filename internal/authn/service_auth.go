@@ -32,9 +32,9 @@ type AtprotoServiceAuthMethod struct {
 	everyoneOrg org.Org
 }
 
-var _ Method = (*AtprotoServiceAuthMethod)(nil)
+var _ Validator = (*AtprotoServiceAuthMethod)(nil)
 
-// CanHandle implements [Method].
+// CanHandle implements [Validator].
 func (p *AtprotoServiceAuthMethod) CanHandle(r *http.Request) bool {
 	tokenStr, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !found {
@@ -48,7 +48,7 @@ func (p *AtprotoServiceAuthMethod) CanHandle(r *http.Request) bool {
 		strings.HasPrefix(token.Headers[0].KeyID, "#")
 }
 
-// Validate implements [Method].
+// Validate implements [Validator].
 func (p *AtprotoServiceAuthMethod) Validate(
 	w http.ResponseWriter,
 	r *http.Request,

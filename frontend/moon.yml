@@ -29,6 +29,7 @@ tasks:
       persistent: true
       runInCI: false
   gh-pages:
+    script: "mkdir -p $projectRoot/dist/api && cp -r $workspaceRoot/api-docs/build/. $projectRoot/dist/api"
     deps:
       - target: ~:build
       - target: docs:build
@@ -38,7 +39,7 @@ tasks:
       - target: api-docs:build
         env:
           BASE_URL: /habitat/api/
-          OUT_DIR: $projectRoot/dist/api
     options:
       runDepsInParallel: false
       cache: false
+      runInCI: false

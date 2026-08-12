@@ -10,8 +10,8 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // registrationTTL is how long a registerNotify subscription stays valid before
@@ -20,11 +20,11 @@ const registrationTTL = 24 * time.Hour
 
 type Server struct {
 	store     Store
-	spaceCred authn.Method
+	validator authn.RequestValidator
 }
 
-func NewServer(store Store, spaceCred authn.Method) *Server {
-	return &Server{store: store, spaceCred: spaceCred}
+func NewServer(store Store, validator authn.RequestValidator) *Server {
+	return &Server{store: store, validator: validator}
 }
 
 // RegisterNotify handles network.habitat.space.registerNotify: a syncer
@@ -32,29 +32,22 @@ func NewServer(store Store, spaceCred authn.Method) *Server {
 // events for the whole space or a specific repo.
 func (s *Server) RegisterNotify(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.spaceCred)).Validate(w, r)
-	if !ok {
-		return
-	}
-
 	var input habitat.NetworkHabitatSpaceRegisterNotifyInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "decode request body", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
 	}
-
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
 	if !ok {
 		return
 	}
-
 	// The space credential must authorize the space being registered against.
-	if credInfo.Space != spaceURI {
-		httpx.WriteInvalidRequest(ctx, w, "credential does not authorize this space",
-			fmt.Errorf("credential space %q does not match %q", credInfo.Space, spaceURI))
+	if _, ok = s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodSpaceCredential),
+		authn.WithSpace(spaceURI, fgastore.RelationSpaceReader),
+	).Validate(w, r); !ok {
 		return
 	}
-
 	var repo syntax.DID
 	if input.Repo != "" {
 		repo, ok = httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
@@ -62,13 +55,11 @@ func (s *Server) RegisterNotify(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	expiresAt := time.Now().Add(registrationTTL)
 	if err := s.store.Register(ctx, spaceURI, repo, input.Endpoint, expiresAt); err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "register notify", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("register notify: %w", err))
 		return
 	}
-
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceRegisterNotifyOutput{
 		ExpiresAt: expiresAt.UTC().Format(time.RFC3339),
 	})

@@ -21,7 +21,6 @@ import (
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 
 	"github.com/habitat-network/habitat/internal/authn"
-	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -286,10 +285,13 @@ func setupPear(
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
-		oauthServer,
-		authn_testutil.NewFailMethod(),
-		authn.NewDelegationTokenAuthMethod(nil, nil, nil),
-		authn.NewSpaceCredentialAuthMethod(nil, nil),
+		authn.NewValidator(
+			oauthServer,
+			nil,
+			nil,
+			nil,
+			fgaStore,
+		),
 		orgStore,
 		nil,
 		orgHive,

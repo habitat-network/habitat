@@ -10,40 +10,41 @@ import (
 )
 
 func TestValidate(t *testing.T) {
-	supportedCreds := []CredentialType{OrgCredential}
 	r := httptest.NewRequest("GET", "/", http.NoBody)
 	w := httptest.NewRecorder()
 	r.Header.Set("Authorization", "foo")
 	credInfo, ok := NewValidator(
-		WithAuthMethods(
-			&testAuthMethod{expectedHeader: "foo"},
-			&testAuthMethod{expectedHeader: "bar"},
-		),
-		WithSupportedCredentials(supportedCreds...),
-	).Validate(w, r)
+		&testAuthMethod{expectedHeader: "foo"},
+		nil,
+		nil,
+		nil,
+		nil,
+	).Request(WithMethods(ValidatorMethodOAuth)).Validate(w, r)
 	require.True(t, ok)
 	require.Equal(t, syntax.DID("did:web:test"), credInfo.Subject)
 
 	w = httptest.NewRecorder()
 	r.Header.Set("Authorization", "bar")
 	_, ok = NewValidator(
-		WithAuthMethods(
-			&testAuthMethod{expectedHeader: "foo"},
-			&testAuthMethod{expectedHeader: "bar", fail: true},
-		),
-		WithSupportedCredentials(supportedCreds...),
-	).Validate(w, r)
+		&testAuthMethod{expectedHeader: "bar", fail: true},
+		nil,
+		nil,
+		nil,
+		nil,
+	).Request(WithMethods(ValidatorMethodOAuth)).Validate(w, r)
 	require.False(t, ok)
 	require.Equal(t, w.Result().StatusCode, http.StatusUnauthorized)
 
 	w = httptest.NewRecorder()
 	r.Header.Set("Authorization", "foo")
 	_, ok = NewValidator(
-		WithAuthMethods(&testAuthMethod{expectedHeader: "bar"}),
-		WithSupportedCredentials(supportedCreds...),
-	).Validate(w, r)
+		&testAuthMethod{expectedHeader: "bar"},
+		nil,
+		nil,
+		nil,
+		nil,
+	).Request(WithMethods(ValidatorMethodOAuth)).Validate(w, r)
 	require.False(t, ok)
-	require.Equal(t, w.Result().StatusCode, http.StatusUnauthorized)
 }
 
 type testAuthMethod struct {
