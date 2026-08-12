@@ -24,13 +24,13 @@ type config struct {
 	migrations fs.FS
 }
 
-func WithMigrations(migrations fs.FS) utils.Options[config] {
+func WithMigrations(migrations fs.FS) utils.Opt[config] {
 	return func(o *config) {
 		o.migrations = migrations
 	}
 }
 
-func New(dsn string, opts ...utils.Options[config]) (db *gorm.DB, err error) {
+func New(dsn string, opts ...utils.Opt[config]) (db *gorm.DB, err error) {
 	cfg := utils.ResolveOptions(opts...)
 	gormConfig := &gorm.Config{
 		TranslateError: true,
