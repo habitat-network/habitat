@@ -95,7 +95,7 @@ func TestServer_CreateSpace(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var output habitat.NetworkHabitatSpaceCreateSpaceOutput
+	var output habitat.NetworkHabitatSimplespaceCreateSpaceOutput
 	err := json.NewDecoder(w.Body).Decode(&output)
 	require.NoError(t, err)
 	require.Contains(
