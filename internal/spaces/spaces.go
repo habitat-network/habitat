@@ -799,11 +799,6 @@ func (s *store) RepoSnapshot(
 	var revision string
 	var hash []byte
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// The same per-repo lock PutRecord/DeleteRecord hold for their
-		// whole write blocks until this read finishes, and blocks any new
-		// writer from starting until it does: the head and the blocks
-		// below are read as of the same point, with nothing landing
-		// between them.
 		if err := lockRepo(tx, uri, repo); err != nil {
 			return err
 		}
@@ -852,9 +847,6 @@ func (s *store) RepoSnapshot(
 	if revision == "" {
 		return nil, nil, nil
 	}
-	// Signing only needs the already-frozen rev/hash above, not another DB
-	// read, so it happens outside the transaction rather than holding the
-	// repo's write lock while it runs.
 	signed, err := s.commit.Build(ctx, uri, repo, revision, hash)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build commit: %w", err)
@@ -937,12 +929,6 @@ func (s *store) ListRepoOps(
 	var headFound bool
 	var rows []spaceRecord
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Read the head and the ops behind the same per-repo lock
-		// PutRecord/DeleteRecord hold for their whole write, so a
-		// concurrent write cannot land between the two reads below: the
-		// head this transaction sees always describes exactly the ops it
-		// sees, letting the commit built from it (below, once the lock is
-		// released) name precisely where this page leaves the caller.
 		if err := lockRepo(tx, uri, repo); err != nil {
 			return err
 		}
@@ -952,11 +938,6 @@ func (s *store) ListRepoOps(
 			return fmt.Errorf("repo head: %w", err)
 		}
 		headRev, headHash, headFound = rev, h.Sum(), found
-		// A since beyond the repo's head revision is a client error: nothing
-		// will ever be listed after it, and an empty page would be
-		// indistinguishable from the normal at-head case. Syncers use the
-		// RevNotFound error to detect they are ahead of the host and resync
-		// from scratch.
 		if since != "" && found && since > string(rev) {
 			return ErrRevTooFar
 		}
