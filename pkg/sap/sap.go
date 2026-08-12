@@ -15,7 +15,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -34,8 +33,13 @@ import (
 )
 
 type Config struct {
-	DB          *gorm.DB
-	OAuthClient *oauth.ClientApp
+	DB *gorm.DB
+
+	// Clients resolves an authenticated HTTP client for a DID sap tracks.
+	// sap itself doesn't know how a session was established (browser OAuth
+	// flow, JWT-bearer grant, ...) — that's entirely the caller's concern;
+	// see session.Clients.
+	Clients session.Clients
 
 	// Directory resolves identities for commit signature verification (the
 	// author's own key for habitat-managed authors, the host's published key
@@ -57,10 +61,6 @@ type Config struct {
 	// CrawlInterval is how often each session is re-crawled to discover spaces
 	// created since the last crawl (default 1h).
 	CrawlInterval time.Duration
-
-	// JWTBearer, when set, lets sessions authenticate to their host via the
-	// JWT-bearer grant instead of OAuth. Chosen per session (see AddSession).
-	JWTBearer session.JWTBearer
 
 	Meter  metric.Meter
 	Tracer trace.Tracer
@@ -97,7 +97,7 @@ func New(config Config) (*Sap, error) {
 		tracer = tracenoop.NewTracerProvider().Tracer("sap")
 	}
 
-	sessions := session.NewStore(config.DB, config.OAuthClient, config.JWTBearer, config.Directory)
+	sessions := session.NewStore(config.DB, config.Clients, config.Directory)
 	ob := outbox.NewStore(config.DB, utils.NewPollNotifier())
 
 	syncMetrics, err := syncer.NewMetrics(config.Meter, config.Tracer)
@@ -202,10 +202,11 @@ func (s *Sap) recrawlLoop(ctx context.Context) {
 	}
 }
 
-// AddSession registers an authenticated session and kicks off its backfill
-// crawl. method is session.AuthOAuth or session.AuthJWTBearer.
-func (s *Sap) AddSession(ctx context.Context, did syntax.DID, sessionID, method string) error {
-	if err := s.sessions.Add(ctx, did, sessionID, method); err != nil {
+// AddSession starts tracking did and kicks off its backfill crawl. The
+// caller is responsible for did being authenticable via Config.Clients by
+// the time the crawl actually runs.
+func (s *Sap) AddSession(ctx context.Context, did syntax.DID) error {
+	if err := s.sessions.Add(ctx, did); err != nil {
 		return fmt.Errorf("add session: %w", err)
 	}
 	go s.crawler.Run(detachSpan(ctx), did)

@@ -63,10 +63,13 @@ func newTestServer(t *testing.T) *server {
 	oauthApp.Dir = fakeDirectory{}
 	jwtClient := oauthclient.NewJWTBearerClient(oauthApp)
 
-	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp, JWTBearer: jwtClient})
+	sessions, err := newSessionResolver(db, jwtClient)
 	require.NoError(t, err)
 
-	return NewSapServer(s, jwtClient, "sap.example", nil)
+	s, err := sap.New(sap.Config{DB: db, Clients: sessions})
+	require.NoError(t, err)
+
+	return NewSapServer(s, sessions, jwtClient, "sap.example", nil)
 }
 
 func TestHandleClientMetadataServesConfidentialClientDocument(t *testing.T) {

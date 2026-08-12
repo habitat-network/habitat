@@ -94,12 +94,16 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	// to publish one key for hosts to verify sap's requests against.
 	jwtClient := oauthclient.NewJWTBearerClient(oauthApp)
 
+	sessions, err := newSessionResolver(db, jwtClient)
+	if err != nil {
+		return fmt.Errorf("create session resolver: %w", err)
+	}
+
 	s, err := sap.New(sap.Config{
 		DB:            db,
-		OAuthClient:   oauthApp,
+		Clients:       sessions,
 		Directory:     dir,
 		Endpoint:      endpoint,
-		JWTBearer:     jwtClient,
 		CrawlInterval: cmd.Duration(fCrawlInterval),
 		Meter:         otel.Meter("sap"),
 		Tracer:        otel.Tracer("sap"),
@@ -108,7 +112,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	server := NewSapServer(s, jwtClient, domain, &auth.ServiceAuthValidator{
+	server := NewSapServer(s, sessions, jwtClient, domain, &auth.ServiceAuthValidator{
 		Dir:      dir,
 		Audience: endpoint,
 	})
