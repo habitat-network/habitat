@@ -77,24 +77,6 @@ type Record struct {
 	UpdatedAt  time.Time
 }
 
-type SpaceAccess string
-
-const (
-	SpaceAccessRead  SpaceAccess = "read"
-	SpaceAccessWrite SpaceAccess = "write"
-)
-
-func ParseSpaceAccess(access string) (SpaceAccess, error) {
-	switch access {
-	case "read":
-		return SpaceAccessRead, nil
-	case "write":
-		return SpaceAccessWrite, nil
-	default:
-		return "", fmt.Errorf("unknown space access: %s", access)
-	}
-}
-
 // Store defines the persistence interface for spaces
 type Store interface {
 	// Space operations
@@ -121,7 +103,6 @@ type Store interface {
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		did syntax.DID,
-		access SpaceAccess,
 	) error
 	RemoveMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
 	ListRepos(
@@ -497,7 +478,6 @@ func (s *store) AddMember(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 	did syntax.DID,
-	access SpaceAccess,
 ) error {
 	var sp space
 	err := s.db.WithContext(ctx).
@@ -511,53 +491,28 @@ func (s *store) AddMember(
 	if did == uri.SpaceOwner() {
 		return nil
 	}
-	if access == SpaceAccessRead {
-		return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
-			Writes: &openfgav1.WriteRequestWrites{
-				TupleKeys: []*openfgav1.TupleKey{
-					tuple.NewTupleKey(
-						fgastore.SpaceObjectKey(uri),
-						fgastore.RelationSpaceReader,
-						fgastore.MemberUserString(did),
-					),
-				},
-				OnDuplicate: "ignore",
+	return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+		Writes: &openfgav1.WriteRequestWrites{
+			TupleKeys: []*openfgav1.TupleKey{
+				tuple.NewTupleKey(
+					fgastore.SpaceObjectKey(uri),
+					fgastore.RelationSpaceWriter,
+					fgastore.MemberUserString(did),
+				),
 			},
-			Deletes: &openfgav1.WriteRequestDeletes{
-				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
-					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
-						fgastore.SpaceObjectKey(uri),
-						fgastore.RelationSpaceWriter,
-						fgastore.MemberUserString(did),
-					)),
-				},
-				OnMissing: "ignore",
+			OnDuplicate: "ignore",
+		},
+		Deletes: &openfgav1.WriteRequestDeletes{
+			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
+				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
+					fgastore.SpaceObjectKey(uri),
+					fgastore.RelationSpaceReader,
+					fgastore.MemberUserString(did),
+				)),
 			},
-		})
-	} else {
-		return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
-			Writes: &openfgav1.WriteRequestWrites{
-				TupleKeys: []*openfgav1.TupleKey{
-					tuple.NewTupleKey(
-						fgastore.SpaceObjectKey(uri),
-						fgastore.RelationSpaceWriter,
-						fgastore.MemberUserString(did),
-					),
-				},
-				OnDuplicate: "ignore",
-			},
-			Deletes: &openfgav1.WriteRequestDeletes{
-				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
-					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
-						fgastore.SpaceObjectKey(uri),
-						fgastore.RelationSpaceReader,
-						fgastore.MemberUserString(did),
-					)),
-				},
-				OnMissing: "ignore",
-			},
-		})
-	}
+			OnMissing: "ignore",
+		},
+	})
 }
 
 func (s *store) RemoveMember(

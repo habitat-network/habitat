@@ -190,7 +190,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := s.store.AddMember(r.Context(), spaceURI, memberDID, SpaceAccessWrite)
+	err := s.store.AddMember(r.Context(), spaceURI, memberDID)
 	if errors.Is(err, ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return

@@ -129,11 +129,11 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       docusaurus-plugin-openapi-docs:
-        specifier: 5.1.2
-        version: 5.1.2(6fd3dfd736b5719e97b66ae5ae87e295)
+        specifier: 5.1.3
+        version: 5.1.3(6fd3dfd736b5719e97b66ae5ae87e295)
       docusaurus-theme-openapi-docs:
         specifier: 5.1.2
-        version: 5.1.2(@docusaurus/theme-common@3.10.2(dec3d73690fafed8ae38bd098b805247))(@rspack/core@1.7.12)(@types/react@19.2.17)(docusaurus-plugin-openapi-docs@5.1.2(6fd3dfd736b5719e97b66ae5ae87e295))(docusaurus-plugin-sass@0.2.6(ca24299a8c095977725b85d6414028ec))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21))
+        version: 5.1.2(@docusaurus/theme-common@3.10.2(dec3d73690fafed8ae38bd098b805247))(@rspack/core@1.7.12)(@types/react@19.2.17)(docusaurus-plugin-openapi-docs@5.1.3(6fd3dfd736b5719e97b66ae5ae87e295))(docusaurus-plugin-sass@0.2.6(ca24299a8c095977725b85d6414028ec))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21))
       prism-react-renderer:
         specifier: ^2.4.1
         version: 2.4.1(react@19.2.8)
@@ -315,8 +315,8 @@ importers:
         specifier: ^5.1.9
         version: 5.1.9
       '@libp2p/ping':
-        specifier: 3.1.10
-        version: 3.1.10
+        specifier: 3.1.11
+        version: 3.1.11
       '@libp2p/webrtc':
         specifier: ^5.2.24
         version: 5.2.24(react-native@0.86.0(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(supports-color@10.2.2)
@@ -2644,9 +2644,6 @@ packages:
   '@libp2p/interface-internal@2.3.19':
     resolution: {integrity: sha512-v335EB0i5CaNF+0SqT01CTBp0VyjJizpy46KprcshFFjX16UQ8+/QzoTZqmot9WiAmAzwR0b87oKmlAE9cpxzQ==}
 
-  '@libp2p/interface-internal@3.1.10':
-    resolution: {integrity: sha512-JABQ6iHSKsYT25I9UzY7LNrmqiJscgjgVTfKBuFBA58Q9i0zO+sqHzNi2zGl8qaDbxNpDwrwuHS6CCBW+VLa3A==}
-
   '@libp2p/interface-internal@3.1.11':
     resolution: {integrity: sha512-lHJueWKdfkf/nrbVkGNUWrqDvF3T9Brn4hyONQmhTqG2mWyWKntRR/CkPjVgMRDSF2fuyzDJGg+n9tC0Gphk8g==}
 
@@ -2662,9 +2659,6 @@ packages:
   '@libp2p/logger@5.2.0':
     resolution: {integrity: sha512-OEFS529CnIKfbWEHmuCNESw9q0D0hL8cQ8klQfjIVPur15RcgAEgc1buQ7Y6l0B6tCYg120bp55+e9tGvn8c0g==}
 
-  '@libp2p/logger@6.2.11':
-    resolution: {integrity: sha512-zZ4m2EKyyRY2G8GAzmG/ZJm4CIqmaJucl5X7zTmGs1SXlb4Ayj4aP1vsaP/cVWadf/RuPWjgmIJP+Y/sZoE7Rg==}
-
   '@libp2p/logger@6.2.12':
     resolution: {integrity: sha512-FwCdJ5hGFDvWI/SULZ4Iez+k+JtdMAj4/EK6bWmkh08ORIztwKpt0IXCOe8nIfKhBKwLYJu00BnZDRsedX7+7Q==}
 
@@ -2674,17 +2668,11 @@ packages:
   '@libp2p/peer-collections@6.0.35':
     resolution: {integrity: sha512-QiloK3T7DXW7R2cpL38dBnALCHf5pMzs/TyFzlEK33WezA2YFVoj7CtOJKqbn29bmV9uspWOxMgfmLUXf8ALvA==}
 
-  '@libp2p/peer-collections@7.0.25':
-    resolution: {integrity: sha512-34XvvkfVf7jR9J3b924f75d7bbF4deGnCx4ws+wixVysRigpI+uvsqptreEuDcsXuRPA1AIZYshCZEKeujz1Zw==}
-
   '@libp2p/peer-collections@7.0.26':
     resolution: {integrity: sha512-hjJbC/Jo1TjxqaKph2W6ARRnrNoBCEbSQMUsGT17JXQktJc7ImVGLoFy2VsZoJGMX4RLN+gKp6f8McFGb5Vi1w==}
 
   '@libp2p/peer-id@5.1.9':
     resolution: {integrity: sha512-cVDp7lX187Epmi/zr0Qq2RsEMmueswP9eIxYSFoMcHL/qcvRFhsxOfUGB8361E26s2WJvC9sXZ0oJS9XVueJhQ==}
-
-  '@libp2p/peer-id@6.0.13':
-    resolution: {integrity: sha512-A3sP3QUjunp7Wo5aGOkRsuYtGJZbLD4KPlHKObMam1fUCx+gHKnfyKeaWMQLkjeaUNETz9R6llquWyi41QzkLg==}
 
   '@libp2p/peer-id@6.0.14':
     resolution: {integrity: sha512-tquBouwbUXgntPtT5q4vfaXbNWmSzh2zo4p2u8IzclVvggXOpmyBlAUNPXDiFqZvQpsxVBrTTemmn0+AwDwecg==}
@@ -2695,17 +2683,14 @@ packages:
   '@libp2p/peer-store@11.2.7':
     resolution: {integrity: sha512-dwTM+0i7mAgAnZvMHghgGcFoWPGaTbKx2nBueMd2Yg38mCs9WeambmR6gQdjwvYpybvNgFDAA+XesCKCotuczg==}
 
-  '@libp2p/ping@3.1.10':
-    resolution: {integrity: sha512-f6Pbz13PMuXhYgz2nhesidqWRYAvXAMuCgLHoRic0DAqxtyAu6VzKWA4BWeT/yoKObYRZ2yvsgqApFN3gknKYw==}
+  '@libp2p/ping@3.1.11':
+    resolution: {integrity: sha512-3ByJjpzxMAEJv8ZjWeLYv9k0Ba3eVxPRcWc8H79/RQhTQwY2zZvHYX4gQUmyqA9Sv0Q6peL4TwUW7E3wgN27Mw==}
 
   '@libp2p/pubsub@10.1.18':
     resolution: {integrity: sha512-Bxa0cwkaQvadyJNlJlzH0m1eo7m03G2nCpuKbcv+i0qNbyyTOydBcuoslG/UWFYhRBB9Js9R6zNIsaIgpo+iGw==}
 
   '@libp2p/utils@6.7.2':
     resolution: {integrity: sha512-yglVPcYErb4al3MMTdedVLLsdUvr5KaqrrxohxTl/FXMFBvBs0o3w8lo29nfnTUpnNSHFhWZ9at0ZGNnpT/C/w==}
-
-  '@libp2p/utils@7.3.1':
-    resolution: {integrity: sha512-kIV7Nrtn8mMephggO+xFD75sIRH7birJyfhOlGnprRLKjE8Ots5rsSqTjlrjLhrJxhxO71F+UOSyVAkqxi+d4w==}
 
   '@libp2p/utils@7.3.2':
     resolution: {integrity: sha512-nVfJkTE3QMa/LVKVD5sKDB8birKua0BR0oKoqnLSXsX1ez89PvhR1zZjBfARSGVZdv5qUmblcdcvjJ76HD0CWA==}
@@ -5014,10 +4999,6 @@ packages:
   canvas-confetti@1.9.4:
     resolution: {integrity: sha512-yxQbJkAVrFXWNbTUjPqjF7G+g6pDotOUHGbkZq2NELZUMDpiJ85rIEazVb8GTaAptNW2miJAXbs1BtioA251Pw==}
 
-  cborg@5.1.8:
-    resolution: {integrity: sha512-enonPtLyeEF8M8GF/5NdjLHmRGslrwKR2LvkN+yFYQJw7mzt6iOoPvkVs3vcb3rUvltzL0QfvtM6FQ44o8nhSg==}
-    hasBin: true
-
   cborg@6.1.1:
     resolution: {integrity: sha512-Ci8+V1OMFtqea8EXicsATqV+3kEqCGXCicM+5MEzpKTxqy58WMzhJUjtUqAjfWpKPZ0wpG8F+u5mC8Xy/0Zevg==}
     hasBin: true
@@ -5647,8 +5628,8 @@ packages:
     resolution: {integrity: sha512-l4gcSouhcgIKRvyy99RNVOgxXiicE+2jZoNmaNmZ6JXiGajBOJAesk1OBlJuM5k2c+eudGdLxDqXuPCKIj6kpw==}
     engines: {node: '>=6'}
 
-  docusaurus-plugin-openapi-docs@5.1.2:
-    resolution: {integrity: sha512-xlgl/8+2iqSQWdhTJay0lfXqWduaGVTYrn+9i+uT3Uk5gkeDjfQOIVnHGnIHfKg0pUjIm008fvEQVAxk3TvgaQ==}
+  docusaurus-plugin-openapi-docs@5.1.3:
+    resolution: {integrity: sha512-HnpblSBdXoR39VNTIW9zWERUsMJxXOpvdQoBKyaTkUBPwCM48Z76+ndo2yO2vADq+EhWjJlfxL1DUzCrgNjThQ==}
     engines: {node: '>=14'}
     peerDependencies:
       '@docusaurus/plugin-content-docs': ^3.10.0
@@ -13373,13 +13354,6 @@ snapshots:
       '@multiformats/multiaddr': 12.5.1
       progress-events: 1.1.0
 
-  '@libp2p/interface-internal@3.1.10':
-    dependencies:
-      '@libp2p/interface': 3.2.5
-      '@libp2p/peer-collections': 7.0.25
-      '@multiformats/multiaddr': 13.0.3
-      progress-events: 1.1.0
-
   '@libp2p/interface-internal@3.1.11':
     dependencies:
       '@libp2p/interface': 3.2.5
@@ -13427,14 +13401,6 @@ snapshots:
       multiformats: 13.4.2
       weald: 1.1.3
 
-  '@libp2p/logger@6.2.11':
-    dependencies:
-      '@libp2p/interface': 3.2.5
-      '@multiformats/multiaddr': 13.0.3
-      interface-datastore: 10.0.1
-      multiformats: 14.0.5
-      weald: 1.1.3
-
   '@libp2p/logger@6.2.12':
     dependencies:
       '@libp2p/interface': 3.2.5
@@ -13462,13 +13428,6 @@ snapshots:
       '@libp2p/utils': 6.7.2
       multiformats: 13.4.2
 
-  '@libp2p/peer-collections@7.0.25':
-    dependencies:
-      '@libp2p/interface': 3.2.5
-      '@libp2p/peer-id': 6.0.13
-      '@libp2p/utils': 7.3.1
-      multiformats: 14.0.5
-
   '@libp2p/peer-collections@7.0.26':
     dependencies:
       '@libp2p/interface': 3.2.5
@@ -13482,13 +13441,6 @@ snapshots:
       '@libp2p/interface': 2.11.0
       multiformats: 13.4.2
       uint8arrays: 5.1.1
-
-  '@libp2p/peer-id@6.0.13':
-    dependencies:
-      '@libp2p/crypto': 5.1.21
-      '@libp2p/interface': 3.2.5
-      multiformats: 14.0.5
-      uint8arrays: 6.1.1
 
   '@libp2p/peer-id@6.0.14':
     dependencies:
@@ -13527,10 +13479,10 @@ snapshots:
       uint8arraylist: 2.4.9
       uint8arrays: 5.1.1
 
-  '@libp2p/ping@3.1.10':
+  '@libp2p/ping@3.1.11':
     dependencies:
       '@libp2p/interface': 3.2.5
-      '@libp2p/interface-internal': 3.1.10
+      '@libp2p/interface-internal': 3.1.11
       p-event: 7.1.0
       race-signal: 2.0.0
       uint8arraylist: 3.0.2
@@ -13578,34 +13530,6 @@ snapshots:
       race-signal: 1.1.3
       uint8arraylist: 2.4.9
       uint8arrays: 5.1.1
-
-  '@libp2p/utils@7.3.1':
-    dependencies:
-      '@chainsafe/is-ip': 2.1.0
-      '@chainsafe/netmask': 2.0.0
-      '@libp2p/interface': 3.2.5
-      '@libp2p/logger': 6.2.11
-      '@multiformats/multiaddr': 13.0.3
-      '@multiformats/multiaddr-matcher': 3.0.2
-      '@sindresorhus/fnv1a': 3.1.0
-      any-signal: 4.2.0
-      cborg: 5.1.8
-      delay: 7.0.0
-      is-loopback-addr: 2.0.2
-      it-length-prefixed: 11.0.1
-      it-pipe: 3.0.1
-      it-pushable: 3.2.4
-      it-stream-types: 2.0.4
-      main-event: 1.0.4
-      netmask: 2.1.1
-      p-defer: 4.0.1
-      p-event: 7.1.0
-      progress-events: 1.1.0
-      protons-runtime: 7.0.0
-      race-signal: 2.0.0
-      uint8-varint: 3.0.0
-      uint8arraylist: 3.0.2
-      uint8arrays: 6.1.1
 
   '@libp2p/utils@7.3.2':
     dependencies:
@@ -16050,8 +15974,6 @@ snapshots:
 
   canvas-confetti@1.9.4: {}
 
-  cborg@5.1.8: {}
-
   cborg@6.1.1: {}
 
   ccount@2.0.1: {}
@@ -16680,7 +16602,7 @@ snapshots:
     dependencies:
       '@leichtgewicht/ip-codec': 2.0.5
 
-  docusaurus-plugin-openapi-docs@5.1.2(6fd3dfd736b5719e97b66ae5ae87e295):
+  docusaurus-plugin-openapi-docs@5.1.3(6fd3dfd736b5719e97b66ae5ae87e295):
     dependencies:
       '@apidevtools/json-schema-ref-parser': 15.5.0(@types/json-schema@7.0.15)
       '@docusaurus/plugin-content-docs': 3.10.2(@docusaurus/faster@3.10.2(@docusaurus/types@3.10.2(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2))(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(postcss@8.5.21))(@mdx-js/react@3.1.1(@types/react@19.2.17)(react@19.2.8))(@rspack/core@1.7.12)(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(debug@4.4.3(supports-color@10.2.2))(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(typescript@5.9.3)
@@ -16716,7 +16638,7 @@ snapshots:
       - sass-embedded
       - webpack
 
-  docusaurus-theme-openapi-docs@5.1.2(@docusaurus/theme-common@3.10.2(dec3d73690fafed8ae38bd098b805247))(@rspack/core@1.7.12)(@types/react@19.2.17)(docusaurus-plugin-openapi-docs@5.1.2(6fd3dfd736b5719e97b66ae5ae87e295))(docusaurus-plugin-sass@0.2.6(ca24299a8c095977725b85d6414028ec))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)):
+  docusaurus-theme-openapi-docs@5.1.2(@docusaurus/theme-common@3.10.2(dec3d73690fafed8ae38bd098b805247))(@rspack/core@1.7.12)(@types/react@19.2.17)(docusaurus-plugin-openapi-docs@5.1.3(6fd3dfd736b5719e97b66ae5ae87e295))(docusaurus-plugin-sass@0.2.6(ca24299a8c095977725b85d6414028ec))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)):
     dependencies:
       '@docusaurus/theme-common': 3.10.2(dec3d73690fafed8ae38bd098b805247)
       '@hookform/error-message': 2.0.1(react-dom@19.2.8(react@19.2.8))(react-hook-form@7.83.0(react@19.2.8))(react@19.2.8)
@@ -16726,7 +16648,7 @@ snapshots:
       clsx: 2.1.1
       copy-text-to-clipboard: 3.2.2
       crypto-js: 4.2.0
-      docusaurus-plugin-openapi-docs: 5.1.2(6fd3dfd736b5719e97b66ae5ae87e295)
+      docusaurus-plugin-openapi-docs: 5.1.3(6fd3dfd736b5719e97b66ae5ae87e295)
       docusaurus-plugin-sass: 0.2.6(ca24299a8c095977725b85d6414028ec)
       file-saver: 2.0.5
       lodash: 4.18.1
