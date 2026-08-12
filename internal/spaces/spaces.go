@@ -157,11 +157,17 @@ type Store interface {
 		repo syntax.DID,
 		collection *syntax.NSID,
 	) ([]Record, error)
-	ListRecordBlocks(
+	// RepoSnapshot returns a repo's signed head commit together with its record
+	// blocks, read as of the same point: on Postgres both reads happen inside
+	// the same advisory-locked transaction PutRecord/DeleteRecord use, so a
+	// concurrent write cannot land between them, and the commit is built from
+	// that same frozen rev/hash. commit is nil when the repo holds no records
+	// in the space.
+	RepoSnapshot(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
-	) ([]recordBlock, error)
+	) (commit *spacecommit.SignedCommit, blocks []recordBlock, err error)
 	DeleteRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -174,14 +180,19 @@ type Store interface {
 	// Oplog operations
 	//
 	// ListRepoOps returns a repo's operations within a space after a given
-	// revision, ordered by revision ascending, for incremental sync.
+	// revision, ordered by revision ascending, for incremental sync. When this
+	// page reaches the head of the oplog, commit is the signed commit over
+	// exactly the state these ops leave the caller at — the head is read inside
+	// the same locked transaction as the ops, so it can never describe a write
+	// that landed between the two reads. commit is nil when the page does not
+	// reach the head, or the repo has no records to sign a commit over.
 	ListRepoOps(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
 		since string,
 		limit int,
-	) ([]Record, error)
+	) (ops []Record, commit *spacecommit.SignedCommit, err error)
 
 	// RepoHead returns a repo's current head revision and LtHash commit hash.
 	// found is false when the repo holds no records in the space.
@@ -190,6 +201,14 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
 	) (rev string, hash []byte, found bool, err error)
+
+	// RepoHeadCommit returns the signed commit over a repo's current head
+	// state. commit is nil when the repo holds no records in the space.
+	RepoHeadCommit(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+	) (commit *spacecommit.SignedCommit, err error)
 
 	// WithTx returns a copy of the store scoped to the given transaction, so its
 	// DB writes participate in a caller-managed transaction. FGA writes are not
@@ -232,17 +251,20 @@ type store struct {
 	clock      *syntax.TIDClock
 	eventStore events.Store
 	notifier   Notifier
+	commit     *spacecommit.Authority
 }
 
 var _ Store = &store{}
 
 // NewStore creates a spaces store. notifier may be nil to disable notifyWrite
-// delivery.
+// delivery. commit signs the repo-head commits RepoSnapshot, ListRepoOps, and
+// RepoHeadCommit build.
 func NewStore(
 	db *gorm.DB,
 	fga fgastore.Store,
 	eventStore events.Store,
 	notifier Notifier,
+	commit *spacecommit.Authority,
 ) (*store, error) {
 	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceRepo{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
@@ -253,6 +275,7 @@ func NewStore(
 		clock:      syntax.NewTIDClock(0),
 		eventStore: eventStore,
 		notifier:   notifier,
+		commit:     commit,
 	}, nil
 }
 
@@ -264,6 +287,7 @@ func (s *store) WithTx(tx *gorm.DB) Store {
 		clock:      s.clock,
 		eventStore: s.eventStore,
 		notifier:   s.notifier,
+		commit:     s.commit,
 	}
 }
 
@@ -398,6 +422,23 @@ func saveRepoHash(
 		Hash:  h.State(),
 		Rev:   rev,
 	}).Error
+}
+
+// lockRepo acquires the per-repo advisory lock PutRecord/DeleteRecord hold for
+// their whole write, so a read inside the same transaction cannot race a
+// concurrent writer: it blocks until an in-flight write finishes and holds the
+// lock until the read commits. It is a no-op outside Postgres, where SQLite
+// serializes whole transactions already.
+func lockRepo(tx *gorm.DB, space habitat_syntax.SpaceURI, repo syntax.DID) error {
+	if tx.Name() != "postgres" {
+		return nil
+	}
+	if err := tx.Exec(
+		`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`, space, repo,
+	).Error; err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	return nil
 }
 
 func (s *store) ListRepos(
@@ -593,15 +634,8 @@ func (s *store) PutRecord(
 	var newRev syntax.TID
 	var repoHash []byte
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if tx.Name() == "postgres" {
-			// acquire lock on permissioned repo within space
-			if err := tx.Exec(
-				`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`,
-				spaceUri,
-				repo,
-			).Error; err != nil {
-				return fmt.Errorf("failed to acquire lock: %w", err)
-			}
+		if err := lockRepo(tx, spaceUri, repo); err != nil {
+			return err
 		}
 		action := "update"
 		var prev spaceRecord
@@ -757,40 +791,75 @@ func (s *store) ListRecords(
 	return records, nil
 }
 
-func (s *store) ListRecordBlocks(
+func (s *store) RepoSnapshot(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 	repo syntax.DID,
-) ([]recordBlock, error) {
-	var sp space
-	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
-		First(&sp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, ErrSpaceNotFound
-	} else if err != nil {
-		return nil, err
-	}
-
-	var rows []spaceRecord
-	if err := s.db.WithContext(ctx).
-		Where("space = ?", uri).
-		Where("repo = ?", repo).
-		Order("collection ASC, rkey ASC").
-		Find(&rows).Error; err != nil {
-		return nil, err
-	}
-
-	blocks := make([]recordBlock, len(rows))
-	for i, row := range rows {
-		blocks[i] = recordBlock{
-			Collection: row.Collection,
-			Rkey:       row.Rkey,
-			Cid:        cid.MustParse(row.Cid),
-			Bytes:      row.Value,
+) (commit *spacecommit.SignedCommit, blocks []recordBlock, err error) {
+	var revision string
+	var hash []byte
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// The same per-repo lock PutRecord/DeleteRecord hold for their
+		// whole write blocks until this read finishes, and blocks any new
+		// writer from starting until it does: the head and the blocks
+		// below are read as of the same point, with nothing landing
+		// between them.
+		if err := lockRepo(tx, uri, repo); err != nil {
+			return err
 		}
+
+		var sp space
+		err := tx.
+			Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
+			First(&sp).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrSpaceNotFound
+		} else if err != nil {
+			return err
+		}
+
+		h, rev, ok, err := loadRepoHash(tx, uri, repo)
+		if err != nil {
+			return fmt.Errorf("repo head: %w", err)
+		}
+		if !ok {
+			return nil
+		}
+		revision, hash = rev.String(), h.Sum()
+
+		var rows []spaceRecord
+		if err := tx.
+			Where("space = ?", uri).
+			Where("repo = ?", repo).
+			Order("collection ASC, rkey ASC").
+			Find(&rows).Error; err != nil {
+			return err
+		}
+		blocks = make([]recordBlock, len(rows))
+		for i, row := range rows {
+			blocks[i] = recordBlock{
+				Collection: row.Collection,
+				Rkey:       row.Rkey,
+				Cid:        cid.MustParse(row.Cid),
+				Bytes:      row.Value,
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
 	}
-	return blocks, nil
+	if revision == "" {
+		return nil, nil, nil
+	}
+	// Signing only needs the already-frozen rev/hash above, not another DB
+	// read, so it happens outside the transaction rather than holding the
+	// repo's write lock while it runs.
+	signed, err := s.commit.Build(ctx, uri, repo, revision, hash)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build commit: %w", err)
+	}
+	return &signed, blocks, nil
 }
 
 func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
@@ -859,50 +928,64 @@ func (s *store) ListRepoOps(
 	repo syntax.DID,
 	since string,
 	limit int,
-) ([]Record, error) {
-	// A since beyond the repo's head revision is a client error: nothing will
-	// ever be listed after it, and an empty page would be indistinguishable
-	// from the normal at-head case. Syncers use the RevNotFound error to detect
-	// they are ahead of the host and resync from scratch.
-	if since != "" {
-		var head spaceRepo
-		err := s.db.WithContext(ctx).
-			Where("space = ? AND repo = ?", uri, repo).
-			First(&head).Error
-		if err == nil && since > string(head.Rev) {
-			return nil, ErrRevTooFar
-		}
-	}
-	query := s.db.WithContext(ctx).
-		Unscoped().
-		Model(&spaceRecord{}).
-		Where("space = ? AND repo = ?", uri, repo)
-	if since != "" {
-		query = query.Where("rev > ?", since)
-	}
+) (records []Record, commit *spacecommit.SignedCommit, err error) {
 	if limit <= 0 {
 		limit = 100
 	}
+	var headRev syntax.TID
+	var headHash []byte
+	var headFound bool
 	var rows []spaceRecord
-	if err := query.Order("rev ASC").Limit(limit).Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("list repo ops: %w", err)
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Read the head and the ops behind the same per-repo lock
+		// PutRecord/DeleteRecord hold for their whole write, so a
+		// concurrent write cannot land between the two reads below: the
+		// head this transaction sees always describes exactly the ops it
+		// sees, letting the commit built from it (below, once the lock is
+		// released) name precisely where this page leaves the caller.
+		if err := lockRepo(tx, uri, repo); err != nil {
+			return err
+		}
+
+		h, rev, found, err := loadRepoHash(tx, uri, repo)
+		if err != nil {
+			return fmt.Errorf("repo head: %w", err)
+		}
+		headRev, headHash, headFound = rev, h.Sum(), found
+		// A since beyond the repo's head revision is a client error: nothing
+		// will ever be listed after it, and an empty page would be
+		// indistinguishable from the normal at-head case. Syncers use the
+		// RevNotFound error to detect they are ahead of the host and resync
+		// from scratch.
+		if since != "" && found && since > string(rev) {
+			return ErrRevTooFar
+		}
+
+		query := tx.Unscoped().Model(&spaceRecord{}).Where("space = ? AND repo = ?", uri, repo)
+		if since != "" {
+			query = query.Where("rev > ?", since)
+		}
+		return query.Order("rev ASC").Limit(limit).Find(&rows).Error
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("list repo ops: %w", err)
 	}
-	records := make([]Record, len(rows))
+
+	records = make([]Record, len(rows))
 	for i, row := range rows {
 		value, err := atdata.UnmarshalCBOR(row.Value)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if row.DeletedAt.Valid {
 			records[i] = Record{
 				Owner:      row.Repo,
 				Collection: row.Collection,
 				Rkey:       row.Rkey,
-				Value:      nil,
 				Rev:        string(row.Rev),
 				Prev:       row.PrevCid,
 				UpdatedAt:  row.DeletedAt.Time,
-				// empty cid
+				// empty cid and value
 			}
 		} else {
 			records[i] = Record{
@@ -917,7 +1000,14 @@ func (s *store) ListRepoOps(
 			}
 		}
 	}
-	return records, nil
+	if len(rows) < limit && headFound {
+		signed, err := s.commit.Build(ctx, uri, repo, headRev.String(), headHash)
+		if err != nil {
+			return nil, nil, fmt.Errorf("build commit: %w", err)
+		}
+		commit = &signed
+	}
+	return records, commit, nil
 }
 
 func (s *store) RepoHead(
@@ -935,6 +1025,26 @@ func (s *store) RepoHead(
 	return rev.String(), h.Sum(), true, nil
 }
 
+// RepoHeadCommit implements [Store].
+func (s *store) RepoHeadCommit(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (commit *spacecommit.SignedCommit, err error) {
+	rev, hash, found, err := s.RepoHead(ctx, uri, repo)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, nil
+	}
+	signed, err := s.commit.Build(ctx, uri, repo, rev, hash)
+	if err != nil {
+		return nil, fmt.Errorf("build commit: %w", err)
+	}
+	return &signed, nil
+}
+
 func (s *store) DeleteRecord(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
@@ -943,14 +1053,8 @@ func (s *store) DeleteRecord(
 	rkey string,
 ) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if tx.Name() == "postgres" {
-			if err := tx.Exec(
-				`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`,
-				uri,
-				repo,
-			).Error; err != nil {
-				return err
-			}
+		if err := lockRepo(tx, uri, repo); err != nil {
+			return err
 		}
 		var rows []spaceRecord
 		if err := tx.

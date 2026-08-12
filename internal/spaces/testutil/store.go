@@ -1,20 +1,34 @@
 package testutil
 
 import (
+	"context"
 	"testing"
+
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/notify/testutil"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
-	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 type Config struct {
 	FgaStore fgastore.Store
 	DB       *gorm.DB
+	// HostKey signs repo-head commits for authors MemberSigner does not
+	// resolve. Generated fresh when unset.
+	HostKey atcrypto.PrivateKey
+	// MemberSigner resolves habitat-managed authors' own signing keys.
+	// Defaults to one that resolves none, since callers' fixture DIDs are
+	// never actually hive-managed identities — every commit falls back to
+	// HostKey.
+	MemberSigner spacecommit.MemberSigner
 }
 
 type TestStore struct {
@@ -22,6 +36,7 @@ type TestStore struct {
 	Notifier   *testutil.TestNotifier
 	EventStore events.Store
 	FGA        fgastore.Store
+	HostKey    atcrypto.PrivateKey
 }
 
 func NewTestStore(t *testing.T, cfgs ...Config) *TestStore {
@@ -39,10 +54,44 @@ func NewTestStore(t *testing.T, cfgs ...Config) *TestStore {
 	if cfg.DB == nil {
 		cfg.DB = db_testutil.NewDB(t)
 	}
+	if cfg.HostKey == nil {
+		key, err := atcrypto.GeneratePrivateKeyK256()
+		require.NoError(t, err)
+		cfg.HostKey = key
+	}
+	if cfg.MemberSigner == nil {
+		cfg.MemberSigner = noMemberSigner{}
+	}
 	eventStore, err := events.NewStore(cfg.DB)
 	require.NoError(t, err)
 	notifier := &testutil.TestNotifier{}
-	s, err := spaces.NewStore(cfg.DB, cfg.FgaStore, eventStore, notifier)
+	s, err := spaces.NewStore(
+		cfg.DB,
+		cfg.FgaStore,
+		eventStore,
+		notifier,
+		spacecommit.NewAuthority(cfg.HostKey, cfg.MemberSigner),
+	)
 	require.NoError(t, err)
-	return &TestStore{Store: s, Notifier: notifier, EventStore: eventStore, FGA: cfg.FgaStore}
+	return &TestStore{
+		Store:      s,
+		Notifier:   notifier,
+		EventStore: eventStore,
+		FGA:        cfg.FgaStore,
+		HostKey:    cfg.HostKey,
+	}
+}
+
+// FGAStore exposes the underlying FGA store for tests that rebuild a Server
+// against an existing test store.
+func (t *TestStore) FGAStore() fgastore.Store { return t.FGA }
+
+// noMemberSigner never resolves a habitat-managed signer, so Authority.Build
+// always falls back to the host key.
+type noMemberSigner struct{}
+
+func (noMemberSigner) PrivateKeyForDID(
+	context.Context, syntax.DID,
+) (atcrypto.PrivateKey, error) {
+	return nil, identity.ErrDIDNotFound
 }

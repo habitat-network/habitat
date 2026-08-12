@@ -528,7 +528,7 @@ func TestDeleteRecord(t *testing.T) {
 	_, err = s.GetRecord(t.Context(), uri, owner, coll, "rkey")
 	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
 
-	ops, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
+	ops, _, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
 	require.NoError(t, err)
 	require.Len(t, ops, 1)
 	require.Empty(t, ops[0].Cid)
@@ -666,7 +666,7 @@ func TestListRepoOps(t *testing.T) {
 	coll := syntax.NSID("network.habitat.note")
 
 	t.Run("empty", func(t *testing.T) {
-		records, err := s.ListRepoOps(ctx, uri, "did:web:unknown", "", 100)
+		records, _, err := s.ListRepoOps(ctx, uri, "did:web:unknown", "", 100)
 		require.NoError(t, err)
 		require.Len(t, records, 0)
 	})
@@ -678,19 +678,19 @@ func TestListRepoOps(t *testing.T) {
 		_, _, err = s.PutRecord(ctx, uri, owner, coll, "k3", map[string]any{"x": 3})
 		require.NoError(t, err)
 
-		records, err := s.ListRepoOps(ctx, uri, owner, "", 1)
+		records, _, err := s.ListRepoOps(ctx, uri, owner, "", 1)
 		require.NoError(t, err)
 		require.Len(t, records, 1)
 		require.Equal(t, syntax.RecordKey("k1"), records[0].Rkey)
 
-		records, err = s.ListRepoOps(ctx, uri, owner, records[0].Rev, 100)
+		records, _, err = s.ListRepoOps(ctx, uri, owner, records[0].Rev, 100)
 		require.NoError(t, err)
 		require.Len(t, records, 1)
 		require.Equal(t, syntax.RecordKey("k3"), records[0].Rkey)
 
 		ownerLastRev := records[0].Rev
 
-		records, err = s.ListRepoOps(ctx, uri, alice, "", 100)
+		records, _, err = s.ListRepoOps(ctx, uri, alice, "", 100)
 		require.NoError(t, err)
 		require.Len(t, records, 1)
 		require.Equal(t, syntax.RecordKey("k2"), records[0].Rkey)
@@ -700,13 +700,13 @@ func TestListRepoOps(t *testing.T) {
 		require.NoError(t, s.DeleteRecord(ctx, uri, owner, coll, "k1"))
 		require.NoError(t, s.DeleteRecord(ctx, uri, alice, coll, "k2"))
 
-		records, err = s.ListRepoOps(ctx, uri, owner, ownerLastRev, 100)
+		records, _, err = s.ListRepoOps(ctx, uri, owner, ownerLastRev, 100)
 		require.NoError(t, err)
 		require.Len(t, records, 1)
 		require.Equal(t, syntax.RecordKey("k1"), records[0].Rkey)
 		require.Empty(t, records[0].Cid)
 
-		records, err = s.ListRepoOps(ctx, uri, alice, aliceLastRev, 100)
+		records, _, err = s.ListRepoOps(ctx, uri, alice, aliceLastRev, 100)
 		require.NoError(t, err)
 		require.Len(t, records, 1)
 		require.Equal(t, syntax.RecordKey("k2"), records[0].Rkey)
@@ -718,7 +718,7 @@ func TestListRepoOps(t *testing.T) {
 		_, _, err = s.PutRecord(ctx, uri, owner, coll, "k1", map[string]any{"text": "hello"})
 		require.NoError(t, err)
 
-		records, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
+		records, _, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
 		require.NoError(t, err)
 		require.Len(t, records, 1)
 		require.Equal(t, "hello", records[0].Value["text"])
@@ -767,7 +767,7 @@ func TestListRepoOpsPrev(t *testing.T) {
 	require.NoError(t, err)
 
 	// An update overwrites in place: one op whose prev is the old cid.
-	ops, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
+	ops, _, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
 	require.NoError(t, err)
 	require.Len(t, ops, 1)
 	require.Equal(t, cid1.String(), ops[0].Prev)
@@ -777,7 +777,7 @@ func TestListRepoOpsPrev(t *testing.T) {
 	// A delete soft-removes the row: one op whose prev is the last cid, with no
 	// cid and no value.
 	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))
-	ops, err = s.ListRepoOps(t.Context(), uri, owner, "", 100)
+	ops, _, err = s.ListRepoOps(t.Context(), uri, owner, "", 100)
 	require.NoError(t, err)
 	require.Len(t, ops, 1)
 	require.Equal(t, cid2.String(), ops[0].Prev)
@@ -796,7 +796,7 @@ func TestListRepoOpsPrevCreateIsEmpty(t *testing.T) {
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
 	require.NoError(t, err)
 
-	ops, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
+	ops, _, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
 	require.NoError(t, err)
 	require.Len(t, ops, 1)
 	require.Empty(t, ops[0].Prev)
