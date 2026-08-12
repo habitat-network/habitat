@@ -10,15 +10,10 @@
     "outDir": "../../.moon/cache/types/typescript/internal",
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
-  "include": [
-    "src/**/*",
-    "../globals.d.ts"
-  ],
+  "include": ["src/**/*", "../globals.d.ts"],
   "references": [
     {
       "path": "../api"

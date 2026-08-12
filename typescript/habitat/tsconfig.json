@@ -15,14 +15,7 @@
     "outDir": "../../.moon/cache/types/typescript/habitat",
     "rootDir": "./src"
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "src/**/*.test.ts",
-    "src/test/**"
-  ],
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/test/**"],
   "references": []
 }

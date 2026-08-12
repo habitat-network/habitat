@@ -4,20 +4,12 @@
     "baseUrl": ".",
     "noEmit": true,
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     },
-    "types": [
-      "vite/client",
-      "node"
-    ],
+    "types": ["vite/client", "node"],
     "outDir": "../../../.moon/cache/types/typescript/apps/pear-pages"
   },
-  "include": [
-    "src/**/*",
-    "../../globals.d.ts"
-  ],
+  "include": ["src/**/*", "../../globals.d.ts"],
   "references": [
     {
       "path": "../../internal"
