@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -22,7 +23,6 @@ import (
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/oauth2"
-	"log/slog"
 )
 
 type ClientMetadata struct {
@@ -490,7 +490,8 @@ func (o *oauthClientImpl) makePushedAuthorizationRequest(
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	slog.DebugContext(ctx, "pushed authorization request",
+	slog.DebugContext(
+		ctx, "pushed authorization request",
 		"client_assertion", clientAssertion,
 		"issuer", as.Issuer,
 		"par_url", parUrl,
