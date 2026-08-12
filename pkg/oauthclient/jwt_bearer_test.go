@@ -1,8 +1,9 @@
-package oauthserver
+package oauthclient
 
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -10,31 +11,56 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/httpx"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
+	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
+	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 )
 
 const jwtBearerGrantType = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 
-// jwtBearerIssuer is the fixed, public-looking issuer URL every JWT Bearer
-// test server issues from. indigo's oauth.Resolver refuses to resolve auth
-// server / protected-resource metadata from anything but an https URL with no
-// port, so tests can't point SendJWTTokenRequest's identity/auth-server
-// resolution directly at an httptest server's http://127.0.0.1:PORT address.
-// Instead, every request to this host is rewritten to the real httptest.Server
-// by roundTripper (defined in oauth_server_test.go).
 const jwtBearerIssuer = "https://habitat.example"
 
+type jwtBearerRoundTripper struct {
+	t      *testing.T
+	server *httptest.Server
+}
+
+func (rt *jwtBearerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.URL.Hostname() == "habitat.example" {
+		u, err := url.Parse(rt.server.URL + req.URL.RequestURI())
+		require.NoError(rt.t, err)
+		req.URL = u
+	}
+	return rt.server.Client().Transport.RoundTrip(req)
+}
+
+// jwtBearerTestOrgStore creates an org.Store seeded with a test org.
+func jwtBearerTestOrgStore(t *testing.T) org.Store {
+	t.Helper()
+	s := org_testutil.NewTestStore(t)
+	_, _, err := s.CreateOrg(
+		t.Context(),
+		"org-name",
+		"admin",
+		"password",
+		"",
+		"",
+		"",
+		"contact@example.com",
+	)
+	require.NoError(t, err)
+	return s
+}
+
 // newJWTBearerTestClient creates an httptest server serving the client's
-// metadata document, and returns the client wired up to it.
-func newJWTBearerTestClient(t *testing.T) *oauthclient.Client {
+// metadata document, and returns the oauthclient.Client wired up to it.
+func newJWTBearerTestClient(t *testing.T) *Client {
 	t.Helper()
 	privateKey, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
@@ -53,27 +79,23 @@ func newJWTBearerTestClient(t *testing.T) *oauthclient.Client {
 		}
 	}))
 	t.Cleanup(server.Close)
+	keyID := "test-key"
 	client = oauth.NewClientApp(
 		&oauth.ClientConfig{
 			ClientID:   server.URL + "/client-metadata.json",
 			PrivateKey: privateKey,
-			KeyID:      new("test-key"),
+			KeyID:      &keyID,
 		},
 		oauth.NewMemStore(),
 	)
 
-	return oauthclient.NewJWTBearerClient(client)
+	return NewJWTBearerClient(client)
 }
 
-// setupJWTBearerTestServer wires up an OAuthServer issuing from
-// jwtBearerIssuer, reachable through a TLS httptest.Server. approvedClientIDs
-// are registered in the JWT Bearer client allow-list. Callers must route the
-// oauthclient.Client's HTTP traffic to the returned server via roundTripper
-// (see jwtBearerIssuer) before calling SendJWTTokenRequest.
 func setupJWTBearerTestServer(
 	t *testing.T,
 	approvedClientIDs ...string,
-) (srv *OAuthServer, server *httptest.Server) {
+) (srv *oauthserver.OAuthServer, server *httptest.Server) {
 	t.Helper()
 	db := testutil.NewDB(t)
 	secret, err := encrypt.GenerateKey()
@@ -82,7 +104,7 @@ func setupJWTBearerTestServer(
 	require.NoError(t, err)
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 
-	var oauthServer *OAuthServer
+	var oauthServer *oauthserver.OAuthServer
 	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/oauth/token":
@@ -97,31 +119,36 @@ func setupJWTBearerTestServer(
 	}))
 	t.Cleanup(server.Close)
 
-	oauthServer, err = NewOAuthServer(
+	oauthServer, err = oauthserver.NewOAuthServer(
 		bytes,
 		&org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
 		dummyDir,
 		db,
 		noop.Meter{},
-		testStore(t),
+		jwtBearerTestOrgStore(t),
 		jwtBearerIssuer,
-		NewJWTBearerStore(approvedClientIDs...),
+		oauthserver.NewJWTBearerStore(approvedClientIDs...),
 	)
 	require.NoError(t, err)
 
 	return oauthServer, server
 }
 
-func TestHandleTokenJWTBearerGrant(t *testing.T) {
+func TestClient_SendJWTTokenRequest(t *testing.T) {
 	subject := syntax.DID("did:web:service-subject.example")
 	dir := identity.NewMockDirectory()
-	dir.Insert(*did.New(subject).ATProtoPDS(jwtBearerIssuer).Build())
+	dir.Insert(identity.Identity{
+		DID: subject,
+		Services: map[string]identity.ServiceEndpoint{
+			"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: jwtBearerIssuer},
+		},
+	})
 	client := newJWTBearerTestClient(t)
 	client.Dir = dir
 
-	t.Run("issues an access token for an allow-listed client", func(t *testing.T) {
+	t.Run("signs and exchanges an assertion for a session", func(t *testing.T) {
 		srv, server := setupJWTBearerTestServer(t, client.Config.ClientID)
-		rt := &roundTripper{t: t, server: server}
+		rt := &jwtBearerRoundTripper{t: t, server: server}
 		client.Client = &http.Client{Transport: rt}
 		client.Resolver.Client = &http.Client{Transport: rt}
 
@@ -134,15 +161,41 @@ func TestHandleTokenJWTBearerGrant(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, subject, credInfo.Subject)
+
+		stored, err := client.Store.GetSession(t.Context(), subject, sess.SessionID)
+		require.NoError(t, err)
+		require.Equal(t, sess.AccessToken, stored.AccessToken)
 	})
 
 	t.Run("rejects an assertion from a client not on the allow-list", func(t *testing.T) {
 		_, server := setupJWTBearerTestServer(t)
-		rt := &roundTripper{t: t, server: server}
+		rt := &jwtBearerRoundTripper{t: t, server: server}
 		client.Client = &http.Client{Transport: rt}
 		client.Resolver.Client = &http.Client{Transport: rt}
 
 		_, err := client.SendJWTTokenRequest(t.Context(), subject.String())
+		require.Error(t, err)
+	})
+
+	t.Run("rejects a public (non-confidential) client", func(t *testing.T) {
+		app := oauth.NewClientApp(&oauth.ClientConfig{
+			ClientID: "https://client.example/client-metadata.json",
+		}, oauth.NewMemStore())
+		c := NewJWTBearerClient(app)
+
+		_, err := c.SendJWTTokenRequest(t.Context(), subject.String())
+		require.Error(t, err)
+	})
+
+	t.Run("fails when the identifier can't be resolved", func(t *testing.T) {
+		_, server := setupJWTBearerTestServer(t, client.Config.ClientID)
+		rt := &jwtBearerRoundTripper{t: t, server: server}
+		c := newJWTBearerTestClient(t)
+		c.Client = &http.Client{Transport: rt}
+		c.Resolver.Client = &http.Client{Transport: rt}
+		c.Dir = identity.NewMockDirectory() // subject not registered
+
+		_, err := c.SendJWTTokenRequest(t.Context(), subject.String())
 		require.Error(t, err)
 	})
 }
