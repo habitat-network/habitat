@@ -63,7 +63,10 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 	oauthApp := oauth.NewClientApp(&cfg, store)
 	jwtClient := oauthclient.NewJWTBearerClient(oauthApp)
 
-	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp})
+	sessions, err := newSessionResolver(db, jwtClient)
+	require.NoError(t, err)
+
+	s, err := sap.New(sap.Config{DB: db, Clients: sessions})
 	require.NoError(t, err)
 
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
@@ -74,7 +77,7 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 
-	server := NewSapServer(s, jwtClient, "example.com", nil)
+	server := NewSapServer(s, sessions, jwtClient, "example.com", nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/proxy/", server.handleProxy)
 	httpServer := httptest.NewServer(mux)

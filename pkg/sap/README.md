@@ -2,17 +2,24 @@
 
 `sap` is a library (and thin binary wrapper) that keeps a local copy of AT
 Protocol repos in sync with their habitat hosts, for every `network.habitat.space`
-a set of OAuth/JWT-bearer sessions can see. Synced records are delivered
-through a durable, acknowledged outbox.
+a tracked DID can see. Synced records are delivered through a durable,
+acknowledged outbox.
+
+sap itself never establishes a session: it only tracks *which* DIDs to
+crawl/sync and asks a caller-supplied `session.Clients` for an authenticated
+client per DID on demand. How a DID's session actually came to exist — a
+browser OAuth flow, an RFC 7523 JWT-bearer grant, anything else — is entirely
+the caller's concern, added out of band of this package (in `cmd/sap`, via
+`/session/add` and `/session/jwt`).
 
 ## How the parts fit together
 
 ```
 AddSession(did) ─────▶ session.Store ─────▶ crawl.Crawler
-                        (auth clients,        (listSpaces/listRepos,
-                         space access)         resumable via cursor)
-                                                     │
-                                    Track/Check      │
+                        (tracked DIDs,        (listSpaces/listRepos,
+                         space access,         resumable via cursor)
+                         Clients-backed              │
+                         auth clients)   Track/Check │
                                                      ▼
                         register.Registrar ◀── syncer.Engine ──▶ outbox.Store
                         (registerNotify,        (state machine:         │
@@ -24,13 +31,17 @@ AddSession(did) ─────▶ session.Store ─────▶ crawl.Crawle
                                                     on verify failure)
 ```
 
-- **`session`** owns every tracked session's auth and issues two kinds of HTTP
-  client: `ClientForSession` authenticates as the member itself against *that
-  member's own* host, and backs member-scoped calls like `listSpaces`. A
-  session added via the RFC 7523 JWT-bearer grant (`pkg/oauthclient.Client`,
-  no browser flow) mints its underlying OAuth session lazily on first use —
-  from then on it's resumed exactly like one from the browser flow, through
-  the same `oauth.ClientApp` session store. `ClientForSpace` backs every call
+- **`session`** tracks every DID sap syncs on behalf of, and issues two kinds
+  of HTTP client: `ClientForSession` authenticates as the member itself
+  against *that member's own* host, and backs member-scoped calls like
+  `listSpaces` — it does this by asking the caller-supplied `Clients`
+  (`ClientForDID`) for a client, with no auth-method logic of its own.
+  `cmd/sap`'s resolver (see below) is the real implementation: for an
+  OAuth-added DID it resumes the session recorded at `/session/add`; for a
+  JWT-bearer-added DID it mints a session lazily on first use via
+  `pkg/oauthclient.Client.SendJWTTokenRequest`, persists the resulting
+  session ID, and resumes it on every call after — re-minting only if the
+  recorded session no longer resumes. `ClientForSpace` backs every call
   that spans a space's members —
   `listRepos`, `listRepoOps`, `getRepo`, `registerNotify` — per the
   permissioned-data proposal, which requires space-level authorization for
@@ -71,24 +82,25 @@ AddSession(did) ─────▶ session.Store ─────▶ crawl.Crawle
 ```go
 import (
     "github.com/habitat-network/habitat/pkg/sap"
-    "github.com/habitat-network/habitat/pkg/sap/session"
     "go.opentelemetry.io/otel"
 )
 
 s, err := sap.New(sap.Config{
-    DB:          db,
-    OAuthClient: oauthApp,
-    Directory:   identity.DefaultDirectory(),
-    Endpoint:    "https://sap.example.com", // registered with hosts for notifyWrite
-    Meter:       otel.Meter("sap"),
-    Tracer:      otel.Tracer("sap"),
+    DB:        db,
+    Clients:   clients, // implements session.Clients; see cmd/sap/sessions.go
+    Directory: identity.DefaultDirectory(),
+    Endpoint:  "https://sap.example.com", // registered with hosts for notifyWrite
+    Meter:     otel.Meter("sap"),
+    Tracer:    otel.Tracer("sap"),
 })
 if err != nil {
     log.Fatal(err)
 }
 
-// Registers the session and kicks off its backfill crawl in the background.
-if err := s.AddSession(ctx, did, sessionID, session.AuthOAuth); err != nil {
+// Starts tracking did and kicks off its backfill crawl in the background.
+// The caller is responsible for did being authenticable via Clients by the
+// time the crawl actually runs.
+if err := s.AddSession(ctx, did); err != nil {
     log.Fatal(err)
 }
 
@@ -128,15 +140,21 @@ for {
 
 ## The `cmd/sap` binary
 
-Wraps a `*sap.Sap` with HTTP. The OAuth-facing endpoints (`/oauth-callback`,
-`/client-metadata.json`) and the host-facing notify webhooks
-(`/xrpc/network.habitat.space.notifyWrite`, `notifySpaceDeleted`, validated by
-service-auth) are served on the public port; session management and the
-outbox are served on a separate internal port meant to be restricted to
-trusted callers:
+Wraps a `*sap.Sap` with HTTP, and owns the `session.Clients` implementation
+sap is configured with ([`cmd/sap/sessions.go`](../../cmd/sap/sessions.go)):
+a `sessionResolver` records, per DID, which auth method to use and (for
+JWT-bearer) the minted session ID, and resolves a client for `pkg/sap` on
+demand — sap never sees a session ID or auth method itself. The OAuth-facing
+endpoints (`/oauth-callback`, `/client-metadata.json`) and the host-facing
+notify webhooks (`/xrpc/network.habitat.space.notifyWrite`,
+`notifySpaceDeleted`, validated by service-auth) are served on the public
+port; session management and the outbox are served on a separate internal
+port meant to be restricted to trusted callers:
 
-- `POST /session/add` — start an OAuth flow for a handle (`AddSession` runs on callback)
-- `POST /session/jwt` — register a JWT-bearer session for a DID directly
+- `POST /session/add` — start an OAuth flow for a handle; on callback, the
+  resulting session ID is recorded and `AddSession` is called
+- `POST /session/jwt` — record a DID as JWT-bearer-authenticated and call
+  `AddSession`; the underlying OAuth session is minted lazily on first use
 - `GET /session/list` — DIDs of tracked sessions
 - `GET /channel` — websocket streaming the outbox (see
   [`cmd/sap/websocket.go`](../../cmd/sap/websocket.go) for the wire protocol);
@@ -149,19 +167,19 @@ trusted callers:
 Each subpackage owns and auto-migrates its own tables:
 `sap_sessions`/`sap_space_access` (session), `sap_crawls` (crawl),
 `sap_repos`/`sap_repo_records` (syncer), `sap_registrations` (register),
-`sap_outbox` (outbox).
+`sap_outbox` (outbox); `cmd/sap` additionally owns `sap_tracked_sessions`
+(the DID→auth-method/session-ID mapping backing its `session.Clients`).
 
 ## Configuration
 
 | Field | Description |
 |---|---|
 | `DB` | GORM database handle (schema auto-migrated on construction) |
-| `OAuthClient` | OAuth client app for resuming sessions and minting space credentials |
+| `Clients` | Resolves an authenticated client per tracked DID; see `session.Clients` |
 | `Directory` | AT Protocol DID directory for commit-signature verification; nil verifies by hash only |
 | `Endpoint` | sap's public base URL registered with hosts for notifications; empty disables registration |
 | `Parallelism` | Sync worker pool size (default 5) |
 | `CrawlInterval` | How often every session is re-crawled (default 1h) |
-| `JWTBearer` | Enables JWT-bearer sessions (`session.AuthJWTBearer`) when set |
 | `Meter` / `Tracer` | OpenTelemetry instrumentation (nil = no-op) |
 
 Metrics are prefixed `sap.crawler.*` and `sap.syncer.*`; see each package's

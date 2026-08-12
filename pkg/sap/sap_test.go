@@ -34,7 +34,6 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
-	"github.com/habitat-network/habitat/pkg/sap/session"
 )
 
 // TestSap runs the full pear + sap loop: a session is added, sap backfills
@@ -100,11 +99,15 @@ func TestSap(t *testing.T) {
 	)
 	oauthApp := oauth.NewClientApp(&cfg, store)
 
+	// The test plays the role cmd/sap's sessionResolver normally would: it
+	// records which session ID resumes which DID, out of band of sap itself.
+	clients := &oauthAppClients{app: oauthApp, sessionIDs: map[syntax.DID]string{}}
+
 	s, err := New(Config{
-		DB:          db,
-		OAuthClient: oauthApp,
-		Directory:   pear.hive,
-		Endpoint:    sapServer.URL,
+		DB:        db,
+		Clients:   clients,
+		Directory: pear.hive,
+		Endpoint:  sapServer.URL,
 		// Fast re-crawls so spaces created mid-test are discovered promptly.
 		CrawlInterval: 200 * time.Millisecond,
 	})
@@ -160,7 +163,8 @@ func TestSap(t *testing.T) {
 		AccessToken:             futureJWT(t),
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
-	require.NoError(t, s.AddSession(t.Context(), author, "sess1", session.AuthOAuth))
+	clients.sessionIDs[author] = "sess1"
+	require.NoError(t, s.AddSession(t.Context(), author))
 
 	// 5. The crawl registers every discovered space for notifications.
 	require.Eventually(t, func() bool {
@@ -227,6 +231,22 @@ func TestSap(t *testing.T) {
 		require.Equal(t, "active", r.State, "repo in space %s not active", r.Space)
 		require.NotEmpty(t, r.Hash)
 	}
+}
+
+// oauthAppClients implements session.Clients over a plain *oauth.ClientApp,
+// standing in for the DID-to-session-ID tracking cmd/sap's sessionResolver
+// normally owns out of band of this package.
+type oauthAppClients struct {
+	app        *oauth.ClientApp
+	sessionIDs map[syntax.DID]string
+}
+
+func (c *oauthAppClients) ClientForDID(ctx context.Context, did syntax.DID) (*http.Client, error) {
+	sess, err := c.app.ResumeSession(ctx, did, c.sessionIDs[did])
+	if err != nil {
+		return nil, err
+	}
+	return oauthclient.SessionClient(sess), nil
 }
 
 // pearHost bundles the host-side pieces the test drives.

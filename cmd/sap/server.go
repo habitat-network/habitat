@@ -17,7 +17,6 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
-	"github.com/habitat-network/habitat/pkg/sap/session"
 )
 
 // habitatDIDHeader and habitatSessionHeader name the OAuth session the caller
@@ -35,6 +34,10 @@ var hopByHopHeaders = []string{
 
 type server struct {
 	sap *sap.Sap
+	// sessions records which auth method sap uses for each DID (out of band
+	// of pkg/sap itself) and implements session.Clients on top of it; sap
+	// only ever asks it for a client, never how the session was established.
+	sessions *sessionResolver
 	// oauthClient is sap's atproto OAuth client: the browser-redirect flow
 	// (StartAuthFlow/ProcessCallback/ResumeSession, via the embedded
 	// *oauth.ClientApp) and the RFC 7523 JWT-bearer grant (SendJWTTokenRequest)
@@ -52,12 +55,14 @@ type server struct {
 
 func NewSapServer(
 	sapInstance *sap.Sap,
+	sessions *sessionResolver,
 	oauthClient *oauthclient.Client,
 	domain string,
 	serviceAuth *auth.ServiceAuthValidator,
 ) *server {
 	return &server{
 		sap:         sapInstance,
+		sessions:    sessions,
 		oauthClient: oauthClient,
 		domain:      domain,
 		serviceAuth: serviceAuth,
@@ -111,9 +116,13 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.sap.AddSession(
-		r.Context(), sessionData.AccountDID, sessionData.SessionID, session.AuthOAuth,
+	if err := s.sessions.recordOAuthSession(
+		r.Context(), sessionData.AccountDID, sessionData.SessionID,
 	); err != nil {
+		http.Error(w, fmt.Sprintf("save session: %s", err), http.StatusInternalServerError)
+		return
+	}
+	if err := s.sap.AddSession(r.Context(), sessionData.AccountDID); err != nil {
 		http.Error(w, fmt.Sprintf("save session: %s", err), http.StatusInternalServerError)
 		return
 	}
@@ -136,7 +145,11 @@ func (s *server) handleAddJWTSession(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.sap.AddSession(r.Context(), did, "", session.AuthJWTBearer); err != nil {
+	if err := s.sessions.recordJWTBearerSession(r.Context(), did); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.sap.AddSession(r.Context(), did); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
