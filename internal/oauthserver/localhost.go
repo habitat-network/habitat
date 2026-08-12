@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 )
 
 // Localhost development clients don't publish a metadata document; the
@@ -33,7 +33,7 @@ func isLocalhostClientId(u *url.URL) bool {
 // always public: it authenticates with no secret.
 //
 // See https://atproto.com/specs/oauth#localhost-client-development.
-func localhostClientMetadata(id string, u *url.URL) (*pdsclient.ClientMetadata, error) {
+func localhostClientMetadata(id string, u *url.URL) (*oauth.ClientMetadata, error) {
 	if u.Port() != "" {
 		return nil, fmt.Errorf("localhost client id must not specify a port")
 	}
@@ -74,16 +74,16 @@ func localhostClientMetadata(id string, u *url.URL) (*pdsclient.ClientMetadata, 
 		}
 	}
 
-	return &pdsclient.ClientMetadata{
-		ClientId:                id,
-		ClientName:              localhostClientName,
-		ApplicationType:         "native",
+	return &oauth.ClientMetadata{
+		ClientID:                id,
+		ClientName:              new(localhostClientName),
+		ApplicationType:         new("native"),
 		GrantTypes:              []string{"authorization_code", "refresh_token"},
 		ResponseTypes:           []string{"code"},
-		RedirectUris:            redirectUris,
+		RedirectURIs:            redirectUris,
 		Scope:                   scope,
 		TokenEndpointAuthMethod: "none",
-		DpopBoundAccessTokens:   true,
+		DPoPBoundAccessTokens:   true,
 	}, nil
 }
 
