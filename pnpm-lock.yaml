@@ -280,7 +280,7 @@ importers:
     devDependencies:
       '@atproto/lex-cli':
         specifier: ^0.10.6
-        version: 0.10.6
+        version: 0.10.10
 
   typescript/apps/docs:
     dependencies:
@@ -946,8 +946,8 @@ packages:
     resolution: {integrity: sha512-tq7TUDmNfe1yDfpRgdGQMJdl9TUlJmREQNCag9yg5w8Evu+TOiFiLgiOCbo7X4ouRPSgd1DpOzXbUa8UyKKMZA==}
     engines: {node: '>=22'}
 
-  '@atproto/lex-cli@0.10.6':
-    resolution: {integrity: sha512-2DzSBIqdN+LcEfOvAr7xRB/aYQIVMl2p4eqPozcgxsixmBCZHnIyzErm8hV3LpTgTCcLpzogjJJH/yuMTinMEA==}
+  '@atproto/lex-cli@0.10.10':
+    resolution: {integrity: sha512-a8v7Mkxo3MPsALr94poC72FAw04+VtASHn9oyjJypF8FRhCovkfAaQIRW/ke/MI+keAdjV6TPEoMamAH5lHd4A==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -977,10 +977,6 @@ packages:
 
   '@atproto/oauth-types@0.7.5':
     resolution: {integrity: sha512-x75O0HsKB1IGfBikAQrrTX6EL8Rt4Q0+wMcwhZQRGPk/N/WqbYbsW3Powj4R8ZJKSfWCpVfaw32Piu1pTi891Q==}
-    engines: {node: '>=22'}
-
-  '@atproto/syntax@0.7.2':
-    resolution: {integrity: sha512-tZ1Tr0R9pK4bI4Zs69t29cjMlCFQvRNBeNkqJC5pGeNuCt64D0eoF7s/AlqeVmYppClmQ0xJquggGgsMDP6j7w==}
     engines: {node: '>=22'}
 
   '@atproto/syntax@0.7.4':
@@ -4884,6 +4880,9 @@ packages:
 
   brace-expansion@2.1.2:
     resolution: {integrity: sha512-w5JZcKgdhDOgOwm8H+KgbosopHMuGcl6qbulwjtz3SM7I7P3yW1eAjzMPLrIE+NQ9vjgANKHWeMHnrT0OXW1oA==}
+
+  brace-expansion@2.1.4:
+    resolution: {integrity: sha512-hGfVzPxthbf3+2yjg/RBs60cB0FhqBS/zvdV/4wn4/BmN0bNMMHPc4V/BbFieqf1TKAGGAHnY4eSjajCl0f2Xg==}
 
   brace-expansion@5.0.7:
     resolution: {integrity: sha512-7oFy703dxfY3/NLxC1fh2SUCQ0H9rmAY+5EpDVfXjUTTs+HEwR2nYaqLv+GWcTsumwxPfiz6CzCNkwXwBUwqCA==}
@@ -10660,10 +10659,10 @@ snapshots:
       multiformats: 13.4.2
       zod: 3.25.76
 
-  '@atproto/lex-cli@0.10.6':
+  '@atproto/lex-cli@0.10.10':
     dependencies:
       '@atproto/lexicon': 0.7.11
-      '@atproto/syntax': 0.7.2
+      '@atproto/syntax': 0.7.4
       chalk: 4.1.2
       commander: 9.5.0
       prettier: 3.9.6
@@ -10729,11 +10728,6 @@ snapshots:
       '@atproto/did': 0.5.4
       '@atproto/jwk': 0.7.4
       zod: 3.25.76
-
-  '@atproto/syntax@0.7.2':
-    dependencies:
-      iso-datestring-validator: 2.2.2
-      tslib: 2.8.1
 
   '@atproto/syntax@0.7.4':
     dependencies:
@@ -15851,6 +15845,10 @@ snapshots:
     dependencies:
       balanced-match: 1.0.2
 
+  brace-expansion@2.1.4:
+    dependencies:
+      balanced-match: 1.0.2
+
   brace-expansion@5.0.7:
     dependencies:
       balanced-match: 4.0.4
@@ -19094,7 +19092,7 @@ snapshots:
 
   minimatch@9.0.9:
     dependencies:
-      brace-expansion: 2.1.2
+      brace-expansion: 2.1.4
 
   minimist@1.2.8: {}
 
