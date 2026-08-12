@@ -290,7 +290,7 @@ func TestServer_RemoveMember(t *testing.T) {
 	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "shared")
 	require.NoError(t, err)
 
-	err = s.Store.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead)
+	err = s.Store.AddMember(t.Context(), uri, alice)
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
@@ -317,7 +317,7 @@ func TestServer_ListMembers(t *testing.T) {
 	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "shared")
 	require.NoError(t, err)
 
-	err = s.Store.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead)
+	err = s.Store.AddMember(t.Context(), uri, alice)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -623,7 +623,7 @@ func TestServer_DeleteSpace(t *testing.T) {
 	uri, err := s.Store.CreateSpace(t.Context(), orgId, owner, groupType, "to-delete")
 	require.NoError(t, err)
 
-	err = s.Store.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead)
+	err = s.Store.AddMember(t.Context(), uri, alice)
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `"}`
@@ -935,7 +935,7 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 	uri, err := s.Store.CreateSpace(t.Context(), everyoneOrg.DID(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	require.NoError(t, s.Store.AddMember(t.Context(), uri, alice, spaces.SpaceAccessRead))
+	require.NoError(t, s.Store.AddMember(t.Context(), uri, alice))
 
 	// Both tokens are minted with the host key (the space owner is external), so
 	// the directory resolves the owner's atproto_space key and the delegation
