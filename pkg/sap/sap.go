@@ -123,6 +123,7 @@ func New(config Config) (*Sap, error) {
 		config.DB,
 		sessions,
 		sessions,
+		sessions,
 		engine,
 		crawlNotify,
 		config.Meter,

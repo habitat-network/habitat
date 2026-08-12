@@ -76,14 +76,16 @@ func (b *Builder) PublicJWK() jose.JSONWebKey {
 // ClientForDID returns an HTTP client that authenticates as did against its
 // habitat host. Relative request URLs are resolved against that host.
 func (b *Builder) ClientForDID(ctx context.Context, did syntax.DID) (*http.Client, error) {
-	base, err := b.hostFor(ctx, did)
+	base, err := b.HostForDID(ctx, did)
 	if err != nil {
 		return nil, err
 	}
 	return &http.Client{Transport: &transport{b: b, did: did, base: base}}, nil
 }
 
-func (b *Builder) hostFor(ctx context.Context, did syntax.DID) (string, error) {
+// HostForDID resolves did's habitat host base URL (scheme + host, no
+// trailing slash).
+func (b *Builder) HostForDID(ctx context.Context, did syntax.DID) (string, error) {
 	ident, err := b.dir.LookupDID(ctx, did)
 	if err != nil {
 		return "", fmt.Errorf("lookup did %s: %w", did, err)

@@ -33,6 +33,13 @@ func (f fakeClients) ClientForSession(context.Context, syntax.DID) (*http.Client
 	return &http.Client{Transport: rewriteTransport(f)}, nil
 }
 
+func (f fakeClients) ClientForSpace(
+	context.Context,
+	habitat_syntax.SpaceURI,
+) (*http.Client, error) {
+	return &http.Client{Transport: rewriteTransport(f)}, nil
+}
+
 // recorder collects space access records and tracked repos.
 type recorder struct {
 	mu      sync.Mutex
@@ -106,7 +113,7 @@ func TestCrawlerBackfillsSession(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
-	c, err := New(db, fakeClients{base: base}, rec, rec, nil, nil, nil)
+	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	c.Run(t.Context(), "did:plc:sessiondid")
@@ -135,7 +142,7 @@ func TestCrawlerDeduplicatesConcurrentRuns(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
-	c, err := New(db, fakeClients{base: base}, rec, rec, nil, nil, nil)
+	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	done := make(chan struct{})
@@ -169,7 +176,7 @@ func TestCrawlerRunCompleteThenRestart(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
-	c, err := New(db, fakeClients{base: base}, rec, rec, nil, nil, nil)
+	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	c.Run(t.Context(), "did:plc:alice")
@@ -219,7 +226,7 @@ func TestCrawlerEnumerateReposError(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
-	c, err := New(db, fakeClients{base: base}, rec, rec, nil, nil, nil)
+	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	c.Run(t.Context(), "did:plc:alice")
@@ -252,7 +259,7 @@ func TestCrawlerNotifyRegistration(t *testing.T) {
 	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
 	nr := &fakeNotifyRegistrar{}
-	c, err := New(db, fakeClients{base: base}, rec, rec, nr, nil, nil)
+	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nr, nil, nil)
 	require.NoError(t, err)
 
 	c.Run(t.Context(), "did:plc:alice")
@@ -299,11 +306,11 @@ func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	rec := &recorder{}
-	c, err := New(db_testutil.NewDB(t), fakeClients{base: mustParseURL(t, srv.URL)}, rec, rec, nil, nil, nil)
+	fc := fakeClients{base: mustParseURL(t, srv.URL)}
+	c, err := New(db_testutil.NewDB(t), fc, rec, fc, rec, nil, nil, nil)
 	require.NoError(t, err)
 
-	client := &http.Client{Transport: rewriteTransport{base: mustParseURL(t, srv.URL)}}
-	require.NoError(t, c.enumerateRepos(t.Context(), client, space))
+	require.NoError(t, c.enumerateRepos(t.Context(), space))
 
 	rec.mu.Lock()
 	defer rec.mu.Unlock()

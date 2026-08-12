@@ -24,15 +24,22 @@ AddSession(did) ─────▶ session.Store ─────▶ crawl.Crawle
                                                     on verify failure)
 ```
 
-- **`session`** owns every tracked session's auth and issues HTTP clients:
-  `ClientForSession` (as the session itself, for crawling) and
-  `ClientForSpace` (a space-credential client, for reading a space any tracked
-  session can access). Every other package gets an authenticated client
-  through it rather than touching OAuth/JWT-bearer state directly.
-- **`crawl`** backfills: for each session it pages `listSpaces`, records space
-  access, and for each space's `listRepos` calls `Tracker.Check` (start
-  tracking, or compare the listed rev/hash against ours). Crawl progress is a
-  cursor persisted per session, so a restart resumes instead of re-scanning.
+- **`session`** owns every tracked session's auth and issues two kinds of HTTP
+  client: `ClientForSession` authenticates as the member itself (OAuth or, via
+  the JWT-bearer grant, an equivalent act-as-subject token) and backs
+  member-scoped calls like `listSpaces`; `ClientForSpace` exchanges that
+  member auth for a space credential (`getDelegationToken` +
+  `getSpaceCredential`) and backs every call that spans a space's members —
+  `listRepos`, `listRepoOps`, `getRepo`, `registerNotify` — per the
+  permissioned-data proposal, which requires space-level authorization for
+  those rather than a single member's access token. Every other package gets
+  its clients through `session` rather than touching OAuth/JWT-bearer state
+  directly.
+- **`crawl`** backfills: for each session it pages `listSpaces` (member auth),
+  records space access, and for each space calls `listRepos` (space-credential
+  auth) into `Tracker.Check` (start tracking, or compare the listed rev/hash
+  against ours). Crawl progress is a cursor persisted per session, so a
+  restart resumes instead of re-scanning.
 - **`syncer`** is the sync engine and state machine, one row per `(space,
   repo)`. `pending`/`error` repos are synced incrementally via
   `listRepoOps` and verified against the host's signed commit hash (LtHash);

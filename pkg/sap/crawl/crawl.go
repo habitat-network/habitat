@@ -1,7 +1,9 @@
 // Package crawl backfills sap's view of what a session can see: for each
-// session it pages through listSpaces, records space access, and enumerates
-// each space's repos into the sync engine. Crawls are resumable via a stored
-// cursor and re-run from where they left off after a restart.
+// session it pages through listSpaces (authenticated as the session),
+// records space access, and enumerates each space's repos via listRepos
+// (authenticated with a space credential, since listRepos spans every
+// member's repos in the space) into the sync engine. Crawls are resumable
+// via a stored cursor and re-run from where they left off after a restart.
 package crawl
 
 import (
@@ -66,6 +68,17 @@ type Access interface {
 	) error
 }
 
+// SpaceClients supplies a client authorized to read a space (a space
+// credential). listRepos spans every member's repos in the space, so per the
+// permissioned-data proposal it requires space-level authorization rather
+// than the crawling session's own access token. Satisfied by session.Store.
+type SpaceClients interface {
+	ClientForSpace(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+	) (*http.Client, error)
+}
+
 // Tracker receives discovered repos and reports host-observed rev/hash for
 // drift detection. Satisfied by syncer.Engine.
 type Tracker interface {
@@ -88,11 +101,12 @@ type Notify interface {
 
 // Crawler runs backfill crawls.
 type Crawler struct {
-	db      *gorm.DB
-	clients Clients
-	access  Access
-	tracker Tracker
-	notify  Notify // may be nil
+	db           *gorm.DB
+	clients      Clients
+	access       Access
+	spaceClients SpaceClients
+	tracker      Tracker
+	notify       Notify // may be nil
 
 	// inFlight dedupes concurrent Runs for the same session within this
 	// process (e.g. a periodic re-crawl overlapping a still-running crawl).
@@ -108,6 +122,7 @@ func New(
 	db *gorm.DB,
 	clients Clients,
 	access Access,
+	spaceClients SpaceClients,
 	tracker Tracker,
 	notify Notify,
 	meter metric.Meter,
@@ -139,6 +154,7 @@ func New(
 		db:              db,
 		clients:         clients,
 		access:          access,
+		spaceClients:    spaceClients,
 		tracker:         tracker,
 		notify:          notify,
 		inFlight:        make(map[syntax.DID]struct{}),
@@ -292,7 +308,7 @@ func (c *Crawler) crawlSession(ctx context.Context, did syntax.DID, cursor strin
 						"space", space, "err", err)
 				}
 			}
-			if err := c.enumerateRepos(ctx, client, space); err != nil {
+			if err := c.enumerateRepos(ctx, space); err != nil {
 				return fmt.Errorf("enumerate repos for %s: %w", space, err)
 			}
 		}
@@ -311,9 +327,12 @@ func (c *Crawler) crawlSession(ctx context.Context, did syntax.DID, cursor strin
 
 func (c *Crawler) enumerateRepos(
 	ctx context.Context,
-	client *http.Client,
 	space habitat_syntax.SpaceURI,
 ) error {
+	client, err := c.spaceClients.ClientForSpace(ctx, space)
+	if err != nil {
+		return fmt.Errorf("client for space %s: %w", space, err)
+	}
 	params := url.Values{"space": []string{space.String()}}
 	resp, err := client.Get("/xrpc/network.habitat.space.listRepos?" + params.Encode())
 	if err != nil {

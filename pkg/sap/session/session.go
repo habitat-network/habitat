@@ -5,9 +5,12 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"sync"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -15,7 +18,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/pkg/sap/credential"
 )
 
 // Auth methods a session can use to authenticate to its host.
@@ -53,9 +58,11 @@ func AutoMigrate(db *gorm.DB) error {
 }
 
 // JWTBearerClients builds an HTTP client that authenticates as a DID via the
-// JWT-bearer grant. Satisfied by jwtbearer.Builder; nil when unconfigured.
+// JWT-bearer grant, and resolves that DID's habitat host. Satisfied by
+// jwtbearer.Builder; nil when unconfigured.
 type JWTBearerClients interface {
 	ClientForDID(ctx context.Context, did syntax.DID) (*http.Client, error)
+	HostForDID(ctx context.Context, did syntax.DID) (string, error)
 }
 
 // Store persists sessions and space access, and builds authenticated clients.
@@ -63,15 +70,21 @@ type Store struct {
 	db     *gorm.DB
 	getter *getter
 	jwt    JWTBearerClients // may be nil
+
+	// jwtMgrs caches the space-credential manager for each jwt-bearer
+	// session, mirroring the per-resumed-session manager an OAuth session
+	// gets from getter. Keyed by DID since jwt-bearer sessions have no
+	// sessionID. A pointer so WithTx copies share the same cache.
+	jwtMgrs *sync.Map
 }
 
 func NewStore(db *gorm.DB, oauth *oauth.ClientApp, jwt JWTBearerClients) *Store {
-	return &Store{db: db, getter: newGetter(oauth), jwt: jwt}
+	return &Store{db: db, getter: newGetter(oauth), jwt: jwt, jwtMgrs: &sync.Map{}}
 }
 
 // WithTx returns a Store scoped to the given transaction.
 func (s *Store) WithTx(tx *gorm.DB) *Store {
-	return &Store{db: tx, getter: s.getter, jwt: s.jwt}
+	return &Store{db: tx, getter: s.getter, jwt: s.jwt, jwtMgrs: s.jwtMgrs}
 }
 
 // Add upserts a session for the account with the given auth method.
@@ -128,6 +141,64 @@ func (s *Store) jwtClientForDID(ctx context.Context, did syntax.DID) (*http.Clie
 	return s.jwt.ClientForDID(ctx, did)
 }
 
+// jwtManager returns the cached space-credential manager for a jwt-bearer
+// session, minting it on first use. It mirrors resumed.manager for OAuth
+// sessions: getDelegationToken is authorized with the session's own
+// act-as-subject token — the JWT-bearer grant's whole purpose is minting an
+// access token equivalent to an OAuth one — and the delegation token is then
+// exchanged for a space credential, exactly as an OAuth session would.
+func (s *Store) jwtManager(ctx context.Context, did syntax.DID) (*credential.Manager, error) {
+	if v, ok := s.jwtMgrs.Load(did); ok {
+		return v.(*credential.Manager), nil
+	}
+	if s.jwt == nil {
+		return nil, fmt.Errorf("jwt-bearer client not configured for %s", did)
+	}
+	host, err := s.jwt.HostForDID(ctx, did)
+	if err != nil {
+		return nil, fmt.Errorf("resolve host for %s: %w", did, err)
+	}
+	authClient, err := s.jwt.ClientForDID(ctx, did)
+	if err != nil {
+		return nil, fmt.Errorf("jwt-bearer client for %s: %w", did, err)
+	}
+	mgr := credential.NewManager(host, &http.Client{}, jwtDelegator{client: authClient})
+	actual, _ := s.jwtMgrs.LoadOrStore(did, mgr)
+	return actual.(*credential.Manager), nil
+}
+
+// jwtDelegator implements credential.Delegator for a jwt-bearer session:
+// client already attaches the session's own act-as-subject token to every
+// request, the same auth an OAuth session's access token provides.
+type jwtDelegator struct {
+	client *http.Client
+}
+
+func (d jwtDelegator) DelegationToken(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"/xrpc/network.habitat.space.getDelegationToken?space="+url.QueryEscape(space.String()),
+		nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("get delegation token: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("get delegation token: %s", resp.Status)
+	}
+	var out habitat.NetworkHabitatSpaceGetDelegationTokenOutput
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", fmt.Errorf("decode delegation token: %w", err)
+	}
+	return out.Token, nil
+}
+
 // RecordSpaceAccess records that the session can access the space.
 func (s *Store) RecordSpaceAccess(
 	ctx context.Context,
@@ -141,9 +212,11 @@ func (s *Store) RecordSpaceAccess(
 
 // ClientForSpace returns a client for any session that can access the space:
 // the recorded accessors first, then the space owner (often — but not always
-// — a session itself). An OAuth session reads via a space credential (as the
-// space, not as the member); a jwt-bearer session has no OAuth access to mint
-// one from and reads with its own act-as-subject client instead.
+// — a session itself). Every auth method reads via a space credential (as
+// the space, not as the member) — per the permissioned-data proposal,
+// listRepos and the other repo-host reads this backs span every member's
+// data in the space and require space-level authorization, not a single
+// member's access token.
 func (s *Store) ClientForSpace(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
@@ -177,12 +250,12 @@ func (s *Store) ClientForSpace(
 			continue
 		}
 		if sess.AuthMethod == AuthJWTBearer {
-			client, err := s.jwtClientForDID(ctx, did)
+			mgr, err := s.jwtManager(ctx, did)
 			if err != nil {
 				errs = append(errs, err)
 				continue
 			}
-			return client, nil
+			return mgr.ClientForSpace(space), nil
 		}
 		resumed, err := s.getter.resume(ctx, sess.DID, sess.SessionID)
 		if err != nil {
@@ -210,6 +283,10 @@ func (s *Store) Spaces(ctx context.Context) ([]habitat_syntax.SpaceURI, error) {
 // cached space credentials.
 func (s *Store) DropSpace(ctx context.Context, space habitat_syntax.SpaceURI) error {
 	s.getter.dropSpaceCredential(space)
+	s.jwtMgrs.Range(func(_, v any) bool {
+		v.(*credential.Manager).DropSpace(space)
+		return true
+	})
 	return s.db.WithContext(ctx).
 		Where("space = ?", space).
 		Delete(&spaceAccess{}).Error
