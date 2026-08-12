@@ -43,7 +43,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml', '.prototools') }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', '.prototools') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
 
       - name: Build
         run: moon r frontend:gh-pages
