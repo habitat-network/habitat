@@ -4103,110 +4103,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatSpaceAddMember: {
-    lexicon: 1,
-    id: 'network.habitat.space.addMember',
-    defs: {
-      main: {
-        type: 'procedure',
-        description:
-          'DEPRECATED. Use network.habitat.simplespace.addMember instead.',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['space', 'did'],
-            properties: {
-              space: {
-                type: 'string',
-                format: 'uri',
-                description: 'Reference to the space.',
-              },
-              did: {
-                type: 'string',
-                format: 'did',
-                description: 'The DID of the user to add.',
-              },
-              access: {
-                type: 'string',
-                enum: ['read', 'write'],
-                default: 'read',
-                description: 'WARNING: Ignored since deprecation.',
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceNotFound',
-            description: 'The specified space does not exist.',
-          },
-          {
-            name: 'UserAlreadyMember',
-            description: 'The user is already a member of the space.',
-          },
-        ],
-      },
-    },
-  },
-  NetworkHabitatSpaceCreateSpace: {
-    lexicon: 1,
-    id: 'network.habitat.space.createSpace',
-    defs: {
-      main: {
-        type: 'procedure',
-        description:
-          'DEPRECATED. Use network.habitat.simplespace.createSpace instead.',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['type'],
-            properties: {
-              type: {
-                type: 'string',
-                format: 'nsid',
-                description:
-                  'The NSID of the space type, describing the modality of the space.',
-              },
-              skey: {
-                type: 'string',
-                maxLength: 512,
-                description:
-                  'The space key. Used to differentiate multiple spaces of the same type under the same owner. If not provided, one will be auto-generated.',
-              },
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['uri'],
-            properties: {
-              uri: {
-                type: 'string',
-                format: 'uri',
-                description: 'URI of the created space.',
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceAlreadyExists',
-            description:
-              'A space with this owner, type, and skey already exists.',
-          },
-          {
-            name: 'InvalidType',
-            description:
-              'The provided space type NSID is not a recognized or valid space type.',
-          },
-        ],
-      },
-    },
-  },
   NetworkHabitatSpaceDefs: {
     lexicon: 1,
     id: 'network.habitat.space.defs',
@@ -4297,37 +4193,6 @@ export const schemaDict = {
         errors: [
           {
             name: 'SpaceNotFound',
-          },
-        ],
-      },
-    },
-  },
-  NetworkHabitatSpaceDeleteSpace: {
-    lexicon: 1,
-    id: 'network.habitat.space.deleteSpace',
-    defs: {
-      main: {
-        type: 'procedure',
-        description:
-          'DEPRECATED. Use network.habitat.simplespace.deleteSpace instead.',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['space'],
-            properties: {
-              space: {
-                type: 'string',
-                format: 'uri',
-                description: 'URI of the space to delete.',
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceNotFound',
-            description: 'The specified space does not exist.',
           },
         ],
       },
@@ -5225,46 +5090,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatSpaceRemoveMember: {
-    lexicon: 1,
-    id: 'network.habitat.space.removeMember',
-    defs: {
-      main: {
-        type: 'procedure',
-        description:
-          'DEPRECATED. Use network.habitat.simplespace.removeMember instead.',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['space', 'did'],
-            properties: {
-              space: {
-                type: 'string',
-                format: 'uri',
-                description: 'Reference to the space.',
-              },
-              did: {
-                type: 'string',
-                format: 'did',
-                description: 'The DID of the user to remove.',
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceNotFound',
-            description: 'The specified space does not exist.',
-          },
-          {
-            name: 'NotAMember',
-            description: 'The specified user is not a member of the space.',
-          },
-        ],
-      },
-    },
-  },
 } as const satisfies Record<string, LexiconDoc>
 export const schemas = Object.values(schemaDict) satisfies LexiconDoc[]
 export const lexicons: Lexicons = new Lexicons(schemas)
@@ -5399,11 +5224,8 @@ export const ids = {
     'network.habitat.simplespace.listMembers',
   NetworkHabitatSimplespaceRemoveMember:
     'network.habitat.simplespace.removeMember',
-  NetworkHabitatSpaceAddMember: 'network.habitat.space.addMember',
-  NetworkHabitatSpaceCreateSpace: 'network.habitat.space.createSpace',
   NetworkHabitatSpaceDefs: 'network.habitat.space.defs',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
-  NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
   NetworkHabitatSpaceGetBlob: 'network.habitat.space.getBlob',
   NetworkHabitatSpaceGetDelegationToken:
     'network.habitat.space.getDelegationToken',
@@ -5421,5 +5243,4 @@ export const ids = {
   NetworkHabitatSpaceNotifyWrite: 'network.habitat.space.notifyWrite',
   NetworkHabitatSpacePutRecord: 'network.habitat.space.putRecord',
   NetworkHabitatSpaceRegisterNotify: 'network.habitat.space.registerNotify',
-  NetworkHabitatSpaceRemoveMember: 'network.habitat.space.removeMember',
 } as const

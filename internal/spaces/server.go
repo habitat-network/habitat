@@ -190,7 +190,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := s.store.AddMember(r.Context(), spaceURI, memberDID, SpaceAccessWrite)
+	err := s.store.AddMember(r.Context(), spaceURI, memberDID)
 	if errors.Is(err, ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
@@ -399,93 +399,6 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpacePutRecordOutput{
-		Uri: recordURI.String(),
-		Cid: cid.String(),
-	})
-}
-
-// CreateRecord handles network.habitat.space.createRecord: like PutRecord,
-// but fails rather than overwriting when a record already exists at the
-// given collection/rkey, per the proposal's PDS method table.
-func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	var input habitat.NetworkHabitatSpaceCreateRecordInput
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
-		return
-	}
-	if input.Validate {
-		httpx.WriteNotSupported(ctx, w, "validate is not yet supported")
-		return
-	}
-	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
-	if !ok {
-		return
-	}
-	credInfo, ok := s.validator.Request(
-		authn.WithMethods(
-			authn.ValidatorMethodOAuth,
-			authn.ValidatorMethodServiceAuth,
-			authn.ValidatorMethodSpaceCredential,
-		),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceWriter),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
-	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
-	if !ok {
-		return
-	}
-	if credInfo.Subject != repo {
-		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", fmt.Errorf("wrong repo"))
-		return
-	}
-	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
-	if !ok {
-		return
-	}
-	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
-		httpx.WriteInvalidRequest(ctx, w,
-			"relationship tuples must be managed via network.habitat.relationship.* endpoints", nil)
-		return
-	}
-	var rkey syntax.RecordKey
-	if input.Rkey != "" {
-		parsedRkey, err := syntax.ParseRecordKey(input.Rkey)
-		if err != nil {
-			httpx.WriteInvalidRequest(ctx, w, "invalid rkey", err)
-			return
-		}
-		rkey = parsedRkey
-	}
-	value, ok := input.Record.(map[string]any)
-	if !ok {
-		httpx.WriteInvalidRequest(ctx, w, "record must be a JSON object", nil)
-		return
-	}
-	recordURI, cid, err := s.store.CreateRecord(
-		ctx,
-		spaceURI,
-		repo,
-		collection,
-		rkey,
-		value,
-	)
-	if errors.Is(err, ErrSpaceNotFound) {
-		httpx.WriteSpaceNotFound(ctx, w, err)
-		return
-	} else if errors.Is(err, ErrRecordAlreadyExists) {
-		httpx.WriteError(
-			ctx, w, "RecordAlreadyExists", "a record already exists at this collection/rkey",
-			http.StatusConflict,
-		)
-		return
-	} else if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("create record: %w", err))
-		return
-	}
-	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceCreateRecordOutput{
 		Uri: recordURI.String(),
 		Cid: cid.String(),
 	})
@@ -711,7 +624,7 @@ func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
 	// point (see RepoSnapshot), so the commit always agrees with the blocks
 	// the CAR actually carries. An empty repo has no state to recover, so it
 	// reports as not found.
-	commit, blocks, found, err := s.store.RepoSnapshot(ctx, spaceURI, repoDID)
+	commit, blocks, err := s.store.RepoSnapshot(ctx, spaceURI, repoDID)
 	if errors.Is(err, ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
@@ -719,13 +632,13 @@ func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("repo snapshot: %w", err))
 		return
 	}
-	if !found {
+	if commit == nil {
 		httpx.WriteRepoNotFound(ctx, w, ErrRepoNotFound)
 		return
 	}
 
 	// The signed commit is the CAR's first root.
-	carBytes, err := SerializeRepoCAR(commit, blocks)
+	carBytes, err := SerializeRepoCAR(*commit, blocks)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("serialize car: %w", err))
 		return
@@ -769,7 +682,7 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		limit = 100
 	}
 
-	records, commit, hasCommit, err := s.store.ListRepoOps(ctx, spaceURI, repoDID, params.Since, limit)
+	records, commit, err := s.store.ListRepoOps(ctx, spaceURI, repoDID, params.Since, limit)
 	if errors.Is(err, ErrRevTooFar) {
 		httpx.WriteError(ctx, w, "RevNotFound",
 			"since revision is ahead of the repo head", http.StatusBadRequest)
@@ -798,14 +711,28 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	if len(records) > 0 {
 		output.Cursor = records[len(records)-1].Rev
 	}
-	// hasCommit is only ever true when the page reached the head of the
+
+	// commit is only ever non-nil when the page reached the head of the
 	// oplog: the store reads the head and these ops inside the same locked
 	// transaction, so a syncer folding the ops and comparing its hash against
 	// this commit always sees the exact same state on both sides.
-	if hasCommit {
-		output.Commit = shapeSignedCommit(commit)
+	if commit != nil {
+		output.Commit = shapeSignedCommit(*commit)
 	}
 	httpx.WriteJSON(r.Context(), w, output)
+}
+
+// shapeSignedCommit shapes a domain signed commit as the lexicon signedCommit
+// for JSON responses.
+func shapeSignedCommit(c spacecommit.SignedCommit) habitat.NetworkHabitatSpaceDefsSignedCommit {
+	return habitat.NetworkHabitatSpaceDefsSignedCommit{
+		Ver:  int64(c.Ver),
+		Hash: c.Hash,
+		Ikm:  c.Ikm,
+		Mac:  c.Mac,
+		Sig:  c.Sig,
+		Rev:  c.Rev,
+	}
 }
 
 // GetLatestCommit returns the current signed commit over a repo's head state
@@ -839,32 +766,19 @@ func (s *Server) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	commit, found, err := s.store.RepoHeadCommit(ctx, spaceURI, repoDID)
+	commit, err := s.store.RepoHeadCommit(ctx, spaceURI, repoDID)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("repo head commit: %w", err))
 		return
 	}
-	if !found {
+	if commit == nil {
 		httpx.WriteRepoNotFound(ctx, w, ErrRepoNotFound)
 		return
 	}
 
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetLatestCommitOutput{
-		Commit: shapeSignedCommit(commit),
+		Commit: shapeSignedCommit(*commit),
 	})
-}
-
-// shapeSignedCommit shapes a domain signed commit as the lexicon signedCommit
-// for JSON responses.
-func shapeSignedCommit(c spacecommit.SignedCommit) habitat.NetworkHabitatSpaceDefsSignedCommit {
-	return habitat.NetworkHabitatSpaceDefsSignedCommit{
-		Ver:  int64(c.Ver),
-		Hash: c.Hash,
-		Ikm:  c.Ikm,
-		Mac:  c.Mac,
-		Sig:  c.Sig,
-		Rev:  c.Rev,
-	}
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
@@ -889,7 +803,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if credInfo.Subject != repo {
-		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", fmt.Errorf("wrong repo"))
+		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", nil)
 		return
 	}
 	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
@@ -987,14 +901,6 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 	).Validate(w, r); !ok {
 		return
 	}
-	// kid must name a verification method the signer's DID document actually
-	// publishes, since a verifier resolves the space authority's DID document
-	// and looks the fragment up as a verification method (not a service — the
-	// former "#atproto_space_host" named a service and could never resolve).
-	// A hive-managed author's DID document publishes only "#atproto" (see
-	// hive.Hive.mintDID), matching the proposal's fallback rule when
-	// "#atproto_space" is absent; the host's own DID document publishes
-	// "#atproto_space" directly.
 	kid := "#atproto"
 	privKey, err := s.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
 	if errors.Is(err, identity.ErrDIDNotFound) {

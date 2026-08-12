@@ -1,9 +1,15 @@
 {
   "extends": "@docusaurus/tsconfig",
   "compilerOptions": {
-    "baseUrl": "."
+    "baseUrl": ".",
+    "outDir": "../.moon/cache/types/api-docs"
   },
-  "include": ["src/**/*"],
-  "exclude": [".docusaurus", "build"],
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    ".docusaurus",
+    "build"
+  ],
   "references": []
 }

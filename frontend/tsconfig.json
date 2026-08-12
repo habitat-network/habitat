@@ -6,7 +6,8 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "outDir": "../.moon/cache/types/frontend"
   },
   "include": ["src/**/*", "vite.env.d.ts", "../typescript/globals.d.ts"],
   "references": [

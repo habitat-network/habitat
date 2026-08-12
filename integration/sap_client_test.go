@@ -193,9 +193,9 @@ func (c *pearClient) createSpace(
 	ctx context.Context,
 	member, spaceType, skey string,
 ) (string, error) {
-	var out habitat.NetworkHabitatSpaceCreateSpaceOutput
-	err := c.xrpc(ctx, "network.habitat.space.createSpace", member,
-		habitat.NetworkHabitatSpaceCreateSpaceInput{Type: spaceType, Skey: skey}, &out)
+	var out habitat.NetworkHabitatSimplespaceCreateSpaceOutput
+	err := c.xrpc(ctx, "network.habitat.simplespace.createSpace", member,
+		habitat.NetworkHabitatSimplespaceCreateSpaceInput{Type: spaceType, Skey: skey}, &out)
 	return out.Uri, err
 }
 

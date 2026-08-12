@@ -6,7 +6,8 @@
     "types": ["node"],
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "outDir": "../../../.moon/cache/types/typescript/apps/docs-server"
   },
   "include": ["src/**/*", "../../globals.d.ts"],
   "references": [
