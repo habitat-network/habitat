@@ -57,7 +57,7 @@ func newTestServerWithOpts(t *testing.T, opts testServerOptions) *testServer {
 		opts.validator = authntest.NewSuccessValidatorWithOrg(owner, orgID)
 	}
 	if opts.store == nil {
-		opts.store = spaces_testutil.NewTestStore(t)
+		opts.store = spaces_testutil.NewTestStore(t, spaces_testutil.Config{HostKey: opts.hostKey})
 	}
 	h, err := hive.NewHive("example.com", "pear.example.com", db_testutil.NewDB(t))
 	require.NoError(t, err)
