@@ -7,6 +7,7 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type ValidatorMethod int
@@ -19,7 +20,7 @@ const (
 )
 
 type RequestValidator interface {
-	Request(options ...ValidatorOption) Validator
+	Request(options ...utils.Opt[EndpointOptions]) Validator
 }
 
 type validator struct {
@@ -47,26 +48,20 @@ func NewValidator(
 }
 
 func (v *validator) Request(
-	options ...ValidatorOption,
+	options ...utils.Opt[EndpointOptions],
 ) Validator {
-	r := &EndpointOptions{
-		v: v,
-	}
-	for _, option := range options {
-		option(r)
-	}
-	return r
+	r := utils.ResolveOptions(options...)
+	r.v = v
+	return &r
 }
 
-type ValidatorOption func(*EndpointOptions)
-
-func WithMethods(authMethods ...ValidatorMethod) ValidatorOption {
+func WithMethods(authMethods ...ValidatorMethod) utils.Opt[EndpointOptions] {
 	return func(rv *EndpointOptions) {
 		rv.authMethods = authMethods
 	}
 }
 
-func WithSpace(space habitat_syntax.SpaceURI, relation string) ValidatorOption {
+func WithSpace(space habitat_syntax.SpaceURI, relation string) utils.Opt[EndpointOptions] {
 	return func(rv *EndpointOptions) {
 		rv.space = space
 		rv.relation = relation
