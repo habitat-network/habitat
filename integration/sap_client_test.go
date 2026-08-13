@@ -63,11 +63,14 @@ func (c *pearClient) token(ctx context.Context, subject string) (string, error) 
 		return tok, nil
 	}
 
+	// The audience is the bare issuer origin, not the token endpoint URL:
+	// pear's fosite server validates a JWT-bearer assertion's "aud" claim
+	// against its issuer (see internal/oauthserver's Config.TokenURL).
 	now := time.Now()
 	assertionTok := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
 		"iss": c.clientID,
 		"sub": subject,
-		"aud": c.issuer + "/oauth/token",
+		"aud": c.issuer,
 		"iat": now.Unix(),
 		"exp": now.Add(5 * time.Minute).Unix(),
 		"jti": randJTI(),
