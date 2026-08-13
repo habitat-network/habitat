@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
@@ -977,10 +978,11 @@ func TestValidateWithScopeChecking(t *testing.T) {
 // standard x/oauth2 library, this test drives the flow with indigo's DPoP-bound
 // SendInitialTokenRequest, ResumeSession, and ClientSession.DoWithAuth.
 //
-// The flow is run for both kinds of public client: one whose metadata is
-// fetched from a published client metadata document, and a localhost
-// development client whose metadata the server synthesizes from the client_id
-// itself (see localhost.go).
+// The flow is run for three kinds of client: two public clients (one whose
+// metadata is fetched from a published client metadata document, and a
+// localhost development client whose metadata the server synthesizes from the
+// client_id itself, see localhost.go) and one confidential client that signs
+// client assertions (private_key_jwt), the way sap authenticates to pear.
 func TestIndigoClientApp(t *testing.T) {
 	t.Run("client metadata document", func(t *testing.T) {
 		runIndigoClientAppFlow(t, func(clientAppURL string) oauth.ClientConfig {
@@ -1000,6 +1002,20 @@ func TestIndigoClientApp(t *testing.T) {
 				clientAppURL+"/oauth-callback",
 				[]string{"atproto"},
 			)
+		})
+	})
+
+	t.Run("confidential client (private_key_jwt)", func(t *testing.T) {
+		runIndigoClientAppFlow(t, func(clientAppURL string) oauth.ClientConfig {
+			config := oauth.NewPublicConfig(
+				clientAppURL+"/client-metadata.json",
+				clientAppURL+"/oauth-callback",
+				[]string{"atproto"},
+			)
+			key, err := atcrypto.GeneratePrivateKeyP256()
+			require.NoError(t, err)
+			require.NoError(t, config.SetClientSecret(key, "test-key"))
+			return config
 		})
 	})
 }
@@ -1069,20 +1085,18 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 	t.Cleanup(server.Close)
 	loginProvider.RedirectURI = "https://habitat.example/oauth-callback"
 
-	// Client app serves the client metadata document and echoes back the
-	// fosite authorization code at its own callback URL.
+	// Client app serves the client's metadata document (with JWKS for
+	// confidential clients) and echoes back the fosite authorization code at
+	// its own callback URL.
+	var conf oauth.ClientConfig
 	clientApp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			err := json.NewEncoder(w).Encode(&oauth.ClientMetadata{
-				ClientID:      "http://" + r.Host + "/client-metadata.json",
-				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
-				ResponseTypes: []string{"code"},
-				GrantTypes:    []string{"authorization_code", "refresh_token"},
-				Scope:         "atproto",
-			})
-			require.NoError(t, err)
+			metadata := conf.ClientMetadata()
+			jwks := conf.PublicJWKS()
+			metadata.JWKS = &jwks
+			require.NoError(t, json.NewEncoder(w).Encode(metadata))
 		case "/oauth-callback":
 			t.Logf("callback: %s", r.URL.String())
 			w.Header().Set("Content-Type", "application/json")
@@ -1100,12 +1114,12 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 	}))
 	t.Cleanup(clientApp.Close)
 
-	// Build the indigo ClientApp with a public-client config and in-memory
+	// Build the indigo ClientApp with the client config and an in-memory
 	// store.  We override the HTTP client so that it trusts the test server's
 	// TLS certificate and override the identity directory with our dummy so
-	// that ProcessCallback (not called here but kept for consistency) can
-	// resolve DIDs.
-	indigoApp := oauth.NewClientApp(new(config(clientApp.URL)), oauth.NewMemStore())
+	// that ProcessCallback can resolve DIDs.
+	conf = config(clientApp.URL)
+	indigoApp := oauth.NewClientApp(&conf, oauth.NewMemStore())
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)

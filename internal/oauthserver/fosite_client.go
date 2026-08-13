@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/go-jose/go-jose/v3"
 	"github.com/ory/fosite"
 )
 
@@ -12,8 +13,9 @@ type client struct {
 }
 
 var (
-	_ fosite.Client             = (*client)(nil)
-	_ fosite.ResponseModeClient = (*client)(nil)
+	_ fosite.Client              = (*client)(nil)
+	_ fosite.ResponseModeClient  = (*client)(nil)
+	_ fosite.OpenIDConnectClient = (*client)(nil)
 )
 
 // GetAudience implements fosite.Client.
@@ -71,4 +73,63 @@ func (c *client) GetScopes() fosite.Arguments {
 // (including the default empty value) are treated as public.
 func (c *client) IsPublic() bool {
 	return c.TokenEndpointAuthMethod != "private_key_jwt"
+}
+
+// GetRequestURIs implements fosite.OpenIDConnectClient.
+func (c *client) GetRequestURIs() []string {
+	return nil
+}
+
+// GetJSONWebKeys implements fosite.OpenIDConnectClient.
+func (c *client) GetJSONWebKeys() *jose.JSONWebKeySet {
+	if c.JWKS == nil || len(c.JWKS.Keys) == 0 {
+		return nil
+	}
+	var set jose.JSONWebKeySet
+	for _, key := range c.JWKS.Keys {
+		if key.KeyID == nil {
+			continue
+		}
+		converted, err := atcryptoJWKtoJose(key)
+		if err != nil {
+			continue
+		}
+		if converted.Use == "" {
+			converted.Use = "sig"
+		}
+		set.Keys = append(set.Keys, *converted)
+	}
+	if len(set.Keys) == 0 {
+		return nil
+	}
+	return &set
+}
+
+// GetJSONWebKeysURI implements fosite.OpenIDConnectClient.
+func (c *client) GetJSONWebKeysURI() string {
+	if c.JWKSURI != nil {
+		return *c.JWKSURI
+	}
+	return ""
+}
+
+// GetRequestObjectSigningAlgorithm implements fosite.OpenIDConnectClient.
+func (c *client) GetRequestObjectSigningAlgorithm() string {
+	return ""
+}
+
+// GetTokenEndpointAuthMethod implements fosite.OpenIDConnectClient.
+func (c *client) GetTokenEndpointAuthMethod() string {
+	if c.TokenEndpointAuthMethod == "" {
+		return "none"
+	}
+	return c.TokenEndpointAuthMethod
+}
+
+// GetTokenEndpointAuthSigningAlgorithm implements fosite.OpenIDConnectClient.
+func (c *client) GetTokenEndpointAuthSigningAlgorithm() string {
+	if c.TokenEndpointAuthSigningAlg != nil {
+		return *c.TokenEndpointAuthSigningAlg
+	}
+	return ""
 }
