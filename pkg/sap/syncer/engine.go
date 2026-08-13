@@ -323,7 +323,7 @@ func (e *Engine) claimAndQueue(
 	span trace.Span,
 	whereStates string,
 	priority string,
-	recover bool,
+	fullRecovery bool,
 ) int {
 	now := time.Now().Unix()
 	claimed := 0
@@ -356,7 +356,7 @@ func (e *Engine) claimAndQueue(
 		}
 		var jobs []job
 		for _, c := range candidates {
-			jobs = append(jobs, job{Space: c.Space, DID: c.DID, Recover: recover})
+			jobs = append(jobs, job{Space: c.Space, DID: c.DID, Recover: fullRecovery})
 		}
 		claimed += len(jobs)
 		for _, j := range jobs {
@@ -507,10 +507,7 @@ func (e *Engine) scheduleRetry(
 }
 
 func backoff(retries int, maxMinutes int) time.Duration {
-	dur := 1 << retries
-	if dur > maxMinutes {
-		dur = maxMinutes
-	}
+	dur := min(1<<retries, maxMinutes)
 	jitter := time.Millisecond * time.Duration(rand.Intn(1000))
 	return time.Minute*time.Duration(dur) + jitter
 }
