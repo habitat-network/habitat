@@ -86,7 +86,6 @@ func (c *Client) SendJWTTokenRequest(
 	if err != nil {
 		return nil, fmt.Errorf("signing jwt bearer assertion: %w", err)
 	}
-
 	vals, err := query.Values(jwtBearerTokenRequest{
 		GrantType: JWTBearerGrantType,
 		Assertion: assertion,
@@ -110,7 +109,12 @@ func (c *Client) SendJWTTokenRequest(
 	var resp *http.Response
 	dpopNonce := ""
 	for range 2 {
-		dpopJWT, err := oauth.NewAuthDPoP(http.MethodPost, authserverMeta.TokenEndpoint, dpopNonce, dpopKey)
+		dpopJWT, err := oauth.NewAuthDPoP(
+			http.MethodPost,
+			authserverMeta.TokenEndpoint,
+			dpopNonce,
+			dpopKey,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("creating dpop proof: %w", err)
 		}
@@ -135,7 +139,11 @@ func (c *Client) SendJWTTokenRequest(
 			if reason == "use_dpop_nonce" {
 				continue
 			}
-			return nil, fmt.Errorf("jwt bearer token request failed (HTTP %d): %v", resp.StatusCode, msg)
+			return nil, fmt.Errorf(
+				"jwt bearer token request failed (HTTP %d): %v",
+				resp.StatusCode,
+				msg,
+			)
 		}
 		break
 	}
@@ -143,7 +151,11 @@ func (c *Client) SendJWTTokenRequest(
 
 	if resp.StatusCode != http.StatusOK {
 		_, msg := readJWTBearerError(resp)
-		return nil, fmt.Errorf("jwt bearer token request failed (HTTP %d): %v", resp.StatusCode, msg)
+		return nil, fmt.Errorf(
+			"jwt bearer token request failed (HTTP %d): %v",
+			resp.StatusCode,
+			msg,
+		)
 	}
 
 	var tokenResp oauth.TokenResponse
