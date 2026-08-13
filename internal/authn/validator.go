@@ -48,10 +48,9 @@ func NewValidator(
 }
 
 func (v *validator) Request(
-	options ...utils.Opt[EndpointOptions],
+	opts ...utils.Opt[EndpointOptions],
 ) Validator {
-	r := utils.ResolveOptions(options...)
-	r.v = v
+	r := utils.ResolveOptions(EndpointOptions{v: v}, opts)
 	return &r
 }
 
