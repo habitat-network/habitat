@@ -104,10 +104,6 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []habitat_syntax.SpaceURI{space}, spaces)
 
-	client, err := s.ClientForSession(t.Context(), "did:plc:alice", "sess1")
-	require.NoError(t, err)
-	require.NotNil(t, client)
-
 	// ClientForSpace never fails for lack of a session up front: the
 	// credential is minted lazily on first use (see
 	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost).

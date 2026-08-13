@@ -2,14 +2,20 @@ package crawl
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -29,15 +35,51 @@ func (t rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 type fakeClients struct{ base *url.URL }
 
-func (f fakeClients) ClientForSession(context.Context, syntax.DID, string) (*http.Client, error) {
-	return &http.Client{Transport: rewriteTransport(f)}, nil
-}
-
 func (f fakeClients) ClientForSpace(
 	context.Context,
 	habitat_syntax.SpaceURI,
 ) (*http.Client, error) {
 	return &http.Client{Transport: rewriteTransport(f)}, nil
+}
+
+// testDPoPKey and testJWT stand in for a real session's DPoP key and access
+// token: their values are never verified by the test server, only sent.
+func testDPoPKey(t *testing.T) string {
+	t.Helper()
+	key, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	return key.Multibase()
+}
+
+func testJWT(t *testing.T) string {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	tok, err := jwt.NewWithClaims(jwt.SigningMethodPS256,
+		jwt.MapClaims{"exp": time.Now().Add(time.Hour).Unix(), "jti": "test"},
+	).SignedString(key)
+	require.NoError(t, err)
+	return tok
+}
+
+// newOAuthApp builds a bare *oauth.ClientApp over an in-memory session store,
+// with sessionID pre-saved as resumable for did against base.
+func newOAuthApp(t *testing.T, base *url.URL, did syntax.DID, sessionID string) *oauth.ClientApp {
+	t.Helper()
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	app := oauth.NewClientApp(&cfg, oauth.NewMemStore())
+	require.NoError(t, app.Store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:              did,
+		SessionID:               sessionID,
+		HostURL:                 base.String(),
+		AccessToken:             testJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
+	}))
+	return app
 }
 
 // recorder collects space access records and tracked repos.
@@ -114,7 +156,8 @@ func TestCrawlerBackfillsSession(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
-	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nil, nil, nil)
+	app := newOAuthApp(t, base, "did:plc:sessiondid", "sess1")
+	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	c.Run(t.Context(), "did:plc:sessiondid", "sess1")
@@ -143,7 +186,8 @@ func TestCrawlerDeduplicatesConcurrentRuns(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
-	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nil, nil, nil)
+	app := newOAuthApp(t, base, "did:plc:sessiondid", "sess1")
+	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	done := make(chan struct{})
@@ -177,7 +221,8 @@ func TestCrawlerRunCompleteThenRestart(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
-	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nil, nil, nil)
+	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
+	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	c.Run(t.Context(), "did:plc:alice", "sess1")
@@ -227,7 +272,8 @@ func TestCrawlerEnumerateReposError(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
-	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nil, nil, nil)
+	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
+	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	c.Run(t.Context(), "did:plc:alice", "sess1")
@@ -260,7 +306,8 @@ func TestCrawlerNotifyRegistration(t *testing.T) {
 	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
 	nr := &fakeNotifyRegistrar{}
-	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nr, nil, nil)
+	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
+	c, err := New(db, app, rec, fakeClients{base: base}, rec, nr, nil, nil)
 	require.NoError(t, err)
 
 	c.Run(t.Context(), "did:plc:alice", "sess1")
@@ -307,8 +354,10 @@ func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	rec := &recorder{}
-	fc := fakeClients{base: mustParseURL(t, srv.URL)}
-	c, err := New(db_testutil.NewDB(t), fc, rec, fc, rec, nil, nil, nil)
+	base := mustParseURL(t, srv.URL)
+	fc := fakeClients{base: base}
+	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
+	c, err := New(db_testutil.NewDB(t), app, rec, fc, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	require.NoError(t, c.enumerateRepos(t.Context(), space))

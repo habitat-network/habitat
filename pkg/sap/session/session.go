@@ -6,23 +6,22 @@
 // is resuming it via the caller's *oauth.ClientApp and caching
 // space-credential exchanges on top.
 //
-// ClientForSession always takes an explicit (DID, session ID) pair — never
-// just a DID — so callers name the exact session they mean instead of this
-// package guessing which session a DID resolves to. Space-scoped operations
-// (ClientForSpace, DelegationToken) still pick from among recorded
-// accessors, but every candidate they try comes from spaceAccess as an
-// already-paired (DID, session ID), never a bare DID resolved separately.
+// DelegationToken always resumes an explicit (DID, session ID) pair — never
+// just a DID — so it names the exact session it means instead of guessing
+// which session a DID resolves to. Space-scoped operations (ClientForSpace,
+// DelegationToken) pick from among recorded accessors, but every candidate
+// they try comes from spaceAccess as an already-paired (DID, session ID),
+// never a bare DID resolved separately.
 package session
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
@@ -30,7 +29,6 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap/credential"
 )
 
@@ -118,20 +116,6 @@ func (s *Store) List(ctx context.Context) ([]Session, error) {
 	return sessions, nil
 }
 
-// ClientForSession returns an HTTP client authenticated as did by resuming
-// sessionID through the Store's *oauth.ClientApp.
-func (s *Store) ClientForSession(
-	ctx context.Context,
-	did syntax.DID,
-	sessionID string,
-) (*http.Client, error) {
-	sess, err := s.oauthClient.ResumeSession(ctx, did, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("resume session %s for %s: %w", sessionID, did, err)
-	}
-	return oauthclient.SessionClient(sess), nil
-}
-
 // RecordSpaceAccess records that (did, sessionID) can access the space.
 func (s *Store) RecordSpaceAccess(
 	ctx context.Context,
@@ -170,8 +154,8 @@ func (s *Store) ClientForSpace(
 // record as having access to space — via spaceAccess, which already pairs a
 // DID with the session ID that recorded its access — asking that session's
 // own host for a delegation token, authenticated with the session's own
-// access token (see ClientForSession). Candidates are tried in order until
-// one succeeds.
+// access token (resumed through the Store's *oauth.ClientApp). Candidates are
+// tried in order until one succeeds.
 func (s *Store) DelegationToken(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
@@ -182,12 +166,14 @@ func (s *Store) DelegationToken(
 	}
 	var errs []error
 	for _, candidate := range candidates {
-		client, err := s.ClientForSession(ctx, candidate.DID, candidate.SessionID)
+		sess, err := s.oauthClient.ResumeSession(ctx, candidate.DID, candidate.SessionID)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf(
+				"resume session %s for %s: %w", candidate.SessionID, candidate.DID, err,
+			))
 			continue
 		}
-		token, err := fetchDelegationToken(ctx, client, space)
+		token, err := fetchDelegationToken(ctx, sess.APIClient(), space)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -195,7 +181,8 @@ func (s *Store) DelegationToken(
 		return token, nil
 	}
 	return "", fmt.Errorf(
-		"no session could get a delegation token for %s: %w", space, errors.Join(errs...))
+		"no session could get a delegation token for %s: %w", space, errors.Join(errs...),
+	)
 }
 
 // candidatesForSpace returns the (DID, session ID) pairs on record as having
@@ -220,29 +207,17 @@ func (s *Store) candidatesForSpace(
 }
 
 // fetchDelegationToken calls getDelegationToken for space using client,
-// which must already authenticate its own requests (see ClientForSession).
+// which must already authenticate its own requests (a resumed session's
+// APIClient).
 func fetchDelegationToken(
 	ctx context.Context,
-	client *http.Client,
+	client *atclient.APIClient,
 	space habitat_syntax.SpaceURI,
 ) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"/xrpc/network.habitat.space.getDelegationToken?space="+url.QueryEscape(space.String()),
-		http.NoBody)
-	if err != nil {
-		return "", err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("get delegation token: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("get delegation token: %s", resp.Status)
-	}
 	var out habitat.NetworkHabitatSpaceGetDelegationTokenOutput
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", fmt.Errorf("decode delegation token: %w", err)
+	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.getDelegationToken",
+		map[string]any{"space": space.String()}, nil, &out); err != nil {
+		return "", fmt.Errorf("get delegation token: %w", err)
 	}
 	return out.Token, nil
 }

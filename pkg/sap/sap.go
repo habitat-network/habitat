@@ -126,7 +126,7 @@ func New(config Config) (*Sap, error) {
 
 	crawler, err := crawl.New(
 		config.DB,
-		sessions,
+		config.OAuthClient,
 		sessions,
 		sessions,
 		engine,

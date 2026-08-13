@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -53,12 +54,6 @@ func (crawl) TableName() string { return "sap_crawls" }
 // AutoMigrate creates the crawl tables.
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&crawl{})
-}
-
-// Clients supplies an HTTP client authenticated as the named session.
-// Satisfied by session.Store.
-type Clients interface {
-	ClientForSession(ctx context.Context, did syntax.DID, sessionID string) (*http.Client, error)
 }
 
 // Access records which spaces a session can reach. Satisfied by session.Store.
@@ -106,7 +101,7 @@ type Notify interface {
 // Crawler runs backfill crawls.
 type Crawler struct {
 	db           *gorm.DB
-	clients      Clients
+	oauthClient  *oauth.ClientApp
 	access       Access
 	spaceClients SpaceClients
 	tracker      Tracker
@@ -124,7 +119,7 @@ type Crawler struct {
 
 func New(
 	db *gorm.DB,
-	clients Clients,
+	oauthClient *oauth.ClientApp,
 	access Access,
 	spaceClients SpaceClients,
 	tracker Tracker,
@@ -156,7 +151,7 @@ func New(
 	}
 	return &Crawler{
 		db:              db,
-		clients:         clients,
+		oauthClient:     oauthClient,
 		access:          access,
 		spaceClients:    spaceClients,
 		tracker:         tracker,
@@ -269,10 +264,11 @@ func (c *Crawler) crawlSession(
 	sessionID string,
 	cursor string,
 ) error {
-	client, err := c.clients.ClientForSession(ctx, did, sessionID)
+	sess, err := c.oauthClient.ResumeSession(ctx, did, sessionID)
 	if err != nil {
-		return fmt.Errorf("client for session: %w", err)
+		return fmt.Errorf("resume session %s for %s: %w", sessionID, did, err)
 	}
+	client := sess.APIClient()
 
 	for {
 		select {
@@ -281,25 +277,14 @@ func (c *Crawler) crawlSession(
 		default:
 		}
 
-		params := url.Values{}
+		params := map[string]any{}
 		if cursor != "" {
-			params.Set("cursor", cursor)
-		}
-		resp, err := client.Get("/xrpc/network.habitat.space.listSpaces?" + params.Encode())
-		if err != nil {
-			return fmt.Errorf("list spaces: %w", err)
+			params["cursor"] = cursor
 		}
 		var output habitat.NetworkHabitatSpaceListSpacesOutput
-		decodeErr := json.NewDecoder(resp.Body).Decode(&output)
-		closeErr := resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("list spaces: %s", resp.Status)
-		}
-		if decodeErr != nil {
-			return fmt.Errorf("decode list spaces: %w", decodeErr)
-		}
-		if closeErr != nil {
-			return closeErr
+		if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.listSpaces",
+			params, nil, &output); err != nil {
+			return fmt.Errorf("list spaces: %w", err)
 		}
 
 		if len(output.Spaces) == 0 {
