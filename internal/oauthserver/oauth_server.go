@@ -102,7 +102,7 @@ func NewOAuthServer(
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
 		ScopeStrategy:              scopeStrategy,
-		TokenURL:                   issuer + "/oauth/token",
+		TokenURL:                   issuer,
 		// The JWT Bearer grant identifies the client solely via the "iss"
 		// claim of the assertion (checked against jwtBearerAllowedClients),
 		// so a separate client_id/secret on the token request isn't required.
