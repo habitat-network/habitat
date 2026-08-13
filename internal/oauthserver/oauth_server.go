@@ -102,7 +102,8 @@ func NewOAuthServer(
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
 		ScopeStrategy:              scopeStrategy,
-		TokenURL:                   issuer + "/oauth/token",
+		// Used to validate the "aud" claim of JWT Bearer assertions. ATProto OAuth wants the issuer
+		TokenURL: issuer,
 		// The JWT Bearer grant identifies the client solely via the "iss"
 		// claim of the assertion (checked against jwtBearerAllowedClients),
 		// so a separate client_id/secret on the token request isn't required.
