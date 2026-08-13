@@ -32,7 +32,7 @@
   "dependencies": {
     "@atproto/api": "catalog:",
     "@atproto/identity": "^0.5.6",
-    "@atproto/oauth-client-browser": "^0.4.9",
+    "@atproto/oauth-client-browser": "^0.5.0",
     "@base-ui/react": "^1.6.0",
     "@uidotdev/usehooks": "^2.4.1",
     "api": "workspace:*",
