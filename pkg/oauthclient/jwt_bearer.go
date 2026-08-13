@@ -1,9 +1,8 @@
 package oauthclient
 
 import (
+	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -11,10 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-querystring/query"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // JWTBearerGrantType is the RFC 7523 JWT Bearer grant type identifier.
@@ -80,7 +81,6 @@ func (c *Client) SendJWTTokenRequest(
 	if err != nil {
 		return nil, fmt.Errorf("signing jwt bearer assertion: %w", err)
 	}
-
 	vals, err := query.Values(jwtBearerTokenRequest{
 		GrantType: JWTBearerGrantType,
 		Assertion: assertion,
@@ -88,31 +88,68 @@ func (c *Client) SendJWTTokenRequest(
 	if err != nil {
 		return nil, fmt.Errorf("encoding jwt bearer token request: %w", err)
 	}
+	bodyBytes := []byte(vals.Encode())
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		authserverMeta.TokenEndpoint,
-		strings.NewReader(vals.Encode()),
-	)
+	// atproto access tokens are DPoP-bound: the auth server issues token_type
+	// "DPoP" regardless of grant type, so a client presenting one must sign
+	// its resource-server requests with the matching private key (see
+	// oauth.ClientSession.DoWithAuth). Generate that key now and carry it
+	// into the session, mirroring how indigo's own
+	// SendInitialTokenRequest/StartAuthFlow do for the browser flow.
+	dpopKey, err := atcrypto.GeneratePrivateKeyP256()
 	if err != nil {
-		return nil, fmt.Errorf("creating jwt bearer token request: %w", err)
+		return nil, fmt.Errorf("generating dpop key: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		return nil, err
+	var resp *http.Response
+	dpopNonce := ""
+	for range 2 {
+		dpopJWT, err := oauth.NewAuthDPoP(
+			http.MethodPost,
+			authserverMeta.TokenEndpoint,
+			dpopNonce,
+			dpopKey,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("creating dpop proof: %w", err)
+		}
+		req, err := http.NewRequestWithContext(
+			ctx, http.MethodPost, authserverMeta.TokenEndpoint, bytes.NewReader(bodyBytes),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("creating jwt bearer token request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("DPoP", dpopJWT)
+
+		resp, err = c.Client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		if nonce := resp.Header.Get("DPoP-Nonce"); nonce != "" && nonce != dpopNonce {
+			dpopNonce = nonce
+		}
+		if resp.StatusCode == http.StatusBadRequest {
+			reason, msg := readJWTBearerError(resp)
+			if reason == "use_dpop_nonce" {
+				continue
+			}
+			return nil, fmt.Errorf(
+				"jwt bearer token request failed (HTTP %d): %v",
+				resp.StatusCode,
+				msg,
+			)
+		}
+		break
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		var errResp map[string]any
-		_ = json.NewDecoder(resp.Body).Decode(&errResp)
+		_, msg := readJWTBearerError(resp)
 		return nil, fmt.Errorf(
 			"jwt bearer token request failed (HTTP %d): %v",
 			resp.StatusCode,
-			errResp["error"],
+			msg,
 		)
 	}
 
@@ -123,7 +160,7 @@ func (c *Client) SendJWTTokenRequest(
 
 	sessData := oauth.ClientSessionData{
 		AccountDID: ident.DID,
-		SessionID:  secureRandomBase64(16),
+		SessionID:  utils.RandomNonce(16),
 
 		HostURL:                      ident.PDSEndpoint(),
 		AuthServerURL:                authserverURL,
@@ -132,11 +169,30 @@ func (c *Client) SendJWTTokenRequest(
 		Scopes:                       strings.Split(tokenResp.Scope, " "),
 		AccessToken:                  tokenResp.AccessToken,
 		RefreshToken:                 tokenResp.RefreshToken,
+		DPoPPrivateKeyMultibase:      dpopKey.Multibase(),
 	}
 	if err := c.Store.SaveSession(ctx, sessData); err != nil {
 		return nil, err
 	}
 	return &sessData, nil
+}
+
+// readJWTBearerError reads and closes resp's body, returning its "error" and
+// "error_description" fields (best-effort; both are empty if the body isn't
+// the expected JSON error shape).
+func readJWTBearerError(resp *http.Response) (reason, msg string) {
+	defer func() { _ = resp.Body.Close() }()
+	var errResp struct {
+		Error       string `json:"error"`
+		Description string `json:"error_description"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+		return "", ""
+	}
+	if errResp.Description != "" {
+		return errResp.Error, errResp.Description
+	}
+	return errResp.Error, errResp.Error
 }
 
 // signJWTBearerAssertion signs an RFC 7523 JWT bearer assertion with the
@@ -151,15 +207,9 @@ func (c *Client) signJWTBearerAssertion(subject syntax.DID, audience string) (st
 		"aud": audience,
 		"iat": now.Unix(),
 		"exp": now.Add(time.Minute).Unix(),
-		"jti": secureRandomBase64(16),
+		"jti": utils.RandomNonce(16),
 	}
 	token := jwt.NewWithClaims(jwt.GetSigningMethod("ES256"), claims)
 	token.Header["kid"] = *c.Config.KeyID
 	return token.SignedString(c.Config.PrivateKey)
-}
-
-func secureRandomBase64(sizeBytes uint) string {
-	buf := make([]byte, sizeBytes)
-	_, _ = rand.Read(buf)
-	return base64.RawURLEncoding.EncodeToString(buf)
 }
