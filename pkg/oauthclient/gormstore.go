@@ -8,6 +8,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -42,13 +43,10 @@ type gormStore struct {
 // in the session data JSON.
 const singleSessionID = "single-session"
 
-// Option configures the GORM-backed ClientAuthStore.
-type Option func(*gormStore)
-
 // WithSingleSessionPerUser keeps at most one session per DID by ignoring the
 // session ID: all sessions are stored and looked up under a fixed session ID,
 // so the most recently saved session replaces any earlier one for the DID.
-func WithSingleSessionPerUser() Option {
+func WithSingleSessionPerUser() utils.Opt[gormStore] {
 	return func(s *gormStore) {
 		s.singleSessionUser = true
 	}
@@ -57,15 +55,13 @@ func WithSingleSessionPerUser() Option {
 var _ oauth.ClientAuthStore = (*gormStore)(nil)
 
 // NewGormStore creates a ClientAuthStore backed by GORM.
-func NewGormStore(db *gorm.DB, opts ...Option) (oauth.ClientAuthStore, error) {
+func NewGormStore(db *gorm.DB, opts ...utils.Opt[gormStore]) (oauth.ClientAuthStore, error) {
 	if err := db.AutoMigrate(&sessionRow{}, &authRequestRow{}); err != nil {
 		return nil, fmt.Errorf("migrate gormstore: %w", err)
 	}
-	s := &gormStore{db: db}
-	for _, opt := range opts {
-		opt(s)
-	}
-	return s, nil
+	s := utils.ResolveOptions(opts...)
+	s.db = db
+	return &s, nil
 }
 
 // sessionID returns the session ID to use for storage and lookups. With
