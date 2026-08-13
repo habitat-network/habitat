@@ -7,6 +7,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type validatorImpl struct {
@@ -28,7 +29,7 @@ func (s *validatorImpl) Validate(
 }
 
 // Request implements [authn.RequestValidator].
-func (s *validatorImpl) Request(options ...authn.ValidatorOption) authn.Validator {
+func (s *validatorImpl) Request(options ...utils.Opt[authn.EndpointOptions]) authn.Validator {
 	return s
 }
 
