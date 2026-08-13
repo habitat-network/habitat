@@ -70,15 +70,7 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Handle string `json:"handle"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid JSON body", http.StatusBadRequest)
-		return
-	}
-
-	redirectURL, err := s.oauthClient.StartAuthFlow(r.Context(), req.Handle)
+	redirectURL, err := s.oauthClient.StartAuthFlow(r.Context(), r.FormValue("handle"))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("start auth flow: %s", err), http.StatusInternalServerError)
 		return
