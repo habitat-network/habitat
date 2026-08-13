@@ -1,9 +1,81 @@
 # sap — Sync Agent Process
 
-`sap` is a standalone service that crawls managed organizations' AT Protocol
-repos, discovers their spaces, and keeps a local copy of each repo's records
-in sync. Synced records are exposed through a durable outbox that consumers
-can poll or stream over a websocket.
+`sap` is a library (and thin binary wrapper) that keeps a local copy of AT
+Protocol repos in sync with their habitat hosts, for every `network.habitat.space`
+a tracked DID can see. Synced records are delivered through a durable,
+acknowledged outbox.
+
+sap itself never establishes a session: `AddSession(did, sessionID)` just
+records that a session is resumable for did, and resumes it via the
+`*oauth.ClientApp` (and its `Store`) the caller configures sap with. How a
+session actually came to exist — a browser OAuth flow, an RFC 7523
+JWT-bearer grant, anything else — is entirely the caller's concern, done out
+of band of this package: `cmd/sap` has two ways of adding a session
+(`/session/add`'s browser flow, `/session/jwt`'s JWT-bearer grant), and once
+either gets an access-token session, it calls `AddSession` with that
+session's ID.
+
+## How the parts fit together
+
+```
+AddSession(did,           session.Store ─────▶ crawl.Crawler
+  sessionID) ──────────▶  (tracked DIDs,        (listSpaces/listRepos,
+                           space access,         resumable via cursor)
+                           resumes via                  │
+                           *oauth.ClientApp)  Track/Check│
+                                                         ▼
+                        register.Registrar ◀── syncer.Engine ──▶ outbox.Store
+                        (registerNotify,        (state machine:         │
+                         renews before            pending → syncing →   │
+                         expiry)                   active/desynced,     ▼
+                                                    listRepoOps +   consumer
+                                                    LtHash verify,  (Poll/Ack/Watch)
+                                                    getRepo recover
+                                                    on verify failure)
+```
+
+- **`session`** tracks every DID sap syncs on behalf of, the session ID that
+  resumes it, and which spaces each session has been seen to access. `crawl`
+  resumes a tracked session directly through `Config.OAuthClient` for
+  member-scoped calls like `listSpaces`, with `session` itself having no
+  knowledge of how that session was originally established. `session.Store`
+  also implements `credential.Delegator` (`DelegationToken`): given a space,
+  it tries each recorded accessor in turn, resuming that session through
+  `OAuthClient` to ask *that session's own host* for a delegation token
+  (`getDelegationToken`) — never touching a space credential itself.
+- **`credential`** mints and caches per-space host credentials, one per space
+  regardless of which session obtained it — a space credential authorizes the
+  space, not the member who fetched it. `credential.Manager.ClientForSpace`
+  backs every call that spans a space's members — `listRepos`, `listRepoOps`,
+  `getRepo`, `registerNotify` — per the permissioned-data proposal, which
+  requires space-level authorization for those rather than a single member's
+  access token: it resolves *the space's own host* (its owner's habitat
+  instance — a space's records live in its owner's repo) and exchanges a
+  delegation token (from its configured `Delegator`, i.e. `session.Store`)
+  for a credential at that space host (`getSpaceCredential`), caching and
+  renewing it just before expiry. `sap.New` wires one `credential.Manager`
+  per `Sap`, built over `session.Store` as its `Delegator`, and hands it to
+  `crawl`, `register`, and `syncer` wherever a space-scoped client is needed.
+- **`crawl`** backfills: for each session it pages `listSpaces` (member auth),
+  records space access, and for each space calls `listRepos` (space-credential
+  auth) into `Tracker.Check` (start tracking, or compare the listed rev/hash
+  against ours). Crawl progress is a cursor persisted per session, so a
+  restart resumes instead of re-scanning.
+- **`syncer`** is the sync engine and state machine, one row per `(space,
+  repo)`. `pending`/`error` repos are synced incrementally via
+  `listRepoOps` and verified against the host's signed commit hash (LtHash);
+  a repo that fails verification is marked `desynced` and rebuilt from a full
+  `getRepo` CAR snapshot. `Track` (new repo from crawl) and `NotifyWrite`
+  (pushed notification) both funnel into the same staleness check, so a
+  repo mid-sync when a new write lands is marked dirty and requeued instead
+  of settling on stale data.
+- **`register`** keeps `registerNotify` subscriptions alive so hosts push
+  `notifyWrite`/`notifySpaceDeleted` to sap instead of relying on polling: it
+  registers a space inline as crawl discovers it, and a background sweep
+  renews registrations before they expire.
+- **`outbox`** is the durable handoff to sap's consumer: the syncer emits
+  synced records here (in the same transaction as its state advance), and the
+  consumer polls, processes, and acks them. Unacked messages redeliver.
 
 ## Quick start
 
@@ -13,9 +85,11 @@ import (
     "go.opentelemetry.io/otel"
 )
 
-s, err := sap.NewSap(sap.SapConfig{
+s, err := sap.New(sap.Config{
     DB:          db,
-    OAuthClient: oauthApp,
+    OAuthClient: oauthApp, // *oauth.ClientApp; AddSession resumes sessions via its Store
+    Directory:   identity.DefaultDirectory(),
+    Endpoint:    "https://sap.example.com", // registered with hosts for notifyWrite
     Meter:       otel.Meter("sap"),
     Tracer:      otel.Tracer("sap"),
 })
@@ -23,135 +97,98 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Register an org. This immediately starts a crawl and opens a live
-// subscription for real-time events.
-if err := s.AddManagedOrg(ctx, did, sessionID); err != nil {
+// Registers did as resumable via sessionID (already saved into oauthApp's
+// Store by whatever flow obtained it) and kicks off its backfill crawl.
+if err := s.AddSession(ctx, did, sessionID); err != nil {
     log.Fatal(err)
 }
 
-// Start blocks until ctx is cancelled, running all background work.
+// Runs the sync engine, crawl resumption/recrawl loop, and notify-registration
+// upkeep until ctx is cancelled.
 if err := s.Start(ctx); err != nil {
     log.Fatal(err)
 }
 ```
 
-## How it works
+When a host calls back with a notification, relay it into sap:
 
-When an org is added via `AddManagedOrg`, three things happen in parallel:
-
-1. **Crawl** — enumerates every space and repo in the org, inserting
-   discovered repos into the `managed_repos` table in `pending` state.
-2. **Subscribe** — opens an SSE connection to `network.habitat.sync.subscribeSpaces`
-   to receive real-time space events.
-3. **Resync** — a worker pool picks up pending/desynced repos and backfills
-   them by calling `network.habitat.space.listRepoOps`.
-
-Once a repo is fully synced it transitions to `active` state. Live events
-arriving on the subscription are applied directly to the outbox. If a repo
-falls behind (the subscriber sees a rev it doesn't have), the repo is marked
-`desynced` and the resyncer picks it up again.
-
-Events that arrive while a resync is in flight are buffered in a
-`buffered_events` table and replayed once the resync completes, ensuring
-no events are lost.
+```go
+s.NotifyWrite(ctx, space, repo, rev, hash)   // repo advanced; sync it
+s.NotifySpaceDeleted(ctx, space)             // drop all tracking state for it
+```
 
 ## Consuming the outbox
 
-The `Outbox` interface (accessible at `s.Outbox`) provides at-least-once
-delivery of record-level events:
-
-```go
-// Poll returns up to N unacknowledged messages.
-msgs, err := s.Outbox.Poll(ctx, 100)
-
-// Ack marks a message as processed so it won't be redelivered.
-err = s.Outbox.Ack(ctx, msgs[0].ID)
-
-// Watch returns a channel that is signalled when new messages are available.
-<-s.Outbox.Watch()
-```
-
-A typical consume loop:
-
 ```go
 for {
-    msgs, err := s.Outbox.Poll(ctx, 100)
+    msgs, err := s.Outbox().Poll(ctx, 100)
     if err != nil {
         log.Fatal(err)
     }
     for _, msg := range msgs {
         // process msg.Value (json.RawMessage) keyed by msg.URI
-        if err := s.Outbox.Ack(ctx, msg.ID); err != nil {
+        if err := s.Outbox().Ack(ctx, msg.ID); err != nil {
             log.Fatal(err)
         }
     }
     if len(msgs) == 0 {
-        <-s.Outbox.Watch()
+        <-s.Outbox().Watch()
     }
 }
 ```
 
-The `cmd/sap` binary exposes this over a websocket at `/channel` — see
-[`cmd/sap/websocket.go`](../../cmd/sap/websocket.go) for the wire protocol.
+## The `cmd/sap` binary
 
-## Proxying authenticated requests
+Wraps a `*sap.Sap` with HTTP, and owns both ways a session gets established
+before handing its session ID to `AddSession`. The OAuth-facing endpoints
+(`/oauth-callback`, `/client-metadata.json`) and the host-facing notify
+webhooks (`/xrpc/network.habitat.space.notifyWrite`, `notifySpaceDeleted`,
+validated by service-auth) are served on the public port; session management
+and the outbox are served on a separate internal port meant to be restricted
+to trusted callers:
 
-`GetClient` returns an `*http.Client` that authenticates as a given org
-using the tracked OAuth session. Requests are resolved against the org's
-Habitat host:
+- `POST /session/add` — start a browser OAuth flow for a handle; on
+  callback, `ProcessCallback` saves the session into the shared
+  `*oauth.ClientApp`'s `Store` and `AddSession` is called with its session ID
+- `POST /session/jwt` — mint a session for a DID directly via the RFC 7523
+  JWT-bearer grant (`pkg/oauthclient.Client.SendJWTTokenRequest`, which
+  itself saves the session into the same `Store`), then call `AddSession`
+  with the resulting session ID — sap resumes it exactly like one from the
+  browser flow, since both live in the same session store
+- `GET /session/list` — DIDs of tracked sessions
+- `GET /channel` — websocket streaming the outbox (see
+  [`cmd/sap/websocket.go`](../../cmd/sap/websocket.go) for the wire protocol);
+  a message is redelivered until the client acks its ID
+- `/proxy/<nsid>` — forwards an XRPC call to pear authenticated as the session
+  named by the `Habitat-Did`/`Habitat-Session-Id` headers
 
-```go
-client, err := s.GetClient(ctx, did)
-if err != nil {
-    log.Fatal(err)
-}
-resp, err := client.Get("/xrpc/com.example.someMethod?key=value")
-```
+## Tables
 
-The `cmd/sap` binary uses this to provide a `/proxy/` endpoint — callers
-set the `Habitat-Did` header and sap forwards the request with the org's
-credentials. See [`cmd/sap/server.go`](../../cmd/sap/server.go).
-
-## Org management
-
-```go
-// List all managed org DIDs.
-orgs, err := s.ListManagedOrgs(ctx)
-```
+Each subpackage owns and auto-migrates its own tables:
+`sap_sessions`/`sap_space_access` (session), `sap_crawls` (crawl),
+`sap_repos`/`sap_repo_records` (syncer), `sap_registrations` (register),
+`sap_outbox` (outbox).
 
 ## Configuration
 
 | Field | Description |
 |---|---|
 | `DB` | GORM database handle (schema auto-migrated on construction) |
-| `ResyncParallelism` | Number of concurrent resync workers (default 5) |
-| `Directory` | AT Protocol DID directory for PDS resolution |
-| `OAuthClient` | OAuth client app for authenticating org PDS requests |
-| `Meter` | OpenTelemetry meter (nil = no-op) |
-| `Tracer` | OpenTelemetry tracer (nil = no-op) |
+| `OAuthClient` | `*oauth.ClientApp` whose `Store` `AddSession` resumes sessions from |
+| `Directory` | AT Protocol DID directory for commit-signature verification; nil verifies by hash only |
+| `Endpoint` | sap's public base URL registered with hosts for notifications; empty disables registration |
+| `Parallelism` | Sync worker pool size (default 5) |
+| `CrawlInterval` | How often every session is re-crawled (default 1h) |
+| `Meter` / `Tracer` | OpenTelemetry instrumentation (nil = no-op) |
 
-## Metrics
-
-All metrics are prefixed with `sap.` and reported via OpenTelemetry:
-
-| Metric | Type | Description |
-|---|---|---|
-| `sap.crawler.active` | Gauge | Active crawl goroutines |
-| `sap.crawler.duration` | Histogram | Full crawl duration (seconds) |
-| `sap.crawler.completed` | Counter | Crawls completed, by status |
-| `sap.subscriber.active` | Gauge | Active subscription goroutines |
-| `sap.subscriber.errors` | Counter | Subscription connection errors |
-| `sap.subscriber.events_processed` | Counter | Events processed, by status |
-| `sap.resyncer.workers_busy` | Gauge | Busy resync workers |
-| `sap.resyncer.jobs_processed` | Counter | Resync jobs processed, by status |
-| `sap.resyncer.job_duration` | Histogram | Single resync job duration (seconds) |
-| `sap.resyncer.dispatch_duration` | Histogram | Dispatch pass duration (seconds) |
+Metrics are prefixed `sap.crawler.*` and `sap.syncer.*`; see each package's
+`New`/telemetry setup for exact names.
 
 ## Running sap
 
 ```bash
-moon sap:dev          # development with hot reload
-moon pear:build       # build the binary
+moon sap:dev     # development with hot reload
+moon pear:build  # build the binary
 ```
 
-Environment variables are documented in the project root [CLAUDE.md](../../CLAUDE.md).
+Flags/env vars are documented in [`cmd/sap/flags.go`](../../cmd/sap/flags.go).
