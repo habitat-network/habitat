@@ -259,7 +259,12 @@ func listRepoPaths(
 			params["cursor"] = cursor
 		}
 		var output habitat.NetworkHabitatSpaceListRecordsOutput
-		if err := client.Get(ctx, "network.habitat.space.listRecords", params, &output); err != nil {
+		if err := client.Get(
+			ctx,
+			"network.habitat.space.listRecords",
+			params,
+			&output,
+		); err != nil {
 			return nil, fmt.Errorf("list records: %w", err)
 		}
 

@@ -93,7 +93,10 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 	require.NoError(t, err)
 	var out habitat.NetworkHabitatSpaceListReposOutput
 	require.NoError(t, client.Get(
-		t.Context(), "network.habitat.space.listRepos", map[string]any{"space": space.String()}, &out,
+		t.Context(),
+		"network.habitat.space.listRepos",
+		map[string]any{"space": space.String()},
+		&out,
 	))
 	mu.Lock()
 	require.Equal(t, "Bearer space-cred", repoAuth)

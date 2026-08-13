@@ -388,7 +388,13 @@ func TestEngineScheduleRetry(t *testing.T) {
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
 		Update("state", stateSyncing).Error)
 
-	err := e.scheduleRetry(t.Context(), space, "did:plc:alice", stateError, fmt.Errorf("test error"))
+	err := e.scheduleRetry(
+		t.Context(),
+		space,
+		"did:plc:alice",
+		stateError,
+		fmt.Errorf("test error"),
+	)
 	require.NoError(t, err)
 
 	var r repo
@@ -711,8 +717,16 @@ func TestEngineDispatchClaimsPendingAndErrorRepos(t *testing.T) {
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 
-	require.NoError(t, db.Create(&repo{Space: space, DID: "did:plc:pending1", State: statePending}).Error)
-	require.NoError(t, db.Create(&repo{Space: space, DID: "did:plc:error1", State: stateError, ErrorMsg: "old"}).Error)
+	require.NoError(
+		t,
+		db.Create(&repo{Space: space, DID: "did:plc:pending1", State: statePending}).Error,
+	)
+	require.NoError(
+		t,
+		db.Create(
+			&repo{Space: space, DID: "did:plc:error1", State: stateError, ErrorMsg: "old"},
+		).Error,
+	)
 
 	e.dispatch(t.Context())
 
@@ -731,8 +745,14 @@ func TestEngineDispatchClaimsDesyncedRepos(t *testing.T) {
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 
-	require.NoError(t, db.Create(&repo{Space: space, DID: "did:plc:desync1", State: stateDesynced}).Error)
-	require.NoError(t, db.Create(&repo{Space: space, DID: "did:plc:desync2", State: stateDesynced}).Error)
+	require.NoError(
+		t,
+		db.Create(&repo{Space: space, DID: "did:plc:desync1", State: stateDesynced}).Error,
+	)
+	require.NoError(
+		t,
+		db.Create(&repo{Space: space, DID: "did:plc:desync2", State: stateDesynced}).Error,
+	)
 
 	e.dispatch(t.Context())
 
@@ -778,7 +798,10 @@ func TestEngineScheduleRetryBackoff(t *testing.T) {
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 
 	// First retry
-	require.NoError(t, e.scheduleRetry(t.Context(), space, "did:plc:alice", stateError, fmt.Errorf("err1")))
+	require.NoError(
+		t,
+		e.scheduleRetry(t.Context(), space, "did:plc:alice", stateError, fmt.Errorf("err1")),
+	)
 	var r repo
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
 	require.Equal(t, 1, r.RetryCount)
@@ -786,13 +809,19 @@ func TestEngineScheduleRetryBackoff(t *testing.T) {
 	require.Equal(t, "err1", r.ErrorMsg)
 
 	// Second retry
-	require.NoError(t, e.scheduleRetry(t.Context(), space, "did:plc:alice", stateError, fmt.Errorf("err2")))
+	require.NoError(
+		t,
+		e.scheduleRetry(t.Context(), space, "did:plc:alice", stateError, fmt.Errorf("err2")),
+	)
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
 	require.Equal(t, 2, r.RetryCount)
 	require.Equal(t, "err2", r.ErrorMsg)
 
 	// Third retry
-	require.NoError(t, e.scheduleRetry(t.Context(), space, "did:plc:alice", stateDesynced, fmt.Errorf("err3")))
+	require.NoError(
+		t,
+		e.scheduleRetry(t.Context(), space, "did:plc:alice", stateDesynced, fmt.Errorf("err3")),
+	)
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
 	require.Equal(t, 3, r.RetryCount)
 	require.Equal(t, stateDesynced, r.State)
@@ -1202,8 +1231,11 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 	require.NoError(t, e.recoverRepo(t.Context(), space, repoDID))
 
 	require.Len(t, emitter.emitted, 1, "only the deleted record is emitted")
-	require.Equal(t, []byte("null"),
-		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/k2"])
+	require.Equal(
+		t,
+		[]byte("null"),
+		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/k2"],
+	)
 
 	index, err := recordIndex(t.Context(), db, space, repoDID)
 	require.NoError(t, err)
@@ -1223,10 +1255,13 @@ func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
 	car := buildMinimalCAR(t) // holds exactly network.habitat.test/rec1
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/vnd.ipld.car")
-		_, _ = w.Write(car)
-	})
+	mux.HandleFunc(
+		"/xrpc/network.habitat.space.getRepo",
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/vnd.ipld.car")
+			_, _ = w.Write(car)
+		},
+	)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -1242,8 +1277,11 @@ func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
 	require.NoError(t, e.recoverRepo(t.Context(), space, repoDID))
 
 	require.Len(t, emitter.emitted, 2, "the recovered record and the deleted one are both emitted")
-	require.Equal(t, []byte("null"),
-		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/rec2"])
+	require.Equal(
+		t,
+		[]byte("null"),
+		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/rec2"],
+	)
 
 	index, err := recordIndex(t.Context(), db, space, repoDID)
 	require.NoError(t, err)
@@ -1322,8 +1360,11 @@ func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 	require.NoError(t, e.syncRepo(t.Context(), space, repoDID))
 
 	require.Len(t, emitter.emitted, 2)
-	require.Equal(t, []byte("null"),
-		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/k1"])
+	require.Equal(
+		t,
+		[]byte("null"),
+		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/k1"],
+	)
 }
 
 // TestEngineCheckRequeuesDriftedRepo pins that a backfill crawl's rev/hash
@@ -1350,7 +1391,16 @@ func TestEngineCheckRequeuesDriftedRepo(t *testing.T) {
 		}).Error)
 
 	// Host reports a newer rev (a write happened that we missed).
-	require.NoError(t, e.Check(t.Context(), space, repoDID, syntax.TID(rev2), base64.StdEncoding.EncodeToString(lt.Sum())))
+	require.NoError(
+		t,
+		e.Check(
+			t.Context(),
+			space,
+			repoDID,
+			syntax.TID(rev2),
+			base64.StdEncoding.EncodeToString(lt.Sum()),
+		),
+	)
 
 	var r repo
 	require.NoError(t, db.First(&r, "space = ? AND did = ?", space, repoDID).Error)
@@ -1374,7 +1424,16 @@ func TestEngineCheckLeavesCurrentReposActive(t *testing.T) {
 		Where("space = ? AND did = ?", space, repoDID).
 		Updates(map[string]any{"state": stateActive, "rev": rev, "hash": lt.State()}).Error)
 
-	require.NoError(t, e.Check(t.Context(), space, repoDID, syntax.TID(rev), base64.StdEncoding.EncodeToString(lt.Sum())))
+	require.NoError(
+		t,
+		e.Check(
+			t.Context(),
+			space,
+			repoDID,
+			syntax.TID(rev),
+			base64.StdEncoding.EncodeToString(lt.Sum()),
+		),
+	)
 
 	var r repo
 	require.NoError(t, db.First(&r, "space = ? AND did = ?", space, repoDID).Error)
