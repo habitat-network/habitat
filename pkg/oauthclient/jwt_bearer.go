@@ -76,7 +76,7 @@ func (c *Client) SendJWTTokenRequest(
 		return nil, fmt.Errorf("fetching auth server metadata: %w", err)
 	}
 
-	assertion, err := c.signJWTBearerAssertion(ident.DID, authserverMeta.TokenEndpoint)
+	assertion, err := c.signJWTBearerAssertion(ident.DID, authserverMeta.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("signing jwt bearer assertion: %w", err)
 	}
