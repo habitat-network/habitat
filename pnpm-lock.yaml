@@ -322,7 +322,7 @@ importers:
         version: 12.5.1
       '@posthog/react':
         specifier: ^1.10.3
-        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.415.6)(react@19.2.8)
+        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.416.0)(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.10(@neodrag/core@3.0.0-next.11)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -379,7 +379,7 @@ importers:
         version: 14.0.5
       posthog-js:
         specifier: ^1.406.2
-        version: 1.415.6
+        version: 1.416.0
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -489,7 +489,7 @@ importers:
         version: 0.5.9
       '@posthog/react':
         specifier: ^1.10.3
-        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.415.6)(react@19.2.8)
+        version: 1.10.3(@types/react@19.2.17)(posthog-js@1.416.0)(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.10(@neodrag/core@3.0.0-next.11)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -528,7 +528,7 @@ importers:
         version: 1.27.0(react@19.2.8)
       posthog-js:
         specifier: ^1.406.2
-        version: 1.415.6
+        version: 1.416.0
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -3398,8 +3398,8 @@ packages:
   '@posthog/browser-common@0.5.0':
     resolution: {integrity: sha512-8DaxVZS1bQPbA514RePurLNbYjei3P4jhnC206DwVv5XThmZM3QdlsXenI2ujE3pLbgQ79hYn9o1Kda8I3WK/Q==}
 
-  '@posthog/core@1.47.0':
-    resolution: {integrity: sha512-LW62V+9yx7G7mLd+EYpwW0PiaPZI8XRJ1tLuhw+9fXHpugLp8XQD5JuCQ2kIXvoUfyx1DpKfGQY3dUnzMOIn7Q==}
+  '@posthog/core@1.47.1':
+    resolution: {integrity: sha512-d38C5DulL3gCox4g0VGyb/Lhn548fBvj9f35LZGVasPspOs3jyApxROJyDXoWwIRivOjCOIShZQAdYkZVn9J3w==}
 
   '@posthog/react@1.10.3':
     resolution: {integrity: sha512-Qu//fGQmVlX0B9kTA3LLg67e7AYLEmeuA0Bf1qSyUM0uUILcRQGjQezhNQPLYSTakOqvXEnl6fM2iQBF6Toxrw==}
@@ -3411,8 +3411,8 @@ packages:
       '@types/react':
         optional: true
 
-  '@posthog/types@1.402.3':
-    resolution: {integrity: sha512-nnqKIGUqggeNbCZg6of/hYN+4shYZUoPFkILIIpYq0p9HDX8PgOrnrtBAUH8kr1MOmDh2nm+fY5Ceks7A5y6BQ==}
+  '@posthog/types@1.403.0':
+    resolution: {integrity: sha512-QbkO0epmdq38xhxwP214YRi0vgpZiXqhamaTjKT6kVGJYTtsE5qZ1GTgLp12IYehg/rd+whYYErH3/DeX8pj3Q==}
 
   '@react-native/assets-registry@0.86.0':
     resolution: {integrity: sha512-nIaXbm2jX1OTYp0qbviJ3O6KZivoE8z3BnhUQ2LsqfZSWRoOK/n1qsiAr6oALiNKWnXY3j2KPwtYORnZzp8xew==}
@@ -8670,8 +8670,8 @@ packages:
     resolution: {integrity: sha512-v4sDNP3fdNiWMfabO7OwOQdOX8TiQSztKyT1Wj0w+j7LDallJThJRBBBmzVGyYj0crMh7jlV4zepPkiNu9UwDQ==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.415.6:
-    resolution: {integrity: sha512-zOvUooIDyQEz+uS8zwmS229cMdGSqJVeC+1C1PEozUulxPcCR41EWpHtffWpv8t/yRzoR4tk43i6Xa5N9QnOtQ==}
+  posthog-js@1.416.0:
+    resolution: {integrity: sha512-9Rd0tq2WTA1U07VucWuCMwlzr+YvODglyN4mOf61TVrxPeMA7KVBiOEAThqaIvAv2kHbZvwTjbd8Ww2oTs221w==}
 
   postman-code-generators@2.1.1:
     resolution: {integrity: sha512-+egQK1Jf9a92QP23vRTKcDLOthIQmI7WI4czEsZq/wgguLMnVHJ26KlT8AVtpAdVw28hqUbHwicerYxRWCfjoA==}
@@ -14427,21 +14427,21 @@ snapshots:
 
   '@posthog/browser-common@0.5.0':
     dependencies:
-      '@posthog/core': 1.47.0
-      '@posthog/types': 1.402.3
+      '@posthog/core': 1.47.1
+      '@posthog/types': 1.403.0
 
-  '@posthog/core@1.47.0':
+  '@posthog/core@1.47.1':
     dependencies:
-      '@posthog/types': 1.402.3
+      '@posthog/types': 1.403.0
 
-  '@posthog/react@1.10.3(@types/react@19.2.17)(posthog-js@1.415.6)(react@19.2.8)':
+  '@posthog/react@1.10.3(@types/react@19.2.17)(posthog-js@1.416.0)(react@19.2.8)':
     dependencies:
-      posthog-js: 1.415.6
+      posthog-js: 1.416.0
       react: 19.2.8
     optionalDependencies:
       '@types/react': 19.2.17
 
-  '@posthog/types@1.402.3': {}
+  '@posthog/types@1.403.0': {}
 
   '@react-native/assets-registry@0.86.0': {}
 
@@ -20499,11 +20499,11 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  posthog-js@1.415.6:
+  posthog-js@1.416.0:
     dependencies:
       '@posthog/browser-common': 0.5.0
-      '@posthog/core': 1.47.0
-      '@posthog/types': 1.402.3
+      '@posthog/core': 1.47.1
+      '@posthog/types': 1.403.0
       core-js: 3.50.0
       dompurify: 3.4.13
       fflate: 0.4.9
