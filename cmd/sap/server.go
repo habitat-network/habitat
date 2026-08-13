@@ -16,7 +16,10 @@ import (
 
 // habitatDIDHeader names the DID the caller wants the proxied request to be
 // authenticated as. sap looks up the OAuth session it tracks for this DID.
-const habitatDIDHeader = "Habitat-Did"
+const (
+	habitatDIDHeader     = "Habitat-Did"
+	habitatSessionHeader = "Habitat-Session"
+)
 
 // hopByHopHeaders are connection-scoped and must not be forwarded to pear per
 // the HTTP/1.1 spec (RFC 7230 §6.1).
@@ -67,7 +70,7 @@ func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
-	orgs, err := s.sap.ListManagedOrgs(r.Context())
+	orgs, err := s.sap.Sessions(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -86,7 +89,7 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.sap.AddManagedOrg(
+	if err := s.sap.AddSession(
 		r.Context(),
 		sessionData.AccountDID,
 		sessionData.SessionID,
@@ -114,8 +117,12 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
-	sess, err := s.sap.GetSession(r.Context(), did)
+	sessionID := r.Header.Get(habitatSessionHeader)
+	if sessionID == "" {
+		http.Error(w, "missing "+habitatSessionHeader+" header", http.StatusBadRequest)
+		return
+	}
+	sess, err := s.oauthClient.ResumeSession(r.Context(), did, sessionID)
 	if err != nil {
 		http.Error(
 			w,
@@ -165,6 +172,7 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		outReq.Header.Del(h)
 	}
 	outReq.Header.Del(habitatDIDHeader)
+	outReq.Header.Del(habitatSessionHeader)
 	outReq.Header.Del("Authorization")
 	outReq.Header.Set("Habitat-Auth-Method", "oauth")
 

@@ -30,8 +30,8 @@ import (
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
+	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 )
@@ -63,14 +63,16 @@ func TestSap(t *testing.T) {
 
 	createSpace := func(skey string) habitat_syntax.SpaceURI {
 		uri, err := pear.store.CreateSpace(
-			t.Context(), author, author, groupType, habitat_syntax.SpaceKey(skey))
+			t.Context(), author, author, groupType, habitat_syntax.SpaceKey(skey),
+		)
 		require.NoError(t, err)
 		return uri
 	}
 	putRecord := func(space habitat_syntax.SpaceURI, rkey string, data string) {
 		recURI, _, err := pear.store.PutRecord(
 			t.Context(), space, author, collection,
-			syntax.RecordKey(rkey), map[string]any{"data": data})
+			syntax.RecordKey(rkey), map[string]any{"data": data},
+		)
 		require.NoError(t, err)
 		createdURIs[recURI.String()] = true
 	}
@@ -140,7 +142,8 @@ func TestSap(t *testing.T) {
 			}
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
 			require.NoError(t, s.NotifySpaceDeleted(
-				r.Context(), habitat_syntax.SpaceURI(input.Space)))
+				r.Context(), habitat_syntax.SpaceURI(input.Space),
+			))
 			w.WriteHeader(http.StatusOK)
 		})
 
@@ -260,12 +263,12 @@ func setupPear(t *testing.T) *pearHost {
 
 	notifyStore, err := notify.NewStore(db)
 	require.NoError(t, err)
-	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, orgHive)
 
-	// Managed authors sign with their own hive keys; there is no host key here.
-	spacesStore, err := spaces.NewStore(
-		db, fgaStore, notifier, spacecommit.NewAuthority(nil, orgHive),
-	)
+	// Managed authors sign with their own hive keys.
+	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.Config{
+		MemberSigner: orgHive,
+	})
+
 	require.NoError(t, err)
 
 	everyone := org.NewEveryoneOrg(strings.TrimPrefix(server.URL, "https://"))
@@ -318,7 +321,8 @@ func futureJWT(t *testing.T) string {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	tok, err := jwt.NewWithClaims(jwt.SigningMethodPS256,
+	tok, err := jwt.NewWithClaims(
+		jwt.SigningMethodPS256,
 		jwt.MapClaims{"exp": time.Now().Add(time.Hour).Unix(), "jti": "test"},
 	).SignedString(key)
 	require.NoError(t, err)

@@ -79,7 +79,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	oauthApp := oauth.NewClientApp(&config, store)
 
-	s, err := sap.NewSap(sap.SapConfig{
+	s, err := sap.New(sap.Config{
 		DB:          db,
 		OAuthClient: oauthApp,
 		Meter:       otel.Meter("sap"),
@@ -106,7 +106,8 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
 	internalMux.HandleFunc("/proxy/", server.handleProxy)
 
-	slog.InfoContext(ctx, "listening",
+	slog.InfoContext(
+		ctx, "listening",
 		"oauth_port", cmd.String(fPort),
 		"internal_port", cmd.String(fInternalPort),
 	)
