@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"strings"
 
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/pressly/goose/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -23,19 +24,14 @@ type config struct {
 	migrations fs.FS
 }
 
-type Option func(*config)
-
-func WithMigrations(migrations fs.FS) Option {
+func WithMigrations(migrations fs.FS) utils.Opt[config] {
 	return func(o *config) {
 		o.migrations = migrations
 	}
 }
 
-func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
-	var cfg config
-	for _, opt := range opts {
-		opt(&cfg)
-	}
+func New(dsn string, opts ...utils.Opt[config]) (db *gorm.DB, err error) {
+	cfg := utils.ResolveOptions(opts...)
 	gormConfig := &gorm.Config{
 		TranslateError: true,
 	}
