@@ -67,8 +67,9 @@ type Access interface {
 // SpaceClients supplies a client authorized to read a space (a space
 // credential). listRepos spans every member's repos in the space, so per the
 // permissioned-data proposal it requires space-level authorization rather
-// than the crawling session's own access token. Satisfied by session.Store,
-// which resolves a delegating session itself from recorded space access.
+// than the crawling session's own access token. Satisfied by
+// credential.Manager, which resolves a delegating session itself from
+// recorded space access (session.Store.DelegationToken).
 type SpaceClients interface {
 	ClientForSpace(
 		ctx context.Context,

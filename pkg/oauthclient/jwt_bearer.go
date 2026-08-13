@@ -75,7 +75,12 @@ func (c *Client) SendJWTTokenRequest(
 		return nil, fmt.Errorf("fetching auth server metadata: %w", err)
 	}
 
-	assertion, err := c.signJWTBearerAssertion(ident.DID, authserverMeta.TokenEndpoint)
+	// The audience is the bare issuer origin, matching how the server
+	// validates the assertion's "aud" claim (see internal/oauthserver's
+	// fosite Config.TokenURL) and how indigo's own client assertions sign
+	// theirs (ClientConfig.NewClientAssertion(authMeta.Issuer)) — not the
+	// full token endpoint URL.
+	assertion, err := c.signJWTBearerAssertion(ident.DID, authserverMeta.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("signing jwt bearer assertion: %w", err)
 	}

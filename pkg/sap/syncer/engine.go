@@ -64,8 +64,8 @@ func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&repo{}, &repoRecord{})
 }
 
-// Clients supplies an atproto API client authenticated as some session that
-// can access the space. Satisfied by session.Store.
+// Clients supplies an atproto API client authorized to read the space (a
+// space credential). Satisfied by credential.Manager.
 type Clients interface {
 	ClientForSpace(
 		ctx context.Context,

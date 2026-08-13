@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"testing"
@@ -172,7 +173,9 @@ func registerSapSession(ctx context.Context, t *testing.T, stack *sapStack, did 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "register sap session for %s", did)
+	respBody, _ := io.ReadAll(resp.Body)
+	require.Equal(t, http.StatusOK, resp.StatusCode,
+		"register sap session for %s: %s", did, respBody)
 }
 
 // writeWave drives one wave of concurrent traffic across every repo: for each

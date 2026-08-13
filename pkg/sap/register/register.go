@@ -46,7 +46,7 @@ func AutoMigrate(db *gorm.DB) error {
 }
 
 // Clients supplies an atproto API client for a space. Satisfied by
-// session.Store.
+// credential.Manager.
 type Clients interface {
 	ClientForSpace(
 		ctx context.Context,
