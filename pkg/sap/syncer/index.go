@@ -28,8 +28,6 @@ type repoRecord struct {
 	Cid        string
 }
 
-func (repoRecord) TableName() string { return "sap_repo_records" }
-
 // indexRecord records the CID now at a path, replacing any previous entry.
 func indexRecord(
 	ctx context.Context,

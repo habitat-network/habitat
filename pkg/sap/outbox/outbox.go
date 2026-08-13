@@ -24,8 +24,6 @@ type record struct {
 	AckedAt   *time.Time
 }
 
-func (record) TableName() string { return "sap_outbox" }
-
 // AutoMigrate creates the outbox table.
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&record{})

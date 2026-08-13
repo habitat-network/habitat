@@ -57,8 +57,6 @@ type repo struct {
 	RetryAfter int64 `gorm:"not null;default:0;index"`
 }
 
-func (repo) TableName() string { return "sap_repos" }
-
 // AutoMigrate creates the syncer tables.
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&repo{}, &repoRecord{})

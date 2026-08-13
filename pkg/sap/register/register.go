@@ -38,8 +38,6 @@ type registration struct {
 	UpdatedAt time.Time
 }
 
-func (registration) TableName() string { return "sap_registrations" }
-
 // AutoMigrate creates the registration tables.
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&registration{})

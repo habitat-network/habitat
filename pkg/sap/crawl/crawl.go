@@ -47,8 +47,6 @@ type crawl struct {
 	UpdatedAt time.Time
 }
 
-func (crawl) TableName() string { return "sap_crawls" }
-
 // AutoMigrate creates the crawl tables.
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&crawl{})

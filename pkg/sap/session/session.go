@@ -48,8 +48,6 @@ type session struct {
 	UpdatedAt time.Time
 }
 
-func (session) TableName() string { return "sap_sessions" }
-
 // spaceAccess records that a session can access a space (its listSpaces
 // returned it, or a notification named it), and which session that was, so a
 // later delegation-token exchange for the space can name a session that is
@@ -60,8 +58,6 @@ type spaceAccess struct {
 	DID       syntax.DID              `gorm:"column:did;primaryKey"`
 	SessionID string
 }
-
-func (spaceAccess) TableName() string { return "sap_space_access" }
 
 // AutoMigrate creates the session tables.
 func AutoMigrate(db *gorm.DB) error {
