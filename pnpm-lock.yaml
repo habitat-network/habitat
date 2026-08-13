@@ -132,8 +132,8 @@ importers:
         specifier: 5.2.0
         version: 5.2.0(4da089314c03c9219cef207dc5ea3d7f)
       docusaurus-theme-openapi-docs:
-        specifier: 5.1.2
-        version: 5.1.2(@docusaurus/theme-common@3.10.2(4863ea8e1506a51fbbf4634d23a1a431))(@rspack/core@1.7.12)(@types/react@19.2.18)(docusaurus-plugin-openapi-docs@5.2.0(4da089314c03c9219cef207dc5ea3d7f))(docusaurus-plugin-sass@0.2.6(bdabb5fe7852130b2f52ceea54365b97))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21))
+        specifier: 5.2.0
+        version: 5.2.0(@docusaurus/theme-common@3.10.2(4863ea8e1506a51fbbf4634d23a1a431))(@rspack/core@1.7.12)(@types/react@19.2.18)(docusaurus-plugin-openapi-docs@5.2.0(4da089314c03c9219cef207dc5ea3d7f))(docusaurus-plugin-sass@0.2.6(bdabb5fe7852130b2f52ceea54365b97))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21))
       prism-react-renderer:
         specifier: ^2.4.1
         version: 2.4.1(react@19.2.8)
@@ -5801,8 +5801,8 @@ packages:
       '@docusaurus/core': ^2.0.0-beta || ^3.0.0-alpha
       sass: ^1.30.0
 
-  docusaurus-theme-openapi-docs@5.1.2:
-    resolution: {integrity: sha512-uJx+a4qHmpOnl+e7YzsPJSga6d6TLGEVZZPtI7KkzC/PgG7bS8E4P8hknvWqmAEahxhLWEb8izIA3up/0g9RwA==}
+  docusaurus-theme-openapi-docs@5.2.0:
+    resolution: {integrity: sha512-L0b80LzaMUfr76a9EQXRPCf8nxkEz8Xo6Aknnke1UeE2oXsgoiVki6U+RTE7GmJRjO8zSNKXyckGmGmqqWuHeA==}
     engines: {node: '>=14'}
     peerDependencies:
       '@docusaurus/theme-common': ^3.10.0
@@ -8130,8 +8130,8 @@ packages:
     resolution: {integrity: sha512-cbH9IAIJHNj9uXi196JVsRlt7cHKak6u/e6AkL/bkRelZ7rlL3X1YKxsZwa36xipOEKAsdtmaG6aAJoM1fx2zA==}
     engines: {node: '>=14.16'}
 
-  pako@2.2.0:
-    resolution: {integrity: sha512-zJq6RP/5q+TO2OpFV3FHzlPnFjmkb7Nc99a5SNjJE+uu/PkpChs+NIZSSzbBoD+6kjiISXjfYdwj1ZRQ81dz/w==}
+  pako@3.0.1:
+    resolution: {integrity: sha512-GupotUUI0mlhugKjUs4bjOwLt3nrehy9Ys2dxC0GtgVef5cnKggkDMmf2bq2poCCuVXopWPmqsc9VDT2iJUy+w==}
 
   param-case@3.0.4:
     resolution: {integrity: sha512-RXlj7zCYokReqWpOPH9oYivUzLYZ5vAPIfEmCTNViosC78F8F0H9y7T7gG2M39ymgutxF5gcFEsyZQSph9Bp3A==}
@@ -9249,6 +9249,24 @@ packages:
       '@rspack/core':
         optional: true
       node-sass:
+        optional: true
+      sass:
+        optional: true
+      sass-embedded:
+        optional: true
+      webpack:
+        optional: true
+
+  sass-loader@17.0.0:
+    resolution: {integrity: sha512-0Ybm8ohBQ9LcrycVrFQp/KQBNX5a3Wda9/smS0mE/xLffzEnwvV8nykOzrbiSWNzTE3IB/jiXx8O4QmDPG2+Gw==}
+    engines: {node: '>= 22.11.0'}
+    peerDependencies:
+      '@rspack/core': 0.x || ^1.0.0 || ^2.0.0-0
+      sass: ^1.3.0
+      sass-embedded: '*'
+      webpack: ^5.0.0
+    peerDependenciesMeta:
+      '@rspack/core':
         optional: true
       sass:
         optional: true
@@ -16896,7 +16914,7 @@ snapshots:
       - sass-embedded
       - webpack
 
-  docusaurus-theme-openapi-docs@5.1.2(@docusaurus/theme-common@3.10.2(4863ea8e1506a51fbbf4634d23a1a431))(@rspack/core@1.7.12)(@types/react@19.2.18)(docusaurus-plugin-openapi-docs@5.2.0(4da089314c03c9219cef207dc5ea3d7f))(docusaurus-plugin-sass@0.2.6(bdabb5fe7852130b2f52ceea54365b97))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)):
+  docusaurus-theme-openapi-docs@5.2.0(@docusaurus/theme-common@3.10.2(4863ea8e1506a51fbbf4634d23a1a431))(@rspack/core@1.7.12)(@types/react@19.2.18)(docusaurus-plugin-openapi-docs@5.2.0(4da089314c03c9219cef207dc5ea3d7f))(docusaurus-plugin-sass@0.2.6(bdabb5fe7852130b2f52ceea54365b97))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redux@5.0.1)(supports-color@10.2.2)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)):
     dependencies:
       '@docusaurus/theme-common': 3.10.2(4863ea8e1506a51fbbf4634d23a1a431)
       '@hookform/error-message': 2.0.1(react-dom@19.2.8(react@19.2.8))(react-hook-form@7.83.0(react@19.2.8))(react@19.2.8)
@@ -16910,7 +16928,7 @@ snapshots:
       docusaurus-plugin-sass: 0.2.6(bdabb5fe7852130b2f52ceea54365b97)
       file-saver: 2.0.5
       lodash: 4.18.1
-      pako: 2.2.0
+      pako: 3.0.1
       path-browserify: 1.0.1
       postman-code-generators: 2.1.1
       postman-collection: 5.3.1
@@ -16927,14 +16945,13 @@ snapshots:
       rehype-raw: 7.0.0
       remark-gfm: 4.0.1(supports-color@10.2.2)
       sass: 1.101.3
-      sass-loader: 16.0.8(@rspack/core@1.7.12)(sass@1.101.3)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21))
+      sass-loader: 17.0.0(@rspack/core@1.7.12)(sass@1.101.3)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21))
       unist-util-visit: 5.1.0
       url: 0.11.4
       xml-formatter: 3.7.0
     transitivePeerDependencies:
       - '@rspack/core'
       - '@types/react'
-      - node-sass
       - redux
       - sass-embedded
       - supports-color
@@ -19891,7 +19908,7 @@ snapshots:
       registry-url: 6.0.1
       semver: 7.8.5
 
-  pako@2.2.0: {}
+  pako@3.0.1: {}
 
   param-case@3.0.4:
     dependencies:
@@ -21256,6 +21273,12 @@ snapshots:
   sass-loader@16.0.8(@rspack/core@1.7.12)(sass@1.101.3)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)):
     dependencies:
       neo-async: 2.6.2
+    optionalDependencies:
+      '@rspack/core': 1.7.12
+      sass: 1.101.3
+      webpack: 5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)
+
+  sass-loader@17.0.0(@rspack/core@1.7.12)(sass@1.101.3)(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.21))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.32.0)(postcss@8.5.21)):
     optionalDependencies:
       '@rspack/core': 1.7.12
       sass: 1.101.3
