@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -27,6 +28,7 @@ import (
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/sap/crawl"
+	"github.com/habitat-network/habitat/pkg/sap/credential"
 	"github.com/habitat-network/habitat/pkg/sap/outbox"
 	"github.com/habitat-network/habitat/pkg/sap/register"
 	"github.com/habitat-network/habitat/pkg/sap/session"
@@ -73,6 +75,7 @@ type Config struct {
 type Sap struct {
 	db            *gorm.DB
 	sessions      *session.Store
+	credentials   *credential.Manager
 	crawler       *crawl.Crawler
 	engine        *syncer.Engine
 	registrar     *register.Registrar // nil when Config.Endpoint is empty
@@ -99,7 +102,12 @@ func New(config Config) (*Sap, error) {
 		tracer = tracenoop.NewTracerProvider().Tracer("sap")
 	}
 
-	sessions := session.NewStore(config.DB, config.OAuthClient, config.Directory)
+	sessions := session.NewStore(config.DB, config.OAuthClient)
+	// credentials mints and caches space credentials, one per space regardless
+	// of which session was used to obtain it — a space credential authorizes
+	// the space, not the member who fetched it. It asks sessions (which
+	// implements credential.Delegator) for a delegation token on demand.
+	credentials := credential.NewManager(config.Directory, &http.Client{}, sessions)
 	ob := outbox.NewStore(config.DB, utils.NewPollNotifier())
 
 	syncMetrics, err := syncer.NewMetrics(config.Meter, config.Tracer)
@@ -108,7 +116,7 @@ func New(config Config) (*Sap, error) {
 	}
 	engine := syncer.New(
 		config.DB,
-		sessions,
+		credentials,
 		outboxEmitter{store: ob},
 		syncer.NewVerifier(config.Directory),
 		config.Parallelism,
@@ -120,7 +128,7 @@ func New(config Config) (*Sap, error) {
 	// registration is disabled.
 	var crawlNotify crawl.Notify
 	if config.Endpoint != "" {
-		registrar = register.New(config.DB, sessions, sessions, config.Endpoint)
+		registrar = register.New(config.DB, credentials, sessions, config.Endpoint)
 		crawlNotify = registrar
 	}
 
@@ -128,7 +136,7 @@ func New(config Config) (*Sap, error) {
 		config.DB,
 		config.OAuthClient,
 		sessions,
-		sessions,
+		credentials,
 		engine,
 		crawlNotify,
 		config.Meter,
@@ -146,6 +154,7 @@ func New(config Config) (*Sap, error) {
 	return &Sap{
 		db:            config.DB,
 		sessions:      sessions,
+		credentials:   credentials,
 		crawler:       crawler,
 		engine:        engine,
 		registrar:     registrar,
@@ -246,6 +255,7 @@ func (s *Sap) NotifySpaceDeleted(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 ) error {
+	s.credentials.DropSpace(space)
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := s.engine.WithTx(tx).DropSpace(ctx, space); err != nil {
 			return fmt.Errorf("drop repos: %w", err)

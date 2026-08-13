@@ -23,6 +23,7 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
+	"github.com/habitat-network/habitat/pkg/sap/credential"
 )
 
 // fakeDirectory resolves each DID's habitat host from a fixed map, standing
@@ -86,7 +87,7 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 
-	s := NewStore(db, app, nil)
+	s := NewStore(db, app)
 	require.NoError(t, s.Add(t.Context(), "did:plc:alice", "sess1"))
 
 	sessions, err := s.List(t.Context())
@@ -104,11 +105,12 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []habitat_syntax.SpaceURI{space}, spaces)
 
-	// ClientForSpace resolves and attaches a space credential immediately, so
-	// it fails right away when no directory is configured to resolve the
-	// space's host (see TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost
-	// for the succeeding path).
-	_, err = s.ClientForSpace(t.Context(), space)
+	// A credential.Manager built over s (as its Delegator) fails immediately
+	// when no directory is configured to resolve the space's host (see
+	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost for the
+	// succeeding path).
+	mgr := credential.NewManager(nil, http.DefaultClient, s)
+	_, err = mgr.ClientForSpace(t.Context(), space)
 	require.Error(t, err)
 
 	require.NoError(t, s.DropSpace(t.Context(), space))
@@ -160,14 +162,15 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost for the
 	// case where they differ.
 	dir := fakeDirectory{did: srv.URL}
-	store := NewStore(db, app, dir)
+	store := NewStore(db, app)
+	mgr := credential.NewManager(dir, http.DefaultClient, store)
 
 	require.NoError(t, store.Add(t.Context(), did, "sess1"))
 
 	space := habitat_syntax.SpaceURI("at://did:web:member.example/space/network.habitat.group/s1")
 	require.NoError(t, store.RecordSpaceAccess(t.Context(), space, did, "sess1"))
 
-	client, err := store.ClientForSpace(t.Context(), space)
+	client, err := mgr.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
 
 	var out habitat.NetworkHabitatSpaceListReposOutput
@@ -230,13 +233,14 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 	dir := fakeDirectory{owner: ownerSrv.URL}
-	store := NewStore(db, app, dir)
+	store := NewStore(db, app)
+	mgr := credential.NewManager(dir, http.DefaultClient, store)
 
 	require.NoError(t, store.Add(t.Context(), member, "sess1"))
 	space := habitat_syntax.SpaceURI("at://" + owner.String() + "/space/network.habitat.group/s1")
 	require.NoError(t, store.RecordSpaceAccess(t.Context(), space, member, "sess1"))
 
-	client, err := store.ClientForSpace(t.Context(), space)
+	client, err := mgr.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
 
 	var out habitat.NetworkHabitatSpaceListReposOutput

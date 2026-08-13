@@ -3,15 +3,18 @@
 // know how a session was established (browser OAuth flow, JWT-bearer grant,
 // ...) — that happens out of band, entirely the caller's concern, which
 // calls AddSession with the session ID once it has one; this package's job
-// is resuming it via the caller's *oauth.ClientApp and caching
-// space-credential exchanges on top.
+// is resuming it via the caller's *oauth.ClientApp and recording space
+// access on top.
+//
+// Store implements credential.Delegator (see DelegationToken) so a
+// credential.Manager built elsewhere can ask it for delegation tokens; Store
+// itself has no notion of space credentials.
 //
 // DelegationToken always resumes an explicit (DID, session ID) pair — never
 // just a DID — so it names the exact session it means instead of guessing
-// which session a DID resolves to. Space-scoped operations (ClientForSpace,
-// DelegationToken) pick from among recorded accessors, but every candidate
-// they try comes from spaceAccess as an already-paired (DID, session ID),
-// never a bare DID resolved separately.
+// which session a DID resolves to. DelegationToken picks from among recorded
+// accessors, but every candidate it tries comes from spaceAccess as an
+// already-paired (DID, session ID), never a bare DID resolved separately.
 package session
 
 import (
@@ -29,7 +32,6 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/pkg/sap/credential"
 )
 
 // Session names a session sap tracks: did, resumable via sessionID.
@@ -67,30 +69,19 @@ func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&session{}, &spaceAccess{})
 }
 
-// Store tracks sessions and space access, and builds authenticated clients.
+// Store tracks sessions and space access.
 type Store struct {
 	db          *gorm.DB
 	oauthClient *oauth.ClientApp
-
-	// mgr mints and caches space credentials, one per space regardless of
-	// which session was used to obtain it — a space credential authorizes
-	// the space, not the member who fetched it. Store implements
-	// credential.Delegator so mgr can ask any accessing session for a
-	// delegation token on demand.
-	mgr *credential.Manager
 }
 
-func NewStore(db *gorm.DB, oauthClient *oauth.ClientApp, dir credential.Directory) *Store {
-	s := &Store{db: db, oauthClient: oauthClient}
-	s.mgr = credential.NewManager(dir, &http.Client{}, s)
-	return s
+func NewStore(db *gorm.DB, oauthClient *oauth.ClientApp) *Store {
+	return &Store{db: db, oauthClient: oauthClient}
 }
 
-// WithTx returns a Store scoped to the given transaction. The credential
-// manager is shared, not tx-scoped: it's in-memory HTTP client state, not
-// data this transaction writes.
+// WithTx returns a Store scoped to the given transaction.
 func (s *Store) WithTx(tx *gorm.DB) *Store {
-	return &Store{db: tx, oauthClient: s.oauthClient, mgr: s.mgr}
+	return &Store{db: tx, oauthClient: s.oauthClient}
 }
 
 // Add starts tracking did for backfill/sync, resumable via sessionID. Safe
@@ -129,24 +120,6 @@ func (s *Store) RecordSpaceAccess(
 			DoUpdates: clause.AssignmentColumns([]string{"session_id"}),
 		}).
 		Create(&spaceAccess{Space: space, DID: did, SessionID: sessionID}).Error
-}
-
-// ClientForSpace returns a client that reads space at its own host —
-// resolved from the space owner's DID, since a space's records live in its
-// owner's repo — with a valid space credential already attached as its
-// Authorization header. Per the permissioned-data proposal, listRepos and the
-// other repo-host reads this backs (listRepoOps, getRepo, registerNotify)
-// span every member's data in the space and require that space-level
-// authorization, not a single member's access token.
-//
-// The credential is minted (or reused from cache) synchronously here, so
-// this fails immediately if no accessible session could obtain one, rather
-// than deferring the failure to the first actual request.
-func (s *Store) ClientForSpace(
-	ctx context.Context,
-	space habitat_syntax.SpaceURI,
-) (*atclient.APIClient, error) {
-	return s.mgr.ClientForSpace(ctx, space)
 }
 
 // DelegationToken implements credential.Delegator: it tries each session on
@@ -233,10 +206,8 @@ func (s *Store) Spaces(ctx context.Context) ([]habitat_syntax.SpaceURI, error) {
 	return spaces, nil
 }
 
-// DropSpace forgets all access records for a deleted space and evicts its
-// cached space credential.
+// DropSpace forgets all access records for a deleted space.
 func (s *Store) DropSpace(ctx context.Context, space habitat_syntax.SpaceURI) error {
-	s.mgr.DropSpace(space)
 	return s.db.WithContext(ctx).
 		Where("space = ?", space).
 		Delete(&spaceAccess{}).Error

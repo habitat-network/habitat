@@ -34,23 +34,28 @@ AddSession(did,           session.Store ─────▶ crawl.Crawler
                                                     on verify failure)
 ```
 
-- **`session`** tracks every DID sap syncs on behalf of and the session ID
-  that resumes it, and issues two kinds of HTTP client: `ClientForSession`
-  authenticates as the member itself against *that member's own* host, and
-  backs member-scoped calls like `listSpaces` — it does this by resuming the
-  tracked session ID through `Config.OAuthClient`'s `Store`, with no
-  knowledge of how that session was originally established. `ClientForSpace`
-  backs every call that spans a space's members —
-  `listRepos`, `listRepoOps`, `getRepo`, `registerNotify` — per the
-  permissioned-data proposal, which requires space-level authorization for
-  those rather than a single member's access token: it hands out a
-  `credential.Manager`-backed client that resolves *the space's own host*
-  (its owner's habitat instance — a space's records live in its owner's
-  repo) and authenticates with a space credential, minted lazily by
-  exchanging a delegation token (`getDelegationToken`, fetched from some
-  accessing session's own host) for a credential at that space host
-  (`getSpaceCredential`). Every other package gets its clients through
-  `session` rather than touching OAuth state directly.
+- **`session`** tracks every DID sap syncs on behalf of, the session ID that
+  resumes it, and which spaces each session has been seen to access. `crawl`
+  resumes a tracked session directly through `Config.OAuthClient` for
+  member-scoped calls like `listSpaces`, with `session` itself having no
+  knowledge of how that session was originally established. `session.Store`
+  also implements `credential.Delegator` (`DelegationToken`): given a space,
+  it tries each recorded accessor in turn, resuming that session through
+  `OAuthClient` to ask *that session's own host* for a delegation token
+  (`getDelegationToken`) — never touching a space credential itself.
+- **`credential`** mints and caches per-space host credentials, one per space
+  regardless of which session obtained it — a space credential authorizes the
+  space, not the member who fetched it. `credential.Manager.ClientForSpace`
+  backs every call that spans a space's members — `listRepos`, `listRepoOps`,
+  `getRepo`, `registerNotify` — per the permissioned-data proposal, which
+  requires space-level authorization for those rather than a single member's
+  access token: it resolves *the space's own host* (its owner's habitat
+  instance — a space's records live in its owner's repo) and exchanges a
+  delegation token (from its configured `Delegator`, i.e. `session.Store`)
+  for a credential at that space host (`getSpaceCredential`), caching and
+  renewing it just before expiry. `sap.New` wires one `credential.Manager`
+  per `Sap`, built over `session.Store` as its `Delegator`, and hands it to
+  `crawl`, `register`, and `syncer` wherever a space-scoped client is needed.
 - **`crawl`** backfills: for each session it pages `listSpaces` (member auth),
   records space access, and for each space calls `listRepos` (space-credential
   auth) into `Tracker.Check` (start tracking, or compare the listed rev/hash
@@ -71,9 +76,6 @@ AddSession(did,           session.Store ─────▶ crawl.Crawler
 - **`outbox`** is the durable handoff to sap's consumer: the syncer emits
   synced records here (in the same transaction as its state advance), and the
   consumer polls, processes, and acks them. Unacked messages redeliver.
-- **`credential`** backs `session`'s `ClientForSpace`: it mints and caches
-  per-space host credentials so reads are authorized as the space rather than
-  an individual member.
 
 ## Quick start
 
