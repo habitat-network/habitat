@@ -848,7 +848,7 @@ func TestValidate(t *testing.T) {
 
 	// callValidate issues a GET against a minimal HTTP server wrapping srv.Validate
 	// and returns the HTTP status code together with Validate's return values.
-	callValidate := func(srv *OAuthServer, bearerToken string) (status int, did *authn.CredentialInfo, ok bool) {
+	callValidate := func(srv *OAuthServer, bearerToken string) (status int, did *authn.CredentialInfo, ok bool, header http.Header) {
 		var (
 			mu     sync.Mutex
 			retDID *authn.CredentialInfo
@@ -873,17 +873,17 @@ func TestValidate(t *testing.T) {
 		require.NoError(t, resp.Body.Close())
 		mu.Lock()
 		defer mu.Unlock()
-		return resp.StatusCode, retDID, retOK
+		return resp.StatusCode, retDID, retOK, resp.Header
 	}
 
 	t.Run("missing token returns !ok", func(t *testing.T) {
 		srvEmpty, _ := newSrv(testStore(t))
-		status, _, ok := callValidate(srvEmpty, "")
+		status, _, ok, _ := callValidate(srvEmpty, "")
 		require.False(t, ok)
 		require.NotEqual(t, http.StatusOK, status)
 
 		srvBad, _ := newSrv(testStore(t))
-		status, _, ok = callValidate(srvBad, "not.a.valid.jwt")
+		status, _, ok, _ = callValidate(srvBad, "not.a.valid.jwt")
 		require.False(t, ok)
 		require.NotEqual(t, http.StatusOK, status)
 	})
@@ -895,7 +895,7 @@ func TestValidate(t *testing.T) {
 				return nil, errors.New("simulated database failure")
 			},
 		})
-		status, _, ok := callValidate(srv, validToken)
+		status, _, ok, _ := callValidate(srv, validToken)
 		require.False(t, ok)
 		require.Equal(t, http.StatusUnauthorized, status)
 	})
@@ -907,17 +907,28 @@ func TestValidate(t *testing.T) {
 				return nil, org.ErrMemberNotFound
 			},
 		})
-		status, _, ok := callValidate(srv, validToken)
+		status, _, ok, _ := callValidate(srv, validToken)
 		require.False(t, ok)
 		require.Equal(t, http.StatusUnauthorized, status)
 	})
 
 	t.Run("valid token for member returns DID and ok with 200", func(t *testing.T) {
 		srv, _ := newSrv(testStore(t))
-		status, credInfo, ok := callValidate(srv, validToken)
+		status, credInfo, ok, _ := callValidate(srv, validToken)
 		require.True(t, ok)
 		require.Equal(t, http.StatusOK, status)
 		require.Equal(t, syntax.DID("did:web:example.did.com"), credInfo.Subject)
+	})
+
+	t.Run("invalid token 401 sets WWW-Authenticate for client-side refresh", func(t *testing.T) {
+		// indigo's oauth.ClientSession.DoWithAuth only triggers a token
+		// refresh when it sees this exact header (RFC 6750 error="invalid_token")
+		// on a 401 response; without it, clients treat expiry as a hard failure.
+		srv, _ := newSrv(testStore(t))
+		status, _, ok, header := callValidate(srv, "not.a.valid.jwt")
+		require.False(t, ok)
+		require.Equal(t, http.StatusUnauthorized, status)
+		require.Equal(t, `Bearer error="invalid_token"`, header.Get("WWW-Authenticate"))
 	})
 }
 

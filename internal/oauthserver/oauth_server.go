@@ -547,6 +547,11 @@ func (o *OAuthServer) Validate(
 		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, err)
 		// Unfortunately that was returning a 200 http response, so we write our own error here.
 		slog.WarnContext(ctx, "invalid token", "err", err)
+		// RFC 6750's error="invalid_token" covers expired, revoked, or otherwise
+		// invalid tokens. Client libraries (e.g. indigo's oauth.ClientSession)
+		// key off this exact header to know to refresh and retry rather than
+		// surfacing a hard failure.
+		w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
 		httpx.WriteError(ctx, w, "Unauthorized", "", http.StatusUnauthorized)
 		return nil, false
 	}
