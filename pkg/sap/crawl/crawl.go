@@ -36,9 +36,11 @@ const (
 	stateErrored  crawlState = "errored"
 )
 
-// crawl is the persisted progress of one session's backfill.
+// crawl is the persisted progress of one session's backfill, resumable via
+// SessionID so a restart after a crash can re-run Run with the same session.
 type crawl struct {
 	DID       syntax.DID `gorm:"column:did;primaryKey"`
+	SessionID string
 	State     crawlState
 	Cursor    string
 	ErrorMsg  string
@@ -53,10 +55,10 @@ func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&crawl{})
 }
 
-// Clients supplies an HTTP client authenticated as a session. Satisfied by
-// session.Store.
+// Clients supplies an HTTP client authenticated as the named session.
+// Satisfied by session.Store.
 type Clients interface {
-	ClientForSession(ctx context.Context, did syntax.DID) (*http.Client, error)
+	ClientForSession(ctx context.Context, did syntax.DID, sessionID string) (*http.Client, error)
 }
 
 // Access records which spaces a session can reach. Satisfied by session.Store.
@@ -65,13 +67,15 @@ type Access interface {
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		did syntax.DID,
+		sessionID string,
 	) error
 }
 
 // SpaceClients supplies a client authorized to read a space (a space
 // credential). listRepos spans every member's repos in the space, so per the
 // permissioned-data proposal it requires space-level authorization rather
-// than the crawling session's own access token. Satisfied by session.Store.
+// than the crawling session's own access token. Satisfied by session.Store,
+// which resolves a delegating session itself from recorded space access.
 type SpaceClients interface {
 	ClientForSpace(
 		ctx context.Context,
@@ -174,7 +178,7 @@ func (c *Crawler) ResumeIncomplete(ctx context.Context) error {
 		return fmt.Errorf("find incomplete crawls: %w", err)
 	}
 	for _, cr := range crawls {
-		go c.Run(detachCancel(ctx), cr.DID)
+		go c.Run(detachCancel(ctx), cr.DID, cr.SessionID)
 	}
 	return nil
 }
@@ -183,7 +187,7 @@ func (c *Crawler) ResumeIncomplete(ctx context.Context) error {
 // A completed crawl re-runs from the beginning, so periodic re-crawls discover
 // spaces created since. It is safe to re-run for the same session; discovery
 // is idempotent, and overlapping Runs for one session no-op.
-func (c *Crawler) Run(ctx context.Context, did syntax.DID) {
+func (c *Crawler) Run(ctx context.Context, did syntax.DID, sessionID string) {
 	c.mu.Lock()
 	if _, running := c.inFlight[did]; running {
 		c.mu.Unlock()
@@ -226,16 +230,17 @@ func (c *Crawler) Run(ctx context.Context, did syntax.DID) {
 	if err := c.db.WithContext(ctx).Model(&crawl{}).
 		Where("did = ?", did).
 		Updates(map[string]any{
-			"state":     stateRunning,
-			"cursor":    cr.Cursor,
-			"error_msg": "",
+			"session_id": sessionID,
+			"state":      stateRunning,
+			"cursor":     cr.Cursor,
+			"error_msg":  "",
 		}).Error; err != nil {
 		slog.ErrorContext(ctx, "set crawl running", "session", did, "err", err)
 		span.RecordError(err)
 		return
 	}
 
-	if err := c.crawlSession(ctx, did, cr.Cursor); err != nil {
+	if err := c.crawlSession(ctx, did, sessionID, cr.Cursor); err != nil {
 		span.RecordError(err)
 		if uErr := c.db.WithContext(ctx).Model(&crawl{}).
 			Where("did = ?", did).
@@ -258,8 +263,13 @@ func (c *Crawler) Run(ctx context.Context, did syntax.DID) {
 	slog.InfoContext(ctx, "crawl finished", "session", did)
 }
 
-func (c *Crawler) crawlSession(ctx context.Context, did syntax.DID, cursor string) error {
-	client, err := c.clients.ClientForSession(ctx, did)
+func (c *Crawler) crawlSession(
+	ctx context.Context,
+	did syntax.DID,
+	sessionID string,
+	cursor string,
+) error {
+	client, err := c.clients.ClientForSession(ctx, did, sessionID)
 	if err != nil {
 		return fmt.Errorf("client for session: %w", err)
 	}
@@ -297,7 +307,7 @@ func (c *Crawler) crawlSession(ctx context.Context, did syntax.DID, cursor strin
 		}
 		for _, sp := range output.Spaces {
 			space := habitat_syntax.SpaceURI(sp.Uri)
-			if err := c.access.RecordSpaceAccess(ctx, space, did); err != nil {
+			if err := c.access.RecordSpaceAccess(ctx, space, did, sessionID); err != nil {
 				return fmt.Errorf("record space access %s: %w", space, err)
 			}
 			// Subscribe to the space's push notifications as soon as we know

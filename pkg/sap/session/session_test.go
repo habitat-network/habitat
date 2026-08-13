@@ -89,19 +89,22 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	s := NewStore(db, app, nil)
 	require.NoError(t, s.Add(t.Context(), "did:plc:alice", "sess1"))
 
-	dids, err := s.List(t.Context())
+	sessions, err := s.List(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, []string{"did:plc:alice"}, []string{dids[0].String()})
+	require.Equal(t, []Session{{DID: "did:plc:alice", SessionID: "sess1"}}, sessions)
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
-	require.NoError(t, s.RecordSpaceAccess(t.Context(), space, "did:plc:alice"))
-	require.NoError(t, s.RecordSpaceAccess(t.Context(), space, "did:plc:alice")) // idempotent
+	require.NoError(t, s.RecordSpaceAccess(t.Context(), space, "did:plc:alice", "sess1"))
+	require.NoError(
+		t,
+		s.RecordSpaceAccess(t.Context(), space, "did:plc:alice", "sess1"),
+	) // idempotent
 
 	spaces, err := s.Spaces(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, []habitat_syntax.SpaceURI{space}, spaces)
 
-	client, err := s.ClientForSession(t.Context(), "did:plc:alice")
+	client, err := s.ClientForSession(t.Context(), "did:plc:alice", "sess1")
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
@@ -166,7 +169,7 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 	require.NoError(t, store.Add(t.Context(), did, "sess1"))
 
 	space := habitat_syntax.SpaceURI("at://did:web:member.example/space/network.habitat.group/s1")
-	require.NoError(t, store.RecordSpaceAccess(t.Context(), space, did))
+	require.NoError(t, store.RecordSpaceAccess(t.Context(), space, did, "sess1"))
 
 	client, err := store.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
@@ -236,7 +239,7 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 
 	require.NoError(t, store.Add(t.Context(), member, "sess1"))
 	space := habitat_syntax.SpaceURI("at://" + owner.String() + "/space/network.habitat.group/s1")
-	require.NoError(t, store.RecordSpaceAccess(t.Context(), space, member))
+	require.NoError(t, store.RecordSpaceAccess(t.Context(), space, member, "sess1"))
 
 	client, err := store.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)

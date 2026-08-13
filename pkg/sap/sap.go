@@ -192,13 +192,13 @@ func (s *Sap) recrawlLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			dids, err := s.sessions.List(ctx)
+			sessions, err := s.sessions.List(ctx)
 			if err != nil {
 				slog.ErrorContext(ctx, "recrawl: list sessions", "err", err)
 				continue
 			}
-			for _, did := range dids {
-				s.crawler.Run(ctx, did)
+			for _, sess := range sessions {
+				s.crawler.Run(ctx, sess.DID, sess.SessionID)
 			}
 		}
 	}
@@ -210,13 +210,21 @@ func (s *Sap) AddSession(ctx context.Context, did syntax.DID, sessionID string) 
 	if err := s.sessions.Add(ctx, did, sessionID); err != nil {
 		return fmt.Errorf("add session: %w", err)
 	}
-	go s.crawler.Run(detachSpan(ctx), did)
+	go s.crawler.Run(detachSpan(ctx), did, sessionID)
 	return nil
 }
 
 // Sessions lists the DIDs of the sessions sap syncs on behalf of.
 func (s *Sap) Sessions(ctx context.Context) ([]syntax.DID, error) {
-	return s.sessions.List(ctx)
+	sessions, err := s.sessions.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dids := make([]syntax.DID, len(sessions))
+	for i, sess := range sessions {
+		dids[i] = sess.DID
+	}
+	return dids, nil
 }
 
 // NotifyWrite reacts to a host's notifyWrite: the repo advanced to rev with

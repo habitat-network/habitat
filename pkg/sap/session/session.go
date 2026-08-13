@@ -5,6 +5,13 @@
 // calls AddSession with the session ID once it has one; this package's job
 // is resuming it via the caller's *oauth.ClientApp and caching
 // space-credential exchanges on top.
+//
+// ClientForSession always takes an explicit (DID, session ID) pair — never
+// just a DID — so callers name the exact session they mean instead of this
+// package guessing which session a DID resolves to. Space-scoped operations
+// (ClientForSpace, DelegationToken) still pick from among recorded
+// accessors, but every candidate they try comes from spaceAccess as an
+// already-paired (DID, session ID), never a bare DID resolved separately.
 package session
 
 import (
@@ -27,6 +34,12 @@ import (
 	"github.com/habitat-network/habitat/pkg/sap/credential"
 )
 
+// Session names a session sap tracks: did, resumable via sessionID.
+type Session struct {
+	DID       syntax.DID
+	SessionID string
+}
+
 // session is a DID sap tracks for backfill/sync, resumable via SessionID
 // through the Store's *oauth.ClientApp.
 type session struct {
@@ -39,11 +52,14 @@ type session struct {
 func (session) TableName() string { return "sap_sessions" }
 
 // spaceAccess records that a session can access a space (its listSpaces
-// returned it, or a notification named it). Several sessions may access the
-// same space.
+// returned it, or a notification named it), and which session that was, so a
+// later delegation-token exchange for the space can name a session that is
+// actually known to work rather than guessing. Several sessions may access
+// the same space; the most recently recorded one wins.
 type spaceAccess struct {
-	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	DID   syntax.DID              `gorm:"column:did;primaryKey"`
+	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	DID       syntax.DID              `gorm:"column:did;primaryKey"`
+	SessionID string
 }
 
 func (spaceAccess) TableName() string { return "sap_space_access" }
@@ -89,40 +105,46 @@ func (s *Store) Add(ctx context.Context, did syntax.DID, sessionID string) error
 	}).Create(&session{DID: did, SessionID: sessionID}).Error
 }
 
-// List returns the DIDs of all tracked sessions.
-func (s *Store) List(ctx context.Context) ([]syntax.DID, error) {
-	var dids []syntax.DID
-	if err := s.db.WithContext(ctx).
-		Model(&session{}).
-		Pluck("did", &dids).Error; err != nil {
+// List returns every tracked session as a (DID, session ID) pair.
+func (s *Store) List(ctx context.Context) ([]Session, error) {
+	var tracked []session
+	if err := s.db.WithContext(ctx).Find(&tracked).Error; err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
 	}
-	return dids, nil
+	sessions := make([]Session, len(tracked))
+	for i, t := range tracked {
+		sessions[i] = Session{DID: t.DID, SessionID: t.SessionID}
+	}
+	return sessions, nil
 }
 
-// ClientForSession returns an HTTP client authenticated as did, by resuming
-// its tracked session through the Store's *oauth.ClientApp.
-func (s *Store) ClientForSession(ctx context.Context, did syntax.DID) (*http.Client, error) {
-	var tracked session
-	if err := s.db.WithContext(ctx).First(&tracked, "did = ?", did).Error; err != nil {
-		return nil, fmt.Errorf("load tracked session for %s: %w", did, err)
-	}
-	sess, err := s.oauthClient.ResumeSession(ctx, did, tracked.SessionID)
+// ClientForSession returns an HTTP client authenticated as did by resuming
+// sessionID through the Store's *oauth.ClientApp.
+func (s *Store) ClientForSession(
+	ctx context.Context,
+	did syntax.DID,
+	sessionID string,
+) (*http.Client, error) {
+	sess, err := s.oauthClient.ResumeSession(ctx, did, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("resume session for %s: %w", did, err)
+		return nil, fmt.Errorf("resume session %s for %s: %w", sessionID, did, err)
 	}
 	return oauthclient.SessionClient(sess), nil
 }
 
-// RecordSpaceAccess records that the session can access the space.
+// RecordSpaceAccess records that (did, sessionID) can access the space.
 func (s *Store) RecordSpaceAccess(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 	did syntax.DID,
+	sessionID string,
 ) error {
 	return s.db.WithContext(ctx).
-		Clauses(clause.OnConflict{DoNothing: true}).
-		Create(&spaceAccess{Space: space, DID: did}).Error
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "space"}, {Name: "did"}},
+			DoUpdates: clause.AssignmentColumns([]string{"session_id"}),
+		}).
+		Create(&spaceAccess{Space: space, DID: did, SessionID: sessionID}).Error
 }
 
 // ClientForSpace returns a client that reads space at its own host —
@@ -144,11 +166,12 @@ func (s *Store) ClientForSpace(
 	return s.mgr.ClientForSpace(space), nil
 }
 
-// DelegationToken implements credential.Delegator: it picks a session that
-// can access space — a recorded accessor, falling back to the space owner —
-// and asks that session's own host for a delegation token, authenticated
-// with the session's own access token (see ClientForSession). Candidates are
-// tried in order until one succeeds.
+// DelegationToken implements credential.Delegator: it tries each session on
+// record as having access to space — via spaceAccess, which already pairs a
+// DID with the session ID that recorded its access — asking that session's
+// own host for a delegation token, authenticated with the session's own
+// access token (see ClientForSession). Candidates are tried in order until
+// one succeeds.
 func (s *Store) DelegationToken(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
@@ -158,8 +181,8 @@ func (s *Store) DelegationToken(
 		return "", err
 	}
 	var errs []error
-	for _, did := range candidates {
-		client, err := s.ClientForSession(ctx, did)
+	for _, candidate := range candidates {
+		client, err := s.ClientForSession(ctx, candidate.DID, candidate.SessionID)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -175,33 +198,23 @@ func (s *Store) DelegationToken(
 		"no session could get a delegation token for %s: %w", space, errors.Join(errs...))
 }
 
-// candidatesForSpace returns the DIDs to try for a space read: sessions with
-// recorded access first, then the space owner as a fallback (it may not have
-// listed the space to itself via listSpaces, e.g. if sap only learned of the
-// space from a notifyWrite naming some other repo).
+// candidatesForSpace returns the (DID, session ID) pairs on record as having
+// access to space — each one drawn directly from spaceAccess, never guessed
+// by pairing an arbitrary DID with whatever session happens to be tracked
+// for it.
 func (s *Store) candidatesForSpace(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
-) ([]syntax.DID, error) {
+) ([]Session, error) {
 	var access []spaceAccess
 	if err := s.db.WithContext(ctx).
 		Where("space = ?", space).
 		Find(&access).Error; err != nil {
 		return nil, fmt.Errorf("load space access: %w", err)
 	}
-
-	seen := make(map[syntax.DID]struct{})
-	var candidates []syntax.DID
-	for _, a := range access {
-		if _, ok := seen[a.DID]; !ok {
-			seen[a.DID] = struct{}{}
-			candidates = append(candidates, a.DID)
-		}
-	}
-	if owner := space.SpaceOwner(); owner != "" {
-		if _, ok := seen[owner]; !ok {
-			candidates = append(candidates, owner)
-		}
+	candidates := make([]Session, len(access))
+	for i, a := range access {
+		candidates[i] = Session{DID: a.DID, SessionID: a.SessionID}
 	}
 	return candidates, nil
 }

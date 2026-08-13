@@ -29,7 +29,7 @@ func (t rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 type fakeClients struct{ base *url.URL }
 
-func (f fakeClients) ClientForSession(context.Context, syntax.DID) (*http.Client, error) {
+func (f fakeClients) ClientForSession(context.Context, syntax.DID, string) (*http.Client, error) {
 	return &http.Client{Transport: rewriteTransport(f)}, nil
 }
 
@@ -52,6 +52,7 @@ func (r *recorder) RecordSpaceAccess(
 	_ context.Context,
 	space habitat_syntax.SpaceURI,
 	_ syntax.DID,
+	_ string,
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -116,7 +117,7 @@ func TestCrawlerBackfillsSession(t *testing.T) {
 	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nil, nil, nil)
 	require.NoError(t, err)
 
-	c.Run(t.Context(), "did:plc:sessiondid")
+	c.Run(t.Context(), "did:plc:sessiondid", "sess1")
 
 	require.Equal(t, []habitat_syntax.SpaceURI{habitat_syntax.SpaceURI(space)}, rec.access)
 	require.Equal(t, []syntax.DID{"did:plc:alice", "did:plc:bob"}, rec.tracked)
@@ -148,9 +149,9 @@ func TestCrawlerDeduplicatesConcurrentRuns(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		c.Run(t.Context(), "did:plc:sessiondid")
+		c.Run(t.Context(), "did:plc:sessiondid", "sess1")
 	}()
-	c.Run(t.Context(), "did:plc:sessiondid")
+	c.Run(t.Context(), "did:plc:sessiondid", "sess1")
 	<-done
 
 	require.Equal(t, 1, calls)
@@ -179,8 +180,8 @@ func TestCrawlerRunCompleteThenRestart(t *testing.T) {
 	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nil, nil, nil)
 	require.NoError(t, err)
 
-	c.Run(t.Context(), "did:plc:alice")
-	c.Run(t.Context(), "did:plc:alice")
+	c.Run(t.Context(), "did:plc:alice", "sess1")
+	c.Run(t.Context(), "did:plc:alice", "sess1")
 
 	var cr crawl
 	require.NoError(t, db.First(&cr, "did = ?", "did:plc:alice").Error)
@@ -229,7 +230,7 @@ func TestCrawlerEnumerateReposError(t *testing.T) {
 	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nil, nil, nil)
 	require.NoError(t, err)
 
-	c.Run(t.Context(), "did:plc:alice")
+	c.Run(t.Context(), "did:plc:alice", "sess1")
 
 	var cr crawl
 	require.NoError(t, db.First(&cr, "did = ?", "did:plc:alice").Error)
@@ -262,7 +263,7 @@ func TestCrawlerNotifyRegistration(t *testing.T) {
 	c, err := New(db, fakeClients{base: base}, rec, fakeClients{base: base}, rec, nr, nil, nil)
 	require.NoError(t, err)
 
-	c.Run(t.Context(), "did:plc:alice")
+	c.Run(t.Context(), "did:plc:alice", "sess1")
 	require.True(t, nr.called)
 }
 
