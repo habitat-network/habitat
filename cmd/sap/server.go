@@ -34,16 +34,14 @@ var hopByHopHeaders = []string{
 
 type server struct {
 	sap *sap.Sap
-	// sessions records which auth method sap uses for each DID (out of band
-	// of pkg/sap itself) and implements session.Clients on top of it; sap
-	// only ever asks it for a client, never how the session was established.
-	sessions *sessionResolver
 	// oauthClient is sap's atproto OAuth client: the browser-redirect flow
 	// (StartAuthFlow/ProcessCallback/ResumeSession, via the embedded
 	// *oauth.ClientApp) and the RFC 7523 JWT-bearer grant (SendJWTTokenRequest)
 	// both go through it, sharing one confidential-client key and session
 	// store — a JWT-bearer-minted session is resumable exactly like one from
-	// the browser flow.
+	// the browser flow. sap.Sap resumes sessions through this same ClientApp
+	// (see sap.Config.OAuthClient), so once either flow here gets a session,
+	// handing its session ID to sap.AddSession is all that's needed.
 	oauthClient *oauthclient.Client
 	// domain is sap's publicly-accessible domain, used to build its
 	// client-metadata document.
@@ -55,14 +53,12 @@ type server struct {
 
 func NewSapServer(
 	sapInstance *sap.Sap,
-	sessions *sessionResolver,
 	oauthClient *oauthclient.Client,
 	domain string,
 	serviceAuth *auth.ServiceAuthValidator,
 ) *server {
 	return &server{
 		sap:         sapInstance,
-		sessions:    sessions,
 		oauthClient: oauthClient,
 		domain:      domain,
 		serviceAuth: serviceAuth,
@@ -116,13 +112,9 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.sessions.recordOAuthSession(
+	if err := s.sap.AddSession(
 		r.Context(), sessionData.AccountDID, sessionData.SessionID,
 	); err != nil {
-		http.Error(w, fmt.Sprintf("save session: %s", err), http.StatusInternalServerError)
-		return
-	}
-	if err := s.sap.AddSession(r.Context(), sessionData.AccountDID); err != nil {
 		http.Error(w, fmt.Sprintf("save session: %s", err), http.StatusInternalServerError)
 		return
 	}
@@ -131,8 +123,9 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// handleAddJWTSession registers a jwt-bearer session for a DID directly (no
-// OAuth redirect); sap authenticates to the DID's host via the JWT-bearer grant.
+// handleAddJWTSession mints a session for a DID directly via the RFC 7523
+// JWT-bearer grant (no OAuth redirect), then registers it with sap exactly
+// like a completed browser flow would.
 func (s *server) handleAddJWTSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		DID string `json:"did"`
@@ -145,11 +138,12 @@ func (s *server) handleAddJWTSession(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.sessions.recordJWTBearerSession(r.Context(), did); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	sessData, err := s.oauthClient.SendJWTTokenRequest(r.Context(), did.String())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("mint jwt-bearer session: %s", err), http.StatusBadGateway)
 		return
 	}
-	if err := s.sap.AddSession(r.Context(), did); err != nil {
+	if err := s.sap.AddSession(r.Context(), did, sessData.SessionID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -1,9 +1,10 @@
-// Package session tracks which DIDs sap syncs on behalf of, and which spaces
-// each can access. It does not itself know how a DID's session was
-// established (browser OAuth flow, JWT-bearer grant, ...) — that happens out
-// of band, entirely the caller's concern; the caller supplies a Clients
-// implementation, and this package's job is tracking *which* DIDs to ask it
-// about and caching space-credential exchanges on top.
+// Package session tracks which DIDs sap syncs on behalf of, which OAuth
+// session resumes each, and which spaces each can access. It does not itself
+// know how a session was established (browser OAuth flow, JWT-bearer grant,
+// ...) — that happens out of band, entirely the caller's concern, which
+// calls AddSession with the session ID once it has one; this package's job
+// is resuming it via the caller's *oauth.ClientApp and caching
+// space-credential exchanges on top.
 package session
 
 import (
@@ -15,28 +16,22 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap/credential"
 )
 
-// Clients resolves an authenticated HTTP client for a DID sap tracks. The
-// caller owns how that DID's session was actually established — sap only
-// needs to be able to ask for a client on demand. Satisfied by whatever the
-// caller wires up around its own session storage (e.g. an *oauth.ClientApp
-// plus a DID→session-ID mapping it keeps for jwt-bearer-minted sessions).
-type Clients interface {
-	ClientForDID(ctx context.Context, did syntax.DID) (*http.Client, error)
-}
-
-// session is a DID sap tracks for backfill/sync, added via AddSession once
-// the caller has some way to authenticate as it.
+// session is a DID sap tracks for backfill/sync, resumable via SessionID
+// through the Store's *oauth.ClientApp.
 type session struct {
 	DID       syntax.DID `gorm:"column:did;primaryKey"`
+	SessionID string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -60,8 +55,8 @@ func AutoMigrate(db *gorm.DB) error {
 
 // Store tracks sessions and space access, and builds authenticated clients.
 type Store struct {
-	db      *gorm.DB
-	clients Clients
+	db          *gorm.DB
+	oauthClient *oauth.ClientApp
 
 	// mgr mints and caches space credentials, one per space regardless of
 	// which session was used to obtain it — a space credential authorizes
@@ -71,8 +66,8 @@ type Store struct {
 	mgr *credential.Manager
 }
 
-func NewStore(db *gorm.DB, clients Clients, dir credential.Directory) *Store {
-	s := &Store{db: db, clients: clients}
+func NewStore(db *gorm.DB, oauthClient *oauth.ClientApp, dir credential.Directory) *Store {
+	s := &Store{db: db, oauthClient: oauthClient}
 	s.mgr = credential.NewManager(dir, &http.Client{}, s)
 	return s
 }
@@ -81,15 +76,17 @@ func NewStore(db *gorm.DB, clients Clients, dir credential.Directory) *Store {
 // manager is shared, not tx-scoped: it's in-memory HTTP client state, not
 // data this transaction writes.
 func (s *Store) WithTx(tx *gorm.DB) *Store {
-	return &Store{db: tx, clients: s.clients, mgr: s.mgr}
+	return &Store{db: tx, oauthClient: s.oauthClient, mgr: s.mgr}
 }
 
-// Add starts tracking did for backfill/sync. Idempotent: safe to call again
-// for a DID already tracked.
-func (s *Store) Add(ctx context.Context, did syntax.DID) error {
+// Add starts tracking did for backfill/sync, resumable via sessionID. Safe
+// to call again for a DID already tracked — e.g. re-authenticating after
+// its session expired — replacing the session it resumes.
+func (s *Store) Add(ctx context.Context, did syntax.DID, sessionID string) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		DoNothing: true,
-	}).Create(&session{DID: did}).Error
+		Columns:   []clause.Column{{Name: "did"}},
+		DoUpdates: clause.AssignmentColumns([]string{"session_id"}),
+	}).Create(&session{DID: did, SessionID: sessionID}).Error
 }
 
 // List returns the DIDs of all tracked sessions.
@@ -103,10 +100,18 @@ func (s *Store) List(ctx context.Context) ([]syntax.DID, error) {
 	return dids, nil
 }
 
-// ClientForSession returns an HTTP client authenticated as did, via the
-// caller-supplied Clients.
+// ClientForSession returns an HTTP client authenticated as did, by resuming
+// its tracked session through the Store's *oauth.ClientApp.
 func (s *Store) ClientForSession(ctx context.Context, did syntax.DID) (*http.Client, error) {
-	return s.clients.ClientForDID(ctx, did)
+	var tracked session
+	if err := s.db.WithContext(ctx).First(&tracked, "did = ?", did).Error; err != nil {
+		return nil, fmt.Errorf("load tracked session for %s: %w", did, err)
+	}
+	sess, err := s.oauthClient.ResumeSession(ctx, did, tracked.SessionID)
+	if err != nil {
+		return nil, fmt.Errorf("resume session for %s: %w", did, err)
+	}
+	return oauthclient.SessionClient(sess), nil
 }
 
 // RecordSpaceAccess records that the session can access the space.

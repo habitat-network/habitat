@@ -2,20 +2,27 @@ package session
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
+	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 )
 
 // fakeDirectory resolves each DID's habitat host from a fixed map, standing
@@ -33,40 +40,36 @@ func (f fakeDirectory) LookupDID(_ context.Context, did syntax.DID) (*identity.I
 	}, nil
 }
 
-// fakeClients implements Clients directly from a fixed DID->client map,
-// standing in for whatever the caller wires up around its own session
-// storage (see cmd/sap/sessions.go for the real thing).
-type fakeClients map[syntax.DID]*http.Client
-
-func (f fakeClients) ClientForDID(_ context.Context, did syntax.DID) (*http.Client, error) {
-	c, ok := f[did]
-	if !ok {
-		return nil, fmt.Errorf("no client for %s", did)
-	}
-	return c, nil
+func testDPoPKey(t *testing.T) string {
+	t.Helper()
+	key, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	return key.Multibase()
 }
 
-// roundTripFunc adapts a function to http.RoundTripper.
-type roundTripFunc func(*http.Request) (*http.Response, error)
+func testJWT(t *testing.T) string {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	tok, err := jwt.NewWithClaims(jwt.SigningMethodPS256,
+		jwt.MapClaims{"exp": time.Now().Add(time.Hour).Unix(), "jti": "test"},
+	).SignedString(key)
+	require.NoError(t, err)
+	return tok
+}
 
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
-
-// authedClient returns an *http.Client that resolves path-only requests
-// against host and attaches a fixed bearer token, standing in for a real
-// resumed OAuth/JWT-bearer session's authenticated client.
-func authedClient(host, token string) *http.Client {
-	return &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		if !req.URL.IsAbs() {
-			base, err := url.Parse(host)
-			if err != nil {
-				return nil, err
-			}
-			req.URL.Scheme = base.Scheme
-			req.URL.Host = base.Host
-		}
-		req.Header.Set("Authorization", "Bearer "+token)
-		return http.DefaultTransport.RoundTrip(req)
-	})}
+// newOAuthApp builds a bare (non-confidential) *oauth.ClientApp over a fresh
+// GORM session store, for tests that only need ResumeSession to work.
+func newOAuthApp(t *testing.T, db *gorm.DB) *oauth.ClientApp {
+	t.Helper()
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	return oauth.NewClientApp(&cfg, store)
 }
 
 func TestStoreSessionsAndSpaceAccess(t *testing.T) {
@@ -74,9 +77,17 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
 
-	s := NewStore(db, fakeClients{}, nil)
+	app := newOAuthApp(t, db)
+	require.NoError(t, app.Store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:              "did:plc:alice",
+		SessionID:               "sess1",
+		HostURL:                 "https://host.example",
+		AccessToken:             testJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
+	}))
 
-	require.NoError(t, s.Add(t.Context(), "did:plc:alice"))
+	s := NewStore(db, app, nil)
+	require.NoError(t, s.Add(t.Context(), "did:plc:alice", "sess1"))
 
 	dids, err := s.List(t.Context())
 	require.NoError(t, err)
@@ -90,12 +101,16 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []habitat_syntax.SpaceURI{space}, spaces)
 
+	client, err := s.ClientForSession(t.Context(), "did:plc:alice")
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
 	// ClientForSpace never fails for lack of a session up front: the
 	// credential is minted lazily on first use (see
 	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost).
-	client, err := s.ClientForSpace(t.Context(), space)
+	spaceClient, err := s.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
-	require.NotNil(t, client)
+	require.NotNil(t, spaceClient)
 
 	require.NoError(t, s.DropSpace(t.Context(), space))
 	spaces, err = s.Spaces(t.Context())
@@ -104,8 +119,8 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 }
 
 // TestClientForSpaceUsesAccessingSessionForDelegation verifies a repo-host
-// read for a space is authorized end-to-end: DelegationToken asks an
-// accessing session's own client for a delegation token, which is then
+// read for a space is authorized end-to-end: DelegationToken resumes an
+// accessing session and asks it for a delegation token, which is then
 // exchanged for a space credential used on the actual repo-host read.
 // ClientForSpace backs every syncer read (listRepoOps, getRepo, ...) and,
 // per the permissioned-data proposal, listRepos.
@@ -132,16 +147,23 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
+	app := newOAuthApp(t, db)
 	did := syntax.DID("did:web:member.example")
+	require.NoError(t, app.Store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:              did,
+		SessionID:               "sess1",
+		HostURL:                 srv.URL,
+		AccessToken:             testJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
+	}))
 	// The session is also the space owner here, so one host serves both the
 	// member-auth and space-credential legs; see
 	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost for the
 	// case where they differ.
 	dir := fakeDirectory{did: srv.URL}
-	clients := fakeClients{did: authedClient(srv.URL, "member-tok")}
-	store := NewStore(db, clients, dir)
+	store := NewStore(db, app, dir)
 
-	require.NoError(t, store.Add(t.Context(), did))
+	require.NoError(t, store.Add(t.Context(), did, "sess1"))
 
 	space := habitat_syntax.SpaceURI("at://did:web:member.example/space/network.habitat.group/s1")
 	require.NoError(t, store.RecordSpaceAccess(t.Context(), space, did))
@@ -153,7 +175,10 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 
-	require.Equal(t, "Bearer member-tok", delegationAuth)
+	// The member-auth leg uses DPoP, not a predictable literal token, so we
+	// only assert something was sent; the credential exchange legs use fixed
+	// bearer tokens minted by the (fake) space host.
+	require.NotEmpty(t, delegationAuth)
 	require.Equal(t, "Bearer deleg-tok", credentialAuth)
 	require.Equal(t, "Bearer space-cred", repoAuth)
 }
@@ -196,13 +221,20 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 
 	db := db_testutil.NewDB(t)
 	require.NoError(t, AutoMigrate(db))
+	app := newOAuthApp(t, db)
 	member := syntax.DID("did:web:member.example")
 	owner := syntax.DID("did:web:owner.example")
-	clients := fakeClients{member: authedClient(memberSrv.URL, "member-tok")}
+	require.NoError(t, app.Store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:              member,
+		SessionID:               "sess1",
+		HostURL:                 memberSrv.URL,
+		AccessToken:             testJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
+	}))
 	dir := fakeDirectory{owner: ownerSrv.URL}
-	store := NewStore(db, clients, dir)
+	store := NewStore(db, app, dir)
 
-	require.NoError(t, store.Add(t.Context(), member))
+	require.NoError(t, store.Add(t.Context(), member, "sess1"))
 	space := habitat_syntax.SpaceURI("at://" + owner.String() + "/space/network.habitat.group/s1")
 	require.NoError(t, store.RecordSpaceAccess(t.Context(), space, member))
 
@@ -213,7 +245,7 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 
-	require.Equal(t, "Bearer member-tok", delegationAuth)
+	require.NotEmpty(t, delegationAuth)
 	require.Equal(t, "Bearer deleg-tok", credentialAuth)
 	require.Equal(t, "Bearer space-cred", repoAuth)
 }

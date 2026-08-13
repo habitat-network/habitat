@@ -33,16 +33,13 @@ func openOutboxTestServer(t *testing.T) (*httptest.Server, *sap.Sap, *gorm.DB) {
 	oauthApp := oauth.NewClientApp(&cfg, store)
 	jwtClient := oauthclient.NewJWTBearerClient(oauthApp)
 
-	sessions, err := newSessionResolver(db, jwtClient)
-	require.NoError(t, err)
-
 	s, err := sap.New(sap.Config{
-		DB:      db,
-		Clients: sessions,
+		DB:          db,
+		OAuthClient: oauthApp,
 	})
 	require.NoError(t, err)
 
-	server := NewSapServer(s, sessions, jwtClient, "example.com", nil)
+	server := NewSapServer(s, jwtClient, "example.com", nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/channel", server.handleOutboxChannel)
 	httpServer := httptest.NewServer(mux)
