@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
@@ -187,8 +186,8 @@ func fetchDelegationToken(
 	space habitat_syntax.SpaceURI,
 ) (string, error) {
 	var out habitat.NetworkHabitatSpaceGetDelegationTokenOutput
-	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.getDelegationToken",
-		map[string]any{"space": space.String()}, nil, &out); err != nil {
+	if err := client.Get(ctx, "network.habitat.space.getDelegationToken",
+		map[string]any{"space": space.String()}, &out); err != nil {
 		return "", fmt.Errorf("get delegation token: %w", err)
 	}
 	return out.Token, nil

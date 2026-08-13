@@ -3,9 +3,9 @@ package credential
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -24,19 +24,24 @@ func (stubDelegator) DelegationToken(context.Context, habitat_syntax.SpaceURI) (
 	return "test-delegation", nil
 }
 
-// fakeDirectory resolves each DID's habitat host from a fixed map, standing
-// in for identity.Directory.
-type fakeDirectory map[syntax.DID]string
+// credToken extracts the bearer token a ClientForSpace client would send,
+// standing in for the removed Manager.Credential.
+func credToken(t *testing.T, m *Manager, space habitat_syntax.SpaceURI) string {
+	t.Helper()
+	client, err := m.ClientForSpace(t.Context(), space)
+	require.NoError(t, err)
+	return strings.TrimPrefix(client.Headers.Get("Authorization"), "Bearer ")
+}
 
-func (f fakeDirectory) LookupDID(_ context.Context, did syntax.DID) (*identity.Identity, error) {
-	host, ok := f[did]
-	if !ok {
-		return nil, fmt.Errorf("did %s not found", did)
-	}
-	return &identity.Identity{
+// dirWithSpaceHost builds an identity.MockDirectory with a single identity
+// whose atproto_space_host service points at host.
+func dirWithSpaceHost(did syntax.DID, host string) *identity.MockDirectory {
+	dir := identity.NewMockDirectory()
+	dir.Insert(identity.Identity{
 		DID:      did,
-		Services: map[string]identity.ServiceEndpoint{"habitat": {URL: host}},
-	}, nil
+		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: host}},
+	})
+	return dir
 }
 
 // TestManagerMintsCachesAndAuthenticates covers mint (against the space
@@ -72,17 +77,13 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 
 	owner := syntax.DID("did:web:org")
 	space := habitat_syntax.SpaceURI("at://did:web:org/space/network.habitat.group/s1")
-	dir := fakeDirectory{owner: srv.URL}
+	dir := dirWithSpaceHost(owner, srv.URL)
 	m := NewManager(dir, srv.Client(), stubDelegator{})
 
-	token, err := m.Credential(t.Context(), space)
-	require.NoError(t, err)
-	require.Equal(t, "space-cred", token)
+	require.Equal(t, "space-cred", credToken(t, m, space))
 
 	// Cached: a second call does not re-mint.
-	token, err = m.Credential(t.Context(), space)
-	require.NoError(t, err)
-	require.Equal(t, "space-cred", token)
+	require.Equal(t, "space-cred", credToken(t, m, space))
 	mu.Lock()
 	require.Equal(t, 1, credCalls)
 	mu.Unlock()
@@ -101,9 +102,7 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 
 	// DropSpace evicts; the next mint re-exchanges.
 	m.DropSpace(space)
-	token, err = m.Credential(t.Context(), space)
-	require.NoError(t, err)
-	require.Equal(t, "space-cred", token)
+	require.Equal(t, "space-cred", credToken(t, m, space))
 	mu.Lock()
 	require.Equal(t, 2, credCalls)
 	mu.Unlock()
@@ -131,14 +130,17 @@ func TestManagerResolvesHostPerSpace(t *testing.T) {
 	ownerB := syntax.DID("did:web:org-b")
 	spaceA := habitat_syntax.SpaceURI("at://did:web:org-a/space/network.habitat.group/s1")
 	spaceB := habitat_syntax.SpaceURI("at://did:web:org-b/space/network.habitat.group/s1")
-	dir := fakeDirectory{ownerA: srvA.URL, ownerB: srvB.URL}
+	dir := identity.NewMockDirectory()
+	dir.Insert(identity.Identity{
+		DID:      ownerA,
+		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: srvA.URL}},
+	})
+	dir.Insert(identity.Identity{
+		DID:      ownerB,
+		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: srvB.URL}},
+	})
 	m := NewManager(dir, http.DefaultClient, stubDelegator{})
 
-	tokenA, err := m.Credential(t.Context(), spaceA)
-	require.NoError(t, err)
-	require.Equal(t, "cred-a", tokenA)
-
-	tokenB, err := m.Credential(t.Context(), spaceB)
-	require.NoError(t, err)
-	require.Equal(t, "cred-b", tokenB)
+	require.Equal(t, "cred-a", credToken(t, m, spaceA))
+	require.Equal(t, "cred-b", credToken(t, m, spaceB))
 }

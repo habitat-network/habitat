@@ -1,11 +1,9 @@
 package session
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,19 +24,15 @@ import (
 	"github.com/habitat-network/habitat/pkg/sap/credential"
 )
 
-// fakeDirectory resolves each DID's habitat host from a fixed map, standing
-// in for identity.Directory / credential.Directory.
-type fakeDirectory map[syntax.DID]string
-
-func (f fakeDirectory) LookupDID(_ context.Context, did syntax.DID) (*identity.Identity, error) {
-	host, ok := f[did]
-	if !ok {
-		return nil, fmt.Errorf("did %s not found", did)
-	}
-	return &identity.Identity{
+// dirWithSpaceHost builds an identity.MockDirectory with a single identity
+// whose atproto_space_host service points at host.
+func dirWithSpaceHost(did syntax.DID, host string) *identity.MockDirectory {
+	dir := identity.NewMockDirectory()
+	dir.Insert(identity.Identity{
 		DID:      did,
-		Services: map[string]identity.ServiceEndpoint{"habitat": {URL: host}},
-	}, nil
+		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: host}},
+	})
+	return dir
 }
 
 func testDPoPKey(t *testing.T) string {
@@ -106,10 +100,10 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	require.Equal(t, []habitat_syntax.SpaceURI{space}, spaces)
 
 	// A credential.Manager built over s (as its Delegator) fails immediately
-	// when no directory is configured to resolve the space's host (see
+	// when the space owner's DID can't be resolved (see
 	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost for the
 	// succeeding path).
-	mgr := credential.NewManager(nil, http.DefaultClient, s)
+	mgr := credential.NewManager(identity.NewMockDirectory(), http.DefaultClient, s)
 	_, err = mgr.ClientForSpace(t.Context(), space)
 	require.Error(t, err)
 
@@ -161,7 +155,7 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 	// member-auth and space-credential legs; see
 	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost for the
 	// case where they differ.
-	dir := fakeDirectory{did: srv.URL}
+	dir := dirWithSpaceHost(did, srv.URL)
 	store := NewStore(db, app)
 	mgr := credential.NewManager(dir, http.DefaultClient, store)
 
@@ -232,7 +226,7 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 		AccessToken:             testJWT(t),
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
-	dir := fakeDirectory{owner: ownerSrv.URL}
+	dir := dirWithSpaceHost(owner, ownerSrv.URL)
 	store := NewStore(db, app)
 	mgr := credential.NewManager(dir, http.DefaultClient, store)
 

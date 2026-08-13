@@ -24,6 +24,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -518,26 +519,6 @@ func (failClients) ClientForSpace(
 	return nil, fmt.Errorf("no client")
 }
 
-// mockDir is a test identity.Directory.
-type mockDir struct {
-	idents map[syntax.DID]*identity.Identity
-}
-
-func (m *mockDir) LookupDID(_ context.Context, did syntax.DID) (*identity.Identity, error) {
-	id, ok := m.idents[did]
-	if !ok {
-		return nil, fmt.Errorf("did %s not found", did)
-	}
-	return id, nil
-}
-func (m *mockDir) LookupHandle(_ context.Context, _ syntax.Handle) (*identity.Identity, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (m *mockDir) Lookup(_ context.Context, _ syntax.AtIdentifier) (*identity.Identity, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (m *mockDir) Purge(_ context.Context, _ syntax.AtIdentifier) error { return nil }
-
 // TestVerifierSignerWebAuthor covers the signer path for did:web authors.
 func TestVerifierSignerWebAuthor(t *testing.T) {
 	t.Parallel()
@@ -548,17 +529,10 @@ func TestVerifierSignerWebAuthor(t *testing.T) {
 	require.NoError(t, err)
 
 	authorDID := syntax.DID("did:web:alice.example.com")
-	ident := &identity.Identity{
-		DID: authorDID,
-		Keys: map[string]identity.VerificationMethod{
-			"atproto": {
-				Type:               "Multikey",
-				PublicKeyMultibase: pub.Multibase(),
-			},
-		},
-	}
+	ident := did.New(authorDID).AtprotoKey(pub.Multibase()).Build()
 
-	dir := &mockDir{idents: map[syntax.DID]*identity.Identity{authorDID: ident}}
+	dir := identity.NewMockDirectory()
+	dir.Insert(*ident)
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 	var lt spacecommit.LtHash
@@ -585,26 +559,12 @@ func TestVerifierSignerExternalAuthor(t *testing.T) {
 
 	spaceOwner := syntax.DID("did:plc:owner")
 	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := &identity.Identity{
-		DID: spaceOwner,
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_space_host": {URL: "https://host.example.com"},
-		},
-	}
-	hostIdent := &identity.Identity{
-		DID: hostDID,
-		Keys: map[string]identity.VerificationMethod{
-			"atproto_space": {
-				Type:               "Multikey",
-				PublicKeyMultibase: pub.Multibase(),
-			},
-		},
-	}
+	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
+	hostIdent := did.New(hostDID).ATProtoSpaceKey(pub.Multibase()).Build()
 
-	dir := &mockDir{idents: map[syntax.DID]*identity.Identity{
-		spaceOwner: ownerIdent,
-		hostDID:    hostIdent,
-	}}
+	dir := identity.NewMockDirectory()
+	dir.Insert(*ownerIdent)
+	dir.Insert(*hostIdent)
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 
@@ -626,26 +586,12 @@ func TestVerifierSignerExternalAuthorFallsBackToAtproto(t *testing.T) {
 
 	spaceOwner := syntax.DID("did:plc:owner")
 	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := &identity.Identity{
-		DID: spaceOwner,
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_space_host": {URL: "https://host.example.com"},
-		},
-	}
-	hostIdent := &identity.Identity{
-		DID: hostDID,
-		Keys: map[string]identity.VerificationMethod{
-			"atproto": {
-				Type:               "Multikey",
-				PublicKeyMultibase: pub.Multibase(),
-			},
-		},
-	}
+	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
+	hostIdent := did.New(hostDID).AtprotoKey(pub.Multibase()).Build()
 
-	dir := &mockDir{idents: map[syntax.DID]*identity.Identity{
-		spaceOwner: ownerIdent,
-		hostDID:    hostIdent,
-	}}
+	dir := identity.NewMockDirectory()
+	dir.Insert(*ownerIdent)
+	dir.Insert(*hostIdent)
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 
@@ -659,7 +605,7 @@ func TestVerifierSignerExternalAuthorFallsBackToAtproto(t *testing.T) {
 func TestVerifierSignerAuthorLookupError(t *testing.T) {
 	t.Parallel()
 
-	dir := &mockDir{idents: map[syntax.DID]*identity.Identity{}}
+	dir := identity.NewMockDirectory()
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 
@@ -674,12 +620,10 @@ func TestVerifierSignerAuthorNoKey(t *testing.T) {
 	t.Parallel()
 
 	authorDID := syntax.DID("did:web:alice.example.com")
-	ident := &identity.Identity{
-		DID:  authorDID,
-		Keys: map[string]identity.VerificationMethod{},
-	}
+	ident := did.New(authorDID).Build()
 
-	dir := &mockDir{idents: map[syntax.DID]*identity.Identity{authorDID: ident}}
+	dir := identity.NewMockDirectory()
+	dir.Insert(*ident)
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 
@@ -693,7 +637,7 @@ func TestVerifierSignerAuthorNoKey(t *testing.T) {
 func TestVerifierSignerExternalOwnerLookupError(t *testing.T) {
 	t.Parallel()
 
-	dir := &mockDir{idents: map[syntax.DID]*identity.Identity{}}
+	dir := identity.NewMockDirectory()
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 
@@ -708,12 +652,10 @@ func TestVerifierSignerExternalNoHabitatService(t *testing.T) {
 	t.Parallel()
 
 	spaceOwner := syntax.DID("did:plc:owner")
-	ownerIdent := &identity.Identity{
-		DID:      spaceOwner,
-		Services: map[string]identity.ServiceEndpoint{},
-	}
+	ownerIdent := did.New(spaceOwner).Build()
 
-	dir := &mockDir{idents: map[syntax.DID]*identity.Identity{spaceOwner: ownerIdent}}
+	dir := identity.NewMockDirectory()
+	dir.Insert(*ownerIdent)
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 
@@ -728,14 +670,10 @@ func TestVerifierSignerExternalHostLookupError(t *testing.T) {
 	t.Parallel()
 
 	spaceOwner := syntax.DID("did:plc:owner")
-	ownerIdent := &identity.Identity{
-		DID: spaceOwner,
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_space_host": {URL: "https://host.example.com"},
-		},
-	}
+	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
 
-	dir := &mockDir{idents: map[syntax.DID]*identity.Identity{spaceOwner: ownerIdent}}
+	dir := identity.NewMockDirectory()
+	dir.Insert(*ownerIdent)
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 
@@ -751,21 +689,12 @@ func TestVerifierSignerExternalHostNoKey(t *testing.T) {
 
 	spaceOwner := syntax.DID("did:plc:owner")
 	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := &identity.Identity{
-		DID: spaceOwner,
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_space_host": {URL: "https://host.example.com"},
-		},
-	}
-	hostIdent := &identity.Identity{
-		DID:  hostDID,
-		Keys: map[string]identity.VerificationMethod{},
-	}
+	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
+	hostIdent := did.New(hostDID).Build()
 
-	dir := &mockDir{idents: map[syntax.DID]*identity.Identity{
-		spaceOwner: ownerIdent,
-		hostDID:    hostIdent,
-	}}
+	dir := identity.NewMockDirectory()
+	dir.Insert(*ownerIdent)
+	dir.Insert(*hostIdent)
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 
@@ -982,7 +911,7 @@ func TestEngineRecoverRepoVerifyError(t *testing.T) {
 	require.NoError(t, err)
 	// Use a verifier with a mock dir that returns LookupDID errors, causing
 	// a transient error (not ErrInvalidCommit) during verification.
-	mockD := &mockDir{idents: map[syntax.DID]*identity.Identity{}}
+	mockD := identity.NewMockDirectory()
 	v := NewVerifier(mockD)
 	e := New(db, fakeClients{base: base}, &memEmitter{}, v, 1, m)
 

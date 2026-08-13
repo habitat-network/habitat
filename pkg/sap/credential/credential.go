@@ -8,10 +8,8 @@ package credential
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +20,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // renewalLead is how far before a credential's nominal expiry it is renewed.
@@ -76,16 +75,8 @@ func NewManager(dir Directory, httpc *http.Client, deleg Delegator) *Manager {
 	}
 }
 
-// Credential returns a valid space credential for space, minting or renewing
+// credential returns a valid space credential for space, minting or renewing
 // it as needed. Concurrent mints for the same space are deduped.
-func (m *Manager) Credential(ctx context.Context, space habitat_syntax.SpaceURI) (string, error) {
-	c, err := m.credential(ctx, space)
-	if err != nil {
-		return "", err
-	}
-	return c.token, nil
-}
-
 func (m *Manager) credential(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
@@ -124,7 +115,8 @@ func (m *Manager) mint(ctx context.Context, space habitat_syntax.SpaceURI) (spac
 		Headers: http.Header{"Authorization": []string{"Bearer " + delegation}},
 	}
 	var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
-	if err := client.Post(ctx, "network.habitat.space.getSpaceCredential",
+	if err := client.Post(
+		ctx, "network.habitat.space.getSpaceCredential",
 		habitat.NetworkHabitatSpaceGetSpaceCredentialInput{Space: space.String()}, &out,
 	); err != nil {
 		return spaceCred{}, fmt.Errorf("get space credential: %w", err)
@@ -140,22 +132,16 @@ func (m *Manager) mint(ctx context.Context, space habitat_syntax.SpaceURI) (spac
 // records live in its owner's repo, so that owner's own habitat instance is
 // the only host that can mint (and later verify) a credential for it.
 func (m *Manager) hostForSpace(ctx context.Context, space habitat_syntax.SpaceURI) (string, error) {
-	if m.dir == nil {
-		return "", errors.New("no directory configured to resolve space hosts")
-	}
 	owner := space.SpaceOwner()
-	if owner == "" {
-		return "", fmt.Errorf("space %q has no owner", space)
-	}
 	ident, err := m.dir.LookupDID(ctx, owner)
 	if err != nil {
 		return "", fmt.Errorf("lookup space owner %s: %w", owner, err)
 	}
-	svc, ok := ident.Services["habitat"]
-	if !ok || svc.URL == "" {
-		return "", fmt.Errorf("space owner %s has no habitat service endpoint", owner)
+	host := utils.SpaceHostEndpoint(ident)
+	if host == "" {
+		return "", fmt.Errorf("space owner %s has no space host service", owner)
 	}
-	return strings.TrimSuffix(svc.URL, "/"), nil
+	return host, nil
 }
 
 // DropSpace evicts the cached credential for a deleted space.

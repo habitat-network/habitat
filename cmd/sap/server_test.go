@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -95,27 +93,6 @@ func newJWTBearerAuthServer(t *testing.T, clientID string) *httptest.Server {
 	return server
 }
 
-// fakeDirectory always fails to resolve: most tests below only exercise
-// Store.Add via AddSession, but AddSession also kicks off a background crawl
-// that will call this directory to build a client. Erroring cleanly (rather
-// than e.g. returning a nil identity) keeps that background failure from
-// panicking the test binary.
-type fakeDirectory struct{}
-
-func (fakeDirectory) LookupDID(context.Context, syntax.DID) (*identity.Identity, error) {
-	return nil, errors.New("fakeDirectory: not implemented")
-}
-
-func (fakeDirectory) LookupHandle(context.Context, syntax.Handle) (*identity.Identity, error) {
-	return nil, errors.New("fakeDirectory: not implemented")
-}
-
-func (fakeDirectory) Lookup(context.Context, syntax.AtIdentifier) (*identity.Identity, error) {
-	return nil, errors.New("fakeDirectory: not implemented")
-}
-
-func (fakeDirectory) Purge(context.Context, syntax.AtIdentifier) error { return nil }
-
 // newTestServer wires a minimal sap + oauth/jwt-bearer client + server, same
 // shape as cmd/sap/main.go, for handler-level tests that don't need a live
 // host. The client's directory is faked so a background crawl triggered by
@@ -136,7 +113,7 @@ func newTestServer(t *testing.T) *server {
 	require.NoError(t, err)
 	require.NoError(t, cfg.SetClientSecret(key, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
-	oauthApp.Dir = fakeDirectory{}
+	oauthApp.Dir = identity.NewMockDirectory()
 	jwtClient := oauthclient.NewJWTBearerClient(oauthApp)
 
 	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp})
@@ -262,8 +239,9 @@ func TestHandleAddJWTSessionRejectsInvalidDID(t *testing.T) {
 func TestHandleAddJWTSessionSurfacesMintFailure(t *testing.T) {
 	t.Parallel()
 
-	// newTestServer's oauthClient.Dir (fakeDirectory) fails every lookup, so
-	// minting the JWT-bearer session fails before AddSession is ever called.
+	// newTestServer's oauthClient.Dir (an empty MockDirectory) fails every
+	// lookup, so minting the JWT-bearer session fails before AddSession is
+	// ever called.
 	srv := newTestServer(t)
 	req := httptest.NewRequest(
 		http.MethodPost,

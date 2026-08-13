@@ -202,8 +202,7 @@ func listRepoOps(
 		params["since"] = since.String()
 	}
 
-	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.listRepoOps",
-		params, nil, &output); err != nil {
+	if err := client.Get(ctx, "network.habitat.space.listRepoOps", params, &output); err != nil {
 		var apiErr *atclient.APIError
 		if errors.As(err, &apiErr) && apiErr.Name == "RevNotFound" {
 			return output, fmt.Errorf("%w: %s", errRevTooFar, apiErr.Message)
@@ -225,8 +224,8 @@ func getLatestCommit(
 ) (habitat.NetworkHabitatSpaceDefsSignedCommit, error) {
 	var output habitat.NetworkHabitatSpaceGetLatestCommitOutput
 
-	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.getLatestCommit",
-		map[string]any{"space": space.String(), "repo": repoDID.String()}, nil, &output,
+	if err := client.Get(ctx, "network.habitat.space.getLatestCommit",
+		map[string]any{"space": space.String(), "repo": repoDID.String()}, &output,
 	); err != nil {
 		var apiErr *atclient.APIError
 		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
@@ -260,8 +259,7 @@ func listRepoPaths(
 			params["cursor"] = cursor
 		}
 		var output habitat.NetworkHabitatSpaceListRecordsOutput
-		if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.listRecords",
-			params, nil, &output); err != nil {
+		if err := client.Get(ctx, "network.habitat.space.listRecords", params, &output); err != nil {
 			return nil, fmt.Errorf("list records: %w", err)
 		}
 
@@ -284,11 +282,11 @@ func getRecord(
 ) (habitat.NetworkHabitatSpaceGetRecordOutput, error) {
 	var output habitat.NetworkHabitatSpaceGetRecordOutput
 
-	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.getRecord",
+	if err := client.Get(ctx, "network.habitat.space.getRecord",
 		map[string]any{
 			"space": space.String(), "repo": repoDID.String(),
 			"collection": collection.String(), "rkey": rkey.String(),
-		}, nil, &output); err != nil {
+		}, &output); err != nil {
 		return output, fmt.Errorf("get record %s/%s: %w", collection, rkey, err)
 	}
 	return output, nil

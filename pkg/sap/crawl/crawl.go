@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"sync"
 	"time"
 
@@ -281,8 +280,7 @@ func (c *Crawler) crawlSession(
 			params["cursor"] = cursor
 		}
 		var output habitat.NetworkHabitatSpaceListSpacesOutput
-		if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.listSpaces",
-			params, nil, &output); err != nil {
+		if err := client.Get(ctx, "network.habitat.space.listSpaces", params, &output); err != nil {
 			return fmt.Errorf("list spaces: %w", err)
 		}
 
@@ -328,8 +326,8 @@ func (c *Crawler) enumerateRepos(
 		return fmt.Errorf("client for space %s: %w", space, err)
 	}
 	var output habitat.NetworkHabitatSpaceListReposOutput
-	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.listRepos",
-		map[string]any{"space": space.String()}, nil, &output); err != nil {
+	if err := client.Get(ctx, "network.habitat.space.listRepos",
+		map[string]any{"space": space.String()}, &output); err != nil {
 		return fmt.Errorf("list repos: %w", err)
 	}
 
