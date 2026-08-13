@@ -76,13 +76,14 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	config := oauth.NewPublicConfig(
 		"https://"+domain+"/client-metadata.json",
 		"https://"+domain+"/oauth-callback",
-		[]string{},
+		[]string{"atproto"},
 	)
 	if err := config.SetClientSecret(secret, "sap"); err != nil {
 		return fmt.Errorf("set client secret: %w", err)
 	}
 
 	oauthApp := oauth.NewClientApp(&config, store)
+	oauthApp.Resolver.Client.Transport = http.DefaultTransport
 
 	dir := identity.DefaultDirectory()
 	// The base URL space hosts register and sign notifyWrite /
@@ -133,7 +134,8 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
 	internalMux.HandleFunc("/proxy/", server.handleProxy)
 
-	slog.InfoContext(ctx, "listening",
+	slog.InfoContext(
+		ctx, "listening",
 		"oauth_port", cmd.String(fPort),
 		"internal_port", cmd.String(fInternalPort),
 	)
