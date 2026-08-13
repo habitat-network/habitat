@@ -7,18 +7,15 @@
 package credential
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"golang.org/x/sync/singleflight"
@@ -121,31 +118,16 @@ func (m *Manager) mint(ctx context.Context, space habitat_syntax.SpaceURI) (spac
 	if err != nil {
 		return spaceCred{}, fmt.Errorf("get delegation token: %w", err)
 	}
-	body, err := json.Marshal(habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
-		Space: space.String(),
-	})
-	if err != nil {
-		return spaceCred{}, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		host+"/xrpc/network.habitat.space.getSpaceCredential", bytes.NewReader(body))
-	if err != nil {
-		return spaceCred{}, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+delegation)
-	resp, err := m.httpc.Do(req)
-	if err != nil {
-		return spaceCred{}, fmt.Errorf("get space credential: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return spaceCred{}, fmt.Errorf("get space credential: %s: %s", resp.Status, msg)
+	client := &atclient.APIClient{
+		Client:  m.httpc,
+		Host:    host,
+		Headers: http.Header{"Authorization": []string{"Bearer " + delegation}},
 	}
 	var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return spaceCred{}, fmt.Errorf("decode space credential: %w", err)
+	if err := client.Post(ctx, "network.habitat.space.getSpaceCredential",
+		habitat.NetworkHabitatSpaceGetSpaceCredentialInput{Space: space.String()}, &out,
+	); err != nil {
+		return spaceCred{}, fmt.Errorf("get space credential: %w", err)
 	}
 	c := spaceCred{token: out.Credential, host: host, expire: time.Now().Add(time.Hour)}
 	m.mu.Lock()
@@ -183,33 +165,19 @@ func (m *Manager) DropSpace(space habitat_syntax.SpaceURI) {
 	delete(m.creds, space)
 }
 
-// ClientForSpace returns an *http.Client that resolves path-only requests
-// against space's own host and attaches a valid space credential to every
-// request.
-func (m *Manager) ClientForSpace(space habitat_syntax.SpaceURI) *http.Client {
-	return &http.Client{Transport: &spaceTransport{m: m, space: space}}
-}
-
-// spaceTransport resolves path-only repo-host requests against the space's
-// own host and authenticates them with the space's credential.
-type spaceTransport struct {
-	m     *Manager
-	space habitat_syntax.SpaceURI
-}
-
-func (t *spaceTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	c, err := t.m.credential(req.Context(), t.space)
+// ClientForSpace returns an atproto API client that reads space at its own
+// host, authenticated with a valid space credential.
+func (m *Manager) ClientForSpace(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) (*atclient.APIClient, error) {
+	c, err := m.credential(ctx, space)
 	if err != nil {
 		return nil, err
 	}
-	if !req.URL.IsAbs() {
-		base, err := url.Parse(c.host)
-		if err != nil {
-			return nil, fmt.Errorf("parse space host url: %w", err)
-		}
-		req.URL.Scheme = base.Scheme
-		req.URL.Host = base.Host
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	return t.m.httpc.Do(req)
+	return &atclient.APIClient{
+		Client:  m.httpc,
+		Host:    c.host,
+		Headers: http.Header{"Authorization": []string{"Bearer " + c.token}},
+	}, nil
 }

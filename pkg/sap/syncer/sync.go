@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -187,46 +186,31 @@ func (e *Engine) applyOps(
 // listRepoOps performs one network.habitat.space.listRepoOps page request.
 func listRepoOps(
 	ctx context.Context,
-	client *http.Client,
+	client *atclient.APIClient,
 	space habitat_syntax.SpaceURI,
 	repoDID syntax.DID,
 	since syntax.TID,
 ) (habitat.NetworkHabitatSpaceListRepoOpsOutput, error) {
 	var output habitat.NetworkHabitatSpaceListRepoOpsOutput
 
-	params := url.Values{
-		"space": []string{space.String()},
-		"repo":  []string{repoDID.String()},
-		"limit": []string{"1000"},
+	params := map[string]any{
+		"space": space.String(),
+		"repo":  repoDID.String(),
+		"limit": 1000,
 	}
 	if since != "" {
-		params.Set("since", since.String())
+		params["since"] = since.String()
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"/xrpc/network.habitat.space.listRepoOps?"+params.Encode(), nil)
-	if err != nil {
-		return output, fmt.Errorf("create request: %w", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
+	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.listRepoOps",
+		params, nil, &output); err != nil {
+		var apiErr *atclient.APIError
+		if errors.As(err, &apiErr) && apiErr.Name == "RevNotFound" {
+			return output, fmt.Errorf("%w: %s", errRevTooFar, apiErr.Message)
+		}
 		return output, fmt.Errorf("list repo ops: %w", err)
 	}
-	if resp.StatusCode != http.StatusOK {
-		defer func() { _ = resp.Body.Close() }()
-		var body atclient.ErrorBody
-		decErr := json.NewDecoder(resp.Body).Decode(&body)
-		if decErr == nil && body.Name == "RevNotFound" {
-			return output, fmt.Errorf("%w: %s", errRevTooFar, body.Message)
-		}
-		return output, fmt.Errorf("list repo ops: %s", resp.Status)
-	}
-	decodeErr := json.NewDecoder(resp.Body).Decode(&output)
-	closeErr := resp.Body.Close()
-	if decodeErr != nil {
-		return output, fmt.Errorf("decode list repo ops: %w", decodeErr)
-	}
-	return output, closeErr
+	return output, nil
 }
 
 // getLatestCommit fetches a repo's current signed commit from its host. A
@@ -235,37 +219,22 @@ func listRepoOps(
 // failure.
 func getLatestCommit(
 	ctx context.Context,
-	client *http.Client,
+	client *atclient.APIClient,
 	space habitat_syntax.SpaceURI,
 	repoDID syntax.DID,
 ) (habitat.NetworkHabitatSpaceDefsSignedCommit, error) {
 	var output habitat.NetworkHabitatSpaceGetLatestCommitOutput
 
-	params := url.Values{
-		"space": []string{space.String()},
-		"repo":  []string{repoDID.String()},
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"/xrpc/network.habitat.space.getLatestCommit?"+params.Encode(), nil)
-	if err != nil {
-		return output.Commit, fmt.Errorf("create request: %w", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
+	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.getLatestCommit",
+		map[string]any{"space": space.String(), "repo": repoDID.String()}, nil, &output,
+	); err != nil {
+		var apiErr *atclient.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+			return output.Commit, errEmptyRepoHead
+		}
 		return output.Commit, fmt.Errorf("get latest commit: %w", err)
 	}
-	decodeErr := json.NewDecoder(resp.Body).Decode(&output)
-	closeErr := resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return output.Commit, errEmptyRepoHead
-	}
-	if resp.StatusCode != http.StatusOK {
-		return output.Commit, fmt.Errorf("get latest commit: %s", resp.Status)
-	}
-	if decodeErr != nil {
-		return output.Commit, fmt.Errorf("decode get latest commit: %w", decodeErr)
-	}
-	return output.Commit, closeErr
+	return output.Commit, nil
 }
 
 // listRepoPaths pages through network.habitat.space.listRecords with values
@@ -274,42 +243,26 @@ func getLatestCommit(
 // it identifies the host's exact record set without transferring any values.
 func listRepoPaths(
 	ctx context.Context,
-	client *http.Client,
+	client *atclient.APIClient,
 	space habitat_syntax.SpaceURI,
 	repoDID syntax.DID,
 ) ([]habitat.NetworkHabitatSpaceListRecordsRecord, error) {
 	var all []habitat.NetworkHabitatSpaceListRecordsRecord
 	cursor := ""
 	for {
-		params := url.Values{
-			"space":         []string{space.String()},
-			"repo":          []string{repoDID.String()},
-			"excludeValues": []string{"true"},
-			"limit":         []string{"1000"},
+		params := map[string]any{
+			"space":         space.String(),
+			"repo":          repoDID.String(),
+			"excludeValues": true,
+			"limit":         1000,
 		}
 		if cursor != "" {
-			params.Set("cursor", cursor)
-		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-			"/xrpc/network.habitat.space.listRecords?"+params.Encode(), nil)
-		if err != nil {
-			return nil, fmt.Errorf("create request: %w", err)
-		}
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("list records: %w", err)
+			params["cursor"] = cursor
 		}
 		var output habitat.NetworkHabitatSpaceListRecordsOutput
-		decodeErr := json.NewDecoder(resp.Body).Decode(&output)
-		closeErr := resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("list records: %s", resp.Status)
-		}
-		if decodeErr != nil {
-			return nil, fmt.Errorf("decode list records: %w", decodeErr)
-		}
-		if closeErr != nil {
-			return nil, closeErr
+		if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.listRecords",
+			params, nil, &output); err != nil {
+			return nil, fmt.Errorf("list records: %w", err)
 		}
 
 		all = append(all, output.Records...)
@@ -323,7 +276,7 @@ func listRepoPaths(
 // getRecord fetches a single record's value.
 func getRecord(
 	ctx context.Context,
-	client *http.Client,
+	client *atclient.APIClient,
 	space habitat_syntax.SpaceURI,
 	repoDID syntax.DID,
 	collection syntax.NSID,
@@ -331,28 +284,12 @@ func getRecord(
 ) (habitat.NetworkHabitatSpaceGetRecordOutput, error) {
 	var output habitat.NetworkHabitatSpaceGetRecordOutput
 
-	params := url.Values{
-		"space":      []string{space.String()},
-		"repo":       []string{repoDID.String()},
-		"collection": []string{collection.String()},
-		"rkey":       []string{rkey.String()},
+	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.getRecord",
+		map[string]any{
+			"space": space.String(), "repo": repoDID.String(),
+			"collection": collection.String(), "rkey": rkey.String(),
+		}, nil, &output); err != nil {
+		return output, fmt.Errorf("get record %s/%s: %w", collection, rkey, err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"/xrpc/network.habitat.space.getRecord?"+params.Encode(), nil)
-	if err != nil {
-		return output, fmt.Errorf("create request: %w", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return output, fmt.Errorf("get record: %w", err)
-	}
-	decodeErr := json.NewDecoder(resp.Body).Decode(&output)
-	closeErr := resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return output, fmt.Errorf("get record %s/%s: %s", collection, rkey, resp.Status)
-	}
-	if decodeErr != nil {
-		return output, fmt.Errorf("decode get record: %w", decodeErr)
-	}
-	return output, closeErr
+	return output, nil
 }

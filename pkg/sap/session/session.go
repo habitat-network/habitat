@@ -133,21 +133,20 @@ func (s *Store) RecordSpaceAccess(
 
 // ClientForSpace returns a client that reads space at its own host —
 // resolved from the space owner's DID, since a space's records live in its
-// owner's repo — authenticated with a space credential. Per the
-// permissioned-data proposal, listRepos and the other repo-host reads this
-// backs (listRepoOps, getRepo, registerNotify) span every member's data in
-// the space and require that space-level authorization, not a single
-// member's access token.
+// owner's repo — with a valid space credential already attached as its
+// Authorization header. Per the permissioned-data proposal, listRepos and the
+// other repo-host reads this backs (listRepoOps, getRepo, registerNotify)
+// span every member's data in the space and require that space-level
+// authorization, not a single member's access token.
 //
-// The credential is minted lazily on first use and cached thereafter (see
-// DelegationToken), so this never itself fails for lack of a session; it
-// only fails once a request actually needs a credential no accessible
-// session could obtain.
+// The credential is minted (or reused from cache) synchronously here, so
+// this fails immediately if no accessible session could obtain one, rather
+// than deferring the failure to the first actual request.
 func (s *Store) ClientForSpace(
-	_ context.Context,
+	ctx context.Context,
 	space habitat_syntax.SpaceURI,
-) (*http.Client, error) {
-	return s.mgr.ClientForSpace(space), nil
+) (*atclient.APIClient, error) {
+	return s.mgr.ClientForSpace(ctx, space)
 }
 
 // DelegationToken implements credential.Delegator: it tries each session on

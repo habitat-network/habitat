@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -23,23 +24,13 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// rewriteTransport routes path-only request URLs to a test server, standing in
-// for the OAuth client transport.
-type rewriteTransport struct{ base *url.URL }
-
-func (t rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.URL.Scheme = t.base.Scheme
-	req.URL.Host = t.base.Host
-	return http.DefaultTransport.RoundTrip(req)
-}
-
 type fakeClients struct{ base *url.URL }
 
 func (f fakeClients) ClientForSpace(
 	context.Context,
 	habitat_syntax.SpaceURI,
-) (*http.Client, error) {
-	return &http.Client{Transport: rewriteTransport(f)}, nil
+) (*atclient.APIClient, error) {
+	return &atclient.APIClient{Client: http.DefaultClient, Host: f.base.String()}, nil
 }
 
 // testDPoPKey and testJWT stand in for a real session's DPoP key and access

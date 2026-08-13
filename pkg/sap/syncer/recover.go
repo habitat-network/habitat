@@ -1,13 +1,13 @@
 package syncer
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
@@ -70,27 +70,15 @@ func (e *Engine) recoverFromCAR(
 			fmt.Errorf("client for space: %w", err))
 	}
 
-	params := url.Values{
-		"space": []string{space.String()},
-		"repo":  []string{repoDID.String()},
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"/xrpc/network.habitat.space.getRepo?"+params.Encode(), nil)
-	if err != nil {
+	var buf bytes.Buffer
+	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.getRepo",
+		map[string]any{"space": space.String(), "repo": repoDID.String()}, nil, &buf,
+	); err != nil {
 		return e.scheduleRetry(ctx, space, repoDID, stateDesynced,
-			fmt.Errorf("create request: %w", err))
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return e.scheduleRetry(ctx, space, repoDID, stateDesynced, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return e.scheduleRetry(ctx, space, repoDID, stateDesynced,
-			fmt.Errorf("getRepo: %s", resp.Status))
+			fmt.Errorf("getRepo: %w", err))
 	}
 
-	recovered, err := parseRepoCAR(resp.Body)
+	recovered, err := parseRepoCAR(&buf)
 	if err != nil {
 		return e.scheduleRetry(ctx, space, repoDID, stateDesynced,
 			fmt.Errorf("parse repo car: %w", err))

@@ -88,10 +88,12 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 	mu.Unlock()
 
 	// A repo-host read through the manager's client carries the credential.
-	resp, err := m.ClientForSpace(space).Get(
-		"/xrpc/network.habitat.space.listRepos?space=" + space.String())
+	client, err := m.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
+	var out habitat.NetworkHabitatSpaceListReposOutput
+	require.NoError(t, client.Get(
+		t.Context(), "network.habitat.space.listRepos", map[string]any{"space": space.String()}, &out,
+	))
 	mu.Lock()
 	require.Equal(t, "Bearer space-cred", repoAuth)
 	require.Equal(t, 1, repoRevCalls)

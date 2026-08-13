@@ -104,12 +104,12 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []habitat_syntax.SpaceURI{space}, spaces)
 
-	// ClientForSpace never fails for lack of a session up front: the
-	// credential is minted lazily on first use (see
-	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost).
-	spaceClient, err := s.ClientForSpace(t.Context(), space)
-	require.NoError(t, err)
-	require.NotNil(t, spaceClient)
+	// ClientForSpace resolves and attaches a space credential immediately, so
+	// it fails right away when no directory is configured to resolve the
+	// space's host (see TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost
+	// for the succeeding path).
+	_, err = s.ClientForSpace(t.Context(), space)
+	require.Error(t, err)
 
 	require.NoError(t, s.DropSpace(t.Context(), space))
 	spaces, err = s.Spaces(t.Context())
@@ -170,9 +170,8 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 	client, err := store.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
 
-	resp, err := client.Get("/xrpc/network.habitat.space.listRepos")
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
+	var out habitat.NetworkHabitatSpaceListReposOutput
+	require.NoError(t, client.Get(t.Context(), "network.habitat.space.listRepos", nil, &out))
 
 	// The member-auth leg uses DPoP, not a predictable literal token, so we
 	// only assert something was sent; the credential exchange legs use fixed
@@ -240,9 +239,8 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 	client, err := store.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
 
-	resp, err := client.Get("/xrpc/network.habitat.space.listRepos")
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
+	var out habitat.NetworkHabitatSpaceListReposOutput
+	require.NoError(t, client.Get(t.Context(), "network.habitat.space.listRepos", nil, &out))
 
 	require.NotEmpty(t, delegationAuth)
 	require.Equal(t, "Bearer deleg-tok", credentialAuth)

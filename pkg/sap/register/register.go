@@ -5,15 +5,13 @@
 package register
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -47,12 +45,13 @@ func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&registration{})
 }
 
-// Clients supplies an HTTP client for a space. Satisfied by session.Store.
+// Clients supplies an atproto API client for a space. Satisfied by
+// session.Store.
 type Clients interface {
 	ClientForSpace(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
-	) (*http.Client, error)
+	) (*atclient.APIClient, error)
 }
 
 // Spaces lists every space any session can access. Satisfied by session.Store.
@@ -172,32 +171,13 @@ func (r *Registrar) Register(ctx context.Context, space habitat_syntax.SpaceURI)
 		return fmt.Errorf("client for space: %w", err)
 	}
 
-	body, err := json.Marshal(habitat.NetworkHabitatSpaceRegisterNotifyInput{
-		Space:    space.String(),
-		Endpoint: r.endpoint,
-	})
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"/xrpc/network.habitat.space.registerNotify", bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("registerNotify: %s", resp.Status)
-	}
-
 	var out habitat.NetworkHabitatSpaceRegisterNotifyOutput
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return fmt.Errorf("decode registerNotify output: %w", err)
+	if err := client.Post(ctx, "network.habitat.space.registerNotify",
+		habitat.NetworkHabitatSpaceRegisterNotifyInput{
+			Space:    space.String(),
+			Endpoint: r.endpoint,
+		}, &out); err != nil {
+		return fmt.Errorf("registerNotify: %w", err)
 	}
 	expiresAt, err := time.Parse(time.RFC3339, out.ExpiresAt)
 	if err != nil {

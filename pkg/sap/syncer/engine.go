@@ -14,9 +14,9 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
-	"net/http"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -64,13 +64,13 @@ func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&repo{}, &repoRecord{})
 }
 
-// Clients supplies an HTTP client authenticated as some session that can
-// access the space. Satisfied by session.Store.
+// Clients supplies an atproto API client authenticated as some session that
+// can access the space. Satisfied by session.Store.
 type Clients interface {
 	ClientForSpace(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
-	) (*http.Client, error)
+	) (*atclient.APIClient, error)
 }
 
 // Emitter receives synced records for delivery to the consumer. Satisfied by

@@ -8,14 +8,13 @@ package crawl
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"go.opentelemetry.io/otel/attribute"
@@ -75,7 +74,7 @@ type SpaceClients interface {
 	ClientForSpace(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
-	) (*http.Client, error)
+	) (*atclient.APIClient, error)
 }
 
 // Tracker receives discovered repos and reports host-observed rev/hash for
@@ -328,19 +327,10 @@ func (c *Crawler) enumerateRepos(
 	if err != nil {
 		return fmt.Errorf("client for space %s: %w", space, err)
 	}
-	params := url.Values{"space": []string{space.String()}}
-	resp, err := client.Get("/xrpc/network.habitat.space.listRepos?" + params.Encode())
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
 	var output habitat.NetworkHabitatSpaceListReposOutput
-	if err := json.NewDecoder(resp.Body).Decode(&output); err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("list repos: %s", resp.Status)
+	if err := client.LexDo(ctx, http.MethodGet, "", "network.habitat.space.listRepos",
+		map[string]any{"space": space.String()}, nil, &output); err != nil {
+		return fmt.Errorf("list repos: %w", err)
 	}
 
 	for _, r := range output.Repos {
