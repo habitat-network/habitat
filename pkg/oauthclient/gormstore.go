@@ -8,6 +8,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -32,17 +33,45 @@ type authRequestRow struct {
 func (authRequestRow) TableName() string { return "client_auth_requests" }
 
 type gormStore struct {
-	db *gorm.DB
+	db                *gorm.DB
+	singleSessionUser bool
+}
+
+// singleSessionID is the session ID used to key sessions when
+// WithSingleSessionPerUser is enabled. It is deliberately non-empty so GORM's
+// Save() still upserts on the composite primary key; the real session ID lives
+// in the session data JSON.
+const singleSessionID = "single-session"
+
+// WithSingleSessionPerUser keeps at most one session per DID by ignoring the
+// session ID: all sessions are stored and looked up under a fixed session ID,
+// so the most recently saved session replaces any earlier one for the DID.
+func WithSingleSessionPerUser() utils.Opt[gormStore] {
+	return func(s *gormStore) {
+		s.singleSessionUser = true
+	}
 }
 
 var _ oauth.ClientAuthStore = (*gormStore)(nil)
 
 // NewGormStore creates a ClientAuthStore backed by GORM.
-func NewGormStore(db *gorm.DB) (oauth.ClientAuthStore, error) {
+func NewGormStore(db *gorm.DB, opts ...utils.Opt[gormStore]) (oauth.ClientAuthStore, error) {
 	if err := db.AutoMigrate(&sessionRow{}, &authRequestRow{}); err != nil {
 		return nil, fmt.Errorf("migrate gormstore: %w", err)
 	}
-	return &gormStore{db: db}, nil
+	s := utils.ResolveOptions(opts...)
+	s.db = db
+	return &s, nil
+}
+
+// sessionID returns the session ID to use for storage and lookups. With
+// single-session-per-user enabled the ID is ignored so only one row exists per
+// DID.
+func (s *gormStore) sessionID(id string) string {
+	if s.singleSessionUser {
+		return singleSessionID
+	}
+	return id
 }
 
 // GetSession implements oauth.ClientAuthStore.
@@ -53,7 +82,7 @@ func (s *gormStore) GetSession(
 ) (*oauth.ClientSessionData, error) {
 	var row sessionRow
 	if err := s.db.WithContext(ctx).
-		Where("did = ? AND session_id = ?", did.String(), sessionID).
+		Where("did = ? AND session_id = ?", did.String(), s.sessionID(sessionID)).
 		First(&row).Error; err != nil {
 		return nil, err
 	}
@@ -74,17 +103,18 @@ func (s *gormStore) SaveSession(ctx context.Context, sess oauth.ClientSessionDat
 	if err != nil {
 		return fmt.Errorf("extract session key: %w", err)
 	}
-	return s.db.WithContext(ctx).Save(&sessionRow{
+	row := &sessionRow{
 		DID:       key.DID,
-		SessionID: key.SessionID,
+		SessionID: s.sessionID(key.SessionID),
 		Data:      data,
-	}).Error
+	}
+	return s.db.WithContext(ctx).Save(row).Error
 }
 
 // DeleteSession implements oauth.ClientAuthStore.
 func (s *gormStore) DeleteSession(ctx context.Context, did syntax.DID, sessionID string) error {
 	return s.db.WithContext(ctx).
-		Where("did = ? AND session_id = ?", did.String(), sessionID).
+		Where("did = ? AND session_id = ?", did.String(), s.sessionID(sessionID)).
 		Delete(&sessionRow{}).Error
 }
 
