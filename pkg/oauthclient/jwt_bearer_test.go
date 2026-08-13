@@ -165,6 +165,13 @@ func TestClient_SendJWTTokenRequest(t *testing.T) {
 		stored, err := client.Store.GetSession(t.Context(), subject, sess.SessionID)
 		require.NoError(t, err)
 		require.Equal(t, sess.AccessToken, stored.AccessToken)
+
+		// The session must carry a usable DPoP key: atproto access tokens are
+		// always DPoP-bound (see internal/oauthserver's forced token_type),
+		// so ResumeSession fails to even parse a session minted without one.
+		resumed, err := client.ResumeSession(t.Context(), subject, sess.SessionID)
+		require.NoError(t, err)
+		require.NotNil(t, resumed)
 	})
 
 	t.Run("rejects an assertion from a client not on the allow-list", func(t *testing.T) {
