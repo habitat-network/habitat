@@ -129,7 +129,7 @@ func TestSap(t *testing.T) {
 			}
 			require.NoError(t, s.NotifyWrite(
 				r.Context(),
-				habitat_syntax.SpaceURI(input.Space),
+				habitat_syntax.SpaceURI(input.Space).URI(),
 				syntax.DID(input.Repo),
 				syntax.TID(input.Rev),
 				hash,
@@ -143,7 +143,7 @@ func TestSap(t *testing.T) {
 			}
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
 			require.NoError(t, s.NotifySpaceDeleted(
-				r.Context(), habitat_syntax.SpaceURI(input.Space),
+				r.Context(), habitat_syntax.SpaceURI(input.Space).URI(),
 			))
 			w.WriteHeader(http.StatusOK)
 		})
@@ -241,7 +241,7 @@ func TestSap(t *testing.T) {
 
 	// 11. NotifySpaceDeleted drops all local tracking state for a space: its
 	// registration and repo row disappear, and the space is no longer synced.
-	require.NoError(t, s.NotifySpaceDeleted(t.Context(), backfillSpace))
+	require.NoError(t, s.NotifySpaceDeleted(t.Context(), backfillSpace.URI()))
 
 	require.NoError(t, db.Table("registrations").Count(&regCount).Error)
 	require.Equal(t, int64(4), regCount)
@@ -322,7 +322,7 @@ func TestSapTrackSpace(t *testing.T) {
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 
-	require.NoError(t, s.TrackSpace(t.Context(), space, author, "sess1"))
+	require.NoError(t, s.TrackSpace(t.Context(), space.URI(), author, "sess1"))
 
 	// The space's record lands in the outbox, as it would after a crawl.
 	var got []outbox.Message

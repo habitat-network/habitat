@@ -48,7 +48,7 @@ func (s *SapServer) HandleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.s.NotifyWrite(ctx, syntax.URI(space.URI()), repo, rev, hash); err != nil {
+	if err := s.s.NotifyWrite(ctx, space.URI(), repo, rev, hash); err != nil {
 		httpx.WriteServerError(ctx, w, err)
 		return
 	}
@@ -65,7 +65,7 @@ func (s *SapServer) HandleNotifySpaceDeleted(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	if err := s.s.NotifySpaceDeleted(ctx, space); err != nil {
+	if err := s.s.NotifySpaceDeleted(ctx, space.URI()); err != nil {
 		httpx.WriteServerError(ctx, w, err)
 		return
 	}
