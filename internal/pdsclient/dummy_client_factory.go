@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/httpx"
 )
 
 type DummyClientFactory struct {
@@ -32,5 +33,5 @@ func (d *dummyClient) Do(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	req.URL = pdsUrl.ResolveReference(req.URL)
-	return http.DefaultClient.Do(req)
+	return httpx.NewClient().Do(req)
 }

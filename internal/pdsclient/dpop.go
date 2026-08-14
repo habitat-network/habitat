@@ -19,6 +19,7 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/uuid"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"golang.org/x/sync/singleflight"
 )
@@ -192,7 +193,7 @@ func doInternal(
 	if hasBody {
 		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpx.NewClient().Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +216,7 @@ func doInternal(
 	if err := sign(req2, nonceProvider, key, accessToken); err != nil {
 		return nil, err
 	}
-	return http.DefaultClient.Do(req2)
+	return httpx.NewClient().Do(req2)
 }
 
 func sign(

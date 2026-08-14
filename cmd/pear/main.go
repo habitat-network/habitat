@@ -341,7 +341,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup notify store: %w", err)
 	}
-	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, hive)
+	notifier := notify.NewNotifier(notifyStore, httpx.NewClient(), hive)
 
 	spacesStore, err := spaces.NewStore(
 		db.WithContext(startupCtx),

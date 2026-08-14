@@ -23,7 +23,7 @@ type Server struct {
 func NewServer(host string, index Index) *Server {
 	return &Server{
 		pearHost:   host,
-		httpClient: &http.Client{},
+		httpClient: httpx.NewClient(),
 		index:      index,
 	}
 }

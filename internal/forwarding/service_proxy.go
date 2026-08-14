@@ -51,7 +51,7 @@ func NewServiceProxy(
 		validator:        validator,
 		hive:             hive,
 		dir:              dir,
-		httpClient:       &http.Client{},
+		httpClient:       httpx.NewClient(),
 		pdsClientFactory: clientFactory,
 	}
 
