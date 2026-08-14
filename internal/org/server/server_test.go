@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/instance"
@@ -20,6 +21,14 @@ import (
 	orgtestutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/stretchr/testify/require"
 )
+
+// successValidator authenticates the given DID as a user.
+func successValidator(did syntax.DID) authn.RequestValidator {
+	return authntest.NewSuccessValidator(&authn.CredentialInfo{
+		Subject: did,
+		Type:    authn.UserCredential,
+	})
+}
 
 type fakeInstancePolicy struct {
 	policy           instance.InvitePolicy
@@ -66,7 +75,7 @@ func newTestServer(
 
 	srv, err := NewServer(
 		store,
-		authntest.NewSuccessMethod(adminIdent.DID),
+		successValidator(adminIdent.DID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -333,7 +342,7 @@ func TestCreateOrg_MissingFields(t *testing.T) {
 func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 	srv, err := NewServer(
 		orgtestutil.NewTestStore(t),
-		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
+		successValidator(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -363,7 +372,7 @@ func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 	srv, err := NewServer(
 		orgtestutil.NewTestStore(t),
-		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
+		successValidator(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -393,7 +402,7 @@ func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 	srv, err := NewServer(
 		orgtestutil.NewTestStore(t),
-		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
+		successValidator(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -425,7 +434,7 @@ func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
 	policy := &fakeInstancePolicy{policy: "invite_only"}
 	srv, err := NewServer(
 		orgtestutil.NewTestStore(t),
-		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
+		successValidator(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -460,7 +469,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 	store := orgtestutil.NewTestStore(t)
 	srv, err := NewServer(
 		store,
-		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
+		successValidator(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -525,7 +534,7 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 
 	srv, err := NewServer(
 		orgtestutil.NewTestStore(t),
-		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
+		successValidator(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),

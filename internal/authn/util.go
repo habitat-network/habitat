@@ -37,7 +37,7 @@ func fetchIssuerKeyFunc(
 		if !ok {
 			return nil, fmt.Errorf("failed to get kid: %s", issuer)
 		}
-		if kid == "#habitat" {
+		if kid == "#habitat" && hostKey != nil {
 			publicKey, err := hostKey.PublicKey()
 			if err != nil {
 				return nil, fmt.Errorf("failed to get host public key: %w", err)

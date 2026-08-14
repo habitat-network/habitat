@@ -6,6 +6,7 @@ package notify
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -90,7 +91,7 @@ func (s *store) Register(
 	}).Create(&registration{
 		Space:     space,
 		Repo:      repo,
-		Endpoint:  endpoint,
+		Endpoint:  strings.TrimRight(endpoint, "/"),
 		ExpiresAt: expiresAt,
 	}).Error
 }
@@ -100,7 +101,7 @@ func (s *store) ListForRepo(
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
 ) ([]Registration, error) {
-	return s.list(ctx, s.db.WithContext(ctx).
+	return s.list(s.db.WithContext(ctx).
 		Where("space = ?", space).
 		Where("repo = ? OR repo = ?", repo, ""))
 }
@@ -109,12 +110,12 @@ func (s *store) ListForSpace(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 ) ([]Registration, error) {
-	return s.list(ctx, s.db.WithContext(ctx).Where("space = ?", space))
+	return s.list(s.db.WithContext(ctx).Where("space = ?", space))
 }
 
 // list runs query with the shared unexpired filter and maps rows to the public
 // Registration view.
-func (s *store) list(ctx context.Context, query *gorm.DB) ([]Registration, error) {
+func (s *store) list(query *gorm.DB) ([]Registration, error) {
 	var rows []registration
 	if err := query.Where("expires_at > ?", time.Now()).Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list registrations: %w", err)

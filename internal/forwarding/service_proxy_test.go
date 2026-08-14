@@ -11,12 +11,21 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
+
+// successValidator authenticates the given DID as a user.
+func successValidator(did syntax.DID) authn.RequestValidator {
+	return authntest.NewSuccessValidator(&authn.CredentialInfo{
+		Subject: did,
+		Type:    authn.UserCredential,
+	})
+}
 
 func newTestServiceProxyHive(t *testing.T) hive.Hive {
 	t.Helper()
@@ -34,7 +43,7 @@ func neverNext(t *testing.T) http.Handler {
 }
 
 func TestServiceProxyNoHeader_CallsNext(t *testing.T) {
-	sp := NewServiceProxy(authntest.NewFailMethod(), nil, identity.NewMockDirectory(), nil)
+	sp := NewServiceProxy(authntest.NewFailureValidator(), nil, identity.NewMockDirectory(), nil)
 
 	nextCalled := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +61,7 @@ func TestServiceProxyNoHeader_CallsNext(t *testing.T) {
 
 func TestServiceProxyMalformedHeader_Returns400(t *testing.T) {
 	sp := NewServiceProxy(
-		authntest.NewSuccessMethod(syntax.DID("did:web:alice.org.example.com")),
+		successValidator(syntax.DID("did:web:alice.org.example.com")),
 		nil,
 		identity.NewMockDirectory(),
 		nil,
@@ -67,7 +76,7 @@ func TestServiceProxyMalformedHeader_Returns400(t *testing.T) {
 }
 
 func TestServiceProxyAuthFails_Returns401(t *testing.T) {
-	sp := NewServiceProxy(authntest.NewFailMethod(), nil, identity.NewMockDirectory(), nil)
+	sp := NewServiceProxy(authntest.NewFailureValidator(), nil, identity.NewMockDirectory(), nil)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", http.NoBody)
@@ -80,7 +89,7 @@ func TestServiceProxyAuthFails_Returns401(t *testing.T) {
 func TestServiceProxyDIDResolutionFails_Returns502(t *testing.T) {
 	// Empty directory — LookupDID will not find the target DID.
 	sp := NewServiceProxy(
-		authntest.NewSuccessMethod(syntax.DID("did:web:alice.org.example.com")),
+		successValidator(syntax.DID("did:web:alice.org.example.com")),
 		nil,
 		identity.NewMockDirectory(),
 		nil,
@@ -105,7 +114,7 @@ func TestServiceProxyServiceNotFound_Returns400(t *testing.T) {
 		},
 	})
 	sp := NewServiceProxy(
-		authntest.NewSuccessMethod(syntax.DID("did:web:alice.org.example.com")),
+		successValidator(syntax.DID("did:web:alice.org.example.com")),
 		nil,
 		dir,
 		nil,
@@ -142,7 +151,7 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 		Services: map[string]identity.ServiceEndpoint{"atproto_labeler": {URL: target.URL}},
 	})
 
-	sp := NewServiceProxy(authntest.NewSuccessMethod(callerID.DID), h, dir, nil)
+	sp := NewServiceProxy(successValidator(callerID.DID), h, dir, nil)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", http.NoBody)
@@ -211,7 +220,7 @@ func TestServiceProxyIntegration_RemoteDID(t *testing.T) {
 	})
 
 	sp := NewServiceProxy(
-		authntest.NewSuccessMethod(calledDID),
+		successValidator(calledDID),
 		h,
 		dir,
 		pdsclient.NewDummyClientFactory(pds.URL),

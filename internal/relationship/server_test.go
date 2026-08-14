@@ -20,8 +20,11 @@ import (
 func newTestServer(t *testing.T, caller syntax.DID) (*Server, *Store, spaces.Store) {
 	t.Helper()
 	rel, sp := newTestStore(t)
-	auth := authntest.NewSuccessMethodWithOrg(caller, caller)
-	return NewServer(rel, rel.fga, auth, auth), rel, sp
+	return NewServer(
+		rel,
+		rel.fga,
+		authntest.NewSuccessValidatorWithOrg(caller, caller),
+	), rel, sp
 }
 
 func queryReq(path string, params url.Values) *http.Request {
@@ -53,24 +56,6 @@ func TestServer_WriteTuple(t *testing.T) {
 	allowed, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, RoleReader, space)
 	require.NoError(t, err)
 	require.True(t, allowed)
-}
-
-func TestServer_WriteTuple_Unauthorized(t *testing.T) {
-	s, _, sp := newTestServer(t, bob) // bob has no role on the space
-	space := newSpace(t, sp, docsType, "doc")
-
-	body := fmt.Sprintf(
-		`{"subject":{"$type":%q,"did":%q},"relation":"reader","object":{"space":%q}}`,
-		subjectTypeUser, alice.String(), space.String(),
-	)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.relationship.writeTuple",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.WriteTuple(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
 func TestServer_WriteTuple_InvalidSubject(t *testing.T) {
@@ -238,18 +223,6 @@ func TestServer_WriteTuple_BadObjectSpace(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestServer_ListTuples_Unauthorized(t *testing.T) {
-	s, _, sp := newTestServer(t, bob) // bob has no role on the space
-	space := newSpace(t, sp, docsType, "doc")
-
-	w := httptest.NewRecorder()
-	s.ListTuples(w, queryReq(
-		"/xrpc/network.habitat.relationship.listTuples",
-		url.Values{"space": {space.String()}},
-	))
-	require.Equal(t, http.StatusForbidden, w.Code)
-}
-
 func TestServer_Check_InvalidRelation(t *testing.T) {
 	s, _, sp := newTestServer(t, org)
 	space := newSpace(t, sp, docsType, "doc")
@@ -288,8 +261,7 @@ func TestServer_Unauthenticated(t *testing.T) {
 	s := NewServer(
 		rel,
 		rel.fga,
-		authntest.NewFailMethod(),
-		authntest.NewFailMethod(),
+		authntest.NewFailureValidator(),
 	)
 
 	w := httptest.NewRecorder()

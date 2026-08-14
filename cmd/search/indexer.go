@@ -7,20 +7,20 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/habitat-network/habitat/pkg/sap"
+	"github.com/habitat-network/habitat/pkg/sap/outbox"
 )
 
 const indexerBatchSize = 50
 
-// Indexer drains a sap.Outbox and feeds an Index, so the search index
+// Indexer drains an outbox.Outbox and feeds an Index, so the search index
 // tracks every record sap has synced for the org (backfill and live
 // updates alike, since both flow through the same outbox).
 type Indexer struct {
 	index  Index
-	outbox sap.Outbox
+	outbox outbox.Outbox
 }
 
-func NewIndexer(index Index, outbox sap.Outbox) *Indexer {
+func NewIndexer(index Index, outbox outbox.Outbox) *Indexer {
 	return &Indexer{index: index, outbox: outbox}
 }
 
@@ -52,7 +52,7 @@ func (ix *Indexer) Run(ctx context.Context) error {
 	}
 }
 
-func (ix *Indexer) handleMessage(ctx context.Context, msg sap.OutboxMessage) error {
+func (ix *Indexer) handleMessage(ctx context.Context, msg outbox.Message) error {
 	if isDeleted(msg.Value) {
 		return ix.index.Delete(ctx, msg.URI)
 	}

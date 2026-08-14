@@ -98,8 +98,8 @@ func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "save org session: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := s.sap.AddManagedOrg(r.Context(), sess.AccountDID, sess.SessionID); err != nil {
-		http.Error(w, "add managed org: "+err.Error(), http.StatusInternalServerError)
+	if err := s.sap.AddSession(r.Context(), sess.AccountDID, sess.SessionID); err != nil {
+		http.Error(w, "add session: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	slog.InfoContext(r.Context(), "home server authorized for org", "did", sess.AccountDID)

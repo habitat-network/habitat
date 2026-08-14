@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"strings"
 
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/pressly/goose/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -21,27 +22,33 @@ var (
 
 type config struct {
 	migrations fs.FS
+	gormConfig *gorm.Config
 }
 
-type Option func(*config)
-
-func WithMigrations(migrations fs.FS) Option {
+func WithMigrations(migrations fs.FS) utils.Opt[config] {
 	return func(o *config) {
 		o.migrations = migrations
 	}
 }
 
-func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
-	var cfg config
-	for _, opt := range opts {
-		opt(&cfg)
+func WithGORMConfig(cfg *gorm.Config) utils.Opt[config] {
+	return func(o *config) {
+		o.gormConfig = cfg
 	}
-	gormConfig := &gorm.Config{
-		TranslateError: true,
-	}
+}
+
+func New(dsn string, opts ...utils.Opt[config]) (db *gorm.DB, err error) {
+	cfg := utils.ResolveOptions(
+		config{
+			gormConfig: &gorm.Config{
+				TranslateError: true,
+			},
+		},
+		opts,
+	)
 	switch ParseDialect(dsn) {
 	case Postgres:
-		db, err = gorm.Open(postgres.Open(dsn), gormConfig)
+		db, err = gorm.Open(postgres.Open(dsn), cfg.gormConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +58,7 @@ func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
 			sqlite.Open(
 				path+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=10000&_txlock=immediate",
 			),
-			gormConfig,
+			cfg.gormConfig,
 		)
 		if err != nil {
 			return nil, err

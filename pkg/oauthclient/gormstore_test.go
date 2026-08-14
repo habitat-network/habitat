@@ -88,3 +88,60 @@ func TestStore_UpdateExistingSession(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"read", "write"}, got.Scopes)
 }
+
+func TestStore_SingleSessionPerUser(t *testing.T) {
+	store, err := NewGormStore(testutil.NewDB(t), WithSingleSessionPerUser())
+	require.NoError(t, err)
+
+	require.NoError(t, store.SaveSession(context.Background(), oauth.ClientSessionData{
+		AccountDID: "did:plc:test",
+		SessionID:  "sess1",
+		Scopes:     []string{"read"},
+	}))
+	require.NoError(t, store.SaveSession(context.Background(), oauth.ClientSessionData{
+		AccountDID: "did:plc:test",
+		SessionID:  "sess2",
+		Scopes:     []string{"read", "write"},
+	}))
+
+	got, err := store.GetSession(context.Background(), "did:plc:test", "sess1")
+	require.NoError(t, err)
+	require.Equal(t, []string{"read", "write"}, got.Scopes)
+	require.Equal(t, "sess2", got.SessionID)
+}
+
+func TestStore_SingleSessionPerUser_DeleteIgnoresSessionID(t *testing.T) {
+	store, err := NewGormStore(testutil.NewDB(t), WithSingleSessionPerUser())
+	require.NoError(t, err)
+
+	require.NoError(t, store.SaveSession(context.Background(), oauth.ClientSessionData{
+		AccountDID: "did:plc:test",
+		SessionID:  "sess1",
+	}))
+
+	require.NoError(t, store.DeleteSession(context.Background(), "did:plc:test", "some-other-id"))
+
+	_, err = store.GetSession(context.Background(), "did:plc:test", "any-id")
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestStore_SingleSessionPerUser_IsolatedPerDID(t *testing.T) {
+	store, err := NewGormStore(testutil.NewDB(t), WithSingleSessionPerUser())
+	require.NoError(t, err)
+
+	require.NoError(t, store.SaveSession(context.Background(), oauth.ClientSessionData{
+		AccountDID: "did:plc:test",
+		SessionID:  "sess1",
+		Scopes:     []string{"read"},
+	}))
+	require.NoError(t, store.SaveSession(context.Background(), oauth.ClientSessionData{
+		AccountDID: "did:plc:other",
+		SessionID:  "sess9",
+		Scopes:     []string{"write"},
+	}))
+
+	got, err := store.GetSession(context.Background(), "did:plc:test", "unrelated-id")
+	require.NoError(t, err)
+	require.Equal(t, []string{"read"}, got.Scopes)
+	require.Equal(t, "sess1", got.SessionID)
+}

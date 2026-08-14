@@ -1,5 +1,5 @@
-github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb h1:OYUfO21BK5iO60+ij0L3ugCeawRqD/CbhoWDCpBw6tg=
-github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb/go.mod h1:JqQkz8lrOI6YZivP38GHmtVOTtzsNToITKj1gMpU5Jo=
+github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca h1:m2SWrfazOxAhaTswzyArZzu/p5mF/ZITuNJeYoksfJw=
+github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca/go.mod h1:JqQkz8lrOI6YZivP38GHmtVOTtzsNToITKj1gMpU5Jo=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/mr-tron/base58 v1.3.0 h1:K6Y13R2h+dku0wOqKtecgRnBUBPrZzLZy5aIj8lCcJI=

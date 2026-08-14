@@ -11,7 +11,6 @@ import (
 
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
-	notify_testutil "github.com/habitat-network/habitat/internal/notify/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
 	space_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -459,14 +458,15 @@ func (f *flakyFGA) WriteRaw(ctx context.Context, req *openfgav1.WriteRequest) er
 }
 
 func TestWriteTuple_RollsBackRecordOnFGAFailure(t *testing.T) {
-	db := db_testutil.NewDB(t)
 	mem, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = mem.Close() })
 	fga := &flakyFGA{Store: mem}
-	sp, err := spaces.NewStore(db, fga, &notify_testutil.TestNotifier{})
 	require.NoError(t, err)
-	rel := NewStore(db, sp, fga)
+	// No commit-signing dependents: this test never calls a method that signs
+	// a repo-head commit.
+	sp := space_testutil.NewTestStore(t, space_testutil.Config{FgaStore: fga})
+	rel := NewStore(db_testutil.NewDB(t), sp, fga)
 
 	// CreateSpace uses fga.Write (not WriteRaw), so it succeeds.
 	space := newSpace(t, sp, docsType, "doc")

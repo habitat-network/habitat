@@ -12,7 +12,7 @@
     "moduleResolution": "nodenext",
     "verbatimModuleSyntax": true,
     "noEmitOnError": true,
-    "outDir": "./dist",
+    "outDir": "../../.moon/cache/types/typescript/habitat",
     "rootDir": "./src"
   },
   "include": ["src/**/*"],

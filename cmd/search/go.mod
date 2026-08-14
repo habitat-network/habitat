@@ -3,14 +3,14 @@ module github.com/habitat-network/habitat/cmd/search
 go 1.26.4
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb
+	github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca
 	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.43.0
 	github.com/urfave/cli/v3 v3.10.1
 	golang.org/x/sync v0.22.0
-	gorm.io/driver/postgres v1.6.0
+	gorm.io/driver/postgres v1.6.2
 	gorm.io/gorm v1.31.2
 )
 

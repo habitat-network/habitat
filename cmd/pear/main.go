@@ -53,6 +53,7 @@ import (
 	"github.com/habitat-network/habitat/internal/relationship"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/server"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/webui"
@@ -297,8 +298,31 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	oauthGC := oauthserver.NewCollector(db.WithContext(startupCtx), 5*time.Minute)
 
+	serviceAuth := authn.NewServiceAuthMethod(
+		everyoneOrg,
+		defaultDir,
+		fmt.Sprintf("did:web:%s#habitat", domain),
+	)
+
+	// Habitat's single host signing key signs permissioned-repo commits for repo
+	// owners on external PDSes (habitat-managed owners sign with their own hive
+	// key instead). Optional: if unset, host-signed commits are omitted.
+	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
+	if err != nil {
+		return fmt.Errorf("parse space-host signing key: %w", err)
+	}
+
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
+	validator := authn.NewValidator(
+		oauthServer,
+		serviceAuth,
+		spaceCredential,
+		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore, hostKey),
+		fgaStore,
+	)
+
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
-	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir, pdsClientFactory))
+	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
 
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
@@ -311,7 +335,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, hive)
 
-	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore, eventStore, notifier)
+	spacesStore, err := spaces.NewStore(
+		db.WithContext(startupCtx),
+		fgaStore,
+		notifier,
+		spacecommit.NewAuthority(hostKey, hive),
+	)
 	if err != nil {
 		return fmt.Errorf("setup spaces store: %w", err)
 	}
@@ -322,30 +351,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	defer func() { _ = blobBucket.Close() }()
 	blobStore := spaces.NewBlobStore(blobBucket)
-	serviceAuth := authn.NewServiceAuthMethod(
-		everyoneOrg,
-		defaultDir,
-		fmt.Sprintf("did:web:%s#habitat", domain),
-	)
 
 	// TODO: use this to validate the space credential in the spaces server
 
-	// Habitat's single host signing key signs permissioned-repo commits for repo
-	// owners on external PDSes (habitat-managed owners sign with their own hive
-	// key instead). Optional: if unset, host-signed commits are omitted.
-	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
-	if err != nil {
-		return fmt.Errorf("parse space-host signing key: %w", err)
-	}
-
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir, hostKey)
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
-		oauthServer,
-		serviceAuth,
-		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore, hostKey),
-		spaceCredential,
+		validator,
 		orgStore,
 		hostKey,
 		hive,
@@ -353,15 +365,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 	notifyServer := notify.NewServer(
 		notifyStore,
-		spaceCredential,
+		validator,
 	)
 
 	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
 		relationshipStore,
 		fgaStore,
-		oauthServer,
-		serviceAuth,
+		validator,
 	)
 
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))
@@ -378,7 +389,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,
-		oauthServer,
+		validator,
 		pear,
 		domain,
 		hiveDir,
@@ -398,11 +409,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.mintMemberIdentity", orgServer.MintMemberIdentity)
 	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
 
-	cliqueServer := clique.NewServer(cliqueStore, oauthServer, serviceAuth)
+	cliqueServer := clique.NewServer(cliqueStore, validator)
 	pearServer := server.NewServer(
 		pear,
-		oauthServer,
-		serviceAuth,
+		validator,
 		orgStore,
 	)
 	p2pServer, err := p2p.NewServer(startupCtx, serviceAuth, pear, meter)
@@ -411,12 +421,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	pdsForwarding := forwarding.NewPDSForwarding(
 		pdsCredStore,
-		oauthServer,
+		validator,
 		pdsClientFactory,
 		defaultDir,
 	)
 
-	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore, pdsForwarding, domain)
+	idServer, err := habitat_identity.NewServer(hive, validator, orgStore, pdsForwarding, domain)
 	if err != nil {
 		return fmt.Errorf("setup hive server: %w", err)
 	}
@@ -535,7 +545,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		relationshipServer.ListSubjects)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.listObjects",
 		relationshipServer.ListObjects)
-	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
@@ -562,10 +571,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	eg, egCtx := errgroup.WithContext(startupCtx)
-	eg.Go(func() error {
-		slog.InfoContext(egCtx, "starting sequencer")
-		return eventStore.StartSequencer(egCtx)
-	})
 	eg.Go(func() error {
 		return oauthGC.Run(egCtx)
 	})

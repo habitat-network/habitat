@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/pkg/sap"
+	"github.com/habitat-network/habitat/pkg/sap/outbox"
 )
 
 const indexerBatchSize = 50
@@ -19,10 +19,10 @@ const indexerBatchSize = 50
 // same outbox, so the index tracks every group the org syncs.
 type Indexer struct {
 	store  *Store
-	outbox sap.Outbox
+	outbox outbox.Outbox
 }
 
-func NewIndexer(store *Store, outbox sap.Outbox) *Indexer {
+func NewIndexer(store *Store, outbox outbox.Outbox) *Indexer {
 	return &Indexer{store: store, outbox: outbox}
 }
 
@@ -54,7 +54,7 @@ func (ix *Indexer) Run(ctx context.Context) error {
 	}
 }
 
-func (ix *Indexer) handle(ctx context.Context, msg sap.OutboxMessage) error {
+func (ix *Indexer) handle(ctx context.Context, msg outbox.Message) error {
 	deleted := isDeleted(msg.Value)
 
 	// Every synced record is indexed into the records table so the collections
@@ -84,7 +84,7 @@ func (ix *Indexer) handle(ctx context.Context, msg sap.OutboxMessage) error {
 	}
 }
 
-func (ix *Indexer) indexProfile(ctx context.Context, msg sap.OutboxMessage) error {
+func (ix *Indexer) indexProfile(ctx context.Context, msg outbox.Message) error {
 	var profile struct {
 		Name        string `json:"name"`
 		Description string `json:"description"`
@@ -102,7 +102,7 @@ func (ix *Indexer) indexProfile(ctx context.Context, msg sap.OutboxMessage) erro
 	)
 }
 
-func (ix *Indexer) indexTuple(ctx context.Context, msg sap.OutboxMessage) error {
+func (ix *Indexer) indexTuple(ctx context.Context, msg outbox.Message) error {
 	row, ok, err := parseTuple(msg.URI, msg.Value)
 	if err != nil {
 		return err

@@ -4,7 +4,7 @@ go 1.26.3
 
 require (
 	github.com/alexedwards/argon2id v1.0.0
-	github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb
+	github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca
 	github.com/gorilla/handlers v1.5.2
 	github.com/pressly/goose/v3 v3.27.3
 	github.com/testcontainers/testcontainers-go v0.43.0

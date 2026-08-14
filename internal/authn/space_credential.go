@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/internal/httpx"
 
@@ -12,20 +11,15 @@ import (
 )
 
 type SpaceCredentialAuthMethod struct {
-	dir     identity.Directory
-	hostKey atcrypto.PrivateKey
+	dir identity.Directory
 }
 
 var _ Method = (*SpaceCredentialAuthMethod)(nil)
 
 func NewSpaceCredentialAuthMethod(
 	directory identity.Directory,
-	hostKey atcrypto.PrivateKey,
 ) *SpaceCredentialAuthMethod {
-	return &SpaceCredentialAuthMethod{
-		dir:     directory,
-		hostKey: hostKey,
-	}
+	return &SpaceCredentialAuthMethod{dir: directory}
 }
 
 // CanHandle implements [Method].
@@ -47,7 +41,7 @@ func (s *SpaceCredentialAuthMethod) Validate(
 	token, err := jwt.ParseWithClaims(
 		getBearerToken(r),
 		jwt.MapClaims{},
-		fetchIssuerKeyFunc(ctx, s.dir, s.hostKey),
+		fetchIssuerKeyFunc(ctx, s.dir, nil),
 		jwt.WithExpirationRequired(),
 		jwt.WithIssuedAt(),
 		jwt.WithLeeway(time.Second*10),
