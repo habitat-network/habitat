@@ -59,15 +59,9 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 	)
 	oauthApp := oauth.NewClientApp(&cfg, store)
 
-	s, err := sap.NewSap(sap.SapConfig{DB: db, OAuthClient: oauthApp})
+	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp})
 	require.NoError(t, err)
 
-	// Register the managed org and its OAuth session directly, avoiding the
-	// crawl/subscribe goroutines that AddManagedOrg would spawn.
-	require.NoError(t, db.Table("managed_orgs").Create(map[string]any{
-		"did":        testProxyDID,
-		"session_id": "session-1",
-	}).Error)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:              testProxyDID,
 		SessionID:               "session-1",
@@ -108,6 +102,7 @@ func TestServerProxyForwardsRequestToPear(t *testing.T) {
 	)
 	require.NoError(t, err)
 	req.Header.Set(habitatDIDHeader, testProxyDID)
+	req.Header.Set(habitatSessionHeader, "session-1")
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -157,6 +152,7 @@ func TestServerProxyUnknownDIDReturnsBadGateway(t *testing.T) {
 	)
 	require.NoError(t, err)
 	req.Header.Set(habitatDIDHeader, "did:plc:unknownorg")
+	req.Header.Set(habitatSessionHeader, "session-1")
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)

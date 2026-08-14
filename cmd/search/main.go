@@ -83,14 +83,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	oauthApp := oauth.NewClientApp(&config, store)
 
-	s, err := sap.NewSap(sap.SapConfig{
+	s, err := sap.New(sap.Config{
 		DB:          db,
 		OAuthClient: oauthApp,
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
 	}
-	orgs, err := s.ListManagedOrgs(ctx)
+	orgs, err := s.Sessions(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list orgs: %w", err)
 	}
@@ -103,7 +103,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	server := NewServer(cmd.String(fPearHost), index)
-	indexer := NewIndexer(index, s.Outbox)
+	indexer := NewIndexer(index, s.Outbox())
 
 	router := mux.NewRouter()
 	router.HandleFunc("/xrpc/network.habitat.search.query", server.HandleQuery).Methods("GET")
@@ -113,7 +113,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			http.Error(w, fmt.Sprintf("process callback: %s", err), http.StatusInternalServerError)
 			return
 		}
-		if err := s.AddManagedOrg(
+		if err := s.AddSession(
 			r.Context(),
 			sessionData.AccountDID,
 			sessionData.SessionID,

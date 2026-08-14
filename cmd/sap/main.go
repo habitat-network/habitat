@@ -19,6 +19,8 @@ import (
 	"github.com/urfave/cli/v3"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 func main() {
@@ -51,7 +53,10 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	slog.SetDefault(log.New(log.WithLevel(cmd.String(fLogLevel))))
 
-	db, err := db.New(cmd.String(fDB))
+	db, err := db.New(
+		cmd.String(fDB),
+		db.WithGORMConfig(&gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: "sap_"}}),
+	)
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
 	}
@@ -79,7 +84,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	oauthApp := oauth.NewClientApp(&config, store)
 
-	s, err := sap.NewSap(sap.SapConfig{
+	s, err := sap.New(sap.Config{
 		DB:          db,
 		OAuthClient: oauthApp,
 		Meter:       otel.Meter("sap"),
@@ -106,7 +111,8 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
 	internalMux.HandleFunc("/proxy/", server.handleProxy)
 
-	slog.InfoContext(ctx, "listening",
+	slog.InfoContext(
+		ctx, "listening",
 		"oauth_port", cmd.String(fPort),
 		"internal_port", cmd.String(fInternalPort),
 	)

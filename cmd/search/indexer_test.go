@@ -7,24 +7,24 @@ import (
 	"time"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/pkg/sap"
+	"github.com/habitat-network/habitat/pkg/sap/outbox"
 	"github.com/stretchr/testify/require"
 )
 
-// fakeOutbox is an in-memory test double for sap.Outbox: Poll returns a
+// fakeOutbox is an in-memory test double for outbox.Outbox: Poll returns a
 // fixed batch once, then returns empty and the indexer blocks on Watch
 // until the test cancels the context.
 type fakeOutbox struct {
-	pending []sap.OutboxMessage
+	pending []outbox.Message
 	acked   []uint
 	watchCh chan struct{}
 }
 
-func newFakeOutbox(msgs []sap.OutboxMessage) *fakeOutbox {
+func newFakeOutbox(msgs []outbox.Message) *fakeOutbox {
 	return &fakeOutbox{pending: msgs, watchCh: make(chan struct{})}
 }
 
-func (f *fakeOutbox) Poll(ctx context.Context, limit int) ([]sap.OutboxMessage, error) {
+func (f *fakeOutbox) Poll(ctx context.Context, limit int) ([]outbox.Message, error) {
 	if len(f.pending) == 0 {
 		return nil, nil
 	}
@@ -74,7 +74,7 @@ func TestIndexer_UpsertsMessageWithValue(t *testing.T) {
 		"at://did:plc:org1/space/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
 	index := &fakeIndex{}
-	outbox := newFakeOutbox([]sap.OutboxMessage{
+	outbox := newFakeOutbox([]outbox.Message{
 		{ID: 1, URI: recordURI, Value: mustMarshal(t, map[string]any{"title": "Budget"})},
 	})
 
@@ -101,7 +101,7 @@ func TestIndexer_DeletesOnNullValue(t *testing.T) {
 		"at://did:plc:org1/space/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
 	index := &fakeIndex{}
-	outbox := newFakeOutbox([]sap.OutboxMessage{
+	outbox := newFakeOutbox([]outbox.Message{
 		{ID: 1, URI: recordURI, Value: json.RawMessage("null")},
 	})
 
@@ -120,7 +120,7 @@ func TestIndexer_DoesNotAckOnHandleFailure(t *testing.T) {
 	index := &fakeIndex{}
 	// Malformed JSON: handleMessage fails to unmarshal it, so it must be
 	// left unacked for redelivery on the next Poll.
-	outbox := newFakeOutbox([]sap.OutboxMessage{
+	outbox := newFakeOutbox([]outbox.Message{
 		{ID: 1, URI: recordURI, Value: json.RawMessage("not-json")},
 	})
 

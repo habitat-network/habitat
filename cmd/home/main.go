@@ -82,7 +82,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	oauthApp := oauth.NewClientApp(&config, oauthStore)
 
-	s, err := sap.NewSap(sap.SapConfig{
+	s, err := sap.New(sap.Config{
 		DB:          gormDB,
 		Directory:   dir,
 		OAuthClient: oauthApp,
@@ -98,7 +98,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	groups := NewGroupService(store, oauthApp)
 	collections := NewCollectionService(store, oauthApp)
-	indexer := NewIndexer(store, s.Outbox)
+	indexer := NewIndexer(store, s.Outbox())
 	server := NewServer(
 		domain,
 		cmd.String(fOrgHandle),
