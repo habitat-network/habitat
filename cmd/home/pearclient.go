@@ -81,9 +81,9 @@ func (p *pearClient) do(req *http.Request, nsid syntax.NSID, out any) error {
 
 // createGroupSpace creates a new network.habitat.group space owned by the org.
 func (p *pearClient) createGroupSpace(ctx context.Context) (habitat_syntax.SpaceURI, error) {
-	var out habitat.NetworkHabitatSpaceCreateSpaceOutput
-	err := p.post(ctx, "network.habitat.space.createSpace",
-		habitat.NetworkHabitatSpaceCreateSpaceInput{Type: GroupSpaceType}, &out)
+	var out habitat.NetworkHabitatSimplespaceCreateSpaceOutput
+	err := p.post(ctx, "network.habitat.simplespace.createSpace",
+		habitat.NetworkHabitatSimplespaceCreateSpaceInput{Type: GroupSpaceType}, &out)
 	if err != nil {
 		return "", err
 	}
