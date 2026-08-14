@@ -120,6 +120,10 @@ func (s SpaceURI) String() string {
 	return string(s)
 }
 
+func (s SpaceURI) URI() syntax.URI {
+	return syntax.URI(s)
+}
+
 // Canonical returns the URI in the current proposal 0016 format
 // ("at://<did>/space/<type>/<skey>"), converting a legacy URI. URIs that match
 // neither format are returned unchanged.
