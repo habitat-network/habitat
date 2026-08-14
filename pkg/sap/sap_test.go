@@ -34,6 +34,7 @@ import (
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
+	"github.com/habitat-network/habitat/pkg/sap/outbox"
 )
 
 // TestSap runs the full pear + sap loop: a session is added, sap backfills
@@ -192,23 +193,18 @@ func TestSap(t *testing.T) {
 	expectedCount := int64(len(createdURIs))
 	require.Equal(t, int64(30), expectedCount)
 
-	// 7. Every record lands in the outbox exactly once.
+	// 7. Every record lands in the outbox exactly once, each with the URI of
+	// a record actually created above.
+	var msgs []outbox.Message
 	require.Eventually(t, func() bool {
-		var count int64
-		if err := db.Table("outbox_messages").Count(&count).Error; err != nil {
-			return false
-		}
-		t.Logf("Current outbox count: %d/%d", count, expectedCount)
-		return count == expectedCount
+		var err error
+		msgs, err = s.Outbox().Poll(t.Context(), int(expectedCount)+1)
+		require.NoError(t, err)
+		t.Logf("Current outbox count: %d/%d", len(msgs), expectedCount)
+		return int64(len(msgs)) == expectedCount
 	}, 15*time.Second, 100*time.Millisecond)
-
-	type outboxRow struct {
-		URI string
-	}
-	var outboxRecords []outboxRow
-	require.NoError(t, db.Table("outbox_messages").Find(&outboxRecords).Error)
-	for _, rec := range outboxRecords {
-		require.Contains(t, createdURIs, rec.URI)
+	for _, msg := range msgs {
+		require.Contains(t, createdURIs, string(msg.URI))
 	}
 
 	// 8. All 5 spaces are registered for notifications, and every tracked repo
@@ -235,18 +231,13 @@ func TestSap(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []syntax.DID{author}, dids)
 
-	// 10. Outbox exposes the same store NotifyWrite delivered to: every
-	// message is pollable and, once acked, no longer redelivered.
-	msgs, err := s.Outbox().Poll(t.Context(), 100)
-	require.NoError(t, err)
-	require.Len(t, msgs, int(expectedCount))
+	// 10. Once every message is acked, none are redelivered.
 	for _, msg := range msgs {
-		require.Contains(t, createdURIs, string(msg.URI))
 		require.NoError(t, s.Outbox().Ack(t.Context(), msg.ID))
 	}
-	msgs, err = s.Outbox().Poll(t.Context(), 100)
+	remaining, err := s.Outbox().Poll(t.Context(), 100)
 	require.NoError(t, err)
-	require.Empty(t, msgs)
+	require.Empty(t, remaining)
 
 	// 11. NotifySpaceDeleted drops all local tracking state for a space: its
 	// registration and repo row disappear, and the space is no longer synced.
