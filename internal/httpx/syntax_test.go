@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -114,6 +115,56 @@ func TestParseSpaceURIInput_InvalidFormat(t *testing.T) {
 	require.JSONEq(
 		t,
 		`{"error":"InvalidRequest", "message": "failed to parse space"}`,
+		w.Body.String(),
+	)
+}
+
+func TestParseBytesInput_Valid(t *testing.T) {
+	w := httptest.NewRecorder()
+	got, ok := ParseBytesInput(
+		t.Context(), w,
+		map[string]any{"$bytes": base64.RawStdEncoding.EncodeToString([]byte{0x01, 0x02, 0xff})},
+		"hash",
+	)
+	require.True(t, ok)
+	require.Equal(t, []byte{0x01, 0x02, 0xff}, got)
+	require.Equal(t, 0, w.Body.Len())
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestParseBytesInput_Nil(t *testing.T) {
+	w := httptest.NewRecorder()
+	got, ok := ParseBytesInput(
+		t.Context(), w,
+		nil,
+		"hash",
+	)
+	require.True(t, ok)
+	require.Equal(t, []byte{0x01, 0x02, 0xff}, got)
+	require.Equal(t, 0, w.Body.Len())
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestParseBytesInput_NotMap(t *testing.T) {
+	w := httptest.NewRecorder()
+	_, ok := ParseBytesInput(t.Context(), w, "not-a-bytes-field", "hash")
+	require.False(t, ok)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.JSONEq(
+		t,
+		`{"error":"InvalidRequest", "message": "failed to parse hash"}`,
+		w.Body.String(),
+	)
+}
+
+func TestParseBytesInput_InvalidBase64(t *testing.T) {
+	w := httptest.NewRecorder()
+	_, ok := ParseBytesInput(t.Context(), w, map[string]any{"$bytes": "not!valid@base64"}, "hash")
+	require.False(t, ok)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.JSONEq(
+		t,
+		`{"error":"InvalidRequest", "message": "failed to parse hash"}`,
 		w.Body.String(),
 	)
 }
