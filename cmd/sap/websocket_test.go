@@ -31,7 +31,7 @@ func openOutboxTestServer(t *testing.T) (*httptest.Server, *sap.Sap, *gorm.DB) {
 	)
 	oauthApp := oauth.NewClientApp(&cfg, store)
 
-	s, err := sap.NewSap(sap.SapConfig{
+	s, err := sap.New(sap.Config{
 		DB:          db,
 		OAuthClient: oauthApp,
 	})
@@ -103,7 +103,7 @@ func TestServer_OutboxChannelDeliversAndAcks(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond, "expected message to be acked")
 
 	// Once acked, the message must no longer be a candidate for delivery.
-	remaining, err := s.Outbox.Poll(t.Context(), 10)
+	remaining, err := s.Outbox().Poll(t.Context(), 10)
 	require.NoError(t, err)
 	require.Empty(t, remaining)
 }

@@ -59,7 +59,7 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 	)
 	oauthApp := oauth.NewClientApp(&cfg, store)
 
-	s, err := sap.NewSap(sap.SapConfig{DB: db, OAuthClient: oauthApp})
+	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp})
 	require.NoError(t, err)
 
 	// Register the managed org and its OAuth session directly, avoiding the
