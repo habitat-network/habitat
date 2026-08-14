@@ -114,7 +114,8 @@ func (v *Verifier) signer(
 }
 
 // decodeCommit maps the lexicon JSON form of a signed commit (bytes fields are
-// base64 strings) to its in-memory form.
+// {"$bytes": "<base64>"} objects per the atproto lexicon spec) to its
+// in-memory form.
 func decodeCommit(c habitat.NetworkHabitatSpaceDefsSignedCommit) (spacecommit.SignedCommit, error) {
 	hash, err := decodeBytesField(c.Hash)
 	if err != nil {
@@ -143,14 +144,19 @@ func decodeCommit(c habitat.NetworkHabitatSpaceDefsSignedCommit) (spacecommit.Si
 }
 
 // decodeBytesField decodes a lexicon bytes field, which JSON-decodes into a
-// base64 (std) string, into raw bytes. Absent fields decode to nil.
+// map[string]any of the form {"$bytes": "<base64>"}, into raw bytes. Absent
+// fields decode to nil.
 func decodeBytesField(v any) ([]byte, error) {
-	switch s := v.(type) {
-	case nil:
+	if v == nil {
 		return nil, nil
-	case string:
-		return base64.StdEncoding.DecodeString(s)
-	default:
-		return nil, fmt.Errorf("expected base64 string, got %T", v)
 	}
+	values, ok := v.(map[string]string)
+	if !ok {
+		return nil, fmt.Errorf("bytes field is not a map[string]string")
+	}
+	b, err := base64.RawStdEncoding.DecodeString(values["$bytes"])
+	if err != nil {
+		return nil, fmt.Errorf("decode bytes field: %w", err)
+	}
+	return []byte(b), nil
 }

@@ -17,6 +17,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
@@ -99,7 +100,7 @@ func TestEngineSyncRepoVerifiesAndSettles(t *testing.T) {
 	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
-		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+		Hash: atdata.Bytes(lt.Sum()),
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -336,7 +337,7 @@ func TestDecodeBytesFieldCoversLexiconJSON(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, b)
 
-	b, err = decodeBytesField(base64.StdEncoding.EncodeToString([]byte{1, 2}))
+	b, err = decodeBytesField(atdata.Bytes{1, 2})
 	require.NoError(t, err)
 	require.Equal(t, []byte{1, 2}, b)
 
@@ -352,10 +353,10 @@ func TestDecodeCommitFromLexicon(t *testing.T) {
 	lexicon := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  "3kzl6abcde02k",
-		Hash: base64.StdEncoding.EncodeToString(hashBytes),
-		Ikm:  base64.StdEncoding.EncodeToString([]byte{0x01}),
-		Mac:  base64.StdEncoding.EncodeToString([]byte{0x02}),
-		Sig:  base64.StdEncoding.EncodeToString([]byte{0x03}),
+		Hash: atdata.Bytes(hashBytes),
+		Ikm:  atdata.Bytes{0x01},
+		Mac:  atdata.Bytes{0x02},
+		Sig:  atdata.Bytes{0x03},
 	}
 	c, err := decodeCommit(lexicon)
 	require.NoError(t, err)
@@ -373,7 +374,7 @@ func TestDecodeCommitBadBase64(t *testing.T) {
 
 	_, err := decodeCommit(habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  1,
-		Hash: "!!!notbase64!!!",
+		Hash: map[string]any{"$bytes": "!!!notbase64!!!"},
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "decode commit hash")
@@ -1116,7 +1117,7 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 				Commit: habitat.NetworkHabitatSpaceDefsSignedCommit{
 					Ver:  int64(spacecommit.Version),
 					Rev:  rev,
-					Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+					Hash: atdata.Bytes(lt.Sum()),
 				},
 			})
 		})
@@ -1198,7 +1199,7 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev,
-		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+		Hash: atdata.Bytes(lt.Sum()),
 	}
 
 	mux := http.NewServeMux()
@@ -1339,7 +1340,7 @@ func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
-		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+		Hash: atdata.Bytes(lt.Sum()),
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

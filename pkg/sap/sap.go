@@ -241,11 +241,23 @@ func (s *Sap) Sessions(ctx context.Context) ([]syntax.DID, error) {
 // incrementally and re-verified.
 func (s *Sap) NotifyWrite(
 	ctx context.Context,
-	space habitat_syntax.SpaceURI,
-	repo syntax.DID,
-	rev syntax.TID,
-	hash []byte,
+	spaceStr string,
+	repoStr string,
+	revStr string,
+	hashStr string,
 ) error {
+	space, err := habitat_syntax.ParseSpaceURI(spaceStr)
+	if err != nil {
+		return fmt.Errorf("parse space uri: %w", err)
+	}
+	repo, err := syntax.ParseDID(repoStr)
+	if err != nil {
+		return fmt.Errorf("parse repo did: %w", err)
+	}
+	rev, err := syntax.ParseTID(revStr)
+	if err != nil {
+		return fmt.Errorf("parse rev tid: %w", err)
+	}
 	return s.engine.NotifyWrite(ctx, space, repo, rev, hash)
 }
 
@@ -256,10 +268,14 @@ func (s *Sap) NotifyWrite(
 // the session's listSpaces had returned it.
 func (s *Sap) TrackSpace(
 	ctx context.Context,
-	space habitat_syntax.SpaceURI,
+	spaceStr string,
 	did syntax.DID,
 	sessionID string,
 ) error {
+	space, err := habitat_syntax.ParseSpaceURI(spaceStr)
+	if err != nil {
+		return fmt.Errorf("parse space uri: %w", err)
+	}
 	return s.crawler.TrackSpace(ctx, space, did, sessionID)
 }
 
@@ -267,8 +283,12 @@ func (s *Sap) TrackSpace(
 // state for the space is dropped.
 func (s *Sap) NotifySpaceDeleted(
 	ctx context.Context,
-	space habitat_syntax.SpaceURI,
+	spaceStr string,
 ) error {
+	space, err := habitat_syntax.ParseSpaceURI(spaceStr)
+	if err != nil {
+		return fmt.Errorf("parse space uri: %w", err)
+	}
 	s.credentials.DropSpace(space)
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := s.engine.WithTx(tx).DropSpace(ctx, space); err != nil {
