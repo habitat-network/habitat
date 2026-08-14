@@ -75,21 +75,25 @@ func newOAuthApp(t *testing.T, base *url.URL, did syntax.DID, sessionID string) 
 
 // recorder collects space access records and tracked repos.
 type recorder struct {
-	mu      sync.Mutex
-	access  []habitat_syntax.SpaceURI
-	tracked []syntax.DID
-	checks  []syntax.DID
+	mu             sync.Mutex
+	access         []habitat_syntax.SpaceURI
+	accessDIDs     []syntax.DID
+	accessSessions []string
+	tracked        []syntax.DID
+	checks         []syntax.DID
 }
 
 func (r *recorder) RecordSpaceAccess(
 	_ context.Context,
 	space habitat_syntax.SpaceURI,
-	_ syntax.DID,
-	_ string,
+	did syntax.DID,
+	sessionID string,
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.access = append(r.access, space)
+	r.accessDIDs = append(r.accessDIDs, did)
+	r.accessSessions = append(r.accessSessions, sessionID)
 	return nil
 }
 
@@ -351,4 +355,43 @@ func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
 	rec.mu.Lock()
 	defer rec.mu.Unlock()
 	require.Contains(t, rec.checks, repoDID)
+}
+
+// TestCrawlerTrackSpace verifies that TrackSpace records access for the
+// (did, sessionID) pair, registers the space for notifications, and
+// enumerates/checks its repos — the same steps a listSpaces discovery takes.
+func TestCrawlerTrackSpace(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("ats://did:web:owner/network.habitat.space/s1")
+	repoDID := syntax.DID("did:web:alice")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/xrpc/network.habitat.space.listRepos":
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
+				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
+					{Did: repoDID.String(), Rev: "3lrev2", Hash: "aGFzaA=="},
+				},
+			})
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	rec := &recorder{}
+	nr := &fakeNotifyRegistrar{}
+	base := mustParseURL(t, srv.URL)
+	c, err := New(db_testutil.NewDB(t), nil, rec, fakeClients{base: base}, rec, nr, nil, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, c.TrackSpace(t.Context(), space, "did:web:bob", "sess1"))
+
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	require.Equal(t, []habitat_syntax.SpaceURI{space}, rec.access)
+	require.Equal(t, []syntax.DID{"did:web:bob"}, rec.accessDIDs)
+	require.Equal(t, []string{"sess1"}, rec.accessSessions)
+	require.Contains(t, rec.checks, repoDID)
+	require.True(t, nr.called)
 }

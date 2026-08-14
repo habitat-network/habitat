@@ -286,19 +286,8 @@ func (c *Crawler) crawlSession(
 		}
 		for _, sp := range output.Spaces {
 			space := habitat_syntax.SpaceURI(sp.Uri)
-			if err := c.access.RecordSpaceAccess(ctx, space, did, sessionID); err != nil {
-				return fmt.Errorf("record space access %s: %w", space, err)
-			}
-			// Subscribe to the space's push notifications as soon as we know
-			// about it. Best-effort: the registrar's sweep retries misses.
-			if c.notify != nil {
-				if err := c.notify.EnsureRegistered(ctx, space); err != nil {
-					slog.WarnContext(ctx, "register notify during crawl",
-						"space", space, "err", err)
-				}
-			}
-			if err := c.enumerateRepos(ctx, space); err != nil {
-				return fmt.Errorf("enumerate repos for %s: %w", space, err)
+			if err := c.TrackSpace(ctx, space, did, sessionID); err != nil {
+				return err
 			}
 		}
 
@@ -312,6 +301,34 @@ func (c *Crawler) crawlSession(
 			return fmt.Errorf("save crawl cursor: %w", err)
 		}
 	}
+}
+
+// TrackSpace records that (did, sessionID) can access space and syncs the
+// space's repos, exactly as if a crawl's listSpaces had just returned it. It
+// is the entry point for a space the caller already knows about — say, one
+// named by an out-of-band notification or an invite — without waiting for the
+// session's next crawl.
+func (c *Crawler) TrackSpace(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	did syntax.DID,
+	sessionID string,
+) error {
+	if err := c.access.RecordSpaceAccess(ctx, space, did, sessionID); err != nil {
+		return fmt.Errorf("record space access %s: %w", space, err)
+	}
+	// Subscribe to the space's push notifications as soon as we know about
+	// it. Best-effort: the registrar's sweep retries misses.
+	if c.notify != nil {
+		if err := c.notify.EnsureRegistered(ctx, space); err != nil {
+			slog.WarnContext(ctx, "register notify for space",
+				"space", space, "err", err)
+		}
+	}
+	if err := c.enumerateRepos(ctx, space); err != nil {
+		return fmt.Errorf("enumerate repos for %s: %w", space, err)
+	}
+	return nil
 }
 
 func (c *Crawler) enumerateRepos(
