@@ -2,7 +2,6 @@ package spaces_test
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -32,6 +31,7 @@ import (
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type testServerOptions struct {
@@ -679,9 +679,7 @@ func TestServer_ListRepoOps(t *testing.T) {
 
 func decodeB64(t *testing.T, v any) []byte {
 	t.Helper()
-	str, ok := v.(string)
-	require.True(t, ok, "bytes field should JSON-encode to a base64 string")
-	b, err := base64.StdEncoding.DecodeString(str)
+	b, err := utils.ParseBytes(v)
 	require.NoError(t, err)
 	return b
 }
