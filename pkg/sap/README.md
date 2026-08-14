@@ -12,12 +12,13 @@ To create a new instance of Sap and start the sync engine loop:
 import (
     "github.com/habitat-network/habitat/pkg/sap"
     "go.opentelemetry.io/otel"
+    "github.com/bluesky-social/indigo/atproto/identity/apidir"
 )
 
 sap.New(sap.Config{
     DB:          db,
     OAuthClient: oauthApp, // indigo's *oauth.ClientApp
-    Directory:   identity.DefaultDirectory(),
+    Directory:   apidir.NewAPIDirectory("https://pear.habitat.network"), // to use Habitat's Space proxy
     Endpoint:    "https://your.app.com", // registered with space hosts to receive space notification XRPC calls
     Meter:       otel.Meter("sap"),
     Tracer:      otel.Tracer("sap"),
