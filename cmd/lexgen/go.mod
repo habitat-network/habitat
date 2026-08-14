@@ -3,7 +3,7 @@ module github.com/habitat-network/habitat/cmd/lexgen
 go 1.26
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb
+	github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca
 	github.com/urfave/cli/v2 v2.27.7
 )
 

@@ -3,7 +3,7 @@ module github.com/habitat-network/habitat/cmd/search
 go 1.26.4
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb
+	github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca
 	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.43.0
