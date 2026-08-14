@@ -22,6 +22,7 @@ var (
 
 type config struct {
 	migrations fs.FS
+	gormConfig *gorm.Config
 }
 
 func WithMigrations(migrations fs.FS) utils.Opt[config] {
@@ -30,14 +31,24 @@ func WithMigrations(migrations fs.FS) utils.Opt[config] {
 	}
 }
 
-func New(dsn string, opts ...utils.Opt[config]) (db *gorm.DB, err error) {
-	cfg := utils.ResolveOptions(opts...)
-	gormConfig := &gorm.Config{
-		TranslateError: true,
+func WithGORMConfig(cfg *gorm.Config) utils.Opt[config] {
+	return func(o *config) {
+		o.gormConfig = cfg
 	}
+}
+
+func New(dsn string, opts ...utils.Opt[config]) (db *gorm.DB, err error) {
+	cfg := utils.ResolveOptions(
+		config{
+			gormConfig: &gorm.Config{
+				TranslateError: true,
+			},
+		},
+		opts,
+	)
 	switch ParseDialect(dsn) {
 	case Postgres:
-		db, err = gorm.Open(postgres.Open(dsn), gormConfig)
+		db, err = gorm.Open(postgres.Open(dsn), cfg.gormConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -47,7 +58,7 @@ func New(dsn string, opts ...utils.Opt[config]) (db *gorm.DB, err error) {
 			sqlite.Open(
 				path+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=10000&_txlock=immediate",
 			),
-			gormConfig,
+			cfg.gormConfig,
 		)
 		if err != nil {
 			return nil, err

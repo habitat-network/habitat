@@ -5,6 +5,7 @@ import (
 	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestNewRunsMigrations(t *testing.T) {
@@ -30,11 +31,21 @@ DROP TABLE widgets;
 	require.Equal(t, int64(1), count)
 }
 
+func TestNewWithGORMConfig(t *testing.T) {
+	dir := t.TempDir()
+	db, err := New("sqlite://"+dir+"/test.db", WithGORMConfig(&gorm.Config{
+		TranslateError: false,
+	}))
+	require.NoError(t, err)
+	require.Equal(t, false, db.TranslateError)
+}
+
 func TestNewWithoutMigrations(t *testing.T) {
 	dir := t.TempDir()
 	db, err := New("sqlite://" + dir + "/test.db")
 	require.NoError(t, err)
 	require.NotNil(t, db)
+	require.Equal(t, true, db.TranslateError)
 }
 
 func TestDialect(t *testing.T) {

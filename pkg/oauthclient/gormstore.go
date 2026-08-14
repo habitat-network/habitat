@@ -59,8 +59,7 @@ func NewGormStore(db *gorm.DB, opts ...utils.Opt[gormStore]) (oauth.ClientAuthSt
 	if err := db.AutoMigrate(&sessionRow{}, &authRequestRow{}); err != nil {
 		return nil, fmt.Errorf("migrate gormstore: %w", err)
 	}
-	s := utils.ResolveOptions(opts...)
-	s.db = db
+	s := utils.ResolveOptions(gormStore{db: db}, opts)
 	return &s, nil
 }
 
