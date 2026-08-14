@@ -31,7 +31,6 @@ import (
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -43,7 +42,6 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
-	"github.com/habitat-network/habitat/internal/sync"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
@@ -331,12 +329,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup clique store: %w", err)
 	}
 
-	eventStore, err := events.NewStore(db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup event store: %w", err)
-	}
-	syncServer := sync.NewServer(eventStore)
-
 	notifyStore, err := notify.NewStore(db.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup notify store: %w", err)
@@ -346,7 +338,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	spacesStore, err := spaces.NewStore(
 		db.WithContext(startupCtx),
 		fgaStore,
-		eventStore,
 		notifier,
 		spacecommit.NewAuthority(hostKey, hive),
 	)
@@ -554,7 +545,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		relationshipServer.ListSubjects)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.listObjects",
 		relationshipServer.ListObjects)
-	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
@@ -581,10 +571,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	eg, egCtx := errgroup.WithContext(startupCtx)
-	eg.Go(func() error {
-		slog.InfoContext(egCtx, "starting sequencer")
-		return eventStore.StartSequencer(egCtx)
-	})
 	eg.Go(func() error {
 		return oauthGC.Run(egCtx)
 	})

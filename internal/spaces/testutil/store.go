@@ -11,7 +11,6 @@ import (
 	"gorm.io/gorm"
 
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/notify/testutil"
 	"github.com/habitat-network/habitat/internal/spacecommit"
@@ -33,10 +32,9 @@ type Config struct {
 
 type TestStore struct {
 	spaces.Store
-	Notifier   *testutil.TestNotifier
-	EventStore events.Store
-	FGA        fgastore.Store
-	HostKey    atcrypto.PrivateKey
+	Notifier *testutil.TestNotifier
+	FGA      fgastore.Store
+	HostKey  atcrypto.PrivateKey
 }
 
 func NewTestStore(t *testing.T, cfgs ...Config) *TestStore {
@@ -62,23 +60,19 @@ func NewTestStore(t *testing.T, cfgs ...Config) *TestStore {
 	if cfg.MemberSigner == nil {
 		cfg.MemberSigner = noMemberSigner{}
 	}
-	eventStore, err := events.NewStore(cfg.DB)
-	require.NoError(t, err)
 	notifier := &testutil.TestNotifier{}
 	s, err := spaces.NewStore(
 		cfg.DB,
 		cfg.FgaStore,
-		eventStore,
 		notifier,
 		spacecommit.NewAuthority(cfg.HostKey, cfg.MemberSigner),
 	)
 	require.NoError(t, err)
 	return &TestStore{
-		Store:      s,
-		Notifier:   notifier,
-		EventStore: eventStore,
-		FGA:        cfg.FgaStore,
-		HostKey:    cfg.HostKey,
+		Store:    s,
+		Notifier: notifier,
+		FGA:      cfg.FgaStore,
+		HostKey:  cfg.HostKey,
 	}
 }
 

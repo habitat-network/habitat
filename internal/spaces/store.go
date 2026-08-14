@@ -16,7 +16,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/db"
-	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -227,12 +226,11 @@ var (
 // ---- Store implementation ----
 
 type store struct {
-	db         *gorm.DB
-	fga        fgastore.Store
-	clock      *syntax.TIDClock
-	eventStore events.Store
-	notifier   Notifier
-	commit     *spacecommit.Authority
+	db       *gorm.DB
+	fga      fgastore.Store
+	clock    *syntax.TIDClock
+	notifier Notifier
+	commit   *spacecommit.Authority
 }
 
 var _ Store = &store{}
@@ -243,7 +241,6 @@ var _ Store = &store{}
 func NewStore(
 	db *gorm.DB,
 	fga fgastore.Store,
-	eventStore events.Store,
 	notifier Notifier,
 	commit *spacecommit.Authority,
 ) (*store, error) {
@@ -251,24 +248,22 @@ func NewStore(
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
 	return &store{
-		db:         db,
-		fga:        fga,
-		clock:      syntax.NewTIDClock(0),
-		eventStore: eventStore,
-		notifier:   notifier,
-		commit:     commit,
+		db:       db,
+		fga:      fga,
+		clock:    syntax.NewTIDClock(0),
+		notifier: notifier,
+		commit:   commit,
 	}, nil
 }
 
 // WithTx implements [Store], returning a store whose DB operations run on tx.
 func (s *store) WithTx(tx *gorm.DB) Store {
 	return &store{
-		db:         tx,
-		fga:        s.fga,
-		clock:      s.clock,
-		eventStore: s.eventStore,
-		notifier:   s.notifier,
-		commit:     s.commit,
+		db:       tx,
+		fga:      s.fga,
+		clock:    s.clock,
+		notifier: s.notifier,
+		commit:   s.commit,
 	}
 }
 
@@ -592,41 +587,12 @@ func (s *store) PutRecord(
 		if err := lockRepo(tx, spaceUri, repo); err != nil {
 			return err
 		}
-		action := "update"
-		var prev spaceRecord
-		err := tx.
-			Where("space = ?", spaceUri).
-			Where("repo = ?", repo).
-			Order("rev DESC").
-			First(&prev).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			action = "create"
-		} else if err != nil {
-			return fmt.Errorf("failed to get previous record: %w", err)
-		}
 		tid := s.clock.Next()
 		newRev = tid
 		if rkey == "" {
 			rkey = syntax.RecordKey(tid)
 		}
 		recordUri = habitat_syntax.ConstructSpaceRecordURI(spaceUri, repo, collection, rkey)
-		if err := s.eventStore.WithTx(tx).AppendSpaceEvent(
-			ctx,
-			spaceUri,
-			repo,
-			tid,
-			prev.Rev,
-			[]events.EventOps{
-				{
-					Action: action,
-					Uri:    recordUri,
-					Value:  value,
-					Cid:    cid.String(),
-				},
-			},
-		); err != nil {
-			return fmt.Errorf("failed to append event: %w", err)
-		}
 
 		h, _, _, err := loadRepoHash(tx, spaceUri, repo)
 		if err != nil {
@@ -668,7 +634,6 @@ func (s *store) PutRecord(
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
-	s.eventStore.NotifyEvent(ctx)
 	// Best-effort: notify registered syncers that this repo advanced.
 	s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev, repoHash)
 	return recordUri, &cid, nil
