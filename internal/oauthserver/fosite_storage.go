@@ -18,11 +18,11 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
 	"github.com/ory/fosite/handler/rfc7523"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gorm"
@@ -253,7 +253,7 @@ func (s *store) fetchClientMetadata(
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	// TODO: consider caching
-	cl := http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
+	cl := httpx.NewClient()
 	resp, err := cl.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch client metadata: %w", err)

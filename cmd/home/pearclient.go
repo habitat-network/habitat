@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -61,7 +62,7 @@ func (p *pearClient) get(ctx context.Context, nsid syntax.NSID, params url.Value
 }
 
 func (p *pearClient) do(req *http.Request, nsid syntax.NSID, out any) error {
-	resp, err := p.session.DoWithAuth(http.DefaultClient, req, nsid)
+	resp, err := p.session.DoWithAuth(httpx.NewClient(), req, nsid)
 	if err != nil {
 		return fmt.Errorf("call %s: %w", nsid, err)
 	}

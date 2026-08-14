@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -11,10 +12,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/utils"
-	"log/slog"
 )
 
 // targetRoutedMethods maps XRPC method names that should be forwarded to the
@@ -51,7 +52,7 @@ func NewPDSForwarding(
 		validator:        validator,
 		pdsClientFactory: pdsClientFactory,
 		dir:              dir,
-		plainHTTPClient:  &http.Client{},
+		plainHTTPClient:  httpx.NewClient(),
 	}
 }
 
@@ -61,7 +62,8 @@ func (p *PDSForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if paramName, ok := targetRoutedMethods[method]; ok {
 		target := r.URL.Query().Get(paramName)
 		if target == "" {
-			utils.LogAndHTTPError(r.Context(), w,
+			utils.LogAndHTTPError(
+				r.Context(), w,
 				fmt.Errorf("missing required query param: %s", paramName),
 				"[pds forwarding]: missing target param",
 				http.StatusBadRequest,
@@ -107,7 +109,8 @@ func (p *PDSForwarding) serveTargetPDS(
 
 	pdsEndpoint, ok := id.Services["atproto_pds"]
 	if !ok {
-		utils.LogAndHTTPError(r.Context(), w,
+		utils.LogAndHTTPError(
+			r.Context(), w,
 			fmt.Errorf("no atproto_pds service for %s", id.DID),
 			"[pds forwarding]: target has no PDS service",
 			http.StatusBadGateway,

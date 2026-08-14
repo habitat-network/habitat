@@ -13,12 +13,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/utils"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -98,7 +98,7 @@ func New(config Config) (*Sap, error) {
 	// of which session was used to obtain it — a space credential authorizes
 	// the space, not the member who fetched it. It asks sessions (which
 	// implements credential.Delegator) for a delegation token on demand.
-	credentials := credential.NewManager(config.Directory, &http.Client{}, sessions)
+	credentials := credential.NewManager(config.Directory, httpx.NewClient(), sessions)
 	ob, err := outbox.NewStore(config.DB, utils.NewPollNotifier())
 	if err != nil {
 		return nil, fmt.Errorf("create outbox store: %w", err)

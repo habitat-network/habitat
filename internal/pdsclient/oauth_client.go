@@ -21,6 +21,7 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/oauth2"
 )
@@ -361,7 +362,7 @@ func fetchOAuthProtectedResource(i *identity.Identity) (*oauthProtectedResource,
 		return nil, err
 	}
 
-	resp, err := http.DefaultClient.Get(
+	resp, err := httpx.NewClient().Get(
 		wellKnownURL,
 	)
 	if err != nil {
@@ -401,7 +402,7 @@ func fetchOauthAuthorizationServer(
 	}
 
 	authServerURL.Path = "/.well-known/oauth-authorization-server"
-	resp, err := http.DefaultClient.Get(
+	resp, err := httpx.NewClient().Get(
 		authServerURL.String(),
 	)
 	if err != nil {
