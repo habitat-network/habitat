@@ -48,13 +48,13 @@ func openOutboxTestServer(t *testing.T) (*httptest.Server, *sap.Sap, *gorm.DB) {
 
 func createOutboxRow(t *testing.T, db *gorm.DB, uri, value string) uint {
 	t.Helper()
-	require.NoError(t, db.Table("outboxes").Create(map[string]any{
+	require.NoError(t, db.Table("outbox_messages").Create(map[string]any{
 		"uri":   uri,
 		"value": []byte(value),
 	}).Error)
 
 	var id uint
-	require.NoError(t, db.Table("outboxes").
+	require.NoError(t, db.Table("outbox_messages").
 		Select("id").
 		Order("id DESC").
 		Limit(1).
@@ -98,7 +98,7 @@ func TestServer_OutboxChannelDeliversAndAcks(t *testing.T) {
 	}
 	require.Eventually(t, func() bool {
 		var row localOutboxRow
-		require.NoError(t, db.Table("outboxes").Where("id = ?", id).First(&row).Error)
+		require.NoError(t, db.Table("outbox_messages").Where("id = ?", id).First(&row).Error)
 		return row.AckedAt != nil
 	}, 5*time.Second, 50*time.Millisecond, "expected message to be acked")
 
