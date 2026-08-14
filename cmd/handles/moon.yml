@@ -1,0 +1,18 @@
+tasks:
+  dev:
+    args:
+    - --
+    - --port 
+    - "8080"
+    deps: 
+      - caddy
+  caddy:
+    command: caddy 
+    args:
+      - reverse-proxy 
+      - --from
+      - "*.local.habitat.network" 
+      - --to 
+      - 127.0.0.1:8080 
+      - --internal-certs
+    preset: server
