@@ -17,6 +17,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
@@ -99,7 +100,7 @@ func TestEngineSyncRepoVerifiesAndSettles(t *testing.T) {
 	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
-		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+		Hash: atdata.Bytes(lt.Sum()),
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -327,35 +328,21 @@ func TestVerifierNilPointer(t *testing.T) {
 	require.NoError(t, v.Verify(t.Context(), space, "did:plc:alice", commit, &lt))
 }
 
-// TestDecodeBytesFieldCoversLexiconJSON covers the decodeBytesField and
-// decodeCommit paths used by syncRepo.
-func TestDecodeBytesFieldCoversLexiconJSON(t *testing.T) {
-	t.Parallel()
-
-	b, err := decodeBytesField(nil)
-	require.NoError(t, err)
-	require.Nil(t, b)
-
-	b, err = decodeBytesField(base64.StdEncoding.EncodeToString([]byte{1, 2}))
-	require.NoError(t, err)
-	require.Equal(t, []byte{1, 2}, b)
-
-	_, err = decodeBytesField(42)
-	require.Error(t, err)
-}
-
 // TestDecodeCommitFromLexicon covers decodeCommit with a full signed commit.
 func TestDecodeCommitFromLexicon(t *testing.T) {
 	t.Parallel()
 
 	hashBytes := []byte{0xaa, 0xbb}
+	bytesField := func(b []byte) any {
+		return map[string]any{"$bytes": base64.RawStdEncoding.EncodeToString(b)}
+	}
 	lexicon := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  "3kzl6abcde02k",
-		Hash: base64.StdEncoding.EncodeToString(hashBytes),
-		Ikm:  base64.StdEncoding.EncodeToString([]byte{0x01}),
-		Mac:  base64.StdEncoding.EncodeToString([]byte{0x02}),
-		Sig:  base64.StdEncoding.EncodeToString([]byte{0x03}),
+		Hash: bytesField(hashBytes),
+		Ikm:  bytesField([]byte{0x01}),
+		Mac:  bytesField([]byte{0x02}),
+		Sig:  bytesField([]byte{0x03}),
 	}
 	c, err := decodeCommit(lexicon)
 	require.NoError(t, err)
@@ -373,7 +360,7 @@ func TestDecodeCommitBadBase64(t *testing.T) {
 
 	_, err := decodeCommit(habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  1,
-		Hash: "!!!notbase64!!!",
+		Hash: map[string]any{"$bytes": "!!!notbase64!!!"},
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "decode commit hash")
@@ -1116,7 +1103,7 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 				Commit: habitat.NetworkHabitatSpaceDefsSignedCommit{
 					Ver:  int64(spacecommit.Version),
 					Rev:  rev,
-					Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+					Hash: atdata.Bytes(lt.Sum()),
 				},
 			})
 		})
@@ -1198,7 +1185,7 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev,
-		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+		Hash: atdata.Bytes(lt.Sum()),
 	}
 
 	mux := http.NewServeMux()
@@ -1339,7 +1326,7 @@ func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
-		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+		Hash: atdata.Bytes(lt.Sum()),
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
