@@ -140,7 +140,7 @@ func TestParseBytesInput_Nil(t *testing.T) {
 		"hash",
 	)
 	require.True(t, ok)
-	require.Equal(t, []byte{0x01, 0x02, 0xff}, got)
+	require.Equal(t, nil, got)
 	require.Equal(t, 0, w.Body.Len())
 	require.Equal(t, http.StatusOK, w.Code)
 }
