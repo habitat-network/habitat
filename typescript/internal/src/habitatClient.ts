@@ -1,12 +1,13 @@
-import type {
-  ComAtprotoRepoCreateRecord,
-  ComAtprotoRepoGetRecord,
-  ComAtprotoRepoListRecords,
-  ComAtprotoIdentityResolveHandle,
-  AppBskyActorSearchActorsTypeahead,
-  AppBskyActorGetProfile,
-  AppBskyActorGetProfiles,
-  ComAtprotoServerGetServiceAuth,
+import {
+  jsonToLex,
+  type ComAtprotoRepoCreateRecord,
+  type ComAtprotoRepoGetRecord,
+  type ComAtprotoRepoListRecords,
+  type ComAtprotoIdentityResolveHandle,
+  type AppBskyActorSearchActorsTypeahead,
+  type AppBskyActorGetProfile,
+  type AppBskyActorGetProfiles,
+  type ComAtprotoServerGetServiceAuth,
 } from "@atproto/api";
 import type {
   ComAtprotoRepoDescribeRepo,
@@ -358,8 +359,8 @@ interface UnauthedOptions {
 // AuthManager.
 type ProcedureOptions<T extends keyof ProcedureEndpoints> =
   ProcedureEndpoints[T]["unauthenticated"] extends true
-    ? UnauthedOptions
-    : AuthedOptions;
+  ? UnauthedOptions
+  : AuthedOptions;
 
 export class XRPCError extends Error {
   public status: number;
@@ -373,8 +374,8 @@ export class XRPCError extends Error {
 
 type QueryOptions<T extends keyof QueryEndpoints> =
   QueryEndpoints[T]["unauthenticated"] extends true
-    ? UnauthedOptions
-    : AuthedOptions;
+  ? UnauthedOptions
+  : AuthedOptions;
 
 export const query = async <T extends keyof QueryEndpoints>(
   endpoint: T,
@@ -396,12 +397,12 @@ export const query = async <T extends keyof QueryEndpoints>(
   const response = options.unauthenticated
     ? await fetch(`https://${(options as UnauthedOptions).domain}${path}`)
     : await (options as AuthedOptions).authManager.fetch(
-        path,
-        "GET",
-        null,
-        options.headers,
-        (options as AuthedOptions).fetchOptions,
-      );
+      path,
+      "GET",
+      null,
+      options.headers,
+      (options as AuthedOptions).fetchOptions,
+    );
   // Only the parse is guarded: wrapping the XRPCError throw in the same try
   // caught it here and replaced it with a generic Error, so callers could
   // never see which lexicon error came back.
@@ -414,7 +415,11 @@ export const query = async <T extends keyof QueryEndpoints>(
   if (!response.ok) {
     throw new XRPCError(response.status, data ?? { error: "UnknownError" });
   }
-  return data;
+  // This is a plain fetch, not @atproto/xrpc's client, so lexicon-typed
+  // fields (bytes, blobs, CIDs) arrive as raw JSON (e.g. {"$bytes": "..."})
+  // rather than the Uint8Array/BlobRef/CID the generated types declare.
+  // jsonToLex decodes them the same way @atproto/xrpc does.
+  return jsonToLex(data) as QueryEndpoints[T]["output"];
 };
 
 export const procedure = async <T extends keyof ProcedureEndpoints>(
@@ -430,7 +435,9 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
   if (!response.ok) {
     throw new XRPCError(response.status, data);
   }
-  return data;
+  // See query()'s equivalent comment: decode lexicon-typed fields the same
+  // way @atproto/xrpc does, since this is a plain fetch.
+  return jsonToLex(data) as ProcedureEndpoints[T]["output"];
 };
 
 const authedRequest = (

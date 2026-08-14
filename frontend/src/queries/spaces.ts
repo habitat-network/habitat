@@ -64,18 +64,17 @@ export function spaceReposQueryOptions(
   });
 }
 
-// SpaceCommit is the wire shape of network.habitat.space.defs#signedCommit.
-// The generated lexicon type declares the byte fields as Uint8Array, but that
-// assumes the @atproto/xrpc client's `$bytes` decoding; the space host encodes
-// them with Go's encoding/json and `query` is a plain fetch, so they arrive as
-// base64 strings.
+// SpaceCommit is the decoded shape of network.habitat.space.defs#signedCommit.
+// `query` (in internal/habitatClient) already runs responses through
+// jsonToLex, so byte fields arrive as Uint8Array, matching the generated
+// lexicon type.
 export interface SpaceCommit {
   ver: number;
   rev: string;
-  hash: string;
-  ikm: string;
-  mac: string;
-  sig: string;
+  hash: Uint8Array;
+  ikm: Uint8Array;
+  mac: Uint8Array;
+  sig: Uint8Array;
 }
 
 // spaceLatestCommitQueryOptions fetches the host-signed commit over a repo's
