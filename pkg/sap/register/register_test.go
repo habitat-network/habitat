@@ -3,6 +3,7 @@ package register
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -30,6 +31,21 @@ type fakeSpaces []habitat_syntax.SpaceURI
 
 func (f fakeSpaces) Spaces(context.Context) ([]habitat_syntax.SpaceURI, error) {
 	return f, nil
+}
+
+type fakeSpacesErr struct{ err error }
+
+func (f fakeSpacesErr) Spaces(context.Context) ([]habitat_syntax.SpaceURI, error) {
+	return nil, f.err
+}
+
+type fakeClientsErr struct{ err error }
+
+func (f fakeClientsErr) ClientForSpace(
+	context.Context,
+	habitat_syntax.SpaceURI,
+) (*atclient.APIClient, error) {
+	return nil, f.err
 }
 
 // TestRegistrarRegistersDueSpaces covers the happy path: an unregistered space
@@ -183,4 +199,144 @@ func TestRegistrarDueSpacesFiltersFresh(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, due, 1)
 	require.Equal(t, space2, due[0])
+}
+
+// TestRegistrarDueSpacesListError verifies dueSpaces surfaces an error from
+// listing spaces.
+func TestRegistrarDueSpacesListError(t *testing.T) {
+	t.Parallel()
+
+	db := db_testutil.NewDB(t)
+	reg, err := New(
+		db, fakeClients{base: &url.URL{}}, fakeSpacesErr{err: errors.New("boom")}, "https://sap.example",
+	)
+	require.NoError(t, err)
+
+	_, err = reg.dueSpaces(t.Context())
+	require.Error(t, err)
+}
+
+// TestRegistrarSweepListSpacesError verifies sweep swallows (logs) an error
+// listing spaces rather than panicking.
+func TestRegistrarSweepListSpacesError(t *testing.T) {
+	t.Parallel()
+
+	db := db_testutil.NewDB(t)
+	reg, err := New(
+		db, fakeClients{base: &url.URL{}}, fakeSpacesErr{err: errors.New("boom")}, "https://sap.example",
+	)
+	require.NoError(t, err)
+
+	reg.sweep(t.Context())
+
+	var count int64
+	require.NoError(t, db.Model(&registration{}).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+}
+
+// TestRegistrarSweepRegisterError verifies sweep logs a per-space Register
+// failure and continues rather than aborting the whole sweep.
+func TestRegistrarSweepRegisterError(t *testing.T) {
+	t.Parallel()
+
+	db := db_testutil.NewDB(t)
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	reg, err := New(
+		db, fakeClientsErr{err: errors.New("no client")}, fakeSpaces{space}, "https://sap.example",
+	)
+	require.NoError(t, err)
+
+	reg.sweep(t.Context())
+
+	var count int64
+	require.NoError(t, db.Model(&registration{}).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+}
+
+// TestRegistrarRegisterClientError verifies Register surfaces a
+// ClientForSpace failure.
+func TestRegistrarRegisterClientError(t *testing.T) {
+	t.Parallel()
+
+	db := db_testutil.NewDB(t)
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	reg, err := New(
+		db, fakeClientsErr{err: errors.New("no client")}, fakeSpaces{space}, "https://sap.example",
+	)
+	require.NoError(t, err)
+
+	require.Error(t, reg.Register(t.Context(), space))
+}
+
+// TestRegistrarRegisterHTTPError verifies Register surfaces a registerNotify
+// HTTP failure.
+func TestRegistrarRegisterHTTPError(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+	base, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	db := db_testutil.NewDB(t)
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+	require.NoError(t, err)
+
+	require.Error(t, reg.Register(t.Context(), space))
+}
+
+// TestRegistrarRegisterBadExpiresAt verifies Register surfaces a malformed
+// expiresAt from the host.
+func TestRegistrarRegisterBadExpiresAt(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceRegisterNotifyOutput{
+			ExpiresAt: "not-a-time",
+		})
+	}))
+	t.Cleanup(srv.Close)
+	base, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	db := db_testutil.NewDB(t)
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+	require.NoError(t, err)
+
+	require.Error(t, reg.Register(t.Context(), space))
+}
+
+// TestRegistrarEnsureRegisteredDBError verifies EnsureRegistered surfaces a
+// lookup error that isn't a plain "not found".
+func TestRegistrarEnsureRegisteredDBError(t *testing.T) {
+	t.Parallel()
+
+	db := db_testutil.NewDB(t)
+	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{space}, "https://sap.example")
+	require.NoError(t, err)
+
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+
+	require.Error(t, reg.EnsureRegistered(t.Context(), space))
+}
+
+// TestRegistrarRun verifies Run performs an initial sweep and returns
+// promptly once ctx is done.
+func TestRegistrarRun(t *testing.T) {
+	t.Parallel()
+
+	db := db_testutil.NewDB(t)
+	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, "https://sap.example")
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	reg.Run(ctx)
 }

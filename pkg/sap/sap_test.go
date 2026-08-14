@@ -229,6 +229,37 @@ func TestSap(t *testing.T) {
 		require.Equal(t, "active", r.State, "repo in space %s not active", r.Space)
 		require.NotEmpty(t, r.Hash)
 	}
+
+	// 9. Sessions reports the DID sap is syncing on behalf of.
+	dids, err := s.Sessions(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, []syntax.DID{author}, dids)
+
+	// 10. Outbox exposes the same store NotifyWrite delivered to: every
+	// message is pollable and, once acked, no longer redelivered.
+	msgs, err := s.Outbox().Poll(t.Context(), 100)
+	require.NoError(t, err)
+	require.Len(t, msgs, int(expectedCount))
+	for _, msg := range msgs {
+		require.Contains(t, createdURIs, string(msg.URI))
+		require.NoError(t, s.Outbox().Ack(t.Context(), msg.ID))
+	}
+	msgs, err = s.Outbox().Poll(t.Context(), 100)
+	require.NoError(t, err)
+	require.Empty(t, msgs)
+
+	// 11. NotifySpaceDeleted drops all local tracking state for a space: its
+	// registration and repo row disappear, and the space is no longer synced.
+	require.NoError(t, s.NotifySpaceDeleted(t.Context(), backfillSpace))
+
+	require.NoError(t, db.Table("registrations").Count(&regCount).Error)
+	require.Equal(t, int64(4), regCount)
+
+	require.NoError(t, db.Table("repos").Find(&repos).Error)
+	require.Len(t, repos, 4)
+	for _, r := range repos {
+		require.NotEqual(t, backfillSpace.String(), r.Space)
+	}
 }
 
 // pearHost bundles the host-side pieces the test drives.
