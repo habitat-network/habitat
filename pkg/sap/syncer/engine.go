@@ -325,13 +325,15 @@ func (e *Engine) claimAndQueue(
 	claimed := 0
 	for {
 		var candidates []repo
-		selectQ := fmt.Sprintf(`
-			SELECT space, did FROM sap_repos
-			WHERE (%s) AND (retry_after = 0 OR retry_after < ?)
-			ORDER BY %s, space, did
-			LIMIT ?
-		`, whereStates, priority)
-		if err := e.db.WithContext(ctx).Raw(selectQ, now, 100).Scan(&candidates).Error; err != nil {
+		err := e.db.WithContext(ctx).
+			Model(&repo{}).
+			Select("space, did").
+			Where(whereStates).
+			Where("retry_after = 0 OR retry_after < ?", now).
+			Order(priority).Order("space").Order("did").
+			Limit(100).
+			Scan(&candidates).Error
+		if err != nil {
 			slog.ErrorContext(ctx, "claim batch select", "err", err)
 			span.RecordError(err)
 			return claimed
