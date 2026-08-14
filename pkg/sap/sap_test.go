@@ -253,6 +253,99 @@ func TestSap(t *testing.T) {
 	}
 }
 
+// TestSapTrackSpace verifies that TrackSpace tracks a space the same way the
+// crawl would if its listSpaces discovered it — recording space access,
+// registering for notifications, and syncing the space's repos — without the
+// session ever being crawled. The session is never added, so only TrackSpace
+// can discover the space.
+func TestSapTrackSpace(t *testing.T) {
+	// Configure default transport to skip TLS verification for the test
+	// servers (sap's credential exchange and repo-host reads).
+	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	pear := setupPear(t)
+	t.Cleanup(func() {
+		pear.server.CloseClientConnections()
+		pear.server.Close()
+	})
+	author := pear.author.DID
+
+	groupType := syntax.NSID("network.habitat.group")
+	collection := syntax.NSID("network.habitat.test")
+	space, err := pear.store.CreateSpace(
+		t.Context(), author, author, groupType, habitat_syntax.SpaceKey("tracked-space"),
+	)
+	require.NoError(t, err)
+	recURI, _, err := pear.store.PutRecord(
+		t.Context(), space, author, collection,
+		syntax.RecordKey("rkey-0"), map[string]any{"data": "tracked"},
+	)
+	require.NoError(t, err)
+
+	mux := http.NewServeMux()
+	sapServer := httptest.NewTLSServer(mux)
+	t.Cleanup(sapServer.Close)
+
+	db := db_testutil.NewDB(t)
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		sapServer.URL+"/client-metadata.json",
+		sapServer.URL+"/oauth-callback",
+		[]string{},
+	)
+	oauthApp := oauth.NewClientApp(&cfg, store)
+
+	s, err := New(Config{
+		DB:          db,
+		OAuthClient: oauthApp,
+		Directory:   pear.hive,
+		Endpoint:    sapServer.URL,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	go func() {
+		require.NoError(t, s.Start(ctx))
+	}()
+
+	// The session is resumable for TrackSpace's space-credential delegation,
+	// but is never added, so no crawl discovers the space.
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:              author,
+		SessionID:               "sess1",
+		HostURL:                 pear.server.URL,
+		AccessToken:             futureJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
+	}))
+
+	require.NoError(t, s.TrackSpace(t.Context(), space, author, "sess1"))
+
+	// The space's record lands in the outbox, as it would after a crawl.
+	var got []outbox.Message
+	require.Eventually(t, func() bool {
+		var err error
+		got, err = s.Outbox().Poll(t.Context(), 10)
+		require.NoError(t, err)
+		return len(got) >= 1
+	}, 15*time.Second, 100*time.Millisecond)
+	for _, msg := range got {
+		require.Equal(t, recURI.String(), string(msg.URI))
+	}
+
+	// The space is registered for notifications and its repo is tracked.
+	var regCount int64
+	require.NoError(t, db.Table("registrations").Count(&regCount).Error)
+	require.Equal(t, int64(1), regCount)
+
+	var repoCount int64
+	require.NoError(t, db.Table("repos").Count(&repoCount).Error)
+	require.Equal(t, int64(1), repoCount)
+}
+
 // pearHost bundles the host-side pieces the test drives.
 type pearHost struct {
 	server *httptest.Server

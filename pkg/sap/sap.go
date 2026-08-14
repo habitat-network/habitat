@@ -249,6 +249,20 @@ func (s *Sap) NotifyWrite(
 	return s.engine.NotifyWrite(ctx, space, repo, rev, hash)
 }
 
+// TrackSpace tracks a space sap wouldn't discover through a session's crawl —
+// e.g. one the caller learned about out of band (an invite, an external
+// notification). It records that (did, sessionID) can access the space,
+// registers the space for notifications, and syncs its repos, exactly as if
+// the session's listSpaces had returned it.
+func (s *Sap) TrackSpace(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	did syntax.DID,
+	sessionID string,
+) error {
+	return s.crawler.TrackSpace(ctx, space, did, sessionID)
+}
+
 // NotifySpaceDeleted reacts to a host's notifySpaceDeleted: all local tracking
 // state for the space is dropped.
 func (s *Sap) NotifySpaceDeleted(
