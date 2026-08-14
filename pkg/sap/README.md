@@ -1,81 +1,8 @@
-# sap — Sync Agent Process
+# sap — Permissioned spaces sync utility 
 
-`sap` is a library (and thin binary wrapper) that keeps a local copy of AT
-Protocol repos in sync with their habitat hosts, for every `network.habitat.space`
-a tracked DID can see. Synced records are delivered through a durable,
-acknowledged outbox.
-
-sap itself never establishes a session: `AddSession(did, sessionID)` just
-records that a session is resumable for did, and resumes it via the
-`*oauth.ClientApp` (and its `Store`) the caller configures sap with. How a
-session actually came to exist — a browser OAuth flow, an RFC 7523
-JWT-bearer grant, anything else — is entirely the caller's concern, done out
-of band of this package: `cmd/sap` has two ways of adding a session
-(`/session/add`'s browser flow, `/session/jwt`'s JWT-bearer grant), and once
-either gets an access-token session, it calls `AddSession` with that
-session's ID.
-
-## How the parts fit together
-
-```
-AddSession(did,           session.Store ─────▶ crawl.Crawler
-  sessionID) ──────────▶  (tracked DIDs,        (listSpaces/listRepos,
-                           space access,         resumable via cursor)
-                           resumes via                  │
-                           *oauth.ClientApp)  Track/Check│
-                                                         ▼
-                        register.Registrar ◀── syncer.Engine ──▶ outbox.Store
-                        (registerNotify,        (state machine:         │
-                         renews before            pending → syncing →   │
-                         expiry)                   active/desynced,     ▼
-                                                    listRepoOps +   consumer
-                                                    LtHash verify,  (Poll/Ack/Watch)
-                                                    getRepo recover
-                                                    on verify failure)
-```
-
-- **`session`** tracks every DID sap syncs on behalf of, the session ID that
-  resumes it, and which spaces each session has been seen to access. `crawl`
-  resumes a tracked session directly through `Config.OAuthClient` for
-  member-scoped calls like `listSpaces`, with `session` itself having no
-  knowledge of how that session was originally established. `session.Store`
-  also implements `credential.Delegator` (`DelegationToken`): given a space,
-  it tries each recorded accessor in turn, resuming that session through
-  `OAuthClient` to ask *that session's own host* for a delegation token
-  (`getDelegationToken`) — never touching a space credential itself.
-- **`credential`** mints and caches per-space host credentials, one per space
-  regardless of which session obtained it — a space credential authorizes the
-  space, not the member who fetched it. `credential.Manager.ClientForSpace`
-  backs every call that spans a space's members — `listRepos`, `listRepoOps`,
-  `getRepo`, `registerNotify` — per the permissioned-data proposal, which
-  requires space-level authorization for those rather than a single member's
-  access token: it resolves *the space's own host* (its owner's habitat
-  instance — a space's records live in its owner's repo) and exchanges a
-  delegation token (from its configured `Delegator`, i.e. `session.Store`)
-  for a credential at that space host (`getSpaceCredential`), caching and
-  renewing it just before expiry. `sap.New` wires one `credential.Manager`
-  per `Sap`, built over `session.Store` as its `Delegator`, and hands it to
-  `crawl`, `register`, and `syncer` wherever a space-scoped client is needed.
-- **`crawl`** backfills: for each session it pages `listSpaces` (member auth),
-  records space access, and for each space calls `listRepos` (space-credential
-  auth) into `Tracker.Check` (start tracking, or compare the listed rev/hash
-  against ours). Crawl progress is a cursor persisted per session, so a
-  restart resumes instead of re-scanning.
-- **`syncer`** is the sync engine and state machine, one row per `(space,
-  repo)`. `pending`/`error` repos are synced incrementally via
-  `listRepoOps` and verified against the host's signed commit hash (LtHash);
-  a repo that fails verification is marked `desynced` and rebuilt from a full
-  `getRepo` CAR snapshot. `Track` (new repo from crawl) and `NotifyWrite`
-  (pushed notification) both funnel into the same staleness check, so a
-  repo mid-sync when a new write lands is marked dirty and requeued instead
-  of settling on stale data.
-- **`register`** keeps `registerNotify` subscriptions alive so hosts push
-  `notifyWrite`/`notifySpaceDeleted` to sap instead of relying on polling: it
-  registers a space inline as crawl discovers it, and a background sweep
-  renews registrations before they expire.
-- **`outbox`** is the durable handoff to sap's consumer: the syncer emits
-  synced records here (in the same transaction as its state advance), and the
-  consumer polls, processes, and acks them. Unacked messages redeliver.
+Sap implements the sync protocol from the [permissioned data proposal](https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md).
+It can be used by your app to crawl the permissioned spaces a user has access to, pull all the records from those spaces' repos, and receive notifications to keep the repos up-to-date.
+Your app can poll Sap for new messages which are stored in a durable outbox until acknowledged.
 
 ## Quick start
 
@@ -86,10 +13,10 @@ import (
 )
 
 s, err := sap.New(sap.Config{
-    DB:          db,
-    OAuthClient: oauthApp, // *oauth.ClientApp; AddSession resumes sessions via its Store
+    DB:          db, // gorm.DB
+    OAuthClient: oauthApp, // indigo's *oauth.ClientApp
     Directory:   identity.DefaultDirectory(),
-    Endpoint:    "https://sap.example.com", // registered with hosts for notifyWrite
+    Endpoint:    "https://your.app.com", // registered with space hosts to receive space notification XRPC calls
     Meter:       otel.Meter("sap"),
     Tracer:      otel.Tracer("sap"),
 })
@@ -97,20 +24,22 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Registers did as resumable via sessionID (already saved into oauthApp's
-// Store by whatever flow obtained it) and kicks off its backfill crawl.
+// Once a user auth flow is complete (usually the OAuth callback handler), you provide the 
+// ClientSession.SessionID to sap so it can crawl the user's spaces and start syncing. 
 if err := s.AddSession(ctx, did, sessionID); err != nil {
     log.Fatal(err)
 }
 
-// Runs the sync engine, crawl resumption/recrawl loop, and notify-registration
-// upkeep until ctx is cancelled.
-if err := s.Start(ctx); err != nil {
-    log.Fatal(err)
-}
+go func() {
+  // Runs the sync engine, crawl resumption/recrawl loop, and notify-registration
+  // upkeep until ctx is cancelled.
+  if err := s.Start(ctx); err != nil {
+      log.Fatal(err)
+  }
+}()
 ```
 
-When a host calls back with a notification, relay it into sap:
+When a host calls back with `com.atproto.space.notifyWrite` or `com.atproto.space.notifySpaceDeleted`, relay it into sap:
 
 ```go
 s.NotifyWrite(ctx, space, repo, rev, hash)   // repo advanced; sync it
@@ -121,7 +50,7 @@ s.NotifySpaceDeleted(ctx, space)             // drop all tracking state for it
 
 ```go
 for {
-    msgs, err := s.Outbox().Poll(ctx, 100)
+    msgs, err := s.Outbox().Poll(ctx, 100 /* limit */)
     if err != nil {
         log.Fatal(err)
     }
@@ -136,39 +65,6 @@ for {
     }
 }
 ```
-
-## The `cmd/sap` binary
-
-Wraps a `*sap.Sap` with HTTP, and owns both ways a session gets established
-before handing its session ID to `AddSession`. The OAuth-facing endpoints
-(`/oauth-callback`, `/client-metadata.json`) and the host-facing notify
-webhooks (`/xrpc/network.habitat.space.notifyWrite`, `notifySpaceDeleted`,
-validated by service-auth) are served on the public port; session management
-and the outbox are served on a separate internal port meant to be restricted
-to trusted callers:
-
-- `POST /session/add` — start a browser OAuth flow for a handle; on
-  callback, `ProcessCallback` saves the session into the shared
-  `*oauth.ClientApp`'s `Store` and `AddSession` is called with its session ID
-- `POST /session/jwt` — mint a session for a DID directly via the RFC 7523
-  JWT-bearer grant (`pkg/oauthclient.Client.SendJWTTokenRequest`, which
-  itself saves the session into the same `Store`), then call `AddSession`
-  with the resulting session ID — sap resumes it exactly like one from the
-  browser flow, since both live in the same session store
-- `GET /session/list` — DIDs of tracked sessions
-- `GET /channel` — websocket streaming the outbox (see
-  [`cmd/sap/websocket.go`](../../cmd/sap/websocket.go) for the wire protocol);
-  a message is redelivered until the client acks its ID
-- `/proxy/<nsid>` — forwards an XRPC call to pear authenticated as the session
-  named by the `Habitat-Did`/`Habitat-Session-Id` headers
-
-## Tables
-
-Each subpackage owns and auto-migrates its own tables:
-`sap_sessions`/`sap_space_access` (session), `sap_crawls` (crawl),
-`sap_repos`/`sap_repo_records` (syncer), `sap_registrations` (register),
-`sap_outbox` (outbox).
-
 ## Configuration
 
 | Field | Description |
@@ -183,12 +79,3 @@ Each subpackage owns and auto-migrates its own tables:
 
 Metrics are prefixed `sap.crawler.*` and `sap.syncer.*`; see each package's
 `New`/telemetry setup for exact names.
-
-## Running sap
-
-```bash
-moon sap:dev     # development with hot reload
-moon pear:build  # build the binary
-```
-
-Flags/env vars are documented in [`cmd/sap/flags.go`](../../cmd/sap/flags.go).
