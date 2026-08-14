@@ -18,8 +18,6 @@ import (
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/instance"
 	orgpkg "github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pear"
-	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -28,7 +26,6 @@ var errNotMemberOfOrg = errors.New("not a member of an organization")
 type Server struct {
 	store          orgpkg.Store
 	validator      authn.RequestValidator
-	pear           pear.Pear
 	domain         string
 	decoder        *schema.Decoder
 	dir            identity.Directory
@@ -38,7 +35,6 @@ type Server struct {
 func NewServer(
 	store orgpkg.Store,
 	validator authn.RequestValidator,
-	p pear.Pear,
 	domain string,
 	dir identity.Directory,
 	instancePolicy instance.PolicyStore,
@@ -46,7 +42,6 @@ func NewServer(
 	return &Server{
 		store:          store,
 		validator:      validator,
-		pear:           p,
 		domain:         domain,
 		decoder:        schema.NewDecoder(),
 		dir:            dir,
@@ -709,33 +704,6 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 			http.StatusInternalServerError,
 		)
 		return
-	}
-
-	if s.pear != nil {
-		profile := map[string]any{
-			"$type":  "app.bsky.actor.profile",
-			"did":    id.DID.String(),
-			"handle": id.Handle.String(),
-		}
-		_, err = s.pear.PutRecord(
-			r.Context(),
-			id.DID,
-			id.DID,
-			syntax.NSID("app.bsky.actor.profile"),
-			profile,
-			syntax.RecordKey("self"),
-			nil,
-			[]permissions.Grantee{},
-		)
-		if err != nil {
-			slog.ErrorContext(r.Context(),
-				"failed to create profile record for new member",
-				"err",
-				err,
-				"handle",
-				id.Handle,
-			)
-		}
 	}
 
 	output := habitat.NetworkHabitatOrgMintMemberIdentityOutput{
