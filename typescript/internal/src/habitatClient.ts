@@ -359,8 +359,8 @@ interface UnauthedOptions {
 // AuthManager.
 type ProcedureOptions<T extends keyof ProcedureEndpoints> =
   ProcedureEndpoints[T]["unauthenticated"] extends true
-  ? UnauthedOptions
-  : AuthedOptions;
+    ? UnauthedOptions
+    : AuthedOptions;
 
 export class XRPCError extends Error {
   public status: number;
@@ -374,8 +374,8 @@ export class XRPCError extends Error {
 
 type QueryOptions<T extends keyof QueryEndpoints> =
   QueryEndpoints[T]["unauthenticated"] extends true
-  ? UnauthedOptions
-  : AuthedOptions;
+    ? UnauthedOptions
+    : AuthedOptions;
 
 export const query = async <T extends keyof QueryEndpoints>(
   endpoint: T,
@@ -397,12 +397,12 @@ export const query = async <T extends keyof QueryEndpoints>(
   const response = options.unauthenticated
     ? await fetch(`https://${(options as UnauthedOptions).domain}${path}`)
     : await (options as AuthedOptions).authManager.fetch(
-      path,
-      "GET",
-      null,
-      options.headers,
-      (options as AuthedOptions).fetchOptions,
-    );
+        path,
+        "GET",
+        null,
+        options.headers,
+        (options as AuthedOptions).fetchOptions,
+      );
   // Only the parse is guarded: wrapping the XRPCError throw in the same try
   // caught it here and replaced it with a generic Error, so callers could
   // never see which lexicon error came back.
