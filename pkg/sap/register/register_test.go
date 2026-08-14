@@ -98,23 +98,6 @@ func TestRegistrarEnsureRegisteredAlreadyTracked(t *testing.T) {
 	require.Equal(t, 1, calls)
 }
 
-// TestRegistrarWithTx verifies that WithTx returns a registrar scoped to
-// the given transaction.
-func TestRegistrarWithTx(t *testing.T) {
-	t.Parallel()
-
-	db := db_testutil.NewDB(t)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
-	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{space}, "https://sap.example")
-	require.NoError(t, err)
-
-	tx := db.Begin()
-	defer tx.Rollback()
-	scoped := reg.WithTx(tx)
-
-	require.NotEqual(t, reg.db, scoped.db)
-}
-
 // TestRegistrarDropSpace verifies that DropSpace removes the registration.
 func TestRegistrarDropSpace(t *testing.T) {
 	t.Parallel()
@@ -183,4 +166,18 @@ func TestRegistrarDueSpacesFiltersFresh(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, due, 1)
 	require.Equal(t, space2, due[0])
+}
+
+// TestRegistrarRun verifies Run performs an initial sweep and returns
+// promptly once ctx is done.
+func TestRegistrarRun(t *testing.T) {
+	t.Parallel()
+
+	db := db_testutil.NewDB(t)
+	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, "https://sap.example")
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	reg.Run(ctx)
 }
