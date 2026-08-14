@@ -143,17 +143,9 @@ func (s *storeImpl) GetOrgForDID(
 		}
 		return o, true, nil
 	}
-
-	id, err := s.dir.LookupDID(ctx, did)
-	if err != nil {
-		return nil, false, err
+	if s.everyone.DID() == did {
+		return s.everyone, false, nil
 	}
-
-	svc, hasHabitat := id.Services["habitat"]
-	if hasHabitat && svc.URL == "https://"+s.pearDomain {
-		return nil, false, ErrMemberNotFound
-	}
-
 	return s.everyone, true, nil
 }
 
