@@ -2,10 +2,9 @@ package utils
 
 type Opt[T any] func(*T)
 
-func ResolveOptions[T any](opts ...Opt[T]) T {
-	var result T
+func ResolveOptions[T any](def T, opts []Opt[T]) T {
 	for _, opt := range opts {
-		opt(&result)
+		opt(&def)
 	}
-	return result
+	return def
 }
