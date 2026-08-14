@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -169,9 +170,16 @@ func TestCrawlerBackfillsSession(t *testing.T) {
 func TestCrawlerDeduplicatesConcurrentRuns(t *testing.T) {
 	t.Parallel()
 
-	calls := 0
+	// entered is closed once the first crawl is in flight; release unblocks it
+	// so the second Run is guaranteed to overlap with the first.
+	var calls atomic.Int64
+	entered := make(chan struct{})
+	release := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		calls++
+		if calls.Add(1) == 1 {
+			close(entered)
+			<-release
+		}
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListSpacesOutput{})
 	}))
 	t.Cleanup(srv.Close)
@@ -188,10 +196,12 @@ func TestCrawlerDeduplicatesConcurrentRuns(t *testing.T) {
 		defer close(done)
 		c.Run(t.Context(), "did:plc:sessiondid", "sess1")
 	}()
+	<-entered
 	c.Run(t.Context(), "did:plc:sessiondid", "sess1")
+	close(release)
 	<-done
 
-	require.Equal(t, 1, calls)
+	require.Equal(t, int64(1), calls.Load())
 }
 
 // TestCrawlerRunCompleteThenRestart verifies that a completed crawl resets the
