@@ -15,8 +15,8 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-// record is a single emitted record awaiting acknowledgement.
-type record struct {
+// outboxMessage is a single emitted outboxMessage awaiting acknowledgement.
+type outboxMessage struct {
 	ID        uint `gorm:"primaryKey;autoIncrement"`
 	URI       habitat_syntax.SpaceRecordURI
 	Value     []byte
@@ -56,7 +56,7 @@ type Store struct {
 var _ Outbox = (*Store)(nil)
 
 func NewStore(db *gorm.DB, notify *utils.PollNotifier) (*Store, error) {
-	if err := db.AutoMigrate(&record{}); err != nil {
+	if err := db.AutoMigrate(&outboxMessage{}); err != nil {
 		return nil, err
 	}
 	return &Store{db: db, notify: notify}, nil
@@ -74,7 +74,9 @@ func (s *Store) Emit(
 	uri habitat_syntax.SpaceRecordURI,
 	value []byte,
 ) error {
-	if err := s.db.WithContext(ctx).Create(&record{URI: uri, Value: value}).Error; err != nil {
+	if err := s.db.WithContext(ctx).
+		Create(&outboxMessage{URI: uri, Value: value}).
+		Error; err != nil {
 		return fmt.Errorf("emit record: %w", err)
 	}
 	s.notify.Notify()
@@ -83,7 +85,7 @@ func (s *Store) Emit(
 
 // Poll implements [Outbox].
 func (s *Store) Poll(ctx context.Context, limit int) ([]Message, error) {
-	var rows []record
+	var rows []outboxMessage
 	if err := s.db.WithContext(ctx).
 		Where("acked_at IS NULL").
 		Order("id ASC").
@@ -106,7 +108,7 @@ func (s *Store) Poll(ctx context.Context, limit int) ([]Message, error) {
 // Ack implements [Outbox].
 func (s *Store) Ack(ctx context.Context, id uint) error {
 	return s.db.WithContext(ctx).
-		Model(&record{}).
+		Model(&outboxMessage{}).
 		Where("id = ?", id).
 		Update("acked_at", time.Now()).Error
 }

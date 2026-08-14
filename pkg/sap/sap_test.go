@@ -167,7 +167,7 @@ func TestSap(t *testing.T) {
 	// 5. The crawl registers every discovered space for notifications.
 	require.Eventually(t, func() bool {
 		var count int64
-		if err := db.Table("sap_registrations").Count(&count).Error; err != nil {
+		if err := db.Table("registrations").Count(&count).Error; err != nil {
 			return false
 		}
 		return count >= 3
@@ -195,7 +195,7 @@ func TestSap(t *testing.T) {
 	// 7. Every record lands in the outbox exactly once.
 	require.Eventually(t, func() bool {
 		var count int64
-		if err := db.Table("sap_outbox").Count(&count).Error; err != nil {
+		if err := db.Table("outbox_messages").Count(&count).Error; err != nil {
 			return false
 		}
 		t.Logf("Current outbox count: %d/%d", count, expectedCount)
@@ -206,7 +206,7 @@ func TestSap(t *testing.T) {
 		URI string
 	}
 	var outboxRecords []outboxRow
-	require.NoError(t, db.Table("sap_outbox").Find(&outboxRecords).Error)
+	require.NoError(t, db.Table("outbox_messages").Find(&outboxRecords).Error)
 	for _, rec := range outboxRecords {
 		require.Contains(t, createdURIs, rec.URI)
 	}
@@ -214,7 +214,7 @@ func TestSap(t *testing.T) {
 	// 8. All 5 spaces are registered for notifications, and every tracked repo
 	// settled active with a verified hash.
 	var regCount int64
-	require.NoError(t, db.Table("sap_registrations").Count(&regCount).Error)
+	require.NoError(t, db.Table("registrations").Count(&regCount).Error)
 	require.Equal(t, int64(5), regCount)
 
 	type repoRow struct {
@@ -223,7 +223,7 @@ func TestSap(t *testing.T) {
 		Hash  []byte
 	}
 	var repos []repoRow
-	require.NoError(t, db.Table("sap_repos").Find(&repos).Error)
+	require.NoError(t, db.Table("repos").Find(&repos).Error)
 	require.Len(t, repos, 5)
 	for _, r := range repos {
 		require.Equal(t, "active", r.State, "repo in space %s not active", r.Space)
