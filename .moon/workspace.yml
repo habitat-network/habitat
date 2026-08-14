@@ -18,5 +18,5 @@ vcs:
   hooks:
     pre-commit:
     - moon :format --affected --status=staged --no-bail
-  defaultBranch: master
+  defaultBranch: main
   client: git

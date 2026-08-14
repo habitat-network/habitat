@@ -142,4 +142,4 @@ Detailed, automatically-enforced conventions live in `.claude/rules/`: `go-conve
 
 **General**
 - Monorepo tasks defined in `.moon/workspace.yml` and per-project `moon.yml`
-- CI runs `moon ci` on push to master and on PRs
+- CI runs `moon ci` on push to main and on PRs
