@@ -6,7 +6,7 @@ concurrency:
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
   release:
     types: [created]
