@@ -45,7 +45,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
-	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
@@ -390,7 +389,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	orgServer, err := org_server.NewServer(
 		orgStore,
 		validator,
-		pear,
 		domain,
 		hiveDir,
 		instanceAdminStore,
@@ -415,10 +413,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		validator,
 		orgStore,
 	)
-	p2pServer, err := p2p.NewServer(startupCtx, serviceAuth, pear, meter)
-	if err != nil {
-		return fmt.Errorf("setup p2p server: %w", err)
-	}
+
 	pdsForwarding := forwarding.NewPDSForwarding(
 		pdsCredStore,
 		validator,
@@ -560,8 +555,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	mux.PathPrefix("/ui/").Handler(uiHandler)
 
-	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
-
 	startupSpan.End()
 	slog.SetDefault(log.New(log.WithStdout(cmd.Bool(fDebug))))
 
@@ -588,9 +581,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	eg.Go(func() error {
 		<-egCtx.Done()
 		slog.InfoContext(egCtx, "shutting down p2p server")
-		if err := p2pServer.Close(); err != nil {
-			slog.ErrorContext(egCtx, "error closing p2p host", "err", err)
-		}
 		slog.InfoContext(egCtx, "shutting down server")
 		if err := s.Shutdown(context.Background()); err != nil {
 			slog.ErrorContext(egCtx, "error shutting down http server", "err", err)

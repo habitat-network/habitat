@@ -18,7 +18,6 @@ import (
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/instance"
 	orgpkg "github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -36,7 +35,6 @@ type Server struct {
 func NewServer(
 	store orgpkg.Store,
 	validator authn.RequestValidator,
-	p pear.Pear,
 	domain string,
 	dir identity.Directory,
 	instancePolicy instance.PolicyStore,
@@ -44,7 +42,6 @@ func NewServer(
 	return &Server{
 		store:          store,
 		validator:      validator,
-		pear:           p,
 		domain:         domain,
 		decoder:        schema.NewDecoder(),
 		dir:            dir,
