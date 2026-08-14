@@ -24,11 +24,6 @@ type record struct {
 	AckedAt   *time.Time
 }
 
-// AutoMigrate creates the outbox table.
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&record{})
-}
-
 // Message is a single event delivered from the outbox. Ack must be called with
 // the message's ID once it has been durably processed; until then it is
 // redelivered by Poll.
@@ -60,8 +55,11 @@ type Store struct {
 
 var _ Outbox = (*Store)(nil)
 
-func NewStore(db *gorm.DB, notify *utils.PollNotifier) *Store {
-	return &Store{db: db, notify: notify}
+func NewStore(db *gorm.DB, notify *utils.PollNotifier) (*Store, error) {
+	if err := db.AutoMigrate(&record{}); err != nil {
+		return nil, err
+	}
+	return &Store{db: db, notify: notify}, nil
 }
 
 // WithTx returns a Store scoped to the given transaction, so emits can join a

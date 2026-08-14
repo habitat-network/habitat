@@ -65,13 +65,13 @@ func (e *memEmitter) InTx(*gorm.DB) Emitter { return e }
 func newTestEngine(t *testing.T, hostURL string) (*Engine, *memEmitter, *gorm.DB) {
 	t.Helper()
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	base, err := url.Parse(hostURL)
 	require.NoError(t, err)
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	emitter := &memEmitter{}
-	e := New(db, fakeClients{base: base}, emitter, NewVerifier(nil), 1, m)
+	e, err := New(db, fakeClients{base: base}, emitter, NewVerifier(nil), 1, m)
+	require.NoError(t, err)
 	e.jobs = make(chan job, 100)
 	return e, emitter, db
 }
@@ -190,7 +190,8 @@ func TestEngineNewDefaults(t *testing.T) {
 	db := db_testutil.NewDB(t)
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
-	e := New(db, fakeClients{base: &url.URL{}}, &memEmitter{}, NewVerifier(nil), 0, m)
+	e, err := New(db, fakeClients{base: &url.URL{}}, &memEmitter{}, NewVerifier(nil), 0, m)
+	require.NoError(t, err)
 	require.Equal(t, 5, e.parallelism)
 }
 
@@ -200,10 +201,10 @@ func TestEngineWithTx(t *testing.T) {
 	t.Parallel()
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
-	orig := New(db, fakeClients{base: &url.URL{}}, &memEmitter{}, NewVerifier(nil), 1, m)
+	orig, err := New(db, fakeClients{base: &url.URL{}}, &memEmitter{}, NewVerifier(nil), 1, m)
+	require.NoError(t, err)
 
 	tx := db.Begin()
 	defer tx.Rollback()
@@ -433,11 +434,11 @@ func TestEngineRecoverRepoClientError(t *testing.T) {
 	t.Parallel()
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	failClient := &failClients{}
-	e := New(db, failClient, &memEmitter{}, NewVerifier(nil), 1, m)
+	e, err := New(db, failClient, &memEmitter{}, NewVerifier(nil), 1, m)
+	require.NoError(t, err)
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
@@ -466,10 +467,10 @@ func TestEngineRecoverRepoNonOK(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
-	e := New(db, fakeClients{base: base}, &memEmitter{}, NewVerifier(nil), 1, m)
+	e, err := New(db, fakeClients{base: base}, &memEmitter{}, NewVerifier(nil), 1, m)
+	require.NoError(t, err)
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
@@ -498,10 +499,10 @@ func TestEngineRecoverRepoInvalidCAR(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
-	e := New(db, fakeClients{base: base}, &memEmitter{}, NewVerifier(nil), 1, m)
+	e, err := New(db, fakeClients{base: base}, &memEmitter{}, NewVerifier(nil), 1, m)
+	require.NoError(t, err)
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
@@ -849,11 +850,11 @@ func TestEngineRunJobDispatchesToRecover(t *testing.T) {
 	t.Parallel()
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	failClient := &failClients{}
-	e := New(db, failClient, &memEmitter{}, NewVerifier(nil), 1, m)
+	e, err := New(db, failClient, &memEmitter{}, NewVerifier(nil), 1, m)
+	require.NoError(t, err)
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
@@ -935,14 +936,14 @@ func TestEngineRecoverRepoVerifyError(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	// Use a verifier with a mock dir that returns LookupDID errors, causing
 	// a transient error (not ErrInvalidCommit) during verification.
 	mockD := identity.NewMockDirectory()
 	v := NewVerifier(mockD)
-	e := New(db, fakeClients{base: base}, &memEmitter{}, v, 1, m)
+	e, err := New(db, fakeClients{base: base}, &memEmitter{}, v, 1, m)
+	require.NoError(t, err)
 
 	require.NoError(t, e.Track(t.Context(), space, repoDID))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
@@ -973,12 +974,12 @@ func TestEngineRecoverRepoSuccess(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	// nil dir makes Verify use hash-only mode: no signer resolution needed.
 	v := NewVerifier(nil)
-	e := New(db, fakeClients{base: base}, &memEmitter{}, v, 1, m)
+	e, err := New(db, fakeClients{base: base}, &memEmitter{}, v, 1, m)
+	require.NoError(t, err)
 
 	require.NoError(t, e.Track(t.Context(), space, repoDID))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").

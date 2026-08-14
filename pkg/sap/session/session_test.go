@@ -70,7 +70,6 @@ func newOAuthApp(t *testing.T, db *gorm.DB) *oauth.ClientApp {
 func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	t.Parallel()
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 
 	app := newOAuthApp(t, db)
 	require.NoError(t, app.Store.SaveSession(t.Context(), oauth.ClientSessionData{
@@ -81,7 +80,8 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 
-	s := NewStore(db, app)
+	s, err := NewStore(db, app)
+	require.NoError(t, err)
 	require.NoError(t, s.Add(t.Context(), "did:plc:alice", "sess1"))
 
 	sessions, err := s.List(t.Context())
@@ -141,7 +141,6 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	app := newOAuthApp(t, db)
 	did := syntax.DID("did:web:member.example")
 	require.NoError(t, app.Store.SaveSession(t.Context(), oauth.ClientSessionData{
@@ -156,7 +155,8 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost for the
 	// case where they differ.
 	dir := dirWithSpaceHost(did, srv.URL)
-	store := NewStore(db, app)
+	store, err := NewStore(db, app)
+	require.NoError(t, err)
 	mgr := credential.NewManager(dir, http.DefaultClient, store)
 
 	require.NoError(t, store.Add(t.Context(), did, "sess1"))
@@ -215,7 +215,6 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 	t.Cleanup(ownerSrv.Close)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	app := newOAuthApp(t, db)
 	member := syntax.DID("did:web:member.example")
 	owner := syntax.DID("did:web:owner.example")
@@ -227,7 +226,8 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 	dir := dirWithSpaceHost(owner, ownerSrv.URL)
-	store := NewStore(db, app)
+	store, err := NewStore(db, app)
+	require.NoError(t, err)
 	mgr := credential.NewManager(dir, http.DefaultClient, store)
 
 	require.NoError(t, store.Add(t.Context(), member, "sess1"))

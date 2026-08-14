@@ -47,11 +47,6 @@ type crawl struct {
 	UpdatedAt time.Time
 }
 
-// AutoMigrate creates the crawl tables.
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&crawl{})
-}
-
 // Access records which spaces a session can reach. Satisfied by session.Store.
 type Access interface {
 	RecordSpaceAccess(
@@ -124,6 +119,9 @@ func New(
 	meter metric.Meter,
 	tracer trace.Tracer,
 ) (*Crawler, error) {
+	if err := db.AutoMigrate(&crawl{}); err != nil {
+		return nil, err
+	}
 	if meter == nil {
 		meter = metricnoop.NewMeterProvider().Meter("sap")
 	}

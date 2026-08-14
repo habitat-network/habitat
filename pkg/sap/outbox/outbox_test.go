@@ -13,8 +13,8 @@ import (
 func TestStoreEmitPollAck(t *testing.T) {
 	t.Parallel()
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
-	s := NewStore(db, utils.NewPollNotifier())
+	s, err := NewStore(db, utils.NewPollNotifier())
+	require.NoError(t, err)
 
 	uri := habitat_syntax.SpaceRecordURI(
 		"ats://did:plc:o/network.habitat.space/s1/did:plc:a/network.habitat.test/k1",

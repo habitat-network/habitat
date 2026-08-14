@@ -57,11 +57,6 @@ type repo struct {
 	RetryAfter int64 `gorm:"not null;default:0;index"`
 }
 
-// AutoMigrate creates the syncer tables.
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&repo{}, &repoRecord{})
-}
-
 // Clients supplies an atproto API client authorized to read the space (a
 // space credential). Satisfied by credential.Manager.
 type Clients interface {
@@ -106,7 +101,10 @@ func New(
 	verifier *Verifier,
 	parallelism int,
 	m *metrics,
-) *Engine {
+) (*Engine, error) {
+	if err := db.AutoMigrate(&repo{}, &repoRecord{}); err != nil {
+		return nil, err
+	}
 	if parallelism <= 0 {
 		parallelism = 5
 	}
@@ -119,7 +117,7 @@ func New(
 		notif:       utils.NewPollNotifier(),
 		jobs:        make(chan job),
 		metrics:     m,
-	}
+	}, nil
 }
 
 // WithTx returns an Engine whose database writes join tx. Scheduling state

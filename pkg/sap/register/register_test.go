@@ -54,9 +54,9 @@ func TestRegistrarRegistersDueSpaces(t *testing.T) {
 	require.NoError(t, err)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
-	reg := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+	require.NoError(t, err)
 
 	reg.sweep(t.Context())
 	require.Equal(t, 1, calls)
@@ -86,9 +86,9 @@ func TestRegistrarEnsureRegisteredAlreadyTracked(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
-	reg := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+	require.NoError(t, err)
 
 	require.NoError(t, reg.EnsureRegistered(t.Context(), space))
 	require.Equal(t, 1, calls)
@@ -104,9 +104,9 @@ func TestRegistrarWithTx(t *testing.T) {
 	t.Parallel()
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
-	reg := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{space}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{space}, "https://sap.example")
+	require.NoError(t, err)
 
 	tx := db.Begin()
 	defer tx.Rollback()
@@ -128,9 +128,9 @@ func TestRegistrarDropSpace(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
-	reg := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+	require.NoError(t, err)
 
 	require.NoError(t, reg.Register(t.Context(), space))
 
@@ -149,8 +149,8 @@ func TestRegistrarDueSpacesEmpty(t *testing.T) {
 	t.Parallel()
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
-	reg := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, "https://sap.example")
+	require.NoError(t, err)
 
 	due, err := reg.dueSpaces(t.Context())
 	require.NoError(t, err)
@@ -171,10 +171,10 @@ func TestRegistrarDueSpacesFiltersFresh(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	space1 := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
 	space2 := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s2")
-	reg := New(db, fakeClients{base: base}, fakeSpaces{space1, space2}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space1, space2}, "https://sap.example")
+	require.NoError(t, err)
 
 	// Register only space1.
 	require.NoError(t, reg.Register(t.Context(), space1))

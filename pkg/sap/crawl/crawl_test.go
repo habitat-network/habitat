@@ -145,7 +145,6 @@ func TestCrawlerBackfillsSession(t *testing.T) {
 	require.NoError(t, err)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:sessiondid", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -175,7 +174,6 @@ func TestCrawlerDeduplicatesConcurrentRuns(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:sessiondid", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -210,7 +208,6 @@ func TestCrawlerRunCompleteThenRestart(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -261,7 +258,6 @@ func TestCrawlerEnumerateReposError(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -294,7 +290,6 @@ func TestCrawlerNotifyRegistration(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	require.NoError(t, AutoMigrate(db))
 	rec := &recorder{}
 	nr := &fakeNotifyRegistrar{}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")

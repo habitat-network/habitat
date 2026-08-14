@@ -85,36 +85,30 @@ type Sap struct {
 }
 
 func New(config Config) (*Sap, error) {
-	for _, migrate := range []func(*gorm.DB) error{
-		session.AutoMigrate,
-		crawl.AutoMigrate,
-		syncer.AutoMigrate,
-		register.AutoMigrate,
-		outbox.AutoMigrate,
-	} {
-		if err := migrate(config.DB); err != nil {
-			return nil, fmt.Errorf("migrate database: %w", err)
-		}
-	}
-
 	tracer := config.Tracer
 	if tracer == nil {
 		tracer = tracenoop.NewTracerProvider().Tracer("sap")
 	}
 
-	sessions := session.NewStore(config.DB, config.OAuthClient)
+	sessions, err := session.NewStore(config.DB, config.OAuthClient)
+	if err != nil {
+		return nil, fmt.Errorf("create session store: %w", err)
+	}
 	// credentials mints and caches space credentials, one per space regardless
 	// of which session was used to obtain it — a space credential authorizes
 	// the space, not the member who fetched it. It asks sessions (which
 	// implements credential.Delegator) for a delegation token on demand.
 	credentials := credential.NewManager(config.Directory, &http.Client{}, sessions)
-	ob := outbox.NewStore(config.DB, utils.NewPollNotifier())
+	ob, err := outbox.NewStore(config.DB, utils.NewPollNotifier())
+	if err != nil {
+		return nil, fmt.Errorf("create outbox store: %w", err)
+	}
 
 	syncMetrics, err := syncer.NewMetrics(config.Meter, config.Tracer)
 	if err != nil {
 		return nil, fmt.Errorf("create syncer metrics: %w", err)
 	}
-	engine := syncer.New(
+	engine, err := syncer.New(
 		config.DB,
 		credentials,
 		outboxEmitter{store: ob},
@@ -122,13 +116,19 @@ func New(config Config) (*Sap, error) {
 		config.Parallelism,
 		syncMetrics,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("create syncer: %w", err)
+	}
 
 	var registrar *register.Registrar
 	// crawl.Notify must stay a typed-nil-free interface value when
 	// registration is disabled.
 	var crawlNotify crawl.Notify
 	if config.Endpoint != "" {
-		registrar = register.New(config.DB, credentials, sessions, config.Endpoint)
+		registrar, err = register.New(config.DB, credentials, sessions, config.Endpoint)
+		if err != nil {
+			return nil, fmt.Errorf("create registrar: %w", err)
+		}
 		crawlNotify = registrar
 	}
 

@@ -59,19 +59,17 @@ type spaceAccess struct {
 	SessionID string
 }
 
-// AutoMigrate creates the session tables.
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&session{}, &spaceAccess{})
-}
-
 // Store tracks sessions and space access.
 type Store struct {
 	db          *gorm.DB
 	oauthClient *oauth.ClientApp
 }
 
-func NewStore(db *gorm.DB, oauthClient *oauth.ClientApp) *Store {
-	return &Store{db: db, oauthClient: oauthClient}
+func NewStore(db *gorm.DB, oauthClient *oauth.ClientApp) (*Store, error) {
+	if err := db.AutoMigrate(&session{}, &spaceAccess{}); err != nil {
+		return nil, err
+	}
+	return &Store{db: db, oauthClient: oauthClient}, nil
 }
 
 // WithTx returns a Store scoped to the given transaction.

@@ -38,11 +38,6 @@ type registration struct {
 	UpdatedAt time.Time
 }
 
-// AutoMigrate creates the registration tables.
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&registration{})
-}
-
 // Clients supplies an atproto API client for a space. Satisfied by
 // credential.Manager.
 type Clients interface {
@@ -68,8 +63,11 @@ type Registrar struct {
 	endpoint string // sap's public base URL, registered as the notify endpoint
 }
 
-func New(db *gorm.DB, clients Clients, spaces Spaces, endpoint string) *Registrar {
-	return &Registrar{db: db, clients: clients, spaces: spaces, endpoint: endpoint}
+func New(db *gorm.DB, clients Clients, spaces Spaces, endpoint string) (*Registrar, error) {
+	if err := db.AutoMigrate(&registration{}); err != nil {
+		return nil, err
+	}
+	return &Registrar{db: db, clients: clients, spaces: spaces, endpoint: endpoint}, nil
 }
 
 // WithTx returns a Registrar scoped to the given transaction.
