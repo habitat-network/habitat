@@ -16,7 +16,9 @@ func TestParseBytesCoversLexiconJSON(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, b)
 
-	b, err = ParseBytes(map[string]any{"$bytes": base64.RawStdEncoding.EncodeToString([]byte{1, 2})})
+	b, err = ParseBytes(map[string]any{
+		"$bytes": base64.RawStdEncoding.EncodeToString([]byte{1, 2}),
+	})
 	require.NoError(t, err)
 	require.Equal(t, []byte{1, 2}, b)
 
