@@ -337,7 +337,7 @@ func TestDecodeBytesFieldCoversLexiconJSON(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, b)
 
-	b, err = decodeBytesField(atdata.Bytes{1, 2})
+	b, err = decodeBytesField(map[string]any{"$bytes": base64.RawStdEncoding.EncodeToString([]byte{1, 2})})
 	require.NoError(t, err)
 	require.Equal(t, []byte{1, 2}, b)
 
@@ -350,13 +350,16 @@ func TestDecodeCommitFromLexicon(t *testing.T) {
 	t.Parallel()
 
 	hashBytes := []byte{0xaa, 0xbb}
+	bytesField := func(b []byte) any {
+		return map[string]any{"$bytes": base64.RawStdEncoding.EncodeToString(b)}
+	}
 	lexicon := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  "3kzl6abcde02k",
-		Hash: atdata.Bytes(hashBytes),
-		Ikm:  atdata.Bytes{0x01},
-		Mac:  atdata.Bytes{0x02},
-		Sig:  atdata.Bytes{0x03},
+		Hash: bytesField(hashBytes),
+		Ikm:  bytesField([]byte{0x01}),
+		Mac:  bytesField([]byte{0x02}),
+		Sig:  bytesField([]byte{0x03}),
 	}
 	c, err := decodeCommit(lexicon)
 	require.NoError(t, err)

@@ -150,11 +150,15 @@ func decodeBytesField(v any) ([]byte, error) {
 	if v == nil {
 		return nil, nil
 	}
-	values, ok := v.(map[string]string)
+	values, ok := v.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("bytes field is not a map[string]string")
+		return nil, fmt.Errorf("bytes field is not a map[string]any")
 	}
-	b, err := base64.RawStdEncoding.DecodeString(values["$bytes"])
+	s, ok := values["$bytes"].(string)
+	if !ok {
+		return nil, fmt.Errorf("bytes field $bytes is not a string")
+	}
+	b, err := base64.RawStdEncoding.DecodeString(s)
 	if err != nil {
 		return nil, fmt.Errorf("decode bytes field: %w", err)
 	}
