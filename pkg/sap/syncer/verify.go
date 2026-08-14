@@ -3,7 +3,6 @@ package syncer
 import (
 	"context"
 	"crypto/hmac"
-	"encoding/base64"
 	"fmt"
 	"net/url"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // Verifier authenticates a repo's signed commit against a locally recomputed
@@ -117,19 +117,19 @@ func (v *Verifier) signer(
 // {"$bytes": "<base64>"} objects per the atproto lexicon spec) to its
 // in-memory form.
 func decodeCommit(c habitat.NetworkHabitatSpaceDefsSignedCommit) (spacecommit.SignedCommit, error) {
-	hash, err := decodeBytesField(c.Hash)
+	hash, err := utils.ParseBytes(c.Hash)
 	if err != nil {
 		return spacecommit.SignedCommit{}, fmt.Errorf("decode commit hash: %w", err)
 	}
-	ikm, err := decodeBytesField(c.Ikm)
+	ikm, err := utils.ParseBytes(c.Ikm)
 	if err != nil {
 		return spacecommit.SignedCommit{}, fmt.Errorf("decode commit ikm: %w", err)
 	}
-	mac, err := decodeBytesField(c.Mac)
+	mac, err := utils.ParseBytes(c.Mac)
 	if err != nil {
 		return spacecommit.SignedCommit{}, fmt.Errorf("decode commit mac: %w", err)
 	}
-	sig, err := decodeBytesField(c.Sig)
+	sig, err := utils.ParseBytes(c.Sig)
 	if err != nil {
 		return spacecommit.SignedCommit{}, fmt.Errorf("decode commit sig: %w", err)
 	}
@@ -141,26 +141,4 @@ func decodeCommit(c habitat.NetworkHabitatSpaceDefsSignedCommit) (spacecommit.Si
 		Sig:  sig,
 		Rev:  c.Rev,
 	}, nil
-}
-
-// decodeBytesField decodes a lexicon bytes field, which JSON-decodes into a
-// map[string]any of the form {"$bytes": "<base64>"}, into raw bytes. Absent
-// fields decode to nil.
-func decodeBytesField(v any) ([]byte, error) {
-	if v == nil {
-		return nil, nil
-	}
-	values, ok := v.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("bytes field is not a map[string]any")
-	}
-	s, ok := values["$bytes"].(string)
-	if !ok {
-		return nil, fmt.Errorf("bytes field $bytes is not a string")
-	}
-	b, err := base64.RawStdEncoding.DecodeString(s)
-	if err != nil {
-		return nil, fmt.Errorf("decode bytes field: %w", err)
-	}
-	return []byte(b), nil
 }

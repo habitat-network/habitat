@@ -328,23 +328,6 @@ func TestVerifierNilPointer(t *testing.T) {
 	require.NoError(t, v.Verify(t.Context(), space, "did:plc:alice", commit, &lt))
 }
 
-// TestDecodeBytesFieldCoversLexiconJSON covers the decodeBytesField and
-// decodeCommit paths used by syncRepo.
-func TestDecodeBytesFieldCoversLexiconJSON(t *testing.T) {
-	t.Parallel()
-
-	b, err := decodeBytesField(nil)
-	require.NoError(t, err)
-	require.Nil(t, b)
-
-	b, err = decodeBytesField(map[string]any{"$bytes": base64.RawStdEncoding.EncodeToString([]byte{1, 2})})
-	require.NoError(t, err)
-	require.Equal(t, []byte{1, 2}, b)
-
-	_, err = decodeBytesField(42)
-	require.Error(t, err)
-}
-
 // TestDecodeCommitFromLexicon covers decodeCommit with a full signed commit.
 func TestDecodeCommitFromLexicon(t *testing.T) {
 	t.Parallel()
