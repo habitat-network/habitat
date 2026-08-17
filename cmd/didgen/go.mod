@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca
-	github.com/urfave/cli/v3 v3.10.1
+	github.com/urfave/cli/v3 v3.11.0
 )
 
 require (
