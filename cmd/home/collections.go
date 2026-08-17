@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -23,22 +22,30 @@ func NewCollectionService(store *Store, oauthApp *oauth.ClientApp) *CollectionSe
 	return &CollectionService{store: store, oauthApp: oauthApp}
 }
 
-// readableSpaces returns the spaces the caller is allowed to read, resolved
-// authoritatively by pear's FGA. Records outside this set are never surfaced.
+// readableSpaces returns the spaces the caller is allowed to read across
+// every org home is registered for, resolved authoritatively by each org's
+// own FGA. Records outside this set are never surfaced.
 func (c *CollectionService) readableSpaces(
 	ctx context.Context,
 	caller syntax.DID,
 ) ([]string, error) {
-	orgDID, sessionID, err := c.store.OrgSession(ctx)
+	orgDIDs, err := c.store.OrgDIDs(ctx)
 	if err != nil {
 		return nil, err
 	}
-	session, err := c.oauthApp.ResumeSession(ctx, orgDID, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("build org client: %w", err)
+	var spaces []string
+	for _, orgDID := range orgDIDs {
+		pear, err := resumeOrgSession(ctx, c.oauthApp, c.store, orgDID)
+		if err != nil {
+			return nil, err
+		}
+		orgSpaces, err := pear.listObjects(ctx, caller, "reader")
+		if err != nil {
+			return nil, err
+		}
+		spaces = append(spaces, orgSpaces...)
 	}
-	pear := &pearClient{session: session}
-	return pear.listObjects(ctx, caller, "reader")
+	return spaces, nil
 }
 
 // ListCollections lists the collections the caller can see with a count of the

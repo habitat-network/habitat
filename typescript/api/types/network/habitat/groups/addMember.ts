@@ -20,7 +20,7 @@ export type QueryParams = {}
 export interface InputSchema {
   /** URI of the group-space to add the member to. */
   group: string
-  /** DID of the user to add as a member. Mutually exclusive with subjectGroup. */
+  /** DID or handle of the user to add as a member; resolved to a DID server-side. Mutually exclusive with subjectGroup. */
   subjectDid?: string
   /** URI of another group-space whose members this group should inherit. Mutually exclusive with subjectDid. */
   subjectGroup?: string

@@ -1397,8 +1397,8 @@
                   },
                   "subjectDid": {
                     "type": "string",
-                    "description": "DID of the user to add as a member. Mutually exclusive with subjectGroup.",
-                    "format": "did"
+                    "description": "DID or handle of the user to add as a member; resolved to a DID server-side. Mutually exclusive with subjectGroup.",
+                    "format": "at-identifier"
                   },
                   "subjectGroup": {
                     "type": "string",
@@ -3578,6 +3578,126 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.requestCrawl": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.requestCrawl",
+        "description": "Registers an org with the home server so it starts syncing (crawling) that org's group spaces, authenticating the org credential via the JWT Bearer grant if it hasn't already. Idempotent: if the org is already registered, this is a no-op that reports alreadyRegistered. Callers should await an 'authenticated' or 'alreadyRegistered' status before making other network.habitat.groups.* or network.habitat.collections.* calls for this org.",
+        "operationId": "network.habitat.org.requestCrawl",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "orgDid"
+                ],
+                "properties": {
+                  "orgDid": {
+                    "type": "string",
+                    "description": "DID of the org to start syncing.",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "authenticated: the org was newly authenticated via the JWT Bearer grant and crawling has started. alreadyRegistered: the org was already registered; no action taken. authError: authenticating the org credential failed (see message).",
+                      "enum": [
+                        "authenticated",
+                        "alreadyRegistered",
+                        "authError"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error detail, set when status is authError."
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",

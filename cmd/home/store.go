@@ -282,9 +282,42 @@ func (s *Store) SaveOrgSession(ctx context.Context, did syntax.DID, sessionID st
 	}).Error
 }
 
-// OrgSession returns the single managed org's DID and session id. The home
-// server manages exactly one org, so it returns the most recently saved one.
-func (s *Store) OrgSession(ctx context.Context) (syntax.DID, string, error) {
+// OrgDIDs returns every org currently registered (via
+// network.habitat.org.requestCrawl).
+func (s *Store) OrgDIDs(ctx context.Context) ([]syntax.DID, error) {
+	var rows []orgSessionRow
+	if err := s.db.WithContext(ctx).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	dids := make([]syntax.DID, len(rows))
+	for i, row := range rows {
+		dids[i] = syntax.DID(row.DID)
+	}
+	return dids, nil
+}
+
+// OrgSessionID returns the session id saved for orgDID specifically. Home can
+// be registered (via network.habitat.org.requestCrawl) for several orgs at
+// once, each with its own credential, so callers with a target space must
+// look up by that space's owning org rather than any single "current" org.
+func (s *Store) OrgSessionID(ctx context.Context, orgDID syntax.DID) (string, error) {
+	var row orgSessionRow
+	err := s.db.WithContext(ctx).Where("did = ?", orgDID.String()).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", ErrNotAuthorized
+	}
+	if err != nil {
+		return "", err
+	}
+	return row.SessionID, nil
+}
+
+// MostRecentOrgSession returns the most recently registered org's DID and
+// session id. Used only where there is no target space to derive the owning
+// org from (e.g. creating a brand new group) — with more than one org
+// registered this is ambiguous, so prefer OrgSessionID wherever a space is
+// available.
+func (s *Store) MostRecentOrgSession(ctx context.Context) (syntax.DID, string, error) {
 	var row orgSessionRow
 	err := s.db.WithContext(ctx).Order("updated_at DESC").First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -299,5 +332,5 @@ func (s *Store) OrgSession(ctx context.Context) (syntax.DID, string, error) {
 // ErrNotAuthorized indicates the home server has not yet completed the org
 // OAuth bootstrap, so it holds no org credential.
 var ErrNotAuthorized = errors.New(
-	"home server is not authorized for any org; complete /oauth/login",
+	"home server is not authorized for this org; complete network.habitat.org.requestCrawl",
 )

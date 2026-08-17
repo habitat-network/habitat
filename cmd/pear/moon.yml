@@ -21,6 +21,10 @@ tasks:
       HABITAT_UI_DEV_PROXY: 'http://localhost:6010'
       HABITAT_ADMIN_PASSWORD: 'password'
       HABITAT_SPACE_SIGNING_KEY: 'z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd'
+      # Lets the home server bootstrap its org session via the JWT Bearer
+      # grant (RFC 7523) on startup, instead of the browser-based
+      # /oauth/login flow.
+      HABITAT_BUILTIN_APP: 'https://home.local.habitat.network/client-metadata.json'
     deps:
     - root:caddy
     - ngrok

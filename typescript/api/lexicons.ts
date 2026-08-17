@@ -1556,9 +1556,9 @@ export const schemaDict = {
               },
               subjectDid: {
                 type: 'string',
-                format: 'did',
+                format: 'at-identifier',
                 description:
-                  'DID of the user to add as a member. Mutually exclusive with subjectGroup.',
+                  'DID or handle of the user to add as a member; resolved to a DID server-side. Mutually exclusive with subjectGroup.',
               },
               subjectGroup: {
                 type: 'string',
@@ -2519,6 +2519,54 @@ export const schemaDict = {
                   format: 'did',
                 },
                 description: 'The DIDs of the members to remove.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgRequestCrawl: {
+    lexicon: 1,
+    id: 'network.habitat.org.requestCrawl',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Registers an org with the home server so it starts syncing (crawling) that org's group spaces, authenticating the org credential via the JWT Bearer grant if it hasn't already. Idempotent: if the org is already registered, this is a no-op that reports alreadyRegistered. Callers should await an 'authenticated' or 'alreadyRegistered' status before making other network.habitat.groups.* or network.habitat.collections.* calls for this org.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['orgDid'],
+            properties: {
+              orgDid: {
+                type: 'string',
+                format: 'did',
+                description: 'DID of the org to start syncing.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['status'],
+            properties: {
+              status: {
+                type: 'string',
+                knownValues: [
+                  'authenticated',
+                  'alreadyRegistered',
+                  'authError',
+                ],
+                description:
+                  'authenticated: the org was newly authenticated via the JWT Bearer grant and crawling has started. alreadyRegistered: the org was already registered; no action taken. authError: authenticating the org credential failed (see message).',
+              },
+              message: {
+                type: 'string',
+                description: 'Error detail, set when status is authError.',
               },
             },
           },
@@ -5184,6 +5232,7 @@ export const ids = {
   NetworkHabitatOrgMintMemberIdentity: 'network.habitat.org.mintMemberIdentity',
   NetworkHabitatOrgRemoveAdmin: 'network.habitat.org.removeAdmin',
   NetworkHabitatOrgRemoveMembers: 'network.habitat.org.removeMembers',
+  NetworkHabitatOrgRequestCrawl: 'network.habitat.org.requestCrawl',
   NetworkHabitatPermissionsAddPermission:
     'network.habitat.permissions.addPermission',
   NetworkHabitatPermissionsListPermissions:

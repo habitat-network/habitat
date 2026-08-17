@@ -467,6 +467,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			HabitatKey(hostPublicKey.Multibase()).
 			Habitat("https://"+domain).
 			ATProtoSpaceHost("https://"+domain).
+			ATProtoPDS("https://"+domain).
 			Build(),
 	))
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {

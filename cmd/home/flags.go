@@ -3,12 +3,12 @@ package main
 import "github.com/urfave/cli/v3"
 
 var (
-	fDB        = "db"
-	fPort      = "port"
-	fDomain    = "domain"
-	fSecret    = "secret"
-	fOrgHandle = "org-handle"
-	fLogLevel  = "log-level"
+	fDB       = "db"
+	fPort     = "port"
+	fDomain   = "domain"
+	fSecret   = "secret"
+	fOrg      = "org"
+	fLogLevel = "log-level"
 )
 
 func getFlags() []cli.Flag {
@@ -38,10 +38,13 @@ func getFlags() []cli.Flag {
 			Sources: cli.EnvVars("HOME_SECRET"),
 		},
 		&cli.StringFlag{
-			Name:    fOrgHandle,
-			Usage:   "Handle of the org this home server manages groups for",
-			Value:   "acmecorp.pear.local.habitat.network",
-			Sources: cli.EnvVars("HOME_ORG_HANDLE"),
+			Name: fOrg,
+			Usage: "AT identifier (DID or handle) of the single org this home " +
+				"server manages groups for. Used both for the browser-based " +
+				"/oauth/login bootstrap and, preferentially, to self-bootstrap " +
+				"an org session via the JWT Bearer grant on startup",
+			Value:   "did:web:pear.local.habitat.network",
+			Sources: cli.EnvVars("HOME_ORG"),
 		},
 		&cli.StringFlag{
 			Name:    fLogLevel,

@@ -20,8 +20,8 @@
                         },
                         "subjectDid": {
                             "type": "string",
-                            "format": "did",
-                            "description": "DID of the user to add as a member. Mutually exclusive with subjectGroup."
+                            "format": "at-identifier",
+                            "description": "DID or handle of the user to add as a member; resolved to a DID server-side. Mutually exclusive with subjectGroup."
                         },
                         "subjectGroup": {
                             "type": "string",

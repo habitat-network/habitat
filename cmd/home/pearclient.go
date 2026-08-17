@@ -1,19 +1,15 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 )
 
 // GroupSpaceType is the space type every group is created under. The
@@ -26,87 +22,88 @@ const (
 )
 
 // pearClient wraps the network.habitat.* XRPC endpoints, calling them through
-// an org-credentialed http.Client (produced by oauth_client). The client
-// rewrites relative paths onto the org's pear host, so requests use "/xrpc/..."
-// paths.
+// an org-credentialed atclient.APIClient (produced by
+// oauth.ClientSession.APIClient, which resolves requests against the org's
+// PDS host and handles DPoP/refresh via the session it wraps).
 type pearClient struct {
-	session *oauth.ClientSession
+	*atclient.APIClient
 }
 
-func (p *pearClient) post(ctx context.Context, nsid syntax.NSID, input any, out any) error {
-	body, err := json.Marshal(input)
+// resumeOrgSession builds a pear client authenticated as orgDID. orgDID must
+// already be registered (via network.habitat.org.requestCrawl); callers that
+// have a target space should derive it from habitat_syntax.SpaceURI.SpaceOwner
+// rather than guessing, since home can be registered for several orgs at
+// once and each org's credential can only see its own spaces.
+//
+// A session bootstrapped via the JWT Bearer grant (see main.go/OrgService)
+// carries no refresh token (RFC 7523 issues an access token only), so once it
+// expires oauth.ClientSession's normal refresh_token flow can never renew it —
+// every call fails with invalid_grant until the process restarts. Detect that
+// case and mint a fresh access token via a new JWT Bearer grant instead of
+// resuming the stale one; a session from the browser /oauth/login flow does
+// carry a refresh token and takes the normal (cheaper) resume path.
+func resumeOrgSession(
+	ctx context.Context,
+	oauthApp *oauth.ClientApp,
+	store *Store,
+	orgDID syntax.DID,
+) (*pearClient, error) {
+	sessionID, err := store.OrgSessionID(ctx, orgDID)
 	if err != nil {
-		return fmt.Errorf("marshal %s input: %w", nsid, err)
+		return nil, err
 	}
-	req, err := http.NewRequestWithContext(
-		ctx, http.MethodPost, "/xrpc/"+nsid.String(), bytes.NewReader(body),
-	)
+	session, err := oauthApp.ResumeSession(ctx, orgDID, sessionID)
 	if err != nil {
-		return fmt.Errorf("build %s request: %w", nsid, err)
+		return nil, fmt.Errorf("build org client: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
-	return p.do(req, nsid, out)
-}
-
-func (p *pearClient) get(ctx context.Context, nsid syntax.NSID, params url.Values, out any) error {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		"/xrpc/"+nsid.String()+"?"+params.Encode(),
-		http.NoBody,
-	)
-	if err != nil {
-		return fmt.Errorf("build %s request: %w", nsid, err)
+	if session.Data.RefreshToken == "" {
+		sess, err := oauthclient.NewJWTBearerClient(oauthApp).
+			SendJWTTokenRequest(ctx, orgDID.String())
+		if err != nil {
+			return nil, fmt.Errorf("remint org session: %w", err)
+		}
+		if err := store.SaveOrgSession(ctx, sess.AccountDID, ""); err != nil {
+			return nil, fmt.Errorf("save reminted org session: %w", err)
+		}
+		session, err = oauthApp.ResumeSession(ctx, sess.AccountDID, "")
+		if err != nil {
+			return nil, fmt.Errorf("resume reminted org session: %w", err)
+		}
 	}
-	return p.do(req, nsid, out)
-}
-
-func (p *pearClient) do(req *http.Request, nsid syntax.NSID, out any) error {
-	resp, err := p.session.DoWithAuth(httpx.NewClient(), req, nsid)
-	if err != nil {
-		return fmt.Errorf("call %s: %w", nsid, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		msg, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("%s returned %d: %s", nsid, resp.StatusCode, string(msg))
-	}
-	if out == nil {
-		return nil
-	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("decode %s response: %w", nsid, err)
-	}
-	return nil
+	return &pearClient{APIClient: session.APIClient()}, nil
 }
 
 // createGroupSpace creates a new network.habitat.group space owned by the org.
 func (p *pearClient) createGroupSpace(ctx context.Context) (habitat_syntax.SpaceURI, error) {
 	var out habitat.NetworkHabitatSimplespaceCreateSpaceOutput
-	err := p.post(ctx, "network.habitat.simplespace.createSpace",
+	err := p.Post(ctx, "network.habitat.simplespace.createSpace",
 		habitat.NetworkHabitatSimplespaceCreateSpaceInput{Type: GroupSpaceType}, &out)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("call network.habitat.simplespace.createSpace: %w", err)
 	}
 	return habitat_syntax.SpaceURI(out.Uri), nil
 }
 
 // putProfile writes (or overwrites) a group-space's profile self record.
+// repo must be the org's own DID (the org credential's subject); pear rejects
+// writes where it differs.
 func (p *pearClient) putProfile(
 	ctx context.Context,
+	repo syntax.DID,
 	space habitat_syntax.SpaceURI,
 	profile habitat.NetworkHabitatGroupProfile,
 ) (habitat_syntax.SpaceRecordURI, error) {
 	var out habitat.NetworkHabitatSpacePutRecordOutput
-	err := p.post(ctx, "network.habitat.space.putRecord",
+	err := p.Post(ctx, "network.habitat.space.putRecord",
 		habitat.NetworkHabitatSpacePutRecordInput{
 			Space:      space.String(),
+			Repo:       repo.String(),
 			Collection: collectionGroupProfile,
 			Rkey:       "self",
 			Record:     profile,
 		}, &out)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("call network.habitat.space.putRecord: %w", err)
 	}
 	return habitat_syntax.SpaceRecordURI(out.Uri), nil
 }
@@ -146,22 +143,26 @@ func (p *pearClient) writeTuple(
 	object habitat_syntax.SpaceURI,
 ) (habitat_syntax.SpaceRecordURI, error) {
 	var out habitat.NetworkHabitatRelationshipWriteTupleOutput
-	err := p.post(ctx, "network.habitat.relationship.writeTuple",
+	err := p.Post(ctx, "network.habitat.relationship.writeTuple",
 		habitat.NetworkHabitatRelationshipWriteTupleInput{
 			Subject:  subject,
 			Relation: relation,
 			Object:   habitat.NetworkHabitatRelationshipDefsSpaceObject{Space: object.String()},
 		}, &out)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("call network.habitat.relationship.writeTuple: %w", err)
 	}
 	return habitat_syntax.SpaceRecordURI(out.Uri), nil
 }
 
 // deleteTuple removes a relationship tuple by its record URI.
 func (p *pearClient) deleteTuple(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error {
-	return p.post(ctx, "network.habitat.relationship.deleteTuple",
+	err := p.Post(ctx, "network.habitat.relationship.deleteTuple",
 		habitat.NetworkHabitatRelationshipDeleteTupleInput{Uri: uri.String()}, nil)
+	if err != nil {
+		return fmt.Errorf("call network.habitat.relationship.deleteTuple: %w", err)
+	}
+	return nil
 }
 
 // listObjects returns the spaces on which did holds relation, resolved
@@ -174,12 +175,12 @@ func (p *pearClient) listObjects(
 	relation string,
 ) ([]string, error) {
 	var out habitat.NetworkHabitatRelationshipListObjectsOutput
-	err := p.get(ctx, "network.habitat.relationship.listObjects", url.Values{
-		"did":      []string{did.String()},
-		"relation": []string{relation},
+	err := p.Get(ctx, "network.habitat.relationship.listObjects", map[string]any{
+		"did":      did.String(),
+		"relation": relation,
 	}, &out)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("call network.habitat.relationship.listObjects: %w", err)
 	}
 	return out.Spaces, nil
 }
@@ -193,13 +194,13 @@ func (p *pearClient) check(
 	space habitat_syntax.SpaceURI,
 ) (bool, error) {
 	var out habitat.NetworkHabitatRelationshipCheckOutput
-	err := p.get(ctx, "network.habitat.relationship.check", url.Values{
-		"subject":  []string{did.String()},
-		"relation": []string{relation},
-		"space":    []string{space.String()},
+	err := p.Get(ctx, "network.habitat.relationship.check", map[string]any{
+		"subject":  did.String(),
+		"relation": relation,
+		"space":    space.String(),
 	}, &out)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("call network.habitat.relationship.check: %w", err)
 	}
 	return out.Allowed, nil
 }

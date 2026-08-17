@@ -19,8 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  Field,
+  FieldLabel,
   Input,
-  Label,
   Textarea,
 } from "internal/components/ui";
 import { skeyOf } from "@/queries/groupUtil";
@@ -133,8 +134,8 @@ function CreateGroupDialog() {
             if (name.trim()) mutate();
           }}
         >
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="group-name">Name</Label>
+          <Field>
+            <FieldLabel htmlFor="group-name">Name</FieldLabel>
             <Input
               id="group-name"
               value={name}
@@ -142,16 +143,16 @@ function CreateGroupDialog() {
               placeholder="Engineering"
               autoFocus
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="group-description">Description</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="group-description">Description</FieldLabel>
             <Textarea
               id="group-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What is this group for?"
             />
-          </div>
+          </Field>
           {error && (
             <p className="text-sm text-destructive">
               {(error as Error).message}

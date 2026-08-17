@@ -17,6 +17,7 @@ import { Route as OauthLoginRouteImport } from './routes/oauth-login'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
+import { Route as RequireAuthGroupsRouteImport } from './routes/_requireAuth/groups'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
 import { Route as CommunityCreateRouteImport } from './routes/community/create'
 import { Route as LoginHabitatRouteImport } from './routes/login/habitat'
@@ -83,6 +84,11 @@ const RequireAuthDataRoute = RequireAuthDataRouteImport.update({
   path: '/data',
   getParentRoute: () => RequireAuthRoute,
 } as any)
+const RequireAuthGroupsRoute = RequireAuthGroupsRouteImport.update({
+  id: '/groups',
+  path: '/groups',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
 const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
   id: '/permissions',
   path: '/permissions',
@@ -127,14 +133,14 @@ const RequireAuthCollectionsCollectionRoute =
     getParentRoute: () => RequireAuthRoute,
   } as any)
 const RequireAuthGroupsIndexRoute = RequireAuthGroupsIndexRouteImport.update({
-  id: '/groups/',
-  path: '/groups/',
-  getParentRoute: () => RequireAuthRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => RequireAuthGroupsRoute,
 } as any)
 const RequireAuthGroupsGroupRoute = RequireAuthGroupsGroupRouteImport.update({
-  id: '/groups/$group',
-  path: '/groups/$group',
-  getParentRoute: () => RequireAuthRoute,
+  id: '/$group',
+  path: '/$group',
+  getParentRoute: () => RequireAuthGroupsRoute,
 } as any)
 const RequireAuthOrgIndexRoute = RequireAuthOrgIndexRouteImport.update({
   id: '/org/',
@@ -242,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
+  '/groups': typeof RequireAuthGroupsRouteWithChildren
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
@@ -311,6 +318,7 @@ export interface FileRoutesById {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
+  '/_requireAuth/groups': typeof RequireAuthGroupsRouteWithChildren
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
@@ -349,6 +357,7 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
+    | '/groups'
     | '/permissions'
     | '/community/create'
     | '/login/habitat'
@@ -417,6 +426,7 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/_requireAuth/data'
+    | '/_requireAuth/groups'
     | '/_requireAuth/permissions'
     | '/community/create'
     | '/login/habitat'
@@ -516,6 +526,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthDataRouteImport
       parentRoute: typeof RequireAuthRoute
     }
+    '/_requireAuth/groups': {
+      id: '/_requireAuth/groups'
+      path: '/groups'
+      fullPath: '/groups'
+      preLoaderRoute: typeof RequireAuthGroupsRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
     '/_requireAuth/permissions': {
       id: '/_requireAuth/permissions'
       path: '/permissions'
@@ -574,17 +591,17 @@ declare module '@tanstack/react-router' {
     }
     '/_requireAuth/groups/': {
       id: '/_requireAuth/groups/'
-      path: '/groups'
+      path: '/'
       fullPath: '/groups/'
       preLoaderRoute: typeof RequireAuthGroupsIndexRouteImport
-      parentRoute: typeof RequireAuthRoute
+      parentRoute: typeof RequireAuthGroupsRoute
     }
     '/_requireAuth/groups/$group': {
       id: '/_requireAuth/groups/$group'
-      path: '/groups/$group'
+      path: '/$group'
       fullPath: '/groups/$group'
       preLoaderRoute: typeof RequireAuthGroupsGroupRouteImport
-      parentRoute: typeof RequireAuthRoute
+      parentRoute: typeof RequireAuthGroupsRoute
     }
     '/_requireAuth/org/': {
       id: '/_requireAuth/org/'
@@ -701,6 +718,19 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface RequireAuthGroupsRouteChildren {
+  RequireAuthGroupsGroupRoute: typeof RequireAuthGroupsGroupRoute
+  RequireAuthGroupsIndexRoute: typeof RequireAuthGroupsIndexRoute
+}
+
+const RequireAuthGroupsRouteChildren: RequireAuthGroupsRouteChildren = {
+  RequireAuthGroupsGroupRoute: RequireAuthGroupsGroupRoute,
+  RequireAuthGroupsIndexRoute: RequireAuthGroupsIndexRoute,
+}
+
+const RequireAuthGroupsRouteWithChildren =
+  RequireAuthGroupsRoute._addFileChildren(RequireAuthGroupsRouteChildren)
+
 interface RequireAuthPermissionsLexiconsRouteChildren {
   RequireAuthPermissionsLexiconsCollectionRoute: typeof RequireAuthPermissionsLexiconsCollectionRoute
   RequireAuthPermissionsLexiconsIndexRoute: typeof RequireAuthPermissionsLexiconsIndexRoute
@@ -755,14 +785,13 @@ const RequireAuthPermissionsRouteWithChildren =
 
 interface RequireAuthRouteChildren {
   RequireAuthDataRoute: typeof RequireAuthDataRoute
+  RequireAuthGroupsRoute: typeof RequireAuthGroupsRouteWithChildren
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
   RequireAuthCollectionsCollectionRoute: typeof RequireAuthCollectionsCollectionRoute
-  RequireAuthGroupsGroupRoute: typeof RequireAuthGroupsGroupRoute
   RequireAuthPearTestViewRoute: typeof RequireAuthPearTestViewRoute
   RequireAuthBlobTestIndexRoute: typeof RequireAuthBlobTestIndexRoute
   RequireAuthCollectionsIndexRoute: typeof RequireAuthCollectionsIndexRoute
-  RequireAuthGroupsIndexRoute: typeof RequireAuthGroupsIndexRoute
   RequireAuthOrgIndexRoute: typeof RequireAuthOrgIndexRoute
   RequireAuthPearTestIndexRoute: typeof RequireAuthPearTestIndexRoute
   RequireAuthSpacesIndexRoute: typeof RequireAuthSpacesIndexRoute
@@ -776,14 +805,13 @@ interface RequireAuthRouteChildren {
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthDataRoute: RequireAuthDataRoute,
+  RequireAuthGroupsRoute: RequireAuthGroupsRouteWithChildren,
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
   RequireAuthCollectionsCollectionRoute: RequireAuthCollectionsCollectionRoute,
-  RequireAuthGroupsGroupRoute: RequireAuthGroupsGroupRoute,
   RequireAuthPearTestViewRoute: RequireAuthPearTestViewRoute,
   RequireAuthBlobTestIndexRoute: RequireAuthBlobTestIndexRoute,
   RequireAuthCollectionsIndexRoute: RequireAuthCollectionsIndexRoute,
-  RequireAuthGroupsIndexRoute: RequireAuthGroupsIndexRoute,
   RequireAuthOrgIndexRoute: RequireAuthOrgIndexRoute,
   RequireAuthPearTestIndexRoute: RequireAuthPearTestIndexRoute,
   RequireAuthSpacesIndexRoute: RequireAuthSpacesIndexRoute,

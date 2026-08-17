@@ -1,13 +1,12 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { getConfigQueryOptions, getMembersQueryOptions } from "@/queries/org";
 import {
   groupQueryOptions,
   groupsListQueryOptions,
   addMember,
 } from "@/queries/groups";
-import { groupUri, skeyOf, displayDid } from "@/queries/groupUtil";
+import { skeyOf } from "@/queries/groupUtil";
 import {
   Badge,
   Button,
@@ -15,6 +14,15 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  Field,
+  FieldLabel,
+  Input,
   Table,
   TableBody,
   TableCell,
@@ -23,27 +31,37 @@ import {
   TableRow,
 } from "internal/components/ui";
 
+interface InheritableGroup {
+  uri: string;
+  name: string;
+}
+
 export const Route = createFileRoute("/_requireAuth/groups/$group")({
   async loader({ context, params }) {
     const { authManager, queryClient } = context;
-    const meta = await queryClient.ensureQueryData(
-      getConfigQueryOptions(authManager),
+    // Group URIs are owned by the home server's managed org, not the
+    // viewer's own org (network.habitat.org.getMetadata is scoped to the
+    // caller, and most callers here belong to no org at all). listGroups
+    // already returns each group's full URI, so look it up there instead of
+    // reconstructing it.
+    const allGroups = await queryClient.ensureQueryData(
+      groupsListQueryOptions(authManager),
     );
-    const uri = groupUri(meta.orgId, params.group);
-    const [group, orgMembers, allGroups] = await Promise.all([
-      queryClient.ensureQueryData(groupQueryOptions(uri, authManager)),
-      queryClient.ensureQueryData(getMembersQueryOptions(authManager)),
-      queryClient.ensureQueryData(groupsListQueryOptions(authManager)),
-    ]);
-    return { uri, group, orgMembers, allGroups };
+    const uri = allGroups.find((g) => skeyOf(g.uri) === params.group)?.uri;
+    if (!uri) {
+      throw new Error(`group not found: ${params.group}`);
+    }
+    const group = await queryClient.ensureQueryData(
+      groupQueryOptions(uri, authManager),
+    );
+    return { uri, group, allGroups };
   },
   component: GroupDetail,
 });
 
 function GroupDetail() {
-  const { uri, group, orgMembers, allGroups } = Route.useLoaderData();
+  const { uri, group, allGroups } = Route.useLoaderData();
 
-  const handles = new Map(orgMembers.members.map((m) => [m.did, m.handle]));
   const groupNames = new Map(allGroups.map((g) => [g.uri, g.name]));
 
   return (
@@ -85,7 +103,7 @@ function GroupDetail() {
             <TableBody>
               {(group.members ?? []).map((m) => (
                 <TableRow key={m.did}>
-                  <TableCell>{displayDid(m.did, handles)}</TableCell>
+                  <TableCell>{m.did}</TableCell>
                   <TableCell className="capitalize">{m.role}</TableCell>
                   <TableCell>
                     {m.direct ? (
@@ -112,12 +130,7 @@ function GroupDetail() {
       </Card>
 
       {group.canManage && (
-        <AddMemberControls
-          uri={uri}
-          group={group}
-          orgMembers={orgMembers.members}
-          allGroups={allGroups}
-        />
+        <AddMemberControls uri={uri} group={group} allGroups={allGroups} />
       )}
     </div>
   );
@@ -155,18 +168,16 @@ function InheritedGroups({
 function AddMemberControls({
   uri,
   group,
-  orgMembers,
   allGroups,
 }: {
   uri: string;
   group: { uri: string; inheritedGroups?: { uri: string }[] };
-  orgMembers: { did: string; handle: string }[];
   allGroups: { uri: string; name: string }[];
 }) {
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const [selectedDid, setSelectedDid] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [selectedGroup, setSelectedGroup] = useState("");
 
   const invalidate = async () => {
@@ -176,10 +187,11 @@ function AddMemberControls({
   };
 
   const addUser = useMutation({
-    mutationFn: () => addMember(authManager, uri, { subjectDid: selectedDid }),
+    mutationFn: () =>
+      addMember(authManager, uri, { subjectDid: identifier.trim() }),
     async onSuccess() {
       await invalidate();
-      setSelectedDid("");
+      setIdentifier("");
     },
   });
 
@@ -205,23 +217,20 @@ function AddMemberControls({
         <CardTitle className="text-base">Manage membership</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium">Add a person</label>
+        <Field>
+          <FieldLabel htmlFor="add-member-identifier">
+            Add a person
+          </FieldLabel>
           <div className="flex gap-2">
-            <select
-              className="border rounded px-2 py-1 text-sm flex-1 bg-background"
-              value={selectedDid}
-              onChange={(e) => setSelectedDid(e.target.value)}
-            >
-              <option value="">Select a person…</option>
-              {orgMembers.map((m) => (
-                <option key={m.did} value={m.did}>
-                  {m.handle}
-                </option>
-              ))}
-            </select>
+            <Input
+              id="add-member-identifier"
+              className="flex-1"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="handle.example.com or did:plc:..."
+            />
             <Button
-              disabled={!selectedDid || addUser.isPending}
+              disabled={!identifier.trim() || addUser.isPending}
               onClick={() => addUser.mutate()}
             >
               {addUser.isPending ? "Adding…" : "Add"}
@@ -232,25 +241,35 @@ function AddMemberControls({
               {(addUser.error as Error).message}
             </p>
           )}
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium">
+        <Field>
+          <FieldLabel htmlFor="inherit-group-combobox">
             Inherit members from another group
-          </label>
+          </FieldLabel>
           <div className="flex gap-2">
-            <select
-              className="border rounded px-2 py-1 text-sm flex-1 bg-background"
-              value={selectedGroup}
-              onChange={(e) => setSelectedGroup(e.target.value)}
+            <Combobox
+              items={inheritable}
+              value={inheritable.find((g) => g.uri === selectedGroup) ?? null}
+              onValueChange={(item) => setSelectedGroup(item?.uri ?? "")}
+              itemToStringLabel={(item: InheritableGroup) => item.name}
             >
-              <option value="">Select a group…</option>
-              {inheritable.map((g) => (
-                <option key={g.uri} value={g.uri}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
+              <ComboboxInput
+                id="inherit-group-combobox"
+                className="flex-1"
+                placeholder="Select a group…"
+              />
+              <ComboboxContent>
+                <ComboboxEmpty>No groups to inherit from.</ComboboxEmpty>
+                <ComboboxList>
+                  {(item: InheritableGroup) => (
+                    <ComboboxItem key={item.uri} value={item}>
+                      {item.name}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
             <Button
               variant="outline"
               disabled={!selectedGroup || inheritGroup.isPending}
@@ -264,7 +283,7 @@ function AddMemberControls({
               {(inheritGroup.error as Error).message}
             </p>
           )}
-        </div>
+        </Field>
       </CardContent>
     </Card>
   );

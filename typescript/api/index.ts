@@ -66,6 +66,7 @@ import * as NetworkHabitatOrgLoginMember from './types/network/habitat/org/login
 import * as NetworkHabitatOrgMintMemberIdentity from './types/network/habitat/org/mintMemberIdentity.js'
 import * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 import * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
+import * as NetworkHabitatOrgRequestCrawl from './types/network/habitat/org/requestCrawl.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
@@ -168,6 +169,7 @@ export * as NetworkHabitatOrgLoginMember from './types/network/habitat/org/login
 export * as NetworkHabitatOrgMintMemberIdentity from './types/network/habitat/org/mintMemberIdentity.js'
 export * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 export * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
+export * as NetworkHabitatOrgRequestCrawl from './types/network/habitat/org/requestCrawl.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
@@ -1451,6 +1453,18 @@ export class NetworkHabitatOrgNS {
   ): Promise<NetworkHabitatOrgRemoveMembers.Response> {
     return this._client.call(
       'network.habitat.org.removeMembers',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  requestCrawl(
+    data?: NetworkHabitatOrgRequestCrawl.InputSchema,
+    opts?: NetworkHabitatOrgRequestCrawl.CallOptions,
+  ): Promise<NetworkHabitatOrgRequestCrawl.Response> {
+    return this._client.call(
+      'network.habitat.org.requestCrawl',
       opts?.qp,
       data,
       opts,

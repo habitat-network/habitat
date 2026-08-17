@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/log"
 	"github.com/habitat-network/habitat/internal/telemetry"
 
@@ -48,7 +49,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	defer func() { _ = otelShutdown(context.Background()) }()
 
-	slog.SetDefault(log.New(log.WithLevel(cmd.String(fLogLevel))))
+	slog.SetDefault(log.New(log.WithLevel(cmd.String(fLogLevel)), log.WithStdout(true)))
 
 	gormDB, err := db.New(cmd.String(fDB))
 	if err != nil {
@@ -64,7 +65,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	domain := cmd.String(fDomain)
 	dir := identity.DefaultDirectory()
 
-	oauthStore, err := oauthclient.NewGormStore(gormDB)
+	oauthStore, err := oauthclient.NewGormStore(gormDB, oauthclient.WithSingleSessionPerUser())
 	if err != nil {
 		return fmt.Errorf("create oauth store: %w", err)
 	}
@@ -81,6 +82,26 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("set client secret: %w", err)
 	}
 	oauthApp := oauth.NewClientApp(&config, oauthStore)
+	// oauth.NewClientApp's default Resolver dials over an SSRF-guarded
+	// transport that rejects loopback/private addresses, which local
+	// *.local.habitat.network domains resolve to. sap's credential manager
+	// hits the same problem reaching local dev PDS hosts and works around it
+	// the same way: use a plain client instead of the guarded one. Retries
+	// are layered on top since this server and pear start concurrently in
+	// dev: home can hit pear before pear's listener is up, and a bare 502
+	// from Caddy shouldn't be fatal.
+	oauthApp.Resolver.Client = httpx.NewClient(httpx.WithRetry())
+	// oauthApp.Dir independently defaults to its own identity.DefaultDirectory()
+	// (a *CacheDirectory wrapping a *BaseDirectory); unpack it the same way
+	// NewClientApp itself does for UserAgent, to apply the same retry client to
+	// identity (DID/handle) resolution — the JWT bearer bootstrap below and
+	// GroupService.resolveSubject both depend on it tolerating a transient 5xx
+	// rather than failing outright.
+	if cdir, ok := oauthApp.Dir.(*identity.CacheDirectory); ok {
+		if bdir, ok := cdir.Inner.(*identity.BaseDirectory); ok {
+			bdir.HTTPClient = *httpx.NewClient(httpx.WithRetry())
+		}
+	}
 
 	s, err := sap.New(sap.Config{
 		DB:          gormDB,
@@ -98,12 +119,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	groups := NewGroupService(store, oauthApp)
 	collections := NewCollectionService(store, oauthApp)
+	orgs := NewOrgService(oauthApp, s, store)
 	indexer := NewIndexer(store, s.Outbox())
 	server := NewServer(
 		domain,
-		cmd.String(fOrgHandle),
+		cmd.String(fOrg),
 		groups,
 		collections,
+		orgs,
 		oauthApp,
 		s,
 		store,
@@ -120,15 +143,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	addr := ":" + cmd.String(fPort)
 	srv := &http.Server{Addr: addr, Handler: mux}
 
-	if _, _, err := store.OrgSession(ctx); err != nil {
-		slog.WarnContext(
-			ctx,
-			"home server not yet authorized for an org; visit /oauth/login to grant the org credential",
-			"loginURL",
-			"https://"+domain+"/oauth/login",
-		)
-	}
-
+	// No org is bootstrapped at startup: home only learns about an org (and
+	// authenticates its credential via the JWT Bearer grant) on demand, via
+	// network.habitat.org.requestCrawl — see OrgService.RequestCrawl.
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error { return s.Start(egCtx) })
 	eg.Go(func() error { return indexer.Run(egCtx) })

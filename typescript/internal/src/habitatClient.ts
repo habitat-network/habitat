@@ -35,6 +35,7 @@ import type {
   NetworkHabitatOrgLoginMember,
   NetworkHabitatOrgCreate,
   NetworkHabitatOrgMintMemberIdentity,
+  NetworkHabitatOrgRequestCrawl,
   NetworkHabitatSimplespaceAddMember,
   NetworkHabitatSimplespaceCreateSpace,
   NetworkHabitatSimplespaceListMembers,
@@ -295,6 +296,11 @@ type ProcedureEndpoints = {
   "network.habitat.org.issueInviteToken": Procedure<
     NetworkHabitatOrgIssueInviteToken.InputSchema,
     NetworkHabitatOrgIssueInviteToken.OutputSchema
+  >;
+  // Implemented by the home server; reached via pear service proxying.
+  "network.habitat.org.requestCrawl": Procedure<
+    NetworkHabitatOrgRequestCrawl.InputSchema,
+    NetworkHabitatOrgRequestCrawl.OutputSchema
   >;
   "network.habitat.org.create": UnauthedProcedure<
     NetworkHabitatOrgCreate.InputSchema,

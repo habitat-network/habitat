@@ -36,17 +36,23 @@ func NewGroupService(store *Store, oauthApp *oauth.ClientApp) *GroupService {
 	return &GroupService{store: store, oauthApp: oauthApp}
 }
 
-// orgPear builds a pear client authenticated as the managed org.
-func (g *GroupService) orgPear(ctx context.Context) (*pearClient, syntax.DID, error) {
-	orgDID, sessionID, err := g.store.OrgSession(ctx)
+// orgPear builds a pear client authenticated as orgDID, the org that owns the
+// space being operated on.
+func (g *GroupService) orgPear(ctx context.Context, orgDID syntax.DID) (*pearClient, error) {
+	return resumeOrgSession(ctx, g.oauthApp, g.store, orgDID)
+}
+
+// resolveSubject resolves a member-add input (a DID or a handle) to a DID.
+func (g *GroupService) resolveSubject(ctx context.Context, identifier string) (syntax.DID, error) {
+	atid, err := syntax.ParseAtIdentifier(identifier)
 	if err != nil {
-		return nil, "", err
+		return "", fmt.Errorf("not a valid account identifier (%s): %w", identifier, err)
 	}
-	session, err := g.oauthApp.ResumeSession(ctx, orgDID, sessionID)
+	ident, err := g.oauthApp.Dir.Lookup(ctx, atid)
 	if err != nil {
-		return nil, "", fmt.Errorf("build org client: %w", err)
+		return "", fmt.Errorf("failed to resolve %s: %w", identifier, err)
 	}
-	return &pearClient{session: session}, orgDID, nil
+	return ident.DID, nil
 }
 
 func (g *GroupService) CreateGroup(
@@ -54,7 +60,14 @@ func (g *GroupService) CreateGroup(
 	caller syntax.DID,
 	in habitat.NetworkHabitatGroupsCreateGroupInput,
 ) (habitat.NetworkHabitatGroupsCreateGroupOutput, error) {
-	pear, _, err := g.orgPear(ctx)
+	// There's no space yet to derive an owning org from, and the caller
+	// doesn't specify one, so this falls back to whichever org was most
+	// recently registered — ambiguous when home manages more than one org.
+	orgDID, _, err := g.store.MostRecentOrgSession(ctx)
+	if err != nil {
+		return habitat.NetworkHabitatGroupsCreateGroupOutput{}, err
+	}
+	pear, err := g.orgPear(ctx, orgDID)
 	if err != nil {
 		return habitat.NetworkHabitatGroupsCreateGroupOutput{}, err
 	}
@@ -65,7 +78,7 @@ func (g *GroupService) CreateGroup(
 	}
 
 	createdAt := time.Now().UTC().Format(time.RFC3339)
-	profileURI, err := pear.putProfile(ctx, space, habitat.NetworkHabitatGroupProfile{
+	profileURI, err := pear.putProfile(ctx, orgDID, space, habitat.NetworkHabitatGroupProfile{
 		Name:        in.Name,
 		Description: in.Description,
 		CreatedAt:   createdAt,
@@ -112,7 +125,8 @@ func (g *GroupService) UpdateGroup(
 		return habitat.NetworkHabitatGroupsUpdateGroupOutput{}, err
 	}
 
-	pear, _, err := g.orgPear(ctx)
+	orgDID := space.SpaceOwner()
+	pear, err := g.orgPear(ctx, orgDID)
 	if err != nil {
 		return habitat.NetworkHabitatGroupsUpdateGroupOutput{}, err
 	}
@@ -129,7 +143,7 @@ func (g *GroupService) UpdateGroup(
 		description = in.Description
 	}
 
-	profileURI, err := pear.putProfile(ctx, space, habitat.NetworkHabitatGroupProfile{
+	profileURI, err := pear.putProfile(ctx, orgDID, space, habitat.NetworkHabitatGroupProfile{
 		Name:        name,
 		Description: description,
 		CreatedAt:   existing.CreatedAt,
@@ -158,7 +172,7 @@ func (g *GroupService) AddMember(
 		return habitat.NetworkHabitatGroupsAddMemberOutput{}, err
 	}
 
-	pear, _, err := g.orgPear(ctx)
+	pear, err := g.orgPear(ctx, space.SpaceOwner())
 	if err != nil {
 		return habitat.NetworkHabitatGroupsAddMemberOutput{}, err
 	}
@@ -169,10 +183,10 @@ func (g *GroupService) AddMember(
 	var tupleURI habitat_syntax.SpaceRecordURI
 	var row tupleRow
 	if in.SubjectDid != "" {
-		did, err := syntax.ParseDID(in.SubjectDid)
+		did, err := g.resolveSubject(ctx, in.SubjectDid)
 		if err != nil {
 			return habitat.NetworkHabitatGroupsAddMemberOutput{}, fmt.Errorf(
-				"parse subject did: %w",
+				"resolve subject: %w",
 				err,
 			)
 		}
@@ -228,7 +242,7 @@ func (g *GroupService) DeleteMember(
 		return err
 	}
 
-	pear, _, err := g.orgPear(ctx)
+	pear, err := g.orgPear(ctx, space.SpaceOwner())
 	if err != nil {
 		return err
 	}

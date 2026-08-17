@@ -74,3 +74,16 @@ export function addMember(
     { authManager, headers: homeProxyHeaders() },
   );
 }
+
+// requestCrawl registers orgDid with the home server so it authenticates the
+// org credential and starts syncing that org's group spaces. Idempotent:
+// once an org is registered, subsequent calls are a no-op. Await an
+// "authenticated" or "alreadyRegistered" status before making other
+// network.habitat.groups.*/collections.* calls for that org.
+export function requestCrawl(authManager: AuthManager, orgDid: string) {
+  return procedure(
+    "network.habitat.org.requestCrawl",
+    { orgDid },
+    { authManager, headers: homeProxyHeaders() },
+  );
+}

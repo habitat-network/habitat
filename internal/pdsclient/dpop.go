@@ -179,7 +179,12 @@ func doInternal(
 	if err := sign(req, nonceProvider, key, accessToken); err != nil {
 		return nil, err
 	}
-	hasBody := req.Body != nil
+	// http.NoBody is a non-nil sentinel used for genuinely bodyless requests
+	// (e.g. GET), so a plain nil check here would treat every such request as
+	// having a body, forcing an empty-but-present body reader that some
+	// servers reject on query endpoints ("A request body was provided when
+	// none was expected").
+	hasBody := req.Body != nil && req.Body != http.NoBody
 	// Read out the body since we'll need it twice
 	bodyBytes := []byte{}
 	var err error

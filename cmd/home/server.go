@@ -12,6 +12,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
 )
 
@@ -25,6 +26,7 @@ type Server struct {
 	orgHandle   string
 	groups      *GroupService
 	collections *CollectionService
+	orgs        *OrgService
 	oauthApp    *oauth.ClientApp
 	sap         *sap.Sap
 	store       *Store
@@ -35,6 +37,7 @@ func NewServer(
 	domain, orgHandle string,
 	groups *GroupService,
 	collections *CollectionService,
+	orgs *OrgService,
 	oauthApp *oauth.ClientApp,
 	s *sap.Sap,
 	store *Store,
@@ -45,6 +48,7 @@ func NewServer(
 		orgHandle:   orgHandle,
 		groups:      groups,
 		collections: collections,
+		orgs:        orgs,
 		oauthApp:    oauthApp,
 		sap:         s,
 		store:       store,
@@ -55,7 +59,7 @@ func NewServer(
 func (s *Server) Routes(mux *http.ServeMux) {
 	mux.Handle("GET /.well-known/did.json", did.NewHandler(
 		did.Web(s.domain).
-			Service("#"+serviceID, "HabitatGroupsServer", "https://"+s.domain).
+			Service(serviceID, "HabitatGroupsServer", "https://"+s.domain).
 			Build(),
 	))
 	mux.HandleFunc("GET /client-metadata.json", s.handleClientMetadata)
@@ -71,10 +75,20 @@ func (s *Server) Routes(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /xrpc/network.habitat.collections.listCollections", s.handleListCollections)
 	mux.HandleFunc("GET /xrpc/network.habitat.collections.listRecords", s.handleListRecords)
+
+	mux.HandleFunc("POST /xrpc/network.habitat.org.requestCrawl", s.handleRequestCrawl)
 }
 
 func (s *Server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, r, s.oauthApp.Config.ClientMetadata())
+	metadata := s.oauthApp.Config.ClientMetadata()
+	// ClientConfig.ClientMetadata leaves JWKS unset; the JWT Bearer grant
+	// (RFC 7523) needs it published here so pear can verify this server's
+	// assertion signature when it bootstraps an org session on startup (see
+	// pkg/oauthclient.Client.SendJWTTokenRequest).
+	metadata.GrantTypes = append(metadata.GrantTypes, oauthclient.JWTBearerGrantType)
+	jwks := s.oauthApp.Config.PublicJWKS()
+	metadata.JWKS = &jwks
+	writeJSON(w, r, metadata)
 }
 
 // handleOAuthLogin starts the one-time org credential bootstrap: an org admin
@@ -227,6 +241,23 @@ func (s *Server) handleListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out, err := s.collections.ListRecords(r.Context(), caller, collection)
+	if err != nil {
+		s.writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, out)
+}
+
+func (s *Server) handleRequestCrawl(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.authCaller(w, r); !ok {
+		return
+	}
+	var in habitat.NetworkHabitatOrgRequestCrawlInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	out, err := s.orgs.RequestCrawl(r.Context(), in.OrgDid)
 	if err != nil {
 		s.writeError(w, r, err)
 		return
