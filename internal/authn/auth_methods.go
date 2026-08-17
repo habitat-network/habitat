@@ -9,18 +9,10 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-type CredentialType int
-
-const (
-	OrgCredential CredentialType = iota
-	UserCredential
-)
-
 type CredentialInfo struct {
 	Subject syntax.DID
 	Org     org.Org
 	Space   habitat_syntax.SpaceURI
-	Type    CredentialType
 }
 
 type Validator interface {

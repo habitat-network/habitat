@@ -42,7 +42,6 @@ func NewSuccessValidator(credentialInfo *authn.CredentialInfo) authn.RequestVali
 func NewSuccessValidatorWithOrg(did, orgDID syntax.DID) authn.RequestValidator {
 	return NewSuccessValidator(&authn.CredentialInfo{
 		Subject: did,
-		Type:    authn.UserCredential,
 		Org:     &stubOrg{did: orgDID},
 	})
 }

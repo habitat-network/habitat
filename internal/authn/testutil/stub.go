@@ -50,9 +50,8 @@ func (s *stubOrg) WithTx(_ *gorm.DB) org.Org                              { retu
 
 // success implements authn.Method for tests, always returning the given DID.
 type success struct {
-	did      syntax.DID
-	credType authn.CredentialType
-	org      org.Org
+	did syntax.DID
+	org org.Org
 }
 
 func (s *success) CanHandle(_ *http.Request) bool { return true }
@@ -62,21 +61,20 @@ func (s *success) Validate(
 	_ *http.Request,
 	_ ...string,
 ) (*authn.CredentialInfo, bool) {
-	return &authn.CredentialInfo{Subject: s.did, Type: s.credType, Org: s.org}, true
+	return &authn.CredentialInfo{Subject: s.did, Org: s.org}, true
 }
 
 func NewSuccessMethod(did syntax.DID) authn.Method {
 	return &success{
-		did:      did,
-		credType: authn.UserCredential,
+		did: did,
 	}
 }
 
 func NewSuccessMethodWithOrg(did, orgDID syntax.DID) authn.Method {
 	return &success{
-		did:      did,
-		credType: authn.UserCredential,
-		org:      &stubOrg{did: orgDID},
+		did: did,
+
+		org: &stubOrg{did: orgDID},
 	}
 }
 

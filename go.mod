@@ -138,7 +138,7 @@ require (
 	github.com/ipfs/go-log/v2 v2.9.1 // indirect
 	github.com/ipfs/go-metrics-interface v0.3.0 // indirect
 	github.com/ipld/go-codec-dagpb v1.7.0 // indirect
-	github.com/ipld/go-ipld-prime v0.22.0 // indirect
+	github.com/ipld/go-ipld-prime v0.23.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.10.0 // indirect

@@ -61,7 +61,7 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	o, _, err := s.GetOrgForDID(t.Context(), adminID.DID)
+	o, err := s.GetOrgForDID(t.Context(), adminID.DID)
 	require.NoError(t, err)
 
 	require.Equal(t, orgID.DID, o.DID())
@@ -73,7 +73,7 @@ func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 	// resolves it with no "habitat" service, so it falls through to the
 	// everyone org.
 	external := syntax.DID("did:plc:unknown")
-	o, _, err := s.GetOrgForDID(t.Context(), external)
+	o, err := s.GetOrgForDID(t.Context(), external)
 	require.NoError(t, err)
 
 	require.Equal(t, syntax.DID("did:web:everyone.example.com"), o.DID())
@@ -140,11 +140,11 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	o, _, err := s.GetOrgForDID(t.Context(), adminID1.DID)
+	o, err := s.GetOrgForDID(t.Context(), adminID1.DID)
 	require.NoError(t, err)
 	require.Equal(t, orgID1.DID, o.DID())
 
-	o, _, err = s.GetOrgForDID(t.Context(), adminID2.DID)
+	o, err = s.GetOrgForDID(t.Context(), adminID2.DID)
 	require.NoError(t, err)
 	require.Equal(t, orgID2.DID, o.DID())
 }

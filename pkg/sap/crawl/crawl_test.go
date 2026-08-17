@@ -126,7 +126,7 @@ func (r *recorder) Check(
 func TestCrawlerBackfillsSession(t *testing.T) {
 	t.Parallel()
 
-	space := "ats://did:plc:owner/network.habitat.space/s1"
+	space := "at://did:plc:owner/space/network.habitat.space/s1"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/xrpc/network.habitat.space.listSpaces":
@@ -257,7 +257,7 @@ func TestDetachCancel(t *testing.T) {
 func TestCrawlerEnumerateReposError(t *testing.T) {
 	t.Parallel()
 
-	space := "ats://did:plc:owner/network.habitat.space/s1"
+	space := "at://did:plc:owner/space/network.habitat.space/s1"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/xrpc/network.habitat.space.listSpaces":
@@ -289,7 +289,7 @@ func TestCrawlerEnumerateReposError(t *testing.T) {
 func TestCrawlerNotifyRegistration(t *testing.T) {
 	t.Parallel()
 
-	space := "ats://did:plc:owner/network.habitat.space/s1"
+	space := "at://did:plc:owner/space/network.habitat.space/s1"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/xrpc/network.habitat.space.listSpaces":
@@ -334,7 +334,7 @@ func mustParseURL(t *testing.T, raw string) *url.URL {
 // listRepos rev/hash against the tracker (so drift requeues) instead of only
 // tracking newly-seen repos.
 func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
-	space := habitat_syntax.SpaceURI("ats://did:web:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:web:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:web:alice")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -373,7 +373,7 @@ func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
 func TestCrawlerTrackSpace(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:web:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:web:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:web:alice")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

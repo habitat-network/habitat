@@ -388,7 +388,7 @@ func setupPear(t *testing.T) *pearHost {
 
 	everyone := org.NewEveryoneOrg(strings.TrimPrefix(server.URL, "https://"))
 	validator := authn_testutil.NewSuccessValidator(
-		&authn.CredentialInfo{Subject: author.DID, Type: authn.UserCredential, Org: everyone},
+		&authn.CredentialInfo{Subject: author.DID, Org: everyone},
 	)
 	spacesServer := spaces.NewServer(
 		spacesStore,

@@ -54,7 +54,7 @@ func TestRegistrarRegistersDueSpaces(t *testing.T) {
 	require.NoError(t, err)
 
 	db := db_testutil.NewDB(t)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
 	require.NoError(t, err)
 
@@ -86,7 +86,7 @@ func TestRegistrarEnsureRegisteredAlreadyTracked(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
 	require.NoError(t, err)
 
@@ -111,7 +111,7 @@ func TestRegistrarDropSpace(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
 	require.NoError(t, err)
 
@@ -154,8 +154,8 @@ func TestRegistrarDueSpacesFiltersFresh(t *testing.T) {
 	base, _ := url.Parse(srv.URL)
 
 	db := db_testutil.NewDB(t)
-	space1 := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
-	space2 := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s2")
+	space1 := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
+	space2 := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s2")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space1, space2}, "https://sap.example")
 	require.NoError(t, err)
 
