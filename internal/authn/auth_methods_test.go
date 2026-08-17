@@ -67,5 +67,5 @@ func (t *testAuthMethod) Validate(
 		w.WriteHeader(http.StatusUnauthorized)
 		return nil, false
 	}
-	return &CredentialInfo{Subject: syntax.DID("did:web:test"), Type: OrgCredential}, true
+	return &CredentialInfo{Subject: syntax.DID("did:web:test")}, true
 }

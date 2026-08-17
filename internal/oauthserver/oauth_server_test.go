@@ -729,9 +729,9 @@ type testIsMemberStore struct {
 func (s *testIsMemberStore) GetOrgForDID(
 	ctx context.Context,
 	did syntax.DID,
-) (org.Org, bool, error) {
+) (org.Org, error) {
 	o, err := s.fn(ctx, did)
-	return o, false, err
+	return o, err
 }
 
 // acquireAccessToken drives the full authorization code flow and returns the

@@ -64,8 +64,11 @@ func TestOAuthClient_ExchangeCode_HTTPRequestError(t *testing.T) {
 
 	_, err := client.ExchangeCode(dpopClient, "test-code", "https://example.com", state)
 
+	// The underlying transport error text is racy (EOF vs "use of closed
+	// network connection" vs connection reset, depending on exactly when the
+	// hijacked connection is closed relative to the client's write), so only
+	// assert that the request failed, not the specific OS-level error string.
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "EOF")
 }
 
 func TestOAuthClient_ExchangeCode_NonOKStatus(t *testing.T) {
