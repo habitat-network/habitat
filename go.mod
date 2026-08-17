@@ -21,7 +21,7 @@ require (
 	github.com/openfga/openfga v1.18.3
 	github.com/ory/fosite v0.49.0
 	github.com/pressly/goose/v3 v3.27.3
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	go.opentelemetry.io/contrib/bridges/otelslog v0.19.0
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.69.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.44.0

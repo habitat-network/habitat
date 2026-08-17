@@ -5,7 +5,7 @@ go 1.26.4
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca
 	github.com/gorilla/mux v1.8.1
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	github.com/testcontainers/testcontainers-go v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
 	github.com/urfave/cli/v3 v3.11.0
