@@ -17,7 +17,7 @@ func TestStoreEmitPollAck(t *testing.T) {
 	require.NoError(t, err)
 
 	uri := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:o/network.habitat.space/s1/did:plc:a/network.habitat.test/k1",
+		"at://did:plc:o/space/network.habitat.space/s1/did:plc:a/network.habitat.test/k1",
 	)
 	require.NoError(t, s.Emit(t.Context(), uri, []byte(`{"n":1}`)))
 	require.NoError(t, s.Emit(t.Context(), uri, []byte(`{"n":2}`)))
