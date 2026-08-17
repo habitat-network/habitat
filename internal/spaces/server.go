@@ -261,7 +261,7 @@ func (s *Server) ListMembers(w http.ResponseWriter, r *http.Request) {
 		ctx,
 		fgastore.SpaceObjectKey(spaceURI),
 		fgastore.RelationSpaceReader,
-		ownerContextualTuple(spaceURI),
+		fgastore.OwnerContextualTuple(spaceURI),
 		fgastore.OrgMemberContextualTuple(credInfo.Org.DID()),
 	)
 	if err != nil {
