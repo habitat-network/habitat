@@ -55,7 +55,7 @@ func NewServer(
 }
 
 func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) {
-	_, _, err := s.store.GetOrgForDID(ctx, member)
+	_, err := s.store.GetOrgForDID(ctx, member)
 	if err != nil {
 		return false, err
 	}
@@ -107,7 +107,7 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		org, _, err = s.store.GetOrgForDID(r.Context(), credInfo.Subject)
+		org, err = s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 		if errors.Is(err, orgpkg.ErrMemberNotFound) {
 			utils.LogAndHTTPError(
 				r.Context(),
@@ -253,7 +253,7 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
+	org, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -308,7 +308,7 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
+	org, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -363,7 +363,7 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
+	org, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -418,7 +418,7 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
+	org, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -474,7 +474,7 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
+	org, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -533,7 +533,7 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
+	org, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -605,7 +605,7 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
+	org, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),

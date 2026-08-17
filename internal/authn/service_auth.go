@@ -68,7 +68,6 @@ func (p *AtprotoServiceAuthMethod) Validate(
 	}
 	return &CredentialInfo{
 		Subject: did,
-		Type:    UserCredential,
 		Org:     p.everyoneOrg,
 	}, true
 }
@@ -82,5 +81,5 @@ func (p *AtprotoServiceAuthMethod) ValidateRaw(
 	if err != nil {
 		return nil, false, err
 	}
-	return &CredentialInfo{Subject: did, Type: UserCredential, Org: p.everyoneOrg}, true, nil
+	return &CredentialInfo{Subject: did, Org: p.everyoneOrg}, true, nil
 }

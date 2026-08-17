@@ -36,7 +36,7 @@ type Member struct {
 // It routes DIDs to their org and provides cross-org membership checks.
 type Store interface {
 	GetOrg(ctx context.Context, orgID syntax.DID) (Org, error)
-	GetOrgForDID(ctx context.Context, did syntax.DID) (o Org, isMember bool, err error)
+	GetOrgForDID(ctx context.Context, did syntax.DID) (o Org, err error)
 	CreateOrg(
 		ctx context.Context,
 		name string,
@@ -130,23 +130,23 @@ func (s *storeImpl) GetOrg(ctx context.Context, orgID syntax.DID) (Org, error) {
 func (s *storeImpl) GetOrgForDID(
 	ctx context.Context,
 	did syntax.DID,
-) (Org, bool /* isMember */, error) {
+) (Org, error) {
 	if o, err := s.GetOrg(ctx, did); err == nil {
-		return o, false, nil
+		return o, nil
 	}
 
 	var m member
 	if err := s.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err == nil {
 		o, err := s.GetOrg(ctx, m.OrgID)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
-		return o, true, nil
+		return o, nil
 	}
 	if s.everyone.DID() == did {
-		return s.everyone, false, nil
+		return s.everyone, nil
 	}
-	return s.everyone, true, nil
+	return s.everyone, nil
 }
 
 // CreateOrg creates a new org with a bootstrap admin member and returns the generated org ID and the admin identity.
