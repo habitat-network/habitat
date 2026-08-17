@@ -49,16 +49,6 @@ func NewStore(database *gorm.DB, spacesStore spaces.Store, fga fgastore.Store) *
 	return &Store{db: database, spaces: spacesStore, fga: fga}
 }
 
-// ownerContextualTuple makes the space owner (the org) a recognized owner of
-// the space without storing the tuple in FGA, mirroring internal/spaces.
-func ownerContextualTuple(uri habitat_syntax.SpaceURI) fgastore.Tuple {
-	return fgastore.Tuple{
-		User:     fgastore.MemberUserString(uri.SpaceOwner()),
-		Relation: fgastore.RelationSpaceOwner,
-		Object:   fgastore.SpaceObjectKey(uri),
-	}
-}
-
 // WriteTuple writes a relationship tuple, creating it if it does not already
 // exist. The tuple record is stored org-owned (repo = space owner) within the
 // object space, and the relationship is mirrored into FGA. The object space is
@@ -271,7 +261,7 @@ func (s *Store) Check(
 		user,
 		fgaRelation,
 		fgastore.SpaceObjectKey(space),
-		ownerContextualTuple(space),
+		fgastore.OwnerContextualTuple(space),
 		fgastore.OrgMemberContextualTuple(org),
 	)
 }
@@ -292,7 +282,7 @@ func (s *Store) ListSubjects(
 		ctx,
 		fgastore.SpaceObjectKey(space),
 		fgaRelation,
-		ownerContextualTuple(space),
+		fgastore.OwnerContextualTuple(space),
 		fgastore.OrgMemberContextualTuple(org),
 	)
 	if err != nil {

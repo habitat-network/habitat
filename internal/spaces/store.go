@@ -267,17 +267,6 @@ func (s *store) WithTx(tx *gorm.DB) Store {
 	}
 }
 
-// ownerContextualTuple returns a Tuple representing the owner relationship,
-// for use as a contextual tuple in FGA queries.  This is how we make the
-// owner a recognized member of the space without storing the owner in FGA.
-func ownerContextualTuple(uri habitat_syntax.SpaceURI) fgastore.Tuple {
-	return fgastore.Tuple{
-		User:     fgastore.MemberUserString(uri.SpaceOwner()),
-		Relation: fgastore.RelationSpaceOwner,
-		Object:   fgastore.SpaceObjectKey(uri),
-	}
-}
-
 func (s *store) CreateSpace(
 	ctx context.Context,
 	org syntax.DID,
@@ -464,7 +453,7 @@ func (s *store) IsMember(
 		fgastore.MemberUserString(did),
 		fgastore.RelationSpaceReader,
 		fgastore.SpaceObjectKey(uri),
-		ownerContextualTuple(uri),
+		fgastore.OwnerContextualTuple(uri),
 		fgastore.OrgMemberContextualTuple(org),
 	)
 }
