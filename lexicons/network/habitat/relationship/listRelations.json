@@ -51,20 +51,16 @@
                         "relations": {
                             "type": "array",
                             "items": {
-                                "type": "ref",
-                                "ref": "#relationView"
+                                "type": "union",
+                                "refs": [
+                                    "#userRelationView",
+                                    "#spaceRelationView"
+                                ]
                             }
                         }
                     }
                 }
             }
-        },
-        "relationView": {
-            "type": "union",
-            "refs": [
-                "#userRelationView",
-                "#spaceRelationView"
-            ]
         },
         "userRelationView": {
             "type": "object",

@@ -13,14 +13,11 @@ import type * as NetworkHabitatRelationshipDefs from './defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.relationship.tuple'
+const id = 'network.habitat.relationship.spaceRelation'
 
 export interface Main {
-  $type: 'network.habitat.relationship.tuple'
-  subject:
-    | $Typed<NetworkHabitatRelationshipDefs.UserSubject>
-    | $Typed<NetworkHabitatRelationshipDefs.SpaceRoleSubject>
-    | { $type: string }
+  $type: 'network.habitat.relationship.spaceRelation'
+  subject: NetworkHabitatRelationshipDefs.SpaceRoleSubject
   /** Role granted on the object space (owner|manager|writer|reader). */
   relation: 'owner' | 'manager' | 'writer' | 'reader' | (string & {})
   object: NetworkHabitatRelationshipDefs.SpaceObject

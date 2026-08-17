@@ -4096,14 +4096,14 @@
         }
       }
     },
-    "/network.habitat.relationship.deleteTuple": {
+    "/network.habitat.relationship.deleteRelation": {
       "post": {
         "tags": [
           "network.habitat.relationship"
         ],
-        "summary": "network.habitat.relationship.deleteTuple",
-        "description": "Delete a relationship tuple by its record URI. Caller must have the manager role on the tuple's governing space.",
-        "operationId": "network.habitat.relationship.deleteTuple",
+        "summary": "network.habitat.relationship.deleteRelation",
+        "description": "Delete a relationship record (user or space relation) by its record URI. Caller must have the manager role on the relation's governing space.",
+        "operationId": "network.habitat.relationship.deleteRelation",
         "security": [
           {
             "Bearer": []
@@ -4121,7 +4121,7 @@
                 "properties": {
                   "uri": {
                     "type": "string",
-                    "description": "URI of the tuple record to delete."
+                    "description": "URI of the relation record to delete."
                   }
                 }
               }
@@ -4156,7 +4156,7 @@
                           "const": "InvalidToken"
                         },
                         {
-                          "const": "TupleNotFound"
+                          "const": "RelationNotFound"
                         }
                       ]
                     },
@@ -4256,6 +4256,161 @@
                       "items": {
                         "type": "string",
                         "format": "uri"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.relationship.listRelations": {
+      "get": {
+        "tags": [
+          "network.habitat.relationship"
+        ],
+        "summary": "network.habitat.relationship.listRelations",
+        "description": "List relationship records governing a space, optionally filtered by object, subject, subject type, or relation. Caller must have the reader role on the space. This is the interoperable read surface other apps use to understand the permission structure.",
+        "operationId": "network.habitat.relationship.listRelations",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "URI of the governing space whose relations to list.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "URI of the governing space whose relations to list.",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "object",
+            "in": "query",
+            "description": "Optional. Restrict to relations whose object is this space or group URI.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional. Restrict to relations whose object is this space or group URI.",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "subjectDid",
+            "in": "query",
+            "description": "Optional. Restrict to relations whose subject is this user DID.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional. Restrict to relations whose subject is this user DID.",
+              "format": "did"
+            }
+          },
+          {
+            "name": "subjectType",
+            "in": "query",
+            "description": "Optional. Restrict to relations whose subject is a user (userRelation) or a space userset (spaceRelation).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional. Restrict to relations whose subject is a user (userRelation) or a space userset (spaceRelation)."
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
+            "description": "Optional. Restrict to relations with this relation.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional. Restrict to relations with this relation."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "relations"
+                  ],
+                  "properties": {
+                    "relations": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "$ref": "#/components/schemas/network.habitat.relationship.listRelations.userRelationView"
+                          },
+                          {
+                            "$ref": "#/components/schemas/network.habitat.relationship.listRelations.spaceRelationView"
+                          }
+                        ]
                       }
                     }
                   }
@@ -4438,74 +4593,61 @@
         }
       }
     },
-    "/network.habitat.relationship.listTuples": {
-      "get": {
+    "/network.habitat.relationship.writeSpaceRelation": {
+      "post": {
         "tags": [
           "network.habitat.relationship"
         ],
-        "summary": "network.habitat.relationship.listTuples",
-        "description": "List relationship tuples governing a space, optionally filtered by object, subject, subject type, or relation. Caller must have the reader role on the space. This is the interoperable read surface other apps use to understand the permission structure.",
-        "operationId": "network.habitat.relationship.listTuples",
+        "summary": "network.habitat.relationship.writeSpaceRelation",
+        "description": "Write a space relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.",
+        "operationId": "network.habitat.relationship.writeSpaceRelation",
         "security": [
           {
             "Bearer": []
           }
         ],
-        "parameters": [
-          {
-            "name": "space",
-            "in": "query",
-            "description": "URI of the governing space whose tuples to list.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "URI of the governing space whose tuples to list.",
-              "format": "uri"
-            }
-          },
-          {
-            "name": "object",
-            "in": "query",
-            "description": "Optional. Restrict to tuples whose object is this space or group URI.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Optional. Restrict to tuples whose object is this space or group URI.",
-              "format": "uri"
-            }
-          },
-          {
-            "name": "subjectDid",
-            "in": "query",
-            "description": "Optional. Restrict to tuples whose subject is this user DID.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Optional. Restrict to tuples whose subject is this user DID.",
-              "format": "did"
-            }
-          },
-          {
-            "name": "subjectType",
-            "in": "query",
-            "description": "Optional. Restrict to tuples whose subject is a user (userSubject) or a space userset (spaceRoleSubject).",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Optional. Restrict to tuples whose subject is a user (userSubject) or a space userset (spaceRoleSubject)."
-            }
-          },
-          {
-            "name": "relation",
-            "in": "query",
-            "description": "Optional. Restrict to tuples with this relation.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Optional. Restrict to tuples with this relation."
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subject",
+                  "subjectRole",
+                  "relation",
+                  "space"
+                ],
+                "properties": {
+                  "subject": {
+                    "type": "string",
+                    "description": "URI of the subject space (or group-space) whose role-holders form the userset to grant the role to.",
+                    "format": "uri"
+                  },
+                  "subjectRole": {
+                    "type": "string",
+                    "description": "The role held on the subject space, forming the userset."
+                  },
+                  "relation": {
+                    "type": "string",
+                    "description": "Role granted on the space (owner|manager|writer|reader).",
+                    "enum": [
+                      "owner",
+                      "manager",
+                      "writer",
+                      "reader"
+                    ]
+                  },
+                  "space": {
+                    "type": "string",
+                    "description": "URI of the space to grant the role on.",
+                    "format": "uri"
+                  }
+                }
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -4514,14 +4656,12 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "tuples"
+                    "uri"
                   ],
                   "properties": {
-                    "tuples": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.relationship.listTuples.tupleView"
-                      }
+                    "uri": {
+                      "type": "string",
+                      "description": "URI of the written relation record."
                     }
                   }
                 }
@@ -4550,6 +4690,12 @@
                         },
                         {
                           "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "InvalidRelation"
                         }
                       ]
                     },
@@ -4586,14 +4732,14 @@
         }
       }
     },
-    "/network.habitat.relationship.writeTuple": {
+    "/network.habitat.relationship.writeUserRelation": {
       "post": {
         "tags": [
           "network.habitat.relationship"
         ],
-        "summary": "network.habitat.relationship.writeTuple",
-        "description": "Write a relationship tuple, creating it if it does not already exist. The tuple record is owned by the org repo within its governing space. Caller must have the manager role on the object space.",
-        "operationId": "network.habitat.relationship.writeTuple",
+        "summary": "network.habitat.relationship.writeUserRelation",
+        "description": "Write a user relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.",
+        "operationId": "network.habitat.relationship.writeUserRelation",
         "security": [
           {
             "Bearer": []
@@ -4608,22 +4754,17 @@
                 "required": [
                   "subject",
                   "relation",
-                  "object"
+                  "space"
                 ],
                 "properties": {
                   "subject": {
-                    "oneOf": [
-                      {
-                        "$ref": "#/components/schemas/network.habitat.relationship.defs.userSubject"
-                      },
-                      {
-                        "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
-                      }
-                    ]
+                    "type": "string",
+                    "description": "DID of the user to grant the role to.",
+                    "format": "did"
                   },
                   "relation": {
                     "type": "string",
-                    "description": "Role granted on the object space (owner|manager|writer|reader).",
+                    "description": "Role granted on the space (owner|manager|writer|reader).",
                     "enum": [
                       "owner",
                       "manager",
@@ -4631,8 +4772,10 @@
                       "reader"
                     ]
                   },
-                  "object": {
-                    "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
+                  "space": {
+                    "type": "string",
+                    "description": "URI of the space to grant the role on.",
+                    "format": "uri"
                   }
                 }
               }
@@ -4652,7 +4795,7 @@
                   "properties": {
                     "uri": {
                       "type": "string",
-                      "description": "URI of the written tuple record."
+                      "description": "URI of the written relation record."
                     }
                   }
                 }
@@ -4686,7 +4829,7 @@
                           "const": "SpaceNotFound"
                         },
                         {
-                          "const": "InvalidTuple"
+                          "const": "InvalidRelation"
                         }
                       ]
                     },
@@ -8877,8 +9020,9 @@
           }
         }
       },
-      "network.habitat.relationship.listTuples.tupleView": {
+      "network.habitat.relationship.listRelations.userRelationView": {
         "type": "object",
+        "description": "A user relation record together with its URI.",
         "required": [
           "uri",
           "subject",
@@ -8888,17 +9032,10 @@
         "properties": {
           "uri": {
             "type": "string",
-            "description": "URI of the tuple record."
+            "description": "URI of the relation record."
           },
           "subject": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.userSubject"
-              },
-              {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
-              }
-            ]
+            "$ref": "#/components/schemas/network.habitat.relationship.defs.userSubject"
           },
           "relation": {
             "type": "string"
@@ -8908,7 +9045,32 @@
           }
         }
       },
-      "network.habitat.relationship.tuple": {
+      "network.habitat.relationship.listRelations.spaceRelationView": {
+        "type": "object",
+        "description": "A space relation record together with its URI.",
+        "required": [
+          "uri",
+          "subject",
+          "relation",
+          "object"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "URI of the relation record."
+          },
+          "subject": {
+            "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
+          },
+          "relation": {
+            "type": "string"
+          },
+          "object": {
+            "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
+          }
+        }
+      },
+      "network.habitat.relationship.spaceRelation": {
         "type": "object",
         "required": [
           "subject",
@@ -8917,14 +9079,37 @@
         ],
         "properties": {
           "subject": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.userSubject"
-              },
-              {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
-              }
+            "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
+          },
+          "relation": {
+            "type": "string",
+            "description": "Role granted on the object space (owner|manager|writer|reader).",
+            "enum": [
+              "owner",
+              "manager",
+              "writer",
+              "reader"
             ]
+          },
+          "object": {
+            "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.relationship.userRelation": {
+        "type": "object",
+        "required": [
+          "subject",
+          "relation",
+          "object"
+        ],
+        "properties": {
+          "subject": {
+            "$ref": "#/components/schemas/network.habitat.relationship.defs.userSubject"
           },
           "relation": {
             "type": "string",

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -13,6 +15,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/relationship"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -55,83 +58,88 @@ func (s *Server) authorize(
 	)
 }
 
-func (s *Server) WriteTuple(w http.ResponseWriter, r *http.Request) {
-	var input habitat.NetworkHabitatRelationshipWriteTupleInput
+func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var input habitat.NetworkHabitatRelationshipWriteUserRelationInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "failed to decode request body", err)
 		return
 	}
-
-	subject, err := parseSubjectInput(input.Subject)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	object, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Object.Space, "object space")
+	subject, ok := httpx.ParseDIDInput(ctx, w, input.Subject, "subject")
 	if !ok {
 		return
 	}
-
+	object, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space")
+	if !ok {
+		return
+	}
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(object, fgastore.RelationSpaceMemberManager),
 	).Validate(w, r); !ok {
 		return
 	}
-
-	uri, err := s.store.WriteTuple(r.Context(), subject, Role(input.Relation), object)
+	role, err := relationship.ParseRole(input.Relation)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse relation", err)
+	}
+	// TODO better relationship store interface
+	relationSubject, err := parseSubjectParams(subject.String(), role.String())
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse subject", err)
+	}
+	uri, err := s.store.WriteTuple(ctx, relationSubject, role, object)
 	if errors.Is(err, ErrInvalidTuple) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "invalid tuple", err)
 		return
 	} else if errors.Is(err, spaces.ErrSpaceNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "write tuple", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("write tuple: %w", err))
 		return
 	}
-
-	s.writeJSON(w, r, habitat.NetworkHabitatRelationshipWriteTupleOutput{Uri: uri.String()})
+	httpx.WriteJSON(ctx, w,
+		habitat.NetworkHabitatRelationshipWriteUserRelationOutput{Uri: uri.String()})
 }
 
 func (s *Server) DeleteTuple(w http.ResponseWriter, r *http.Request) {
-	var input habitat.NetworkHabitatRelationshipDeleteTupleInput
+	ctx := r.Context()
+	var input habitat.NetworkHabitatRelationshipDeleteRelationInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "failed to decode request body", err)
 		return
 	}
-
-	uri := habitat_syntax.SpaceRecordURI(input.Uri)
-	space := uri.SpaceURI()
-	if space == "" {
-		http.Error(w, "invalid tuple uri", http.StatusBadRequest)
+	httpx.ParseSpaceURIInput(ctx, w, input.Uri, "space")
+	uri, err := habitat_syntax.ParseSpaceRecordURI(input.Uri)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse uri", err)
 		return
 	}
-
 	if _, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(space, fgastore.RelationSpaceMemberManager),
+		authn.WithSpace(uri.SpaceURI(), fgastore.RelationSpaceMemberManager),
 	).Validate(w, r); !ok {
 		return
 	}
-
-	err := s.store.DeleteTuple(r.Context(), uri)
+	err = s.store.DeleteTuple(ctx, uri)
 	if errors.Is(err, ErrTupleNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		slog.WarnContext(ctx, "tuple not found", "err", err)
+		httpx.WriteError(ctx, w, "RelationNotFound", "", http.StatusNotFound)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "delete tuple", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("delete tuple: %w", err))
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
-	var params habitat.NetworkHabitatRelationshipListTuplesParams
+	ctx := r.Context()
+	var params habitat.NetworkHabitatRelationshipListRelationsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "failed to decode query params", err)
 		return
 	}
 
@@ -146,26 +154,28 @@ func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
 	).Validate(w, r); !ok {
 		return
 	}
-
 	filter, err := parseListTuplesFilter(params)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse filter", err)
 		return
 	}
-
-	tuples, err := s.store.ListTuples(r.Context(), space, filter)
+	tuples, err := s.store.ListTuples(ctx, space, filter)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "list tuples", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list tuples: %w", err))
 		return
 	}
-
-	views := make([]habitat.NetworkHabitatRelationshipListTuplesTupleView, len(tuples))
+	views := make([]any, len(tuples))
 	for i, t := range tuples {
-		views[i] = habitat.NetworkHabitatRelationshipListTuplesTupleView{
-			Uri:      t.URI.String(),
-			Subject:  t.Subject.toInterface(),
-			Relation: string(t.Relation),
-			Object:   habitat.NetworkHabitatRelationshipDefsSpaceObject{Space: t.Object.String()},
+		if t.Subject.Kind() == SubjectKindSpace {
+			views[i] = habitat.NetworkHabitatRelationshipListRelationsSpaceRelationView{
+				Uri:      t.URI.String(),
+				Subject:  t.Subject.toInterface(),
+				Relation: string(t.Relation),
+				Object: habitat.NetworkHabitatRelationshipDefsSpaceObject{
+					Space: t.Object.String(),
+				},
+			}
 		}
 	}
 

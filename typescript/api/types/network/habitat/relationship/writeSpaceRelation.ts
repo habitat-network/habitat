@@ -10,26 +10,26 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util.js'
-import type * as NetworkHabitatRelationshipDefs from './defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.relationship.writeTuple'
+const id = 'network.habitat.relationship.writeSpaceRelation'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  subject:
-    | $Typed<NetworkHabitatRelationshipDefs.UserSubject>
-    | $Typed<NetworkHabitatRelationshipDefs.SpaceRoleSubject>
-    | { $type: string }
-  /** Role granted on the object space (owner|manager|writer|reader). */
+  /** URI of the subject space (or group-space) whose role-holders form the userset to grant the role to. */
+  subject: string
+  /** The role held on the subject space, forming the userset. */
+  subjectRole: 'owner' | 'manager' | 'writer' | 'reader'
+  /** Role granted on the space (owner|manager|writer|reader). */
   relation: 'owner' | 'manager' | 'writer' | 'reader' | (string & {})
-  object: NetworkHabitatRelationshipDefs.SpaceObject
+  /** URI of the space to grant the role on. */
+  space: string
 }
 
 export interface OutputSchema {
-  /** URI of the written tuple record. */
+  /** URI of the written relation record. */
   uri: string
 }
 
@@ -52,7 +52,7 @@ export class SpaceNotFoundError extends XRPCError {
   }
 }
 
-export class InvalidTupleError extends XRPCError {
+export class InvalidRelationError extends XRPCError {
   constructor(src: XRPCError) {
     super(src.status, src.error, src.message, src.headers, { cause: src })
   }
@@ -61,7 +61,7 @@ export class InvalidTupleError extends XRPCError {
 export function toKnownErr(e: any) {
   if (e instanceof XRPCError) {
     if (e.error === 'SpaceNotFound') return new SpaceNotFoundError(e)
-    if (e.error === 'InvalidTuple') return new InvalidTupleError(e)
+    if (e.error === 'InvalidRelation') return new InvalidRelationError(e)
   }
 
   return e
