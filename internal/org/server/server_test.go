@@ -26,7 +26,6 @@ import (
 func successValidator(did syntax.DID) authn.RequestValidator {
 	return authntest.NewSuccessValidator(&authn.CredentialInfo{
 		Subject: did,
-		Type:    authn.UserCredential,
 	})
 }
 

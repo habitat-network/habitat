@@ -2,8 +2,8 @@ proto= "0.60.2"
 go = "1.26.6"
 golangci-lint = "2.12.2"
 moon = "2.4.6"
-node = "26.5.1"
-pnpm = "11.21.0"
+node = "26.7.0"
+pnpm = "11.22.0"
 caddy = "2.11.3"
 
 [plugins.tools]

@@ -70,7 +70,7 @@ func TestMintThenLookup(t *testing.T) {
 	orgServer, err := org_server.NewServer(
 		orgStore,
 		authntest.NewSuccessValidator(
-			&authn.CredentialInfo{Subject: adminDID, Type: authn.UserCredential},
+			&authn.CredentialInfo{Subject: adminDID},
 		),
 		nil,
 		"pear.example.com",
@@ -82,7 +82,7 @@ func TestMintThenLookup(t *testing.T) {
 	hiveServer, err := habitat_identity.NewServer(
 		h,
 		authntest.NewSuccessValidator(
-			&authn.CredentialInfo{Subject: adminDID, Type: authn.UserCredential},
+			&authn.CredentialInfo{Subject: adminDID},
 		),
 		orgStore,
 		nil,

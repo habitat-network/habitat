@@ -81,7 +81,7 @@ func TestServer_CreateSpace(t *testing.T) {
 		t,
 		testServerOptions{
 			validator: authntest.NewSuccessValidator(
-				&authn.CredentialInfo{Subject: owner, Type: authn.UserCredential},
+				&authn.CredentialInfo{Subject: owner},
 			),
 		},
 	)
