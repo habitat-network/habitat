@@ -17,6 +17,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
@@ -82,7 +83,7 @@ func newTestEngine(t *testing.T, hostURL string) (*Engine, *memEmitter, *gorm.DB
 func TestEngineSyncRepoVerifiesAndSettles(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	clock := syntax.NewTIDClock(0)
 	rev1, rev2 := clock.Next().String(), clock.Next().String()
@@ -99,7 +100,7 @@ func TestEngineSyncRepoVerifiesAndSettles(t *testing.T) {
 	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
-		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+		Hash: atdata.Bytes(lt.Sum()),
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +135,7 @@ func TestEngineSyncRepoVerifiesAndSettles(t *testing.T) {
 func TestEngineNotifyWriteRequeues(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 
 	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:new", "aaa", nil))
@@ -156,7 +157,7 @@ func TestEngineNotifyWriteRequeues(t *testing.T) {
 func TestEngineSyncRepoSinceAheadMarksDesynced(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -219,7 +220,7 @@ func TestEngineWithTx(t *testing.T) {
 func TestEngineDropSpace(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:bob"))
@@ -239,7 +240,7 @@ func TestEngineDropSpace(t *testing.T) {
 func TestEngineNotifyWriteSyncingMarksDirty(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
@@ -258,7 +259,7 @@ func TestEngineNotifyWriteSyncingMarksDirty(t *testing.T) {
 func TestEngineNotifyWriteAlreadyBehindHash(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
@@ -277,7 +278,7 @@ func TestEngineNotifyWriteAlreadyBehindHash(t *testing.T) {
 func TestVerifierNilDir(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	var lt spacecommit.LtHash
 	lt.Add(spacecommit.RecordElement("net.test", "r1", "cid1"))
 	commit := spacecommit.SignedCommit{
@@ -295,7 +296,7 @@ func TestVerifierNilDir(t *testing.T) {
 func TestVerifierNilDirMismatch(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	var lt spacecommit.LtHash
 	lt.Add(spacecommit.RecordElement("net.test", "r1", "cid1"))
 	commit := spacecommit.SignedCommit{
@@ -314,7 +315,7 @@ func TestVerifierNilDirMismatch(t *testing.T) {
 func TestVerifierNilPointer(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	var lt spacecommit.LtHash
 	lt.Add(spacecommit.RecordElement("net.test", "r1", "cid1"))
 	commit := spacecommit.SignedCommit{
@@ -327,35 +328,21 @@ func TestVerifierNilPointer(t *testing.T) {
 	require.NoError(t, v.Verify(t.Context(), space, "did:plc:alice", commit, &lt))
 }
 
-// TestDecodeBytesFieldCoversLexiconJSON covers the decodeBytesField and
-// decodeCommit paths used by syncRepo.
-func TestDecodeBytesFieldCoversLexiconJSON(t *testing.T) {
-	t.Parallel()
-
-	b, err := decodeBytesField(nil)
-	require.NoError(t, err)
-	require.Nil(t, b)
-
-	b, err = decodeBytesField(base64.StdEncoding.EncodeToString([]byte{1, 2}))
-	require.NoError(t, err)
-	require.Equal(t, []byte{1, 2}, b)
-
-	_, err = decodeBytesField(42)
-	require.Error(t, err)
-}
-
 // TestDecodeCommitFromLexicon covers decodeCommit with a full signed commit.
 func TestDecodeCommitFromLexicon(t *testing.T) {
 	t.Parallel()
 
 	hashBytes := []byte{0xaa, 0xbb}
+	bytesField := func(b []byte) any {
+		return map[string]any{"$bytes": base64.RawStdEncoding.EncodeToString(b)}
+	}
 	lexicon := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  "3kzl6abcde02k",
-		Hash: base64.StdEncoding.EncodeToString(hashBytes),
-		Ikm:  base64.StdEncoding.EncodeToString([]byte{0x01}),
-		Mac:  base64.StdEncoding.EncodeToString([]byte{0x02}),
-		Sig:  base64.StdEncoding.EncodeToString([]byte{0x03}),
+		Hash: bytesField(hashBytes),
+		Ikm:  bytesField([]byte{0x01}),
+		Mac:  bytesField([]byte{0x02}),
+		Sig:  bytesField([]byte{0x03}),
 	}
 	c, err := decodeCommit(lexicon)
 	require.NoError(t, err)
@@ -373,7 +360,7 @@ func TestDecodeCommitBadBase64(t *testing.T) {
 
 	_, err := decodeCommit(habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  1,
-		Hash: "!!!notbase64!!!",
+		Hash: map[string]any{"$bytes": "!!!notbase64!!!"},
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "decode commit hash")
@@ -383,7 +370,7 @@ func TestDecodeCommitBadBase64(t *testing.T) {
 func TestEngineScheduleRetry(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
@@ -411,7 +398,7 @@ func TestEngineScheduleRetry(t *testing.T) {
 func TestEngineSettleDirtyRepo(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
@@ -440,7 +427,7 @@ func TestEngineRecoverRepoClientError(t *testing.T) {
 	e, err := New(db, failClient, &memEmitter{}, NewVerifier(nil), 1, m)
 	require.NoError(t, err)
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
 		Update("state", stateDesynced).Error)
@@ -472,7 +459,7 @@ func TestEngineRecoverRepoNonOK(t *testing.T) {
 	e, err := New(db, fakeClients{base: base}, &memEmitter{}, NewVerifier(nil), 1, m)
 	require.NoError(t, err)
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
 		Update("state", stateDesynced).Error)
@@ -504,7 +491,7 @@ func TestEngineRecoverRepoInvalidCAR(t *testing.T) {
 	e, err := New(db, fakeClients{base: base}, &memEmitter{}, NewVerifier(nil), 1, m)
 	require.NoError(t, err)
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
 		Update("state", stateDesynced).Error)
@@ -541,7 +528,7 @@ func TestVerifierSignerWebAuthor(t *testing.T) {
 	dir := identity.NewMockDirectory()
 	dir.Insert(*ident)
 	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	var lt spacecommit.LtHash
 	_ = spacecommit.SignedCommit{
 		Ver:  spacecommit.Version,
@@ -573,7 +560,7 @@ func TestVerifierSignerExternalAuthor(t *testing.T) {
 	dir.Insert(*ownerIdent)
 	dir.Insert(*hostIdent)
 	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
 	got, err := v.signer(t.Context(), space, "did:plc:external")
 	require.NoError(t, err)
@@ -600,7 +587,7 @@ func TestVerifierSignerExternalAuthorFallsBackToAtproto(t *testing.T) {
 	dir.Insert(*ownerIdent)
 	dir.Insert(*hostIdent)
 	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
 	got, err := v.signer(t.Context(), space, "did:plc:external")
 	require.NoError(t, err)
@@ -614,7 +601,7 @@ func TestVerifierSignerAuthorLookupError(t *testing.T) {
 
 	dir := identity.NewMockDirectory()
 	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
 	_, err := v.signer(t.Context(), space, "did:web:missing.example.com")
 	require.Error(t, err)
@@ -632,7 +619,7 @@ func TestVerifierSignerAuthorNoKey(t *testing.T) {
 	dir := identity.NewMockDirectory()
 	dir.Insert(*ident)
 	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
 	_, err := v.signer(t.Context(), space, authorDID)
 	require.Error(t, err)
@@ -646,7 +633,7 @@ func TestVerifierSignerExternalOwnerLookupError(t *testing.T) {
 
 	dir := identity.NewMockDirectory()
 	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
 	_, err := v.signer(t.Context(), space, "did:plc:external")
 	require.Error(t, err)
@@ -664,7 +651,7 @@ func TestVerifierSignerExternalNoHabitatService(t *testing.T) {
 	dir := identity.NewMockDirectory()
 	dir.Insert(*ownerIdent)
 	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
 	_, err := v.signer(t.Context(), space, "did:plc:external")
 	require.Error(t, err)
@@ -682,7 +669,7 @@ func TestVerifierSignerExternalHostLookupError(t *testing.T) {
 	dir := identity.NewMockDirectory()
 	dir.Insert(*ownerIdent)
 	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
 	_, err := v.signer(t.Context(), space, "did:plc:external")
 	require.Error(t, err)
@@ -703,7 +690,7 @@ func TestVerifierSignerExternalHostNoKey(t *testing.T) {
 	dir.Insert(*ownerIdent)
 	dir.Insert(*hostIdent)
 	v := NewVerifier(dir)
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
 	_, err := v.signer(t.Context(), space, "did:plc:external")
 	require.Error(t, err)
@@ -715,7 +702,7 @@ func TestVerifierSignerExternalHostNoKey(t *testing.T) {
 func TestEngineDispatchClaimsPendingAndErrorRepos(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 
 	require.NoError(
@@ -743,7 +730,7 @@ func TestEngineDispatchClaimsPendingAndErrorRepos(t *testing.T) {
 func TestEngineDispatchClaimsDesyncedRepos(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 
 	require.NoError(
@@ -769,7 +756,7 @@ func TestEngineDispatchClaimsDesyncedRepos(t *testing.T) {
 func TestEngineSettleCleanRepo(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
@@ -794,7 +781,7 @@ func TestEngineSettleCleanRepo(t *testing.T) {
 func TestEngineScheduleRetryBackoff(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 
@@ -856,7 +843,7 @@ func TestEngineRunJobDispatchesToRecover(t *testing.T) {
 	e, err := New(db, failClient, &memEmitter{}, NewVerifier(nil), 1, m)
 	require.NoError(t, err)
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 
 	j := job{Space: space, DID: "did:plc:alice", Recover: true}
@@ -871,7 +858,7 @@ func TestEngineRunJobDispatchesToRecover(t *testing.T) {
 func TestEngineRunJobDispatchesToSync(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{
 			Commit: habitat.NetworkHabitatSpaceDefsSignedCommit{Ver: 0},
@@ -897,7 +884,7 @@ func TestEngineRunJobDispatchesToSync(t *testing.T) {
 func TestEngineRunProcessesPendingRepo(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{Ver: 0}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -926,7 +913,7 @@ func TestEngineRecoverRepoVerifyError(t *testing.T) {
 
 	carBytes := buildMinimalCAR(t)
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
@@ -964,7 +951,7 @@ func TestEngineRecoverRepoSuccess(t *testing.T) {
 
 	carBytes := buildMinimalCAR(t)
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
@@ -998,7 +985,7 @@ func TestEngineRecoverRepoSuccess(t *testing.T) {
 func TestEngineNotifyWriteBehindHashSameRev(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
@@ -1016,7 +1003,7 @@ func TestEngineNotifyWriteBehindHashSameRev(t *testing.T) {
 func TestEngineNotifyWriteAlreadyCurrent(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
@@ -1037,7 +1024,7 @@ func TestEngineNotifyWriteAlreadyCurrent(t *testing.T) {
 func TestEngineNotifyWriteConcurrentUnknownRepo(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 
 	const concurrency = 8
@@ -1067,7 +1054,7 @@ func TestEngineNotifyWriteConcurrentUnknownRepo(t *testing.T) {
 func TestEngineScheduleRetryDesyncRecoversPromptly(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 	require.NoError(t, e.Track(t.Context(), space, "did:plc:alice"))
 
@@ -1094,7 +1081,7 @@ func TestEngineScheduleRetryDesyncRecoversPromptly(t *testing.T) {
 func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	coll := syntax.NSID("network.habitat.test")
 	rev := syntax.NewTIDClock(0).Next().String()
@@ -1116,7 +1103,7 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 				Commit: habitat.NetworkHabitatSpaceDefsSignedCommit{
 					Ver:  int64(spacecommit.Version),
 					Rev:  rev,
-					Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+					Hash: atdata.Bytes(lt.Sum()),
 				},
 			})
 		})
@@ -1187,7 +1174,7 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	coll := syntax.NSID("network.habitat.test")
 	rev := syntax.NewTIDClock(0).Next().String()
@@ -1198,7 +1185,7 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev,
-		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+		Hash: atdata.Bytes(lt.Sum()),
 	}
 
 	mux := http.NewServeMux()
@@ -1235,7 +1222,7 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 	require.Equal(
 		t,
 		[]byte("null"),
-		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/k2"],
+		emitter.values["at://did:plc:owner/space/network.habitat.space/s1/did:plc:alice/network.habitat.test/k2"],
 	)
 
 	index, err := recordIndex(t.Context(), db, space, repoDID)
@@ -1251,7 +1238,7 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	car := buildMinimalCAR(t) // holds exactly network.habitat.test/rec1
 
@@ -1281,7 +1268,7 @@ func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
 	require.Equal(
 		t,
 		[]byte("null"),
-		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/rec2"],
+		emitter.values["at://did:plc:owner/space/network.habitat.space/s1/did:plc:alice/network.habitat.test/rec2"],
 	)
 
 	index, err := recordIndex(t.Context(), db, space, repoDID)
@@ -1297,7 +1284,7 @@ func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
 func TestEngineRecoverRepoUsesHabitatNsid(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 
 	var requestedPath string
@@ -1325,7 +1312,7 @@ func TestEngineRecoverRepoUsesHabitatNsid(t *testing.T) {
 func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	clock := syntax.NewTIDClock(0)
 	rev1, rev2 := clock.Next().String(), clock.Next().String()
@@ -1339,7 +1326,7 @@ func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
-		Hash: base64.StdEncoding.EncodeToString(lt.Sum()),
+		Hash: atdata.Bytes(lt.Sum()),
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1364,7 +1351,7 @@ func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 	require.Equal(
 		t,
 		[]byte("null"),
-		emitter.values["ats://did:plc:owner/network.habitat.space/s1/did:plc:alice/network.habitat.test/k1"],
+		emitter.values["at://did:plc:owner/space/network.habitat.space/s1/did:plc:alice/network.habitat.test/k1"],
 	)
 }
 
@@ -1374,7 +1361,7 @@ func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 func TestEngineCheckRequeuesDriftedRepo(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	clock := syntax.NewTIDClock(0)
 	rev1, rev2 := clock.Next().String(), clock.Next().String()
@@ -1413,7 +1400,7 @@ func TestEngineCheckRequeuesDriftedRepo(t *testing.T) {
 func TestEngineCheckLeavesCurrentReposActive(t *testing.T) {
 	t.Parallel()
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	rev := syntax.NewTIDClock(0).Next().String()
 

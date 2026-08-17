@@ -76,7 +76,6 @@ func newTestServer(
 	srv, err := NewServer(
 		store,
 		successValidator(adminIdent.DID),
-		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		policy,
@@ -208,7 +207,6 @@ func newCreateTestServer(t *testing.T) *Server {
 	t.Helper()
 	srv, err := NewServer(
 		orgtestutil.NewTestStore(t),
-		nil,
 		nil,
 		"domain",
 		identity.DefaultDirectory(),
@@ -343,7 +341,6 @@ func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 	srv, err := NewServer(
 		orgtestutil.NewTestStore(t),
 		successValidator(syntax.DID("did:plc:alice111")),
-		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		&fakeInstancePolicy{policy: "open"},
@@ -373,7 +370,6 @@ func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 	srv, err := NewServer(
 		orgtestutil.NewTestStore(t),
 		successValidator(syntax.DID("did:plc:alice111")),
-		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		&fakeInstancePolicy{policy: "invite_only"},
@@ -403,7 +399,6 @@ func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 	srv, err := NewServer(
 		orgtestutil.NewTestStore(t),
 		successValidator(syntax.DID("did:plc:alice111")),
-		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		&fakeInstancePolicy{policy: "invite_only", validateErr: errors.New("bad token")},
@@ -435,7 +430,6 @@ func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
 	srv, err := NewServer(
 		orgtestutil.NewTestStore(t),
 		successValidator(syntax.DID("did:plc:alice111")),
-		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		policy,
@@ -470,7 +464,6 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 	srv, err := NewServer(
 		store,
 		successValidator(syntax.DID("did:plc:alice111")),
-		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		policy,
@@ -535,7 +528,6 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 	srv, err := NewServer(
 		orgtestutil.NewTestStore(t),
 		successValidator(syntax.DID("did:plc:alice111")),
-		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		instanceStore,

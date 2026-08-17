@@ -727,10 +727,10 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 func shapeSignedCommit(c spacecommit.SignedCommit) habitat.NetworkHabitatSpaceDefsSignedCommit {
 	return habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(c.Ver),
-		Hash: c.Hash,
-		Ikm:  c.Ikm,
-		Mac:  c.Mac,
-		Sig:  c.Sig,
+		Hash: atdata.Bytes(c.Hash),
+		Ikm:  atdata.Bytes(c.Ikm),
+		Mac:  atdata.Bytes(c.Mac),
+		Sig:  atdata.Bytes(c.Sig),
 		Rev:  c.Rev,
 	}
 }

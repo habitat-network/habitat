@@ -88,7 +88,7 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []Session{{DID: "did:plc:alice", SessionID: "sess1"}}, sessions)
 
-	space := habitat_syntax.SpaceURI("ats://did:plc:owner/network.habitat.space/s1")
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	require.NoError(t, s.RecordSpaceAccess(t.Context(), space, "did:plc:alice", "sess1"))
 	require.NoError(
 		t,

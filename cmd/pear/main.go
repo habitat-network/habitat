@@ -390,7 +390,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	orgServer, err := org_server.NewServer(
 		orgStore,
 		validator,
-		pear,
 		domain,
 		hiveDir,
 		instanceAdminStore,
