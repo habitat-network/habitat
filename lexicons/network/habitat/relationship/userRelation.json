@@ -1,10 +1,10 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.relationship.tuple",
+    "id": "network.habitat.relationship.userRelation",
     "defs": {
         "main": {
             "type": "record",
-            "description": "A relationship tuple (subject, relation, object) defining one access-control relationship. The object is always a space; groups are spaces too, so granting a role on a group-space is just an ordinary tuple. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
+            "description": "A relationship record granting a role to a user (by DID) on object (a space). The object is always a space; groups are spaces too, so granting a role to a user on a group-space is just an ordinary user relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
             "key": "tid",
             "record": {
                 "type": "object",
@@ -15,11 +15,8 @@
                 ],
                 "properties": {
                     "subject": {
-                        "type": "union",
-                        "refs": [
-                            "network.habitat.relationship.defs#userSubject",
-                            "network.habitat.relationship.defs#spaceRoleSubject"
-                        ]
+                        "type": "ref",
+                        "ref": "network.habitat.relationship.defs#userSubject"
                     },
                     "relation": {
                         "type": "string",

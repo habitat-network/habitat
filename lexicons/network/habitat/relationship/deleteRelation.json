@@ -1,10 +1,10 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.relationship.deleteTuple",
+    "id": "network.habitat.relationship.deleteRelation",
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Delete a relationship tuple by its record URI. Caller must have the manager role on the tuple's governing space.",
+            "description": "Delete a relationship record (user or space relation) by its record URI. Caller must have the manager role on the relation's governing space.",
             "input": {
                 "encoding": "application/json",
                 "schema": {
@@ -15,15 +15,15 @@
                     "properties": {
                         "uri": {
                             "type": "string",
-                            "description": "URI of the tuple record to delete."
+                            "description": "URI of the relation record to delete."
                         }
                     }
                 }
             },
             "errors": [
                 {
-                    "name": "TupleNotFound",
-                    "description": "No tuple record exists at the given URI."
+                    "name": "RelationNotFound",
+                    "description": "No relation record exists at the given URI."
                 }
             ]
         }
