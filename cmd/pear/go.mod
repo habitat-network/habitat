@@ -80,7 +80,7 @@ require (
 	github.com/prometheus/common v0.70.1 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	gitlab.com/yawning/secp256k1-voi v0.0.0-20230925100816-f2616030848b // indirect
 	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect

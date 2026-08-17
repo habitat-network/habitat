@@ -10,7 +10,7 @@ require (
 	github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/mdelapenya/tlscert v0.2.0
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	github.com/tebeka/selenium v0.9.9
 	github.com/testcontainers/testcontainers-go v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
