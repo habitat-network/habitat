@@ -1,12 +1,13 @@
-import type {
-  ComAtprotoRepoCreateRecord,
-  ComAtprotoRepoGetRecord,
-  ComAtprotoRepoListRecords,
-  ComAtprotoIdentityResolveHandle,
-  AppBskyActorSearchActorsTypeahead,
-  AppBskyActorGetProfile,
-  AppBskyActorGetProfiles,
-  ComAtprotoServerGetServiceAuth,
+import {
+  jsonToLex,
+  type ComAtprotoRepoCreateRecord,
+  type ComAtprotoRepoGetRecord,
+  type ComAtprotoRepoListRecords,
+  type ComAtprotoIdentityResolveHandle,
+  type AppBskyActorSearchActorsTypeahead,
+  type AppBskyActorGetProfile,
+  type AppBskyActorGetProfiles,
+  type ComAtprotoServerGetServiceAuth,
 } from "@atproto/api";
 import type {
   ComAtprotoRepoDescribeRepo,
@@ -414,7 +415,11 @@ export const query = async <T extends keyof QueryEndpoints>(
   if (!response.ok) {
     throw new XRPCError(response.status, data ?? { error: "UnknownError" });
   }
-  return data;
+  // This is a plain fetch, not @atproto/xrpc's client, so lexicon-typed
+  // fields (bytes, blobs, CIDs) arrive as raw JSON (e.g. {"$bytes": "..."})
+  // rather than the Uint8Array/BlobRef/CID the generated types declare.
+  // jsonToLex decodes them the same way @atproto/xrpc does.
+  return jsonToLex(data) as QueryEndpoints[T]["output"];
 };
 
 export const procedure = async <T extends keyof ProcedureEndpoints>(
@@ -430,7 +435,9 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
   if (!response.ok) {
     throw new XRPCError(response.status, data);
   }
-  return data;
+  // See query()'s equivalent comment: decode lexicon-typed fields the same
+  // way @atproto/xrpc does, since this is a plain fetch.
+  return jsonToLex(data) as ProcedureEndpoints[T]["output"];
 };
 
 const authedRequest = (

@@ -152,15 +152,25 @@ function LatestCommitCard({ commit }: { commit: SpaceCommit | null }) {
   );
 }
 
-// CommitField renders one base64 field of the commit. The values are long
-// enough to wrap over several lines, so they truncate with the full value in a
-// tooltip.
-function CommitField({ label, value }: { label: string; value: string }) {
+// uint8ArrayToBase64 re-encodes a decoded lexicon bytes field back to base64
+// for display. Commit fields are small fixed-size digests/signatures, so a
+// plain loop is fine — no need to pull in a chunked/streaming encoder.
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+// CommitField renders one byte field of the commit as base64 for display. The
+// values are long enough to wrap over several lines, so they truncate with
+// the full value in a tooltip.
+function CommitField({ label, value }: { label: string; value: Uint8Array }) {
+  const encoded = uint8ArrayToBase64(value);
   return (
     <>
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="truncate font-mono" title={value}>
-        {value}
+      <dd className="truncate font-mono" title={encoded}>
+        {encoded}
       </dd>
     </>
   );
