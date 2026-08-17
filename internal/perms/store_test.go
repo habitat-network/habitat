@@ -136,21 +136,30 @@ func TestStoreSpaceRoleRelation(t *testing.T) {
 		require.True(t, ok)
 	})
 
-	t.Run("CheckSpaceRelationHasSpaceRole reports the userset relation directly", func(t *testing.T) {
-		ok, err := s.CheckSpaceRelationHasSpaceRole(
-			ctx,
-			group,
-			SpaceRoleReader,
-			doc,
-			SpaceRoleReader,
-		)
-		require.NoError(t, err)
-		require.True(t, ok)
+	t.Run(
+		"CheckSpaceRelationHasSpaceRole reports the userset relation directly",
+		func(t *testing.T) {
+			ok, err := s.CheckSpaceRelationHasSpaceRole(
+				ctx,
+				group,
+				SpaceRoleReader,
+				doc,
+				SpaceRoleReader,
+			)
+			require.NoError(t, err)
+			require.True(t, ok)
 
-		ok, err = s.CheckSpaceRelationHasSpaceRole(ctx, group, SpaceRoleReader, doc, SpaceRoleWriter)
-		require.NoError(t, err)
-		require.False(t, ok)
-	})
+			ok, err = s.CheckSpaceRelationHasSpaceRole(
+				ctx,
+				group,
+				SpaceRoleReader,
+				doc,
+				SpaceRoleWriter,
+			)
+			require.NoError(t, err)
+			require.False(t, ok)
+		},
+	)
 
 	t.Run("revoking the space-role relation removes access", func(t *testing.T) {
 		require.NoError(

@@ -45,21 +45,60 @@ type SpaceRoleSubject struct {
 
 type Store interface {
 	// Additions
-	AddUserRelation(ctx context.Context, did syntax.DID, space habitat_syntax.SpaceURI, role SpaceRole) error
-	AddSpaceRoleRelation(ctx context.Context, subject habitat_syntax.SpaceURI, subjectRole SpaceRole, object habitat_syntax.SpaceURI, objectRole SpaceRole) error
+	AddUserRelation(
+		ctx context.Context,
+		did syntax.DID,
+		space habitat_syntax.SpaceURI,
+		role SpaceRole,
+	) error
+	AddSpaceRoleRelation(
+		ctx context.Context,
+		subject habitat_syntax.SpaceURI,
+		subjectRole SpaceRole,
+		object habitat_syntax.SpaceURI,
+		objectRole SpaceRole,
+	) error
 
 	// Revocations
-	RevokeUserRelation(ctx context.Context, did syntax.DID, space habitat_syntax.SpaceURI, role SpaceRole) error
-	RevokeSpaceRoleRelation(ctx context.Context, subjectSpace habitat_syntax.SpaceURI, subjectRole SpaceRole, objectSpace habitat_syntax.SpaceURI, objectRole SpaceRole) error
+	RevokeUserRelation(
+		ctx context.Context,
+		did syntax.DID,
+		space habitat_syntax.SpaceURI,
+		role SpaceRole,
+	) error
+	RevokeSpaceRoleRelation(
+		ctx context.Context,
+		subjectSpace habitat_syntax.SpaceURI,
+		subjectRole SpaceRole,
+		objectSpace habitat_syntax.SpaceURI,
+		objectRole SpaceRole,
+	) error
 	UnsafeRevokeAllSpaceRoles(ctx context.Context, space habitat_syntax.SpaceURI) error
 
 	// Permission checks
-	CheckUserHasSpaceRole(ctx context.Context, did syntax.DID, space habitat_syntax.SpaceURI, role SpaceRole) (bool, error)
-	CheckSpaceRelationHasSpaceRole(ctx context.Context, subjectSpace habitat_syntax.SpaceURI, subjectRole SpaceRole, objectSpace habitat_syntax.SpaceURI, objectRole SpaceRole) (bool, error)
+	CheckUserHasSpaceRole(
+		ctx context.Context,
+		did syntax.DID,
+		space habitat_syntax.SpaceURI,
+		role SpaceRole,
+	) (bool, error)
+	CheckSpaceRelationHasSpaceRole(
+		ctx context.Context,
+		subjectSpace habitat_syntax.SpaceURI,
+		subjectRole SpaceRole,
+		objectSpace habitat_syntax.SpaceURI,
+		objectRole SpaceRole,
+	) (bool, error)
 
 	// List various things using relations
-	ListSubjects(ctx context.Context, space habitat_syntax.SpaceURI) ([]syntax.DID, []SpaceRoleSubject, error)
-	ListSpaceRoleSubjects(ctx context.Context, space habitat_syntax.SpaceURI) ([]SpaceRoleSubject, error)
+	ListSubjects(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+	) ([]syntax.DID, []SpaceRoleSubject, error)
+	ListSpaceRoleSubjects(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+	) ([]SpaceRoleSubject, error)
 	ListUserSubjects(ctx context.Context, space habitat_syntax.SpaceURI) ([]syntax.DID, error)
 	ListObjects(ctx context.Context, did syntax.DID) ([]habitat_syntax.SpaceURI, error)
 }
@@ -168,7 +207,10 @@ func (s *store) RevokeSpaceRoleRelation(
 //
 // This is only meant to be used upon space deletion--if this is called on a space that is
 // still used, it will be in a broken state.
-func (s *store) UnsafeRevokeAllSpaceRoles(ctx context.Context, space habitat_syntax.SpaceURI) error {
+func (s *store) UnsafeRevokeAllSpaceRoles(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) error {
 	tuples, err := s.fga.Read(ctx, fgastore.Tuple{Object: fgastore.SpaceObjectKey(space)})
 	if err != nil {
 		return err
@@ -179,7 +221,9 @@ func (s *store) UnsafeRevokeAllSpaceRoles(ctx context.Context, space habitat_syn
 
 	deletes := make([]*openfgav1.TupleKeyWithoutCondition, len(tuples))
 	for i, t := range tuples {
-		deletes[i] = tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(t.Object, t.Relation, t.User))
+		deletes[i] = tuple.TupleKeyToTupleKeyWithoutCondition(
+			tuple.NewTupleKey(t.Object, t.Relation, t.User),
+		)
 	}
 	return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 		Deletes: &openfgav1.WriteRequestDeletes{
@@ -279,7 +323,10 @@ func (s *store) ListUserSubjects(
 // this covers manager/writer/owner too). Owner/org-member implications
 // aren't expanded here, since that would require checking every space in
 // every org did could be a member of.
-func (s *store) ListObjects(ctx context.Context, did syntax.DID) ([]habitat_syntax.SpaceURI, error) {
+func (s *store) ListObjects(
+	ctx context.Context,
+	did syntax.DID,
+) ([]habitat_syntax.SpaceURI, error) {
 	keys, err := s.fga.ListObjects(
 		ctx,
 		fgastore.MemberUserString(did),
