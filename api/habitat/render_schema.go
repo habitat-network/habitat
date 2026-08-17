@@ -13,6 +13,7 @@ type NetworkHabitatRenderSchemaFieldSchema struct {
 
 // NetworkHabitatRenderSchema represents a network.habitat.render.schema record
 type NetworkHabitatRenderSchema struct {
+	LexiconTypeID string                                  `json:"$type,const=network.habitat.render.schema"`
 	Description   string                                  `json:"description,omitempty"`
 	Fields        []NetworkHabitatRenderSchemaFieldSchema `json:"fields"`
 	TargetLexicon string                                  `json:"targetLexicon"`

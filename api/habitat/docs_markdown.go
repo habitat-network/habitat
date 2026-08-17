@@ -4,6 +4,7 @@ package habitat
 
 // NetworkHabitatDocsMarkdown represents a network.habitat.docs.markdown record
 type NetworkHabitatDocsMarkdown struct {
-	Content string `json:"content"`
-	Title   string `json:"title"`
+	LexiconTypeID string `json:"$type,const=network.habitat.docs.markdown"`
+	Content       string `json:"content"`
+	Title         string `json:"title"`
 }

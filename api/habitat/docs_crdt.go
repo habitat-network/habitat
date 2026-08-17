@@ -4,5 +4,6 @@ package habitat
 
 // NetworkHabitatDocsCrdt represents a network.habitat.docs.crdt record
 type NetworkHabitatDocsCrdt struct {
-	Blob string `json:"blob"`
+	LexiconTypeID string `json:"$type,const=network.habitat.docs.crdt"`
+	Blob          string `json:"blob"`
 }

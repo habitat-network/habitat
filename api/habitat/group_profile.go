@@ -4,7 +4,8 @@ package habitat
 
 // NetworkHabitatGroupProfile represents a network.habitat.group.profile record
 type NetworkHabitatGroupProfile struct {
-	CreatedAt   string `json:"createdAt,omitempty"`
-	Description string `json:"description,omitempty"`
-	Name        string `json:"name"`
+	LexiconTypeID string `json:"$type,const=network.habitat.group.profile"`
+	CreatedAt     string `json:"createdAt,omitempty"`
+	Description   string `json:"description,omitempty"`
+	Name          string `json:"name"`
 }

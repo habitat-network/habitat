@@ -4,8 +4,9 @@ package habitat
 
 // NetworkHabitatRelationshipTuple represents a network.habitat.relationship.tuple record
 type NetworkHabitatRelationshipTuple struct {
-	CreatedAt string                                    `json:"createdAt,omitempty"`
-	Object    NetworkHabitatRelationshipDefsSpaceObject `json:"object"`
-	Relation  string                                    `json:"relation"`
-	Subject   interface{}                               `json:"subject"`
+	LexiconTypeID string                                    `json:"$type,const=network.habitat.relationship.tuple"`
+	CreatedAt     string                                    `json:"createdAt,omitempty"`
+	Object        NetworkHabitatRelationshipDefsSpaceObject `json:"object"`
+	Relation      string                                    `json:"relation"`
+	Subject       interface{}                               `json:"subject"`
 }
