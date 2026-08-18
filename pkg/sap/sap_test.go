@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -115,24 +114,14 @@ func TestSap(t *testing.T) {
 	// The notify entry points, as cmd/sap mounts them (sans service auth).
 	mux.HandleFunc("/xrpc/network.habitat.space.notifyWrite",
 		func(w http.ResponseWriter, r *http.Request) {
-			var input struct {
-				Space string `json:"space"`
-				Repo  string `json:"repo"`
-				Rev   string `json:"rev"`
-				Hash  string `json:"hash"`
-			}
+			var input habitat.NetworkHabitatSpaceNotifyWriteInput
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
-			var hash []byte
-			if input.Hash != "" {
-				hash, err = base64.StdEncoding.DecodeString(input.Hash)
-				require.NoError(t, err)
-			}
 			require.NoError(t, s.NotifyWrite(
 				r.Context(),
 				habitat_syntax.SpaceURI(input.Space).URI(),
 				syntax.DID(input.Repo),
 				syntax.TID(input.Rev),
-				hash,
+				input.Hash,
 			))
 			w.WriteHeader(http.StatusOK)
 		})

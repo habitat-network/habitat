@@ -31,7 +31,6 @@ import (
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
-	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type testServerOptions struct {
@@ -275,10 +274,8 @@ func TestServer_ListRepos(t *testing.T) {
 	require.Len(t, output.Repos, 1)
 	require.Equal(t, "did:plc:owner", output.Repos[0].Did)
 	require.NotEmpty(t, output.Repos[0].Rev)
-	// The repo's LtHash commit hash is populated (base64-encoded bytes).
-	hash, ok := output.Repos[0].Hash.(string)
-	require.True(t, ok)
-	require.NotEmpty(t, hash)
+	// The repo's LtHash commit hash is populated.
+	require.NotEmpty(t, output.Repos[0].Hash)
 }
 
 func TestServer_RemoveMember(t *testing.T) {
@@ -677,13 +674,6 @@ func TestServer_ListRepoOps(t *testing.T) {
 	require.Equal(t, output.Ops[1].Rev, output.Cursor)
 }
 
-func decodeB64(t *testing.T, v any) []byte {
-	t.Helper()
-	b, err := utils.ParseBytes(v)
-	require.NoError(t, err)
-	return b
-}
-
 // TestServer_ListRepoOps_IncludesSignedCommit verifies that at the head of the
 // oplog a host-signed commit is returned, and that it verifies against the host
 // key with the host protocol tag and carries the repo's LtHash.
@@ -719,9 +709,9 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	require.Equal(t, int64(spacecommit.Version), out.Commit.Ver)
 	require.Equal(t, out.Ops[0].Rev, out.Commit.Rev)
 
-	hash := decodeB64(t, out.Commit.Hash)
-	ikm := decodeB64(t, out.Commit.Ikm)
-	sig := decodeB64(t, out.Commit.Sig)
+	hash := []byte(out.Commit.Hash)
+	ikm := []byte(out.Commit.Ikm)
+	sig := []byte(out.Commit.Sig)
 	require.Len(t, ikm, 32)
 
 	// External author (did:plc:owner) → host-signed, so verify with the host key.
@@ -766,9 +756,9 @@ func TestServer_GetLatestCommit(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Equal(t, int64(spacecommit.Version), out.Commit.Ver)
 
-	hash := decodeB64(t, out.Commit.Hash)
-	ikm := decodeB64(t, out.Commit.Ikm)
-	sig := decodeB64(t, out.Commit.Sig)
+	hash := []byte(out.Commit.Hash)
+	ikm := []byte(out.Commit.Ikm)
+	sig := []byte(out.Commit.Sig)
 	require.Len(t, ikm, 32)
 
 	ctxBytes := spacecommit.Ctx(uri, owner, out.Commit.Rev, ikm)

@@ -11,10 +11,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
-	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // Verifier authenticates a repo's signed commit against a locally recomputed
@@ -111,34 +109,4 @@ func (v *Verifier) signer(
 		return nil, fmt.Errorf("host signing key: %w", err)
 	}
 	return pub, nil
-}
-
-// decodeCommit maps the lexicon JSON form of a signed commit (bytes fields are
-// {"$bytes": "<base64>"} objects per the atproto lexicon spec) to its
-// in-memory form.
-func decodeCommit(c habitat.NetworkHabitatSpaceDefsSignedCommit) (spacecommit.SignedCommit, error) {
-	hash, err := utils.ParseBytes(c.Hash)
-	if err != nil {
-		return spacecommit.SignedCommit{}, fmt.Errorf("decode commit hash: %w", err)
-	}
-	ikm, err := utils.ParseBytes(c.Ikm)
-	if err != nil {
-		return spacecommit.SignedCommit{}, fmt.Errorf("decode commit ikm: %w", err)
-	}
-	mac, err := utils.ParseBytes(c.Mac)
-	if err != nil {
-		return spacecommit.SignedCommit{}, fmt.Errorf("decode commit mac: %w", err)
-	}
-	sig, err := utils.ParseBytes(c.Sig)
-	if err != nil {
-		return spacecommit.SignedCommit{}, fmt.Errorf("decode commit sig: %w", err)
-	}
-	return spacecommit.SignedCommit{
-		Ver:  int(c.Ver),
-		Hash: hash,
-		Ikm:  ikm,
-		Mac:  mac,
-		Sig:  sig,
-		Rev:  c.Rev,
-	}, nil
 }

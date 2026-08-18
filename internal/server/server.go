@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 
@@ -362,7 +363,11 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out := habitat.NetworkHabitatRepoUploadBlobOutput{
-		Blob: blob,
+		Blob: atdata.Blob{
+			Ref:      blob.Ref,
+			MimeType: blob.MimeType,
+			Size:     blob.Size,
+		},
 	}
 	httpx.WriteJSON(r.Context(), w, out)
 }

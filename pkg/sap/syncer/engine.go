@@ -9,7 +9,6 @@ package syncer
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -232,7 +231,7 @@ func (e *Engine) observeHead(
 // stale rev with nothing else scheduled to advance it, and Check is what
 // converges it anyway. Unknown repos are tracked.
 //
-// hashB64 may be empty (the listing omits it, or the repo is new); the rev
+// hash may be empty (the listing omits it, or the repo is new); the rev
 // comparison alone decides in that case. Delegates to observeHead, the same
 // staleness decision a pushed notification takes, so a mid-flight repo is
 // marked dirty rather than yanked out from under its worker, and a race
@@ -243,16 +242,8 @@ func (e *Engine) Check(
 	space habitat_syntax.SpaceURI,
 	did syntax.DID,
 	rev syntax.TID,
-	hashB64 string,
+	hash []byte,
 ) error {
-	var hash []byte
-	if hashB64 != "" {
-		decoded, err := base64.StdEncoding.DecodeString(hashB64)
-		if err != nil {
-			return fmt.Errorf("check repo: decode host hash: %w", err)
-		}
-		hash = decoded
-	}
 	if _, err := e.observeHead(ctx, space, did, rev, hash); err != nil {
 		return fmt.Errorf("check repo: %w", err)
 	}
