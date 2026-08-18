@@ -9,7 +9,6 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util.js'
-import type * as NetworkHabitatRelationshipDefs from './defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
@@ -17,10 +16,14 @@ const id = 'network.habitat.relationship.spaceRelation'
 
 export interface Main {
   $type: 'network.habitat.relationship.spaceRelation'
-  subject: NetworkHabitatRelationshipDefs.SpaceRoleSubject
+  /** URI of the subject space (or group-space) whose role-holders form the userset. */
+  subject: string
+  /** The role held on the subject space, forming the userset. */
+  subjectRole: 'owner' | 'manager' | 'writer' | 'reader'
   /** Role granted on the object space (owner|manager|writer|reader). */
   relation: 'owner' | 'manager' | 'writer' | 'reader' | (string & {})
-  object: NetworkHabitatRelationshipDefs.SpaceObject
+  /** URI of the space the role is granted on. */
+  object: string
   createdAt?: string
   [k: string]: unknown
 }

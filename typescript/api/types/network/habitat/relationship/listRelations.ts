@@ -10,7 +10,6 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util.js'
-import type * as NetworkHabitatRelationshipDefs from './defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
@@ -56,9 +55,11 @@ export interface UserRelationView {
   $type?: 'network.habitat.relationship.listRelations#userRelationView'
   /** URI of the relation record. */
   uri: string
-  subject: NetworkHabitatRelationshipDefs.UserSubject
+  /** DID of the user the role is granted to. */
+  subject: string
   relation: string
-  object: NetworkHabitatRelationshipDefs.SpaceObject
+  /** URI of the space the role is granted on. */
+  object: string
 }
 
 const hashUserRelationView = 'userRelationView'
@@ -76,9 +77,13 @@ export interface SpaceRelationView {
   $type?: 'network.habitat.relationship.listRelations#spaceRelationView'
   /** URI of the relation record. */
   uri: string
-  subject: NetworkHabitatRelationshipDefs.SpaceRoleSubject
+  /** URI of the subject space (or group-space) whose role-holders form the userset. */
+  subject: string
+  /** The role held on the subject space, forming the userset. */
+  subjectRole: 'owner' | 'manager' | 'writer' | 'reader'
   relation: string
-  object: NetworkHabitatRelationshipDefs.SpaceObject
+  /** URI of the space the role is granted on. */
+  object: string
 }
 
 const hashSpaceRelationView = 'spaceRelationView'

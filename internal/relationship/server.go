@@ -138,16 +138,13 @@ func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var params habitat.NetworkHabitatRelationshipListRelationsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
 		httpx.WriteInvalidRequest(ctx, w, "failed to decode query params", err)
 		return
 	}
-
 	space, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
 	if !ok {
 		return
 	}
-
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(space, fgastore.RelationSpaceReader),
@@ -161,7 +158,6 @@ func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
 	}
 	tuples, err := s.store.ListTuples(ctx, space, filter)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "list tuples", http.StatusInternalServerError)
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list tuples: %w", err))
 		return
 	}
@@ -332,7 +328,7 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 // parseListTuplesFilter builds a store filter from the query params, validating
 // the optional filter values.
 func parseListTuplesFilter(
-	params habitat.NetworkHabitatRelationshipListTuplesParams,
+	params habitat.NetworkHabitatRelationshipListRelationsParams,
 ) (ListTuplesFilter, error) {
 	var filter ListTuplesFilter
 	if params.Object != "" {

@@ -4,19 +4,31 @@
     "defs": {
         "main": {
             "type": "record",
-            "description": "A relationship record granting a role to all subjects holding a role on another space (a userset) on object (a space). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. The object is always a space; groups are spaces too, so granting a role to a group's members on a group-space is just an ordinary space relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
+            "description": "A relationship record granting a role to all subjects holding subjectRole on subject (a space userset) on object (a space). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. The object is always a space; groups are spaces too, so granting a role to a group's members on a group-space is just an ordinary space relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
             "key": "tid",
             "record": {
                 "type": "object",
                 "required": [
                     "subject",
+                    "subjectRole",
                     "relation",
                     "object"
                 ],
                 "properties": {
                     "subject": {
-                        "type": "ref",
-                        "ref": "network.habitat.relationship.defs#spaceRoleSubject"
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the subject space (or group-space) whose role-holders form the userset."
+                    },
+                    "subjectRole": {
+                        "type": "string",
+                        "enum": [
+                            "owner",
+                            "manager",
+                            "writer",
+                            "reader"
+                        ],
+                        "description": "The role held on the subject space, forming the userset."
                     },
                     "relation": {
                         "type": "string",
@@ -29,8 +41,9 @@
                         "description": "Role granted on the object space (owner|manager|writer|reader)."
                     },
                     "object": {
-                        "type": "ref",
-                        "ref": "network.habitat.relationship.defs#spaceObject"
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the space the role is granted on."
                     },
                     "createdAt": {
                         "type": "string",

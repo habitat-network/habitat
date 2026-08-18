@@ -77,15 +77,17 @@
                     "description": "URI of the relation record."
                 },
                 "subject": {
-                    "type": "ref",
-                    "ref": "network.habitat.relationship.defs#userSubject"
+                    "type": "string",
+                    "format": "did",
+                    "description": "DID of the user the role is granted to."
                 },
                 "relation": {
                     "type": "string"
                 },
                 "object": {
-                    "type": "ref",
-                    "ref": "network.habitat.relationship.defs#spaceObject"
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the space the role is granted on."
                 }
             }
         },
@@ -95,6 +97,7 @@
             "required": [
                 "uri",
                 "subject",
+                "subjectRole",
                 "relation",
                 "object"
             ],
@@ -104,15 +107,27 @@
                     "description": "URI of the relation record."
                 },
                 "subject": {
-                    "type": "ref",
-                    "ref": "network.habitat.relationship.defs#spaceRoleSubject"
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the subject space (or group-space) whose role-holders form the userset."
+                },
+                "subjectRole": {
+                    "type": "string",
+                    "enum": [
+                        "owner",
+                        "manager",
+                        "writer",
+                        "reader"
+                    ],
+                    "description": "The role held on the subject space, forming the userset."
                 },
                 "relation": {
                     "type": "string"
                 },
                 "object": {
-                    "type": "ref",
-                    "ref": "network.habitat.relationship.defs#spaceObject"
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the space the role is granted on."
                 }
             }
         }

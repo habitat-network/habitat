@@ -6,11 +6,11 @@ import "encoding/json"
 
 // NetworkHabitatRelationshipUserRelation represents a network.habitat.relationship.userRelation record
 type NetworkHabitatRelationshipUserRelation struct {
-	LexiconTypeID string                                    `json:"$type"`
-	CreatedAt     string                                    `json:"createdAt,omitempty"`
-	Object        NetworkHabitatRelationshipDefsSpaceObject `json:"object"`
-	Relation      string                                    `json:"relation"`
-	Subject       NetworkHabitatRelationshipDefsUserSubject `json:"subject"`
+	LexiconTypeID string `json:"$type"`
+	CreatedAt     string `json:"createdAt,omitempty"`
+	Object        string `json:"object"`
+	Relation      string `json:"relation"`
+	Subject       string `json:"subject"`
 }
 
 // MarshalJSON sets $type to "network.habitat.relationship.userRelation" before encoding.

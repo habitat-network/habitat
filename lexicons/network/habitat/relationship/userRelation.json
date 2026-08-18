@@ -15,8 +15,9 @@
                 ],
                 "properties": {
                     "subject": {
-                        "type": "ref",
-                        "ref": "network.habitat.relationship.defs#userSubject"
+                        "type": "string",
+                        "format": "did",
+                        "description": "DID of the user the role is granted to."
                     },
                     "relation": {
                         "type": "string",
@@ -29,8 +30,9 @@
                         "description": "Role granted on the object space (owner|manager|writer|reader)."
                     },
                     "object": {
-                        "type": "ref",
-                        "ref": "network.habitat.relationship.defs#spaceObject"
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the space the role is granted on."
                     },
                     "createdAt": {
                         "type": "string",

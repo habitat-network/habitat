@@ -1512,7 +1512,7 @@ export const schemaDict = {
       main: {
         type: 'record',
         description:
-          "Metadata for a group. A group is a space of type `network.habitat.group`; this profile record is the group-space's metadata record, holding its display name and description. Group membership is expressed as roles on the group-space (at least writer role implies membership), and the group can be used as a grantee elsewhere via a network.habitat.relationship.defs#spaceRoleSubject that references the group-space with role 'writer'.",
+          "Metadata for a group. A group is a space of type `network.habitat.group`; this profile record is the group-space's metadata record, holding its display name and description. Group membership is expressed as roles on the group-space (at least writer role implies membership), and the group can be used as a grantee elsewhere via a network.habitat.relationship.spaceRelation subject that references the group-space with role 'writer'.",
         key: 'literal:self',
         record: {
           type: 'object',
@@ -2742,52 +2742,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipDefs: {
-    lexicon: 1,
-    id: 'network.habitat.relationship.defs',
-    defs: {
-      spaceObject: {
-        type: 'object',
-        description: 'A space that a role is granted on.',
-        required: ['space'],
-        properties: {
-          space: {
-            type: 'string',
-            format: 'uri',
-            description: 'URI of the space.',
-          },
-        },
-      },
-      userSubject: {
-        type: 'object',
-        description: 'An individual user, identified by DID.',
-        required: ['did'],
-        properties: {
-          did: {
-            type: 'string',
-            format: 'did',
-          },
-        },
-      },
-      spaceRoleSubject: {
-        type: 'object',
-        description:
-          "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB.",
-        required: ['space', 'role'],
-        properties: {
-          space: {
-            type: 'string',
-            format: 'uri',
-            description: 'URI of the space (or group-space).',
-          },
-          role: {
-            type: 'string',
-            enum: ['owner', 'manager', 'writer', 'reader'],
-          },
-        },
-      },
-    },
-  },
   NetworkHabitatRelationshipDeleteRelation: {
     lexicon: 1,
     id: 'network.habitat.relationship.deleteRelation',
@@ -2940,37 +2894,48 @@ export const schemaDict = {
             description: 'URI of the relation record.',
           },
           subject: {
-            type: 'ref',
-            ref: 'lex:network.habitat.relationship.defs#userSubject',
+            type: 'string',
+            format: 'did',
+            description: 'DID of the user the role is granted to.',
           },
           relation: {
             type: 'string',
           },
           object: {
-            type: 'ref',
-            ref: 'lex:network.habitat.relationship.defs#spaceObject',
+            type: 'string',
+            format: 'uri',
+            description: 'URI of the space the role is granted on.',
           },
         },
       },
       spaceRelationView: {
         type: 'object',
         description: 'A space relation record together with its URI.',
-        required: ['uri', 'subject', 'relation', 'object'],
+        required: ['uri', 'subject', 'subjectRole', 'relation', 'object'],
         properties: {
           uri: {
             type: 'string',
             description: 'URI of the relation record.',
           },
           subject: {
-            type: 'ref',
-            ref: 'lex:network.habitat.relationship.defs#spaceRoleSubject',
+            type: 'string',
+            format: 'uri',
+            description:
+              'URI of the subject space (or group-space) whose role-holders form the userset.',
+          },
+          subjectRole: {
+            type: 'string',
+            enum: ['owner', 'manager', 'writer', 'reader'],
+            description:
+              'The role held on the subject space, forming the userset.',
           },
           relation: {
             type: 'string',
           },
           object: {
-            type: 'ref',
-            ref: 'lex:network.habitat.relationship.defs#spaceObject',
+            type: 'string',
+            format: 'uri',
+            description: 'URI of the space the role is granted on.',
           },
         },
       },
@@ -3027,15 +2992,23 @@ export const schemaDict = {
       main: {
         type: 'record',
         description:
-          "A relationship record granting a role to all subjects holding a role on another space (a userset) on object (a space). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. The object is always a space; groups are spaces too, so granting a role to a group's members on a group-space is just an ordinary space relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
+          "A relationship record granting a role to all subjects holding subjectRole on subject (a space userset) on object (a space). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. The object is always a space; groups are spaces too, so granting a role to a group's members on a group-space is just an ordinary space relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
         key: 'tid',
         record: {
           type: 'object',
-          required: ['subject', 'relation', 'object'],
+          required: ['subject', 'subjectRole', 'relation', 'object'],
           properties: {
             subject: {
-              type: 'ref',
-              ref: 'lex:network.habitat.relationship.defs#spaceRoleSubject',
+              type: 'string',
+              format: 'uri',
+              description:
+                'URI of the subject space (or group-space) whose role-holders form the userset.',
+            },
+            subjectRole: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'The role held on the subject space, forming the userset.',
             },
             relation: {
               type: 'string',
@@ -3044,8 +3017,9 @@ export const schemaDict = {
                 'Role granted on the object space (owner|manager|writer|reader).',
             },
             object: {
-              type: 'ref',
-              ref: 'lex:network.habitat.relationship.defs#spaceObject',
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the space the role is granted on.',
             },
             createdAt: {
               type: 'string',
@@ -3070,8 +3044,9 @@ export const schemaDict = {
           required: ['subject', 'relation', 'object'],
           properties: {
             subject: {
-              type: 'ref',
-              ref: 'lex:network.habitat.relationship.defs#userSubject',
+              type: 'string',
+              format: 'did',
+              description: 'DID of the user the role is granted to.',
             },
             relation: {
               type: 'string',
@@ -3080,8 +3055,9 @@ export const schemaDict = {
                 'Role granted on the object space (owner|manager|writer|reader).',
             },
             object: {
-              type: 'ref',
-              ref: 'lex:network.habitat.relationship.defs#spaceObject',
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the space the role is granted on.',
             },
             createdAt: {
               type: 'string',
@@ -5316,7 +5292,6 @@ export const ids = {
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
   NetworkHabitatRelationshipCheck: 'network.habitat.relationship.check',
-  NetworkHabitatRelationshipDefs: 'network.habitat.relationship.defs',
   NetworkHabitatRelationshipDeleteRelation:
     'network.habitat.relationship.deleteRelation',
   NetworkHabitatRelationshipListObjects:

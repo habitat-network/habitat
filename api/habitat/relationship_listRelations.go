@@ -20,11 +20,12 @@ type NetworkHabitatRelationshipListRelationsOutput struct {
 
 // NetworkHabitatRelationshipListRelationsSpaceRelationView represents a spaceRelationView object
 type NetworkHabitatRelationshipListRelationsSpaceRelationView struct {
-	LexiconTypeID string                                         `json:"$type"`
-	Object        NetworkHabitatRelationshipDefsSpaceObject      `json:"object"`
-	Relation      string                                         `json:"relation"`
-	Subject       NetworkHabitatRelationshipDefsSpaceRoleSubject `json:"subject"`
-	Uri           string                                         `json:"uri"`
+	LexiconTypeID string `json:"$type"`
+	Object        string `json:"object"`
+	Relation      string `json:"relation"`
+	Subject       string `json:"subject"`
+	SubjectRole   string `json:"subjectRole"`
+	Uri           string `json:"uri"`
 }
 
 // MarshalJSON sets $type to "network.habitat.relationship.listRelations#spaceRelationView" before encoding.
@@ -36,11 +37,11 @@ func (t NetworkHabitatRelationshipListRelationsSpaceRelationView) MarshalJSON() 
 
 // NetworkHabitatRelationshipListRelationsUserRelationView represents a userRelationView object
 type NetworkHabitatRelationshipListRelationsUserRelationView struct {
-	LexiconTypeID string                                    `json:"$type"`
-	Object        NetworkHabitatRelationshipDefsSpaceObject `json:"object"`
-	Relation      string                                    `json:"relation"`
-	Subject       NetworkHabitatRelationshipDefsUserSubject `json:"subject"`
-	Uri           string                                    `json:"uri"`
+	LexiconTypeID string `json:"$type"`
+	Object        string `json:"object"`
+	Relation      string `json:"relation"`
+	Subject       string `json:"subject"`
+	Uri           string `json:"uri"`
 }
 
 // MarshalJSON sets $type to "network.habitat.relationship.listRelations#userRelationView" before encoding.
