@@ -68,6 +68,7 @@ var (
 // CreateSpace implements [Manager].
 func (m *manager) CreateSpace(ctx context.Context, org syntax.DID, creator syntax.DID, spaceType syntax.NSID, skey habitat_syntax.SpaceKey) (habitat_syntax.SpaceURI, error) {
 	if skey == "" {
+		// TODO: should this / does this need to be a TID?
 		skey = habitat_syntax.NewSkey(m.clock.Next())
 	}
 
@@ -243,4 +244,20 @@ func (m *manager) RemoveMember(ctx context.Context, uri habitat_syntax.SpaceURI,
 			OnMissing: "ignore",
 		},
 	})
+}
+
+func (m *manager) IsMember(
+	ctx context.Context,
+	org syntax.DID,
+	uri habitat_syntax.SpaceURI,
+	did syntax.DID,
+) (bool, error) {
+	return m.fga.Check(
+		ctx,
+		fgastore.MemberUserString(did),
+		fgastore.RelationSpaceReader,
+		fgastore.SpaceObjectKey(uri),
+		fgastore.OwnerContextualTuple(uri),
+		fgastore.OrgMemberContextualTuple(org),
+	)
 }

@@ -86,12 +86,6 @@ type Store interface {
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 	) ([]RepoInfo, error)
-	IsMember(
-		ctx context.Context,
-		org syntax.DID,
-		space habitat_syntax.SpaceURI,
-		did syntax.DID,
-	) (bool, error)
 
 	// Record operations
 	PutRecord(
@@ -205,7 +199,6 @@ var (
 
 type store struct {
 	db       *gorm.DB
-	fga      fgastore.Store
 	clock    *syntax.TIDClock
 	notifier Notifier
 	commit   *spacecommit.Authority
@@ -245,7 +238,6 @@ func NewStore(
 	}
 	return &store{
 		db:       db,
-		fga:      fga,
 		clock:    syntax.NewTIDClock(0),
 		notifier: notifier,
 		commit:   commit,
@@ -256,7 +248,6 @@ func NewStore(
 func (s *store) WithTx(tx *gorm.DB) Store {
 	return &store{
 		db:       tx,
-		fga:      s.fga,
 		clock:    s.clock,
 		notifier: s.notifier,
 		commit:   s.commit,
@@ -389,22 +380,6 @@ func (s *store) ListRepos(
 		}
 	}
 	return repos, nil
-}
-
-func (s *store) IsMember(
-	ctx context.Context,
-	org syntax.DID,
-	uri habitat_syntax.SpaceURI,
-	did syntax.DID,
-) (bool, error) {
-	return s.fga.Check(
-		ctx,
-		fgastore.MemberUserString(did),
-		fgastore.RelationSpaceReader,
-		fgastore.SpaceObjectKey(uri),
-		fgastore.OwnerContextualTuple(uri),
-		fgastore.OrgMemberContextualTuple(org),
-	)
 }
 
 // ---- Record operations ----
