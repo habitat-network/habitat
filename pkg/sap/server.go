@@ -44,11 +44,7 @@ func (s *SapServer) HandleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "invalid rev", err)
 		return
 	}
-	hash, ok := httpx.ParseBytesInput(ctx, w, input.Hash, "hash")
-	if !ok {
-		return
-	}
-	if err := s.s.NotifyWrite(ctx, space.URI(), repo, rev, hash); err != nil {
+	if err := s.s.NotifyWrite(ctx, space.URI(), repo, rev, input.Hash); err != nil {
 		httpx.WriteServerError(ctx, w, err)
 		return
 	}

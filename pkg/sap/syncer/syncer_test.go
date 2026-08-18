@@ -2,7 +2,6 @@ package syncer
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -101,11 +100,14 @@ func TestEngineSyncRepoVerifiesAndSettles(t *testing.T) {
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
 		Hash: atdata.Bytes(lt.Sum()),
+		Ikm:  atdata.Bytes{},
+		Mac:  atdata.Bytes{},
+		Sig:  atdata.Bytes{},
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/xrpc/network.habitat.space.listRepoOps", r.URL.Path)
-		out := habitat.NetworkHabitatSpaceListRepoOpsOutput{Commit: commit}
+		out := habitat.NetworkHabitatSpaceListRepoOpsOutput{Commit: &commit}
 		if r.URL.Query().Get("since") == "" {
 			out.Ops = ops
 			out.Cursor = rev2
@@ -326,44 +328,6 @@ func TestVerifierNilPointer(t *testing.T) {
 
 	var v *Verifier
 	require.NoError(t, v.Verify(t.Context(), space, "did:plc:alice", commit, &lt))
-}
-
-// TestDecodeCommitFromLexicon covers decodeCommit with a full signed commit.
-func TestDecodeCommitFromLexicon(t *testing.T) {
-	t.Parallel()
-
-	hashBytes := []byte{0xaa, 0xbb}
-	bytesField := func(b []byte) any {
-		return map[string]any{"$bytes": base64.RawStdEncoding.EncodeToString(b)}
-	}
-	lexicon := habitat.NetworkHabitatSpaceDefsSignedCommit{
-		Ver:  int64(spacecommit.Version),
-		Rev:  "3kzl6abcde02k",
-		Hash: bytesField(hashBytes),
-		Ikm:  bytesField([]byte{0x01}),
-		Mac:  bytesField([]byte{0x02}),
-		Sig:  bytesField([]byte{0x03}),
-	}
-	c, err := decodeCommit(lexicon)
-	require.NoError(t, err)
-	require.Equal(t, spacecommit.Version, c.Ver)
-	require.Equal(t, hashBytes, c.Hash)
-	require.Equal(t, []byte{0x01}, c.Ikm)
-	require.Equal(t, []byte{0x02}, c.Mac)
-	require.Equal(t, []byte{0x03}, c.Sig)
-	require.Equal(t, "3kzl6abcde02k", c.Rev)
-}
-
-// TestDecodeCommitBadBase64 covers error paths in decodeCommit.
-func TestDecodeCommitBadBase64(t *testing.T) {
-	t.Parallel()
-
-	_, err := decodeCommit(habitat.NetworkHabitatSpaceDefsSignedCommit{
-		Ver:  1,
-		Hash: map[string]any{"$bytes": "!!!notbase64!!!"},
-	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "decode commit hash")
 }
 
 // TestEngineScheduleRetry covers the retry backoff path.
@@ -860,9 +824,7 @@ func TestEngineRunJobDispatchesToSync(t *testing.T) {
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{
-			Commit: habitat.NetworkHabitatSpaceDefsSignedCommit{Ver: 0},
-		})
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{})
 	}))
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
@@ -886,11 +848,8 @@ func TestEngineRunProcessesPendingRepo(t *testing.T) {
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
-	commit := habitat.NetworkHabitatSpaceDefsSignedCommit{Ver: 0}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{
-			Commit: commit,
-		})
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListRepoOpsOutput{})
 	}))
 	t.Cleanup(srv.Close)
 
@@ -1100,10 +1059,13 @@ func TestEngineRecoverByDiffRefetchesOnlyChangedRecords(t *testing.T) {
 		func(w http.ResponseWriter, _ *http.Request) {
 			commitCalls.Add(1)
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetLatestCommitOutput{
-				Commit: habitat.NetworkHabitatSpaceDefsSignedCommit{
+				Commit: &habitat.NetworkHabitatSpaceDefsSignedCommit{
 					Ver:  int64(spacecommit.Version),
 					Rev:  rev,
 					Hash: atdata.Bytes(lt.Sum()),
+					Ikm:  atdata.Bytes{},
+					Mac:  atdata.Bytes{},
+					Sig:  atdata.Bytes{},
 				},
 			})
 		})
@@ -1186,13 +1148,16 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev,
 		Hash: atdata.Bytes(lt.Sum()),
+		Ikm:  atdata.Bytes{},
+		Mac:  atdata.Bytes{},
+		Sig:  atdata.Bytes{},
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit",
 		func(w http.ResponseWriter, _ *http.Request) {
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetLatestCommitOutput{
-				Commit: commit,
+				Commit: &commit,
 			})
 		})
 	mux.HandleFunc("/xrpc/network.habitat.space.listRecords",
@@ -1327,10 +1292,13 @@ func TestEngineSyncRepoEmitsDeleteTombstone(t *testing.T) {
 		Ver:  int64(spacecommit.Version),
 		Rev:  rev2,
 		Hash: atdata.Bytes(lt.Sum()),
+		Ikm:  atdata.Bytes{},
+		Mac:  atdata.Bytes{},
+		Sig:  atdata.Bytes{},
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		out := habitat.NetworkHabitatSpaceListRepoOpsOutput{Commit: commit}
+		out := habitat.NetworkHabitatSpaceListRepoOpsOutput{Commit: &commit}
 		if r.URL.Query().Get("since") == "" {
 			out.Ops = ops
 			out.Cursor = rev2
@@ -1386,7 +1354,7 @@ func TestEngineCheckRequeuesDriftedRepo(t *testing.T) {
 			space,
 			repoDID,
 			syntax.TID(rev2),
-			base64.StdEncoding.EncodeToString(lt.Sum()),
+			lt.Sum(),
 		),
 	)
 
@@ -1419,7 +1387,7 @@ func TestEngineCheckLeavesCurrentReposActive(t *testing.T) {
 			space,
 			repoDID,
 			syntax.TID(rev),
-			base64.StdEncoding.EncodeToString(lt.Sum()),
+			lt.Sum(),
 		),
 	)
 
