@@ -72,7 +72,6 @@ func TestMintThenLookup(t *testing.T) {
 		authntest.NewSuccessValidator(
 			&authn.CredentialInfo{Subject: adminDID},
 		),
-		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		nil,
