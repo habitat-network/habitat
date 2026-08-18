@@ -28,6 +28,7 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -786,10 +787,11 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&delegationResp))
 
 	// The minted delegation token validates against the delegation auth method.
-	credInfo, ok := authn.NewDelegationTokenAuthMethod(dir, s.Store.FGA, s.HostKey).Validate(
-		httptest.NewRecorder(),
-		authedRequest(delegationResp.Token),
-	)
+	credInfo, ok := authn.NewDelegationTokenAuthMethod(dir, perms.NewStore(s.Store.FGA), s.HostKey).
+		Validate(
+			httptest.NewRecorder(),
+			authedRequest(delegationResp.Token),
+		)
 	require.True(t, ok)
 	require.Equal(t, uri.String(), credInfo.Space.String())
 

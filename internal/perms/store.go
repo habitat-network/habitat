@@ -3,7 +3,6 @@ package perms
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -29,13 +28,6 @@ var fgaRelationFromRole = map[SpaceRole]string{
 	SpaceRoleManager: fgastore.RelationSpaceMemberManager,
 	SpaceRoleWriter:  fgastore.RelationSpaceWriter,
 	SpaceRoleReader:  fgastore.RelationSpaceReader,
-}
-
-var roleFromFGARelation = map[string]SpaceRole{
-	fgastore.RelationSpaceOwner:         SpaceRoleOwner,
-	fgastore.RelationSpaceMemberManager: SpaceRoleManager,
-	fgastore.RelationSpaceWriter:        SpaceRoleWriter,
-	fgastore.RelationSpaceReader:        SpaceRoleReader,
 }
 
 type SpaceRoleSubject struct {
@@ -66,6 +58,11 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		role SpaceRole,
 	) error
+	RevokeAllUserRelations(
+		ctx context.Context,
+		did syntax.DID,
+		space habitat_syntax.SpaceURI,
+	) error
 	RevokeSpaceRoleRelation(
 		ctx context.Context,
 		subjectSpace habitat_syntax.SpaceURI,
@@ -91,14 +88,6 @@ type Store interface {
 	) (bool, error)
 
 	// List various things using relations
-	ListSubjects(
-		ctx context.Context,
-		space habitat_syntax.SpaceURI,
-	) ([]syntax.DID, []SpaceRoleSubject, error)
-	ListSpaceRoleSubjects(
-		ctx context.Context,
-		space habitat_syntax.SpaceURI,
-	) ([]SpaceRoleSubject, error)
 	ListUserSubjects(ctx context.Context, space habitat_syntax.SpaceURI) ([]syntax.DID, error)
 	ListObjects(ctx context.Context, did syntax.DID) ([]habitat_syntax.SpaceURI, error)
 }
@@ -107,7 +96,7 @@ type store struct {
 	fga fgastore.Store
 }
 
-func NewStore(fga fgastore.Store) *store {
+func NewStore(fga fgastore.Store) Store {
 	return &store{fga: fga}
 }
 
@@ -171,6 +160,41 @@ func (s *store) RevokeUserRelation(
 				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
 					fgastore.SpaceObjectKey(space),
 					fgaRelationFromRole[role],
+					fgastore.MemberUserString(did),
+				)),
+			},
+			OnMissing: "ignore",
+		},
+	})
+}
+
+// RevokeAllUserRelations implements [Store].
+func (s *store) RevokeAllUserRelations(
+	ctx context.Context,
+	did syntax.DID,
+	space habitat_syntax.SpaceURI,
+) error {
+	return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+		Deletes: &openfgav1.WriteRequestDeletes{
+			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
+				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
+					fgastore.SpaceObjectKey(space),
+					fgastore.RelationSpaceOwner,
+					fgastore.MemberUserString(did),
+				)),
+				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
+					fgastore.SpaceObjectKey(space),
+					fgastore.RelationSpaceMemberManager,
+					fgastore.MemberUserString(did),
+				)),
+				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
+					fgastore.SpaceObjectKey(space),
+					fgastore.RelationSpaceWriter,
+					fgastore.MemberUserString(did),
+				)),
+				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
+					fgastore.SpaceObjectKey(space),
+					fgastore.RelationSpaceReader,
 					fgastore.MemberUserString(did),
 				)),
 			},
@@ -271,51 +295,34 @@ func (s *store) CheckSpaceRelationHasSpaceRole(
 	)
 }
 
-// ListSubjects implements [Store]. It returns every direct grantee stored
-// against space, split into individual users and space-userset grantees.
-// Owner/org-member implications are not expanded, since those aren't stored
-// tuples.
-func (s *store) ListSubjects(
-	ctx context.Context,
-	space habitat_syntax.SpaceURI,
-) ([]syntax.DID, []SpaceRoleSubject, error) {
-	tuples, err := s.fga.Read(ctx, fgastore.Tuple{Object: fgastore.SpaceObjectKey(space)})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var dids []syntax.DID
-	var spaceSubjects []SpaceRoleSubject
-	for _, t := range tuples {
-		did, spaceSubject, isUser, err := parseSubjectUser(t.User)
-		if err != nil {
-			return nil, nil, fmt.Errorf("perms: list subjects: %w", err)
-		}
-		if isUser {
-			dids = append(dids, did)
-		} else {
-			spaceSubjects = append(spaceSubjects, spaceSubject)
-		}
-	}
-	return dids, spaceSubjects, nil
-}
-
-// ListSpaceRoleSubjects implements [Store].
-func (s *store) ListSpaceRoleSubjects(
-	ctx context.Context,
-	space habitat_syntax.SpaceURI,
-) ([]SpaceRoleSubject, error) {
-	_, spaceSubjects, err := s.ListSubjects(ctx, space)
-	return spaceSubjects, err
-}
-
-// ListUserSubjects implements [Store].
+// ListUserSubjects implements [Store]. Unlike ListSubjects, this expands
+// implicit grantees (the space's owner, and members of the owning org) via
+// contextual tuples, since callers want the full set of users who can read
+// the space rather than just its stored tuples.
 func (s *store) ListUserSubjects(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 ) ([]syntax.DID, error) {
-	dids, _, err := s.ListSubjects(ctx, space)
-	return dids, err
+	users, err := s.fga.ListUsers(
+		ctx,
+		fgastore.SpaceObjectKey(space),
+		fgastore.RelationSpaceReader,
+		fgastore.OwnerContextualTuple(space),
+		fgastore.OrgMemberContextualTuple(space.SpaceOwner()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("perms: list user subjects: %w", err)
+	}
+
+	dids := make([]syntax.DID, 0, len(users))
+	for _, user := range users {
+		did, err := fgastore.MemberUserToDID(user)
+		if err != nil {
+			return nil, fmt.Errorf("perms: list user subjects: %w", err)
+		}
+		dids = append(dids, did)
+	}
+	return dids, nil
 }
 
 // ListObjects implements [Store]. It returns the spaces did directly holds
@@ -346,30 +353,4 @@ func (s *store) ListObjects(
 		spaceURIs = append(spaceURIs, uri)
 	}
 	return spaceURIs, nil
-}
-
-// parseSubjectUser decodes a raw FGA user string (as returned by fga.Read)
-// into either a DID (an individual grantee) or a SpaceRoleSubject (a space
-// userset grantee, e.g. "space:<uri>#reader").
-func parseSubjectUser(
-	user string,
-) (did syntax.DID, spaceSubject SpaceRoleSubject, isUser bool, err error) {
-	if strings.HasPrefix(user, "user:") {
-		did, err = fgastore.MemberUserToDID(user)
-		return did, SpaceRoleSubject{}, true, err
-	}
-
-	objectKey, relation, ok := strings.Cut(user, "#")
-	if !ok {
-		return "", SpaceRoleSubject{}, false, fmt.Errorf("unrecognized fga user string: %s", user)
-	}
-	space, err := fgastore.ParseSpaceObjectKey(objectKey)
-	if err != nil {
-		return "", SpaceRoleSubject{}, false, err
-	}
-	role, ok := roleFromFGARelation[relation]
-	if !ok {
-		return "", SpaceRoleSubject{}, false, fmt.Errorf("unrecognized fga relation: %s", relation)
-	}
-	return "", SpaceRoleSubject{Space: space, Role: role}, false, nil
 }

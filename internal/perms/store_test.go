@@ -19,7 +19,7 @@ var (
 	groupType = syntax.NSID("network.habitat.group")
 )
 
-func newTestStore(t *testing.T) *store {
+func newTestStore(t *testing.T) Store {
 	t.Helper()
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
@@ -197,17 +197,16 @@ func TestStoreUnsafeRevokeAllSpaceRoles(t *testing.T) {
 		require.False(t, ok)
 	}
 
-	dids, subjects, err := s.ListSubjects(ctx, space)
+	dids, err := s.ListUserSubjects(ctx, space)
 	require.NoError(t, err)
-	require.Empty(t, dids)
-	require.Empty(t, subjects)
+	require.ElementsMatch(t, dids, []syntax.DID{org})
 
 	t.Run("no-op on a space with nothing stored", func(t *testing.T) {
 		require.NoError(t, s.UnsafeRevokeAllSpaceRoles(ctx, newSpace(docsType, "doc2")))
 	})
 }
 
-func TestStoreListSubjects(t *testing.T) {
+func TestStoreListUserSubjects(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
 	space := newSpace(docsType, "doc1")
@@ -217,28 +216,10 @@ func TestStoreListSubjects(t *testing.T) {
 	require.NoError(t, s.AddUserRelation(ctx, bob, space, SpaceRoleWriter))
 	require.NoError(t, s.AddSpaceRoleRelation(ctx, group, SpaceRoleReader, space, SpaceRoleReader))
 
-	dids, subjects, err := s.ListSubjects(ctx, space)
-	require.NoError(t, err)
-	require.ElementsMatch(t, []syntax.DID{alice, bob}, dids)
-	require.ElementsMatch(t, []SpaceRoleSubject{{Space: group, Role: SpaceRoleReader}}, subjects)
-
 	t.Run("ListUserSubjects returns only the DIDs", func(t *testing.T) {
 		got, err := s.ListUserSubjects(ctx, space)
 		require.NoError(t, err)
-		require.ElementsMatch(t, []syntax.DID{alice, bob}, got)
-	})
-
-	t.Run("ListSpaceRoleSubjects returns only the space-userset grantees", func(t *testing.T) {
-		got, err := s.ListSpaceRoleSubjects(ctx, space)
-		require.NoError(t, err)
-		require.ElementsMatch(t, []SpaceRoleSubject{{Space: group, Role: SpaceRoleReader}}, got)
-	})
-
-	t.Run("empty when nothing is stored", func(t *testing.T) {
-		dids, subjects, err := s.ListSubjects(ctx, newSpace(docsType, "doc2"))
-		require.NoError(t, err)
-		require.Empty(t, dids)
-		require.Empty(t, subjects)
+		require.ElementsMatch(t, []syntax.DID{alice, bob, org}, got)
 	})
 }
 

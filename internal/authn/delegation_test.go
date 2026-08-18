@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/perms"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,10 @@ func TestDelegationAuthMethod(t *testing.T) {
 	userPubKey, _ := userKey.PublicKey()
 	dir := identity.NewMockDirectory()
 	dir.Insert(*did.Web("pear.com").AtprotoKey(userPubKey.Multibase()).Build())
-	space := habitat_syntax.SpaceURI("at://did:web:pear.com/space/com.test.space/abc")
+	// Owned by a different DID than the acting user below, so that
+	// perms.Store's implicit space-owner grant doesn't mask the
+	// "no permission" cases.
+	space := habitat_syntax.SpaceURI("at://did:web:space-owner.com/space/com.test.space/abc")
 	user := syntax.DID("did:web:pear.com")
 
 	t.Run("can handle", func(t *testing.T) {
@@ -44,7 +48,7 @@ func TestDelegationAuthMethod(t *testing.T) {
 		r := newAuthenticatedReqest(token)
 		credInfo, ok := NewDelegationTokenAuthMethod(
 			dir,
-			fga,
+			perms.NewStore(fga),
 			nil,
 		).Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
@@ -57,7 +61,11 @@ func TestDelegationAuthMethod(t *testing.T) {
 		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
 		require.NoError(t, err)
 		r := newAuthenticatedReqest(token)
-		_, ok := NewDelegationTokenAuthMethod(dir, fga, nil).Validate(httptest.NewRecorder(), r)
+		_, ok := NewDelegationTokenAuthMethod(
+			dir,
+			perms.NewStore(fga),
+			nil,
+		).Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
 	})
 
@@ -76,7 +84,7 @@ func TestDelegationAuthMethod(t *testing.T) {
 		r := newAuthenticatedReqest(token)
 		credInfo, ok := NewDelegationTokenAuthMethod(
 			dir,
-			fga,
+			perms.NewStore(fga),
 			hostKey,
 		).Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
@@ -90,7 +98,11 @@ func TestDelegationAuthMethod(t *testing.T) {
 		token, err := utils.DelegationToken(hostKey, user, "#habitat", space)
 		require.NoError(t, err)
 		r := newAuthenticatedReqest(token)
-		_, ok := NewDelegationTokenAuthMethod(dir, fga, hostKey).Validate(httptest.NewRecorder(), r)
+		_, ok := NewDelegationTokenAuthMethod(
+			dir,
+			perms.NewStore(fga),
+			hostKey,
+		).Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
 	})
 
@@ -117,7 +129,7 @@ func TestDelegationAuthMethod(t *testing.T) {
 		r := newAuthenticatedReqest(token)
 		credInfo, ok := NewDelegationTokenAuthMethod(
 			dir,
-			fga,
+			perms.NewStore(fga),
 			nil,
 		).Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)

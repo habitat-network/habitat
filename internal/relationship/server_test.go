@@ -14,6 +14,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
@@ -22,7 +23,7 @@ func newTestServer(t *testing.T, caller syntax.DID) (*Server, *Store, spaces.Sto
 	rel, sp := newTestStore(t)
 	return NewServer(
 		rel,
-		rel.fga,
+		perms.NewStore(rel.fga),
 		authntest.NewSuccessValidatorWithOrg(caller, caller),
 	), rel, sp
 }
@@ -260,7 +261,7 @@ func TestServer_Unauthenticated(t *testing.T) {
 	space := newSpace(t, sp, docsType, "doc")
 	s := NewServer(
 		rel,
-		rel.fga,
+		perms.NewStore(rel.fga),
 		authntest.NewFailureValidator(),
 	)
 

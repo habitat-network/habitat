@@ -6,8 +6,9 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/pressly/goose/v3"
 	"log/slog"
+
+	"github.com/pressly/goose/v3"
 
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/assets"

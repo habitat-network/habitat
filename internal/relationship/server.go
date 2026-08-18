@@ -15,6 +15,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -24,15 +25,15 @@ import (
 // space, checked via FGA exactly like internal/spaces.
 type Server struct {
 	store     *Store
-	fga       fgastore.Store
+	ps        perms.Store
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
 }
 
-func NewServer(store *Store, fga fgastore.Store, validator authn.RequestValidator) *Server {
+func NewServer(store *Store, ps perms.Store, validator authn.RequestValidator) *Server {
 	return &Server{
 		store:     store,
-		fga:       fga,
+		ps:        ps,
 		validator: validator,
 		decoder:   schema.NewDecoder(),
 	}
@@ -287,11 +288,12 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 	// Only return spaces the caller is allowed to read.
 	out := make([]string, 0, len(spaceURIs))
 	for _, space := range spaceURIs {
-		readable, err := s.authorize(
-			ctx,
-			credInfo,
+
+		readable, err := s.ps.CheckUserHasSpaceRole(
+			r.Context(),
+			credInfo.Subject,
 			space,
-			fgastore.RelationSpaceReader,
+			perms.SpaceRoleReader,
 		)
 		if err != nil {
 			httpx.WriteServerError(ctx, w, fmt.Errorf("check read permission: %w", err))

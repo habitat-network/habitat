@@ -42,6 +42,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
+	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"go.opentelemetry.io/otel/trace"
 
@@ -312,13 +313,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("parse space-host signing key: %w", err)
 	}
 
+	permStore := perms.NewStore(fgaStore)
 	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
 	validator := authn.NewValidator(
 		oauthServer,
 		serviceAuth,
 		spaceCredential,
-		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore, hostKey),
-		fgaStore,
+		authn.NewDelegationTokenAuthMethod(hiveDir, permStore, hostKey),
+		permStore,
 	)
 
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
@@ -372,7 +374,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
 		relationshipStore,
-		fgaStore,
+		permStore,
 		validator,
 	)
 
