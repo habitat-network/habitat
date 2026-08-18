@@ -8,7 +8,6 @@
     "noEmit": false,
     "emitDeclarationOnly": true,
     "outDir": "../../.moon/cache/types/typescript/internal",
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
