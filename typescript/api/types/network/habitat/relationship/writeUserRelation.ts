@@ -13,12 +13,21 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.relationship.deleteTuple'
+const id = 'network.habitat.relationship.writeUserRelation'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** URI of the tuple record to delete. */
+  /** DID of the user to grant the role to. */
+  subject: string
+  /** Role granted on the space (owner|manager|writer|reader). */
+  relation: 'owner' | 'manager' | 'writer' | 'reader' | (string & {})
+  /** URI of the space to grant the role on. */
+  space: string
+}
+
+export interface OutputSchema {
+  /** URI of the written relation record. */
   uri: string
 }
 
@@ -32,9 +41,16 @@ export interface CallOptions {
 export interface Response {
   success: boolean
   headers: HeadersMap
+  data: OutputSchema
 }
 
-export class TupleNotFoundError extends XRPCError {
+export class SpaceNotFoundError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
+export class InvalidRelationError extends XRPCError {
   constructor(src: XRPCError) {
     super(src.status, src.error, src.message, src.headers, { cause: src })
   }
@@ -42,7 +58,8 @@ export class TupleNotFoundError extends XRPCError {
 
 export function toKnownErr(e: any) {
   if (e instanceof XRPCError) {
-    if (e.error === 'TupleNotFound') return new TupleNotFoundError(e)
+    if (e.error === 'SpaceNotFound') return new SpaceNotFoundError(e)
+    if (e.error === 'InvalidRelation') return new InvalidRelationError(e)
   }
 
   return e

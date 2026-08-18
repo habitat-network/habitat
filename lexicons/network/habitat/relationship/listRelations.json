@@ -1,0 +1,135 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.listRelations",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List relationship records governing a space, optionally filtered by object, subject, subject type, or relation. Caller must have the reader role on the space. This is the interoperable read surface other apps use to understand the permission structure.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "space"
+                ],
+                "properties": {
+                    "space": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the governing space whose relations to list."
+                    },
+                    "object": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Optional. Restrict to relations whose object is this space or group URI."
+                    },
+                    "subjectDid": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "Optional. Restrict to relations whose subject is this user DID."
+                    },
+                    "subjectType": {
+                        "type": "string",
+                        "enum": [
+                            "user",
+                            "space"
+                        ],
+                        "description": "Optional. Restrict to relations whose subject is a user (userRelation) or a space userset (spaceRelation)."
+                    },
+                    "relation": {
+                        "type": "string",
+                        "description": "Optional. Restrict to relations with this relation."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "relations"
+                    ],
+                    "properties": {
+                        "relations": {
+                            "type": "array",
+                            "items": {
+                                "type": "union",
+                                "refs": [
+                                    "#userRelationView",
+                                    "#spaceRelationView"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "userRelationView": {
+            "type": "object",
+            "description": "A user relation record together with its URI.",
+            "required": [
+                "uri",
+                "subject",
+                "relation",
+                "object"
+            ],
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "description": "URI of the relation record."
+                },
+                "subject": {
+                    "type": "string",
+                    "format": "did",
+                    "description": "DID of the user the role is granted to."
+                },
+                "relation": {
+                    "type": "string"
+                },
+                "object": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the space the role is granted on."
+                }
+            }
+        },
+        "spaceRelationView": {
+            "type": "object",
+            "description": "A space relation record together with its URI.",
+            "required": [
+                "uri",
+                "subject",
+                "subjectRole",
+                "relation",
+                "object"
+            ],
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "description": "URI of the relation record."
+                },
+                "subject": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the subject space (or group-space) whose role-holders form the userset."
+                },
+                "subjectRole": {
+                    "type": "string",
+                    "enum": [
+                        "owner",
+                        "manager",
+                        "writer",
+                        "reader"
+                    ],
+                    "description": "The role held on the subject space, forming the userset."
+                },
+                "relation": {
+                    "type": "string"
+                },
+                "object": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the space the role is granted on."
+                }
+            }
+        }
+    }
+}
