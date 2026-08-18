@@ -80,11 +80,13 @@ func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
 	role, err := ParseRole(input.Relation)
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse relation", err)
+		return
 	}
 	// TODO better relationship store interface
-	relationSubject, err := parseSubjectParams(subject.String(), role.String())
+	relationSubject, err := parseSubjectParams(subject.String(), "")
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse subject", err)
+		return
 	}
 	uri, err := s.store.WriteTuple(ctx, relationSubject, role, object)
 	if errors.Is(err, ErrInvalidTuple) {
@@ -109,7 +111,6 @@ func (s *Server) DeleteTuple(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to decode request body", err)
 		return
 	}
-	httpx.ParseSpaceURIInput(ctx, w, input.Uri, "space")
 	uri, err := habitat_syntax.ParseSpaceRecordURI(input.Uri)
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse uri", err)

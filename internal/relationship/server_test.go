@@ -37,19 +37,19 @@ func TestServer_WriteTuple(t *testing.T) {
 	space := newSpace(t, sp, docsType, "doc")
 
 	body := fmt.Sprintf(
-		`{"subject":{"$type":%q,"did":%q},"relation":"reader","object":{"space":%q}}`,
-		subjectTypeUser, alice.String(), space.String(),
+		`{"subject":%q,"relation":"reader","space":%q}`,
+		alice.String(), space.String(),
 	)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.writeTuple",
+		"/xrpc/network.habitat.relationship.writeUserRelation",
 		strings.NewReader(body),
 	)
 	w := httptest.NewRecorder()
-	s.WriteTuple(w, req)
+	s.WriteUserRelation(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var out habitat.NetworkHabitatRelationshipWriteTupleOutput
+	var out habitat.NetworkHabitatRelationshipWriteUserRelationOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.NotEmpty(t, out.Uri)
 
@@ -63,16 +63,16 @@ func TestServer_WriteTuple_InvalidSubject(t *testing.T) {
 	space := newSpace(t, sp, docsType, "doc")
 
 	body := fmt.Sprintf(
-		`{"subject":{"$type":"network.habitat.relationship.defs#bogus"},"relation":"reader","object":{"space":%q}}`,
+		`{"subject":"bogus-subject","relation":"reader","space":%q}`,
 		space.String(),
 	)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.writeTuple",
+		"/xrpc/network.habitat.relationship.writeUserRelation",
 		strings.NewReader(body),
 	)
 	w := httptest.NewRecorder()
-	s.WriteTuple(w, req)
+	s.WriteUserRelation(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
@@ -124,9 +124,9 @@ func TestServer_ListTuples(t *testing.T) {
 	))
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var out habitat.NetworkHabitatRelationshipListTuplesOutput
+	var out habitat.NetworkHabitatRelationshipListRelationsOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
-	require.Len(t, out.Tuples, 2)
+	require.Len(t, out.Relations, 2)
 }
 
 func TestServer_ListTuples_InvalidSubjectType(t *testing.T) {
@@ -199,27 +199,27 @@ func TestServer_WriteTuple_BadBody(t *testing.T) {
 	s, _, _ := newTestServer(t, org)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.writeTuple",
+		"/xrpc/network.habitat.relationship.writeUserRelation",
 		strings.NewReader("{not json"),
 	)
 	w := httptest.NewRecorder()
-	s.WriteTuple(w, req)
+	s.WriteUserRelation(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_WriteTuple_BadObjectSpace(t *testing.T) {
 	s, _, _ := newTestServer(t, org)
 	body := fmt.Sprintf(
-		`{"subject":{"$type":%q,"did":%q},"relation":"reader","object":{"space":"not-a-space"}}`,
-		subjectTypeUser, alice.String(),
+		`{"subject":%q,"relation":"reader","space":"not-a-space"}`,
+		alice.String(),
 	)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.writeTuple",
+		"/xrpc/network.habitat.relationship.writeUserRelation",
 		strings.NewReader(body),
 	)
 	w := httptest.NewRecorder()
-	s.WriteTuple(w, req)
+	s.WriteUserRelation(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 

@@ -1,8 +1,8 @@
 import { useState, type ReactElement } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
-  NetworkHabitatRelationshipTuple,
-  NetworkHabitatRelationshipDefs,
+  NetworkHabitatRelationshipUserRelation,
+  NetworkHabitatRelationshipSpaceRelation,
   NetworkHabitatGroupProfile,
 } from "api";
 import { UsersIcon } from "lucide-react";
@@ -24,10 +24,9 @@ import { AuthManager } from "../authManager";
 import { procedure, query } from "../habitatClient";
 import { resolveDidToHandle, resolveHandleToDid } from "../atprotoDirectory";
 
-const TUPLE_COLLECTION = "network.habitat.relationship.tuple";
+const USER_RELATION_COLLECTION = "network.habitat.relationship.userRelation";
+const SPACE_RELATION_COLLECTION = "network.habitat.relationship.spaceRelation";
 const GROUP_PROFILE_COLLECTION = "network.habitat.group.profile";
-const USER_SUBJECT = "network.habitat.relationship.defs#userSubject";
-const SPACE_ROLE_SUBJECT = "network.habitat.relationship.defs#spaceRoleSubject";
 // The group-space role that represents membership; granting this userset shares
 // with everyone in the group (see network.habitat.group.profile).
 const GROUP_MEMBER_ROLE = "writer";
@@ -55,7 +54,7 @@ function ownerDid(spaceUri: string): string {
   return spaceUri.split("/")[2];
 }
 
-// loadShareState reads the space's relationship tuples and resolves them into
+// loadShareState reads the space's relationship records and resolves them into
 // the users and groups that currently have access. User DIDs are resolved to
 // handles through the atproto directory; space-role subjects are kept only when
 // they resolve to a group (i.e. expose a group profile), which is how we filter
@@ -64,24 +63,29 @@ async function loadShareState(
   spaceUri: string,
   authManager: AuthManager,
 ): Promise<ShareState> {
-  const { records } = await query(
-    "network.habitat.space.listRecords",
-    { space: spaceUri, repo: ownerDid(spaceUri), collection: TUPLE_COLLECTION },
-    { authManager },
-  );
-
   const userDids = new Set<string>();
   const groupSpaces = new Set<string>();
-  for (const record of records) {
-    const tuple = record.value as NetworkHabitatRelationshipTuple.Record;
-    const subject = tuple.subject;
-    if (subject.$type === USER_SUBJECT) {
-      userDids.add((subject as NetworkHabitatRelationshipDefs.UserSubject).did);
-    } else if (subject.$type === SPACE_ROLE_SUBJECT) {
-      groupSpaces.add(
-        (subject as NetworkHabitatRelationshipDefs.SpaceRoleSubject).space,
-      );
-    }
+
+  // Read userRelation records
+  const { records: userRecords } = await query(
+    "network.habitat.space.listRecords",
+    { space: spaceUri, repo: ownerDid(spaceUri), collection: USER_RELATION_COLLECTION },
+    { authManager },
+  );
+  for (const record of userRecords) {
+    const rel = record.value as NetworkHabitatRelationshipUserRelation.Record;
+    userDids.add(rel.subject);
+  }
+
+  // Read spaceRelation records
+  const { records: spaceRecords } = await query(
+    "network.habitat.space.listRecords",
+    { space: spaceUri, repo: ownerDid(spaceUri), collection: SPACE_RELATION_COLLECTION },
+    { authManager },
+  );
+  for (const record of spaceRecords) {
+    const rel = record.value as NetworkHabitatRelationshipSpaceRelation.Record;
+    groupSpaces.add(rel.subject);
   }
 
   const users = await Promise.all(
@@ -153,11 +157,11 @@ export const ShareDialogV2 = ({
     mutationFn: async (handle: string) => {
       const did = await resolveHandleToDid(handle);
       await procedure(
-        "network.habitat.relationship.writeTuple",
+        "network.habitat.relationship.writeUserRelation",
         {
-          subject: { $type: USER_SUBJECT, did },
+          subject: did,
           relation,
-          object: { space: spaceUri },
+          space: spaceUri,
         },
         { authManager },
       );
@@ -171,15 +175,12 @@ export const ShareDialogV2 = ({
   const addGroup = useMutation({
     mutationFn: async (group: GroupView) => {
       await procedure(
-        "network.habitat.relationship.writeTuple",
+        "network.habitat.relationship.writeSpaceRelation",
         {
-          subject: {
-            $type: SPACE_ROLE_SUBJECT,
-            space: group.uri,
-            role: GROUP_MEMBER_ROLE,
-          },
+          subject: group.uri,
+          subjectRole: GROUP_MEMBER_ROLE,
           relation,
-          object: { space: spaceUri },
+          space: spaceUri,
         },
         { authManager },
       );

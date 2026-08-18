@@ -152,7 +152,10 @@ func TestParseSpaceRecordURI(t *testing.T) {
 	t.Run("too long", func(t *testing.T) {
 		_, err := ParseSpaceRecordURI(
 			"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/" +
-				strings.Repeat("a", 8193),
+				strings.Repeat(
+					"a",
+					8193,
+				),
 		)
 		require.Error(t, err)
 	})

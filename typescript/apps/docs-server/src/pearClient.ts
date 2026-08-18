@@ -2,7 +2,7 @@ import type {
   NetworkHabitatSimplespaceCreateSpace,
   NetworkHabitatSpacePutRecord,
   NetworkHabitatSpaceGetRecord,
-  NetworkHabitatRelationshipWriteTuple,
+  NetworkHabitatRelationshipWriteUserRelation,
   NetworkHabitatRelationshipListSubjects,
   NetworkHabitatRelationshipListObjects,
   NetworkHabitatRelationshipCheck,
@@ -188,18 +188,15 @@ export class PearClient {
     did: string,
     relation: "owner" | "manager" | "writer" | "reader",
   ): Promise<void> {
-    await this.call<NetworkHabitatRelationshipWriteTuple.OutputSchema>(
+    await this.call<NetworkHabitatRelationshipWriteUserRelation.OutputSchema>(
       org,
-      "network.habitat.relationship.writeTuple",
+      "network.habitat.relationship.writeUserRelation",
       "POST",
       {
-        subject: {
-          $type: "network.habitat.relationship.defs#userSubject",
-          did,
-        },
+        subject: did,
         relation,
-        object: { space },
-      } satisfies NetworkHabitatRelationshipWriteTuple.InputSchema,
+        space,
+      } satisfies NetworkHabitatRelationshipWriteUserRelation.InputSchema,
     );
   }
 
