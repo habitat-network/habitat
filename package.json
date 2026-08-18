@@ -15,7 +15,7 @@
     "@types/react-dom": "catalog:",
     "oxlint": "^1.75.0",
     "prettier": "3.9.6",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.0",
     "vite": "catalog:"
   },
   "packageManager": "pnpm@11.22.0"
