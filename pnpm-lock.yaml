@@ -736,8 +736,8 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       web-vitals:
-        specifier: ^4.2.4
-        version: 4.2.4
+        specifier: ^6.0.0
+        version: 6.0.0
       zustand:
         specifier: ^5.0.14
         version: 5.0.15(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
@@ -10367,9 +10367,6 @@ packages:
 
   web-namespaces@2.0.1:
     resolution: {integrity: sha512-bKr1DkiNa2krS7qxNtdrtHAmzuYGFQLiQ13TsorsdT6ULTkPLKuu5+GsFpDlg6JFjUTwX2DyhMPG2be8uPrqsQ==}
-
-  web-vitals@4.2.4:
-    resolution: {integrity: sha512-r4DIlprAGwJ7YM11VZp4R884m0Vmgr6EAKe3P+kO0PPj3Unqyvv59rczf6UiGcb9Z8QxZVcqKNwv/g0WNdWwsw==}
 
   web-vitals@5.3.0:
     resolution: {integrity: sha512-q6LWsLatGYZp5VGBIOvbTj6JBV2nOmC8KvWztXBmwJcfFAzhwKwbOxhUH306XY3CcaZDUlSmSuNPBsCn0bFu+g==}
@@ -22680,8 +22677,6 @@ snapshots:
       supports-color: 10.2.2
 
   web-namespaces@2.0.1: {}
-
-  web-vitals@4.2.4: {}
 
   web-vitals@5.3.0: {}
 
