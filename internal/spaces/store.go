@@ -11,8 +11,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
-	openfgav1 "github.com/openfga/api/proto/openfga/v1"
-	"github.com/openfga/openfga/pkg/tuple"
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/db"
@@ -22,13 +20,6 @@ import (
 )
 
 // GORM models
-
-type space struct {
-	Owner     syntax.DID              `gorm:"primaryKey"`
-	Type      syntax.NSID             `gorm:"primaryKey"`
-	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
-	CreatedAt time.Time
-}
 
 type spaceRecord struct {
 	Space      habitat_syntax.SpaceURI `gorm:"primaryKey"`
@@ -77,15 +68,9 @@ type Record struct {
 }
 
 // Store defines the persistence interface for spaces
+// Implements methods defined in proposal here:
+// https://github.com/bluesky-social/proposals/tree/main/0016-permissioned-data#xrpc-api
 type Store interface {
-	// Space operations
-	CreateSpace(
-		ctx context.Context,
-		org syntax.DID,
-		owner syntax.DID,
-		spaceType syntax.NSID,
-		skey habitat_syntax.SpaceKey,
-	) (habitat_syntax.SpaceURI, error)
 	// ListSpaces returns the URIs of the spaces `member` holds a permissioned
 	// repo in — the spaces it has written at least one record to — most
 	// recently written first. A space `member` owns but has never written to is
@@ -97,13 +82,6 @@ type Store interface {
 		filterType *syntax.NSID,
 	) ([]habitat_syntax.SpaceURI, error)
 
-	// Member operations
-	AddMember(
-		ctx context.Context,
-		space habitat_syntax.SpaceURI,
-		did syntax.DID,
-	) error
-	RemoveMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
 	ListRepos(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -155,7 +133,10 @@ type Store interface {
 		collection syntax.NSID,
 		rkey string,
 	) error
-	DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error
+	DeleteSpaceRepos(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+	) error
 
 	// Oplog operations
 	//
@@ -213,14 +194,11 @@ type Notifier interface {
 }
 
 var (
-	ErrSpaceNotFound      = errors.New("space not found")
-	ErrSpaceAlreadyExists = errors.New("space already exists")
-	ErrRecordNotFound     = errors.New("record not found")
-	ErrUserAlreadyMember  = errors.New("user is already a member of the space")
-	ErrNotAMember         = errors.New("user is not a member of the space")
-	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
-	ErrRepoNotFound       = errors.New("repo not found")
-	ErrRevTooFar          = errors.New("since revision is ahead of the repo head")
+	ErrRecordNotFound    = errors.New("record not found")
+	ErrUserAlreadyMember = errors.New("user is already a member of the space")
+	ErrNotAMember        = errors.New("user is not a member of the space")
+	ErrRepoNotFound      = errors.New("repo not found")
+	ErrRevTooFar         = errors.New("since revision is ahead of the repo head")
 )
 
 // ---- Store implementation ----
@@ -231,6 +209,24 @@ type store struct {
 	clock    *syntax.TIDClock
 	notifier Notifier
 	commit   *spacecommit.Authority
+}
+
+// DeleteSpaceRepos implements [Store].
+func (s *store) DeleteSpaceRepos(ctx context.Context, space habitat_syntax.SpaceURI) error {
+
+	if err := s.db.
+		Where("space = ?", space).
+		Delete(&spaceRecord{}).Error; err != nil {
+		return err
+	}
+
+	if err := s.db.
+		Where("space = ?", space).
+		Delete(&spaceRecord{}).Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 var _ Store = &store{}
@@ -244,7 +240,7 @@ func NewStore(
 	notifier Notifier,
 	commit *spacecommit.Authority,
 ) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceRepo{}); err != nil {
+	if err := db.AutoMigrate(&spaceRecord{}, &spaceRepo{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
 	return &store{
@@ -265,43 +261,6 @@ func (s *store) WithTx(tx *gorm.DB) Store {
 		notifier: s.notifier,
 		commit:   s.commit,
 	}
-}
-
-func (s *store) CreateSpace(
-	ctx context.Context,
-	org syntax.DID,
-	creator syntax.DID,
-	spaceType syntax.NSID,
-	skey habitat_syntax.SpaceKey,
-) (habitat_syntax.SpaceURI, error) {
-	if skey == "" {
-		skey = habitat_syntax.NewSkey(s.clock.Next())
-	}
-
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&space{
-			Owner: org,
-			Type:  spaceType,
-			Skey:  skey,
-		}).Error; err != nil {
-			if errors.Is(err, gorm.ErrDuplicatedKey) {
-				return ErrSpaceAlreadyExists
-			}
-			return err
-		}
-
-		return s.fga.Write(
-			ctx,
-			fgastore.MemberUserString(creator),
-			fgastore.RelationSpaceOwner,
-			fgastore.SpaceObjectKey(habitat_syntax.ConstructSpaceURI(org, spaceType, skey)),
-		)
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return habitat_syntax.ConstructSpaceURI(org, spaceType, skey), nil
 }
 
 func (s *store) ListSpaces(
@@ -410,16 +369,6 @@ func (s *store) ListRepos(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 ) ([]RepoInfo, error) {
-	var sp space
-	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
-		First(&sp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, ErrSpaceNotFound
-	} else if err != nil {
-		return nil, err
-	}
-
 	// The writer set and each repo's hash come straight from the cached hash
 	// table, maintained incrementally by the write path — no record rescan.
 	var rows []spaceRepo
@@ -458,85 +407,6 @@ func (s *store) IsMember(
 	)
 }
 
-func (s *store) AddMember(
-	ctx context.Context,
-	uri habitat_syntax.SpaceURI,
-	did syntax.DID,
-) error {
-	var sp space
-	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
-		First(&sp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrSpaceNotFound
-	} else if err != nil {
-		return err
-	}
-	if did == uri.SpaceOwner() {
-		return nil
-	}
-	return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
-		Writes: &openfgav1.WriteRequestWrites{
-			TupleKeys: []*openfgav1.TupleKey{
-				tuple.NewTupleKey(
-					fgastore.SpaceObjectKey(uri),
-					fgastore.RelationSpaceWriter,
-					fgastore.MemberUserString(did),
-				),
-			},
-			OnDuplicate: "ignore",
-		},
-		Deletes: &openfgav1.WriteRequestDeletes{
-			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
-				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
-					fgastore.SpaceObjectKey(uri),
-					fgastore.RelationSpaceReader,
-					fgastore.MemberUserString(did),
-				)),
-			},
-			OnMissing: "ignore",
-		},
-	})
-}
-
-func (s *store) RemoveMember(
-	ctx context.Context,
-	uri habitat_syntax.SpaceURI,
-	did syntax.DID,
-) error {
-	if did == uri.SpaceOwner() {
-		return ErrCannotRemoveOrg
-	}
-
-	var sp space
-	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
-		First(&sp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrSpaceNotFound
-	} else if err != nil {
-		return err
-	}
-
-	return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
-		Deletes: &openfgav1.WriteRequestDeletes{
-			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
-				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
-					fgastore.SpaceObjectKey(uri),
-					fgastore.RelationSpaceReader,
-					fgastore.MemberUserString(did),
-				)),
-				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
-					fgastore.SpaceObjectKey(uri),
-					fgastore.RelationSpaceWriter,
-					fgastore.MemberUserString(did),
-				)),
-			},
-			OnMissing: "ignore",
-		},
-	})
-}
-
 // ---- Record operations ----
 
 func (s *store) PutRecord(
@@ -547,18 +417,6 @@ func (s *store) PutRecord(
 	rkey syntax.RecordKey,
 	value map[string]any,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
-	var sp space
-	err := s.db.WithContext(ctx).
-		Where("owner = ?", spaceUri.SpaceOwner()).
-		Where("type = ?", spaceUri.SpaceType()).
-		Where("skey = ?", spaceUri.Skey()).
-		First(&sp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return "", nil, ErrSpaceNotFound
-	} else if err != nil {
-		return "", nil, fmt.Errorf("failed to get space: %w", err)
-	}
-
 	bytes, err := atdata.MarshalCBOR(value)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
@@ -712,16 +570,6 @@ func (s *store) RepoSnapshot(
 			return err
 		}
 
-		var sp space
-		err := tx.
-			Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
-			First(&sp).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrSpaceNotFound
-		} else if err != nil {
-			return err
-		}
-
 		h, rev, ok, err := loadRepoHash(tx, uri, repo)
 		if err != nil {
 			return fmt.Errorf("repo head: %w", err)
@@ -761,66 +609,6 @@ func (s *store) RepoSnapshot(
 		return nil, nil, fmt.Errorf("build commit: %w", err)
 	}
 	return &signed, blocks, nil
-}
-
-func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
-	// read the stored FGA tuples for this space before deleting anything,
-	// so we know exactly what tuples to delete
-	tuples, err := s.fga.Read(ctx, fgastore.Tuple{Object: fgastore.SpaceObjectKey(uri)})
-	if err != nil {
-		return err
-	}
-
-	// everything after this point is idempotent — use a transaction
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		deleteSpace := tx.
-			Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
-			Delete(&space{})
-		if deleteSpace.Error != nil {
-			return err
-		}
-		if deleteSpace.RowsAffected == 0 {
-			return ErrSpaceNotFound
-		}
-
-		if err := tx.
-			Where("space = ?", uri).
-			Delete(&spaceRecord{}).Error; err != nil {
-			return err
-		}
-
-		// Drop the permissioned repos along with the records they cached a
-		// hash of. They are the writer set listSpaces reads, so leaving them
-		// behind would keep a deleted space on its writers' listings.
-		if err := tx.
-			Where("space = ?", uri).
-			Delete(&spaceRepo{}).Error; err != nil {
-			return err
-		}
-
-		// delete all stored FGA tuples for this space
-		var deletes []*openfgav1.TupleKeyWithoutCondition
-		for _, t := range tuples {
-			deletes = append(deletes, tuple.TupleKeyToTupleKeyWithoutCondition(
-				tuple.NewTupleKey(t.Object, t.Relation, t.User),
-			))
-		}
-		if len(deletes) > 0 {
-			return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
-				Deletes: &openfgav1.WriteRequestDeletes{
-					TupleKeys: deletes,
-					OnMissing: "ignore",
-				},
-			})
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	// Best-effort: tell registered syncers the space is gone.
-	s.notifier.NotifySpaceDeleted(ctx, uri)
-	return nil
 }
 
 func (s *store) ListRepoOps(
