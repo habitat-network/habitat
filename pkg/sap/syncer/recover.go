@@ -174,13 +174,10 @@ func (e *Engine) recoverByDiff(
 	if err != nil {
 		return fmt.Errorf("get latest commit: %w", err)
 	}
-	if headCommit.Ver == 0 {
+	if headCommit == nil {
 		return errors.New("host returned no signed commit")
 	}
-	commit, err := decodeCommit(headCommit)
-	if err != nil {
-		return fmt.Errorf("decode commit: %w", err)
-	}
+	commit := spacecommit.FromXRPC(*headCommit)
 
 	paths, err := listRepoPaths(ctx, client, space, repoDID)
 	if err != nil {

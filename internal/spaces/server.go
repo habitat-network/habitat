@@ -22,7 +22,6 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -717,22 +716,10 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	// transaction, so a syncer folding the ops and comparing its hash against
 	// this commit always sees the exact same state on both sides.
 	if commit != nil {
-		output.Commit = shapeSignedCommit(*commit)
+		signed := commit.ToXRPC()
+		output.Commit = &signed
 	}
 	httpx.WriteJSON(r.Context(), w, output)
-}
-
-// shapeSignedCommit shapes a domain signed commit as the lexicon signedCommit
-// for JSON responses.
-func shapeSignedCommit(c spacecommit.SignedCommit) habitat.NetworkHabitatSpaceDefsSignedCommit {
-	return habitat.NetworkHabitatSpaceDefsSignedCommit{
-		Ver:  int64(c.Ver),
-		Hash: atdata.Bytes(c.Hash),
-		Ikm:  atdata.Bytes(c.Ikm),
-		Mac:  atdata.Bytes(c.Mac),
-		Sig:  atdata.Bytes(c.Sig),
-		Rev:  c.Rev,
-	}
 }
 
 // GetLatestCommit returns the current signed commit over a repo's head state
@@ -776,8 +763,9 @@ func (s *Server) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	signed := commit.ToXRPC()
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetLatestCommitOutput{
-		Commit: shapeSignedCommit(*commit),
+		Commit: &signed,
 	})
 }
 
