@@ -3,12 +3,12 @@ package notify
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -64,7 +64,7 @@ func (d *Deliverer) NotifyWrite(
 		Space: space.String(),
 		Repo:  repo.String(),
 		Rev:   rev.String(),
-		Hash:  base64.StdEncoding.EncodeToString(hash),
+		Hash:  atdata.Bytes(hash),
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: marshal notifyWrite", "err", err)

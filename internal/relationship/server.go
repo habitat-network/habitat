@@ -53,7 +53,7 @@ func (s *Server) authorize(
 		fgastore.MemberUserString(caller.Subject),
 		relation,
 		fgastore.SpaceObjectKey(space),
-		ownerContextualTuple(space),
+		fgastore.OwnerContextualTuple(space),
 		fgastore.OrgMemberContextualTuple(caller.Org.DID()),
 	)
 }

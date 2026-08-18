@@ -44,6 +44,14 @@ func OrgMemberUsersetString(did syntax.DID) string {
 	return OrgObjectKey(did) + "#" + RelationMember
 }
 
+func OwnerContextualTuple(space habitat_syntax.SpaceURI) Tuple {
+	return Tuple{
+		User:     MemberUserString(space.SpaceOwner()),
+		Relation: RelationSpaceOwner,
+		Object:   SpaceObjectKey(space),
+	}
+}
+
 // OrgMemberContextualTuple returns a Tuple granting org members (via the
 // organization:#member userset) the can_read relation on the org's self space
 // (at://<org>/space/network.habitat.organization/self).  This lets org membership

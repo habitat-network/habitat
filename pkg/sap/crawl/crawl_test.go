@@ -15,6 +15,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
@@ -114,7 +115,7 @@ func (r *recorder) Check(
 	_ habitat_syntax.SpaceURI,
 	repo syntax.DID,
 	_ syntax.TID,
-	_ string,
+	_ []byte,
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -346,7 +347,7 @@ func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
 		case "/xrpc/network.habitat.space.listRepos":
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-					{Did: repoDID.String(), Rev: "3lrev2", Hash: "aGFzaA=="},
+					{Did: repoDID.String(), Rev: "3lrev2", Hash: atdata.Bytes("hash")},
 				},
 			})
 		}
@@ -380,7 +381,7 @@ func TestCrawlerTrackSpace(t *testing.T) {
 		case "/xrpc/network.habitat.space.listRepos":
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-					{Did: repoDID.String(), Rev: "3lrev2", Hash: "aGFzaA=="},
+					{Did: repoDID.String(), Rev: "3lrev2", Hash: atdata.Bytes("hash")},
 				},
 			})
 		default:

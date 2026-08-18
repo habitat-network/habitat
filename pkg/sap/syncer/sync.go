@@ -51,7 +51,7 @@ func (e *Engine) syncRepo(
 
 	lt := spacecommit.Load(r.Hash)
 	since := r.Rev
-	var headCommit habitat.NetworkHabitatSpaceDefsSignedCommit
+	var headCommit *habitat.NetworkHabitatSpaceDefsSignedCommit
 
 	for {
 		select {
@@ -95,13 +95,11 @@ func (e *Engine) syncRepo(
 		}
 	}
 
-	// A commit with Ver 0 was omitted (empty repo, or no signer covers the
-	// owner); there is nothing to verify against.
-	if headCommit.Ver != 0 {
-		commit, err := decodeCommit(headCommit)
-		if err != nil {
-			return e.scheduleRetry(ctx, space, repoDID, stateError, err)
-		}
+	// A nil commit means the head of the oplog was never reached (empty
+	// repo, or no signer covers the owner); there is nothing to verify
+	// against.
+	if headCommit != nil {
+		commit := spacecommit.FromXRPC(*headCommit)
 		if err := e.verifier.Verify(ctx, space, repoDID, commit, &lt); err != nil {
 			if errors.Is(err, spacecommit.ErrInvalidCommit) {
 				e.metrics.verified(ctx, "invalid")
@@ -221,7 +219,7 @@ func getLatestCommit(
 	client *atclient.APIClient,
 	space habitat_syntax.SpaceURI,
 	repoDID syntax.DID,
-) (habitat.NetworkHabitatSpaceDefsSignedCommit, error) {
+) (*habitat.NetworkHabitatSpaceDefsSignedCommit, error) {
 	var output habitat.NetworkHabitatSpaceGetLatestCommitOutput
 
 	if err := client.Get(ctx, "network.habitat.space.getLatestCommit",

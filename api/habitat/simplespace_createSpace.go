@@ -4,10 +4,10 @@ package habitat
 
 // NetworkHabitatSimplespaceCreateSpaceInput represents the input for network.habitat.simplespace.createSpace
 type NetworkHabitatSimplespaceCreateSpaceInput struct {
-	Config NetworkHabitatSimplespaceDefsSpaceConfig `json:"config,omitempty"`
-	Did    string                                   `json:"did"`
-	Skey   string                                   `json:"skey,omitempty"`
-	Type   string                                   `json:"type"`
+	Config *NetworkHabitatSimplespaceDefsSpaceConfig `json:"config,omitempty"`
+	Did    string                                    `json:"did"`
+	Skey   string                                    `json:"skey,omitempty"`
+	Type   string                                    `json:"type"`
 }
 
 // NetworkHabitatSimplespaceCreateSpaceOutput represents the output for network.habitat.simplespace.createSpace

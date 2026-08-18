@@ -10,5 +10,5 @@ type NetworkHabitatSpaceGetLatestCommitParams struct {
 
 // NetworkHabitatSpaceGetLatestCommitOutput represents the output for network.habitat.space.getLatestCommit
 type NetworkHabitatSpaceGetLatestCommitOutput struct {
-	Commit NetworkHabitatSpaceDefsSignedCommit `json:"commit,omitempty"`
+	Commit *NetworkHabitatSpaceDefsSignedCommit `json:"commit,omitempty"`
 }

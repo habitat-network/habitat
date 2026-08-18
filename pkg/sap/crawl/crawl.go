@@ -79,7 +79,7 @@ type Tracker interface {
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
 		rev syntax.TID,
-		hashB64 string,
+		hash []byte,
 	) error
 }
 
@@ -347,11 +347,7 @@ func (c *Crawler) enumerateRepos(
 
 	for _, r := range output.Repos {
 		did := syntax.DID(r.Did)
-		hashB64 := ""
-		if h, ok := r.Hash.(string); ok {
-			hashB64 = h
-		}
-		if err := c.tracker.Check(ctx, space, did, syntax.TID(r.Rev), hashB64); err != nil {
+		if err := c.tracker.Check(ctx, space, did, syntax.TID(r.Rev), r.Hash); err != nil {
 			return err
 		}
 	}

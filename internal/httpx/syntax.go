@@ -7,7 +7,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/internal/utils"
 )
 
 func ParseDIDInput(
@@ -50,21 +49,4 @@ func ParseNSIDInput(
 		return "", false
 	}
 	return nsid, true
-}
-
-// ParseBytesInput parses a lexicon bytes field (input decoded from JSON, of
-// the form {"$bytes": "<base64>"}) into raw bytes, writing an invalid-request
-// response and returning false on failure.
-func ParseBytesInput(
-	ctx context.Context,
-	w http.ResponseWriter,
-	input any,
-	name string,
-) ([]byte, bool) {
-	b, err := utils.ParseBytes(input)
-	if err != nil {
-		WriteInvalidRequest(ctx, w, "failed to parse "+name, err)
-		return nil, false
-	}
-	return b, true
 }
