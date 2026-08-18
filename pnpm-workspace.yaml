@@ -35,4 +35,4 @@ catalog:
   typescript: ^5.9.3
   vite: 7.3.6
   vite-tsconfig-paths: ^5.1.4
-  vitest: ^3.2.7
+  vitest: ^4.0.0
