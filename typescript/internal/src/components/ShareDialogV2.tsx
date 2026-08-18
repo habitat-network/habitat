@@ -69,7 +69,11 @@ async function loadShareState(
   // Read userRelation records
   const { records: userRecords } = await query(
     "network.habitat.space.listRecords",
-    { space: spaceUri, repo: ownerDid(spaceUri), collection: USER_RELATION_COLLECTION },
+    {
+      space: spaceUri,
+      repo: ownerDid(spaceUri),
+      collection: USER_RELATION_COLLECTION,
+    },
     { authManager },
   );
   for (const record of userRecords) {
@@ -80,7 +84,11 @@ async function loadShareState(
   // Read spaceRelation records
   const { records: spaceRecords } = await query(
     "network.habitat.space.listRecords",
-    { space: spaceUri, repo: ownerDid(spaceUri), collection: SPACE_RELATION_COLLECTION },
+    {
+      space: spaceUri,
+      repo: ownerDid(spaceUri),
+      collection: SPACE_RELATION_COLLECTION,
+    },
     { authManager },
   );
   for (const record of spaceRecords) {
