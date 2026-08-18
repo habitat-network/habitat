@@ -118,10 +118,17 @@ func (p *pearClient) writeUserTuple(
 	relation string,
 	object habitat_syntax.SpaceURI,
 ) (habitat_syntax.SpaceRecordURI, error) {
-	return p.writeTuple(ctx, map[string]any{
-		"$type": "network.habitat.relationship.defs#userSubject",
-		"did":   did.String(),
-	}, relation, object)
+	var out habitat.NetworkHabitatRelationshipWriteUserRelationOutput
+	err := p.post(ctx, "network.habitat.relationship.writeUserRelation",
+		habitat.NetworkHabitatRelationshipWriteUserRelationInput{
+			Subject:  did.String(),
+			Relation: relation,
+			Space:    object.String(),
+		}, &out)
+	if err != nil {
+		return "", err
+	}
+	return habitat_syntax.SpaceRecordURI(out.Uri), nil
 }
 
 // writeGroupTuple grants the writers of subjectGroup a role on a group-space,
@@ -132,25 +139,13 @@ func (p *pearClient) writeGroupTuple(
 	relation string,
 	object habitat_syntax.SpaceURI,
 ) (habitat_syntax.SpaceRecordURI, error) {
-	return p.writeTuple(ctx, map[string]any{
-		"$type": "network.habitat.relationship.defs#spaceRoleSubject",
-		"space": subjectGroup.String(),
-		"role":  "writer",
-	}, relation, object)
-}
-
-func (p *pearClient) writeTuple(
-	ctx context.Context,
-	subject map[string]any,
-	relation string,
-	object habitat_syntax.SpaceURI,
-) (habitat_syntax.SpaceRecordURI, error) {
-	var out habitat.NetworkHabitatRelationshipWriteTupleOutput
-	err := p.post(ctx, "network.habitat.relationship.writeTuple",
-		habitat.NetworkHabitatRelationshipWriteTupleInput{
-			Subject:  subject,
-			Relation: relation,
-			Object:   habitat.NetworkHabitatRelationshipDefsSpaceObject{Space: object.String()},
+	var out habitat.NetworkHabitatRelationshipWriteSpaceRelationOutput
+	err := p.post(ctx, "network.habitat.relationship.writeSpaceRelation",
+		habitat.NetworkHabitatRelationshipWriteSpaceRelationInput{
+			Subject:     subjectGroup.String(),
+			SubjectRole: "writer",
+			Relation:    relation,
+			Space:       object.String(),
 		}, &out)
 	if err != nil {
 		return "", err
@@ -160,8 +155,8 @@ func (p *pearClient) writeTuple(
 
 // deleteTuple removes a relationship tuple by its record URI.
 func (p *pearClient) deleteTuple(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error {
-	return p.post(ctx, "network.habitat.relationship.deleteTuple",
-		habitat.NetworkHabitatRelationshipDeleteTupleInput{Uri: uri.String()}, nil)
+	return p.post(ctx, "network.habitat.relationship.deleteRelation",
+		habitat.NetworkHabitatRelationshipDeleteRelationInput{Uri: uri.String()}, nil)
 }
 
 // listObjects returns the spaces on which did holds relation, resolved

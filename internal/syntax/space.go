@@ -172,6 +172,48 @@ func ConstructSpaceRecordURI(
 	return SpaceRecordURI(fmt.Sprintf("%s/%s/%s/%s", spaceUri, repo, collection, rkey))
 }
 
+// ParseSpaceRecordURI validates raw as a space record URI in either the
+// current or the pre-0016 format, and returns it in the current format: a
+// legacy URI from an older client or from stored data is normalized, so
+// parsed URIs compare equal to constructed ones.
+func ParseSpaceRecordURI(raw string) (SpaceRecordURI, error) {
+	if len(raw) > 8192 {
+		return "", errors.New("SpaceRecordURI is too long (8192 chars max)")
+	}
+	parts := spaceRecordURIRegex.FindStringSubmatch(raw)
+	if parts == nil {
+		parts = legacySpaceRecordURIRegex.FindStringSubmatch(raw)
+	}
+	if parts == nil {
+		return "", errors.New("invalid space record URI format")
+	}
+	did, err := syntax.ParseDID(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("space record URI DID is not valid: %s", parts[1])
+	}
+	nsid, err := syntax.ParseNSID(parts[2])
+	if err != nil {
+		return "", fmt.Errorf("space record URI type is not a valid NSID: %s", parts[2])
+	}
+	skey, err := ParseSkey(parts[3])
+	if err != nil {
+		return "", fmt.Errorf("space record URI skey is not valid: %s", parts[3])
+	}
+	repo, err := syntax.ParseDID(parts[4])
+	if err != nil {
+		return "", fmt.Errorf("space record URI repo is not a valid DID: %s", parts[4])
+	}
+	collection, err := syntax.ParseNSID(parts[5])
+	if err != nil {
+		return "", fmt.Errorf("space record URI collection is not a valid NSID: %s", parts[5])
+	}
+	rkey, err := syntax.ParseRecordKey(parts[6])
+	if err != nil {
+		return "", fmt.Errorf("space record URI rkey is not valid: %s", parts[6])
+	}
+	return ConstructSpaceRecordURI(ConstructSpaceURI(did, nsid, skey), repo, collection, rkey), nil
+}
+
 func (s SpaceRecordURI) String() string {
 	return string(s)
 }

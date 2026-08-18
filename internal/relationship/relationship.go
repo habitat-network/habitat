@@ -31,6 +31,25 @@ const (
 	RoleReader  Role = "reader"
 )
 
+func (r Role) String() string {
+	return string(r)
+}
+
+func ParseRole(role string) (Role, error) {
+	switch role {
+	case "owner":
+		return RoleOwner, nil
+	case "manager":
+		return RoleManager, nil
+	case "writer":
+		return RoleWriter, nil
+	case "reader":
+		return RoleReader, nil
+	default:
+		return "", fmt.Errorf("invalid role: %s", role)
+	}
+}
+
 var (
 	// ErrInvalidTuple is returned when a (subject, relation, object) combination
 	// is not valid — an unknown role, or a subject that cannot be parsed.

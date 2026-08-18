@@ -133,6 +133,82 @@ func TestConstructSpaceRecordURI(t *testing.T) {
 	require.Equal(t, "network.habitat.note", uri.Collection().String())
 }
 
+func TestParseSpaceRecordURI(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		uri, err := ParseSpaceRecordURI(
+			"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		)
+		require.NoError(t, err)
+		require.Equal(t, "network.habitat.note", uri.Collection().String())
+		require.Equal(t, "did:plc:repo456", uri.Repo().String())
+		require.Equal(t, "rkey789", uri.Rkey().String())
+		require.Equal(
+			t,
+			SpaceURI("at://did:plc:abc123/space/network.habitat.space/my-space"),
+			uri.SpaceURI(),
+		)
+	})
+
+	t.Run("too long", func(t *testing.T) {
+		_, err := ParseSpaceRecordURI(
+			"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/" +
+				strings.Repeat(
+					"a",
+					8193,
+				),
+		)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid format", func(t *testing.T) {
+		_, err := ParseSpaceRecordURI("at://did:plc:abc123/space/network.habitat.space/my-space")
+		require.Error(t, err)
+	})
+
+	// A legacy URI parses, and is normalized to the current format.
+	t.Run("legacy ats format", func(t *testing.T) {
+		uri, err := ParseSpaceRecordURI(
+			"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		)
+		require.NoError(t, err)
+		require.Equal(
+			t,
+			SpaceRecordURI(
+				"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+			),
+			uri,
+		)
+	})
+
+	t.Run("invalid DID", func(t *testing.T) {
+		_, err := ParseSpaceRecordURI(
+			"at://not-a-did/space/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid type", func(t *testing.T) {
+		_, err := ParseSpaceRecordURI(
+			"at://did:plc:abc123/space/not_a_nsid/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid repo DID", func(t *testing.T) {
+		_, err := ParseSpaceRecordURI(
+			"at://did:plc:abc123/space/network.habitat.space/my-space/not-a-did/network.habitat.note/rkey789",
+		)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid collection NSID", func(t *testing.T) {
+		_, err := ParseSpaceRecordURI(
+			"at://did:plc:abc123/space/network.habitat.space/my-space/did:plc:repo456/not_a_nsid/rkey789",
+		)
+		require.Error(t, err)
+	})
+}
+
 func TestSpaceRecordURI_Collection(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		uri := SpaceRecordURI(

@@ -1,10 +1,10 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.relationship.writeTuple",
+    "id": "network.habitat.relationship.writeUserRelation",
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Write a relationship tuple, creating it if it does not already exist. The tuple record is owned by the org repo within its governing space. Caller must have the manager role on the object space.",
+            "description": "Write a user relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.",
             "input": {
                 "encoding": "application/json",
                 "schema": {
@@ -12,15 +12,13 @@
                     "required": [
                         "subject",
                         "relation",
-                        "object"
+                        "space"
                     ],
                     "properties": {
                         "subject": {
-                            "type": "union",
-                            "refs": [
-                                "network.habitat.relationship.defs#userSubject",
-                                "network.habitat.relationship.defs#spaceRoleSubject"
-                            ]
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the user to grant the role to."
                         },
                         "relation": {
                             "type": "string",
@@ -30,11 +28,12 @@
                                 "writer",
                                 "reader"
                             ],
-                            "description": "Role granted on the object space (owner|manager|writer|reader)."
+                            "description": "Role granted on the space (owner|manager|writer|reader)."
                         },
-                        "object": {
-                            "type": "ref",
-                            "ref": "network.habitat.relationship.defs#spaceObject"
+                        "space": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URI of the space to grant the role on."
                         }
                     }
                 }
@@ -49,7 +48,7 @@
                     "properties": {
                         "uri": {
                             "type": "string",
-                            "description": "URI of the written tuple record."
+                            "description": "URI of the written relation record."
                         }
                     }
                 }
@@ -57,11 +56,11 @@
             "errors": [
                 {
                     "name": "SpaceNotFound",
-                    "description": "The object space does not exist."
+                    "description": "The space does not exist."
                 },
                 {
-                    "name": "InvalidTuple",
-                    "description": "The subject, relation, and object combination is not valid."
+                    "name": "InvalidRelation",
+                    "description": "The subject, relation, and space combination is not valid."
                 }
             ]
         }
