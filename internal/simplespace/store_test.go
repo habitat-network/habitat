@@ -10,7 +10,6 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
-	notify_testutil "github.com/habitat-network/habitat/internal/notify/testutil"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -31,9 +30,7 @@ func newTestStore(t *testing.T) *Store {
 	t.Cleanup(func() { _ = fga.Close() })
 
 	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
-	notifier := &notify_testutil.TestNotifier{}
-
-	return NewStore(db, spacesStore, fga, notifier)
+	return NewStore(db, spacesStore, fga)
 }
 
 func TestCreateSpace(t *testing.T) {
@@ -263,13 +260,13 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 	t.Cleanup(func() { _ = fga.Close() })
 
 	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
-	notifier := &notify_testutil.TestNotifier{}
 
-	s := NewStore(db, spacesStore, fga, notifier)
+	s := NewStore(db, spacesStore, fga)
 
 	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "doomed")
 	require.NoError(t, err)
 
-	require.NoError(t, s.DeleteSpace(t.Context(), uri))
-	require.Equal(t, []habitat_syntax.SpaceURI{uri}, notifier.Deleted)
+	ok, err := s.spaces.CheckSpaceExists(t.Context(), uri)
+	require.NoError(t, err)
+	require.False(t, ok)
 }

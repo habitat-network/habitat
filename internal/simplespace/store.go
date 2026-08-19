@@ -18,9 +18,8 @@ type Store struct {
 	db     *gorm.DB
 	spaces spaces.Store
 
-	clock    *syntax.TIDClock
-	fga      fgastore.Store
-	notifier spaces.Notifier
+	clock *syntax.TIDClock
+	fga   fgastore.Store
 }
 
 var (
@@ -32,14 +31,12 @@ func NewStore(
 	db *gorm.DB,
 	spaces spaces.Store,
 	fga fgastore.Store,
-	notifier spaces.Notifier,
 ) *Store {
 	return &Store{
-		db:       db,
-		spaces:   spaces,
-		clock:    syntax.NewTIDClock(0),
-		fga:      fga,
-		notifier: notifier,
+		db:     db,
+		spaces: spaces,
+		clock:  syntax.NewTIDClock(0),
+		fga:    fga,
 	}
 }
 
@@ -72,12 +69,16 @@ func (m *Store) CreateSpace(
 			return fmt.Errorf("err creating space: %w", err)
 		}
 
-		return m.fga.Write(
+		err = m.fga.Write(
 			ctx,
 			fgastore.MemberUserString(creator),
 			fgastore.RelationSpaceOwner,
 			fgastore.SpaceObjectKey(uri),
 		)
+		if err != nil {
+			return fmt.Errorf("err writing permissions: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
 		return "", fmt.Errorf("err creating space: %w", err)
@@ -92,7 +93,7 @@ func (m *Store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 	// so we know exactly what tuples to delete
 	tuples, err := m.fga.Read(ctx, fgastore.Tuple{Object: fgastore.SpaceObjectKey(uri)})
 	if err != nil {
-		return err
+		return fmt.Errorf("err reading space permissions: %w", err)
 	}
 
 	// everything after this point is idempotent — use a transaction
@@ -109,21 +110,24 @@ func (m *Store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 				tuple.NewTupleKey(t.Object, t.Relation, t.User),
 			))
 		}
-		if len(deletes) > 0 {
-			return m.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
-				Deletes: &openfgav1.WriteRequestDeletes{
-					TupleKeys: deletes,
-					OnMissing: "ignore",
-				},
-			})
+		if len(deletes) == 0 {
+			return nil
+		}
+		err = m.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+			Deletes: &openfgav1.WriteRequestDeletes{
+				TupleKeys: deletes,
+				OnMissing: "ignore",
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("err deleting space permissions: %w", err)
 		}
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("err deleting space: %w", err)
 	}
-	// Best-effort: tell registered syncers the space is gone.
-	m.notifier.NotifySpaceDeleted(ctx, uri)
+
 	return nil
 }
 
@@ -167,7 +171,7 @@ func (m *Store) AddMember(ctx context.Context, uri habitat_syntax.SpaceURI, did 
 	// TODO: there could be a race here between TOCTOU -- the space could get deleted by another process here.
 	// We need a way to detect this after the fact and clean it up.
 
-	return m.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+	err = m.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 		Writes: &openfgav1.WriteRequestWrites{
 			TupleKeys: []*openfgav1.TupleKey{
 				tuple.NewTupleKey(
@@ -189,6 +193,10 @@ func (m *Store) AddMember(ctx context.Context, uri habitat_syntax.SpaceURI, did 
 			OnMissing: "ignore",
 		},
 	})
+	if err != nil {
+		return fmt.Errorf("err adding member: %w", err)
+	}
+	return nil
 }
 
 // RemoveMember implements [Store].
@@ -208,7 +216,7 @@ func (m *Store) RemoveMember(
 		return spaces.ErrSpaceNotFound
 	}
 
-	return m.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+	err = m.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 		Deletes: &openfgav1.WriteRequestDeletes{
 			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
 				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
@@ -225,6 +233,10 @@ func (m *Store) RemoveMember(
 			OnMissing: "ignore",
 		},
 	})
+	if err != nil {
+		return fmt.Errorf("err removing member: %w", err)
+	}
+	return nil
 }
 
 func (m *Store) IsMember(
@@ -233,7 +245,7 @@ func (m *Store) IsMember(
 	uri habitat_syntax.SpaceURI,
 	did syntax.DID,
 ) (bool, error) {
-	return m.fga.Check(
+	ok, err := m.fga.Check(
 		ctx,
 		fgastore.MemberUserString(did),
 		fgastore.RelationSpaceReader,
@@ -241,4 +253,8 @@ func (m *Store) IsMember(
 		fgastore.OwnerContextualTuple(uri),
 		fgastore.OrgMemberContextualTuple(org),
 	)
+	if err != nil {
+		return false, fmt.Errorf("err checking membership: %w", err)
+	}
+	return ok, nil
 }
