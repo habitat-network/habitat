@@ -6,7 +6,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -30,6 +32,9 @@ var hopByHopHeaders = []string{
 type server struct {
 	sap         *sap.Sap
 	oauthClient *oauth.ClientApp
+
+	mu              sync.Mutex
+	pendingReturnTo map[string]string // DID string -> return_to URL
 }
 
 func NewSapServer(
@@ -37,8 +42,9 @@ func NewSapServer(
 	oauthClient *oauth.ClientApp,
 ) *server {
 	return &server{
-		sap:         sapInstance,
-		oauthClient: oauthClient,
+		sap:             sapInstance,
+		oauthClient:     oauthClient,
+		pendingReturnTo: make(map[string]string),
 	}
 }
 
@@ -48,11 +54,29 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Handle string `json:"handle"`
+		Handle   string `json:"handle"`
+		ReturnTo string `json:"return_to"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
+	}
+
+	// oauth.ClientApp.StartAuthFlow has no hook to carry caller state through
+	// the OAuth state param and doesn't return the resolved DID, so when the
+	// caller wants to be redirected back we resolve the identifier to a DID
+	// ourselves (the same lookup StartAuthFlow performs internally) and stash
+	// return_to keyed by that DID for handleOAuthCallback to pick up later.
+	// Resolution failures here must not block the StartAuthFlow call below —
+	// they just mean the caller won't get redirected back.
+	if req.ReturnTo != "" {
+		if atid, err := syntax.ParseAtIdentifier(req.Handle); err == nil {
+			if ident, err := s.oauthClient.Dir.Lookup(r.Context(), atid); err == nil {
+				s.mu.Lock()
+				s.pendingReturnTo[ident.DID.String()] = req.ReturnTo
+				s.mu.Unlock()
+			}
+		}
 	}
 
 	redirectURL, err := s.oauthClient.StartAuthFlow(r.Context(), req.Handle)
@@ -99,7 +123,29 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.InfoContext(r.Context(), "org oauth complete", "did", sessionData.AccountDID)
+
+	if s.redirectToReturnTo(w, r, sessionData.AccountDID.String()) {
+		return
+	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// redirectToReturnTo pops any pending return_to for did and, if present,
+// redirects r's response there with the DID appended as a query param.
+// Returns true if it wrote a response (caller must not write another one).
+func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did string) bool {
+	s.mu.Lock()
+	returnTo, ok := s.pendingReturnTo[did]
+	if ok {
+		delete(s.pendingReturnTo, did)
+	}
+	s.mu.Unlock()
+	if !ok {
+		return false
+	}
+	target := fmt.Sprintf("%s?did=%s", returnTo, url.QueryEscape(did))
+	http.Redirect(w, r, target, http.StatusSeeOther)
+	return true
 }
 
 // handleProxy forwards an XRPC request to pear on behalf of a managed org,
