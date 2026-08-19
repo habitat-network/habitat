@@ -1,4 +1,4 @@
-package server
+package pear
 
 import (
 	"encoding/json"
@@ -18,7 +18,6 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -29,7 +28,7 @@ import (
 
 type Server struct {
 	// Implementation of permission-enforcing atprotocol repo
-	pear pear.Pear
+	pear Pear
 
 	// Org store for membership lookups
 	orgStore org.Store
@@ -40,7 +39,7 @@ type Server struct {
 
 // NewServer returns a pear server.
 func NewServer(
-	pear pear.Pear,
+	pear Pear,
 	validator authn.RequestValidator,
 	orgStore org.Store,
 ) *Server {
@@ -265,7 +264,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, repo.ErrRecordNotFound) {
 			utils.LogAndHTTPError(r.Context(), w, err, "record not found", http.StatusNotFound)
 			return
-		} else if errors.Is(err, pear.ErrNotLocalRepo) {
+		} else if errors.Is(err, ErrNotLocalRepo) {
 			// TODO: is this still relevant?
 			utils.LogAndHTTPError(
 				r.Context(),
@@ -511,7 +510,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 	records, err := s.pear.ListRecords(r.Context(), credInfo.Subject, collection, subjects)
 	if err != nil {
-		if errors.Is(err, pear.ErrNotLocalRepo) {
+		if errors.Is(err, ErrNotLocalRepo) {
 			utils.LogAndHTTPError(
 				r.Context(),
 				w,

@@ -63,7 +63,6 @@ func NewTestStore(t *testing.T, cfgs ...Config) *TestStore {
 	notifier := &testutil.TestNotifier{}
 	s, err := spaces.NewStore(
 		cfg.DB,
-		cfg.FgaStore,
 		notifier,
 		spacecommit.NewAuthority(cfg.HostKey, cfg.MemberSigner),
 	)

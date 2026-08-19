@@ -24,7 +24,6 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/notify"
@@ -357,9 +356,6 @@ func setupPear(t *testing.T) *pearHost {
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
 
-	fgaStore, err := fgastore.NewSQLite(t.Context(), t.TempDir()+"/pear.fga.db")
-	require.NoError(t, err)
-
 	orgHive, err := hive.NewHive("hive.domain", strings.TrimPrefix(server.URL, "https://"), db)
 	require.NoError(t, err)
 	author, err := orgHive.MintOrgIdentity(t.Context(), "author")
@@ -381,9 +377,7 @@ func setupPear(t *testing.T) *pearHost {
 	)
 	spacesServer := spaces.NewServer(
 		spacesStore,
-		fgaStore,
 		validator,
-		nil, // org store: only used by the CreateSpace handler, not mounted
 		nil, // host key: managed authors sign with their own hive keys
 		orgHive,
 		nil, // blobs: no blob handlers mounted
