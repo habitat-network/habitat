@@ -3,6 +3,7 @@ package simplespace
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -48,7 +49,7 @@ func (m *Store) WithTx(tx *gorm.DB) *Store {
 		db:     tx,
 		spaces: m.spaces,
 		fga:    m.fga,
-		clock:  syntax.NewTIDClock(0 /* TODO: should this be a random number */),
+		clock:  m.clock,
 	}
 }
 
@@ -68,7 +69,7 @@ func (m *Store) CreateSpace(
 		if errors.Is(err, spaces.ErrSpaceAlreadyExists) {
 			return ErrSpaceAlreadyExists
 		} else if err != nil {
-			return err
+			return fmt.Errorf("err creating space: %w", err)
 		}
 
 		return m.fga.Write(
@@ -79,7 +80,7 @@ func (m *Store) CreateSpace(
 		)
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("err creating space: %w", err)
 	}
 
 	return uri, nil
@@ -98,7 +99,7 @@ func (m *Store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 	err = m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := m.spaces.WithTx(tx).DeleteSpace(ctx, uri)
 		if err != nil {
-			return err
+			return fmt.Errorf("err deleting space: %w", err)
 		}
 
 		// delete all stored FGA tuples for this space
@@ -119,7 +120,7 @@ func (m *Store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 		return nil
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("err deleting space: %w", err)
 	}
 	// Best-effort: tell registered syncers the space is gone.
 	m.notifier.NotifySpaceDeleted(ctx, uri)
@@ -140,14 +141,14 @@ func (m *Store) ListMembers(
 		fgastore.OrgMemberContextualTuple(callerOrg),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("err listing users: %w", err)
 	}
 
 	dids := make([]syntax.DID, len(users))
 	for i, user := range users {
 		did, err := fgastore.MemberUserToDID(user)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("err listing users, member to did: %w", err)
 		}
 		dids[i] = did
 	}
@@ -158,10 +159,13 @@ func (m *Store) ListMembers(
 func (m *Store) AddMember(ctx context.Context, uri habitat_syntax.SpaceURI, did syntax.DID) error {
 	ok, err := m.spaces.CheckSpaceExists(ctx, uri)
 	if err != nil {
-		return err
+		return fmt.Errorf("err checking space existence: %w", err)
 	} else if !ok {
 		return spaces.ErrSpaceNotFound
 	}
+
+	// TODO: there could be a race here between TOCTOU -- the space could get deleted by another process here.
+	// We need a way to detect this after the fact and clean it up.
 
 	return m.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 		Writes: &openfgav1.WriteRequestWrites{
@@ -199,7 +203,7 @@ func (m *Store) RemoveMember(
 
 	ok, err := m.spaces.CheckSpaceExists(ctx, uri)
 	if err != nil {
-		return err
+		return fmt.Errorf("err checking space existence: %w", err)
 	} else if !ok {
 		return spaces.ErrSpaceNotFound
 	}
