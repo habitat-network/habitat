@@ -41,7 +41,12 @@ func newTestStore(t *testing.T) *store {
 // newSpace creates a space owned by org in sp and returns its URI.
 // AddUserRelation/AddSpaceRoleRelation write their relationship record via
 // the spaces store, which requires the space to already exist.
-func newSpace(t *testing.T, sp spaces.Store, spaceType syntax.NSID, skey string) habitat_syntax.SpaceURI {
+func newSpace(
+	t *testing.T,
+	sp spaces.Store,
+	spaceType syntax.NSID,
+	skey string,
+) habitat_syntax.SpaceURI {
 	t.Helper()
 	uri, err := sp.CreateSpace(t.Context(), org, org, spaceType, habitat_syntax.SpaceKey(skey))
 	require.NoError(t, err)
@@ -90,7 +95,12 @@ func TestStoreAddUserRelationAndCheckUserHasSpaceRole(t *testing.T) {
 	})
 
 	t.Run("unrelated user is denied", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, "did:plc:stranger", space, habitat_syntax.SpaceRoleReader)
+		ok, err := s.CheckUserHasSpaceRole(
+			ctx,
+			"did:plc:stranger",
+			space,
+			habitat_syntax.SpaceRoleReader,
+		)
 		require.NoError(t, err)
 		require.False(t, ok)
 	})
@@ -102,13 +112,23 @@ func TestStoreCheckUserHasSpaceRoleImplicitAccess(t *testing.T) {
 	space := newSpace(t, s.spaces, docsType, "doc1")
 
 	t.Run("space owner is an implicit owner without a stored tuple", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, space.SpaceOwner(), space, habitat_syntax.SpaceRoleOwner)
+		ok, err := s.CheckUserHasSpaceRole(
+			ctx,
+			space.SpaceOwner(),
+			space,
+			habitat_syntax.SpaceRoleOwner,
+		)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
 
 	t.Run("space owner is an implicit reader too", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, space.SpaceOwner(), space, habitat_syntax.SpaceRoleReader)
+		ok, err := s.CheckUserHasSpaceRole(
+			ctx,
+			space.SpaceOwner(),
+			space,
+			habitat_syntax.SpaceRoleReader,
+		)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
@@ -142,7 +162,13 @@ func TestStoreSpaceRoleRelation(t *testing.T) {
 	doc := newSpace(t, s.spaces, docsType, "doc1")
 
 	t.Run("subject without the subject role is denied", func(t *testing.T) {
-		uri, err := s.AddSpaceRoleRelation(ctx, group, habitat_syntax.SpaceRoleReader, doc, habitat_syntax.SpaceRoleReader)
+		uri, err := s.AddSpaceRoleRelation(
+			ctx,
+			group,
+			habitat_syntax.SpaceRoleReader,
+			doc,
+			habitat_syntax.SpaceRoleReader,
+		)
 		require.NoError(t, err)
 		require.Equal(t, habitat_syntax.SpaceRelationCollection, uri.Collection().String())
 		require.Equal(t, doc, uri.SpaceURI())
@@ -188,7 +214,13 @@ func TestStoreSpaceRoleRelation(t *testing.T) {
 	t.Run("revoking the space-role relation removes access", func(t *testing.T) {
 		require.NoError(
 			t,
-			s.RevokeSpaceRoleRelation(ctx, group, habitat_syntax.SpaceRoleReader, doc, habitat_syntax.SpaceRoleReader),
+			s.RevokeSpaceRoleRelation(
+				ctx,
+				group,
+				habitat_syntax.SpaceRoleReader,
+				doc,
+				habitat_syntax.SpaceRoleReader,
+			),
 		)
 		ok, err := s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
@@ -197,7 +229,13 @@ func TestStoreSpaceRoleRelation(t *testing.T) {
 		t.Run("revoking again is a no-op", func(t *testing.T) {
 			require.NoError(
 				t,
-				s.RevokeSpaceRoleRelation(ctx, group, habitat_syntax.SpaceRoleReader, doc, habitat_syntax.SpaceRoleReader),
+				s.RevokeSpaceRoleRelation(
+					ctx,
+					group,
+					habitat_syntax.SpaceRoleReader,
+					doc,
+					habitat_syntax.SpaceRoleReader,
+				),
 			)
 		})
 	})
@@ -213,7 +251,13 @@ func TestStoreUnsafeRevokeAllSpaceRoles(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.AddUserRelation(ctx, bob, space, habitat_syntax.SpaceRoleWriter)
 	require.NoError(t, err)
-	_, err = s.AddSpaceRoleRelation(ctx, group, habitat_syntax.SpaceRoleReader, space, habitat_syntax.SpaceRoleReader)
+	_, err = s.AddSpaceRoleRelation(
+		ctx,
+		group,
+		habitat_syntax.SpaceRoleReader,
+		space,
+		habitat_syntax.SpaceRoleReader,
+	)
 	require.NoError(t, err)
 
 	require.NoError(t, s.UnsafeRevokeAllSpaceRoles(ctx, space))
@@ -229,7 +273,10 @@ func TestStoreUnsafeRevokeAllSpaceRoles(t *testing.T) {
 	require.ElementsMatch(t, dids, []syntax.DID{org})
 
 	t.Run("no-op on a space with nothing stored", func(t *testing.T) {
-		require.NoError(t, s.UnsafeRevokeAllSpaceRoles(ctx, newSpace(t, s.spaces, docsType, "doc2")))
+		require.NoError(
+			t,
+			s.UnsafeRevokeAllSpaceRoles(ctx, newSpace(t, s.spaces, docsType, "doc2")),
+		)
 	})
 }
 
@@ -243,7 +290,13 @@ func TestStoreListUserSubjects(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.AddUserRelation(ctx, bob, space, habitat_syntax.SpaceRoleWriter)
 	require.NoError(t, err)
-	_, err = s.AddSpaceRoleRelation(ctx, group, habitat_syntax.SpaceRoleReader, space, habitat_syntax.SpaceRoleReader)
+	_, err = s.AddSpaceRoleRelation(
+		ctx,
+		group,
+		habitat_syntax.SpaceRoleReader,
+		space,
+		habitat_syntax.SpaceRoleReader,
+	)
 	require.NoError(t, err)
 
 	t.Run("ListUserSubjects returns only the DIDs", func(t *testing.T) {

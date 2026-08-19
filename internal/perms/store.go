@@ -111,7 +111,8 @@ func (s *store) AddUserRelation(
 			/* object is the space being written into itself */
 		}
 		var err error
-		uri, _, err = s.spaces.WithTx(tx).PutRecord(ctx /* TODO should i use tx.Statement.Context */, space, space.SpaceOwner(), habitat_syntax.UserRelationCollection, "" /* rkey should be generated */, record)
+		uri, _, err = s.spaces.WithTx(tx).
+			PutRecord(ctx /* TODO should i use tx.Statement.Context */, space, space.SpaceOwner(), habitat_syntax.UserRelationCollection, "" /* rkey should be generated */, record)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
 		}
@@ -158,7 +159,8 @@ func (s *store) AddSpaceRoleRelation(
 			/* object is the space being written into itself */
 		}
 		var err error
-		uri, _, err = s.spaces.WithTx(tx).PutRecord(ctx /* TODO should i use tx.Statement.Context */, object, object.SpaceOwner(), habitat_syntax.SpaceRelationCollection, "" /* rkey should be generated */, record)
+		uri, _, err = s.spaces.WithTx(tx).
+			PutRecord(ctx /* TODO should i use tx.Statement.Context */, object, object.SpaceOwner(), habitat_syntax.SpaceRelationCollection, "" /* rkey should be generated */, record)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
 		}
@@ -204,7 +206,8 @@ func (s *store) RevokeUserRelation(
 			if subject != did.String() || relation != string(role) {
 				continue
 			}
-			if err := s.spaces.WithTx(tx).DeleteRecord(ctx, space, space.SpaceOwner(), collection, record.Rkey.String()); err != nil {
+			if err := s.spaces.WithTx(tx).
+				DeleteRecord(ctx, space, space.SpaceOwner(), collection, record.Rkey.String()); err != nil {
 				return fmt.Errorf("err deleting relationship record: %w", err)
 			}
 		}
@@ -238,7 +241,8 @@ func (s *store) RevokeSpaceRoleRelation(
 ) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		collection := syntax.NSID(habitat_syntax.SpaceRelationCollection)
-		records, err := s.spaces.WithTx(tx).ListRecords(ctx, objectSpace, objectSpace.SpaceOwner(), &collection)
+		records, err := s.spaces.WithTx(tx).
+			ListRecords(ctx, objectSpace, objectSpace.SpaceOwner(), &collection)
 		if err != nil {
 			return fmt.Errorf("err listing relationship records: %w", err)
 		}
@@ -247,10 +251,12 @@ func (s *store) RevokeSpaceRoleRelation(
 			subject, _ := record.Value["subject"].(string)
 			role, _ := record.Value["subjectRole"].(string)
 			relation, _ := record.Value["relation"].(string)
-			if subject != subjectSpace.String() || role != string(subjectRole) || relation != string(objectRole) {
+			if subject != subjectSpace.String() || role != string(subjectRole) ||
+				relation != string(objectRole) {
 				continue
 			}
-			if err := s.spaces.WithTx(tx).DeleteRecord(ctx, objectSpace, objectSpace.SpaceOwner(), collection, record.Rkey.String()); err != nil {
+			if err := s.spaces.WithTx(tx).
+				DeleteRecord(ctx, objectSpace, objectSpace.SpaceOwner(), collection, record.Rkey.String()); err != nil {
 				return fmt.Errorf("err deleting relationship record: %w", err)
 			}
 		}
@@ -293,12 +299,14 @@ func (s *store) UnsafeRevokeAllSpaceRoles(
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		for _, collectionName := range []string{habitat_syntax.UserRelationCollection, habitat_syntax.SpaceRelationCollection} {
 			collection := syntax.NSID(collectionName)
-			records, err := s.spaces.WithTx(tx).ListRecords(ctx, space, space.SpaceOwner(), &collection)
+			records, err := s.spaces.WithTx(tx).
+				ListRecords(ctx, space, space.SpaceOwner(), &collection)
 			if err != nil {
 				return fmt.Errorf("err listing relationship records: %w", err)
 			}
 			for _, record := range records {
-				if err := s.spaces.WithTx(tx).DeleteRecord(ctx, space, space.SpaceOwner(), collection, record.Rkey.String()); err != nil {
+				if err := s.spaces.WithTx(tx).
+					DeleteRecord(ctx, space, space.SpaceOwner(), collection, record.Rkey.String()); err != nil {
 					return fmt.Errorf("err deleting relationship record: %w", err)
 				}
 			}

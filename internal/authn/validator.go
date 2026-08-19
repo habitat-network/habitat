@@ -71,7 +71,10 @@ func WithMethods(authMethods ...ValidatorMethod) utils.Opt[EndpointOptions] {
 	}
 }
 
-func WithSpace(space habitat_syntax.SpaceURI, relation habitat_syntax.SpaceRole) utils.Opt[EndpointOptions] {
+func WithSpace(
+	space habitat_syntax.SpaceURI,
+	relation habitat_syntax.SpaceRole,
+) utils.Opt[EndpointOptions] {
 	return func(rv *EndpointOptions) {
 		rv.space = space
 		rv.relation = relation
