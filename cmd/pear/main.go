@@ -42,6 +42,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
+	"github.com/habitat-network/habitat/internal/simplespace"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
@@ -363,6 +364,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		validator,
 	)
 
+	simplespaceServer := simplespace.NewServer(
+		simplespace.NewStore(db, spacesStore, fgaStore, notifier),
+		validator,
+	)
+
 	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
 		relationshipStore,
@@ -503,17 +509,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
-	mux.HandleFunc("/xrpc/network.habitat.space.createSpace", spacesServer.CreateSpace)
+	// Spaces
 	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
-	mux.HandleFunc("/xrpc/network.habitat.space.addMember", spacesServer.AddMember)
-	mux.HandleFunc("/xrpc/network.habitat.space.removeMember", spacesServer.RemoveMember)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
 	mux.HandleFunc("/xrpc/network.habitat.space.putRecord", spacesServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRecord", spacesServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.getBlob", spacesServer.GetBlob)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
-	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
 	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit", spacesServer.GetLatestCommit)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
@@ -523,12 +526,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
 		spacesServer.GetSpaceCredential)
 
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", spacesServer.CreateSpace)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.addMember", spacesServer.AddMember)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", spacesServer.RemoveMember)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", spacesServer.ListMembers)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.deleteSpace", spacesServer.DeleteSpace)
+	// Simplespaces
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", simplespaceServer.CreateSpace)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.addMember", simplespaceServer.AddMember)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", simplespaceServer.RemoveMember)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", simplespaceServer.ListMembers)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.deleteSpace", simplespaceServer.DeleteSpace)
 
+	// Relationships
 	mux.HandleFunc("/xrpc/network.habitat.relationship.writeUserRelation",
 		relationshipServer.WriteUserRelation)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteTuple",
