@@ -795,7 +795,7 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&delegationResp))
 
 	// The minted delegation token validates against the delegation auth method.
-	credInfo, ok := authn.NewDelegationTokenAuthMethod(dir, perms.NewStore(s.Store.FGA), s.HostKey).
+	credInfo, ok := authn.NewDelegationTokenAuthMethod(dir, perms.NewStore(nil, nil, s.Store.FGA), s.HostKey).
 		Validate(
 			httptest.NewRecorder(),
 			authedRequest(delegationResp.Token),

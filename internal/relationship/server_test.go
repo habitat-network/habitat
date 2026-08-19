@@ -23,7 +23,7 @@ func newTestServer(t *testing.T, caller syntax.DID) (*Server, *Store, spaces.Sto
 	rel, sp := newTestStore(t)
 	return NewServer(
 		rel,
-		perms.NewStore(rel.fga),
+		perms.NewStore(rel.db, rel.spaces, rel.fga),
 		authntest.NewSuccessValidatorWithOrg(caller, caller),
 	), rel, sp
 }
@@ -261,7 +261,7 @@ func TestServer_Unauthenticated(t *testing.T) {
 	space := newSpace(t, sp, docsType, "doc")
 	s := NewServer(
 		rel,
-		perms.NewStore(rel.fga),
+		perms.NewStore(rel.db, rel.spaces, rel.fga),
 		authntest.NewFailureValidator(),
 	)
 

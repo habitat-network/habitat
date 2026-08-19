@@ -88,7 +88,7 @@ type store struct {
 	spaces spaces.Store
 }
 
-func NewStore(db TxRunner, spaces spaces.Store, fga fgastore.Store) Store {
+func NewStore(db TxRunner, spaces spaces.Store, fga fgastore.Store) *store {
 	return &store{db: db, spaces: spaces, fga: fga}
 }
 
@@ -107,7 +107,7 @@ func (s *store) AddUserRelation(
 		record := map[string]any{
 			"subject":   did.String(),
 			"relation":  string(role),
-			"createdAt": time.Now(),
+			"createdAt": time.Now().UTC().Format(time.RFC3339),
 			/* object is the space being written into itself */
 		}
 		var err error
@@ -154,7 +154,7 @@ func (s *store) AddSpaceRoleRelation(
 			"subject":     subject.String(),
 			"subjectRole": string(subjectRole),
 			"relation":    string(objectRole),
-			"createdAt":   time.Now(),
+			"createdAt":   time.Now().UTC().Format(time.RFC3339),
 			/* object is the space being written into itself */
 		}
 		var err error

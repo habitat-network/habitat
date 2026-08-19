@@ -15,6 +15,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/perms"
+	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -44,7 +45,8 @@ func TestValidator(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 
-	ps := perms.NewStore(fga)
+	sp := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
+	ps := perms.NewStore(db, sp.Store, fga)
 
 	v := authn.NewValidator(
 		oauth,

@@ -49,7 +49,7 @@ func TestDelegationAuthMethod(t *testing.T) {
 		r := newAuthenticatedRequest(token)
 		credInfo, ok := authn.NewDelegationTokenAuthMethod(
 			dir,
-			perms.NewStore(fga),
+			perms.NewStore(nil, nil, fga),
 			nil,
 		).Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
@@ -64,7 +64,7 @@ func TestDelegationAuthMethod(t *testing.T) {
 		r := newAuthenticatedRequest(token)
 		_, ok := authn.NewDelegationTokenAuthMethod(
 			dir,
-			perms.NewStore(fga),
+			perms.NewStore(nil, nil, fga),
 			nil,
 		).Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
@@ -85,7 +85,7 @@ func TestDelegationAuthMethod(t *testing.T) {
 		r := newAuthenticatedRequest(token)
 		credInfo, ok := authn.NewDelegationTokenAuthMethod(
 			dir,
-			perms.NewStore(fga),
+			perms.NewStore(nil, nil, fga),
 			hostKey,
 		).Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
@@ -101,7 +101,7 @@ func TestDelegationAuthMethod(t *testing.T) {
 		r := newAuthenticatedRequest(token)
 		_, ok := authn.NewDelegationTokenAuthMethod(
 			dir,
-			perms.NewStore(fga),
+			perms.NewStore(nil, nil, fga),
 			hostKey,
 		).Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
@@ -130,7 +130,7 @@ func TestDelegationAuthMethod(t *testing.T) {
 		r := newAuthenticatedRequest(token)
 		credInfo, ok := authn.NewDelegationTokenAuthMethod(
 			dir,
-			perms.NewStore(fga),
+			perms.NewStore(nil, nil, fga),
 			nil,
 		).Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)

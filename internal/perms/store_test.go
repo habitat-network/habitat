@@ -22,7 +22,11 @@ var (
 	groupType = syntax.NSID("network.habitat.group")
 )
 
-func newTestStore(t *testing.T) Store {
+// newTestStore returns a perms Store, along with the spaces.Store backing
+// it — AddUserRelation/AddSpaceRoleRelation persist a relationship record
+// into the space itself, so tests exercising those need the space to
+// actually exist (see newSpace).
+func newTestStore(t *testing.T) *store {
 	t.Helper()
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
@@ -34,16 +38,20 @@ func newTestStore(t *testing.T) Store {
 	return NewStore(db, sp.Store, fga)
 }
 
-// newSpace returns a space URI owned by org, without creating any backing
-// records — perms only cares about the URI as an FGA object key.
-func newSpace(spaceType syntax.NSID, skey string) habitat_syntax.SpaceURI {
-	return habitat_syntax.ConstructSpaceURI(org, spaceType, habitat_syntax.SpaceKey(skey))
+// newSpace creates a space owned by org in sp and returns its URI.
+// AddUserRelation/AddSpaceRoleRelation write their relationship record via
+// the spaces store, which requires the space to already exist.
+func newSpace(t *testing.T, sp spaces.Store, spaceType syntax.NSID, skey string) habitat_syntax.SpaceURI {
+	t.Helper()
+	uri, err := sp.CreateSpace(t.Context(), org, org, spaceType, habitat_syntax.SpaceKey(skey))
+	require.NoError(t, err)
+	return uri
 }
 
 func TestStoreAddUserRelationAndCheckUserHasSpaceRole(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
-	space := newSpace(docsType, "doc1")
+	space := newSpace(t, s.spaces, docsType, "doc1")
 
 	t.Run("no relation is denied", func(t *testing.T) {
 		ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader)
@@ -91,7 +99,7 @@ func TestStoreAddUserRelationAndCheckUserHasSpaceRole(t *testing.T) {
 func TestStoreCheckUserHasSpaceRoleImplicitAccess(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
-	space := newSpace(docsType, "doc1")
+	space := newSpace(t, s.spaces, docsType, "doc1")
 
 	t.Run("space owner is an implicit owner without a stored tuple", func(t *testing.T) {
 		ok, err := s.CheckUserHasSpaceRole(ctx, space.SpaceOwner(), space, habitat_syntax.SpaceRoleOwner)
@@ -109,7 +117,7 @@ func TestStoreCheckUserHasSpaceRoleImplicitAccess(t *testing.T) {
 func TestStoreRevokeUserRelation(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
-	space := newSpace(docsType, "doc1")
+	space := newSpace(t, s.spaces, docsType, "doc1")
 
 	_, err := s.AddUserRelation(ctx, alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
@@ -130,8 +138,8 @@ func TestStoreRevokeUserRelation(t *testing.T) {
 func TestStoreSpaceRoleRelation(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
-	group := newSpace(groupType, "team")
-	doc := newSpace(docsType, "doc1")
+	group := newSpace(t, s.spaces, groupType, "team")
+	doc := newSpace(t, s.spaces, docsType, "doc1")
 
 	t.Run("subject without the subject role is denied", func(t *testing.T) {
 		uri, err := s.AddSpaceRoleRelation(ctx, group, habitat_syntax.SpaceRoleReader, doc, habitat_syntax.SpaceRoleReader)
@@ -198,8 +206,8 @@ func TestStoreSpaceRoleRelation(t *testing.T) {
 func TestStoreUnsafeRevokeAllSpaceRoles(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
-	space := newSpace(docsType, "doc1")
-	group := newSpace(groupType, "team")
+	space := newSpace(t, s.spaces, docsType, "doc1")
+	group := newSpace(t, s.spaces, groupType, "team")
 
 	_, err := s.AddUserRelation(ctx, alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
@@ -221,15 +229,15 @@ func TestStoreUnsafeRevokeAllSpaceRoles(t *testing.T) {
 	require.ElementsMatch(t, dids, []syntax.DID{org})
 
 	t.Run("no-op on a space with nothing stored", func(t *testing.T) {
-		require.NoError(t, s.UnsafeRevokeAllSpaceRoles(ctx, newSpace(docsType, "doc2")))
+		require.NoError(t, s.UnsafeRevokeAllSpaceRoles(ctx, newSpace(t, s.spaces, docsType, "doc2")))
 	})
 }
 
 func TestStoreListUserSubjects(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
-	space := newSpace(docsType, "doc1")
-	group := newSpace(groupType, "team")
+	space := newSpace(t, s.spaces, docsType, "doc1")
+	group := newSpace(t, s.spaces, groupType, "team")
 
 	_, err := s.AddUserRelation(ctx, alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
@@ -248,9 +256,9 @@ func TestStoreListUserSubjects(t *testing.T) {
 func TestStoreListObjects(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
-	doc1 := newSpace(docsType, "doc1")
-	doc2 := newSpace(docsType, "doc2")
-	doc3 := newSpace(docsType, "doc3")
+	doc1 := newSpace(t, s.spaces, docsType, "doc1")
+	doc2 := newSpace(t, s.spaces, docsType, "doc2")
+	doc3 := newSpace(t, s.spaces, docsType, "doc3")
 
 	_, err := s.AddUserRelation(ctx, alice, doc1, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
