@@ -28,10 +28,7 @@ func newTestSQLite(t *testing.T) *FGA {
 	// a worker blocked in modernc.org/sqlite's busy-handler retry never observes
 	// ctx.Done(), so a query can still be touching the SQLite file briefly after
 	// FGA.Close() returns. Unfixed as of v1.18.3 (latest release, checked
-	// 2026-08-19); openfga/openfga#3197 and its PR #3199 only deflake this
-	// reducer's own unit tests, not this production code path.
-	// t.TempDir()'s cleanup does a single RemoveAll and hard-fails the test if
-	// that race loses, so retry it instead.
+	// 2026-08-19)
 	dir, err := os.MkdirTemp("", "fgastore-test-*")
 	require.NoError(t, err, "MkdirTemp should succeed")
 
@@ -42,8 +39,8 @@ func newTestSQLite(t *testing.T) *FGA {
 		require.Eventually(t, func() bool {
 			return os.RemoveAll(dir) == nil
 		}, time.Second, 10*time.Millisecond, "temp dir should become removable")
+		_ = f.Close()
 	})
-	t.Cleanup(func() { _ = f.Close() })
 
 	return f
 }
