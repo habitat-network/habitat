@@ -25,12 +25,13 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/did"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/org"
-	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 type testServerOptions struct {
@@ -63,99 +64,13 @@ func newTestServerWithOpts(t *testing.T, opts testServerOptions) *testServer {
 	return &testServer{
 		Server: spaces.NewServer(
 			opts.store,
-			opts.store.FGA,
 			opts.validator,
-			org_testutil.NewTestStore(t),
 			opts.hostKey,
 			h,
 			spaces.NewBlobStore(memblob.OpenBucket(nil)),
 		),
 		Store:   opts.store,
 		HostKey: opts.hostKey,
-	}
-}
-
-func TestServer_CreateSpace(t *testing.T) {
-	s := newTestServerWithOpts(
-		t,
-		testServerOptions{
-			validator: authntest.NewSuccessValidator(
-				&authn.CredentialInfo{Subject: owner},
-			),
-		},
-	)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.space.createSpace",
-		strings.NewReader(`{"type": "network.habitat.group"}`),
-	)
-	w := httptest.NewRecorder()
-	s.CreateSpace(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-
-	var output habitat.NetworkHabitatSimplespaceCreateSpaceOutput
-	err := json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
-	require.Contains(
-		t,
-		output.Uri,
-		"at://did:web:everyone.example.com/space/network.habitat.group/",
-	)
-}
-
-func TestServer_CreateSpaceWithDidInput(t *testing.T) {
-	s := newTestServerWithOpts(
-		t,
-		testServerOptions{validator: authntest.NewSuccessValidatorWithOrg(owner, orgID)},
-	)
-
-	tests := []struct {
-		name    string
-		did     string
-		want    int
-		wantErr string
-	}{
-		{
-			name: "caller did",
-			did:  owner.String(),
-			want: http.StatusOK,
-		},
-		{
-			name: "caller org",
-			did:  orgID.String(),
-			want: http.StatusOK,
-		},
-		{
-			name:    "other did",
-			did:     alice.String(),
-			want:    http.StatusBadRequest,
-			wantErr: "only caller did or caller org are allowed",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			body, err := json.Marshal(habitat.NetworkHabitatSimplespaceCreateSpaceInput{
-				Did:  tt.did,
-				Type: "network.habitat.group",
-			})
-			require.NoError(t, err)
-			req := httptest.NewRequest(
-				http.MethodPost,
-				"/xrpc/network.habitat.simplespace.createSpace",
-				bytes.NewReader(body),
-			)
-			w := httptest.NewRecorder()
-			s.CreateSpace(w, req)
-
-			require.Equal(t, tt.want, w.Code)
-			if tt.wantErr != "" {
-				var apiErr atclient.ErrorBody
-				err := json.NewDecoder(w.Body).Decode(&apiErr)
-				require.NoError(t, err)
-				require.Equal(t, tt.wantErr, apiErr.Message)
-			}
-		})
 	}
 }
 
@@ -276,66 +191,6 @@ func TestServer_ListRepos(t *testing.T) {
 	require.NotEmpty(t, output.Repos[0].Rev)
 	// The repo's LtHash commit hash is populated.
 	require.NotEmpty(t, output.Repos[0].Hash)
-}
-
-func TestServer_RemoveMember(t *testing.T) {
-	s := newTestServerWithOpts(
-		t,
-		testServerOptions{},
-	)
-
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "shared")
-	require.NoError(t, err)
-
-	err = s.Store.AddMember(t.Context(), uri, alice)
-	require.NoError(t, err)
-
-	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.space.removeMember",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.RemoveMember(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
-	isMember, err := s.Store.IsMember(t.Context(), orgID, uri, alice)
-	require.NoError(t, err)
-	require.False(t, isMember)
-}
-
-func TestServer_ListMembers(t *testing.T) {
-	s := newTestServerWithOpts(
-		t,
-		testServerOptions{},
-	)
-
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "shared")
-	require.NoError(t, err)
-
-	err = s.Store.AddMember(t.Context(), uri, alice)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.simplespace.listMembers?space="+uri.String(),
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListMembers(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-
-	var output habitat.NetworkHabitatSimplespaceListMembersOutput
-	err = json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
-
-	var dids []string
-	for _, m := range output.Members {
-		dids = append(dids, m.Did)
-	}
-	require.ElementsMatch(t, []string{owner.String(), alice.String(), orgID.String()}, dids)
 }
 
 func TestServer_PutAndGetRecord(t *testing.T) {
@@ -542,6 +397,27 @@ func TestServer_GetRepo_RepoNotFound(t *testing.T) {
 	require.JSONEq(t, `{"error":"RepoNotFound"}`, w.Body.String())
 }
 
+// TestServer_GetRepo_SpaceNotFound distinguishes an unknown space (400,
+// SpaceNotFound) from a known space with no repo (404, RepoNotFound, above).
+func TestServer_GetRepo_SpaceNotFound(t *testing.T) {
+	s := newTestServerWithOpts(
+		t,
+		testServerOptions{},
+	)
+
+	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+owner.String(),
+		http.NoBody,
+	)
+	w := httptest.NewRecorder()
+	s.GetRepo(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.JSONEq(t, `{"error":"SpaceNotFound"}`, w.Body.String())
+}
+
 func TestServer_PutRecord_Unauthorized(t *testing.T) {
 	s := newTestServerWithOpts(
 		t,
@@ -590,51 +466,6 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.DeleteRecord(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
-}
-
-func TestServer_Unauthorized(t *testing.T) {
-	s := newTestServerWithOpts(
-		t,
-		testServerOptions{
-			validator: authntest.NewFailureValidator(),
-		},
-	)
-
-	body := `{"type": "network.habitat.group"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.space.createSpace",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.CreateSpace(w, req)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
-}
-
-func TestServer_DeleteSpace(t *testing.T) {
-	s := newTestServerWithOpts(
-		t,
-		testServerOptions{},
-	)
-
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "to-delete")
-	require.NoError(t, err)
-
-	err = s.Store.AddMember(t.Context(), uri, alice)
-	require.NoError(t, err)
-
-	body := `{"space": "` + uri.String() + `"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.space.deleteSpace",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.DeleteSpace(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
-	_, err = s.Store.ListRepos(t.Context(), uri)
-	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
 func TestServer_ListRepoOps(t *testing.T) {
@@ -922,8 +753,16 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 	everyoneOrg := org.NewEveryoneOrg("everyone.example.com")
 	uri, err := s.Store.CreateSpace(t.Context(), everyoneOrg.DID(), owner, groupType, "test")
 	require.NoError(t, err)
-
-	require.NoError(t, s.Store.AddMember(t.Context(), uri, alice))
+	// The store no longer grants the creator access as a side effect of
+	// CreateSpace (that's simplespace.Manager's job); write the owner tuple
+	// directly so the delegation/credential checks below have something to
+	// authorize against.
+	require.NoError(t, s.Store.FGA.Write(
+		t.Context(),
+		fgastore.MemberUserString(owner),
+		fgastore.RelationSpaceOwner,
+		fgastore.SpaceObjectKey(uri),
+	))
 
 	// Both tokens are minted with the host key (the space owner is external), so
 	// the directory resolves the owner's atproto_space key and the delegation
