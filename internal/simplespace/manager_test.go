@@ -39,8 +39,6 @@ func newTestManager(t *testing.T) *testManager {
 
 	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
 
-	require.NoError(t, db.AutoMigrate(&space{}))
-
 	notifier := &notify_testutil.TestNotifier{}
 	return &testManager{
 		Manager: &Manager{

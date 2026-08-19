@@ -63,7 +63,6 @@ func newTestServerWithOpts(t *testing.T, opts testServerOptions) *testServer {
 	return &testServer{
 		Server: spaces.NewServer(
 			opts.store,
-			opts.store.FGA,
 			opts.validator,
 			org_testutil.NewTestStore(t),
 			opts.hostKey,

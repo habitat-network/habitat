@@ -28,7 +28,6 @@ import (
 
 type Server struct {
 	store     Store
-	fga       fgastore.Store
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
 	orgStore  org.Store
@@ -43,7 +42,6 @@ type Server struct {
 // the uploadBlob and getBlob endpoints.
 func NewServer(
 	store Store,
-	fga fgastore.Store,
 	validator authn.RequestValidator,
 	orgStore org.Store,
 	hostPrivateKey atcrypto.PrivateKey,
@@ -52,7 +50,6 @@ func NewServer(
 ) *Server {
 	return &Server{
 		store:     store,
-		fga:       fga,
 		decoder:   schema.NewDecoder(),
 		orgStore:  orgStore,
 		hive:      hive,
