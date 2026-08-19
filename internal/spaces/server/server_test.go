@@ -1,4 +1,4 @@
-package spaces_test
+package spaces_server_test
 
 import (
 	"bytes"
@@ -31,6 +31,7 @@ import (
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
+	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -42,10 +43,17 @@ type testServerOptions struct {
 }
 
 type testServer struct {
-	*spaces.Server
+	*spaces_server.Server
 	Store   *spaces_testutil.TestStore
 	HostKey atcrypto.PrivateKey
 }
+
+var (
+	orgID     = syntax.DID("did:plc:org")
+	owner     = syntax.DID("did:plc:owner")
+	alice     = syntax.DID("did:plc:alice")
+	groupType = syntax.NSID("network.habitat.group")
+)
 
 func newTestServerWithOpts(t *testing.T, opts testServerOptions) *testServer {
 	t.Helper()
@@ -63,7 +71,7 @@ func newTestServerWithOpts(t *testing.T, opts testServerOptions) *testServer {
 	h, err := hive.NewHive("example.com", "pear.example.com", db_testutil.NewDB(t))
 	require.NoError(t, err)
 	return &testServer{
-		Server: spaces.NewServer(
+		Server: spaces_server.NewServer(
 			opts.store,
 			opts.validator,
 			opts.hostKey,

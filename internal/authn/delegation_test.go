@@ -1,4 +1,4 @@
-package authn
+package authn_test
 
 import (
 	"net/http"
@@ -8,6 +8,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -30,8 +31,8 @@ func TestDelegationAuthMethod(t *testing.T) {
 	t.Run("can handle", func(t *testing.T) {
 		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
 		require.NoError(t, err)
-		r := newAuthenticatedReqest(token)
-		require.True(t, NewDelegationTokenAuthMethod(dir, nil, nil).CanHandle(r))
+		r := newAuthenticatedRequest(token)
+		require.True(t, authn.NewDelegationTokenAuthMethod(dir, nil, nil).CanHandle(r))
 	})
 
 	t.Run("has permission", func(t *testing.T) {
@@ -45,14 +46,14 @@ func TestDelegationAuthMethod(t *testing.T) {
 		))
 		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
 		require.NoError(t, err)
-		r := newAuthenticatedReqest(token)
-		credInfo, ok := NewDelegationTokenAuthMethod(
+		r := newAuthenticatedRequest(token)
+		credInfo, ok := authn.NewDelegationTokenAuthMethod(
 			dir,
 			perms.NewStore(fga),
 			nil,
 		).Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
-		require.Equal(t, credInfo, &CredentialInfo{Space: space})
+		require.Equal(t, credInfo, &authn.CredentialInfo{Space: space})
 	})
 
 	t.Run("no permission", func(t *testing.T) {
@@ -60,8 +61,8 @@ func TestDelegationAuthMethod(t *testing.T) {
 		require.NoError(t, err)
 		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
 		require.NoError(t, err)
-		r := newAuthenticatedReqest(token)
-		_, ok := NewDelegationTokenAuthMethod(
+		r := newAuthenticatedRequest(token)
+		_, ok := authn.NewDelegationTokenAuthMethod(
 			dir,
 			perms.NewStore(fga),
 			nil,
@@ -81,14 +82,14 @@ func TestDelegationAuthMethod(t *testing.T) {
 		))
 		token, err := utils.DelegationToken(hostKey, user, "#habitat", space)
 		require.NoError(t, err)
-		r := newAuthenticatedReqest(token)
-		credInfo, ok := NewDelegationTokenAuthMethod(
+		r := newAuthenticatedRequest(token)
+		credInfo, ok := authn.NewDelegationTokenAuthMethod(
 			dir,
 			perms.NewStore(fga),
 			hostKey,
 		).Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
-		require.Equal(t, credInfo, &CredentialInfo{Space: space})
+		require.Equal(t, credInfo, &authn.CredentialInfo{Space: space})
 	})
 
 	t.Run("host key no permission", func(t *testing.T) {
@@ -97,8 +98,8 @@ func TestDelegationAuthMethod(t *testing.T) {
 		require.NoError(t, err)
 		token, err := utils.DelegationToken(hostKey, user, "#habitat", space)
 		require.NoError(t, err)
-		r := newAuthenticatedReqest(token)
-		_, ok := NewDelegationTokenAuthMethod(
+		r := newAuthenticatedRequest(token)
+		_, ok := authn.NewDelegationTokenAuthMethod(
 			dir,
 			perms.NewStore(fga),
 			hostKey,
@@ -107,7 +108,7 @@ func TestDelegationAuthMethod(t *testing.T) {
 	})
 
 	t.Run("no token", func(t *testing.T) {
-		_, ok := NewDelegationTokenAuthMethod(dir, nil, nil).Validate(
+		_, ok := authn.NewDelegationTokenAuthMethod(dir, nil, nil).Validate(
 			httptest.NewRecorder(),
 			httptest.NewRequest("GET", "/", http.NoBody),
 		)
@@ -126,8 +127,8 @@ func TestDelegationAuthMethod(t *testing.T) {
 		))
 		token, err := utils.DelegationToken(otherKey, user, "#atproto", space)
 		require.NoError(t, err)
-		r := newAuthenticatedReqest(token)
-		credInfo, ok := NewDelegationTokenAuthMethod(
+		r := newAuthenticatedRequest(token)
+		credInfo, ok := authn.NewDelegationTokenAuthMethod(
 			dir,
 			perms.NewStore(fga),
 			nil,

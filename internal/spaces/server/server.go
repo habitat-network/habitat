@@ -1,4 +1,4 @@
-package spaces
+package spaces_server
 
 import (
 	"encoding/json"
@@ -21,16 +21,17 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type Server struct {
-	store     Store
+	store     spaces.Store
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
 	hive      hive.Hive
-	blobs     BlobStore
+	blobs     spaces.BlobStore
 	hostKey   atcrypto.PrivateKey
 }
 
@@ -39,11 +40,11 @@ type Server struct {
 // holds its own commit-signing authority for repo-head commits). blobs backs
 // the uploadBlob and getBlob endpoints.
 func NewServer(
-	store Store,
+	store spaces.Store,
 	validator authn.RequestValidator,
 	hostPrivateKey atcrypto.PrivateKey,
 	hive hive.Hive,
-	blobs BlobStore,
+	blobs spaces.BlobStore,
 ) *Server {
 	return &Server{
 		store:     store,
@@ -129,7 +130,7 @@ func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repos, err := s.store.ListRepos(r.Context(), spaceURI)
-	if errors.Is(err, ErrSpaceNotFound) {
+	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	} else if err != nil {
@@ -214,7 +215,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		rkey,
 		value,
 	)
-	if errors.Is(err, ErrSpaceNotFound) {
+	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	} else if err != nil {
@@ -263,7 +264,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rec, err := s.store.GetRecord(ctx, spaceURI, repo, collection, rkey)
-	if errors.Is(err, ErrRecordNotFound) {
+	if errors.Is(err, spaces.ErrRecordNotFound) {
 		httpx.WriteRecordNotFound(ctx, w, err)
 		return
 	} else if err != nil {
@@ -346,7 +347,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mimeType, data, err := s.blobs.GetBlob(ctx, c)
-	if errors.Is(err, ErrBlobNotFound) {
+	if errors.Is(err, spaces.ErrBlobNotFound) {
 		httpx.WriteError(ctx, w, "BlobNotFound", "blob not found", http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -448,7 +449,7 @@ func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
 	// the CAR actually carries. An empty repo has no state to recover, so it
 	// reports as not found.
 	commit, blocks, err := s.store.RepoSnapshot(ctx, spaceURI, repoDID)
-	if errors.Is(err, ErrSpaceNotFound) {
+	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	} else if err != nil {
@@ -456,12 +457,12 @@ func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if commit == nil {
-		httpx.WriteRepoNotFound(ctx, w, ErrRepoNotFound)
+		httpx.WriteRepoNotFound(ctx, w, spaces.ErrRepoNotFound)
 		return
 	}
 
 	// The signed commit is the CAR's first root.
-	carBytes, err := SerializeRepoCAR(*commit, blocks)
+	carBytes, err := spaces.SerializeRepoCAR(*commit, blocks)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("serialize car: %w", err))
 		return
@@ -506,7 +507,7 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	records, commit, err := s.store.ListRepoOps(ctx, spaceURI, repoDID, params.Since, limit)
-	if errors.Is(err, ErrRevTooFar) {
+	if errors.Is(err, spaces.ErrRevTooFar) {
 		httpx.WriteError(ctx, w, "RevNotFound",
 			"since revision is ahead of the repo head", http.StatusBadRequest)
 		return
@@ -583,7 +584,7 @@ func (s *Server) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if commit == nil {
-		httpx.WriteRepoNotFound(ctx, w, ErrRepoNotFound)
+		httpx.WriteRepoNotFound(ctx, w, spaces.ErrRepoNotFound)
 		return
 	}
 

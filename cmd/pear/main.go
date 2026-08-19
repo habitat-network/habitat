@@ -44,6 +44,7 @@ import (
 	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/simplespace"
+	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
@@ -354,7 +355,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	blobStore := spaces.NewBlobStore(blobBucket)
 
 	// TODO: use this to validate the space credential in the spaces server
-	spacesServer := spaces.NewServer(
+	spacesServer := spaces_server.NewServer(
 		spacesStore,
 		validator,
 		hostKey,

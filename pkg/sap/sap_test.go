@@ -29,6 +29,7 @@ import (
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/spaces"
+	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
@@ -375,7 +376,7 @@ func setupPear(t *testing.T) *pearHost {
 	validator := authn_testutil.NewSuccessValidator(
 		&authn.CredentialInfo{Subject: author.DID, Org: everyone},
 	)
-	spacesServer := spaces.NewServer(
+	spacesServer := spaces_server.NewServer(
 		spacesStore,
 		validator,
 		nil, // host key: managed authors sign with their own hive keys

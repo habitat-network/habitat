@@ -1,12 +1,13 @@
 package authn
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/perms"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -24,12 +25,21 @@ type RequestValidator interface {
 	Request(options ...utils.Opt[EndpointOptions]) Validator
 }
 
+type SpaceRoleValidator interface {
+	CheckUserHasSpaceRole(
+		ctx context.Context,
+		did syntax.DID,
+		space habitat_syntax.SpaceURI,
+		role habitat_syntax.SpaceRole,
+	) (bool, error)
+}
+
 type validator struct {
 	oauth           Method
 	serviceAuth     *AtprotoServiceAuthMethod
 	spaceCredential *SpaceCredentialAuthMethod
 	delegationToken *DelegationTokenAuthMethod
-	ps              perms.Store
+	srv             SpaceRoleValidator
 }
 
 func NewValidator(
@@ -37,14 +47,14 @@ func NewValidator(
 	serviceAuth *AtprotoServiceAuthMethod,
 	spaceCredential *SpaceCredentialAuthMethod,
 	delegationToken *DelegationTokenAuthMethod,
-	ps perms.Store,
+	srv SpaceRoleValidator,
 ) *validator {
 	return &validator{
 		oauth:           oauth,
 		serviceAuth:     serviceAuth,
 		spaceCredential: spaceCredential,
 		delegationToken: delegationToken,
-		ps:              ps,
+		srv:             srv,
 	}
 }
 
@@ -61,7 +71,7 @@ func WithMethods(authMethods ...ValidatorMethod) utils.Opt[EndpointOptions] {
 	}
 }
 
-func WithSpace(space habitat_syntax.SpaceURI, relation perms.SpaceRole) utils.Opt[EndpointOptions] {
+func WithSpace(space habitat_syntax.SpaceURI, relation habitat_syntax.SpaceRole) utils.Opt[EndpointOptions] {
 	return func(rv *EndpointOptions) {
 		rv.space = space
 		rv.relation = relation
@@ -72,7 +82,7 @@ type EndpointOptions struct {
 	v           *validator
 	authMethods []ValidatorMethod
 	space       habitat_syntax.SpaceURI
-	relation    perms.SpaceRole
+	relation    habitat_syntax.SpaceRole
 }
 
 func (rv *EndpointOptions) getMethod(method ValidatorMethod) Method {
@@ -115,7 +125,7 @@ func (rv *EndpointOptions) Validate(
 					return nil, false
 				}
 			} else if credInfo.Subject != "" {
-				authz, err := rv.v.ps.CheckUserHasSpaceRole(
+				authz, err := rv.v.srv.CheckUserHasSpaceRole(
 					ctx,
 					credInfo.Subject,
 					rv.space,
