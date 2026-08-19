@@ -1,198 +1,831 @@
 ▮▮▮▮ go work sync
-▮▮▮▮ pnpm install
-Scope: all 11 workspace projects
-? Verifying lockfile against supply-chain policies (2216 entries)...
-✓ Lockfile passes supply-chain policies (2216 entries in 3.7s)
-Lockfile is up to date, resolution step is skipped
-Progress: resolved 1, reused 0, downloaded 0, added 0
-Packages: +73 -21
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++------------------
-Progress: resolved 73, reused 57, downloaded 5, added 21
-Progress: resolved 73, reused 57, downloaded 6, added 22, done
-
-Done in 6.4s using pnpm v11.21.0
-▮▮▮▮ infra:dev (81625815)
-▮▮▮▮ pear:dev (1df85bf3)
-▮▮▮▮ pear:ngrok (2e794a37)
-▮▮▮▮ search:dev (7fb3a568)
-▮▮▮▮ home:dev (e69d9ae9)
-▮▮▮▮ pear-pages:dev (93fbc694)
-▮▮▮▮ root:caddy (d3f2ff14)
-▮▮▮▮ frontend:dev (abd794da)
-   infra:dev |  Image postgres:16 Pulling 
-    pear:dev | 
-    pear:dev |   __    _   ___  
-    pear:dev |  / /\  | | | |_) 
-    pear:dev | /_/--\ |_| |_| \_ v1.65.1, built with Go go1.26.5
-    pear:dev | 
-  search:dev | 
-  search:dev |   __    _   ___  
-  search:dev |  / /\  | | | |_) 
-  search:dev | /_/--\ |_| |_| \_ v1.65.1, built with Go go1.26.5
-  search:dev | 
-    home:dev | 
-    home:dev |   __    _   ___  
-    home:dev |  / /\  | | | |_) 
-    home:dev | /_/--\ |_| |_| \_ v1.65.1, built with Go go1.26.5
-    home:dev | 
-$ vite
-  root:caddy | 2026/08/14 23:51:19.139	[33mWARN[0m	http	HTTP/2 skipped because it requires TLS	{"network": "tcp", "addr": ":80"}
-  root:caddy | 2026/08/14 23:51:19.139	[33mWARN[0m	http	HTTP/3 skipped because it requires TLS	{"network": "tcp", "addr": ":80"}
-  root:caddy | 2026/08/14 23:51:19.139	[33mWARN[0m	tls	YOUR SERVER MAY BE VULNERABLE TO ABUSE: on-demand TLS is enabled, but no protections are in place	{"docs": "https://caddyserver.com/docs/automatic-https#on-demand-tls"}
-4:51:19 PM [vite] (client) Re-optimizing dependencies because lockfile has changed
-
-  VITE v7.3.6  ready in 2083 ms
-
-  ➜  Local:   http://localhost:6000/
-  ➜  Network: http://10.104.2.53:6000/
-  ➜  Generate File List: http://localhost:6000/__generate_file_list/
-  ➜  press h + enter to show help
+▮▮▮▮ pear-pages:dev (82c91bb6)
+▮▮▮▮ chalk:dev (cf396742)
+▮▮▮▮ pear:dev (c5bdb742)
+▮▮▮▮ pear:ngrok (75ead09c)
+▮▮▮▮ sap:dev (79cb4f6b)
+▮▮▮▮ root:caddy (80348bfc)
+ pear:dev | 
+ pear:dev |   __    _   ___  
+ pear:dev |  / /\  | | | |_) 
+ pear:dev | /_/--\ |_| |_| \_ v1.65.1, built with Go go1.26.6
+ pear:dev | 
+  sap:dev | 
+  sap:dev |   __    _   ___  
+  sap:dev |  / /\  | | | |_) 
+  sap:dev | /_/--\ |_| |_| \_ v1.65.1, built with Go go1.26.6
+  sap:dev | 
+root:caddy | 2026/08/19 21:59:59.344	[33mWARN[0m	http	HTTP/2 skipped because it requires TLS	{"network": "tcp", "addr": ":80"}
+root:caddy | 2026/08/19 21:59:59.344	[33mWARN[0m	http	HTTP/3 skipped because it requires TLS	{"network": "tcp", "addr": ":80"}
+root:caddy | 2026/08/19 21:59:59.344	[33mWARN[0m	tls	YOUR SERVER MAY BE VULNERABLE TO ABUSE: on-demand TLS is enabled, but no protections are in place	{"docs": "https://caddyserver.com/docs/automatic-https#on-demand-tls"}
 pear-pages:dev | $ vite dev
-pear-pages:dev | 4:51:22 PM [vite] (client) Re-optimizing dependencies because lockfile has changed
+$ vite dev
+root:caddy | 2026/08/19 21:59:59.977	[31mERROR[0m	http.log.error	dial tcp 127.0.0.1:5177: connect: connection refused	{"request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Ch-Ua-Mobile": ["?0"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "Pragma": ["no-cache"], "Priority": ["u=1, i"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Cookie": ["REDACTED"], "Accept": ["text/event-stream"], "Cache-Control": ["no-cache"], "Sec-Fetch-Site": ["same-origin"], "Sec-Fetch-Mode": ["cors"], "Sec-Fetch-Dest": ["empty"], "Accept-Encoding": ["gzip, deflate, br, zstd"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "duration": 0.003863792, "status": 502, "err_id": "cukuwpqyq", "err_trace": "reverseproxy.statusError (reverseproxy.go:1594)"}
+root:caddy | 2026/08/19 21:59:59.994	[31mERROR[0m	http.log.error	dial tcp 127.0.0.1:5177: connect: connection refused	{"request": {"remote_ip": "127.0.0.1", "remote_port": "60689", "client_ip": "127.0.0.1", "proto": "HTTP/1.1", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/", "headers": {"Accept-Encoding": ["gzip, deflate, br, zstd"], "Accept-Language": ["en-US,en;q=0.9"], "Pragma": ["no-cache"], "Sec-Websocket-Version": ["13"], "Cookie": ["REDACTED"], "Sec-Websocket-Key": ["LVtxabEOSZUKsiva3EFYzw=="], "Sec-Websocket-Extensions": ["permessage-deflate; client_max_window_bits"], "Sec-Websocket-Protocol": ["vite-ping"], "Connection": ["Upgrade"], "Cache-Control": ["no-cache"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Upgrade": ["websocket"], "Origin": ["https://chalk.local.habitat.network"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "http/1.1", "server_name": "chalk.local.habitat.network", "ech": false}}, "duration": 0.000983709, "status": 502, "err_id": "e6c4uzzzs", "err_trace": "reverseproxy.statusError (reverseproxy.go:1594)"}
+pear-pages:dev | The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
 pear-pages:dev | 
-pear-pages:dev |   VITE v7.3.6  ready in 1301 ms
+pear-pages:dev |   VITE v8.2.1  ready in 869 ms
 pear-pages:dev | 
 pear-pages:dev |   ➜  Local:   http://localhost:6010/ui/
-pear-pages:dev |   ➜  Network: http://10.104.2.53:6010/ui/
+pear-pages:dev |   ➜  Network: http://10.104.0.69:6010/ui/  en0
 pear-pages:dev |   ➜  press h + enter to show help
-   infra:dev |  38edbc361d88 Pulling fs layer 0B
-   infra:dev |  17084367dded Pulling fs layer 0B
-   infra:dev |  022be3d64752 Pulling fs layer 0B
-   infra:dev |  5048a27bd002 Pulling fs layer 0B
-   infra:dev |  9aa4b2e00272 Pulling fs layer 0B
-   infra:dev |  b1ca317594e7 Pulling fs layer 0B
-   infra:dev |  199803c21c87 Pulling fs layer 0B
-   infra:dev |  0a6c9f12ba86 Pulling fs layer 0B
-   infra:dev |  7df83edda04f Pulling fs layer 0B
-   infra:dev |  fc55ab912086 Pulling fs layer 0B
-   infra:dev |  2812a1e9a4c5 Pulling fs layer 0B
-   infra:dev |  1c43297c4311 Pulling fs layer 0B
-   infra:dev |  72920f489232 Pulling fs layer 0B
-   infra:dev |  7df83edda04f Download complete 0B
-   infra:dev |  72920f489232 Download complete 0B
-   infra:dev |  199803c21c87 Download complete 0B
-   infra:dev |  0a6c9f12ba86 Downloading 1.21MB
-   infra:dev |  38edbc361d88 Download complete 0B
-   infra:dev |  022be3d64752 Downloading 3.14kB
-   infra:dev |  9aa4b2e00272 Downloading 1.168kB
-   infra:dev |  0a6c9f12ba86 Download complete 0B
-   infra:dev |  1c43297c4311 Download complete 0B
-   infra:dev |  17084367dded Download complete 0B
-   infra:dev |  022be3d64752 Download complete 0B
-   infra:dev |  9aa4b2e00272 Download complete 0B
-   infra:dev |  b1ca317594e7 Downloading 3.146MB
-   infra:dev |  9aa4b2e00272 Extracting 1B
-   infra:dev |  b1ca317594e7 Downloading 3.146MB
-   infra:dev |  2812a1e9a4c5 Download complete 0B
-   infra:dev |  9aa4b2e00272 Extracting 1B
-   infra:dev |  b1ca317594e7 Downloading 5.243MB
-   infra:dev |  9aa4b2e00272 Extracting 1B
-   infra:dev |  b1ca317594e7 Download complete 0B
-   infra:dev |  9aa4b2e00272 Extracting 1B
-   infra:dev |  9aa4b2e00272 Extracting 1B
-   infra:dev |  fc55ab912086 Downloading 1.049MB
-   infra:dev |  9aa4b2e00272 Pull complete 0B
-   infra:dev |  b1ca317594e7 Extracting 1B
-   infra:dev |  fc55ab912086 Downloading 1.049MB
-   infra:dev |  b1ca317594e7 Pull complete 0B
-   infra:dev |  fc55ab912086 Downloading 1.049MB
-   infra:dev |  5048a27bd002 Downloading 1.049MB
-   infra:dev |  0a6c9f12ba86 Pull complete 0B
-   infra:dev |  5048a27bd002 Downloading 1.049MB
-   infra:dev |  fc55ab912086 Downloading 2.097MB
-   infra:dev |  fc55ab912086 Downloading 2.097MB
-   infra:dev |  5048a27bd002 Downloading 1.049MB
-   infra:dev |  fc55ab912086 Downloading 2.097MB
-   infra:dev |  af8007063b1b Download complete 0B
-   infra:dev |  5048a27bd002 Downloading 1.049MB
-   infra:dev |  720d643001c7 Downloading 1.049MB
-   infra:dev |  fc55ab912086 Downloading 3.146MB
-   infra:dev |  5048a27bd002 Downloading 1.049MB
-   infra:dev |  720d643001c7 Downloading 2.097MB
-   infra:dev |  fc55ab912086 Downloading 3.146MB
-   infra:dev |  5048a27bd002 Downloading 2.097MB
-   infra:dev |  720d643001c7 Downloading 2.097MB
-   infra:dev |  fc55ab912086 Downloading 3.146MB
-   infra:dev |  5048a27bd002 Downloading 2.097MB
-   infra:dev |  720d643001c7 Downloading 3.146MB
-   infra:dev |  fc55ab912086 Downloading 4.194MB
-   infra:dev |  5048a27bd002 Downloading 2.097MB
-   infra:dev |  720d643001c7 Downloading 3.146MB
-   infra:dev |  fc55ab912086 Downloading 4.194MB
-   infra:dev |  5048a27bd002 Downloading 2.097MB
-   infra:dev |  720d643001c7 Downloading 4.194MB
-   infra:dev |  5048a27bd002 Downloading 3.146MB
-   infra:dev |  720d643001c7 Downloading 5.715MB
-   infra:dev |  fc55ab912086 Downloading 5.243MB
-   infra:dev |  720d643001c7 Download complete 0B
-   infra:dev |  fc55ab912086 Downloading 5.243MB
-   infra:dev |  5048a27bd002 Downloading 3.146MB
-   infra:dev |  fc55ab912086 Downloading 6.291MB
-   infra:dev |  5048a27bd002 Downloading 3.146MB
-   infra:dev |  fc55ab912086 Downloading 6.291MB
-   infra:dev |  5048a27bd002 Downloading 3.146MB
-   infra:dev |  fc55ab912086 Downloading 7.34MB
-   infra:dev |  5048a27bd002 Downloading 4.194MB
-   infra:dev |  fc55ab912086 Download complete 0B
-   infra:dev |  5048a27bd002 Downloading 4.194MB
-   infra:dev |  fc55ab912086 Extracting 1B
-   infra:dev |  5048a27bd002 Downloading 5.243MB
-   infra:dev |  72920f489232 Extracting 1B
-   infra:dev |  fc55ab912086 Pull complete 0B
-   infra:dev |  5048a27bd002 Downloading 5.243MB
-   infra:dev |  72920f489232 Pull complete 0B
-   infra:dev |  17084367dded Pull complete 0B
-   infra:dev |  022be3d64752 Pull complete 0B
-   infra:dev |  5048a27bd002 Downloading 6.291MB
-   infra:dev |  5048a27bd002 Downloading 7.34MB
-   infra:dev |  5048a27bd002 Downloading 8.389MB
-  search:dev | 
-  search:dev | 2026/08/14 16:51:28 [35m/Users/sashankgogula/Documents/habitat/cmd/search/main.go:53
-  search:dev | [0m[31m[error] [0mfailed to initialize database, got error failed to connect to `user=habitat database=habitat`:
-  search:dev | 	[::1]:5432 (localhost): dial error: dial tcp [::1]:5432: connect: connection refused
-  search:dev | 	127.0.0.1:5432 (localhost): dial error: dial tcp 127.0.0.1:5432: connect: connection refused
-  search:dev | 2026/08/14 16:51:28 Error running command: failed to open db: failed to connect to `user=habitat database=habitat`:
-  search:dev | 	[::1]:5432 (localhost): dial error: dial tcp [::1]:5432: connect: connection refused
-  search:dev | 	127.0.0.1:5432 (localhost): dial error: dial tcp 127.0.0.1:5432: connect: connection refused
-   infra:dev |  5048a27bd002 Downloading 8.389MB
-   infra:dev |  5048a27bd002 Downloading 9.437MB
-   infra:dev |  5048a27bd002 Downloading 10.49MB
-   infra:dev |  5048a27bd002 Downloading 11.53MB
-   infra:dev |  5048a27bd002 Downloading 13.63MB
-   infra:dev |  5048a27bd002 Downloading 15.73MB
-   infra:dev |  5048a27bd002 Downloading 16.78MB
-   infra:dev |  5048a27bd002 Downloading 18.87MB
-   infra:dev |  5048a27bd002 Downloading 18.87MB
-   infra:dev |  5048a27bd002 Downloading 22.02MB
-   infra:dev |  5048a27bd002 Downloading 24.12MB
-   infra:dev |  5048a27bd002 Downloading 24.12MB
-   infra:dev |  5048a27bd002 Downloading 25.17MB
-   infra:dev |  5048a27bd002 Downloading 25.17MB
-   infra:dev |  5048a27bd002 Downloading 27.26MB
-   infra:dev |  5048a27bd002 Downloading 28.31MB
-   infra:dev |  5048a27bd002 Downloading 28.31MB
-   infra:dev |  5048a27bd002 Downloading 30.41MB
-   infra:dev |  5048a27bd002 Downloading 30.41MB
-   infra:dev |  5048a27bd002 Downloading 32.51MB
-   infra:dev |  5048a27bd002 Downloading 34.6MB
-   infra:dev |  5048a27bd002 Downloading 35.65MB
-   infra:dev |  5048a27bd002 Downloading 36.7MB
-   infra:dev |  5048a27bd002 Downloading 37.75MB
-   infra:dev |  5048a27bd002 Downloading 39.85MB
-   infra:dev |  5048a27bd002 Downloading 41.94MB
-   infra:dev |  5048a27bd002 Downloading 44.04MB
-   infra:dev |  5048a27bd002 Downloading 44.04MB
-   infra:dev |  5048a27bd002 Downloading 45.09MB
-   infra:dev |  5048a27bd002 Downloading 45.09MB
-   infra:dev |  5048a27bd002 Downloading 47.19MB
-   infra:dev |  5048a27bd002 Downloading 48.23MB
-   infra:dev |  5048a27bd002 Downloading 48.23MB
-   infra:dev |  5048a27bd002 Downloading 50.33MB
-   infra:dev |  5048a27bd002 Downloading 50.33MB
-   infra:dev |  5048a27bd002 Downloading 52.43MB
-   infra:dev |  5048a27bd002 Downloading 54.53MB
-   infra:dev |  5048a27bd002 Downloading 54.53MB
-   infra:dev |  5048a27bd002 Downloading 56.62MB
-   infra:dev |  5048a27bd002 Downloading 57.67MB
-   infra:dev |  5048a27bd002 Downloading 59.77MB
-   infra:dev |  5048a27bd002 Downloading 61.87MB
+
+  VITE v8.2.1  ready in 902 ms
+
+  ➜  Local:   http://localhost:5177/
+  ➜  Network: http://10.104.0.69:5177/  en0
+  ➜  press h + enter to show help
+3:00:01 PM [vite] (ssr) connected.
+ pear:dev | 2026/08/19 15:00:01 INFO successfully set up open telemetry
+ pear:dev | 2026/08/19 15:00:01 INFO running with flags flags="[debug domain service_name port pds_cred_encrypt_key space_signing_key oauth_server_secret oauth_client_secret google_client_id google_client_secret pds_oauth_client_uri admin_password ui_dev_proxy blob_bucket]"
+ pear:dev | 2026/08/19 15:00:01 goose: no migrations to run. current version: 20260807064326
+ pear:dev | 2026/08/19 15:00:01 INFO google login provider enabled
+ pear:dev | 2026/08/19 15:00:01 INFO p2p server started peer_id=12D3KooWBxaaPhHZKmCN4WvDzCxCFr9FJkjMgCAGwR4wFZpdfHDw
+ pear:dev | [2mAug 19 15:00:01.657[0m [92mINF[0m [2moauthserver/gc.go:29[0m starting OAuth session garbage collector [2minterval=[0m5m0s
+ pear:dev | [2mAug 19 15:00:01.657[0m [92mINF[0m [2mpear/main.go:576[0m starting server [2mport=[0m8000
+(node:9796) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[docSync] connected to ws://127.0.0.1:2581
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+root:caddy | 2026/08/19 22:00:13.639	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.008188542, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Priority": ["u=1, i"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Ch-Ua-Mobile": ["?0"], "X-Tsr-Serverfn": ["true"], "Accept-Language": ["en-US,en;q=0.9"], "Cookie": ["REDACTED"], "Sec-Fetch-Site": ["same-origin"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Fetch-Mode": ["cors"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Via": ["2.0 Caddy"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Fetch-Dest": ["empty"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:00:13.641	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.000592375, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"Pragma": ["no-cache"], "Accept": ["text/event-stream"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Accept-Language": ["en-US,en;q=0.9"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Fetch-Dest": ["empty"], "Sec-Fetch-Site": ["same-origin"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Cookie": ["REDACTED"], "X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Fetch-Mode": ["cors"], "Priority": ["u=1, i"], "Cache-Control": ["no-cache"], "Sec-Ch-Ua-Mobile": ["?0"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "X-Forwarded-For": ["127.0.0.1"], "Via": ["2.0 Caddy"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+[Client] src/hooks/useYDoc.ts:52:9 failed to save doc {
+  name: 'Error',
+  message: 'Invalid typed array length: 24695258',
+  stack: 'Error: Invalid typed array length: 24695258\n' +
+    '    at Object.deserialize (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/@tanstack+router-core@1.171.25/node_modules/@tanstack/router-core/dist/esm/ssr/serializer/ShallowErrorPlugin.js?v=10b4f7f6:27:10)\n' +
+    '    at deserializePlugin (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1424:76)\n' +
+    '    at deserialize$1 (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1528:19)\n' +
+    '    at assignProperty (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1289:84)\n' +
+    '    at deserializeProperties (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1311:87)\n' +
+    '    at deserializeObject (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1316:2)\n' +
+    '    at deserialize$1 (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1514:19)\n' +
+    '    at deserializeTop (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1547:10)\n' +
+    '    at fromCrossJSON (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:2765:9)\n' +
+    '    at getResponse (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/@tanstack+start-client-core@1.170.25/node_modules/@tanstack/start-client-core/dist/esm/client-rpc/serverFnFetcher.js?v=10b4f7f6:164:14)'
+}
+[Client] src/hooks/useYDoc.ts:52:9 failed to save doc {
+  name: 'Error',
+  message: 'Invalid typed array length: 24695258',
+  stack: 'Error: Invalid typed array length: 24695258\n' +
+    '    at Object.deserialize (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/@tanstack+router-core@1.171.25/node_modules/@tanstack/router-core/dist/esm/ssr/serializer/ShallowErrorPlugin.js?v=10b4f7f6:27:10)\n' +
+    '    at deserializePlugin (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1424:76)\n' +
+    '    at deserialize$1 (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1528:19)\n' +
+    '    at assignProperty (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1289:84)\n' +
+    '    at deserializeProperties (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1311:87)\n' +
+    '    at deserializeObject (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1316:2)\n' +
+    '    at deserialize$1 (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1514:19)\n' +
+    '    at deserializeTop (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1547:10)\n' +
+    '    at fromCrossJSON (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:2765:9)\n' +
+    '    at getResponse (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/@tanstack+start-client-core@1.170.25/node_modules/@tanstack/start-client-core/dist/esm/client-rpc/serverFnFetcher.js?v=10b4f7f6:164:14)'
+}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+root:caddy | 2026/08/19 22:00:21.584	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.000531709, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"Priority": ["u=1, i"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Pragma": ["no-cache"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Fetch-Dest": ["empty"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "Cookie": ["REDACTED"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-For": ["127.0.0.1"], "Via": ["2.0 Caddy"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Accept": ["text/event-stream"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Cache-Control": ["no-cache"], "X-Forwarded-Proto": ["https"], "Sec-Fetch-Mode": ["cors"], "Sec-Fetch-Site": ["same-origin"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:00:21.584	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.005008292, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Via": ["2.0 Caddy"], "Accept-Language": ["en-US,en;q=0.9"], "Cookie": ["REDACTED"], "Priority": ["u=1, i"], "X-Tsr-Serverfn": ["true"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Fetch-Mode": ["cors"], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-For": ["127.0.0.1"], "Sec-Fetch-Site": ["same-origin"], "Sec-Fetch-Dest": ["empty"], "X-Forwarded-Proto": ["https"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+[Client] src/hooks/useYDoc.ts:52:9 failed to save doc {
+  name: 'Error',
+  message: 'Invalid typed array length: 336296',
+  stack: 'Error: Invalid typed array length: 336296\n' +
+    '    at Object.deserialize (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/@tanstack+router-core@1.171.25/node_modules/@tanstack/router-core/dist/esm/ssr/serializer/ShallowErrorPlugin.js?v=10b4f7f6:27:10)\n' +
+    '    at deserializePlugin (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1424:76)\n' +
+    '    at deserialize$1 (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1528:19)\n' +
+    '    at assignProperty (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1289:84)\n' +
+    '    at deserializeProperties (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1311:87)\n' +
+    '    at deserializeObject (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1316:2)\n' +
+    '    at deserialize$1 (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1514:19)\n' +
+    '    at deserializeTop (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:1547:10)\n' +
+    '    at fromCrossJSON (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/seroval@1.6.2/node_modules/seroval/dist/dev/index.js?v=10b4f7f6:2765:9)\n' +
+    '    at getResponse (https://chalk.local.habitat.network/@fs/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/@tanstack+start-client-core@1.170.25/node_modules/@tanstack/start-client-core/dist/esm/client-rpc/serverFnFetcher.js?v=10b4f7f6:164:14)'
+}
+3:03:21 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css, /src/routes/_requireAuth/$uri.tsx
+3:03:21 PM [vite] (ssr) page reload src/hooks/useYDoc.ts
+3:03:21 PM [vite] (ssr) program reload
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /src/routes/_requireAuth/$uri.tsx
+3:03:28 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css, /src/routes/_requireAuth/$uri.tsx
+3:03:28 PM [vite] (ssr) page reload src/hooks/useYDoc.ts
+3:03:28 PM [vite] (ssr) program reload
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /src/routes/_requireAuth/$uri.tsx
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+root:caddy | 2026/08/19 22:04:09.721	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.005650584, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"Priority": ["u=1, i"], "Accept": ["text/event-stream"], "Sec-Fetch-Mode": ["cors"], "X-Forwarded-Proto": ["https"], "Cookie": ["REDACTED"], "Cache-Control": ["no-cache"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Accept-Language": ["en-US,en;q=0.9"], "X-Forwarded-For": ["127.0.0.1"], "Via": ["2.0 Caddy"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Sec-Fetch-Dest": ["empty"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Pragma": ["no-cache"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Site": ["same-origin"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:04:09.721	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.00391575, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Accept-Language": ["en-US,en;q=0.9"], "X-Tsr-Serverfn": ["true"], "Sec-Fetch-Mode": ["cors"], "Cookie": ["REDACTED"], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-For": ["127.0.0.1"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Priority": ["u=1, i"], "Sec-Fetch-Dest": ["empty"], "Sec-Fetch-Site": ["same-origin"], "Via": ["2.0 Caddy"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:27 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.658ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:27 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[2.374ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:27 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:28 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.100ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:28 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.058ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:27 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 219
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:28 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.062ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /.well-known/did.json HTTP/1.1" 200 696
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /.well-known/atproto-did HTTP/1.1" 200 41
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:28 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.084ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /xrpc/network.habitat.space.getDelegationToken?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 562
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "POST /xrpc/network.habitat.space.getSpaceCredential HTTP/1.1" 200 482
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /.well-known/did.json HTTP/1.1" 200 696
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /.well-known/atproto-did HTTP/1.1" 200 41
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthpw76k5b22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 1303
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqf77jcd22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 397
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:28 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.066ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /.well-known/did.json HTTP/1.1" 200 702
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /xrpc/network.habitat.space.getBlob?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22&cid=bafkreifv7jucb5q23kprcd7524cb2uzdlsqrnlh4j3c26fcthymrqyf2sy HTTP/1.1" 200 53
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /.well-known/atproto-did HTTP/1.1" 200 41
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /xrpc/network.habitat.space.getLatestCommit?repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 388
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:28 -0700] "GET /xrpc/network.habitat.space.listRecords?excludeValues=true&limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 369
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:31 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.114ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:31 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:32 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.099ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:32 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:32 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.040ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:32 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqf77jcd22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 850
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:32 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:32 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqfcpig322&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 397
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+root:caddy | 2026/08/19 22:04:38.225	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.002263958, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Fetch-Mode": ["cors"], "Sec-Fetch-Dest": ["empty"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Priority": ["u=1, i"], "Accept-Language": ["en-US,en;q=0.9"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Site": ["same-origin"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Cache-Control": ["no-cache"], "Pragma": ["no-cache"], "Accept": ["text/event-stream"], "Via": ["2.0 Caddy"], "Cookie": ["REDACTED"], "X-Forwarded-Proto": ["https"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:04:38.225	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.003728584, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"X-Tsr-Serverfn": ["true"], "Accept-Language": ["en-US,en;q=0.9"], "Priority": ["u=1, i"], "Sec-Fetch-Site": ["same-origin"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Fetch-Dest": ["empty"], "Sec-Fetch-Mode": ["cors"], "X-Forwarded-Proto": ["https"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Cookie": ["REDACTED"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Via": ["2.0 Caddy"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+root:caddy | 2026/08/19 22:04:43.545	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.005405084, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"X-Tsr-Serverfn": ["true"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Fetch-Site": ["same-origin"], "Sec-Fetch-Mode": ["cors"], "X-Forwarded-Proto": ["https"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Ch-Ua-Mobile": ["?0"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "Priority": ["u=1, i"], "Sec-Fetch-Dest": ["empty"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Cookie": ["REDACTED"], "Accept-Language": ["en-US,en;q=0.9"], "Via": ["2.0 Caddy"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:04:43.545	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.000591459, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"Sec-Fetch-Mode": ["cors"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Via": ["2.0 Caddy"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Fetch-Dest": ["empty"], "Priority": ["u=1, i"], "Cookie": ["REDACTED"], "Pragma": ["no-cache"], "Cache-Control": ["no-cache"], "Accept": ["text/event-stream"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Fetch-Site": ["same-origin"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:44 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.066ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:44 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.402ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:44 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:44 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 219
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:44 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.104ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:44 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.131ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:44 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:44 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:44 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.040ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:44 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:44 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqfcpig322&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 1270
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:44 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqfoisr522&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 397
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:44 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.090ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:44 -0700] "GET /xrpc/network.habitat.space.getLatestCommit?repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 388
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:44 -0700] "GET /xrpc/network.habitat.space.listRecords?excludeValues=true&limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 369
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:44 -0700] "GET /xrpc/network.habitat.space.getBlob?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22&cid=bafkreibkrg5utcx5xtozpy3izkvkdvrarzg6edzbtbcojhcqewapt64lca HTTP/1.1" 200 312
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:44 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.097ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:44 -0700] "GET /xrpc/network.habitat.space.getBlob?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22&cid=bafkreifwm6frez32syl2c7sytzexzkvvojwr2nigmykdnqat27k6os7eyq HTTP/1.1" 200 29
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:48 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.108ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:48 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:48 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.108ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:48 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:04:48 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.068ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:48 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqfoisr522&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 850
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:48 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:04:48 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqfsm4xm22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22 HTTP/1.1" 200 397
+3:07:24 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css
+3:07:24 PM [vite] (ssr) hmr update /src/index.css, /src/server/functions.ts?tss-serverfn-split
+3:07:25 PM [vite] (ssr) hot updated: /src/server/functions.ts?tss-serverfn-split
+[Client] [vite] hot updated: /src/index.css
+3:07:57 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css
+3:07:57 PM [vite] (ssr) hmr update /src/index.css
+[Client] [vite] hot updated: /src/index.css
+3:08:12 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css
+3:08:12 PM [vite] (ssr) hmr update /src/index.css, /src/server/functions.ts?tss-serverfn-split
+3:08:12 PM [vite] (ssr) hot updated: /src/server/functions.ts?tss-serverfn-split
+[Client] [vite] hot updated: /src/index.css
+3:08:13 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css
+3:08:13 PM [vite] (ssr) hmr update /src/index.css, /src/server/functions.ts?tss-serverfn-split
+3:08:13 PM [vite] (ssr) hot updated: /src/server/functions.ts?tss-serverfn-split
+[Client] [vite] hot updated: /src/index.css
+3:08:27 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css
+3:08:27 PM [vite] (ssr) hmr update /src/index.css
+[Client] [vite] hot updated: /src/index.css
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:45 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.866ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:45 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.032ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:45 -0700] "POST /xrpc/network.habitat.simplespace.createSpace HTTP/1.1" 200 97
+  sap:dev | 
+  sap:dev | 2026/08/19 15:08:45 [31;1m/Users/sashankgogula/Documents/habitat/pkg/sap/register/register.go:152 [35;1mrecord not found
+  sap:dev | [0m[33m[0.081ms] [34;1m[rows:0][0m SELECT * FROM `sap_registrations` WHERE space = "at://did:web:t3sj0h.pear.local.habitat.network/space/network.habitat.docs/3mthqmtsxea22" ORDER BY `sap_registrations`.`space` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:45 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.084ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:45 -0700] "GET /xrpc/network.habitat.space.getDelegationToken?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 562
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:45 -0700] "POST /xrpc/network.habitat.space.getSpaceCredential HTTP/1.1" 200 482
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:45 -0700] "POST /xrpc/network.habitat.space.registerNotify HTTP/1.1" 200 36
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:45 -0700] "GET /xrpc/network.habitat.space.listRepos?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 12
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:57 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.142ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:57 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[1.038ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:57 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 219
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:58 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.115ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:58 [31;1m/Users/sashankgogula/Documents/habitat/internal/spaces/store.go:366 [35;1mrecord not found
+ pear:dev | [0m[33m[0.053ms] [34;1m[rows:0][0m SELECT * FROM `space_repos` WHERE space = "at://did:web:t3sj0h.pear.local.habitat.network/space/network.habitat.docs/3mthqmtsxea22" AND repo = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `space_repos`.`space` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:58 [31;1m/Users/sashankgogula/Documents/habitat/internal/spaces/store.go:598 [35;1mrecord not found
+ pear:dev | [0m[33m[0.081ms] [34;1m[rows:0][0m SELECT * FROM `space_records` WHERE (space = "at://did:web:t3sj0h.pear.local.habitat.network/space/network.habitat.docs/3mthqmtsxea22" AND repo = "did:web:xp9xxi.pear.local.habitat.network" AND collection = "network.habitat.docs.crdt" AND rkey = "self") AND `space_records`.`deleted_at` IS NULL ORDER BY `space_records`.`space` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:58 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+  sap:dev | 
+  sap:dev | 2026/08/19 15:08:58 [31;1m/Users/sashankgogula/Documents/habitat/pkg/sap/syncer/engine.go:176 [35;1mrecord not found
+  sap:dev | [0m[33m[0.101ms] [34;1m[rows:0][0m SELECT * FROM `sap_repos` WHERE space = "at://did:web:t3sj0h.pear.local.habitat.network/space/network.habitat.docs/3mthqmtsxea22" AND did = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `sap_repos`.`space` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:58 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 790
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:58 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqnah2j322&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 397
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:58 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.059ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:58 -0700] "GET /xrpc/network.habitat.space.getBlob?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22&cid=bafkreia2sqhrpknsv5fxnqdmiimjtpthit5ecgfjpcwaakeqmhwgmoeq5q HTTP/1.1" 200 300
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:58 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.098ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:57 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 219
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:58 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.094ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:58 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:58 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.057ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:08:58 [31;1m/Users/sashankgogula/Documents/habitat/internal/spaces/store.go:598 [35;1mrecord not found
+ pear:dev | [0m[33m[0.033ms] [34;1m[rows:0][0m SELECT * FROM `space_records` WHERE (space = "at://did:web:t3sj0h.pear.local.habitat.network/space/network.habitat.docs/3mthqmtsxea22" AND repo = "did:web:xp9xxi.pear.local.habitat.network" AND collection = "network.habitat.docs.markdown" AND rkey = "self") AND `space_records`.`deleted_at` IS NULL ORDER BY `space_records`.`space` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:58 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:58 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqnah2j322&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 730
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:58 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqnamlak22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 397
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:08:58 -0700] "GET /xrpc/network.habitat.space.getBlob?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22&cid=bafkreib52twsw26joi2z7tmaekkqxlvntixx2itx4ld43xqgvfnu4shrga HTTP/1.1" 200 82
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:00 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.117ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:00 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.119ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:00 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:00 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.107ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:00 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:00 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.059ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:00 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:00 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 219
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:01 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.103ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:01 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:01 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.075ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:01 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+root:caddy | 2026/08/19 22:09:09.097	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.003299375, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"Pragma": ["no-cache"], "Accept": ["text/event-stream"], "Sec-Fetch-Mode": ["cors"], "Cookie": ["REDACTED"], "Cache-Control": ["no-cache"], "Referer": ["https://chalk.local.habitat.network/"], "Accept-Language": ["en-US,en;q=0.9"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Fetch-Dest": ["empty"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Via": ["2.0 Caddy"], "Sec-Fetch-Site": ["same-origin"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Priority": ["u=1, i"], "X-Forwarded-For": ["127.0.0.1"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:09:09.099	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.002621333, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"X-Forwarded-Host": ["chalk.local.habitat.network"], "Cookie": ["REDACTED"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Fetch-Dest": ["empty"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"], "Via": ["2.0 Caddy"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "X-Tsr-Serverfn": ["true"], "Sec-Fetch-Site": ["same-origin"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Mode": ["cors"], "Accept-Language": ["en-US,en;q=0.9"], "Priority": ["u=1, i"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Sec-Ch-Ua-Platform": ["\"macOS\""]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:09:09.099	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.00192875, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Accept-Language": ["en-US,en;q=0.9"], "Cookie": ["REDACTED"], "X-Forwarded-Proto": ["https"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Dest": ["empty"], "Priority": ["u=1, i"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Fetch-Mode": ["cors"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Fetch-Site": ["same-origin"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Via": ["2.0 Caddy"], "X-Tsr-Serverfn": ["true"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:28 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.122ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:28 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.133ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:28 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 219
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:28 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:28 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.106ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:28 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.993ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:28 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:28 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:28 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.082ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:28 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:28 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqnamlak22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 1249
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:28 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqo5gxeh22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 397
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:28 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.072ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:28 -0700] "GET /xrpc/network.habitat.space.getLatestCommit?repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 388
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:28 -0700] "GET /xrpc/network.habitat.space.listRecords?excludeValues=true&limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 369
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:28 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqo5gxeh22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 397
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:28 -0700] "GET /xrpc/network.habitat.space.getBlob?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22&cid=bafkreigz2v3f6dr6jhqkjsofmae5rerrwxuxdqsnysile2cx6jewk6vvu4 HTTP/1.1" 200 56
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+root:caddy | 2026/08/19 22:09:29.531	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.031332583, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "X-Tsr-Serverfn": ["true"], "Cookie": ["REDACTED"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Via": ["2.0 Caddy"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Sec-Fetch-Site": ["same-origin"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Fetch-Dest": ["empty"], "Accept-Language": ["en-US,en;q=0.9"], "Priority": ["u=1, i"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-Proto": ["https"], "Sec-Fetch-Mode": ["cors"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:09:29.531	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.000851208, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"Sec-Fetch-Mode": ["cors"], "Sec-Fetch-Site": ["same-origin"], "Via": ["2.0 Caddy"], "Pragma": ["no-cache"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Cookie": ["REDACTED"], "Priority": ["u=1, i"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua-Mobile": ["?0"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "X-Forwarded-Proto": ["https"], "Cache-Control": ["no-cache"], "Accept": ["text/event-stream"], "Sec-Fetch-Dest": ["empty"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Ch-Ua-Platform": ["\"macOS\""]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:30 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.112ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:30 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:31 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.107ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:31 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:09:31 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.046ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:31 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqo5gxeh22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 850
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:31 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:09:31 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqo7rrbo22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 397
+root:caddy | 2026/08/19 22:09:37.523	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.00452075, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Fetch-Site": ["same-origin"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Fetch-Mode": ["cors"], "Sec-Fetch-Dest": ["empty"], "Cookie": ["REDACTED"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "X-Forwarded-Proto": ["https"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-For": ["127.0.0.1"], "Via": ["2.0 Caddy"], "Priority": ["u=1, i"], "X-Tsr-Serverfn": ["true"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:09:37.523	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.000660791, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"Cache-Control": ["no-cache"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Fetch-Site": ["same-origin"], "Cookie": ["REDACTED"], "Pragma": ["no-cache"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Dest": ["empty"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Via": ["2.0 Caddy"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "Accept": ["text/event-stream"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Priority": ["u=1, i"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Fetch-Mode": ["cors"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:16:03.759	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.002947417, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Fetch-Mode": ["cors"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Fetch-Site": ["same-origin"], "X-Tsr-Serverfn": ["true"], "Via": ["2.0 Caddy"], "Accept-Language": ["en-US,en;q=0.9"], "Priority": ["u=1, i"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Dest": ["empty"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Cookie": ["REDACTED"], "Accept-Encoding": ["gzip, deflate, br, zstd"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:16:03.759	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.000932042, "request": {"remote_ip": "127.0.0.1", "remote_port": "60687", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"Cache-Control": ["no-cache"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "X-Forwarded-Proto": ["https"], "Sec-Fetch-Dest": ["empty"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Site": ["same-origin"], "Pragma": ["no-cache"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Accept-Language": ["en-US,en;q=0.9"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Priority": ["u=1, i"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Fetch-Mode": ["cors"], "Accept": ["text/event-stream"], "Cookie": ["REDACTED"], "Via": ["2.0 Caddy"]}, "tls": {"resumed": false, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+[Client] [vite] server connection lost. Polling for restart...
+[Client] Stream processing error: {
+  name: 'TypeError',
+  message: 'network error',
+  stack: 'TypeError: network error'
+}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+pear:ngrok | t=2026-08-19T15:23:57-0700 lvl=eror msg="session closed, starting reconnect loop" obj=tunnels.session obj=csess id=584eee6392ae err="read tcp 10.104.0.69:60678->52.9.131.203:443: read: connection reset by peer"
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+root:caddy | 2026/08/19 22:24:02.604	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.003211666, "request": {"remote_ip": "127.0.0.1", "remote_port": "52562", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"X-Tsr-Serverfn": ["true"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Sec-Fetch-Mode": ["cors"], "Sec-Fetch-Dest": ["empty"], "Via": ["2.0 Caddy"], "Sec-Ch-Ua-Mobile": ["?0"], "Accept-Language": ["en-US,en;q=0.9"], "X-Forwarded-For": ["127.0.0.1"], "Cookie": ["REDACTED"], "Sec-Fetch-Site": ["same-origin"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "X-Forwarded-Proto": ["https"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Priority": ["u=1, i"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:24:02.604	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.000488208, "request": {"remote_ip": "127.0.0.1", "remote_port": "52562", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"], "Priority": ["u=1, i"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Cookie": ["REDACTED"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Site": ["same-origin"], "Accept": ["text/event-stream"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Sec-Fetch-Mode": ["cors"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Via": ["2.0 Caddy"], "Sec-Fetch-Dest": ["empty"], "Accept-Language": ["en-US,en;q=0.9"], "Pragma": ["no-cache"], "Cache-Control": ["no-cache"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+ pear:dev | 
+ pear:dev | 2026/08/19 15:24:04 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.354ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:24:04 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[1.492ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:04 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 219
+ pear:dev | 
+ pear:dev | 2026/08/19 15:24:04 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.090ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:04 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:04 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 
+ pear:dev | 2026/08/19 15:24:04 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.081ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:04 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:24:04 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.042ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:04 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:04 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthqo7rrbo22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 1241
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:04 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthriall3s22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 397
+ pear:dev | 
+ pear:dev | 2026/08/19 15:24:04 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.047ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:04 -0700] "GET /xrpc/network.habitat.space.getLatestCommit?repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 388
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:04 -0700] "GET /xrpc/network.habitat.space.listRecords?excludeValues=true&limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22 HTTP/1.1" 200 369
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:04 -0700] "GET /xrpc/network.habitat.space.getBlob?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22&cid=bafkreifz2o3cawajncuipii7cqweju3hxpweiidaubos4ifcvouc3x3khm HTTP/1.1" 200 111
+ pear:dev | 
+ pear:dev | 2026/08/19 15:24:04 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.111ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:04 -0700] "GET /xrpc/network.habitat.space.getBlob?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22&cid=bafkreibsqsxfx7qqglp54j7gxmvphig7npudjmbwvnbtbi2hrjdx2jx3x4 HTTP/1.1" 200 128
+ pear:dev | 
+ pear:dev | 2026/08/19 15:24:07 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.111ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:07 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 
+ pear:dev | 2026/08/19 15:24:07 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.108ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:07 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:24:07 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.064ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:24:07 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+pear:ngrok | t=2026-08-19T15:24:14-0700 lvl=eror msg="heartbeat timeout, terminating session" obj=tunnels.session obj=csess id=924cc97c2bd3 clientid=fe257120363f75d94dab2a776d2625f6
+3:27:39 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css
+3:27:39 PM [vite] (ssr) hmr update /src/index.css
+[Client] [vite] hot updated: /src/index.css
+3:27:44 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css, /src/routes/__root.tsx
+3:27:44 PM [vite] (ssr) page reload src/routes/__root.tsx
+3:27:44 PM [vite] (ssr) program reload
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /src/routes/__root.tsx
+3:27:46 PM [vite] (client) hmr update /src/styles.css, /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css
+3:27:46 PM [vite] (ssr) page reload src/styles.css
+Warning: A notFoundError was encountered on the route with ID "/_requireAuth", but a notFoundComponent option was not configured, nor was a router level defaultNotFoundComponent configured. Consider configuring at least one of these to avoid TanStack Router's overly generic defaultNotFoundComponent (<p>Not Found</p>)
+[Client] [vite] Failed to reload /src/styles.css. This could be due to syntax errors or importing non-existent modules. (see errors above)
+[Client] [vite] hot updated: /src/styles.css
+[Client] [vite] hot updated: /src/index.css
+3:29:44 PM [vite] (client) hmr update /src/index.css, /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx
+3:29:44 PM [vite] (ssr) page reload /Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx
+3:29:44 PM [vite] (ssr) program reload
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx
+3:29:54 PM [vite] (client) hmr update /src/index.css, /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx
+3:29:54 PM [vite] (ssr) page reload /Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx
+3:41:26 PM [vite] (client) hmr update /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css, /src/index.css
+3:41:26 PM [vite] (ssr) hmr update /src/index.css
+[Client] [vite] hot updated: /src/index.css
+3:43:53 PM [vite] (client) hmr update /src/index.css, /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:43:53 PM [vite] (ssr) page reload /Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:44:51 PM [vite] (client) hmr update /src/index.css, /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:44:51 PM [vite] (ssr) page reload /Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:44:51 PM [vite] (ssr) program reload
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:44:59 PM [vite] (client) hmr update /src/index.css, /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:44:59 PM [vite] (ssr) page reload /Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:46:15 PM [vite] (client) hmr update /src/index.css, /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:46:15 PM [vite] (ssr) page reload /Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:46:15 PM [vite] (ssr) program reload
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:46:32 PM [vite] (client) hmr update /src/index.css, /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:46:32 PM [vite] (ssr) page reload /Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+3:47:17 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css, /src/components/PageHeader.tsx
+3:47:17 PM [vite] (ssr) page reload src/components/PageHeader.tsx
+[Client] %o
+
+%s
+
+%s
+ {
+  name: 'ReferenceError',
+  message: 'isMobile is not defined',
+  stack: 'ReferenceError: isMobile is not defined\n' +
+    '    at PageHeader (https://chalk.local.habitat.network/src/components/PageHeader.tsx?t=1787179637048:8:14)\n' +
+    '    at Object.react_stack_bottom_frame (https://chalk.local.habitat.network/node_modules/.vite/deps/react-dom_client.js?v=10b4f7f6:12864:12)\n' +
+    '    at renderWithHooks (https://chalk.local.habitat.network/node_modules/.vite/deps/react-dom_client.js?v=10b4f7f6:4211:19)\n' +
+    '    at updateFunctionComponent (https://chalk.local.habitat.network/node_modules/.vite/deps/react-dom_client.js?v=10b4f7f6:5567:16)\n' +
+    '    at beginWork (https://chalk.local.habitat.network/node_modules/.vite/deps/react-dom_client.js?v=10b4f7f6:6138:20)\n' +
+    '    at runWithFiberInDEV (https://chalk.local.habitat.network/node_modules/.vite/deps/react-dom_client.js?v=10b4f7f6:850:66)\n' +
+    '    at performUnitOfWork (https://chalk.local.habitat.network/node_modules/.vite/deps/react-dom_client.js?v=10b4f7f6:8427:92)\n' +
+    '    at workLoopSync (https://chalk.local.habitat.network/node_modules/.vite/deps/react-dom_client.js?v=10b4f7f6:8323:37)\n' +
+    '    at renderRootSync (https://chalk.local.habitat.network/node_modules/.vite/deps/react-dom_client.js?v=10b4f7f6:8307:6)\n' +
+    '    at performWorkOnRoot (https://chalk.local.habitat.network/node_modules/.vite/deps/react-dom_client.js?v=10b4f7f6:7992:27)'
+} The above error occurred in the <PageHeader> component. React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+[Client] Warning: The following error wasn't caught by any route! At the very least, consider setting an 'errorComponent' in your RootRoute!
+[Client] Warning: isMobile is not defined
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /src/components/PageHeader.tsx
+3:47:19 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css, /src/components/PageHeader.tsx
+3:47:19 PM [vite] (ssr) page reload src/components/PageHeader.tsx
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /src/components/PageHeader.tsx
+3:47:29 PM [vite] (client) hmr update /src/index.css, /@fs//Users/sashankgogula/Documents/habitat/node_modules/.pnpm/tailwindcss@4.3.3/node_modules/tailwindcss/index.css, /@fs//Users/sashankgogula/Documents/habitat/typescript/internal/src/styles.css, /src/components/PageHeader.tsx
+3:47:29 PM [vite] (ssr) page reload src/components/PageHeader.tsx
+3:47:29 PM [vite] (ssr) program reload
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] hot updated: /src/components/PageHeader.tsx
+3:48:23 PM [vite] (client) hmr update /src/index.css, /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/sidebar.tsx
+3:48:23 PM [vite] (ssr) page reload /Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/sidebar.tsx
+3:48:24 PM [vite] (client) hmr invalidate /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/sidebar.tsx Could not Fast Refresh ("useSidebar" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+3:48:24 PM [vite] (client) hmr update /src/routes/_requireAuth.tsx, /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx, /src/components/HelpDialog.tsx, /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/AuthForm.tsx, /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/GranteeAvatars.tsx, /src/components/PageHeader.tsx
+[Client] [vite] hot updated: /src/index.css
+[Client] [vite] invalidate /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/sidebar.tsx: Could not Fast Refresh ("useSidebar" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[Client] [vite] hot updated: /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/sidebar.tsx
+[Client] [vite] hot updated: /src/routes/_requireAuth.tsx
+[Client] [vite] hot updated: /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/AppLayout.tsx
+[Client] [vite] hot updated: /src/components/HelpDialog.tsx
+[Client] [vite] hot updated: /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/AuthForm.tsx
+[Client] [vite] hot updated: /@fs/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/GranteeAvatars.tsx
+[Client] [vite] hot updated: /src/components/PageHeader.tsx
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+root:caddy | 2026/08/19 22:48:24.614	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.000513708, "request": {"remote_ip": "127.0.0.1", "remote_port": "52562", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Via": ["2.0 Caddy"], "Sec-Fetch-Mode": ["cors"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Dest": ["empty"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Cache-Control": ["no-cache"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Pragma": ["no-cache"], "Accept": ["text/event-stream"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Fetch-Site": ["same-origin"], "Priority": ["u=1, i"], "X-Forwarded-For": ["127.0.0.1"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Cookie": ["REDACTED"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:48:24.614	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.009450958, "request": {"remote_ip": "127.0.0.1", "remote_port": "52562", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Accept-Encoding": ["gzip, deflate, br, zstd"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "X-Tsr-Serverfn": ["true"], "X-Forwarded-Proto": ["https"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Accept-Language": ["en-US,en;q=0.9"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Priority": ["u=1, i"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Via": ["2.0 Caddy"], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Fetch-Site": ["same-origin"], "Sec-Fetch-Dest": ["empty"], "Cookie": ["REDACTED"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Fetch-Mode": ["cors"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:48:24.614	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.056104042, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"X-Forwarded-Proto": ["https"], "Via": ["2.0 Caddy"], "Cookie": ["REDACTED"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Ch-Ua-Mobile": ["?0"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Fetch-Mode": ["cors"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Accept-Language": ["en-US,en;q=0.9"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "X-Tsr-Serverfn": ["true"], "Sec-Fetch-Site": ["same-origin"], "Sec-Fetch-Dest": ["empty"], "Priority": ["u=1, i"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "X-Forwarded-For": ["127.0.0.1"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:48:24.615	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.011930166, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Sec-Fetch-Dest": ["empty"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"], "Via": ["2.0 Caddy"], "Sec-Fetch-Site": ["same-origin"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Mode": ["cors"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Accept-Language": ["en-US,en;q=0.9"], "Cookie": ["REDACTED"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Priority": ["u=1, i"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "X-Tsr-Serverfn": ["true"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:48:24.615	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.08170475, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua-Mobile": ["?0"], "X-Tsr-Serverfn": ["true"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Priority": ["u=1, i"], "Sec-Fetch-Site": ["same-origin"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Cookie": ["REDACTED"], "X-Forwarded-For": ["127.0.0.1"], "Via": ["2.0 Caddy"], "Sec-Fetch-Dest": ["empty"], "Accept-Language": ["en-US,en;q=0.9"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Fetch-Mode": ["cors"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+root:caddy | 2026/08/19 22:50:33.309	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.002731958, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"X-Forwarded-Proto": ["https"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Fetch-Site": ["same-origin"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Fetch-Dest": ["empty"], "Cookie": ["REDACTED"], "X-Tsr-Serverfn": ["true"], "X-Forwarded-For": ["127.0.0.1"], "Via": ["2.0 Caddy"], "Priority": ["u=1, i"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Mode": ["cors"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Accept-Language": ["en-US,en;q=0.9"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.309	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.001864291, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Priority": ["u=1, i"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Cookie": ["REDACTED"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22"], "X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Via": ["2.0 Caddy"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "X-Tsr-Serverfn": ["true"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Mode": ["cors"], "X-Forwarded-For": ["127.0.0.1"], "Sec-Fetch-Site": ["same-origin"], "Sec-Fetch-Dest": ["empty"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.310	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.010669625, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"X-Tsr-Serverfn": ["true"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Priority": ["u=1, i"], "Sec-Fetch-Site": ["same-origin"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"], "Via": ["2.0 Caddy"], "Sec-Fetch-Dest": ["empty"], "Accept-Language": ["en-US,en;q=0.9"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Cookie": ["REDACTED"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Fetch-Mode": ["cors"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.310	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.002340917, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Priority": ["u=1, i"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "X-Forwarded-For": ["127.0.0.1"], "X-Tsr-Serverfn": ["true"], "Sec-Fetch-Site": ["same-origin"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Fetch-Mode": ["cors"], "X-Forwarded-Proto": ["https"], "Via": ["2.0 Caddy"], "Sec-Fetch-Dest": ["empty"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthhdrgfeb22"], "Accept-Language": ["en-US,en;q=0.9"], "Cookie": ["REDACTED"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.310	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.002146625, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Cookie": ["REDACTED"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Accept-Encoding": ["gzip, deflate, br, zstd"], "X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Priority": ["u=1, i"], "X-Tsr-Serverfn": ["true"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Sec-Fetch-Dest": ["empty"], "X-Forwarded-For": ["127.0.0.1"], "Via": ["2.0 Caddy"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Fetch-Site": ["same-origin"], "Sec-Fetch-Mode": ["cors"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.310	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.001971833, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthbodiums22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"X-Tsr-Serverfn": ["true"], "Sec-Fetch-Mode": ["cors"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthbodiums22"], "Priority": ["u=1, i"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua-Mobile": ["?0"], "Via": ["2.0 Caddy"], "Accept-Language": ["en-US,en;q=0.9"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Fetch-Site": ["same-origin"], "Sec-Fetch-Dest": ["empty"], "X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Cookie": ["REDACTED"], "X-Forwarded-For": ["127.0.0.1"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.310	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.002253, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/__tsd/console-pipe/sse", "headers": {"X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Via": ["2.0 Caddy"], "Cookie": ["REDACTED"], "Sec-Fetch-Site": ["same-origin"], "Accept-Language": ["en-US,en;q=0.9"], "Accept": ["text/event-stream"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Mode": ["cors"], "Sec-Fetch-Dest": ["empty"], "Priority": ["u=1, i"], "Pragma": ["no-cache"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "X-Forwarded-Proto": ["https"], "Cache-Control": ["no-cache"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Accept-Encoding": ["gzip, deflate, br, zstd"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.311	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.002054583, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthqmtsxea22"], "Sec-Fetch-Site": ["same-origin"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Via": ["2.0 Caddy"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "X-Tsr-Serverfn": ["true"], "Sec-Fetch-Mode": ["cors"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Fetch-Dest": ["empty"], "Priority": ["u=1, i"], "X-Forwarded-Proto": ["https"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Ch-Ua-Mobile": ["?0"], "Cookie": ["REDACTED"], "X-Forwarded-For": ["127.0.0.1"], "Accept-Encoding": ["gzip, deflate, br, zstd"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.311	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.002095625, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mth7kqy2fs22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mth7kqy2fs22"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "X-Tsr-Serverfn": ["true"], "Accept-Language": ["en-US,en;q=0.9"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Dest": ["empty"], "Via": ["2.0 Caddy"], "Priority": ["u=1, i"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Sec-Fetch-Site": ["same-origin"], "Sec-Fetch-Mode": ["cors"], "Cookie": ["REDACTED"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.312	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.009699334, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mth7kqy2fs22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Fetch-Site": ["same-origin"], "Sec-Ch-Ua-Mobile": ["?0"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "X-Tsr-Serverfn": ["true"], "Priority": ["u=1, i"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"], "Via": ["2.0 Caddy"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Cookie": ["REDACTED"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Fetch-Mode": ["cors"], "Sec-Fetch-Dest": ["empty"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mth7kqy2fs22"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.312	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.002045458, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthbodiums22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Sec-Ch-Ua-Mobile": ["?0"], "Sec-Fetch-Dest": ["empty"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthbodiums22"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "Via": ["2.0 Caddy"], "Sec-Fetch-Site": ["same-origin"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Fetch-Mode": ["cors"], "X-Tsr-Serverfn": ["true"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"], "Cookie": ["REDACTED"], "Priority": ["u=1, i"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.312	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.001880584, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthbodiums22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-Proto": ["https"], "Sec-Ch-Ua-Platform": ["\"macOS\""], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Fetch-Site": ["same-origin"], "Sec-Fetch-Mode": ["cors"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthbodiums22"], "Priority": ["u=1, i"], "Sec-Fetch-Dest": ["empty"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Cookie": ["REDACTED"], "X-Forwarded-For": ["127.0.0.1"], "Via": ["2.0 Caddy"], "X-Tsr-Serverfn": ["true"], "Accept-Language": ["en-US,en;q=0.9"], "X-Forwarded-Host": ["chalk.local.habitat.network"]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+root:caddy | 2026/08/19 22:50:33.312	[33mWARN[0m	http.handlers.reverse_proxy	aborting with incomplete response	{"upstream": "127.0.0.1:5177", "duration": 0.030079667, "request": {"remote_ip": "127.0.0.1", "remote_port": "61548", "client_ip": "127.0.0.1", "proto": "HTTP/2.0", "method": "GET", "host": "chalk.local.habitat.network", "uri": "/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvZnVuY3Rpb25zLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6InN1YnNjcmliZURvY19jcmVhdGVTZXJ2ZXJGbl9oYW5kbGVyIn0?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22docId%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A127%2C%22m%22%3A%5B%5D%7D", "headers": {"Referer": ["https://chalk.local.habitat.network/at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22"], "User-Agent": ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"], "Sec-Ch-Ua": ["\"Not=A?Brand\";v=\"99\", \"Google Chrome\";v=\"151\", \"Chromium\";v=\"151\""], "Sec-Fetch-Mode": ["cors"], "Priority": ["u=1, i"], "Sec-Ch-Ua-Mobile": ["?0"], "X-Forwarded-Host": ["chalk.local.habitat.network"], "X-Tsr-Serverfn": ["true"], "Accept": ["application/x-tss-framed, application/x-ndjson, application/json"], "Sec-Fetch-Dest": ["empty"], "X-Forwarded-For": ["127.0.0.1"], "X-Forwarded-Proto": ["https"], "Via": ["2.0 Caddy"], "Accept-Encoding": ["gzip, deflate, br, zstd"], "Cookie": ["REDACTED"], "Sec-Fetch-Site": ["same-origin"], "Accept-Language": ["en-US,en;q=0.9"], "Sec-Ch-Ua-Platform": ["\"macOS\""]}, "tls": {"resumed": true, "version": 772, "cipher_suite": 4865, "proto": "h2", "server_name": "chalk.local.habitat.network", "ech": false}}, "error": "reading: context canceled"}
+SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches
+Error in renderToReadableStream: ReferenceError: document is not defined
+    at DialogPortal (/Users/sashankgogula/Documents/habitat/typescript/internal/src/components/ui/dialog.tsx:27:18)
+    at Object.react_stack_bottom_frame (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/Users/sashankgogula/Documents/habitat/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:34 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.256ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:34 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[1.716ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 219
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:34 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.112ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:34 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.099ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:34 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.040ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:34 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.090ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "GET /xrpc/network.habitat.space.getDelegationToken?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 562
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "POST /xrpc/network.habitat.space.getSpaceCredential HTTP/1.1" 200 482
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthh6y7rlj22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 1254
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthsxnftoz22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 397
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:34 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.045ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "GET /xrpc/network.habitat.space.getLatestCommit?repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 388
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "GET /xrpc/network.habitat.space.listRecords?excludeValues=true&limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 369
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:34 -0700] "GET /xrpc/network.habitat.space.getBlob?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22&cid=bafkreiee6yskya7qqzqh4ktydhdjxoqf25ngrzu4vu4uytzxz4vv7c72fe HTTP/1.1" 200 21
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:38 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.103ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:38 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:39 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.130ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:39 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:39 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.062ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:39 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthsxnftoz22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 850
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:39 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:39 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthsxrirl722&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 397
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:49 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.105ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:49 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.443ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:49 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 220
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:49 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.110ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:49 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 219
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:49 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:49 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.041ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:49 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:49 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthsxrirl722&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 849
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:49 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.072ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:49 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:49 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.047ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:49 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthsy3pag422&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 735
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:49 -0700] "GET /xrpc/network.habitat.space.listRepoOps?limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&since=3mthsy3pe4t22&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 397
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:49 -0700] "GET /xrpc/network.habitat.space.getLatestCommit?repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 388
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:49 -0700] "GET /xrpc/network.habitat.space.listRecords?excludeValues=true&limit=1000&repo=did%3Aweb%3Axp9xxi.pear.local.habitat.network&space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22 HTTP/1.1" 200 369
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:49 -0700] "GET /xrpc/network.habitat.space.getBlob?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22&cid=bafkreicglmkycbxigatadyisfcmp5abjngvr4zdcbaig4tf4enxjyppwqe HTTP/1.1" 200 114
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:50 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.265ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:50 -0700] "GET /xrpc/network.habitat.space.getBlob?space=at%3A%2F%2Fdid%3Aweb%3At3sj0h.pear.local.habitat.network%2Fspace%2Fnetwork.habitat.docs%2F3mthg6m5wig22&cid=bafkreibxzpjppbsev6u2ftk2shw6l2u6gw4x7yhzpfqmoy6e4vcn7w2hcq HTTP/1.1" 200 84
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:53 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.110ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:53 -0700] "POST /xrpc/network.habitat.repo.uploadBlob HTTP/1.1" 200 219
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:54 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.109ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:54 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 238
+ pear:dev | 
+ pear:dev | 2026/08/19 15:50:54 [31;1m/Users/sashankgogula/Documents/habitat/internal/org/store.go:121 [35;1mrecord not found
+ pear:dev | [0m[33m[0.082ms] [34;1m[rows:0][0m SELECT * FROM `organizations` WHERE id = "did:web:xp9xxi.pear.local.habitat.network" ORDER BY `organizations`.`id` LIMIT 1
+ pear:dev | 127.0.0.1 - - [19/Aug/2026:15:50:54 -0700] "POST /xrpc/network.habitat.space.putRecord HTTP/1.1" 200 242

@@ -742,6 +742,28 @@ func TestPutRecordTriggersNotify(t *testing.T) {
 	require.NotEmpty(t, s.Notifier.Writes[0].Rev)
 }
 
+func TestPutRecordSkipsNotifyWhenCidUnchanged(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "notify-space")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	require.Len(t, s.Notifier.Writes, 1)
+
+	// Writing the exact same value again produces the same CID.
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	require.Len(t, s.Notifier.Writes, 1, "no-op write should not trigger another notify")
+
+	// A write that actually changes the content still notifies.
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 2})
+	require.NoError(t, err)
+	require.Len(t, s.Notifier.Writes, 2)
+}
+
 func TestDeleteSpaceTriggersNotify(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 

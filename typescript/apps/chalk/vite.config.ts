@@ -3,6 +3,7 @@ import viteReact from "@vitejs/plugin-react";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { devtools } from "@tanstack/devtools-vite";
 
 // TanStack Start's Vite plugin (tanstackStart) owns both the SSR/server-function
 // build and file-based route generation (routeTree.gen.ts) — it supersedes the
@@ -23,6 +24,11 @@ export default defineConfig({
     // this is the plugin that enables path aliases
     viteTsConfigPaths({ projects: ["./tsconfig.json"] }),
     tailwindcss(),
+    ...devtools({
+      eventBusConfig: {
+        port: parseInt(process.env.DEVTOOLS_PORT ?? "42069", 10),
+      },
+    }),
     tanstackStart(), // must come before viteReact()
     viteReact(),
   ],

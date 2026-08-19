@@ -2,7 +2,7 @@ import * as Y from "yjs";
 import { DebounceQueue } from "./debounceQueue";
 import type { DocStore } from "./docStore";
 import type { DocPubSub } from "./pubsub";
-import type { SapClient } from "./sapClient";
+import { SapClient } from "./sapClient";
 
 // CRDT_COLLECTION is the collection a member writes their per-repo Yjs delta
 // to; any message on this collection triggers a merge into the space's Y.Doc.
@@ -61,9 +61,6 @@ export interface DocSyncOptions {
   sapWsUrl: string;
   store: DocStore;
   pubsub: DocPubSub;
-  // ownerClientFor returns a SapClient authenticated as the doc's owner, used
-  // to republish the canonical merged snapshot under the owner's own repo.
-  ownerClientFor: (ownerDid: string) => SapClient;
   render: (ydoc: Y.Doc) => { title: string; markdown: string };
 }
 
@@ -76,6 +73,12 @@ export interface DocSyncOptions {
 // delta, and there is no org-space branch at all.
 export class DocSync {
   private stopped = false;
+  // Tracked so stop() can close the live connection immediately, rather
+  // than just suppressing the next reconnect — otherwise a stopped
+  // instance would keep an open /channel connection (and keep competing
+  // for sap's single-slot outbox wakeup signal, see pkg/sap/outbox) for as
+  // long as sap happens to leave it open.
+  private ws: WebSocket | undefined;
   // Serializes message processing so acks are sent in delivery order and
   // merges for the same space don't interleave.
   private queue: Promise<void> = Promise.resolve();
@@ -98,6 +101,7 @@ export class DocSync {
 
   stop(): void {
     this.stopped = true;
+    this.ws?.close();
   }
 
   private async run(): Promise<void> {
@@ -116,6 +120,7 @@ export class DocSync {
   private connectOnce(): Promise<void> {
     return new Promise<void>((resolve) => {
       const ws = new WebSocket(`${this.opts.sapWsUrl}/channel`);
+      this.ws = ws;
       ws.addEventListener("open", () => {
         console.log(`[docSync] connected to ${this.opts.sapWsUrl}`);
       });
@@ -124,7 +129,10 @@ export class DocSync {
         this.enqueue(() => this.handleRawMessage(ws, data));
       });
       // The close event fires after any error, so it alone resolves the loop.
-      ws.addEventListener("close", () => resolve());
+      ws.addEventListener("close", () => {
+        if (this.ws === ws) this.ws = undefined;
+        resolve();
+      });
     });
   }
 
@@ -157,27 +165,82 @@ export class DocSync {
   async handleOutboxMessage(msg: OutboxMessage): Promise<void> {
     const parsed = parseSpaceRecordUri(msg.uri);
     if (!parsed || parsed.collection !== CRDT_COLLECTION) return;
-    const value = (msg.value ?? {}) as { blob?: string };
-    if (!value.blob) return;
 
-    const ydoc = this.ydocs.get(parsed.spaceUri) ?? new Y.Doc();
-    Y.applyUpdateV2(ydoc, Buffer.from(value.blob, "base64"));
-    this.ydocs.set(parsed.spaceUri, ydoc);
+    // A putRecord'd network.habitat.docs.crdt record carries a blob
+    // *reference* ({$type: "blob", ref: {$link: <cid>}, ...}), not the
+    // update's bytes inline — those have to be fetched separately via
+    // getBlob.
+    const value = (msg.value ?? {}) as { blob?: { ref?: { $link?: string } } };
+    const cid = value.blob?.ref?.$link;
+    if (!cid) return;
 
-    this.opts.store.persistMerged(parsed.spaceUri, ydoc);
-    this.opts.pubsub.publish(parsed.spaceUri, ydoc);
-    this.ownerFlush.push(parsed.spaceUri, undefined);
+    const [doc] = this.opts.store.docsByUris([parsed.spaceUri]);
+    if (!doc) return; // this instance doesn't know this doc; nothing to merge into
+    const bytes = await new SapClient(doc.ownerDid).getBlob(
+      parsed.spaceUri,
+      cid,
+    );
+    this.mergeUpdate(parsed.spaceUri, bytes);
+  }
+
+  // applyEdit merges a Yjs update straight from a connected editor (see
+  // sendEdit in functions.ts) into the space's in-memory Y.Doc immediately,
+  // rather than waiting on the full pear -> sap notifyWrite -> outbox round
+  // trip that handleOutboxMessage above reacts to. That round trip still
+  // runs (sendEdit also queues the same bytes for the member's own repo via
+  // memberEditQueue) and will eventually deliver the same update back here
+  // through handleOutboxMessage — but by then it's a redundant merge: Y.Doc
+  // updates are idempotent, so re-applying bytes already merged is a no-op
+  // rather than a correctness concern. This is what lets the editor's own
+  // session, and any other subscriber of the same doc on this instance, see
+  // an edit right away instead of only after that round trip completes.
+  applyEdit(spaceUri: string, bytes: Uint8Array): void {
+    this.mergeUpdate(spaceUri, bytes);
+  }
+
+  // mergeUpdate applies a Yjs update to spaceUri's in-memory Y.Doc, persists
+  // and publishes the result, and debounce-schedules the owner-canonical
+  // republish — the common tail shared by a remote merge
+  // (handleOutboxMessage) and a local one (applyEdit).
+  private mergeUpdate(spaceUri: string, bytes: Uint8Array): void {
+    let ydoc = this.ydocs.get(spaceUri);
+    if (!ydoc) {
+      // Not just `new Y.Doc()`: the in-memory map starts empty on every
+      // process start, but bytes here is an *incremental* Yjs update (a
+      // diff relative to whatever state the sender already had), not a full
+      // snapshot — merging it into a bare empty doc would reconstruct only
+      // that one diff, and persistMerged below would then overwrite this
+      // space's previously-persisted content with that fragment. Seeding
+      // from the persisted merged state (falling back to empty only for a
+      // genuinely new, never-persisted doc) keeps this doc's history intact
+      // across restarts.
+      ydoc = this.opts.store.mergedState(spaceUri) ?? new Y.Doc();
+      this.ydocs.set(spaceUri, ydoc);
+    }
+    Y.applyUpdateV2(ydoc, bytes);
+
+    this.opts.store.persistMerged(spaceUri, ydoc);
+    this.opts.pubsub.publish(spaceUri, ydoc);
+    this.ownerFlush.push(spaceUri, undefined);
   }
 
   // republishCanonical writes the merged markdown + CRDT snapshot back to
   // pear under the doc owner's own repo, authenticated as the owner.
+  // Republishing writes to the owner's own crdt record, which is itself a
+  // network.habitat.docs.crdt write — so it comes right back through
+  // handleOutboxMessage looking like a fresh delta. That doesn't loop
+  // forever, though: pear's PutRecord skips advancing the record (and the
+  // notifyWrite it would otherwise cause) whenever a write doesn't actually
+  // change the record's CID (see internal/spaces/store.go), so a no-op
+  // republish here never produces another outbox event to react to.
   private async republishCanonical(spaceUri: string): Promise<void> {
     const ydoc = this.ydocs.get(spaceUri);
     if (!ydoc) return;
+
     const [doc] = this.opts.store.docsByUris([spaceUri]);
     if (!doc) return;
     const rendered = this.opts.render(ydoc);
-    const client = this.opts.ownerClientFor(doc.ownerDid);
+    const client = new SapClient(doc.ownerDid);
     const blob = await client.uploadBlob(
       Y.encodeStateAsUpdateV2(ydoc),
       "application/octet-stream",

@@ -564,14 +564,16 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	cid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
+	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
+	newCidStr := newCid.String()
 
 	var recordUri habitat_syntax.SpaceRecordURI
 	var newRev syntax.TID
 	var repoHash []byte
+	var skipped bool
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, spaceUri, repo); err != nil {
 			return err
@@ -597,18 +599,20 @@ func (s *store) PutRecord(
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("failed to get existing record: %w", err)
 		} else if err == nil {
+			// previous record exists
+			if newCidStr == existing.Cid {
+				// if the new cid is the same as the previous one, we don't update the rev
+				skipped = true
+				return nil
+			}
+			// otherwise, remove the prev element from hash
 			h.Remove(spacecommit.RecordElement(collection, rkey, existing.Cid))
 		}
-		h.Add(spacecommit.RecordElement(collection, rkey, cid.String()))
+		h.Add(spacecommit.RecordElement(collection, rkey, newCidStr))
 		if err := saveRepoHash(tx, spaceUri, repo, h, tid); err != nil {
 			return fmt.Errorf("failed to save repo hash: %w", err)
 		}
 		repoHash = h.Sum()
-		prevCid := ""
-		if err == nil {
-			prevCid = existing.Cid
-		}
-
 		return tx.Save(&spaceRecord{
 			Repo:       repo,
 			Space:      spaceUri,
@@ -616,16 +620,18 @@ func (s *store) PutRecord(
 			Rkey:       rkey,
 			Value:      bytes,
 			Rev:        tid,
-			PrevCid:    prevCid,
-			Cid:        cid.String(),
+			PrevCid:    existing.Cid,
+			Cid:        newCidStr,
 		}).Error
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
-	// Best-effort: notify registered syncers that this repo advanced.
-	s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev, repoHash)
-	return recordUri, &cid, nil
+	if !skipped {
+		// Best-effort: notify registered syncers that this repo advanced.
+		s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev, repoHash)
+	}
+	return recordUri, &newCid, nil
 }
 
 func (s *store) GetRecord(

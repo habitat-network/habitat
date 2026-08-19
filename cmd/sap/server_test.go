@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -34,10 +35,10 @@ func newTestServer(t *testing.T) *server {
 	)
 	oauthApp := oauth.NewClientApp(&cfg, store)
 
-	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp})
+	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp, Directory: oauthApp.Dir})
 	require.NoError(t, err)
 
-	return NewSapServer(s, oauthApp)
+	return NewSapServer(s, oauthApp, "https://example.com")
 }
 
 func TestHandleAddOrgWithoutReturnToUnaffected(t *testing.T) {
@@ -161,4 +162,107 @@ func TestRedirectToReturnToNoPendingFallsBackToFalse(t *testing.T) {
 	require.False(t, handled)
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Empty(t, w.Header().Get("Location"))
+}
+
+func TestHandleClientMetadataIncludesJWKSForConfidentialClient(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	priv, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, srv.oauthClient.Config.SetClientSecret(priv, "sap"))
+
+	req := httptest.NewRequest(http.MethodGet, "/client-metadata.json", nil)
+	w := httptest.NewRecorder()
+
+	srv.handleClientMetadata(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var metadata oauth.ClientMetadata
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &metadata))
+	require.Equal(t, "private_key_jwt", metadata.TokenEndpointAuthMethod)
+	require.NotNil(t, metadata.JWKS)
+	require.Len(t, metadata.JWKS.Keys, 1)
+}
+
+func TestHandleTrackSpaceRequiresDIDHeader(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	body, err := json.Marshal(map[string]string{
+		"space": "at://did:plc:owner/space/network.habitat.docs/abc",
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/space/track", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.handleTrackSpace(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestHandleTrackSpaceAllowsMissingSessionHeader pins that the session
+// header is optional — it resolves fine under WithSingleSessionPerUser, and
+// a caller that doesn't track one can just omit it. The request still fails
+// here (no session is tracked for the DID at all in this test), but not
+// because the header itself is missing — confirmed by the error not being a
+// 400 about the header.
+func TestHandleTrackSpaceAllowsMissingSessionHeader(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	body, err := json.Marshal(map[string]string{
+		"space": "at://did:plc:owner/space/network.habitat.docs/abc",
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/space/track", bytes.NewReader(body))
+	req.Header.Set(habitatDIDHeader, "did:plc:member")
+	w := httptest.NewRecorder()
+	srv.handleTrackSpace(w, req)
+	require.NotEqual(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandleNotifyWriteRejectsMissingOrInvalidAuth(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	body, err := json.Marshal(map[string]string{
+		"space": "at://did:plc:owner/space/network.habitat.docs/abc",
+		"repo":  "did:plc:member",
+		"rev":   "3jzfcijpj2z2a",
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.notifyWrite", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.handleNotifyWrite(w, req)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+
+	req = httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.notifyWrite", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer not-a-real-jwt")
+	w = httptest.NewRecorder()
+	srv.handleNotifyWrite(w, req)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestHandleTrackSpaceRejectsUnparsableSpace(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	body, err := json.Marshal(map[string]string{"space": "not a uri"})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/space/track", bytes.NewReader(body))
+	req.Header.Set(habitatDIDHeader, "did:plc:member")
+	req.Header.Set(habitatSessionHeader, "session-abc")
+	w := httptest.NewRecorder()
+
+	srv.handleTrackSpace(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }

@@ -24,7 +24,7 @@ function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
     <DialogPrimitive.Portal
       data-slot="dialog-portal"
       {...props}
-      container={document.body}
+      container={document ? document.body : undefined}
     />
   );
 }

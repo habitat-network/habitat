@@ -20,6 +20,7 @@ import {
   SidebarMenuButton,
   useSidebar,
   SidebarRail,
+  SidebarTrigger,
 } from "./ui/sidebar";
 import { LogOut } from "lucide-react";
 import { UserItem } from "./UserItem";
@@ -51,7 +52,7 @@ export const AppLayout = ({
 }: AppLayoutProps) => {
   return (
     <SidebarProvider>
-      <Sidebar collapsible="icon" variant="floating">
+      <Sidebar collapsible="offcanvas" variant="inset">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>

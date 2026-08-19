@@ -35,7 +35,7 @@ describe("startLogin", () => {
 });
 
 describe("SapClient", () => {
-  it("sends Habitat-Did and Habitat-Session headers on every call", async () => {
+  it("sends the Habitat-Did header on every call", async () => {
     let headers: Headers | undefined;
     server.use(
       http.get(
@@ -46,10 +46,9 @@ describe("SapClient", () => {
         },
       ),
     );
-    const client = new SapClient("did:plc:member1", "session-abc");
+    const client = new SapClient("did:plc:member1");
     await client.call("network.habitat.space.listRecords", "GET", {});
     expect(headers?.get("Habitat-Did")).toBe("did:plc:member1");
-    expect(headers?.get("Habitat-Session")).toBe("session-abc");
   });
 
   it("uploadBlob POSTs raw bytes to network.habitat.repo.uploadBlob and returns the blob ref", async () => {
@@ -69,11 +68,31 @@ describe("SapClient", () => {
         },
       ),
     );
-    const client = new SapClient("did:plc:member1", "session-abc");
+    const client = new SapClient("did:plc:member1");
     const out = await client.uploadBlob(
       new Uint8Array([1, 2, 3]),
       "application/octet-stream",
     );
     expect(out.cid).toBe("bafy123");
+  });
+
+  it("trackSpace POSTs the space URI with the auth header to /space/track", async () => {
+    let body: unknown;
+    let headers: Headers | undefined;
+    server.use(
+      http.post("http://sap-internal.test/space/track", async ({ request }) => {
+        body = await request.json();
+        headers = request.headers;
+        return new HttpResponse(null, { status: 200 });
+      }),
+    );
+    const client = new SapClient("did:plc:member1");
+    await client.trackSpace(
+      "at://did:plc:owner/space/network.habitat.docs/abc",
+    );
+    expect(body).toEqual({
+      space: "at://did:plc:owner/space/network.habitat.docs/abc",
+    });
+    expect(headers?.get("Habitat-Did")).toBe("did:plc:member1");
   });
 });
