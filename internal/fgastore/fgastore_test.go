@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
@@ -36,10 +35,8 @@ func newTestSQLite(t *testing.T) *FGA {
 	require.NoError(t, err, "NewSQLite should succeed")
 
 	t.Cleanup(func() {
-		require.Eventually(t, func() bool {
-			return os.RemoveAll(dir) == nil
-		}, time.Second, 10*time.Millisecond, "temp dir should become removable")
 		_ = f.Close()
+		_ = os.RemoveAll(dir)
 	})
 
 	return f
