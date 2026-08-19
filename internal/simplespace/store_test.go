@@ -266,6 +266,8 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "doomed")
 	require.NoError(t, err)
 
+	require.NoError(t, s.DeleteSpace(t.Context(), uri))
+
 	ok, err := s.spaces.CheckSpaceExists(t.Context(), uri)
 	require.NoError(t, err)
 	require.False(t, ok)

@@ -365,7 +365,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 
 	simplespaceServer := simplespace.NewServer(
-		simplespace.NewStore(db, spacesStore, fgaStore, notifier),
+		simplespace.NewStore(db, spacesStore, fgaStore),
 		validator,
 	)
 
