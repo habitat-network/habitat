@@ -52,7 +52,6 @@ import (
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/relationship"
 	"github.com/habitat-network/habitat/internal/repo"
-	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
@@ -385,7 +384,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("create permission store: %w", err)
 	}
 
-	pear := pear.NewPear(hiveDir, permissions, repo)
+	pearStore := pear.NewPear(hiveDir, permissions, repo)
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,
@@ -409,12 +408,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
 
 	cliqueServer := clique.NewServer(cliqueStore, validator)
-	pearServer := server.NewServer(
-		pear,
+	pearServer := pear.NewServer(
+		pearStore,
 		validator,
 		orgStore,
 	)
-	p2pServer, err := p2p.NewServer(startupCtx, serviceAuth, pear, meter)
+	p2pServer, err := p2p.NewServer(startupCtx, serviceAuth, pearStore, meter)
 	if err != nil {
 		return fmt.Errorf("setup p2p server: %w", err)
 	}
