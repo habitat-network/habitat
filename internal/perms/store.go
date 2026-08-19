@@ -3,18 +3,26 @@ package perms
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/tuple"
+	"gorm.io/gorm"
 )
 
 // SpaceRole is an access-control role held on a space. The hierarchy
 // (owner ⇒ manager ⇒ writer ⇒ reader) is enforced by the OpenFGA model
 // (internal/fgastore's authModel), not by this package.
 type SpaceRole string
+
+const (
+	userRelationCollection  = "network.habitat.relationship.userRelation"
+	spaceRelationCollection = "network.habitat.relationship.spaceRelation"
+)
 
 const (
 	SpaceRoleOwner   SpaceRole = "owner"
@@ -37,19 +45,23 @@ type SpaceRoleSubject struct {
 
 type Store interface {
 	// Additions
+	// Adds a user relation (collection = network.habitat.relationship.userRelation) and returns
+	// the record uri for the corresponding relationship record.
 	AddUserRelation(
 		ctx context.Context,
 		did syntax.DID,
 		space habitat_syntax.SpaceURI,
 		role SpaceRole,
-	) error
+	) (habitat_syntax.SpaceRecordURI, error)
+	// Adds a space relation (collection = network.habitat.relationship.spaceRelation) and returns
+	// the record uri for the corresponding relationship record.
 	AddSpaceRoleRelation(
 		ctx context.Context,
 		subject habitat_syntax.SpaceURI,
 		subjectRole SpaceRole,
 		object habitat_syntax.SpaceURI,
 		objectRole SpaceRole,
-	) error
+	) (habitat_syntax.SpaceRecordURI, error)
 
 	// Revocations
 	RevokeUserRelation(
@@ -93,7 +105,9 @@ type Store interface {
 }
 
 type store struct {
-	fga fgastore.Store
+	db     *gorm.DB
+	fga    fgastore.Store
+	spaces spaces.Store
 }
 
 func NewStore(fga fgastore.Store) Store {
@@ -108,19 +122,41 @@ func (s *store) AddUserRelation(
 	did syntax.DID,
 	space habitat_syntax.SpaceURI,
 	role SpaceRole,
-) error {
-	return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
-		Writes: &openfgav1.WriteRequestWrites{
-			TupleKeys: []*openfgav1.TupleKey{
-				tuple.NewTupleKey(
-					fgastore.SpaceObjectKey(space),
-					fgaRelationFromRole[role],
-					fgastore.MemberUserString(did),
-				),
+) (habitat_syntax.SpaceRecordURI, error) {
+
+	var uri habitat_syntax.SpaceRecordURI
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		record := map[string]any{
+			"subject":   did.String(),
+			"relation":  string(role),
+			"createdAt": time.Now(),
+			/* object is the space being written into itself */
+		}
+		var err error
+		uri, _, err = s.spaces.WithTx(tx).PutRecord(ctx /* TODO should i use tx.Statement.Context */, space, space.SpaceOwner(), userRelationCollection, "" /* rkey should be generated */, record)
+		if err != nil {
+			return fmt.Errorf("err putting relationship record: %w", err)
+		}
+
+		err = s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+			Writes: &openfgav1.WriteRequestWrites{
+				TupleKeys: []*openfgav1.TupleKey{
+					tuple.NewTupleKey(
+						fgastore.SpaceObjectKey(space),
+						fgaRelationFromRole[role],
+						fgastore.MemberUserString(did),
+					),
+				},
+				OnDuplicate: "ignore",
 			},
-			OnDuplicate: "ignore",
-		},
+		})
+		if err != nil {
+			return fmt.Errorf("err writing to fga: %w", err)
+		}
+		return nil
 	})
+
+	return uri, err
 }
 
 // AddSpaceRoleRelation implements [Store]. It grants every subject holding
@@ -132,19 +168,42 @@ func (s *store) AddSpaceRoleRelation(
 	subjectRole SpaceRole,
 	object habitat_syntax.SpaceURI,
 	objectRole SpaceRole,
-) error {
-	return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
-		Writes: &openfgav1.WriteRequestWrites{
-			TupleKeys: []*openfgav1.TupleKey{
-				tuple.NewTupleKey(
-					fgastore.SpaceObjectKey(object),
-					fgaRelationFromRole[objectRole],
-					fgastore.SpaceUsersetString(subject, fgaRelationFromRole[subjectRole]),
-				),
+) (habitat_syntax.SpaceRecordURI, error) {
+
+	var uri habitat_syntax.SpaceRecordURI
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		record := map[string]any{
+			"subject":     subject.String(),
+			"subjectRole": string(subject),
+			"relation":    string(objectRole),
+			"createdAt":   time.Now(),
+			/* object is the space being written into itself */
+		}
+		var err error
+		uri, _, err = s.spaces.WithTx(tx).PutRecord(ctx /* TODO should i use tx.Statement.Context */, object, object.SpaceOwner(), spaceRelationCollection, "" /* rkey should be generated */, record)
+		if err != nil {
+			return fmt.Errorf("err putting relationship record: %w", err)
+		}
+
+		err = s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+			Writes: &openfgav1.WriteRequestWrites{
+				TupleKeys: []*openfgav1.TupleKey{
+					tuple.NewTupleKey(
+						fgastore.SpaceObjectKey(object),
+						fgaRelationFromRole[objectRole],
+						fgastore.SpaceUsersetString(subject, fgaRelationFromRole[subjectRole]),
+					),
+				},
+				OnDuplicate: "ignore",
 			},
-			OnDuplicate: "ignore",
-		},
+		})
+		if err != nil {
+			return fmt.Errorf("err writing to fga: %w", err)
+		}
+		return nil
 	})
+
+	return uri, err
 }
 
 // RevokeUserRelation implements [Store].

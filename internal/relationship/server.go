@@ -1,7 +1,6 @@
 package relationship
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,24 +36,6 @@ func NewServer(store *Store, ps perms.Store, validator authn.RequestValidator) *
 		validator: validator,
 		decoder:   schema.NewDecoder(),
 	}
-}
-
-// authorize reports whether the caller holds the given relation on the space,
-// using the owner contextual tuple so the org owner always passes.
-func (s *Server) authorize(
-	ctx context.Context,
-	caller *authn.CredentialInfo,
-	space habitat_syntax.SpaceURI,
-	relation string,
-) (bool, error) {
-	return s.fga.Check(
-		ctx,
-		fgastore.MemberUserString(caller.Subject),
-		relation,
-		fgastore.SpaceObjectKey(space),
-		fgastore.OwnerContextualTuple(space),
-		fgastore.OrgMemberContextualTuple(caller.Org.DID()),
-	)
 }
 
 func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
@@ -288,7 +269,6 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 	// Only return spaces the caller is allowed to read.
 	out := make([]string, 0, len(spaceURIs))
 	for _, space := range spaceURIs {
-
 		readable, err := s.ps.CheckUserHasSpaceRole(
 			r.Context(),
 			credInfo.Subject,
