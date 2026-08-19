@@ -314,19 +314,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("parse space-host signing key: %w", err)
 	}
 
-	permStore := perms.NewStore(fgaStore)
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
-	validator := authn.NewValidator(
-		oauthServer,
-		serviceAuth,
-		spaceCredential,
-		authn.NewDelegationTokenAuthMethod(hiveDir, permStore, hostKey),
-		permStore,
-	)
-
-	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
-	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
-
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup clique store: %w", err)
@@ -353,6 +340,19 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	defer func() { _ = blobBucket.Close() }()
 	blobStore := spaces.NewBlobStore(blobBucket)
+
+	permStore := perms.NewStore(db, spacesStore, fgaStore)
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
+	validator := authn.NewValidator(
+		oauthServer,
+		serviceAuth,
+		spaceCredential,
+		authn.NewDelegationTokenAuthMethod(hiveDir, permStore, hostKey),
+		permStore,
+	)
+
+	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
+	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
 
 	// TODO: use this to validate the space credential in the spaces server
 	spacesServer := spaces_server.NewServer(
