@@ -430,13 +430,13 @@ func (s *store) ListRepos(
 
 func (s *store) PutRecord(
 	ctx context.Context,
-	uri habitat_syntax.SpaceURI,
+	spaceURI habitat_syntax.SpaceURI,
 	repo syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 	value map[string]any,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
-	ok, err := s.CheckSpaceExists(ctx, uri)
+	ok, err := s.CheckSpaceExists(ctx, spaceURI)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to get space: %w", err)
 	} else if !ok {
@@ -448,16 +448,18 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	cid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
+	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
+	newCidStr := newCid.String()
 
-	var recordUri habitat_syntax.SpaceRecordURI
+	var recordURI habitat_syntax.SpaceRecordURI
 	var newRev syntax.TID
 	var repoHash []byte
+	var skipped bool
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockRepo(tx, uri, repo); err != nil {
+		if err := lockRepo(tx, spaceURI, repo); err != nil {
 			return err
 		}
 		tid := s.clock.Next()
@@ -465,9 +467,9 @@ func (s *store) PutRecord(
 		if rkey == "" {
 			rkey = syntax.RecordKey(tid)
 		}
-		recordUri = habitat_syntax.ConstructSpaceRecordURI(uri, repo, collection, rkey)
+		recordURI = habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, collection, rkey)
 
-		h, _, _, err := loadRepoHash(tx, uri, repo)
+		h, _, _, err := loadRepoHash(tx, spaceURI, repo)
 		if err != nil {
 			return fmt.Errorf("failed to load repo hash: %w", err)
 		}
@@ -476,40 +478,44 @@ func (s *store) PutRecord(
 		var existing spaceRecord
 		err = tx.
 			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-				uri, repo, collection, rkey).
+				spaceURI, repo, collection, rkey).
 			First(&existing).Error
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("failed to get existing record: %w", err)
 		} else if err == nil {
+			// previous record exists
+			if newCidStr == existing.Cid {
+				// if the new cid is the same as the previous one, we don't update the rev
+				skipped = true
+				return nil
+			}
+			// otherwise, remove the prev element from hash
 			h.Remove(spacecommit.RecordElement(collection, rkey, existing.Cid))
 		}
-		h.Add(spacecommit.RecordElement(collection, rkey, cid.String()))
-		if err := saveRepoHash(tx, uri, repo, h, tid); err != nil {
+		h.Add(spacecommit.RecordElement(collection, rkey, newCidStr))
+		if err := saveRepoHash(tx, spaceURI, repo, h, tid); err != nil {
 			return fmt.Errorf("failed to save repo hash: %w", err)
 		}
 		repoHash = h.Sum()
-		prevCid := ""
-		if err == nil {
-			prevCid = existing.Cid
-		}
-
 		return tx.Save(&spaceRecord{
 			Repo:       repo,
-			Space:      uri,
+			Space:      spaceURI,
 			Collection: collection,
 			Rkey:       rkey,
 			Value:      bytes,
 			Rev:        tid,
-			PrevCid:    prevCid,
-			Cid:        cid.String(),
+			PrevCid:    existing.Cid,
+			Cid:        newCidStr,
 		}).Error
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
-	// Best-effort: notify registered syncers that this repo advanced.
-	s.notifier.NotifyWrite(ctx, uri, repo, newRev, repoHash)
-	return recordUri, &cid, nil
+	if !skipped {
+		// Best-effort: notify registered syncers that this repo advanced.
+		s.notifier.NotifyWrite(ctx, spaceURI, repo, newRev, repoHash)
+	}
+	return recordURI, &newCid, nil
 }
 
 func (s *store) GetRecord(
