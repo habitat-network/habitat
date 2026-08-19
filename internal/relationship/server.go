@@ -85,7 +85,7 @@ func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
 		habitat.NetworkHabitatRelationshipWriteUserRelationOutput{Uri: uri.String()})
 }
 
-func (s *Server) DeleteTuple(w http.ResponseWriter, r *http.Request) {
+func (s *Server) DeleteRelation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var input habitat.NetworkHabitatRelationshipDeleteRelationInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -114,7 +114,7 @@ func (s *Server) DeleteTuple(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ListRelations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var params habitat.NetworkHabitatRelationshipListRelationsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {

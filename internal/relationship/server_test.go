@@ -77,7 +77,7 @@ func TestServer_WriteTuple_InvalidSubject(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestServer_DeleteTuple(t *testing.T) {
+func TestServer_DeleteRelation(t *testing.T) {
 	s, rel, sp := newTestServer(t, org)
 	space := newSpace(t, sp, docsType, "doc")
 	uri, err := rel.WriteTuple(t.Context(), UserSubject{DID: alice}, RoleReader, space)
@@ -86,11 +86,11 @@ func TestServer_DeleteTuple(t *testing.T) {
 	body := fmt.Sprintf(`{"uri":%q}`, uri.String())
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.deleteTuple",
+		"/xrpc/network.habitat.relationship.deleteRelation",
 		strings.NewReader(body),
 	)
 	w := httptest.NewRecorder()
-	s.DeleteTuple(w, req)
+	s.DeleteRelation(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
 	allowed, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, RoleReader, space)
@@ -98,19 +98,19 @@ func TestServer_DeleteTuple(t *testing.T) {
 	require.False(t, allowed)
 }
 
-func TestServer_DeleteTuple_BadURI(t *testing.T) {
+func TestServer_DeleteRelation_BadURI(t *testing.T) {
 	s, _, _ := newTestServer(t, org)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.deleteTuple",
+		"/xrpc/network.habitat.relationship.deleteRelation",
 		strings.NewReader(`{"uri":"not-a-uri"}`),
 	)
 	w := httptest.NewRecorder()
-	s.DeleteTuple(w, req)
+	s.DeleteRelation(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestServer_ListTuples(t *testing.T) {
+func TestServer_ListRelations(t *testing.T) {
 	s, rel, sp := newTestServer(t, org)
 	space := newSpace(t, sp, docsType, "doc")
 	_, err := rel.WriteTuple(t.Context(), UserSubject{DID: alice}, RoleReader, space)
@@ -119,8 +119,8 @@ func TestServer_ListTuples(t *testing.T) {
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
-	s.ListTuples(w, queryReq(
-		"/xrpc/network.habitat.relationship.listTuples",
+	s.ListRelations(w, queryReq(
+		"/xrpc/network.habitat.relationship.listRelations",
 		url.Values{"space": {space.String()}, "subjectType": {"user"}},
 	))
 	require.Equal(t, http.StatusOK, w.Code)
@@ -130,13 +130,13 @@ func TestServer_ListTuples(t *testing.T) {
 	require.Len(t, out.Relations, 2)
 }
 
-func TestServer_ListTuples_InvalidSubjectType(t *testing.T) {
+func TestServer_ListRelations_InvalidSubjectType(t *testing.T) {
 	s, _, sp := newTestServer(t, org)
 	space := newSpace(t, sp, docsType, "doc")
 
 	w := httptest.NewRecorder()
-	s.ListTuples(w, queryReq(
-		"/xrpc/network.habitat.relationship.listTuples",
+	s.ListRelations(w, queryReq(
+		"/xrpc/network.habitat.relationship.listRelations",
 		url.Values{"space": {space.String()}, "subjectType": {"clique"}},
 	))
 	require.Equal(t, http.StatusBadRequest, w.Code)
