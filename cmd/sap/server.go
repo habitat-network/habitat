@@ -93,15 +93,25 @@ func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusSeeOther)
 }
 
+// orgSession is the wire shape for each entry in handleListOrgs's response:
+// the tracked DID paired with the session ID sap resumes it with, so callers
+// (e.g. chalk) can drive handleProxy's Habitat-Session header without
+// guessing.
+type orgSession struct {
+	DID       syntax.DID `json:"did"`
+	SessionID string     `json:"sessionId"`
+}
+
 func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
-	orgs, err := s.sap.Sessions(r.Context())
+	sessions, err := s.sap.SessionList(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if orgs == nil {
-		orgs = []syntax.DID{}
+	orgs := make([]orgSession, len(sessions))
+	for i, sess := range sessions {
+		orgs[i] = orgSession{DID: sess.DID, SessionID: sess.SessionID}
 	}
 	httpx.WriteJSON(r.Context(), w, map[string]any{"orgs": orgs})
 }

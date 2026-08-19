@@ -126,6 +126,29 @@ func TestRedirectToReturnToRedirectsAndClearsPending(t *testing.T) {
 	require.Empty(t, srv.pendingReturnTo)
 }
 
+func TestHandleListOrgsIncludesSessionIDPerEntry(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	const testDID = syntax.DID("did:plc:testlistorgs")
+	const testSessionID = "session-abc"
+	require.NoError(t, srv.sap.AddSession(t.Context(), testDID, testSessionID))
+
+	req := httptest.NewRequest(http.MethodGet, "/org/list", nil)
+	w := httptest.NewRecorder()
+
+	srv.handleListOrgs(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body struct {
+		Orgs []orgSession `json:"orgs"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Equal(t, []orgSession{{DID: testDID, SessionID: testSessionID}}, body.Orgs)
+}
+
 func TestRedirectToReturnToNoPendingFallsBackToFalse(t *testing.T) {
 	t.Parallel()
 

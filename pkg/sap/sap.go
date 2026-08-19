@@ -236,6 +236,13 @@ func (s *Sap) Sessions(ctx context.Context) ([]syntax.DID, error) {
 	return dids, nil
 }
 
+// SessionList returns every tracked session as a (DID, session ID) pair, for
+// callers that need the session ID sap resumes each DID with, not just the
+// DID itself (e.g. cmd/sap's /org/list handler).
+func (s *Sap) SessionList(ctx context.Context) ([]session.Session, error) {
+	return s.sessions.List(ctx)
+}
+
 // NotifyWrite reacts to a host's notifyWrite: the repo advanced to rev with
 // commit hash (sha256 of its LtHash state; may be nil). The repo is synced
 // incrementally and re-verified.

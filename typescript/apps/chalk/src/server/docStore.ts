@@ -16,7 +16,7 @@ export class DocStore {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS docs (
         space_uri  TEXT PRIMARY KEY,
-        doc_id     TEXT NOT NULL,
+        doc_id     TEXT NOT NULL UNIQUE,
         owner_did  TEXT NOT NULL,
         title      TEXT NOT NULL,
         updated_at INTEGER NOT NULL
@@ -68,6 +68,20 @@ export class DocStore {
       )
       .all(...spaceUris);
     return rows.map(rowToSummary);
+  }
+
+  // docByDocId looks up a doc's summary (including its owner and space URI)
+  // by docId alone. Needed anywhere a caller only has the docId in hand — the
+  // member submitting an edit isn't necessarily the doc's owner, so their
+  // space URI can't be assumed from their own DID; it must come from here.
+  docByDocId(docId: string): DocSummary | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT doc_id AS docId, space_uri AS uri, owner_did AS ownerDid, title
+         FROM docs WHERE doc_id = ?`,
+      )
+      .get(docId);
+    return row ? rowToSummary(row) : undefined;
   }
 
   mergedState(spaceUri: string): Y.Doc | undefined {

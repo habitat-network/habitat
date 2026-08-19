@@ -30,6 +30,22 @@ describe("DocStore", () => {
     expect(store.docsByUris(["at://nope"])).toEqual([]);
   });
 
+  it("round-trips doc metadata by docId, and returns undefined for an unknown docId", () => {
+    store.upsertDoc({
+      spaceUri: "at://did:plc:owner/space/network.habitat.docs/abc",
+      docId: "abc",
+      ownerDid: "did:plc:owner",
+      title: "My Doc",
+    });
+    expect(store.docByDocId("abc")).toEqual({
+      docId: "abc",
+      uri: "at://did:plc:owner/space/network.habitat.docs/abc",
+      ownerDid: "did:plc:owner",
+      title: "My Doc",
+    });
+    expect(store.docByDocId("nope")).toBeUndefined();
+  });
+
   it("persists and reloads merged Yjs state for a space", () => {
     const spaceUri = "at://did:plc:owner/space/network.habitat.docs/abc";
     expect(store.mergedState(spaceUri)).toBeUndefined();
