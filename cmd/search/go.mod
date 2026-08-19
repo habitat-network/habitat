@@ -3,7 +3,7 @@ module github.com/habitat-network/habitat/cmd/search
 go 1.26.4
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca
+	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
 	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.12.0
 	github.com/testcontainers/testcontainers-go v0.44.0
@@ -88,7 +88,7 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 )
