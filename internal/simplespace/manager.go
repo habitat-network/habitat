@@ -3,7 +3,6 @@ package simplespace
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -14,44 +13,23 @@ import (
 	"gorm.io/gorm"
 )
 
-type space struct {
-	Owner     syntax.DID              `gorm:"primaryKey"`
-	Type      syntax.NSID             `gorm:"primaryKey"`
-	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
-	CreatedAt time.Time
-}
+type Manager struct {
+	db     *gorm.DB
+	spaces spaces.Store
 
-// Methods are analagous to those defined here: https://github.com/bluesky-social/proposals/tree/main/0016-permissioned-data#required-pds-space-management-simplespace
-type Manager interface {
-	// Space operations
-	CreateSpace(
-		ctx context.Context,
-		org syntax.DID,
-		creator syntax.DID,
-		spaceType syntax.NSID,
-		skey habitat_syntax.SpaceKey,
-	) (habitat_syntax.SpaceURI, error)
-	DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error
-
-	// Member operations
-	AddMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
-	RemoveMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
-	ListMembers(ctx context.Context, callerOrg syntax.DID /* todo: remove this when org membership uses spaces*/, space habitat_syntax.SpaceURI) ([]syntax.DID, error)
-}
-
-type manager struct {
-	db       *gorm.DB
-	spaces   spaces.Store
 	clock    *syntax.TIDClock
 	fga      fgastore.Store
 	notifier spaces.Notifier
 }
 
-var _ Manager = &manager{}
+var (
+	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
+	ErrSpaceAlreadyExists = errors.New("space already exists")
+)
 
 // WithTx implements [Manager], returning a manager whose DB operations run on tx.
-func (m *manager) WithTx(tx *gorm.DB) Manager {
-	return &manager{
+func (m *Manager) WithTx(tx *gorm.DB) *Manager {
+	return &Manager{
 		db:     tx,
 		spaces: m.spaces,
 		fga:    m.fga,
@@ -59,28 +37,20 @@ func (m *manager) WithTx(tx *gorm.DB) Manager {
 	}
 }
 
-var (
-	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
-	ErrSpaceNotFound      = errors.New("space not found")
-	ErrSpaceAlreadyExists = errors.New("space already exists")
-)
-
 // CreateSpace implements [Manager].
-func (m *manager) CreateSpace(ctx context.Context, org syntax.DID, creator syntax.DID, spaceType syntax.NSID, skey habitat_syntax.SpaceKey) (habitat_syntax.SpaceURI, error) {
-	if skey == "" {
-		// TODO: should this / does this need to be a TID?
-		skey = habitat_syntax.NewSkey(m.clock.Next())
-	}
+func (m *Manager) CreateSpace(
+	ctx context.Context,
+	org syntax.DID,
+	creator syntax.DID,
+	spaceType syntax.NSID,
+	skey habitat_syntax.SpaceKey,
+) (habitat_syntax.SpaceURI, error) {
 
+	var uri habitat_syntax.SpaceURI
 	err := m.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&space{
-			Owner: org,
-			Type:  spaceType,
-			Skey:  skey,
-		}).Error; err != nil {
-			if errors.Is(err, gorm.ErrDuplicatedKey) {
-				return ErrSpaceAlreadyExists
-			}
+		var err error
+		uri, err = m.spaces.WithTx(tx).CreateSpace(ctx, org, creator, spaceType, skey)
+		if err != nil {
 			return err
 		}
 
@@ -95,11 +65,11 @@ func (m *manager) CreateSpace(ctx context.Context, org syntax.DID, creator synta
 		return "", err
 	}
 
-	return habitat_syntax.ConstructSpaceURI(org, spaceType, skey), nil
+	return uri, nil
 }
 
 // DeleteSpace implements [Manager].
-func (m *manager) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
+func (m *Manager) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
 	// read the stored FGA tuples for this space before deleting anything,
 	// so we know exactly what tuples to delete
 	tuples, err := m.fga.Read(ctx, fgastore.Tuple{Object: fgastore.SpaceObjectKey(uri)})
@@ -109,19 +79,9 @@ func (m *manager) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) 
 
 	// everything after this point is idempotent — use a transaction
 	err = m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := m.spaces.WithTx(tx).DeleteSpaceRepos(ctx, uri)
+		err := m.spaces.WithTx(tx).DeleteSpace(ctx, uri)
 		if err != nil {
 			return err
-		}
-
-		deleteSpace := tx.
-			Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
-			Delete(&space{})
-		if deleteSpace.Error != nil {
-			return err
-		}
-		if deleteSpace.RowsAffected == 0 {
-			return ErrSpaceNotFound
 		}
 
 		// delete all stored FGA tuples for this space
@@ -150,7 +110,7 @@ func (m *manager) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) 
 }
 
 // ListMembers implements [Manager].
-func (m *manager) ListMembers(ctx context.Context, callerOrg syntax.DID, space habitat_syntax.SpaceURI) ([]syntax.DID, error) {
+func (m *Manager) ListMembers(ctx context.Context, callerOrg syntax.DID, space habitat_syntax.SpaceURI) ([]syntax.DID, error) {
 	users, err := m.fga.ListUsers(
 		ctx,
 		fgastore.SpaceObjectKey(space),
@@ -174,19 +134,14 @@ func (m *manager) ListMembers(ctx context.Context, callerOrg syntax.DID, space h
 }
 
 // AddMember implements [Manager].
-func (m *manager) AddMember(ctx context.Context, uri habitat_syntax.SpaceURI, did syntax.DID) error {
-	var sp space
-	err := m.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
-		First(&sp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrSpaceNotFound
-	} else if err != nil {
+func (m *Manager) AddMember(ctx context.Context, uri habitat_syntax.SpaceURI, did syntax.DID) error {
+	ok, err := m.spaces.CheckSpaceExists(ctx, uri)
+	if err != nil {
 		return err
+	} else if !ok {
+		return spaces.ErrSpaceNotFound
 	}
-	if did == uri.SpaceOwner() {
-		return nil
-	}
+
 	return m.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 		Writes: &openfgav1.WriteRequestWrites{
 			TupleKeys: []*openfgav1.TupleKey{
@@ -212,19 +167,16 @@ func (m *manager) AddMember(ctx context.Context, uri habitat_syntax.SpaceURI, di
 }
 
 // RemoveMember implements [Manager].
-func (m *manager) RemoveMember(ctx context.Context, uri habitat_syntax.SpaceURI, did syntax.DID) error {
+func (m *Manager) RemoveMember(ctx context.Context, uri habitat_syntax.SpaceURI, did syntax.DID) error {
 	if did == uri.SpaceOwner() {
 		return ErrCannotRemoveOrg
 	}
 
-	var sp space
-	err := m.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
-		First(&sp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrSpaceNotFound
-	} else if err != nil {
+	ok, err := m.spaces.CheckSpaceExists(ctx, uri)
+	if err != nil {
 		return err
+	} else if !ok {
+		return spaces.ErrSpaceNotFound
 	}
 
 	return m.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
@@ -246,7 +198,7 @@ func (m *manager) RemoveMember(ctx context.Context, uri habitat_syntax.SpaceURI,
 	})
 }
 
-func (m *manager) IsMember(
+func (m *Manager) IsMember(
 	ctx context.Context,
 	org syntax.DID,
 	uri habitat_syntax.SpaceURI,
