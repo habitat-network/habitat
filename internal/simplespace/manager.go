@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type Manager struct {
+type Store struct {
 	db     *gorm.DB
 	spaces spaces.Store
 
@@ -27,9 +27,24 @@ var (
 	ErrSpaceAlreadyExists = errors.New("space already exists")
 )
 
-// WithTx implements [Manager], returning a manager whose DB operations run on tx.
-func (m *Manager) WithTx(tx *gorm.DB) *Manager {
-	return &Manager{
+func NewStore(
+	db *gorm.DB,
+	spaces spaces.Store,
+	fga fgastore.Store,
+	notifier spaces.Notifier,
+) *Store {
+	return &Store{
+		db:       db,
+		spaces:   spaces,
+		clock:    syntax.NewTIDClock(0),
+		fga:      fga,
+		notifier: notifier,
+	}
+}
+
+// WithTx implements [Store], returning a manager whose DB operations run on tx.
+func (m *Store) WithTx(tx *gorm.DB) *Store {
+	return &Store{
 		db:     tx,
 		spaces: m.spaces,
 		fga:    m.fga,
@@ -37,8 +52,8 @@ func (m *Manager) WithTx(tx *gorm.DB) *Manager {
 	}
 }
 
-// CreateSpace implements [Manager].
-func (m *Manager) CreateSpace(
+// CreateSpace implements [Store].
+func (m *Store) CreateSpace(
 	ctx context.Context,
 	org syntax.DID,
 	creator syntax.DID,
@@ -50,7 +65,9 @@ func (m *Manager) CreateSpace(
 	err := m.db.Transaction(func(tx *gorm.DB) error {
 		var err error
 		uri, err = m.spaces.WithTx(tx).CreateSpace(ctx, org, creator, spaceType, skey)
-		if err != nil {
+		if errors.Is(err, spaces.ErrSpaceAlreadyExists) {
+			return ErrSpaceAlreadyExists
+		} else if err != nil {
 			return err
 		}
 
@@ -58,7 +75,7 @@ func (m *Manager) CreateSpace(
 			ctx,
 			fgastore.MemberUserString(creator),
 			fgastore.RelationSpaceOwner,
-			fgastore.SpaceObjectKey(habitat_syntax.ConstructSpaceURI(org, spaceType, skey)),
+			fgastore.SpaceObjectKey(uri),
 		)
 	})
 	if err != nil {
@@ -68,8 +85,8 @@ func (m *Manager) CreateSpace(
 	return uri, nil
 }
 
-// DeleteSpace implements [Manager].
-func (m *Manager) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
+// DeleteSpace implements [Store].
+func (m *Store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
 	// read the stored FGA tuples for this space before deleting anything,
 	// so we know exactly what tuples to delete
 	tuples, err := m.fga.Read(ctx, fgastore.Tuple{Object: fgastore.SpaceObjectKey(uri)})
@@ -109,8 +126,12 @@ func (m *Manager) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) 
 	return nil
 }
 
-// ListMembers implements [Manager].
-func (m *Manager) ListMembers(ctx context.Context, callerOrg syntax.DID, space habitat_syntax.SpaceURI) ([]syntax.DID, error) {
+// ListMembers implements [Store].
+func (m *Store) ListMembers(
+	ctx context.Context,
+	callerOrg syntax.DID,
+	space habitat_syntax.SpaceURI,
+) ([]syntax.DID, error) {
 	users, err := m.fga.ListUsers(
 		ctx,
 		fgastore.SpaceObjectKey(space),
@@ -133,8 +154,8 @@ func (m *Manager) ListMembers(ctx context.Context, callerOrg syntax.DID, space h
 	return dids, nil
 }
 
-// AddMember implements [Manager].
-func (m *Manager) AddMember(ctx context.Context, uri habitat_syntax.SpaceURI, did syntax.DID) error {
+// AddMember implements [Store].
+func (m *Store) AddMember(ctx context.Context, uri habitat_syntax.SpaceURI, did syntax.DID) error {
 	ok, err := m.spaces.CheckSpaceExists(ctx, uri)
 	if err != nil {
 		return err
@@ -166,8 +187,12 @@ func (m *Manager) AddMember(ctx context.Context, uri habitat_syntax.SpaceURI, di
 	})
 }
 
-// RemoveMember implements [Manager].
-func (m *Manager) RemoveMember(ctx context.Context, uri habitat_syntax.SpaceURI, did syntax.DID) error {
+// RemoveMember implements [Store].
+func (m *Store) RemoveMember(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	did syntax.DID,
+) error {
 	if did == uri.SpaceOwner() {
 		return ErrCannotRemoveOrg
 	}
@@ -198,7 +223,7 @@ func (m *Manager) RemoveMember(ctx context.Context, uri habitat_syntax.SpaceURI,
 	})
 }
 
-func (m *Manager) IsMember(
+func (m *Store) IsMember(
 	ctx context.Context,
 	org syntax.DID,
 	uri habitat_syntax.SpaceURI,

@@ -336,7 +336,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	spacesStore, err := spaces.NewStore(
 		db.WithContext(startupCtx),
-		fgaStore,
 		notifier,
 		spacecommit.NewAuthority(hostKey, hive),
 	)
@@ -352,12 +351,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	blobStore := spaces.NewBlobStore(blobBucket)
 
 	// TODO: use this to validate the space credential in the spaces server
-
 	spacesServer := spaces.NewServer(
 		spacesStore,
-		fgaStore,
 		validator,
-		orgStore,
 		hostKey,
 		hive,
 		blobStore,

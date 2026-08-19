@@ -17,9 +17,17 @@ import (
 )
 
 type Server struct {
-	mgr       *Manager
+	store     *Store
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
+}
+
+func NewServer(store *Store, validator authn.RequestValidator) *Server {
+	return &Server{
+		store:     store,
+		validator: validator,
+		decoder:   schema.NewDecoder(),
+	}
 }
 
 // Copied as-is from internal/spaces/server.go on main — needs to be adapted
@@ -51,18 +59,20 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		}
 		skey = parsedKey
 	}
+
+	callerOrg := credInfo.Org.DID()
 	if input.Did != "" {
 		parsedDID, ok := httpx.ParseDIDInput(ctx, w, input.Did, "did")
 		if !ok {
 			return
 		}
-		if parsedDID != credInfo.Subject && parsedDID != credInfo.Org.DID() {
+		if parsedDID != credInfo.Subject && parsedDID != callerOrg {
 			httpx.WriteInvalidRequest(ctx, w, "only caller did or caller org are allowed", nil)
 			return
 		}
 	}
 
-	uri, err := s.mgr.CreateSpace(ctx, credInfo.Org.DID(), credInfo.Subject, spaceType, skey)
+	uri, err := s.store.CreateSpace(ctx, callerOrg, credInfo.Subject, spaceType, skey)
 	if errors.Is(err, ErrSpaceAlreadyExists) {
 		httpx.WriteError(ctx, w, "SpaceAlreadyExists", "" /* msg */, http.StatusBadRequest)
 		return
@@ -97,7 +107,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := s.mgr.AddMember(r.Context(), spaceURI, memberDID)
+	err := s.store.AddMember(r.Context(), spaceURI, memberDID)
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
@@ -131,7 +141,7 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := s.mgr.RemoveMember(r.Context(), spaceURI, memberDID)
+	err := s.store.RemoveMember(r.Context(), spaceURI, memberDID)
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
@@ -164,7 +174,7 @@ func (s *Server) ListMembers(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dids, err := s.mgr.ListMembers(ctx, credInfo.Org.DID(), spaceURI)
+	dids, err := s.store.ListMembers(ctx, credInfo.Org.DID(), spaceURI)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list members: %w", err))
 		return
@@ -195,7 +205,7 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := s.mgr.DeleteSpace(ctx, spaceURI)
+	err := s.store.DeleteSpace(ctx, spaceURI)
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(r.Context(), w, err)
 		return

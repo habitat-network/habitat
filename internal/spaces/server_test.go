@@ -25,12 +25,13 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/did"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/org"
-	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 type testServerOptions struct {
@@ -64,7 +65,6 @@ func newTestServerWithOpts(t *testing.T, opts testServerOptions) *testServer {
 		Server: spaces.NewServer(
 			opts.store,
 			opts.validator,
-			org_testutil.NewTestStore(t),
 			opts.hostKey,
 			h,
 			spaces.NewBlobStore(memblob.OpenBucket(nil)),
@@ -395,6 +395,27 @@ func TestServer_GetRepo_RepoNotFound(t *testing.T) {
 
 	require.Equal(t, http.StatusNotFound, w.Code)
 	require.JSONEq(t, `{"error":"RepoNotFound"}`, w.Body.String())
+}
+
+// TestServer_GetRepo_SpaceNotFound distinguishes an unknown space (400,
+// SpaceNotFound) from a known space with no repo (404, RepoNotFound, above).
+func TestServer_GetRepo_SpaceNotFound(t *testing.T) {
+	s := newTestServerWithOpts(
+		t,
+		testServerOptions{},
+	)
+
+	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+owner.String(),
+		http.NoBody,
+	)
+	w := httptest.NewRecorder()
+	s.GetRepo(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.JSONEq(t, `{"error":"SpaceNotFound"}`, w.Body.String())
 }
 
 func TestServer_PutRecord_Unauthorized(t *testing.T) {
@@ -732,6 +753,16 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 	everyoneOrg := org.NewEveryoneOrg("everyone.example.com")
 	uri, err := s.Store.CreateSpace(t.Context(), everyoneOrg.DID(), owner, groupType, "test")
 	require.NoError(t, err)
+	// The store no longer grants the creator access as a side effect of
+	// CreateSpace (that's simplespace.Manager's job); write the owner tuple
+	// directly so the delegation/credential checks below have something to
+	// authorize against.
+	require.NoError(t, s.Store.FGA.Write(
+		t.Context(),
+		fgastore.MemberUserString(owner),
+		fgastore.RelationSpaceOwner,
+		fgastore.SpaceObjectKey(uri),
+	))
 
 	// Both tokens are minted with the host key (the space owner is external), so
 	// the directory resolves the owner's atproto_space key and the delegation

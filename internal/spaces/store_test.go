@@ -1,6 +1,7 @@
 package spaces_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -307,6 +308,18 @@ func TestPutAndGetRecord(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, val, rec.Value)
 	require.Equal(t, syntax.RecordKey("my-rkey"), rec.Rkey)
+}
+
+// TestPutRecord_SpaceNotFound pins that PutRecord refuses to write into a
+// space that was never created, rather than silently creating an orphaned
+// record row.
+func TestPutRecord_SpaceNotFound(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
 func TestPutRecord_UpdateExisting(t *testing.T) {
@@ -678,4 +691,35 @@ func TestPutRecordNotifiesRepoHash(t *testing.T) {
 	expected.Add(spacecommit.RecordElement(coll, "k1", cid1.String()))
 	expected.Add(spacecommit.RecordElement(coll, "k2", cid2.String()))
 	require.Equal(t, expected.Sum(), s.Notifier.Writes[1].Hash)
+}
+
+// TestListRepoOps_RevTooFar pins that a since cursor beyond the repo's actual
+// head is rejected rather than treated as an empty page — a caller ahead of
+// the host (e.g. after a host rollback) must fall back to a full resync
+// instead of silently stalling.
+func TestListRepoOps_RevTooFar(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+
+	// A TID-like string that sorts after any real TID (base32 is a-z + 2-7).
+	ahead := strings.Repeat("z", 13)
+	_, _, err = s.ListRepoOps(t.Context(), uri, owner, ahead, 100)
+	require.ErrorIs(t, err, spaces.ErrRevTooFar)
+}
+
+// TestRepoSnapshot_SpaceNotFound pins that RepoSnapshot — the read path
+// behind getRepo — reports ErrSpaceNotFound for a space that was never
+// created, distinct from an empty repo within an existing space.
+func TestRepoSnapshot_SpaceNotFound(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
+	_, _, err := s.RepoSnapshot(t.Context(), uri, owner)
+	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }

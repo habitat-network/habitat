@@ -21,7 +21,6 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/org"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -30,7 +29,6 @@ type Server struct {
 	store     Store
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
-	orgStore  org.Store
 	hive      hive.Hive
 	blobs     BlobStore
 	hostKey   atcrypto.PrivateKey
@@ -43,7 +41,6 @@ type Server struct {
 func NewServer(
 	store Store,
 	validator authn.RequestValidator,
-	orgStore org.Store,
 	hostPrivateKey atcrypto.PrivateKey,
 	hive hive.Hive,
 	blobs BlobStore,
@@ -51,7 +48,6 @@ func NewServer(
 	return &Server{
 		store:     store,
 		decoder:   schema.NewDecoder(),
-		orgStore:  orgStore,
 		hive:      hive,
 		blobs:     blobs,
 		hostKey:   hostPrivateKey,
