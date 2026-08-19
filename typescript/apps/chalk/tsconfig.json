@@ -1,0 +1,17 @@
+{
+  "extends": "../../../tsconfig.options.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["vite/client"],
+    "outDir": "../../../.moon/cache/types/typescript/apps/chalk"
+  },
+  "include": ["src/**/*", "../../globals.d.ts"],
+  "references": [
+    {
+      "path": "../../internal"
+    }
+  ]
+}

@@ -20,6 +20,11 @@ docsv2.local.habitat.network {
 	tls internal
 }
 
+chalk.local.habitat.network {
+	reverse_proxy 127.0.0.1:5177
+	tls internal
+}
+
 # Docs server: holds the org credential, persists canonical docs via pear, and
 # serves its did:web doc so pear can resolve did:web:docs-server.local.habitat.network
 # and forward network.habitat.doc.* calls to it.

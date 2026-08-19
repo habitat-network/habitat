@@ -21,6 +21,9 @@
       "path": "./typescript/apps/docs-server"
     },
     {
+      "path": "./typescript/apps/chalk"
+    },
+    {
       "path": "./typescript/apps/docsv2"
     },
     {
