@@ -5,7 +5,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "outDir": "../../../.moon/cache/types/typescript/apps/chalk"
   },
   "include": ["src/**/*", "../../globals.d.ts"],
