@@ -18,7 +18,7 @@ import (
 
 // tupleCollection is the reserved collection holding tuple records within the
 // governing space.
-var tupleCollection = syntax.NSID(habitat_syntax.ReservedRelationshipTupleNSID)
+var tupleCollection = syntax.NSID("network.habitat.relationship.tuple")
 
 // TupleView is a decoded relationship tuple together with its record URI.
 type TupleView struct {

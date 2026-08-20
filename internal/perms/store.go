@@ -113,7 +113,7 @@ func (s *store) AddUserRelation(
 		}
 		var err error
 		uri, _, err = s.spaces.WithTx(tx).
-			PutRecord(ctx, space, space.SpaceOwner(), habitat_syntax.UserRelationCollection, "" /* rkey should be generated */, record)
+			PutRecord(ctx, space, space.SpaceOwner(), habitat_syntax.UserRelationCollection, userRelationRkey(did, role), record)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
 		}
@@ -161,7 +161,7 @@ func (s *store) AddSpaceRoleRelation(
 		}
 		var err error
 		uri, _, err = s.spaces.WithTx(tx).
-			PutRecord(ctx, object, object.SpaceOwner(), habitat_syntax.SpaceRelationCollection, "" /* rkey should be generated */, record)
+			PutRecord(ctx, object, object.SpaceOwner(), habitat_syntax.SpaceRelationCollection, spaceRelationRkey(subject, subjectRole, objectRole), record)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
 		}
@@ -196,24 +196,12 @@ func (s *store) RevokeUserRelation(
 ) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		collection := syntax.NSID(habitat_syntax.UserRelationCollection)
-		records, err := s.spaces.WithTx(tx).ListRecords(ctx, space, space.SpaceOwner(), &collection)
-		if err != nil {
-			return fmt.Errorf("err listing relationship records: %w", err)
+		if err := s.spaces.WithTx(tx).
+			DeleteRecord(ctx, space, space.SpaceOwner(), collection, userRelationRkey(did, role).String()); err != nil {
+			return fmt.Errorf("err deleting relationship record: %w", err)
 		}
 
-		for _, record := range records {
-			subject, _ := record.Value["subject"].(string)
-			relation, _ := record.Value["relation"].(string)
-			if subject != did.String() || relation != string(role) {
-				continue
-			}
-			if err := s.spaces.WithTx(tx).
-				DeleteRecord(ctx, space, space.SpaceOwner(), collection, record.Rkey.String()); err != nil {
-				return fmt.Errorf("err deleting relationship record: %w", err)
-			}
-		}
-
-		err = s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+		err := s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 			Deletes: &openfgav1.WriteRequestDeletes{
 				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
 					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
@@ -242,27 +230,13 @@ func (s *store) RevokeSpaceRoleRelation(
 ) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		collection := syntax.NSID(habitat_syntax.SpaceRelationCollection)
-		records, err := s.spaces.WithTx(tx).
-			ListRecords(ctx, objectSpace, objectSpace.SpaceOwner(), &collection)
-		if err != nil {
-			return fmt.Errorf("err listing relationship records: %w", err)
+		rkey := spaceRelationRkey(subjectSpace, subjectRole, objectRole)
+		if err := s.spaces.WithTx(tx).
+			DeleteRecord(ctx, objectSpace, objectSpace.SpaceOwner(), collection, rkey.String()); err != nil {
+			return fmt.Errorf("err deleting relationship record: %w", err)
 		}
 
-		for _, record := range records {
-			subject, _ := record.Value["subject"].(string)
-			role, _ := record.Value["subjectRole"].(string)
-			relation, _ := record.Value["relation"].(string)
-			if subject != subjectSpace.String() || role != string(subjectRole) ||
-				relation != string(objectRole) {
-				continue
-			}
-			if err := s.spaces.WithTx(tx).
-				DeleteRecord(ctx, objectSpace, objectSpace.SpaceOwner(), collection, record.Rkey.String()); err != nil {
-				return fmt.Errorf("err deleting relationship record: %w", err)
-			}
-		}
-
-		err = s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+		err := s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 			Deletes: &openfgav1.WriteRequestDeletes{
 				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
 					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(

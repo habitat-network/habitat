@@ -188,7 +188,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
+	if habitat_syntax.ReservedCollections.Contains(collection) {
 		httpx.WriteInvalidRequest(ctx, w,
 			"relationship tuples must be managed via network.habitat.relationship.* endpoints", nil)
 		return
@@ -623,8 +623,8 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
-		httpx.WriteInvalidRequest(ctx, w, "invalid collection", nil)
+	if habitat_syntax.ReservedCollections.Contains(collection) {
+		httpx.WriteInvalidRequest(ctx, w, "relationship collections must be managed by network.habitat.relationship.* lexicons", nil)
 		return
 	}
 	if err := s.store.DeleteRecord(ctx, spaceURI, repo, collection, input.Rkey); err != nil {
