@@ -103,7 +103,7 @@ const api: OpenAPIV3_1.Document = {
     },
     servers: [
         {
-            url: "https://habitat-953995456319.us-west1.run.app/xrpc/", // TODO: should this be hitting dev server locally for generation from a given branch?
+            url: "https://pear.habitat.network/xrpc/", // TODO: should this be hitting dev server locally for generation from a given branch?
             description: "Habitat XRPC server",
         },
     ],

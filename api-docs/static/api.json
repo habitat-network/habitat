@@ -12,7 +12,7 @@
   },
   "servers": [
     {
-      "url": "https://habitat-953995456319.us-west1.run.app/xrpc/",
+      "url": "https://pear.habitat.network/xrpc/",
       "description": "Habitat XRPC server"
     }
   ],
