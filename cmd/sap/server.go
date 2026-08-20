@@ -128,17 +128,12 @@ type orgSession struct {
 }
 
 func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
-	sessions, err := s.sap.SessionList(r.Context())
+	sessions, err := s.sap.Sessions(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	orgs := make([]orgSession, len(sessions))
-	for i, sess := range sessions {
-		orgs[i] = orgSession{DID: sess.DID, SessionID: sess.SessionID}
-	}
-	httpx.WriteJSON(r.Context(), w, map[string]any{"orgs": orgs})
+	httpx.WriteJSON(r.Context(), w, map[string]any{"sessions": sessions})
 }
 
 // handleTrackSpace tells sap to start tracking a space it wouldn't discover
