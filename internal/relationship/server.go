@@ -183,6 +183,8 @@ func (s *Server) CheckUserRelation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Is this correct? We need to pass in the org for the subject to make the contextual
+	// tuple. Temporary until org members + admins get built on top of spaces.
 	org, err := s.orgStore.GetOrgForDID(ctx, subject)
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to lookup subject org", err)
