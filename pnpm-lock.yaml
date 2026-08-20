@@ -716,7 +716,7 @@ importers:
         version: 1.31.0(react@19.2.8)
       openid-client:
         specifier: ^6.8.4
-        version: 6.8.5
+        version: 6.8.6
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -8096,8 +8096,8 @@ packages:
     resolution: {integrity: sha512-ur5UIdyw5Y7yEj9wLzhqXiy6GZ3Mwx0yGI+5sMn2r0N0v3cKJvUmFH5yPP+WXh9e0xfyzyJX95D8l088DNFj7A==}
     hasBin: true
 
-  openid-client@6.8.5:
-    resolution: {integrity: sha512-jNGC/5wnTYwCcEUe2ss0IRUmVRQcgxM0A1nLb3eX/9llqNbMWOQd2xd+qDAgfVCpA5Qh96Y1cdnkfbva6+bSdA==}
+  openid-client@6.8.6:
+    resolution: {integrity: sha512-lsfMRH/GCgMiGCRnBRY3e70uogkgOessPaTOhP3rw/dxqNOZHwOazWx+m6jt5EVk3ecRFULl0TwWpk9Qnw3RKQ==}
 
   ora@8.2.0:
     resolution: {integrity: sha512-weP+BZ8MVNnlCm8c0Qdc1WSWq4Qn7I+9CJGm7Qali6g44e/PUzbjNqJX5NJ9ljlNMosfJvg1fKEGILklK9cwnw==}
@@ -19787,7 +19787,7 @@ snapshots:
 
   opener@1.5.2: {}
 
-  openid-client@6.8.5:
+  openid-client@6.8.6:
     dependencies:
       jose: 6.2.9
       oauth4webapi: 3.8.7
