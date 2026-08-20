@@ -4,6 +4,8 @@ github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb h1:OYUfO21BK
 github.com/bluesky-social/indigo v0.0.0-20260730171912-8b43a326dbbb/go.mod h1:JqQkz8lrOI6YZivP38GHmtVOTtzsNToITKj1gMpU5Jo=
 github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca h1:m2SWrfazOxAhaTswzyArZzu/p5mF/ZITuNJeYoksfJw=
 github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca/go.mod h1:JqQkz8lrOI6YZivP38GHmtVOTtzsNToITKj1gMpU5Jo=
+github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8 h1:1XlQuzQET2IfYe1L5ocryJfgu16n06vbZT9m/2v+uRI=
+github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8/go.mod h1:KPPt/XGxkleEK0xJ/AzAXau2KDiobqTRQjzL39fuvxg=
 github.com/cpuguy83/go-md2man/v2 v2.0.7 h1:zbFlGlXEAKlwXpmvle3d8Oe3YnkKIK4xSRTd3sHPnBo=
 github.com/cpuguy83/go-md2man/v2 v2.0.7/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
