@@ -482,11 +482,52 @@ func (s *store) ListObjects(
 }
 
 // DeleteRelation implements [Store].
-//
-// TODO: not yet implemented — resolve uri to the record it points at, decode
-// its (subject[, subjectRole], relation) fields, and call the matching
-// Revoke* method. Should return ErrRelationNotFound if no record exists at
-// uri.
 func (s *store) DeleteRelation(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error {
-	return errors.New("perms: DeleteRelation not implemented")
+	space := uri.SpaceURI()
+	collection := uri.Collection()
+
+	record, err := s.spaces.GetRecord(ctx, space, space.SpaceOwner(), collection, uri.Rkey())
+	if errors.Is(err, spaces.ErrRecordNotFound) {
+		return ErrRelationNotFound
+	} else if err != nil {
+		return fmt.Errorf("perms: get relation record: %w", err)
+	}
+
+	switch collection {
+	case habitat_syntax.UserRelationCollection:
+		subjectStr, _ := record.Value["subject"].(string)
+		relationStr, _ := record.Value["relation"].(string)
+		did, err := syntax.ParseDID(subjectStr)
+		if err != nil {
+			return fmt.Errorf("perms: invalid subject did in relation record: %w", err)
+		}
+		err = s.RevokeUserRelation(ctx, did, space, habitat_syntax.SpaceRole(relationStr))
+		if err != nil {
+			return fmt.Errorf("revoking user relation: %w", err)
+		}
+		return nil
+
+	case habitat_syntax.SpaceRelationCollection:
+		subjectStr, _ := record.Value["subject"].(string)
+		subjectRoleStr, _ := record.Value["subjectRole"].(string)
+		relationStr, _ := record.Value["relation"].(string)
+		subject, err := habitat_syntax.ParseSpaceURI(subjectStr)
+		if err != nil {
+			return fmt.Errorf("perms: invalid subject space uri in relation record: %w", err)
+		}
+		err = s.RevokeSpaceRoleRelation(
+			ctx,
+			subject,
+			habitat_syntax.SpaceRole(subjectRoleStr),
+			space,
+			habitat_syntax.SpaceRole(relationStr),
+		)
+		if err != nil {
+			return fmt.Errorf("revoking space relation: %w", err)
+		}
+		return nil
+
+	default:
+	}
+	return ErrRelationNotFound
 }

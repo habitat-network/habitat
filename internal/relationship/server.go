@@ -329,16 +329,6 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipListObjectsOutput{Spaces: out})
 }
 
-// relationCollections are the two record collections listRelations reads
-// from directly via the spaces store: perms.Store's List* methods do
-// FGA-expanded lookups (usersets, implicit grantees), not raw record
-// listing, so listRelations — the interoperable read surface other apps use
-// to see the actual stored relation records — bypasses it.
-var relationCollections = [2]syntax.NSID{
-	syntax.NSID(habitat_syntax.UserRelationCollection),
-	syntax.NSID(habitat_syntax.SpaceRelationCollection),
-}
-
 func (s *Server) ListRelations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var params habitat.NetworkHabitatRelationshipListRelationsParams
@@ -399,7 +389,7 @@ func (s *Server) listUserRelationViews(
 	space habitat_syntax.SpaceURI,
 	params habitat.NetworkHabitatRelationshipListRelationsParams,
 ) ([]any, error) {
-	collection := relationCollections[0]
+	collection := habitat_syntax.UserRelationCollection
 	records, err := s.spaces.ListRecords(ctx, space, space.SpaceOwner(), &collection)
 	if err != nil {
 		return nil, err
@@ -433,7 +423,7 @@ func (s *Server) listSpaceRelationViews(
 	space habitat_syntax.SpaceURI,
 	params habitat.NetworkHabitatRelationshipListRelationsParams,
 ) ([]any, error) {
-	collection := relationCollections[1]
+	collection := habitat_syntax.SpaceRelationCollection
 	records, err := s.spaces.ListRecords(ctx, space, space.SpaceOwner(), &collection)
 	if err != nil {
 		return nil, err

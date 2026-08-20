@@ -377,6 +377,60 @@ func TestStoreSpaceRoleRelation(t *testing.T) {
 	})
 }
 
+func TestStoreDeleteRelation(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+	group := newSpace(t, s.spaces, groupType, "team")
+	doc := newSpace(t, s.spaces, docsType, "doc1")
+
+	t.Run("deletes a user relation and revokes access", func(t *testing.T) {
+		uri, err := s.AddUserRelation(ctx, alice, doc, habitat_syntax.SpaceRoleReader)
+		require.NoError(t, err)
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader, org)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		require.NoError(t, s.DeleteRelation(ctx, uri))
+
+		ok, err = s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader, org)
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("deletes a space-role relation and revokes access", func(t *testing.T) {
+		_, err := s.AddUserRelation(ctx, bob, group, habitat_syntax.SpaceRoleReader)
+		require.NoError(t, err)
+		uri, err := s.AddSpaceRoleRelation(
+			ctx,
+			group,
+			habitat_syntax.SpaceRoleReader,
+			doc,
+			habitat_syntax.SpaceRoleReader,
+		)
+		require.NoError(t, err)
+		ok, err := s.CheckUserHasSpaceRole(ctx, bob, doc, habitat_syntax.SpaceRoleReader, org)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		require.NoError(t, s.DeleteRelation(ctx, uri))
+
+		ok, err = s.CheckUserHasSpaceRole(ctx, bob, doc, habitat_syntax.SpaceRoleReader, org)
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("returns ErrRelationNotFound when no record exists at uri", func(t *testing.T) {
+		uri := habitat_syntax.ConstructSpaceRecordURI(
+			doc,
+			doc.SpaceOwner(),
+			habitat_syntax.UserRelationCollection,
+			syntax.RecordKey("nonexistent"),
+		)
+		err := s.DeleteRelation(ctx, uri)
+		require.ErrorIs(t, err, ErrRelationNotFound)
+	})
+}
+
 func TestStoreUnsafeRevokeAllSpaceRoles(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
