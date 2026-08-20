@@ -112,7 +112,7 @@ func (s *store) AddUserRelation(
 		}
 		var err error
 		uri, _, err = s.spaces.WithTx(tx).
-			PutRecord(ctx /* TODO should i use tx.Statement.Context */, space, space.SpaceOwner(), habitat_syntax.UserRelationCollection, "" /* rkey should be generated */, record)
+			PutRecord(ctx, space, space.SpaceOwner(), habitat_syntax.UserRelationCollection, "" /* rkey should be generated */, record)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
 		}
@@ -160,7 +160,7 @@ func (s *store) AddSpaceRoleRelation(
 		}
 		var err error
 		uri, _, err = s.spaces.WithTx(tx).
-			PutRecord(ctx /* TODO should i use tx.Statement.Context */, object, object.SpaceOwner(), habitat_syntax.SpaceRelationCollection, "" /* rkey should be generated */, record)
+			PutRecord(ctx, object, object.SpaceOwner(), habitat_syntax.SpaceRelationCollection, "" /* rkey should be generated */, record)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
 		}
@@ -297,8 +297,7 @@ func (s *store) UnsafeRevokeAllSpaceRoles(
 	}
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		for _, collectionName := range []string{habitat_syntax.UserRelationCollection, habitat_syntax.SpaceRelationCollection} {
-			collection := syntax.NSID(collectionName)
+		for _, collection := range []syntax.NSID{habitat_syntax.UserRelationCollection, habitat_syntax.SpaceRelationCollection} {
 			records, err := s.spaces.WithTx(tx).
 				ListRecords(ctx, space, space.SpaceOwner(), &collection)
 			if err != nil {
