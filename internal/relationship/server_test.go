@@ -23,9 +23,9 @@ import (
 )
 
 var (
-	org   = syntax.DID("did:plc:org")
-	alice = syntax.DID("did:plc:alice")
-	bob   = syntax.DID("did:plc:bob")
+	testOrg = syntax.DID("did:plc:org")
+	alice   = syntax.DID("did:plc:alice")
+	bob     = syntax.DID("did:plc:bob")
 
 	docsType  = syntax.NSID("network.habitat.docs")
 	groupType = syntax.NSID("network.habitat.group")
@@ -58,7 +58,7 @@ func newSpace(
 	skey string,
 ) habitat_syntax.SpaceURI {
 	t.Helper()
-	uri, err := sp.CreateSpace(t.Context(), org, org, spaceType, habitat_syntax.SpaceKey(skey))
+	uri, err := sp.CreateSpace(t.Context(), testOrg, testOrg, spaceType, habitat_syntax.SpaceKey(skey))
 	require.NoError(t, err)
 	return uri
 }
@@ -69,7 +69,7 @@ func queryReq(path string, params url.Values) *http.Request {
 
 func TestServer_WriteUserRelation(t *testing.T) {
 	// caller is the org (space owner), so it has the manager role implicitly.
-	s, ps, sp := newTestServer(t, org)
+	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 
 	body := fmt.Sprintf(
@@ -90,14 +90,14 @@ func TestServer_WriteUserRelation(t *testing.T) {
 	require.NotEmpty(t, out.Uri)
 
 	allowed, err := ps.CheckUserHasSpaceRole(
-		t.Context(), alice, space, habitat_syntax.SpaceRoleReader,
+		t.Context(), alice, space, habitat_syntax.SpaceRoleReader, testOrg,
 	)
 	require.NoError(t, err)
 	require.True(t, allowed)
 }
 
 func TestServer_WriteUserRelation_BadBody(t *testing.T) {
-	s, _, _ := newTestServer(t, org)
+	s, _, _ := newTestServer(t, testOrg)
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/xrpc/network.habitat.relationship.writeUserRelation",
@@ -109,7 +109,7 @@ func TestServer_WriteUserRelation_BadBody(t *testing.T) {
 }
 
 func TestServer_WriteUserRelation_BadSpace(t *testing.T) {
-	s, _, _ := newTestServer(t, org)
+	s, _, _ := newTestServer(t, testOrg)
 	body := fmt.Sprintf(
 		`{"subject":%q,"relation":"reader","space":"not-a-space"}`,
 		alice.String(),
@@ -125,7 +125,7 @@ func TestServer_WriteUserRelation_BadSpace(t *testing.T) {
 }
 
 func TestServer_WriteUserRelation_InvalidRelation(t *testing.T) {
-	s, _, sp := newTestServer(t, org)
+	s, _, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 	body := fmt.Sprintf(
 		`{"subject":%q,"relation":"bogus","space":%q}`,
@@ -142,7 +142,7 @@ func TestServer_WriteUserRelation_InvalidRelation(t *testing.T) {
 }
 
 func TestServer_WriteSpaceRelation(t *testing.T) {
-	s, ps, sp := newTestServer(t, org)
+	s, ps, sp := newTestServer(t, testOrg)
 	group := newSpace(t, sp, groupType, "team")
 	space := newSpace(t, sp, docsType, "doc")
 
@@ -173,7 +173,7 @@ func TestServer_WriteSpaceRelation(t *testing.T) {
 }
 
 func TestServer_WriteSpaceRelation_InvalidSubjectRole(t *testing.T) {
-	s, _, sp := newTestServer(t, org)
+	s, _, sp := newTestServer(t, testOrg)
 	group := newSpace(t, sp, groupType, "team")
 	space := newSpace(t, sp, docsType, "doc")
 	body := fmt.Sprintf(
@@ -191,7 +191,7 @@ func TestServer_WriteSpaceRelation_InvalidSubjectRole(t *testing.T) {
 }
 
 func TestServer_DeleteRelation_BadURI(t *testing.T) {
-	s, _, _ := newTestServer(t, org)
+	s, _, _ := newTestServer(t, testOrg)
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/xrpc/network.habitat.relationship.deleteRelation",
@@ -203,7 +203,7 @@ func TestServer_DeleteRelation_BadURI(t *testing.T) {
 }
 
 func TestServer_ListRelations(t *testing.T) {
-	s, ps, sp := newTestServer(t, org)
+	s, ps, sp := newTestServer(t, testOrg)
 	group := newSpace(t, sp, groupType, "team")
 	space := newSpace(t, sp, docsType, "doc")
 	_, err := ps.AddUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
@@ -266,7 +266,7 @@ func TestServer_ListRelations(t *testing.T) {
 }
 
 func TestServer_ListRelations_InvalidSubjectType(t *testing.T) {
-	s, _, sp := newTestServer(t, org)
+	s, _, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 
 	w := httptest.NewRecorder()
@@ -278,7 +278,7 @@ func TestServer_ListRelations_InvalidSubjectType(t *testing.T) {
 }
 
 func TestServer_CheckUserRelation(t *testing.T) {
-	s, ps, sp := newTestServer(t, org)
+	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 	_, err := ps.AddUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
@@ -296,7 +296,7 @@ func TestServer_CheckUserRelation(t *testing.T) {
 }
 
 func TestServer_CheckUserRelation_InvalidRelation(t *testing.T) {
-	s, _, sp := newTestServer(t, org)
+	s, _, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 
 	w := httptest.NewRecorder()
@@ -308,7 +308,7 @@ func TestServer_CheckUserRelation_InvalidRelation(t *testing.T) {
 }
 
 func TestServer_CheckSpaceRelation(t *testing.T) {
-	s, ps, sp := newTestServer(t, org)
+	s, ps, sp := newTestServer(t, testOrg)
 	group := newSpace(t, sp, groupType, "team")
 	space := newSpace(t, sp, docsType, "doc")
 	_, err := ps.AddSpaceRoleRelation(
@@ -334,7 +334,7 @@ func TestServer_CheckSpaceRelation(t *testing.T) {
 }
 
 func TestServer_ListSubjects(t *testing.T) {
-	s, ps, sp := newTestServer(t, org)
+	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 	_, err := ps.AddUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
@@ -352,7 +352,7 @@ func TestServer_ListSubjects(t *testing.T) {
 }
 
 func TestServer_ListObjects(t *testing.T) {
-	s, ps, sp := newTestServer(t, org)
+	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 	_, err := ps.AddUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
@@ -390,7 +390,7 @@ func TestServer_ListObjects_FiltersUnreadable(t *testing.T) {
 }
 
 func TestServer_Unauthenticated(t *testing.T) {
-	_, ps, sp := newTestServer(t, org)
+	_, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 	s := NewServer(ps, sp, authntest.NewFailureValidator())
 

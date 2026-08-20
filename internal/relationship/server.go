@@ -14,6 +14,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -24,6 +25,7 @@ import (
 // Writes require the manager role and reads require the reader role on the
 // governing space.
 type Server struct {
+	orgStore  org.Store
 	perms     perms.Store
 	spaces    spaces.Store
 	validator authn.RequestValidator
@@ -168,7 +170,8 @@ func (s *Server) CheckUserRelation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok = s.validator.Request(
+
+	_, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r); !ok {
@@ -179,7 +182,14 @@ func (s *Server) CheckUserRelation(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse relation", err)
 		return
 	}
-	allowed, err := s.perms.CheckUserHasSpaceRole(ctx, subject, space, role)
+
+	org, err := s.orgStore.GetOrgForDID(ctx, subject)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to lookup subject org", err)
+		return
+	}
+
+	allowed, err := s.perms.CheckUserHasSpaceRole(ctx, subject, space, role, org.DID())
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("check user relation: %w", err))
 		return
