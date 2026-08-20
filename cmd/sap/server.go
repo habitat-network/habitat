@@ -1,13 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atdata"
+	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -28,17 +34,42 @@ var hopByHopHeaders = []string{
 }
 
 type server struct {
-	sap         *sap.Sap
-	oauthClient *oauth.ClientApp
+	sap             *sap.Sap
+	oauthClient     *oauth.ClientApp
+	notifyValidator *auth.ServiceAuthValidator // verifies incoming notifyWrite deliveries
+
+	// outboxPingPeriod/PongWait/WriteWait configure handleOutboxChannel's
+	// liveness checks (see their defaults in websocket.go). Tests shrink
+	// these directly on a *server instance rather than a shared package
+	// var, so parallel tests exercising different timeouts don't race.
+	outboxPingPeriod time.Duration
+	outboxPongWait   time.Duration
+	outboxWriteWait  time.Duration
+
+	mu              sync.Mutex
+	pendingReturnTo map[string]string // DID string -> return_to URL
 }
 
+// endpoint is sap's own public base URL (the same value passed as
+// sap.Config.Endpoint) — it's both what sap registers with space hosts as
+// its notifyWrite delivery address, and the audience space hosts sign into
+// the service-auth JWT they deliver notifyWrite calls with.
 func NewSapServer(
 	sapInstance *sap.Sap,
 	oauthClient *oauth.ClientApp,
+	endpoint string,
 ) *server {
 	return &server{
 		sap:         sapInstance,
 		oauthClient: oauthClient,
+		notifyValidator: &auth.ServiceAuthValidator{
+			Dir:      oauthClient.Dir,
+			Audience: endpoint,
+		},
+		outboxPingPeriod: defaultOutboxPingPeriod,
+		outboxPongWait:   defaultOutboxPongWait,
+		outboxWriteWait:  defaultOutboxWriteWait,
+		pendingReturnTo:  make(map[string]string),
 	}
 }
 
@@ -48,11 +79,29 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Handle string `json:"handle"`
+		Handle   string `json:"handle"`
+		ReturnTo string `json:"return_to"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
+	}
+
+	// oauth.ClientApp.StartAuthFlow has no hook to carry caller state through
+	// the OAuth state param and doesn't return the resolved DID, so when the
+	// caller wants to be redirected back we resolve the identifier to a DID
+	// ourselves (the same lookup StartAuthFlow performs internally) and stash
+	// return_to keyed by that DID for handleOAuthCallback to pick up later.
+	// Resolution failures here must not block the StartAuthFlow call below —
+	// they just mean the caller won't get redirected back.
+	if req.ReturnTo != "" {
+		if atid, err := syntax.ParseAtIdentifier(req.Handle); err == nil {
+			if ident, err := s.oauthClient.Dir.Lookup(r.Context(), atid); err == nil {
+				s.mu.Lock()
+				s.pendingReturnTo[ident.DID.String()] = req.ReturnTo
+				s.mu.Unlock()
+			}
+		}
 	}
 
 	redirectURL, err := s.oauthClient.StartAuthFlow(r.Context(), req.Handle)
@@ -69,17 +118,112 @@ func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusSeeOther)
 }
 
+// orgSession is the wire shape for each entry in handleListOrgs's response:
+// the tracked DID paired with the session ID sap resumes it with, so callers
+// (e.g. chalk) can drive handleProxy's Habitat-Session header without
+// guessing.
+type orgSession struct {
+	DID       syntax.DID `json:"did"`
+	SessionID string     `json:"sessionId"`
+}
+
 func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
-	orgs, err := s.sap.Sessions(r.Context())
+	sessions, err := s.sap.Sessions(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	httpx.WriteJSON(r.Context(), w, map[string]any{"sessions": sessions})
+}
 
-	if orgs == nil {
-		orgs = []syntax.DID{}
+// handleTrackSpace tells sap to start tracking a space it wouldn't discover
+// through (did, sessionID)'s own crawl — e.g. one a caller just created —
+// via Sap.TrackSpace: records space access, registers for push
+// notifications, and syncs its repos immediately rather than waiting for
+// the next crawl.
+func (s *server) handleTrackSpace(w http.ResponseWriter, r *http.Request) {
+	didStr := r.Header.Get(habitatDIDHeader)
+	if didStr == "" {
+		http.Error(w, "missing "+habitatDIDHeader+" header", http.StatusBadRequest)
+		return
 	}
-	httpx.WriteJSON(r.Context(), w, map[string]any{"orgs": orgs})
+	did, ok := httpx.ParseDIDInput(r.Context(), w, didStr, habitatDIDHeader)
+	if !ok {
+		return
+	}
+	// Optional: empty resolves fine under WithSingleSessionPerUser (the
+	// session ID is ignored), and callers that don't track one can just omit
+	// the header.
+	sessionID := r.Header.Get(habitatSessionHeader)
+
+	var req struct {
+		Space string `json:"space"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	spaceURI, err := syntax.ParseURI(req.Space)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("parse space: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.sap.TrackSpace(r.Context(), spaceURI, did, sessionID); err != nil {
+		http.Error(w, fmt.Sprintf("track space: %s", err), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleNotifyWrite receives network.habitat.space.notifyWrite deliveries —
+// the callback a space host makes (internal/notify.Deliverer) to every
+// endpoint sap has registered via registerNotify (see pkg/sap/register) —
+// and forwards them into Sap.NotifyWrite so the corresponding repo gets
+// synced (and, for chalk's docs collection, lands in the outbox) right away
+// instead of waiting for the next full crawl.
+func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
+	tokenStr, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok {
+		http.Error(w, "missing bearer token", http.StatusUnauthorized)
+		return
+	}
+	nsid := syntax.NSID("network.habitat.space.notifyWrite")
+	if _, err := s.notifyValidator.Validate(r.Context(), tokenStr, &nsid); err != nil {
+		http.Error(w, fmt.Sprintf("invalid service auth: %s", err), http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Space string       `json:"space"`
+		Repo  string       `json:"repo"`
+		Rev   string       `json:"rev"`
+		Hash  atdata.Bytes `json:"hash"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	spaceURI, err := syntax.ParseURI(req.Space)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("parse space: %s", err), http.StatusBadRequest)
+		return
+	}
+	repoDID, ok := httpx.ParseDIDInput(r.Context(), w, req.Repo, "repo")
+	if !ok {
+		return
+	}
+	rev, err := syntax.ParseTID(req.Rev)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("parse rev: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.sap.NotifyWrite(r.Context(), spaceURI, repoDID, rev, req.Hash); err != nil {
+		http.Error(w, fmt.Sprintf("notify write: %s", err), http.StatusInternalServerError)
+		return
+	}
+	httpx.WriteJSON(r.Context(), w, map[string]string{})
 }
 
 func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +243,29 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.InfoContext(r.Context(), "org oauth complete", "did", sessionData.AccountDID)
+
+	if s.redirectToReturnTo(w, r, sessionData.AccountDID.String()) {
+		return
+	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// redirectToReturnTo pops any pending return_to for did and, if present,
+// redirects r's response there with the DID appended as a query param.
+// Returns true if it wrote a response (caller must not write another one).
+func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did string) bool {
+	s.mu.Lock()
+	returnTo, ok := s.pendingReturnTo[did]
+	if ok {
+		delete(s.pendingReturnTo, did)
+	}
+	s.mu.Unlock()
+	if !ok {
+		return false
+	}
+	target := fmt.Sprintf("%s?did=%s", returnTo, url.QueryEscape(did))
+	http.Redirect(w, r, target, http.StatusSeeOther)
+	return true
 }
 
 // handleProxy forwards an XRPC request to pear on behalf of a managed org,
@@ -117,11 +283,10 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Optional: empty resolves fine under WithSingleSessionPerUser (the
+	// session ID is ignored), and callers that don't track one can just omit
+	// the header.
 	sessionID := r.Header.Get(habitatSessionHeader)
-	if sessionID == "" {
-		http.Error(w, "missing "+habitatSessionHeader+" header", http.StatusBadRequest)
-		return
-	}
 	sess, err := s.oauthClient.ResumeSession(r.Context(), did, sessionID)
 	if err != nil {
 		http.Error(
@@ -148,9 +313,25 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		target += "?" + r.URL.RawQuery
 	}
 
+	// Buffer the body into a *bytes.Reader rather than passing r.Body
+	// through directly: DoWithAuth retries the request on a DPoP nonce
+	// update or token refresh via req.GetBody, which net/http only
+	// populates automatically for a handful of reusable body types (bytes,
+	// strings buffers/readers) — not for an arbitrary io.Reader like the
+	// incoming request's body, which read Close()s after the first attempt
+	// and can't be replayed.
 	var body io.Reader
 	if r.Body != nil {
-		body = r.Body
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(
+				w,
+				fmt.Sprintf("read request body: %s", err),
+				http.StatusInternalServerError,
+			)
+			return
+		}
+		body = bytes.NewReader(bodyBytes)
 	}
 	outReq, err := http.NewRequestWithContext(r.Context(), r.Method, target, body)
 	if err != nil {
@@ -195,5 +376,10 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
-	httpx.WriteJSON(r.Context(), w, s.oauthClient.Config.ClientMetadata())
+	metadata := s.oauthClient.Config.ClientMetadata()
+	if s.oauthClient.Config.IsConfidential() {
+		jwks := s.oauthClient.Config.PublicJWKS()
+		metadata.JWKS = &jwks
+	}
+	httpx.WriteJSON(r.Context(), w, metadata)
 }
