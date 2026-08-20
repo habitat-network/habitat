@@ -64,6 +64,7 @@ type Store interface {
 		did syntax.DID,
 		space habitat_syntax.SpaceURI,
 		role habitat_syntax.SpaceRole,
+		belongsToOrg syntax.DID,
 	) (bool, error)
 	CheckSpaceRelationHasSpaceRole(
 		ctx context.Context,
@@ -335,13 +336,14 @@ func (s *store) UnsafeRevokeAllSpaceRoles(
 }
 
 // CheckUserHashabitat_syntax.SpaceRole implements [Store]. The space's owner is treated as
-// an implicit habitat_syntax.SpaceRoleOwner, and the owning org's members as implicit
-// habitat_syntax.SpaceRoleReaders, without either needing a stored tuple.
+// an implicit habitat_syntax.SpaceRoleOwner, and members of belongsToOrg (the caller's own
+// org) as implicit habitat_syntax.SpaceRoleReaders, without either needing a stored tuple.
 func (s *store) CheckUserHasSpaceRole(
 	ctx context.Context,
 	did syntax.DID,
 	space habitat_syntax.SpaceURI,
 	role habitat_syntax.SpaceRole,
+	belongsToOrg syntax.DID,
 ) (bool, error) {
 	return s.fga.Check(
 		ctx,
@@ -349,7 +351,7 @@ func (s *store) CheckUserHasSpaceRole(
 		fgaRelationFromRole[role],
 		fgastore.SpaceObjectKey(space),
 		fgastore.OwnerContextualTuple(space),
-		fgastore.OrgMemberContextualTuple(space.SpaceOwner()),
+		fgastore.OrgMemberContextualTuple(belongsToOrg),
 	)
 }
 

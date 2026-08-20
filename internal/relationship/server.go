@@ -274,6 +274,7 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 			credInfo.Subject,
 			space,
 			habitat_syntax.SpaceRoleReader,
+			credInfo.Org.DID(),
 		)
 		if err != nil {
 			httpx.WriteServerError(ctx, w, fmt.Errorf("check read permission: %w", err))

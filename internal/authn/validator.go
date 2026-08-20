@@ -31,6 +31,7 @@ type SpaceRoleValidator interface {
 		did syntax.DID,
 		space habitat_syntax.SpaceURI,
 		role habitat_syntax.SpaceRole,
+		belongsToOrg syntax.DID,
 	) (bool, error)
 }
 
@@ -133,6 +134,7 @@ func (rv *EndpointOptions) Validate(
 					credInfo.Subject,
 					rv.space,
 					rv.relation,
+					credInfo.Org.DID(),
 				)
 				if err != nil {
 					httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
