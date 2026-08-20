@@ -2,6 +2,7 @@ package fgastore
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -15,9 +16,29 @@ import (
 
 func newTestSQLite(t *testing.T) *FGA {
 	t.Helper()
-	f, err := NewSQLite(t.Context(), filepath.Join(t.TempDir(), "fga.db"))
+
+	// Manage the temp dir ourselves rather than via t.TempDir(): OpenFGA's Check
+	// resolver, union() in internal/graph/check.go (v1.18.3), short-circuits as
+	// soon as one branch resolves true and returns without waiting for sibling
+	// goroutines dispatched via its worker pool to finish:
+	//   https://github.com/openfga/openfga/blob/v1.18.3/internal/graph/check.go#L179-L181
+	//   https://github.com/openfga/openfga/blob/v1.18.3/internal/graph/check.go#L206-L208
+	// It relies on the deferred context cancel (L166) to "clean up workers", but
+	// a worker blocked in modernc.org/sqlite's busy-handler retry never observes
+	// ctx.Done(), so a query can still be touching the SQLite file briefly after
+	// FGA.Close() returns. Unfixed as of v1.18.3 (latest release, checked
+	// 2026-08-19)
+	dir, err := os.MkdirTemp("", "fgastore-test-*")
+	require.NoError(t, err, "MkdirTemp should succeed")
+
+	f, err := NewSQLite(t.Context(), filepath.Join(dir, "fga.db"))
 	require.NoError(t, err, "NewSQLite should succeed")
-	t.Cleanup(func() { _ = f.Close() })
+
+	t.Cleanup(func() {
+		_ = f.Close()
+		_ = os.RemoveAll(dir)
+	})
+
 	return f
 }
 
