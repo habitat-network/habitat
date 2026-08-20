@@ -38,24 +38,23 @@ func TestHashRkeyIsRecordKeySafe(t *testing.T) {
 }
 
 func TestUserRelationRkeyDeterministic(t *testing.T) {
-	got1 := userRelationRkey(alice, habitat_syntax.SpaceRoleReader)
-	got2 := userRelationRkey(alice, habitat_syntax.SpaceRoleReader)
+	got1 := userRelationRkey(alice)
+	got2 := userRelationRkey(alice)
 	require.Equal(t, got1, got2)
 
-	other := userRelationRkey(alice, habitat_syntax.SpaceRoleWriter)
+	other := userRelationRkey(bob)
 	require.NotEqual(t, got1, other)
 }
 
 func TestSpaceRelationRkeyDeterministic(t *testing.T) {
 	group := habitat_syntax.ConstructSpaceURI(org, groupType, habitat_syntax.SpaceKey("team"))
 
-	got1 := spaceRelationRkey(group, habitat_syntax.SpaceRoleReader, habitat_syntax.SpaceRoleReader)
-	got2 := spaceRelationRkey(group, habitat_syntax.SpaceRoleReader, habitat_syntax.SpaceRoleReader)
+	got1 := spaceRelationRkey(group, habitat_syntax.SpaceRoleReader)
+	got2 := spaceRelationRkey(group, habitat_syntax.SpaceRoleReader)
 	require.Equal(t, got1, got2)
 
 	other := spaceRelationRkey(
 		group,
-		habitat_syntax.SpaceRoleReader,
 		habitat_syntax.SpaceRoleWriter,
 	)
 	require.NotEqual(t, got1, other)

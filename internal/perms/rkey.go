@@ -29,11 +29,11 @@ func hashRkey(parts ...string) syntax.RecordKey {
 var rkeyEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)
 
 // userRelationRkey deterministically derives the record key for a
-// (did, role) user-relation record from its semantics, so RevokeUserRelation
+// (did) user-relation record from its semantics, so RevokeUserRelation
 // can compute the key directly and delete by it instead of scanning every
 // record in the collection.
-func userRelationRkey(did syntax.DID, role habitat_syntax.SpaceRole) syntax.RecordKey {
-	return hashRkey("user", did.String(), string(role))
+func userRelationRkey(did syntax.DID) syntax.RecordKey {
+	return hashRkey("user", did.String())
 }
 
 // spaceRelationRkey deterministically derives the record key for a
@@ -43,7 +43,6 @@ func userRelationRkey(did syntax.DID, role habitat_syntax.SpaceRole) syntax.Reco
 func spaceRelationRkey(
 	subject habitat_syntax.SpaceURI,
 	subjectRole habitat_syntax.SpaceRole,
-	objectRole habitat_syntax.SpaceRole,
 ) syntax.RecordKey {
-	return hashRkey("space", subject.String(), string(subjectRole), string(objectRole))
+	return hashRkey("space", subject.String(), string(subjectRole))
 }

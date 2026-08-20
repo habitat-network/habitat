@@ -262,7 +262,6 @@ func (s *Store) Check(
 		fgaRelation,
 		fgastore.SpaceObjectKey(space),
 		fgastore.OwnerContextualTuple(space),
-		fgastore.OrgMemberContextualTuple(org),
 	)
 }
 
@@ -283,7 +282,6 @@ func (s *Store) ListSubjects(
 		fgastore.SpaceObjectKey(space),
 		fgaRelation,
 		fgastore.OwnerContextualTuple(space),
-		fgastore.OrgMemberContextualTuple(org),
 	)
 	if err != nil {
 		return nil, err
@@ -318,7 +316,6 @@ func (s *Store) ListObjects(
 		fgastore.MemberUserString(did),
 		fgaRelation,
 		fgastore.TypeSpace,
-		fgastore.OrgMemberContextualTuple(org),
 	)
 	if err != nil {
 		return nil, err

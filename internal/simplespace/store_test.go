@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
@@ -30,7 +31,8 @@ func newTestStore(t *testing.T) *Store {
 	t.Cleanup(func() { _ = fga.Close() })
 
 	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
-	return NewStore(db, spacesStore, fga)
+	permsStore := perms.NewStore(db, spacesStore, fga)
+	return NewStore(db, spacesStore, permsStore)
 }
 
 func TestCreateSpace(t *testing.T) {
@@ -248,9 +250,8 @@ func TestDeleteSpace_RemovesFGATuples(t *testing.T) {
 
 	require.NoError(t, s.DeleteSpace(t.Context(), uri))
 
-	tuples, err := s.fga.Read(t.Context(), fgastore.Tuple{Object: fgastore.SpaceObjectKey(uri)})
-	require.NoError(t, err)
-	require.Empty(t, tuples)
+	_, err = s.ListMembers(t.Context(), orgID, uri)
+	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
 func TestDeleteSpaceTriggersNotify(t *testing.T) {
@@ -260,8 +261,8 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 	t.Cleanup(func() { _ = fga.Close() })
 
 	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
-
-	s := NewStore(db, spacesStore, fga)
+	permsStore := perms.NewStore(db, spacesStore, fga)
+	s := NewStore(db, spacesStore, permsStore)
 
 	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "doomed")
 	require.NoError(t, err)

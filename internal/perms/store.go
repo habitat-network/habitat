@@ -26,7 +26,7 @@ type Store interface {
 	// Additions
 	// Adds a user relation (collection = network.habitat.relationship.userRelation) and returns
 	// the record uri for the corresponding relationship record.
-	AddUserRelation(
+	SetUserRelation(
 		ctx context.Context,
 		did syntax.DID,
 		space habitat_syntax.SpaceURI,
@@ -34,7 +34,7 @@ type Store interface {
 	) (habitat_syntax.SpaceRecordURI, error)
 	// Adds a space relation (collection = network.habitat.relationship.spaceRelation) and returns
 	// the record uri for the corresponding relationship record.
-	AddSpaceRoleRelation(
+	SetSpaceRoleRelation(
 		ctx context.Context,
 		subject habitat_syntax.SpaceURI,
 		subjectRole habitat_syntax.SpaceRole,
@@ -43,18 +43,16 @@ type Store interface {
 	) (habitat_syntax.SpaceRecordURI, error)
 
 	// Revocations
-	RevokeUserRelation(
+	RevokeUser(
 		ctx context.Context,
 		did syntax.DID,
 		space habitat_syntax.SpaceURI,
-		role habitat_syntax.SpaceRole,
 	) error
-	RevokeSpaceRoleRelation(
+	RevokeSpaceRole(
 		ctx context.Context,
 		subjectSpace habitat_syntax.SpaceURI,
 		subjectRole habitat_syntax.SpaceRole,
 		objectSpace habitat_syntax.SpaceURI,
-		objectRole habitat_syntax.SpaceRole,
 	) error
 	UnsafeRevokeAllSpaceRoles(ctx context.Context, space habitat_syntax.SpaceURI) error
 
@@ -96,7 +94,7 @@ func NewStore(db TxRunner, spaces spaces.Store, fga fgastore.Store) *store {
 var _ Store = &store{}
 
 // AddUserRelation implements [Store].
-func (s *store) AddUserRelation(
+func (s *store) SetUserRelation(
 	ctx context.Context,
 	did syntax.DID,
 	space habitat_syntax.SpaceURI,
@@ -113,9 +111,21 @@ func (s *store) AddUserRelation(
 		}
 		var err error
 		uri, _, err = s.spaces.WithTx(tx).
-			PutRecord(ctx, space, space.SpaceOwner(), habitat_syntax.UserRelationCollection, userRelationRkey(did, role), record)
+			PutRecord(ctx, space, space.SpaceOwner(), habitat_syntax.UserRelationCollection, userRelationRkey(did), record)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
+		}
+
+		// Delete tuples for every other role this did could hold on space, so
+		// setting a new role always leaves exactly one in place.
+		var deletes []*openfgav1.TupleKeyWithoutCondition
+		for otherRole, relation := range fgaRelationFromRole {
+			if otherRole == role {
+				continue
+			}
+			deletes = append(deletes, tuple.TupleKeyToTupleKeyWithoutCondition(
+				tuple.NewTupleKey(fgastore.SpaceObjectKey(space), relation, fgastore.MemberUserString(did)),
+			))
 		}
 
 		err = s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
@@ -128,6 +138,10 @@ func (s *store) AddUserRelation(
 					),
 				},
 				OnDuplicate: "ignore",
+			},
+			Deletes: &openfgav1.WriteRequestDeletes{
+				TupleKeys: deletes,
+				OnMissing: "ignore",
 			},
 		})
 		if err != nil {
@@ -142,7 +156,7 @@ func (s *store) AddUserRelation(
 // Add.SpaceRoleRelation implements [Store]. It grants every subject holding
 // subjectRole on subject (a userset) objectRole on object — this is what
 // powers groups-as-spaces and cross-space role inheritance.
-func (s *store) AddSpaceRoleRelation(
+func (s *store) SetSpaceRoleRelation(
 	ctx context.Context,
 	subject habitat_syntax.SpaceURI,
 	subjectRole habitat_syntax.SpaceRole,
@@ -161,9 +175,24 @@ func (s *store) AddSpaceRoleRelation(
 		}
 		var err error
 		uri, _, err = s.spaces.WithTx(tx).
-			PutRecord(ctx, object, object.SpaceOwner(), habitat_syntax.SpaceRelationCollection, spaceRelationRkey(subject, subjectRole, objectRole), record)
+			PutRecord(ctx, object, object.SpaceOwner(), habitat_syntax.SpaceRelationCollection, spaceRelationRkey(subject, subjectRole), record)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
+		}
+
+		userset := fgastore.SpaceUsersetString(subject, fgaRelationFromRole[subjectRole])
+
+		// Delete tuples for every other objectRole this subject/subjectRole
+		// userset could hold on object, so setting a new role always leaves
+		// exactly one in place.
+		var deletes []*openfgav1.TupleKeyWithoutCondition
+		for otherRole, relation := range fgaRelationFromRole {
+			if otherRole == objectRole {
+				continue
+			}
+			deletes = append(deletes, tuple.TupleKeyToTupleKeyWithoutCondition(
+				tuple.NewTupleKey(fgastore.SpaceObjectKey(object), relation, userset),
+			))
 		}
 
 		err = s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
@@ -172,10 +201,14 @@ func (s *store) AddSpaceRoleRelation(
 					tuple.NewTupleKey(
 						fgastore.SpaceObjectKey(object),
 						fgaRelationFromRole[objectRole],
-						fgastore.SpaceUsersetString(subject, fgaRelationFromRole[subjectRole]),
+						userset,
 					),
 				},
 				OnDuplicate: "ignore",
+			},
+			Deletes: &openfgav1.WriteRequestDeletes{
+				TupleKeys: deletes,
+				OnMissing: "ignore",
 			},
 		})
 		if err != nil {
@@ -188,28 +221,31 @@ func (s *store) AddSpaceRoleRelation(
 }
 
 // RevokeUserRelation implements [Store].
-func (s *store) RevokeUserRelation(
+func (s *store) RevokeUser(
 	ctx context.Context,
 	did syntax.DID,
 	space habitat_syntax.SpaceURI,
-	role habitat_syntax.SpaceRole,
 ) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		collection := syntax.NSID(habitat_syntax.UserRelationCollection)
 		if err := s.spaces.WithTx(tx).
-			DeleteRecord(ctx, space, space.SpaceOwner(), collection, userRelationRkey(did, role).String()); err != nil {
+			DeleteRecord(ctx, space, space.SpaceOwner(), collection, userRelationRkey(did).String()); err != nil {
 			return fmt.Errorf("err deleting relationship record: %w", err)
+		}
+
+		// The relationship record doesn't tell us which role's tuple was
+		// written (Set only ever leaves one in place), so delete every
+		// possible role's tuple for this did/space rather than reading first.
+		deletes := make([]*openfgav1.TupleKeyWithoutCondition, 0, len(fgaRelationFromRole))
+		for _, relation := range fgaRelationFromRole {
+			deletes = append(deletes, tuple.TupleKeyToTupleKeyWithoutCondition(
+				tuple.NewTupleKey(fgastore.SpaceObjectKey(space), relation, fgastore.MemberUserString(did)),
+			))
 		}
 
 		err := s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 			Deletes: &openfgav1.WriteRequestDeletes{
-				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
-					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
-						fgastore.SpaceObjectKey(space),
-						fgaRelationFromRole[role],
-						fgastore.MemberUserString(did),
-					)),
-				},
+				TupleKeys: deletes,
 				OnMissing: "ignore",
 			},
 		})
@@ -221,30 +257,36 @@ func (s *store) RevokeUserRelation(
 }
 
 // Revoke.SpaceRoleRelation implements [Store].
-func (s *store) RevokeSpaceRoleRelation(
+func (s *store) RevokeSpaceRole(
 	ctx context.Context,
 	subjectSpace habitat_syntax.SpaceURI,
 	subjectRole habitat_syntax.SpaceRole,
 	objectSpace habitat_syntax.SpaceURI,
-	objectRole habitat_syntax.SpaceRole,
 ) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		collection := syntax.NSID(habitat_syntax.SpaceRelationCollection)
-		rkey := spaceRelationRkey(subjectSpace, subjectRole, objectRole)
+		rkey := spaceRelationRkey(subjectSpace, subjectRole)
 		if err := s.spaces.WithTx(tx).
 			DeleteRecord(ctx, objectSpace, objectSpace.SpaceOwner(), collection, rkey.String()); err != nil {
 			return fmt.Errorf("err deleting relationship record: %w", err)
 		}
 
+		userset := fgastore.SpaceUsersetString(subjectSpace, fgaRelationFromRole[subjectRole])
+
+		// The relationship record doesn't tell us which objectRole's tuple
+		// was written (Set only ever leaves one in place), so delete every
+		// possible objectRole's tuple for this subject/subjectRole userset
+		// rather than reading first.
+		deletes := make([]*openfgav1.TupleKeyWithoutCondition, 0, len(fgaRelationFromRole))
+		for _, relation := range fgaRelationFromRole {
+			deletes = append(deletes, tuple.TupleKeyToTupleKeyWithoutCondition(
+				tuple.NewTupleKey(fgastore.SpaceObjectKey(objectSpace), relation, userset),
+			))
+		}
+
 		err := s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 			Deletes: &openfgav1.WriteRequestDeletes{
-				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
-					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
-						fgastore.SpaceObjectKey(objectSpace),
-						fgaRelationFromRole[objectRole],
-						fgastore.SpaceUsersetString(subjectSpace, fgaRelationFromRole[subjectRole]),
-					)),
-				},
+				TupleKeys: deletes,
 				OnMissing: "ignore",
 			},
 		})
@@ -325,7 +367,6 @@ func (s *store) CheckUserHasSpaceRole(
 		fgaRelationFromRole[role],
 		fgastore.SpaceObjectKey(space),
 		fgastore.OwnerContextualTuple(space),
-		fgastore.OrgMemberContextualTuple(belongsToOrg),
 	)
 }
 
@@ -344,7 +385,6 @@ func (s *store) CheckSpaceRelationHasSpaceRole(
 		fgaRelationFromRole[objectRole],
 		fgastore.SpaceObjectKey(objectSpace),
 		fgastore.OwnerContextualTuple(objectSpace),
-		fgastore.OrgMemberContextualTuple(objectSpace.SpaceOwner()),
 	)
 }
 
@@ -361,7 +401,6 @@ func (s *store) ListUserSubjects(
 		fgastore.SpaceObjectKey(space),
 		fgastore.RelationSpaceReader,
 		fgastore.OwnerContextualTuple(space),
-		fgastore.OrgMemberContextualTuple(space.SpaceOwner()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("perms: list user subjects: %w", err)
