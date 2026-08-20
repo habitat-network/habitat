@@ -17,10 +17,5 @@
   "routerOnly": false,
   "version": 1,
   "framework": "react",
-  "chosenAddOns": [
-    "nitro",
-    "drizzle",
-    "posthog",
-    "tanstack-query"
-  ]
+  "chosenAddOns": ["nitro", "drizzle", "posthog", "tanstack-query"]
 }
