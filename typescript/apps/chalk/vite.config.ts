@@ -4,6 +4,7 @@ import viteTsConfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import { devtools } from "@tanstack/devtools-vite";
+import { nitro } from "nitro/vite";
 
 // TanStack Start's Vite plugin (tanstackStart) owns both the SSR/server-function
 // build and file-based route generation (routeTree.gen.ts) — it supersedes the
@@ -29,6 +30,12 @@ export default defineConfig({
         port: parseInt(process.env.DEVTOOLS_PORT ?? "42069", 10),
       },
     }),
+    // nitro provides the server build target (`.output/server/index.mjs`,
+    // matching package.json's `start` script) that @tanstack/react-start's
+    // SSR build runs on; @sentry/* is excluded from its rollup bundling
+    // since Sentry isn't wired up here (scaffold default, kept in case it
+    // is later).
+    nitro({ rollupConfig: { external: [/^@sentry\//] } }),
     tanstackStart(), // must come before viteReact()
     viteReact(),
   ],

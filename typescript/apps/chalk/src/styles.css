@@ -6,6 +6,20 @@
 
 @import "internal/styles.css";
 
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
 :root {
   --background: #f7faf5;
   --foreground: #1a1a1a;

@@ -1,8 +1,8 @@
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import { DocStore } from "../src/server/docStore";
 import { DocPubSub } from "../src/server/pubsub";
+import { createTestDb } from "./testDb";
 
 const call = vi.fn(async () => ({}));
 const uploadBlob = vi.fn(async () => ({ blob: {}, cid: "cid1" }));
@@ -51,7 +51,7 @@ describe("DocSync.handleOutboxMessage", () => {
     call.mockClear();
     uploadBlob.mockClear();
     getBlob.mockClear();
-    store = new DocStore(new DatabaseSync(":memory:"));
+    store = new DocStore(createTestDb());
     pubsub = new DocPubSub();
     store.upsertDoc({
       spaceUri: "at://did:plc:owner/space/network.habitat.docs/abc",
@@ -152,7 +152,7 @@ describe("DocSync merges into persisted state after a restart", () => {
   // saved content — exactly the "edits don't survive a refresh" bug this
   // guards against.
   it("preserves previously-persisted content when merging a new incremental edit", () => {
-    const store = new DocStore(new DatabaseSync(":memory:"));
+    const store = new DocStore(createTestDb());
     const pubsub = new DocPubSub();
     const spaceUri = "at://did:plc:owner/space/network.habitat.docs/abc";
     store.upsertDoc({
@@ -217,7 +217,7 @@ describe("DocSync republish", () => {
     uploadBlob.mockClear();
     getBlob.mockClear();
 
-    const store = new DocStore(new DatabaseSync(":memory:"));
+    const store = new DocStore(createTestDb());
     const pubsub = new DocPubSub();
     store.upsertDoc({
       spaceUri: "at://did:plc:owner/space/network.habitat.docs/abc",

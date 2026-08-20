@@ -1,6 +1,13 @@
 node_modules
+.DS_Store
 dist
-.output
+dist-ssr
+*.local
+.env
 .nitro
 .tanstack
+.wrangler
+.output
+.vinxi
+__unconfig*
 .chalk

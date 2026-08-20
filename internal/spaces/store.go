@@ -11,12 +11,17 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
+
+var tracer = otel.Tracer("spaces/store")
 
 // GORM models
 type space struct {
@@ -207,6 +212,7 @@ var (
 	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
 	ErrRepoNotFound       = errors.New("repo not found")
 	ErrRevTooFar          = errors.New("since revision is ahead of the repo head")
+	ErrRecordTooLarge     = errors.New("record too large")
 )
 
 // ---- Store implementation ----
@@ -436,16 +442,26 @@ func (s *store) PutRecord(
 	rkey syntax.RecordKey,
 	value map[string]any,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
+	ctx, span := tracer.Start(ctx, "PutRecord", trace.WithAttributes(
+		attribute.String("space", spaceUri.String()),
+		attribute.String("repo", repo.String()),
+		attribute.String("collection", collection.String()),
+		attribute.String("rkey", rkey.String()),
+	))
+	defer span.End()
 	ok, err := s.CheckSpaceExists(ctx, spaceUri)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to get space: %w", err)
 	} else if !ok {
 		return "", nil, ErrSpaceNotFound
 	}
-
 	bytes, err := atdata.MarshalCBOR(value)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
+	}
+	span.SetAttributes(attribute.Int("cbor_bytes", len(bytes)))
+	if len(bytes) > atdata.MAX_CBOR_RECORD_SIZE {
+		return "", nil, ErrRecordTooLarge
 	}
 
 	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
@@ -454,7 +470,7 @@ func (s *store) PutRecord(
 	}
 	newCidStr := newCid.String()
 
-	var recordUri habitat_syntax.SpaceRecordURI
+	var recordURI habitat_syntax.SpaceRecordURI
 	var newRev syntax.TID
 	var repoHash []byte
 	var skipped bool
@@ -467,7 +483,7 @@ func (s *store) PutRecord(
 		if rkey == "" {
 			rkey = syntax.RecordKey(tid)
 		}
-		recordUri = habitat_syntax.ConstructSpaceRecordURI(spaceUri, repo, collection, rkey)
+		recordURI = habitat_syntax.ConstructSpaceRecordURI(spaceUri, repo, collection, rkey)
 
 		h, _, _, err := loadRepoHash(tx, spaceUri, repo)
 		if err != nil {
@@ -515,7 +531,7 @@ func (s *store) PutRecord(
 		// Best-effort: notify registered syncers that this repo advanced.
 		s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev, repoHash)
 	}
-	return recordUri, &newCid, nil
+	return recordURI, &newCid, nil
 }
 
 func (s *store) GetRecord(

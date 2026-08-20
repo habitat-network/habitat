@@ -51,7 +51,7 @@ let memberEditQueue: DebounceQueue<string, Uint8Array[]>;
 let memberEditKey: (docId: string, memberDid: string) => string;
 
 beforeAll(async () => {
-  process.env.CHALK_DB = path.join(
+  process.env.DATABASE_URL = path.join(
     os.tmpdir(),
     `chalk-functions-test-${process.pid}-${Date.now()}.db`,
   );

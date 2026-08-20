@@ -3,7 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "#/*": ["./src/*"]
     },
     "types": ["vite/client", "node"],
     "outDir": "../../../.moon/cache/types/typescript/apps/chalk"

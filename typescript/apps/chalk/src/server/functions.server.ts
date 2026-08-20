@@ -1,8 +1,6 @@
-import fs from "node:fs";
-import { DatabaseSync } from "node:sqlite";
-import path from "node:path";
 import { redirect } from "@tanstack/react-router";
 import * as Y from "yjs";
+import { db } from "../db";
 import { renderDoc } from "../render";
 import { DebounceQueue } from "./debounceQueue";
 import { DocStore } from "./docStore";
@@ -70,9 +68,6 @@ interface ChalkSingletons {
 }
 
 function createSingletons(): ChalkSingletons {
-  const dbPath = process.env.CHALK_DB ?? ".chalk/chalk.db";
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  const db = new DatabaseSync(dbPath);
   const store = new DocStore(db);
   const pubsub = new DocPubSub();
 

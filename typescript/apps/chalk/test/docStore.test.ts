@@ -1,12 +1,12 @@
-import { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { DocStore } from "../src/server/docStore";
+import { createTestDb } from "./testDb";
 
 describe("DocStore", () => {
   let store: DocStore;
   beforeEach(() => {
-    store = new DocStore(new DatabaseSync(":memory:"));
+    store = new DocStore(createTestDb());
   });
 
   it("round-trips doc metadata by owner and by URI", () => {

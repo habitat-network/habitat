@@ -1,15 +1,24 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
-import { QueryClient } from "@tanstack/react-query";
+import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
+import { getContext } from "./integrations/tanstack-query/root-provider";
 import { routeTree } from "./routeTree.gen";
 
 export function createRouter() {
-  const queryClient = new QueryClient();
-  return createTanStackRouter({
+  const context = getContext();
+  const router = createTanStackRouter({
     routeTree,
-    context: { queryClient },
+    context,
     defaultPreload: "intent",
+    defaultPreloadStaleTime: 0,
     scrollRestoration: true,
   });
+
+  // Wires the router's pending/loader state up to the QueryClient so
+  // prefetched queries (e.g. _requireAuth's `docs` prefetchQuery) hydrate
+  // from the server render instead of refetching on the client.
+  setupRouterSsrQueryIntegration({ router, queryClient: context.queryClient });
+
+  return router;
 }
 
 // TanStack Start's default client/server entries import `getRouter` from

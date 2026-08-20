@@ -13,7 +13,7 @@ tasks:
       CHALK_SAP_PUBLIC_URL: "https://sap.local.habitat.network"
       NODE_OPTIONS: "--use-system-ca"
       CHALK_SESSION_SECRET: "dev-only-32-char-minimum-secret!!"
-      CHALK_DB: ".chalk/chalk.db"
+      DATABASE_URL: ".chalk/chalk.db"
     deps:
       - pear:dev
       - sap:dev
