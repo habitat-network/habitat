@@ -2,6 +2,11 @@ package perms
 
 import (
 	"context"
+<<<<<<< HEAD
+=======
+	"database/sql"
+	"errors"
+>>>>>>> 2da956a4 (gen changes)
 	"fmt"
 	"time"
 
@@ -54,6 +59,15 @@ type Store interface {
 		subjectRole habitat_syntax.SpaceRole,
 		objectSpace habitat_syntax.SpaceURI,
 	) error
+
+	// DeleteRelation removes the relation record at uri (either a userRelation
+	// or a spaceRelation record) from both the governing space and FGA.
+	//
+	// TODO: not yet implemented — resolve uri to the record it points at,
+	// decode its (subject[, subjectRole], relation) fields, and call the
+	// matching Revoke* method. Should return ErrRelationNotFound if no record
+	// exists at uri.
+	RevokeRelation(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error
 	UnsafeRevokeAllSpaceRoles(ctx context.Context, space habitat_syntax.SpaceURI) error
 
 	// Permission checks
@@ -408,11 +422,12 @@ func (s *store) CheckSpaceRelationHasSpaceRole(
 func (s *store) ListUserSubjects(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
+	role habitat_syntax.SpaceRole,
 ) ([]syntax.DID, error) {
 	users, err := s.fga.ListUsers(
 		ctx,
 		fgastore.SpaceObjectKey(space),
-		fgastore.RelationSpaceReader,
+		fgaRelationFromRole[role],
 		fgastore.OwnerContextualTuple(space),
 	)
 	if err != nil {
@@ -431,18 +446,21 @@ func (s *store) ListUserSubjects(
 }
 
 // ListObjects implements [Store]. It returns the spaces did directly holds
-// at least habitat_syntax.SpaceRoleReader on (reader is implied by every other role, so
-// this covers manager/writer/owner too). Owner/org-member implications
+// role on (owner/manager/writer imply reader, so a lower role requested
+// returns spaces held via a higher one too). Owner/org-member implications
 // aren't expanded here, since that would require checking every space in
-// every org did could be a member of.
+// every org did could be a member of. If filterType is non-nil, only spaces
+// of that type are returned.
 func (s *store) ListObjects(
 	ctx context.Context,
 	did syntax.DID,
+	role habitat_syntax.SpaceRole,
+	filterType *syntax.NSID,
 ) ([]habitat_syntax.SpaceURI, error) {
 	keys, err := s.fga.ListObjects(
 		ctx,
 		fgastore.MemberUserString(did),
-		fgaRelationFromRole[habitat_syntax.SpaceRoleReader],
+		fgaRelationFromRole[role],
 		fgastore.TypeSpace,
 	)
 	if err != nil {
@@ -455,7 +473,20 @@ func (s *store) ListObjects(
 		if err != nil {
 			return nil, fmt.Errorf("perms: list objects: %w", err)
 		}
+		if filterType != nil && uri.SpaceType() != *filterType {
+			continue
+		}
 		spaceURIs = append(spaceURIs, uri)
 	}
 	return spaceURIs, nil
+}
+
+// DeleteRelation implements [Store].
+//
+// TODO: not yet implemented — resolve uri to the record it points at, decode
+// its (subject[, subjectRole], relation) fields, and call the matching
+// Revoke* method. Should return ErrRelationNotFound if no record exists at
+// uri.
+func (s *store) DeleteRelation(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error {
+	return errors.New("perms: DeleteRelation not implemented")
 }

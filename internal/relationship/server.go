@@ -1,6 +1,7 @@
 package relationship
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,20 +19,25 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// Server exposes the network.habitat.relationship.* XRPC endpoints. Writes
-// require the manager role and reads require the reader role on the governing
-// space, checked via FGA exactly like internal/spaces.
+// Server exposes the network.habitat.relationship.* XRPC endpoints. It is a
+// thin XRPC layer over perms.Store, which owns storage and permission logic.
+// Writes require the manager role and reads require the reader role on the
+// governing space.
 type Server struct {
-	store     *Store
-	ps        perms.Store
+	perms     perms.Store
+	spaces    spaces.Store
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
 }
 
-func NewServer(store *Store, ps perms.Store, validator authn.RequestValidator) *Server {
+func NewServer(
+	permsStore perms.Store,
+	spacesStore spaces.Store,
+	validator authn.RequestValidator,
+) *Server {
 	return &Server{
-		store:     store,
-		ps:        ps,
+		perms:     permsStore,
+		spaces:    spacesStore,
 		validator: validator,
 		decoder:   schema.NewDecoder(),
 	}
@@ -48,7 +54,7 @@ func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	object, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space")
+	space, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space")
 	if !ok {
 		return
 	}
@@ -58,31 +64,64 @@ func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
 	).Validate(w, r); !ok {
 		return
 	}
-	role, err := ParseRole(input.Relation)
+	role, err := parseSpaceRole(input.Relation)
 	if err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "failed to parse relation", err)
+		httpx.WriteError(ctx, w, "InvalidRelation", err.Error(), http.StatusBadRequest)
 		return
 	}
-	// TODO better relationship store interface
-	relationSubject, err := parseSubjectParams(subject.String(), "")
-	if err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "failed to parse subject", err)
-		return
-	}
-	uri, err := s.store.WriteTuple(ctx, relationSubject, role, object)
-	if errors.Is(err, ErrInvalidTuple) {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		httpx.WriteInvalidRequest(ctx, w, "invalid tuple", err)
-		return
-	} else if errors.Is(err, spaces.ErrSpaceNotFound) {
+	uri, err := s.perms.AddUserRelation(ctx, subject, space, role)
+	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
 	} else if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("write tuple: %w", err))
+		httpx.WriteServerError(ctx, w, fmt.Errorf("add user relation: %w", err))
 		return
 	}
 	httpx.WriteJSON(ctx, w,
 		habitat.NetworkHabitatRelationshipWriteUserRelationOutput{Uri: uri.String()})
+}
+
+func (s *Server) WriteSpaceRelation(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var input habitat.NetworkHabitatRelationshipWriteSpaceRelationInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to decode request body", err)
+		return
+	}
+	subject, ok := httpx.ParseSpaceURIInput(ctx, w, input.Subject, "subject")
+	if !ok {
+		return
+	}
+	space, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space")
+	if !ok {
+		return
+	}
+	if _, ok = s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+		authn.WithSpace(space, fgastore.RelationSpaceMemberManager),
+	).Validate(w, r); !ok {
+		return
+	}
+	subjectRole, err := parseSpaceRole(input.SubjectRole)
+	if err != nil {
+		httpx.WriteError(ctx, w, "InvalidRelation", err.Error(), http.StatusBadRequest)
+		return
+	}
+	relation, err := parseSpaceRole(input.Relation)
+	if err != nil {
+		httpx.WriteError(ctx, w, "InvalidRelation", err.Error(), http.StatusBadRequest)
+		return
+	}
+	uri, err := s.perms.AddSpaceRoleRelation(ctx, subject, subjectRole, space, relation)
+	if errors.Is(err, spaces.ErrSpaceNotFound) {
+		httpx.WriteSpaceNotFound(ctx, w, err)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("add space role relation: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w,
+		habitat.NetworkHabitatRelationshipWriteSpaceRelationOutput{Uri: uri.String()})
 }
 
 func (s *Server) DeleteRelation(w http.ResponseWriter, r *http.Request) {
@@ -103,25 +142,29 @@ func (s *Server) DeleteRelation(w http.ResponseWriter, r *http.Request) {
 	).Validate(w, r); !ok {
 		return
 	}
-	err = s.store.DeleteTuple(ctx, uri)
-	if errors.Is(err, ErrTupleNotFound) {
-		slog.WarnContext(ctx, "tuple not found", "err", err)
+	err = s.perms.DeleteRelation(ctx, uri)
+	if errors.Is(err, perms.ErrRelationNotFound) {
+		slog.WarnContext(ctx, "relation not found", "err", err)
 		httpx.WriteError(ctx, w, "RelationNotFound", "", http.StatusNotFound)
 		return
 	} else if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("delete tuple: %w", err))
+		httpx.WriteServerError(ctx, w, fmt.Errorf("delete relation: %w", err))
 		return
 	}
 }
 
-func (s *Server) ListRelations(w http.ResponseWriter, r *http.Request) {
+func (s *Server) CheckUserRelation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var params habitat.NetworkHabitatRelationshipListRelationsParams
+	var params habitat.NetworkHabitatRelationshipCheckUserRelationParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to decode query params", err)
 		return
 	}
-	space, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	subject, ok := httpx.ParseDIDInput(ctx, w, params.Subject, "subject")
+	if !ok {
+		return
+	}
+	space, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space")
 	if !ok {
 		return
 	}
@@ -131,66 +174,59 @@ func (s *Server) ListRelations(w http.ResponseWriter, r *http.Request) {
 	).Validate(w, r); !ok {
 		return
 	}
-	filter, err := parseListTuplesFilter(params)
+	role, err := parseSpaceRole(params.Relation)
 	if err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "failed to parse filter", err)
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse relation", err)
 		return
 	}
-	tuples, err := s.store.ListTuples(ctx, space, filter)
+	allowed, err := s.perms.CheckUserHasSpaceRole(ctx, subject, space, role)
 	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("list tuples: %w", err))
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check user relation: %w", err))
 		return
 	}
-	views := make([]any, len(tuples))
-	for i, t := range tuples {
-		if t.Subject.Kind() == SubjectKindSpace {
-			subject := t.Subject.(SpaceRoleSubject)
-			views[i] = habitat.NetworkHabitatRelationshipListRelationsSpaceRelationView{
-				Uri:      t.URI.String(),
-				Subject:  subject.Space.String(),
-				Relation: string(t.Relation),
-				Object:   t.Object.String(),
-			}
-		}
-	}
-	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipListRelationsOutput{Relations: views})
+	httpx.WriteJSON(ctx, w,
+		habitat.NetworkHabitatRelationshipCheckUserRelationOutput{Allowed: allowed})
 }
 
-func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
+func (s *Server) CheckSpaceRelation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var params habitat.NetworkHabitatRelationshipCheckParams
+	var params habitat.NetworkHabitatRelationshipCheckSpaceRelationParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to decode query params", err)
+		return
+	}
+	subject, ok := httpx.ParseSpaceURIInput(ctx, w, params.Subject, "subject")
+	if !ok {
 		return
 	}
 	space, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space")
 	if !ok {
 		return
 	}
-	subject, err := parseSubjectParams(params.Subject, params.SubjectRole)
-	if err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "failed to parse subject", err)
-		return
-	}
-
-	credInfo, ok := s.validator.Request(
+	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
 	}
-	allowed, err := s.store.Check(ctx,
-		credInfo.Org.DID(),
-		subject, Role(params.Relation), space)
-	if errors.Is(err, ErrInvalidTuple) {
-		httpx.WriteInvalidRequest(ctx, w, "invalid tuple", err)
-		return
-	} else if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("check: %w", err))
+	subjectRole, err := parseSpaceRole(params.SubjectRole)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse subjectRole", err)
 		return
 	}
-	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipCheckOutput{Allowed: allowed})
+	relation, err := parseSpaceRole(params.Relation)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse relation", err)
+		return
+	}
+	allowed, err := s.perms.CheckSpaceRelationHasSpaceRole(ctx, subject, subjectRole, space, relation)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check space relation: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w,
+		habitat.NetworkHabitatRelationshipCheckSpaceRelationOutput{Allowed: allowed})
 }
 
 func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
@@ -204,18 +240,20 @@ func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	credInfo, ok := s.validator.Request(
+	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
 	}
-	dids, err := s.store.ListSubjects(ctx, credInfo.Org.DID(), space, Role(params.Relation))
-	if errors.Is(err, ErrInvalidTuple) {
-		httpx.WriteInvalidRequest(ctx, w, "invalid tuple", err)
+	role, err := parseSpaceRole(params.Relation)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse relation", err)
 		return
-	} else if err != nil {
+	}
+	dids, err := s.perms.ListUserSubjects(ctx, space, role)
+	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list subjects: %w", err))
 		return
 	}
@@ -243,6 +281,11 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	role, err := parseSpaceRole(params.Relation)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse relation", err)
+		return
+	}
 	var filterType *syntax.NSID
 	if params.Type != "" {
 		t, ok := httpx.ParseNSIDInput(ctx, w, params.Type, "type filter")
@@ -251,25 +294,16 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 		}
 		filterType = &t
 	}
-	spaceURIs, err := s.store.ListObjects(
-		ctx,
-		credInfo.Org.DID(),
-		did,
-		Role(params.Relation),
-		filterType,
-	)
-	if errors.Is(err, ErrInvalidTuple) {
-		httpx.WriteInvalidRequest(ctx, w, "invalid tuple", err)
-		return
-	} else if err != nil {
+	spaceURIs, err := s.perms.ListObjects(ctx, did, role, filterType)
+	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list objects: %w", err))
 		return
 	}
 	// Only return spaces the caller is allowed to read.
 	out := make([]string, 0, len(spaceURIs))
 	for _, space := range spaceURIs {
-		readable, err := s.ps.CheckUserHasSpaceRole(
-			r.Context(),
+		readable, err := s.perms.CheckUserHasSpaceRole(
+			ctx,
 			credInfo.Subject,
 			space,
 			habitat_syntax.SpaceRoleReader,
@@ -285,38 +319,137 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipListObjectsOutput{Spaces: out})
 }
 
-// parseListTuplesFilter builds a store filter from the query params, validating
-// the optional filter values.
-func parseListTuplesFilter(
+// relationCollections are the two record collections listRelations reads
+// from directly via the spaces store: perms.Store's List* methods do
+// FGA-expanded lookups (usersets, implicit grantees), not raw record
+// listing, so listRelations — the interoperable read surface other apps use
+// to see the actual stored relation records — bypasses it.
+var relationCollections = [2]syntax.NSID{
+	syntax.NSID(habitat_syntax.UserRelationCollection),
+	syntax.NSID(habitat_syntax.SpaceRelationCollection),
+}
+
+func (s *Server) ListRelations(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var params habitat.NetworkHabitatRelationshipListRelationsParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to decode query params", err)
+		return
+	}
+	space, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	if _, ok = s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+		authn.WithSpace(space, fgastore.RelationSpaceReader),
+	).Validate(w, r); !ok {
+		return
+	}
+	if params.SubjectType != "" && params.SubjectType != "user" && params.SubjectType != "space" {
+		httpx.WriteInvalidRequest(ctx, w, "invalid subjectType", nil)
+		return
+	}
+	if params.Object != "" && params.Object != space.String() {
+		// The object of a relation record is always the space it's written
+		// into (the governing space itself), so a mismatched object filter
+		// can never match anything.
+		httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipListRelationsOutput{
+			Relations: []any{},
+		})
+		return
+	}
+
+	views := make([]any, 0)
+
+	if params.SubjectType != "space" {
+		userViews, err := s.listUserRelationViews(ctx, space, params)
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("list user relations: %w", err))
+			return
+		}
+		views = append(views, userViews...)
+	}
+	if params.SubjectType != "user" {
+		spaceViews, err := s.listSpaceRelationViews(ctx, space, params)
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("list space relations: %w", err))
+			return
+		}
+		views = append(views, spaceViews...)
+	}
+
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipListRelationsOutput{Relations: views})
+}
+
+// listUserRelationViews reads and filters the userRelation records governing
+// space.
+func (s *Server) listUserRelationViews(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
 	params habitat.NetworkHabitatRelationshipListRelationsParams,
-) (ListTuplesFilter, error) {
-	var filter ListTuplesFilter
-	if params.Object != "" {
-		object, err := habitat_syntax.ParseSpaceURI(params.Object)
-		if err != nil {
-			return ListTuplesFilter{}, err
+) ([]any, error) {
+	collection := relationCollections[0]
+	records, err := s.spaces.ListRecords(ctx, space, space.SpaceOwner(), &collection)
+	if err != nil {
+		return nil, err
+	}
+	views := make([]any, 0, len(records))
+	for _, rec := range records {
+		subjectDID, _ := rec.Value["subject"].(string)
+		relation, _ := rec.Value["relation"].(string)
+		if params.SubjectDid != "" && subjectDID != params.SubjectDid {
+			continue
 		}
-		filter.Object = &object
-	}
-	if params.SubjectDid != "" {
-		did, err := syntax.ParseDID(params.SubjectDid)
-		if err != nil {
-			return ListTuplesFilter{}, err
+		if params.Relation != "" && relation != params.Relation {
+			continue
 		}
-		filter.SubjectDID = &did
+		views = append(views, habitat.NetworkHabitatRelationshipListRelationsUserRelationView{
+			Uri: habitat_syntax.ConstructSpaceRecordURI(
+				space, rec.Owner, rec.Collection, rec.Rkey,
+			).String(),
+			Subject:  subjectDID,
+			Relation: relation,
+			Object:   space.String(),
+		})
 	}
-	switch params.SubjectType {
-	case "":
-	case string(SubjectKindUser):
-		filter.SubjectKind = SubjectKindUser
-	case string(SubjectKindSpace):
-		filter.SubjectKind = SubjectKindSpace
-	default:
-		return ListTuplesFilter{}, errors.New("invalid subjectType")
+	return views, nil
+}
+
+// listSpaceRelationViews reads and filters the spaceRelation records
+// governing space.
+func (s *Server) listSpaceRelationViews(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	params habitat.NetworkHabitatRelationshipListRelationsParams,
+) ([]any, error) {
+	collection := relationCollections[1]
+	records, err := s.spaces.ListRecords(ctx, space, space.SpaceOwner(), &collection)
+	if err != nil {
+		return nil, err
 	}
-	if params.Relation != "" {
-		role := Role(params.Relation)
-		filter.Relation = &role
+	views := make([]any, 0, len(records))
+	for _, rec := range records {
+		subject, _ := rec.Value["subject"].(string)
+		subjectRole, _ := rec.Value["subjectRole"].(string)
+		relation, _ := rec.Value["relation"].(string)
+		// subjectDid only filters userRelation records; a spaceRelation's
+		// subject is a space, never a DID.
+		if params.SubjectDid != "" {
+			continue
+		}
+		if params.Relation != "" && relation != params.Relation {
+			continue
+		}
+		views = append(views, habitat.NetworkHabitatRelationshipListRelationsSpaceRelationView{
+			Uri: habitat_syntax.ConstructSpaceRecordURI(
+				space, rec.Owner, rec.Collection, rec.Rkey,
+			).String(),
+			Subject:     subject,
+			SubjectRole: subjectRole,
+			Relation:    relation,
+			Object:      space.String(),
+		})
 	}
-	return filter, nil
+	return views, nil
 }

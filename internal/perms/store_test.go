@@ -404,7 +404,7 @@ func TestStoreUnsafeRevokeAllSpaceRoles(t *testing.T) {
 		require.False(t, ok)
 	}
 
-	dids, err := s.ListUserSubjects(ctx, space)
+	dids, err := s.ListUserSubjects(ctx, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 	require.ElementsMatch(t, dids, []syntax.DID{org})
 
@@ -436,9 +436,15 @@ func TestStoreListUserSubjects(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("ListUserSubjects returns only the DIDs", func(t *testing.T) {
-		got, err := s.ListUserSubjects(ctx, space)
+		got, err := s.ListUserSubjects(ctx, space, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []syntax.DID{alice, bob, org}, got)
+	})
+
+	t.Run("ListUserSubjects expands only the requested role", func(t *testing.T) {
+		got, err := s.ListUserSubjects(ctx, space, habitat_syntax.SpaceRoleWriter)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []syntax.DID{bob, org}, got)
 	})
 }
 
@@ -456,12 +462,25 @@ func TestStoreListObjects(t *testing.T) {
 	_, err = s.SetUserRelation(ctx, bob, doc3, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 
-	got, err := s.ListObjects(ctx, alice)
+	got, err := s.ListObjects(ctx, alice, habitat_syntax.SpaceRoleReader, nil)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []habitat_syntax.SpaceURI{doc1, doc2}, got)
 
 	t.Run("empty for a did with no relations", func(t *testing.T) {
-		got, err := s.ListObjects(ctx, "did:plc:stranger")
+		got, err := s.ListObjects(ctx, "did:plc:stranger", habitat_syntax.SpaceRoleReader, nil)
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
+
+	t.Run("filters by role", func(t *testing.T) {
+		got, err := s.ListObjects(ctx, alice, habitat_syntax.SpaceRoleWriter, nil)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []habitat_syntax.SpaceURI{doc2}, got)
+	})
+
+	t.Run("filters by type", func(t *testing.T) {
+		groupType := syntax.NSID("network.habitat.group")
+		got, err := s.ListObjects(ctx, alice, habitat_syntax.SpaceRoleReader, &groupType)
 		require.NoError(t, err)
 		require.Empty(t, got)
 	})
