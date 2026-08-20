@@ -11,12 +11,17 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
+
+var tracer = otel.Tracer("spaces/store")
 
 // GORM models
 type space struct {
@@ -207,6 +212,7 @@ var (
 	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
 	ErrRepoNotFound       = errors.New("repo not found")
 	ErrRevTooFar          = errors.New("since revision is ahead of the repo head")
+	ErrRecordTooLarge     = errors.New("record too large")
 )
 
 // ---- Store implementation ----
@@ -436,16 +442,25 @@ func (s *store) PutRecord(
 	rkey syntax.RecordKey,
 	value map[string]any,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
+	ctx, span := tracer.Start(ctx, "PutRecord", trace.WithAttributes(
+		attribute.String("space", spaceURI.String()),
+		attribute.String("repo", repo.String()),
+		attribute.String("collection", collection.String()),
+		attribute.String("rkey", rkey.String()),
+	))
 	ok, err := s.CheckSpaceExists(ctx, spaceURI)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to get space: %w", err)
 	} else if !ok {
 		return "", nil, ErrSpaceNotFound
 	}
-
 	bytes, err := atdata.MarshalCBOR(value)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
+	}
+	span.SetAttributes(attribute.Int("cbor_bytes", len(bytes)))
+	if len(bytes) > atdata.MAX_CBOR_RECORD_SIZE {
+		return "", nil, ErrRecordTooLarge
 	}
 
 	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)

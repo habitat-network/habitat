@@ -4,7 +4,7 @@ go 1.26.3
 
 require (
 	github.com/alexedwards/argon2id v1.0.0
-	github.com/bluesky-social/indigo v0.0.0-20260812214806-52c38ce3daca
+	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
 	github.com/gorilla/handlers v1.5.2
 	github.com/pressly/goose/v3 v3.27.3
 	github.com/testcontainers/testcontainers-go v0.44.0
@@ -90,8 +90,8 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260724162435-b2f20204f0df // indirect
-	google.golang.org/grpc v1.82.1 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260817212433-ac3dfec99bb1 // indirect
+	google.golang.org/grpc v1.83.0 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
