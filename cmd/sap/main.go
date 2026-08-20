@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/log"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
@@ -68,7 +69,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	domain := cmd.String(fDomain)
-	store, err := oauthclient.NewGormStore(db)
+	store, err := oauthclient.NewGormStore(db, oauthclient.WithSingleSessionPerUser())
 	if err != nil {
 		return fmt.Errorf("create oauth store: %w", err)
 	}
@@ -83,18 +84,27 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	oauthApp := oauth.NewClientApp(&config, store)
+	oauthApp.Resolver.Client = httpx.NewClient()
+
+	endpoint := "https://" + domain
 
 	s, err := sap.New(sap.Config{
 		DB:          db,
 		OAuthClient: oauthApp,
-		Meter:       otel.Meter("sap"),
-		Tracer:      otel.Tracer("sap"),
+		Directory:   oauthApp.Dir,
+		// Endpoint is the base URL sap registers with each space host as
+		// its notifyWrite delivery address (see pkg/sap/register), so
+		// writes to tracked spaces reach sap's outbox live instead of only
+		// being discovered on the next crawl.
+		Endpoint: endpoint,
+		Meter:    otel.Meter("sap"),
+		Tracer:   otel.Tracer("sap"),
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	server := NewSapServer(s, oauthApp)
+	server := NewSapServer(s, oauthApp, endpoint)
 
 	// The OAuth endpoints (callback and client metadata) must be publicly
 	// reachable since the user's PDS redirects to them, so they are served on
@@ -103,11 +113,13 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	oauthMux := http.NewServeMux()
 	oauthMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
 	oauthMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+	oauthMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", server.handleNotifyWrite)
 
 	internalMux := http.NewServeMux()
 	internalMux.HandleFunc("/health", server.handleHealth)
 	internalMux.HandleFunc("/org/add", server.handleAddOrg)
 	internalMux.HandleFunc("/org/list", server.handleListOrgs)
+	internalMux.HandleFunc("/space/track", server.handleTrackSpace)
 	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
 	internalMux.HandleFunc("/proxy/", server.handleProxy)
 
