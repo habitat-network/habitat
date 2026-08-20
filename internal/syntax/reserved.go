@@ -6,5 +6,8 @@ import (
 )
 
 var (
-	ReservedCollections = xmaps.Set[syntax.NSID]{UserRelationCollection: struct{}{}, SpaceRelationCollection: struct{}{}}
+	ReservedCollections = xmaps.Set[syntax.NSID]{
+		UserRelationCollection:  struct{}{},
+		SpaceRelationCollection: struct{}{},
+	}
 )

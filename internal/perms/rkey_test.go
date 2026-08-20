@@ -53,6 +53,10 @@ func TestSpaceRelationRkeyDeterministic(t *testing.T) {
 	got2 := spaceRelationRkey(group, habitat_syntax.SpaceRoleReader, habitat_syntax.SpaceRoleReader)
 	require.Equal(t, got1, got2)
 
-	other := spaceRelationRkey(group, habitat_syntax.SpaceRoleReader, habitat_syntax.SpaceRoleWriter)
+	other := spaceRelationRkey(
+		group,
+		habitat_syntax.SpaceRoleReader,
+		habitat_syntax.SpaceRoleWriter,
+	)
 	require.NotEqual(t, got1, other)
 }
