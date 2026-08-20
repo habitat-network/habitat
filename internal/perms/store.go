@@ -124,7 +124,11 @@ func (s *store) SetUserRelation(
 				continue
 			}
 			deletes = append(deletes, tuple.TupleKeyToTupleKeyWithoutCondition(
-				tuple.NewTupleKey(fgastore.SpaceObjectKey(space), relation, fgastore.MemberUserString(did)),
+				tuple.NewTupleKey(
+					fgastore.SpaceObjectKey(space),
+					relation,
+					fgastore.MemberUserString(did),
+				),
 			))
 		}
 
@@ -239,7 +243,11 @@ func (s *store) RevokeUser(
 		deletes := make([]*openfgav1.TupleKeyWithoutCondition, 0, len(fgaRelationFromRole))
 		for _, relation := range fgaRelationFromRole {
 			deletes = append(deletes, tuple.TupleKeyToTupleKeyWithoutCondition(
-				tuple.NewTupleKey(fgastore.SpaceObjectKey(space), relation, fgastore.MemberUserString(did)),
+				tuple.NewTupleKey(
+					fgastore.SpaceObjectKey(space),
+					relation,
+					fgastore.MemberUserString(did),
+				),
 			))
 		}
 

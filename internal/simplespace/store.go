@@ -91,9 +91,6 @@ func (m *Store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 		return nil
 
 		// delete all stored relations/permissions for this space
-		if err := m.perms.UnsafeRevokeAllSpaceRoles(ctx, uri); err != nil {
-			return fmt.Errorf("err deleting space permissions: %w", err)
-		}
 		return nil
 	})
 	if err != nil {
@@ -128,7 +125,12 @@ func (m *Store) AddMember(ctx context.Context, uri habitat_syntax.SpaceURI, did 
 	// TODO: there could be a race here between TOCTOU -- the space could get deleted by another process here.
 	// We need a way to detect this after the fact and clean it up.
 
-	if _, err := m.perms.SetUserRelation(ctx, did, uri, habitat_syntax.SpaceRoleWriter); err != nil {
+	if _, err := m.perms.SetUserRelation(
+		ctx,
+		did,
+		uri,
+		habitat_syntax.SpaceRoleWriter,
+	); err != nil {
 		return fmt.Errorf("err adding member: %w", err)
 	}
 	return nil
