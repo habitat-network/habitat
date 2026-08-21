@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import ReactJson from "react-json-view";
+import JsonView from "@uiw/react-json-view";
 import { constructSpaceURI } from "internal";
 import { Card, CardContent } from "internal/components/ui";
 import { spaceRecordQueryOptions } from "@/queries/spaces";
@@ -36,7 +36,6 @@ function RecordView() {
     recordKey,
   } = Route.useParams();
   const data = Route.useLoaderData();
-
   return (
     <SpacesPageLayout
       breadcrumb={
@@ -67,9 +66,8 @@ function RecordView() {
     >
       <Card>
         <CardContent className="overflow-x-auto">
-          <ReactJson
-            src={(data.value ?? {}) as object}
-            name={false}
+          <JsonView
+            value={(data.value ?? {}) as object}
             displayDataTypes={false}
             enableClipboard={false}
           />
