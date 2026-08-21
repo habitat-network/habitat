@@ -1,0 +1,39 @@
+---
+id: overview
+slug: /rebac
+sidebar_label: Overview
+sidebar_position: 0
+---
+
+# ReBAC
+
+`[simplespaces](https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md#required-pds-space-management-simplespace)` defines a space management implementation that supports basic access control that all PDSs will support.
+However, some applications will need more fine grained control over space permissions.
+While the spaces protocol leaves room for custom space management implementations that applications can specify, the ACLs will be trapped in that application hurting cross-app interoperability and space host migrations.
+
+Habitat's relationship lexicons provides a space management implementation based on [ReBAC](https://auth0.com/blog/relationship-based-access-control-rebac/) that is compatible with simplespaces.
+It represents the ACL as edges (relations) in a graph where nodes are users and other spaces.
+This lets spaces inherit members from other spaces, enabling a much more powerful permission model.  
+Importantly, it writes the relationships of the ACL into the space itself so other applications and space hosts can parse them.
+
+A space host resolves the permission graph encoded in the space before granting a space credential.
+It also provides XRPC methods that applications can use to query the graph like checking if a user has a role in a space, listing members of a space by role, and even listing all spaces a user has a role on.
+This makes it easier for applications to enforce permissions on the spaces they have crawled either by querying the space host or building their own index of the graph.  
+
+## Roles
+
+**Relations are four roles**, in a fixed implication chain:
+
+```
+owner ⇒ manager ⇒ writer ⇒ reader
+```
+
+Holding a role implies holding every role below it, so an `owner` passes a `reader` check without a second grant. The chain is built into the authorization model, not evaluated in application code.
+
+| Role      | Can                                                   |
+| --------- | ----------------------------------------------------- |
+| `owner`   | Everything, including deleting the space              |
+| `manager` | Manage the space's relations — grant and revoke roles |
+| `writer`  | Write records into the space                          |
+| `reader`  | Read records in the space, and read its relations     |
+
