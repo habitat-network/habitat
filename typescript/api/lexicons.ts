@@ -2698,7 +2698,7 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          "Check whether a space-role userset (all subjects holding subjectRole on subject, a space or group-space) holds a role on space, resolving built-in role implications (owner implies manager implies writer implies reader). Enables checking cross-space inheritance, e.g. whether spaceA's writers hold a role on spaceB. Caller must have the reader role on space.",
+          "Check whether a space-role userset (all subjects holding subjectRole on another space) holds a role on space, resolving built-in role implications. Enables checking cross-space inheritance, e.g. whether spaceA's writers hold reader role on spaceB. Caller must have the reader role on space.",
         parameters: {
           type: 'params',
           required: ['subject', 'subjectRole', 'relation', 'space'],
@@ -3025,79 +3025,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipSpaceRelation: {
-    lexicon: 1,
-    id: 'network.habitat.relationship.spaceRelation',
-    defs: {
-      main: {
-        type: 'record',
-        description:
-          "A relationship record granting a role to all subjects holding subjectRole on subject (a space userset) on object, which is the space this record is written into. Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. The object is always the space this record is written into; groups are spaces too, so granting a role to a group's members on a group-space is just an ordinary space relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
-        key: 'tid',
-        record: {
-          type: 'object',
-          required: ['subject', 'subjectRole', 'relation'],
-          properties: {
-            subject: {
-              type: 'string',
-              format: 'uri',
-              description:
-                'URI of the subject space (or group-space) whose role-holders form the userset.',
-            },
-            subjectRole: {
-              type: 'string',
-              enum: ['owner', 'manager', 'writer', 'reader'],
-              description:
-                'The role held on the subject space, forming the userset.',
-            },
-            relation: {
-              type: 'string',
-              knownValues: ['owner', 'manager', 'writer', 'reader'],
-              description:
-                'Role granted on the object space (owner|manager|writer|reader).',
-            },
-            createdAt: {
-              type: 'string',
-              format: 'datetime',
-            },
-          },
-        },
-      },
-    },
-  },
-  NetworkHabitatRelationshipUserRelation: {
-    lexicon: 1,
-    id: 'network.habitat.relationship.userRelation',
-    defs: {
-      main: {
-        type: 'record',
-        description:
-          'A relationship record granting a role to a user (by DID) on object (a space). The object is always the space this record is written into; groups are spaces too, so granting a role to a user on a group-space is just an ordinary user relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.',
-        key: 'tid',
-        record: {
-          type: 'object',
-          required: ['subject', 'relation'],
-          properties: {
-            subject: {
-              type: 'string',
-              format: 'did',
-              description: 'DID of the user the role is granted to.',
-            },
-            relation: {
-              type: 'string',
-              knownValues: ['owner', 'manager', 'writer', 'reader'],
-              description:
-                'Role granted on the object space (owner|manager|writer|reader).',
-            },
-            createdAt: {
-              type: 'string',
-              format: 'datetime',
-            },
-          },
-        },
-      },
-    },
-  },
   NetworkHabitatRelationshipWriteSpaceRelation: {
     lexicon: 1,
     id: 'network.habitat.relationship.writeSpaceRelation',
@@ -3222,6 +3149,79 @@ export const schemaDict = {
               'The subject, relation, and space combination is not valid.',
           },
         ],
+      },
+    },
+  },
+  NetworkHabitatRelationshipSpaceRelation: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.spaceRelation',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "A relationship record granting a role to all subjects holding subjectRole on subject (a space userset) on object, which is the space this record is written into. Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. The object is always the space this record is written into; groups are spaces too, so granting a role to a group's members on a group-space is just an ordinary space relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['subject', 'subjectRole', 'relation'],
+          properties: {
+            subject: {
+              type: 'string',
+              format: 'uri',
+              description:
+                'URI of the subject space (or group-space) whose role-holders form the userset.',
+            },
+            subjectRole: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'The role held on the subject space, forming the userset.',
+            },
+            relation: {
+              type: 'string',
+              knownValues: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'Role granted on the object space (owner|manager|writer|reader).',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipUserRelation: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.userRelation',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          'A relationship record granting a role to a user (by DID) on object (a space). The object is always the space this record is written into; groups are spaces too, so granting a role to a user on a group-space is just an ordinary user relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.',
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['subject', 'relation'],
+          properties: {
+            subject: {
+              type: 'string',
+              format: 'did',
+              description: 'DID of the user the role is granted to.',
+            },
+            relation: {
+              type: 'string',
+              knownValues: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'Role granted on the object space (owner|manager|writer|reader).',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
       },
     },
   },
@@ -5333,14 +5333,14 @@ export const ids = {
     'network.habitat.relationship.listRelations',
   NetworkHabitatRelationshipListSubjects:
     'network.habitat.relationship.listSubjects',
-  NetworkHabitatRelationshipSpaceRelation:
-    'network.habitat.relationship.spaceRelation',
-  NetworkHabitatRelationshipUserRelation:
-    'network.habitat.relationship.userRelation',
   NetworkHabitatRelationshipWriteSpaceRelation:
     'network.habitat.relationship.writeSpaceRelation',
   NetworkHabitatRelationshipWriteUserRelation:
     'network.habitat.relationship.writeUserRelation',
+  NetworkHabitatRelationshipSpaceRelation:
+    'network.habitat.relationship.spaceRelation',
+  NetworkHabitatRelationshipUserRelation:
+    'network.habitat.relationship.userRelation',
   NetworkHabitatRenderSchema: 'network.habitat.render.schema',
   NetworkHabitatRepoCreateRecord: 'network.habitat.repo.createRecord',
   NetworkHabitatRepoDeleteRecord: 'network.habitat.repo.deleteRecord',
