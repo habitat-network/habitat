@@ -7,9 +7,12 @@ sidebar_position: 1
 
 # Relationship records
 
-Every grant is a record in the space it governs. There are two lexicons — one for granting to a user, one for granting to a userset — and they share the same shape: the **object is implicit**, always the space the record was written into.
+Every grant is a record in the space it governs. There are two lexicons — one for granting to a user, one for granting to another space's role.
 
-Both are written into their space under the org repo (the space owner's repo), so a space's full permission structure is readable by anything that can read the space. Read them through [`listRelations`](./endpoints.mdx#listing) rather than by fetching the collection directly — that endpoint applies the read check and returns each record's URI alongside its fields.
+Both are written into their space under the space authority's repo, so a space's full permission structure is readable by anyone that can read the space. [`listRelations`](./endpoints.mdx#listing) is a helper that will list both types of records for a space.
+
+Since the records are written in the space authority's repo, the only way to write them is to use [writeUserRelation](./endpoints.mdx#writeUserRelation) or [writeSpaceRelation](./endpoints.mdx#writeSpaceRelation). That will authorize the calling user and write to the space auhthority's repo on their behalf.
+Relation records in a space that are not in the space authority's repo can be ignored.
 
 ## userRelation
 
@@ -22,7 +25,7 @@ Both are written into their space under the org repo (the space owner's repo), s
 | `createdAt` | datetime | no       | When the grant was written.                |
 
 ```json
-// in space at://did:plc:org/space/network.habitat.space/design-docs
+// in space at://did:web:space.host/space/network.habitat.document/testdoc
 {
   "$type": "network.habitat.relationship.userRelation",
   "subject": "did:plc:alice",
@@ -31,44 +34,34 @@ Both are written into their space under the org repo (the space owner's repo), s
 }
 ```
 
-Reads as: **Alice is a writer on `design-docs`.**
-
-Since groups are spaces, adding a member to a group is the same record written into the group-space.
+Reads as: **Alice is a writer on `testdoc`.**
 
 ## spaceRelation
 
-`network.habitat.relationship.spaceRelation` — grants a role to a **userset**: everyone holding `subjectRole` on `subject`.
+`network.habitat.relationship.spaceRelation` — grants a role to a everyone holding `subjectRole` on the `subject` space.
 
 | Field         | Type      | Required | Description                                                            |
 | ------------- | --------- | -------- | ---------------------------------------------------------------------- |
-| `subject`     | space URI | yes      | The space (often a group-space) whose role-holders form the userset.   |
+| `subject`     | space URI | yes      | The space whose role-holders form the userset.   |
 | `subjectRole` | string    | yes      | The role held on `subject`: `owner`, `manager`, `writer`, or `reader`. |
 | `relation`    | string    | yes      | The role granted on the object space.                                  |
 | `createdAt`   | datetime  | no       | When the grant was written.                                            |
 
 ```json
-// in space at://did:plc:org/space/network.habitat.space/design-docs
+// in space at://did:web:space.host/space/network.habitat.document/testdoc
 {
   "$type": "network.habitat.relationship.spaceRelation",
-  "subject": "at://did:plc:org/space/network.habitat.group/eng",
+  "subject": "at://did:web:space.host/space/network.habitat.group/eng",
   "subjectRole": "reader",
   "relation": "writer",
   "createdAt": "2026-04-02T17:05:00Z"
 }
 ```
 
-Reads as: **everyone who can read the `eng` group is a writer on `design-docs`.**
-
-Nesting is the same record with a group-space as the object: writing a `spaceRelation` whose subject is `at://…/group/eng` into `at://…/group/all-staff` makes `eng` a nested group of `all-staff`.
+Reads as: **everyone who can read the `eng` group is a writer on `testdoc`.**
 
 ## One role per subject
 
 A grant is keyed by its subject, not by its role: the record key is derived deterministically from the subject (and, for a space relation, the `subjectRole`). Granting a subject a role on a space it already holds a role on **replaces** the old grant rather than adding a second one — there is exactly one `userRelation` per (user, space) and one `spaceRelation` per (subject, subjectRole, space).
 
 Since roles imply one another, this loses nothing: an `owner` grant already covers everything a `reader` grant would.
-
-## How records become tuples
-
-Writing a relation record is one transaction with two effects: the record is put into the space, and a matching tuple is written into Habitat's embedded OpenFGA store, which is what resolves checks. Records are the durable, portable, app-readable form; tuples are the index Habitat queries.
-
-The consequence for clients is that a space's relation records are a complete description of who can do what — apart from role implication and userset expansion, which are properties of the model rather than facts stored anywhere. If you want the expanded answer, ask for it with [`checkUserRelation`](./endpoints.mdx#checking-access) or [`listSubjects`](./endpoints.mdx#listing) instead of resolving the records yourself.
