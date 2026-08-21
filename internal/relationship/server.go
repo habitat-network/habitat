@@ -232,7 +232,13 @@ func (s *Server) CheckSpaceRelation(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse relation", err)
 		return
 	}
-	allowed, err := s.perms.CheckSpaceRelationHasSpaceRole(ctx, subject, subjectRole, space, relation)
+	allowed, err := s.perms.CheckSpaceRelationHasSpaceRole(
+		ctx,
+		subject,
+		subjectRole,
+		space,
+		relation,
+	)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("check space relation: %w", err))
 		return

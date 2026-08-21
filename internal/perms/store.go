@@ -102,9 +102,7 @@ func NewStore(db *gorm.DB, spaces spaces.Store, fga fgastore.Store) *store {
 	return &store{db: db, spaces: spaces, fga: fga}
 }
 
-var (
-	ErrRelationNotFound = errors.New("relation not found")
-)
+var ErrRelationNotFound = errors.New("relation not found")
 var _ Store = &store{}
 
 // WithTx implements [Store], returning a store whose DB operations run on tx.
@@ -119,7 +117,6 @@ func (s *store) SetUserRelation(
 	space habitat_syntax.SpaceURI,
 	role habitat_syntax.SpaceRole,
 ) (habitat_syntax.SpaceRecordURI, error) {
-
 	var uri habitat_syntax.SpaceRecordURI
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		record := map[string]any{
@@ -186,7 +183,6 @@ func (s *store) SetSpaceRoleRelation(
 	object habitat_syntax.SpaceURI,
 	objectRole habitat_syntax.SpaceRole,
 ) (habitat_syntax.SpaceRecordURI, error) {
-
 	var uri habitat_syntax.SpaceRecordURI
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		record := map[string]any{
