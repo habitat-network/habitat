@@ -364,8 +364,8 @@ interface UnauthedOptions {
 // AuthManager.
 type ProcedureOptions<T extends keyof ProcedureEndpoints> =
   ProcedureEndpoints[T]["unauthenticated"] extends true
-  ? UnauthedOptions
-  : AuthedOptions;
+    ? UnauthedOptions
+    : AuthedOptions;
 
 export class XRPCError extends Error {
   public status: number;
@@ -379,8 +379,8 @@ export class XRPCError extends Error {
 
 type QueryOptions<T extends keyof QueryEndpoints> =
   QueryEndpoints[T]["unauthenticated"] extends true
-  ? UnauthedOptions
-  : AuthedOptions;
+    ? UnauthedOptions
+    : AuthedOptions;
 
 export const query = async <T extends keyof QueryEndpoints>(
   endpoint: T,
@@ -402,12 +402,12 @@ export const query = async <T extends keyof QueryEndpoints>(
   const response = options.unauthenticated
     ? await fetch(`https://${(options as UnauthedOptions).domain}${path}`)
     : await (options as AuthedOptions).authManager.fetch(
-      path,
-      "GET",
-      null,
-      options.headers,
-      (options as AuthedOptions).fetchOptions,
-    );
+        path,
+        "GET",
+        null,
+        options.headers,
+        (options as AuthedOptions).fetchOptions,
+      );
   // Only the parse is guarded: wrapping the XRPCError throw in the same try
   // caught it here and replaced it with a generic Error, so callers could
   // never see which lexicon error came back.
@@ -421,7 +421,7 @@ export const query = async <T extends keyof QueryEndpoints>(
     throw new XRPCError(response.status, data ?? { error: "UnknownError" });
   }
   if (!data) {
-    return
+    return;
   }
   // This is a plain fetch, not @atproto/xrpc's client, so lexicon-typed
   // fields (bytes, blobs, CIDs) arrive as raw JSON (e.g. {"$bytes": "..."})
@@ -444,7 +444,7 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
     throw new XRPCError(response.status, data);
   }
   if (!data) {
-    return
+    return;
   }
   // See query()'s equivalent comment: decode lexicon-typed fields the same
   // way @atproto/xrpc does, since this is a plain fetch.
