@@ -209,16 +209,17 @@ export class PearClient {
     relation: Role,
     space: string,
   ): Promise<boolean> {
-    const out = await this.call<NetworkHabitatRelationshipCheckUserRelation.OutputSchema>(
-      org,
-      "network.habitat.relationship.checkUserRelation",
-      "GET",
-      {
-        subject: did,
-        relation,
-        space,
-      } satisfies NetworkHabitatRelationshipCheckUserRelation.QueryParams,
-    );
+    const out =
+      await this.call<NetworkHabitatRelationshipCheckUserRelation.OutputSchema>(
+        org,
+        "network.habitat.relationship.checkUserRelation",
+        "GET",
+        {
+          subject: did,
+          relation,
+          space,
+        } satisfies NetworkHabitatRelationshipCheckUserRelation.QueryParams,
+      );
     return out.allowed;
   }
 }
