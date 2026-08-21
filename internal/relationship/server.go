@@ -15,7 +15,6 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -26,7 +25,6 @@ import (
 // Writes require the manager role and reads require the reader role on the
 // governing space.
 type Server struct {
-	orgStore  org.Store
 	perms     perms.Store
 	spaces    spaces.Store
 	validator authn.RequestValidator
