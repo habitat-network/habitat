@@ -2992,11 +2992,11 @@ export const schemaDict = {
       main: {
         type: 'record',
         description:
-          "A relationship record granting a role to all subjects holding subjectRole on subject (a space userset) on object (a space). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. The object is always a space; groups are spaces too, so granting a role to a group's members on a group-space is just an ordinary space relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
+          "A relationship record granting a role to all subjects holding subjectRole on subject (a space userset) on object, which is the space this record is written into. Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. The object is always the space this record is written into; groups are spaces too, so granting a role to a group's members on a group-space is just an ordinary space relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
         key: 'tid',
         record: {
           type: 'object',
-          required: ['subject', 'subjectRole', 'relation', 'object'],
+          required: ['subject', 'subjectRole', 'relation'],
           properties: {
             subject: {
               type: 'string',
@@ -3016,11 +3016,6 @@ export const schemaDict = {
               description:
                 'Role granted on the object space (owner|manager|writer|reader).',
             },
-            object: {
-              type: 'string',
-              format: 'uri',
-              description: 'URI of the space the role is granted on.',
-            },
             createdAt: {
               type: 'string',
               format: 'datetime',
@@ -3037,11 +3032,11 @@ export const schemaDict = {
       main: {
         type: 'record',
         description:
-          'A relationship record granting a role to a user (by DID) on object (a space). The object is always a space; groups are spaces too, so granting a role to a user on a group-space is just an ordinary user relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.',
+          'A relationship record granting a role to a user (by DID) on object (a space). The object is always the space this record is written into; groups are spaces too, so granting a role to a user on a group-space is just an ordinary user relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.',
         key: 'tid',
         record: {
           type: 'object',
-          required: ['subject', 'relation', 'object'],
+          required: ['subject', 'relation'],
           properties: {
             subject: {
               type: 'string',
@@ -3053,11 +3048,6 @@ export const schemaDict = {
               knownValues: ['owner', 'manager', 'writer', 'reader'],
               description:
                 'Role granted on the object space (owner|manager|writer|reader).',
-            },
-            object: {
-              type: 'string',
-              format: 'uri',
-              description: 'URI of the space the role is granted on.',
             },
             createdAt: {
               type: 'string',

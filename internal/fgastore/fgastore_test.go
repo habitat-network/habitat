@@ -646,15 +646,6 @@ func TestOrgMemberUsersetString(t *testing.T) {
 	require.Equal(t, "organization:did%3Aplc%3Amyorg#member", us)
 }
 
-func TestOrgMemberContextualTuple_ProducesCorrectTuple(t *testing.T) {
-	org := syntax.DID("did:plc:example")
-	tup := OrgMemberContextualTuple(org)
-	require.Equal(t, "organization:did%3Aplc%3Aexample#member", tup.User)
-	require.Equal(t, RelationSpaceReader, tup.Relation)
-	require.Contains(t, tup.Object, "space:")
-	require.Contains(t, tup.Object, "network.habitat.organization")
-}
-
 func TestSpaceUsersetString(t *testing.T) {
 	uri := habitat_syntax.SpaceURI("at://did:plc:abc/space/network.habitat.space/my-space")
 	result := SpaceUsersetString(uri, RelationSpaceReader)

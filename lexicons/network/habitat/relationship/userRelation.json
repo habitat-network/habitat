@@ -4,14 +4,13 @@
     "defs": {
         "main": {
             "type": "record",
-            "description": "A relationship record granting a role to a user (by DID) on object (a space). The object is always a space; groups are spaces too, so granting a role to a user on a group-space is just an ordinary user relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
+            "description": "A relationship record granting a role to a user (by DID) on object (a space). The object is always the space this record is written into; groups are spaces too, so granting a role to a user on a group-space is just an ordinary user relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
             "key": "tid",
             "record": {
                 "type": "object",
                 "required": [
                     "subject",
-                    "relation",
-                    "object"
+                    "relation"
                 ],
                 "properties": {
                     "subject": {
@@ -28,11 +27,6 @@
                             "reader"
                         ],
                         "description": "Role granted on the object space (owner|manager|writer|reader)."
-                    },
-                    "object": {
-                        "type": "string",
-                        "format": "uri",
-                        "description": "URI of the space the role is granted on."
                     },
                     "createdAt": {
                         "type": "string",

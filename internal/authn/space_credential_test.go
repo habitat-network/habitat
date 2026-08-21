@@ -1,4 +1,4 @@
-package authn
+package authn_test
 
 import (
 	"net/http"
@@ -9,12 +9,13 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 )
 
-func newAuthenticatedReqest(token string) *http.Request {
+func newAuthenticatedRequest(token string) *http.Request {
 	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
 	return r
@@ -27,7 +28,7 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 	dir.Insert(
 		*did.Web("pear.com").AtprotoKey(hostPubKey.Multibase()).ATProtoSpaceKey(hostPubKey.Multibase()).Build(),
 	)
-	method := NewSpaceCredentialAuthMethod(dir)
+	method := authn.NewSpaceCredentialAuthMethod(dir)
 
 	t.Run("atproto_space", func(t *testing.T) {
 		token, err := utils.SpaceCredential(
@@ -36,7 +37,7 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 			"at://did:web:pear.com/space/com.test.space/abc",
 		)
 		require.NoError(t, err)
-		r := newAuthenticatedReqest(token)
+		r := newAuthenticatedRequest(token)
 		require.True(t, method.CanHandle(r))
 		credInfo, ok := method.Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
@@ -51,7 +52,7 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 			"at://did:web:pear.com/space/com.test.space/abc",
 		)
 		require.NoError(t, err)
-		r := newAuthenticatedReqest(token)
+		r := newAuthenticatedRequest(token)
 		require.True(t, method.CanHandle(r))
 		credInfo, ok := method.Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
@@ -74,7 +75,7 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 			"#atproto",
 			"at://did:web:pear.com/space/com.test.space/abc",
 		)
-		r := newAuthenticatedReqest(token)
+		r := newAuthenticatedRequest(token)
 		require.True(t, method.CanHandle(r))
 		credInfo, ok := method.Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
@@ -95,7 +96,7 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 			},
 			Method: jwt.GetSigningMethod("ES256K"),
 		}).SignedString(hostKey)
-		r := newAuthenticatedReqest(token)
+		r := newAuthenticatedRequest(token)
 		require.True(t, method.CanHandle(r))
 		credInfo, ok := method.Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
