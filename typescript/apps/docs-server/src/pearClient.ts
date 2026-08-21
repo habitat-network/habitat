@@ -5,7 +5,7 @@ import type {
   NetworkHabitatRelationshipWriteUserRelation,
   NetworkHabitatRelationshipListSubjects,
   NetworkHabitatRelationshipListObjects,
-  NetworkHabitatRelationshipCheck,
+  NetworkHabitatRelationshipCheckUserRelation,
 } from "api";
 import type { DerivedConfig } from "./config";
 
@@ -209,15 +209,15 @@ export class PearClient {
     relation: Role,
     space: string,
   ): Promise<boolean> {
-    const out = await this.call<NetworkHabitatRelationshipCheck.OutputSchema>(
+    const out = await this.call<NetworkHabitatRelationshipCheckUserRelation.OutputSchema>(
       org,
-      "network.habitat.relationship.check",
+      "network.habitat.relationship.checkUserRelation",
       "GET",
       {
         subject: did,
         relation,
         space,
-      } satisfies NetworkHabitatRelationshipCheck.QueryParams,
+      } satisfies NetworkHabitatRelationshipCheckUserRelation.QueryParams,
     );
     return out.allowed;
   }
