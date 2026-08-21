@@ -41,7 +41,7 @@ RUN pnpm --filter pear-pages exec vite build --outDir /app/internal/webui/dist
 #### BUILD STAGE
 #### Builds the Go binary.
 
-FROM golang:1.26-alpine AS build
+FROM golang:1.27-alpine AS build
 WORKDIR /app
 
 # Copy go module files first for better layer caching
