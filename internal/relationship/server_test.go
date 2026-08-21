@@ -41,14 +41,14 @@ func newTestServer(t *testing.T, caller syntax.DID) (*Server, perms.Store, space
 	t.Cleanup(func() { _ = fga.Close() })
 
 	db := db_testutil.NewDB(t)
-	sp := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
-	ps := perms.NewStore(db, sp.Store, fga)
+	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
+	ps := perms.NewStore(db, sp, fga)
 
 	return NewServer(
 		ps,
-		sp.Store,
+		sp,
 		authntest.NewSuccessValidatorWithOrg(caller, caller),
-	), ps, sp.Store
+	), ps, sp
 }
 
 // newSpace creates a space owned by org in sp and returns its URI.

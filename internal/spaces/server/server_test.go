@@ -54,7 +54,7 @@ func newTestStore(t *testing.T) (atcrypto.PrivateKey, spaces.Store) {
 
 	key, err := atcrypto.GeneratePrivateKeyK256()
 	require.NoError(t, err)
-	return key, spaces_testutil.NewTestStore(t, spaces_testutil.Config{HostKey: key})
+	return key, spaces_testutil.NewTestStore(t, spaces_testutil.WithHostKey(key))
 }
 
 func newTestServerWithOpts(
