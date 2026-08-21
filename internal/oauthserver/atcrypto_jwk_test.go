@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"encoding/base64"
+	"math/big"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -33,11 +34,13 @@ func TestAtcryptoJWKtoJose(t *testing.T) {
 		require.NoError(t, err)
 		yb, err := base64.RawURLEncoding.DecodeString(jwk.Y)
 		require.NoError(t, err)
-		// SEC 1 uncompressed point: 0x04 || X || Y.
-		want := append([]byte{4}, append(xb, yb...)...)
-		gotBytes, err := ecPub.Bytes()
-		require.NoError(t, err)
-		require.Equal(t, want, gotBytes)
+		//nolint:staticcheck // SA1019: deprecated ecdsa.PublicKey X/Y fields
+		want := &ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     new(big.Int).SetBytes(xb),
+			Y:     new(big.Int).SetBytes(yb),
+		}
+		require.True(t, ecPub.Equal(want))
 	})
 
 	t.Run("returns an empty key id when the jwk has none", func(t *testing.T) {

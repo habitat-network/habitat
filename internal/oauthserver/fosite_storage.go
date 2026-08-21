@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
@@ -354,28 +355,20 @@ func atcryptoJWKtoJose(jwk atcrypto.JWK) (*jose.JSONWebKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWK y coordinate: %w", err)
 	}
-	byteLen := (curve.Params().BitSize + 7) / 8
-	if len(x) > byteLen || len(y) > byteLen {
-		return nil, fmt.Errorf("JWK coordinates too large for curve %q", jwk.Curve)
-	}
-	// SEC 1 uncompressed point: 0x04 || X || Y, each coordinate left-padded to
-	// the curve's byte length. Parsing rather than assembling the key from raw
-	// coordinates also verifies the point actually lies on the curve.
-	point := make([]byte, 1+2*byteLen)
-	point[0] = 4
-	copy(point[1+byteLen-len(x):1+byteLen], x)
-	copy(point[1+2*byteLen-len(y):], y)
-	pub, err := ecdsa.ParseUncompressedPublicKey(curve, point)
-	if err != nil {
-		return nil, fmt.Errorf("invalid JWK public key: %w", err)
-	}
-
 	var keyID string
 	if jwk.KeyID != nil {
 		keyID = *jwk.KeyID
 	}
 	return &jose.JSONWebKey{
-		Key:   pub,
+		// TODO: Go 1.26 deprecated building an ecdsa.PublicKey from raw X/Y.
+		// Switch to ecdsa.ParseUncompressedPublicKey, which also validates the
+		// point is on the curve.
+		//nolint:staticcheck // SA1019: deprecated ecdsa.PublicKey X/Y fields
+		Key: &ecdsa.PublicKey{
+			Curve: curve,
+			X:     new(big.Int).SetBytes(x),
+			Y:     new(big.Int).SetBytes(y),
+		},
 		KeyID: keyID,
 	}, nil
 }
