@@ -16,11 +16,6 @@
                         "format": "uri",
                         "description": "URI of the governing space whose relations to list."
                     },
-                    "object": {
-                        "type": "string",
-                        "format": "uri",
-                        "description": "Optional. Restrict to relations whose object is this space or group URI."
-                    },
                     "subjectDid": {
                         "type": "string",
                         "format": "did",
@@ -36,7 +31,7 @@
                     },
                     "relation": {
                         "type": "string",
-                        "description": "Optional. Restrict to relations with this relation."
+                        "description": "Optional. Restrict to relations with this role."
                     }
                 }
             },

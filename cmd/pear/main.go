@@ -372,10 +372,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		validator,
 	)
 
-	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
-		relationshipStore,
 		permStore,
+		spacesStore,
 		validator,
 	)
 
@@ -539,10 +538,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Relationships
 	mux.HandleFunc("/xrpc/network.habitat.relationship.writeUserRelation",
 		relationshipServer.WriteUserRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteTuple",
-		relationshipServer.DeleteTuple)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listTuples", relationshipServer.ListTuples)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.check", relationshipServer.Check)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.writeSpaceRelation",
+		relationshipServer.WriteSpaceRelation)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteRelation",
+		relationshipServer.DeleteRelation)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listRelations",
+		relationshipServer.ListRelations)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.checkUserRelation",
+		relationshipServer.CheckUserRelation)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.checkSpaceRelation",
+		relationshipServer.CheckSpaceRelation)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.listSubjects",
 		relationshipServer.ListSubjects)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.listObjects",

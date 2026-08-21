@@ -187,8 +187,8 @@ func (p *pearClient) check(
 	relation string,
 	space habitat_syntax.SpaceURI,
 ) (bool, error) {
-	var out habitat.NetworkHabitatRelationshipCheckOutput
-	err := p.get(ctx, "network.habitat.relationship.check", url.Values{
+	var out habitat.NetworkHabitatRelationshipCheckUserRelationOutput
+	err := p.get(ctx, "network.habitat.relationship.checkUserRelation", url.Values{
 		"subject":  []string{did.String()},
 		"relation": []string{relation},
 		"space":    []string{space.String()},

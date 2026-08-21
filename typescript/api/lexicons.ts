@@ -2691,28 +2691,75 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipCheck: {
+  NetworkHabitatRelationshipCheckSpaceRelation: {
     lexicon: 1,
-    id: 'network.habitat.relationship.check',
+    id: 'network.habitat.relationship.checkSpaceRelation',
     defs: {
       main: {
         type: 'query',
         description:
-          'Check whether a subject holds a role on a space. The subject is either a user (DID) or a space-role userset (a space URI plus subjectRole), resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
+          "Check whether a space-role userset (all subjects holding subjectRole on subject, a space or group-space) holds a role on space, resolving built-in role implications (owner implies manager implies writer implies reader). Enables checking cross-space inheritance, e.g. whether spaceA's writers hold a role on spaceB. Caller must have the reader role on space.",
+        parameters: {
+          type: 'params',
+          required: ['subject', 'subjectRole', 'relation', 'space'],
+          properties: {
+            subject: {
+              type: 'string',
+              format: 'uri',
+              description:
+                'URI of the subject space (or group-space) whose role-holders form the userset to check.',
+            },
+            subjectRole: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'The role held on the subject space, forming the userset.',
+            },
+            relation: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description: 'The role to check for on the space.',
+            },
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the space.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['allowed'],
+            properties: {
+              allowed: {
+                type: 'boolean',
+                description:
+                  'Whether the subject userset holds the role on the space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipCheckUserRelation: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.checkUserRelation',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Check whether a user holds a role on a space, resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
         parameters: {
           type: 'params',
           required: ['subject', 'relation', 'space'],
           properties: {
             subject: {
               type: 'string',
-              description:
-                'The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required.',
-            },
-            subjectRole: {
-              type: 'string',
-              enum: ['owner', 'manager', 'writer', 'reader'],
-              description:
-                'The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID.',
+              format: 'did',
+              description: 'DID of the user to check.',
             },
             relation: {
               type: 'string',
@@ -2839,12 +2886,6 @@ export const schemaDict = {
               description:
                 'URI of the governing space whose relations to list.',
             },
-            object: {
-              type: 'string',
-              format: 'uri',
-              description:
-                'Optional. Restrict to relations whose object is this space or group URI.',
-            },
             subjectDid: {
               type: 'string',
               format: 'did',
@@ -2859,8 +2900,7 @@ export const schemaDict = {
             },
             relation: {
               type: 'string',
-              description:
-                'Optional. Restrict to relations with this relation.',
+              description: 'Optional. Restrict to relations with this role.',
             },
           },
         },
@@ -5281,7 +5321,10 @@ export const ids = {
   NetworkHabitatPermissionsRemovePermission:
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
-  NetworkHabitatRelationshipCheck: 'network.habitat.relationship.check',
+  NetworkHabitatRelationshipCheckSpaceRelation:
+    'network.habitat.relationship.checkSpaceRelation',
+  NetworkHabitatRelationshipCheckUserRelation:
+    'network.habitat.relationship.checkUserRelation',
   NetworkHabitatRelationshipDeleteRelation:
     'network.habitat.relationship.deleteRelation',
   NetworkHabitatRelationshipListObjects:

@@ -6,7 +6,6 @@ import "encoding/json"
 
 // NetworkHabitatRelationshipListRelationsParams represents the input parameters for network.habitat.relationship.listRelations
 type NetworkHabitatRelationshipListRelationsParams struct {
-	Object      string `json:"object,omitempty"`
 	Relation    string `json:"relation,omitempty"`
 	Space       string `json:"space"`
 	SubjectDid  string `json:"subjectDid,omitempty"`
