@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "query",
-            "description": "Check whether a space-role userset (all subjects holding subjectRole on subject, a space or group-space) holds a role on space, resolving built-in role implications (owner implies manager implies writer implies reader). Enables checking cross-space inheritance, e.g. whether spaceA's writers hold a role on spaceB. Caller must have the reader role on space.",
+            "description": "Check whether a space-role userset (all subjects holding subjectRole on another space) holds a role on space, resolving built-in role implications. Enables checking cross-space inheritance, e.g. whether spaceA's writers hold reader role on spaceB. Caller must have the reader role on space.",
             "parameters": {
                 "type": "params",
                 "required": [

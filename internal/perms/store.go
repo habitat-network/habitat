@@ -58,11 +58,6 @@ type Store interface {
 
 	// DeleteRelation removes the relation record at uri (either a userRelation
 	// or a spaceRelation record) from both the governing space and FGA.
-	//
-	// TODO: not yet implemented — resolve uri to the record it points at,
-	// decode its (subject[, subjectRole], relation) fields, and call the
-	// matching Revoke* method. Should return ErrRelationNotFound if no record
-	// exists at uri.
 	DeleteRelation(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error
 	UnsafeRevokeAllSpaceRoles(ctx context.Context, space habitat_syntax.SpaceURI) error
 
@@ -450,9 +445,8 @@ func (s *store) ListUserSubjects(
 	return dids, nil
 }
 
-// ListObjects implements [Store]. It returns the spaces did directly holds
-// role on (owner/manager/writer imply reader, so a lower role requested
-// returns spaces held via a higher one too). xw
+// ListObjects implements [Store]. It returns the spaces `did` holds `role` on.
+// This includes implicit grants from the relationship graph and role interitance.
 func (s *store) ListObjects(
 	ctx context.Context,
 	did syntax.DID,
