@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -119,7 +118,7 @@ func (rv *EndpointOptions) Validate(
 		}
 		if rv.space != "" {
 			if credInfo.Space != "" {
-				if rv.relation != fgastore.RelationSpaceReader {
+				if rv.relation != habitat_syntax.SpaceRoleReader {
 					httpx.WriteUnauthorized(ctx, w, "space token can only read")
 					return nil, false
 				}

@@ -250,8 +250,9 @@ func TestDeleteSpace_RemovesFGATuples(t *testing.T) {
 
 	require.NoError(t, s.DeleteSpace(t.Context(), uri))
 
-	_, err = s.ListMembers(t.Context(), orgID, uri)
-	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
+	recs, err := s.spaces.ListRecords(t.Context(), uri, orgID, nil)
+	require.NoError(t, err)
+	require.Len(t, recs, 0)
 }
 
 func TestDeleteSpaceTriggersNotify(t *testing.T) {

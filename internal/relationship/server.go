@@ -12,7 +12,6 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -55,7 +54,7 @@ func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(object, fgastore.RelationSpaceMemberManager),
+		authn.WithSpace(object, habitat_syntax.SpaceRoleManager),
 	).Validate(w, r); !ok {
 		return
 	}
@@ -100,7 +99,7 @@ func (s *Server) DeleteTuple(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(uri.SpaceURI(), fgastore.RelationSpaceMemberManager),
+		authn.WithSpace(uri.SpaceURI(), habitat_syntax.SpaceRoleManager),
 	).Validate(w, r); !ok {
 		return
 	}
@@ -128,7 +127,7 @@ func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(space, fgastore.RelationSpaceReader),
+		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r); !ok {
 		return
 	}
@@ -176,7 +175,7 @@ func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
 
 	credInfo, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(space, fgastore.RelationSpaceReader),
+		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -207,7 +206,7 @@ func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
 	}
 	credInfo, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(space, fgastore.RelationSpaceReader),
+		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return

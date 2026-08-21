@@ -13,9 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/atdata"
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/ipld/go-car"
 	"github.com/stretchr/testify/require"
 	"gocloud.dev/blob/memblob"
@@ -24,11 +22,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/did"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
@@ -36,16 +30,16 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-type testServerOptions struct {
-	hostKey   atcrypto.PrivateKey
+type opts struct {
 	validator authn.RequestValidator
-	store     *spaces_testutil.TestStore
 }
 
-type testServer struct {
-	*spaces_server.Server
-	Store   *spaces_testutil.TestStore
-	HostKey atcrypto.PrivateKey
+type Option func(*opts)
+
+func WithValidator(validator authn.RequestValidator) Option {
+	return func(o *opts) {
+		o.validator = validator
+	}
 }
 
 var (
@@ -55,40 +49,50 @@ var (
 	groupType = syntax.NSID("network.habitat.group")
 )
 
-func newTestServerWithOpts(t *testing.T, opts testServerOptions) *testServer {
+func newTestStore(t *testing.T) (atcrypto.PrivateKey, spaces.Store) {
 	t.Helper()
-	if opts.hostKey == nil {
-		key, err := atcrypto.GeneratePrivateKeyK256()
-		require.NoError(t, err)
-		opts.hostKey = key
+
+	key, err := atcrypto.GeneratePrivateKeyK256()
+	require.NoError(t, err)
+	return key, spaces_testutil.NewTestStore(t, spaces_testutil.Config{HostKey: key})
+}
+
+func newTestServerWithOpts(
+	t *testing.T,
+	key atcrypto.PrivateKey,
+	store spaces.Store,
+	options ...Option,
+) *spaces_server.Server {
+	t.Helper()
+
+	o := &opts{
+		validator: authntest.NewSuccessValidatorWithOrg(owner, orgID),
 	}
-	if opts.validator == nil {
-		opts.validator = authntest.NewSuccessValidatorWithOrg(owner, orgID)
+
+	for _, option := range options {
+		option(o)
 	}
-	if opts.store == nil {
-		opts.store = spaces_testutil.NewTestStore(t, spaces_testutil.Config{HostKey: opts.hostKey})
-	}
+
 	h, err := hive.NewHive("example.com", "pear.example.com", db_testutil.NewDB(t))
 	require.NoError(t, err)
-	return &testServer{
-		Server: spaces_server.NewServer(
-			opts.store,
-			opts.validator,
-			opts.hostKey,
-			h,
-			spaces.NewBlobStore(memblob.OpenBucket(nil)),
-		),
-		Store:   opts.store,
-		HostKey: opts.hostKey,
-	}
+	return spaces_server.NewServer(
+		store,
+		o.validator,
+		key,
+		h,
+		spaces.NewBlobStore(memblob.OpenBucket(nil)),
+	)
 }
 
 func TestServer_UploadAndGetBlob(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "blobs")
+
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "blobs")
 	require.NoError(t, err)
 
 	// Upload a blob.
@@ -122,9 +126,11 @@ func TestServer_UploadAndGetBlob(t *testing.T) {
 }
 
 func TestServer_UploadBlob_RejectsOversized(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
 
 	// 500 KiB upload limit + 1 byte must be rejected.
@@ -142,16 +148,18 @@ func TestServer_UploadBlob_RejectsOversized(t *testing.T) {
 }
 
 func TestServer_ListSpaces(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "my-space")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "my-space")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -172,15 +180,18 @@ func TestServer_ListSpaces(t *testing.T) {
 }
 
 func TestServer_ListRepos(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "shared")
+
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "shared")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -203,12 +214,13 @@ func TestServer_ListRepos(t *testing.T) {
 }
 
 func TestServer_PutAndGetRecord(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
-
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "my-note", "record": {"text": "hello"}}`
@@ -245,15 +257,16 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 }
 
 func TestServer_DeleteRecord(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
-
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
-	_, _, err = s.Store.PutRecord(
+	_, _, err = store.PutRecord(
 		t.Context(),
 		uri,
 		owner,
@@ -273,7 +286,7 @@ func TestServer_DeleteRecord(t *testing.T) {
 	s.DeleteRecord(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	_, err = s.Store.GetRecord(
+	_, err = store.GetRecord(
 		t.Context(),
 		uri,
 		owner,
@@ -284,18 +297,20 @@ func TestServer_DeleteRecord(t *testing.T) {
 }
 
 func TestServer_ListRecords(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -318,18 +333,21 @@ func TestServer_ListRecords(t *testing.T) {
 // TestServer_GetRepo verifies getRepo returns a CAR whose first root is a real
 // signed commit over the repo's LtHash, verifiable against the host key.
 func TestServer_GetRepo(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
-	pub, err := s.HostKey.PublicKey()
+
+	pub, err := key.PublicKey()
 	require.NoError(t, err)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -379,19 +397,21 @@ func TestServer_GetRepo(t *testing.T) {
 	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
 
 	// The committed hash matches the repo's current LtHash state.
-	_, wantHash, found, err := s.Store.RepoHead(t.Context(), uri, owner)
+	_, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, wantHash, []byte(hash))
 }
 
 func TestServer_GetRepo_RepoNotFound(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -409,11 +429,12 @@ func TestServer_GetRepo_RepoNotFound(t *testing.T) {
 // TestServer_GetRepo_SpaceNotFound distinguishes an unknown space (400,
 // SpaceNotFound) from a known space with no repo (404, RepoNotFound, above).
 func TestServer_GetRepo_SpaceNotFound(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
-
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -428,12 +449,13 @@ func TestServer_GetRepo_SpaceNotFound(t *testing.T) {
 }
 
 func TestServer_PutRecord_Unauthorized(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
-
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "repo": "did:plc:alice", "collection": "network.habitat.note", "rkey": "test", "record": {"x": 1}}`
@@ -448,15 +470,17 @@ func TestServer_PutRecord_Unauthorized(t *testing.T) {
 }
 
 func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
-	_, _, err = s.Store.PutRecord(
+	_, _, err = store.PutRecord(
 		t.Context(),
 		uri,
 		owner,
@@ -478,19 +502,21 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 }
 
 func TestServer_ListRepoOps(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -518,20 +544,20 @@ func TestServer_ListRepoOps(t *testing.T) {
 // oplog a host-signed commit is returned, and that it verifies against the host
 // key with the host protocol tag and carries the repo's LtHash.
 func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
-	hostKey, err := atcrypto.GeneratePrivateKeyP256()
+
+	key, store := newTestStore(t)
+	pub, err := key.PublicKey()
 	require.NoError(t, err)
-	pub, err := hostKey.PublicKey()
-	require.NoError(t, err)
+
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{
-			hostKey: hostKey,
-		},
+		key,
+		store,
 	)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -558,7 +584,7 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	ctxBytes := spacecommit.Ctx(uri, owner, out.Commit.Rev, ikm)
 	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
 
-	_, wantHash, found, err := s.Store.RepoHead(t.Context(), uri, owner)
+	_, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, wantHash, hash)
@@ -567,20 +593,19 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 // TestServer_GetLatestCommit returns a host-signed commit over the repo's head
 // that verifies against the host key and carries the repo's LtHash.
 func TestServer_GetLatestCommit(t *testing.T) {
-	hostKey, err := atcrypto.GeneratePrivateKeyP256()
-	require.NoError(t, err)
-	pub, err := hostKey.PublicKey()
-	require.NoError(t, err)
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{
-			hostKey: hostKey,
-		},
+		key,
+		store,
 	)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	pub, err := key.PublicKey()
 	require.NoError(t, err)
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	require.NoError(t, err)
+	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -604,7 +629,7 @@ func TestServer_GetLatestCommit(t *testing.T) {
 	ctxBytes := spacecommit.Ctx(uri, owner, out.Commit.Rev, ikm)
 	require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
 
-	rev, wantHash, found, err := s.Store.RepoHead(t.Context(), uri, owner)
+	rev, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, wantHash, hash)
@@ -614,16 +639,14 @@ func TestServer_GetLatestCommit(t *testing.T) {
 // TestServer_GetLatestCommit_EmptyRepo returns repo-not-found when the repo
 // holds no records in the space.
 func TestServer_GetLatestCommit_EmptyRepo(t *testing.T) {
-	hostKey, err := atcrypto.GeneratePrivateKeyP256()
-	require.NoError(t, err)
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{
-			hostKey: hostKey,
-		},
+		key,
+		store,
 	)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -637,19 +660,21 @@ func TestServer_GetLatestCommit_EmptyRepo(t *testing.T) {
 }
 
 func TestServer_ListRepoOps_Since(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -678,17 +703,19 @@ func TestServer_ListRepoOps_Since(t *testing.T) {
 }
 
 func TestServer_ListRepoOps_IncludesValue(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err = s.Store.PutRecord(
+	_, _, err = store.PutRecord(
 		t.Context(),
 		uri,
 		owner,
@@ -717,17 +744,19 @@ func TestServer_ListRepoOps_IncludesValue(t *testing.T) {
 }
 
 func TestServer_ListRepoOps_ExcludeValues(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
 
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err = s.Store.PutRecord(
+	_, _, err = store.PutRecord(
 		t.Context(),
 		uri,
 		owner,
@@ -754,110 +783,22 @@ func TestServer_ListRepoOps_ExcludeValues(t *testing.T) {
 	require.Nil(t, output.Ops[0].Value)
 }
 
-func TestServer_GetSpaceCredential(t *testing.T) {
-	s := newTestServerWithOpts(
-		t,
-		testServerOptions{},
-	)
-	everyoneOrg := org.NewEveryoneOrg("everyone.example.com")
-	uri, err := s.Store.CreateSpace(t.Context(), everyoneOrg.DID(), owner, groupType, "test")
-	require.NoError(t, err)
-	// The store no longer grants the creator access as a side effect of
-	// CreateSpace (that's simplespace.Manager's job); write the owner tuple
-	// directly so the delegation/credential checks below have something to
-	// authorize against.
-	require.NoError(t, s.Store.FGA.Write(
-		t.Context(),
-		fgastore.MemberUserString(owner),
-		fgastore.RelationSpaceOwner,
-		fgastore.SpaceObjectKey(uri),
-	))
-
-	// Both tokens are minted with the host key (the space owner is external), so
-	// the directory resolves the owner's atproto_space key and the delegation
-	// method falls back to the host key.
-	hostPub, err := s.HostKey.PublicKey()
-	require.NoError(t, err)
-	dir := identity.NewMockDirectory()
-	dir.Insert(*did.Web("everyone.example.com").ATProtoSpaceKey(hostPub.Multibase()).Build())
-
-	w := httptest.NewRecorder()
-	s.GetDelegationToken(
-		w,
-		httptest.NewRequest(
-			http.MethodGet,
-			"/xrpc/network.habitat.space.getDelegationToken?space="+uri.String(),
-			http.NoBody,
-		),
-	)
-	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	var delegationResp habitat.NetworkHabitatSpaceGetDelegationTokenOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&delegationResp))
-
-	// The minted delegation token validates against the delegation auth method.
-	credInfo, ok := authn.NewDelegationTokenAuthMethod(dir, perms.NewStore(nil, nil, s.Store.FGA), s.HostKey).
-		Validate(
-			httptest.NewRecorder(),
-			authedRequest(delegationResp.Token),
-		)
-	require.True(t, ok)
-	require.Equal(t, uri.String(), credInfo.Space.String())
-
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.getSpaceCredential",
-		strings.NewReader(`{"space": "`+uri.String()+`"}`),
-	)
-	req.Header.Set("Authorization", "Bearer "+delegationResp.Token)
-	w = httptest.NewRecorder()
-	s.GetSpaceCredential(w, req)
-	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-
-	var spaceCredResp habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&spaceCredResp))
-
-	// The minted space credential validates against the space credential auth
-	// method, resolving the owner's atproto_space key from the directory.
-	credInfo, ok = authn.NewSpaceCredentialAuthMethod(dir).Validate(
-		httptest.NewRecorder(),
-		authedRequest(spaceCredResp.Credential),
-	)
-	require.True(t, ok)
-	require.Equal(t, uri.String(), credInfo.Space.String())
-
-	var claims jwt.MapClaims
-	_, err = jwt.ParseWithClaims(
-		spaceCredResp.Credential,
-		&claims,
-		func(t *jwt.Token) (interface{}, error) {
-			return s.HostKey.PublicKey()
-		},
-	)
-	require.NoError(t, err)
-	require.Equal(t, uri.String(), claims["sub"])
-}
-
-// authedRequest returns a request carrying the given bearer token, for feeding
-// a minted token back into its validating auth method.
-func authedRequest(token string) *http.Request {
-	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-	req.Header.Set("Authorization", "Bearer "+token)
-	return req
-}
-
 // TestServer_ListRepoOpsSinceAheadRejects pins that a since beyond the repo
 // head is an error (not an empty page), so an ahead-of-host syncer falls back
 // to a full recovery instead of silently stopping.
 func TestServer_ListRepoOpsSinceAheadRejects(t *testing.T) {
+	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
 		t,
-		testServerOptions{},
+		key,
+		store,
 	)
-	uri, err := s.Store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.Store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
 	require.NoError(t, err)
 
 	// A TID-like string that sorts after any real TID (base32 is a-z + 2-7).

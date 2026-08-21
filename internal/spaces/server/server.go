@@ -18,7 +18,6 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -124,7 +123,7 @@ func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 			authn.ValidatorMethodServiceAuth,
 			authn.ValidatorMethodSpaceCredential,
 		),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceReader),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -171,7 +170,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 			authn.ValidatorMethodServiceAuth,
 			authn.ValidatorMethodSpaceCredential,
 		),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceWriter),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleWriter),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -245,7 +244,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 			authn.ValidatorMethodServiceAuth,
 			authn.ValidatorMethodSpaceCredential,
 		),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceReader),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -336,7 +335,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 			authn.ValidatorMethodServiceAuth,
 			authn.ValidatorMethodSpaceCredential,
 		),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceReader),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -382,7 +381,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			authn.ValidatorMethodServiceAuth,
 			authn.ValidatorMethodSpaceCredential,
 		),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceReader),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -435,7 +434,7 @@ func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
 			authn.ValidatorMethodServiceAuth,
 			authn.ValidatorMethodSpaceCredential,
 		),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceReader),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -491,7 +490,7 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 			authn.ValidatorMethodServiceAuth,
 			authn.ValidatorMethodSpaceCredential,
 		),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceReader),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -568,7 +567,7 @@ func (s *Server) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
 			authn.ValidatorMethodServiceAuth,
 			authn.ValidatorMethodSpaceCredential,
 		),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceReader),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -687,7 +686,7 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodDelegationToken),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceReader),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r); !ok {
 		return
 	}

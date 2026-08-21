@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/schema"
 	"github.com/stretchr/testify/require"
 
@@ -273,6 +274,89 @@ func TestServer_Unauthorized(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.CreateSpace(w, req)
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// TestServer_SpaceLifecycle exercises the full member lifecycle end-to-end:
+// creating a space, writing a record into it, listing it back, adding a
+// second member who also writes, and removing that member again. It pins
+// that RemoveMember only revokes the permission grant — it does not touch
+// the space's stored repos, so ListRepos still shows both writers after the
+// removal.
+func TestServer_SpaceLifecycle(t *testing.T) {
+	s := newTestServer(t)
+	coll := syntax.NSID("network.habitat.note")
+
+	// createSpace
+	createReq := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.simplespace.createSpace",
+		strings.NewReader(`{"type": "network.habitat.group", "skey": "shared"}`),
+	)
+	createW := httptest.NewRecorder()
+	s.CreateSpace(createW, createReq)
+	require.Equal(t, http.StatusOK, createW.Code)
+
+	var createOutput habitat.NetworkHabitatSimplespaceCreateSpaceOutput
+	require.NoError(t, json.NewDecoder(createW.Body).Decode(&createOutput))
+	uri := habitat_syntax.SpaceURI(createOutput.Uri)
+
+	// PutRecord in the space, as the owner.
+	_, _, err := s.store.spaces.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	// It shows up in ListSpaces.
+	spaceURIs, err := s.store.spaces.ListSpaces(t.Context(), owner, nil, nil)
+	require.NoError(t, err)
+	require.Contains(t, spaceURIs, uri)
+
+	// Add someone to the space.
+	addBody := `{"space": "` + uri.String() + `", "did": "` + alice.String() + `"}`
+	addReq := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.simplespace.addMember",
+		strings.NewReader(addBody),
+	)
+	addW := httptest.NewRecorder()
+	s.AddMember(addW, addReq)
+	require.Equal(t, http.StatusOK, addW.Code)
+
+	// Alice writes into the space too, so she shows up as a repo.
+	_, _, err = s.store.spaces.PutRecord(t.Context(), uri, alice, coll, "k1", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	// ListRepos now shows both members.
+	repos, err := s.store.spaces.ListRepos(t.Context(), uri)
+	require.NoError(t, err)
+	var repoDIDs []syntax.DID
+	for _, r := range repos {
+		repoDIDs = append(repoDIDs, r.DID)
+	}
+	require.ElementsMatch(t, []syntax.DID{owner, alice, orgID}, repoDIDs)
+
+	// Remove that member from the space.
+	removeBody := `{"space": "` + uri.String() + `", "did": "` + alice.String() + `"}`
+	removeReq := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.simplespace.removeMember",
+		strings.NewReader(removeBody),
+	)
+	removeW := httptest.NewRecorder()
+	s.RemoveMember(removeW, removeReq)
+	require.Equal(t, http.StatusOK, removeW.Code)
+
+	isMember, err := s.store.IsMember(t.Context(), orgID, uri, alice)
+	require.NoError(t, err)
+	require.False(t, isMember)
+
+	// ListRepos still shows that member: removing a member revokes their
+	// permission grant, but the repo they already wrote to is untouched.
+	repos, err = s.store.spaces.ListRepos(t.Context(), uri)
+	require.NoError(t, err)
+	repoDIDs = nil
+	for _, r := range repos {
+		repoDIDs = append(repoDIDs, r.DID)
+	}
+	require.ElementsMatch(t, []syntax.DID{owner, alice, orgID}, repoDIDs)
 }
 
 func TestServer_DeleteSpace(t *testing.T) {

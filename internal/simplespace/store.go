@@ -67,7 +67,8 @@ func (m *Store) CreateSpace(
 			return fmt.Errorf("err creating space: %w", err)
 		}
 
-		_, err = m.perms.SetUserRelation(ctx, creator, uri, habitat_syntax.SpaceRoleOwner)
+		_, err = m.perms.WithTx(tx).
+			SetUserRelation(ctx, creator, uri, habitat_syntax.SpaceRoleOwner)
 		if err != nil {
 			return fmt.Errorf("err writing permissions: %w", err)
 		}
@@ -90,7 +91,7 @@ func (m *Store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 		}
 
 		// delete all stored relations/permissions for this space
-		if err := m.perms.UnsafeRevokeAllSpaceRoles(ctx, uri); err != nil {
+		if err := m.perms.WithTx(tx).UnsafeRevokeAllSpaceRoles(ctx, uri); err != nil {
 			return fmt.Errorf("err deleting space permissions: %w", err)
 		}
 		return nil

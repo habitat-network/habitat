@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/perms"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -71,7 +72,7 @@ func TestValidator(t *testing.T) {
 				authn.WithMethods(authn.ValidatorMethodSpaceCredential),
 				authn.WithSpace(
 					"at://did:web:alice/space/test.space.type/abc",
-					fgastore.RelationSpaceReader,
+					habitat_syntax.SpaceRoleReader,
 				),
 			).Validate(w, r)
 			require.True(t, ok)
@@ -88,7 +89,7 @@ func TestValidator(t *testing.T) {
 				),
 				authn.WithSpace(
 					"at://did:web:alice/space/test.space.type/abcd",
-					fgastore.RelationSpaceReader,
+					habitat_syntax.SpaceRoleReader,
 				),
 			).Validate(w, r)
 			require.False(t, ok)
@@ -103,7 +104,7 @@ func TestValidator(t *testing.T) {
 				authn.WithMethods(authn.ValidatorMethodOAuth),
 				authn.WithSpace(
 					"at://did:web:alice/space/test.space.type/abcd",
-					fgastore.RelationSpaceReader,
+					habitat_syntax.SpaceRoleReader,
 				),
 			).Validate(w, r)
 			require.False(t, ok)

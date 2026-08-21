@@ -2,11 +2,11 @@ package perms
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -74,23 +74,30 @@ type Store interface {
 	// List various things using relations
 	ListUserSubjects(ctx context.Context, space habitat_syntax.SpaceURI) ([]syntax.DID, error)
 	ListObjects(ctx context.Context, did syntax.DID) ([]habitat_syntax.SpaceURI, error)
-}
 
-type TxRunner interface {
-	Transaction(fc func(tx *gorm.DB) error, opts ...*sql.TxOptions) (err error)
+	// WithTx returns a copy of the store scoped to the given transaction, so
+	// its DB writes participate in a caller-managed transaction rather than
+	// opening a second, independent one (which SQLite can't run concurrently
+	// with the caller's still-open write transaction).
+	db.Store[Store]
 }
 
 type store struct {
-	db     TxRunner
+	db     *gorm.DB
 	fga    fgastore.Store
 	spaces spaces.Store
 }
 
-func NewStore(db TxRunner, spaces spaces.Store, fga fgastore.Store) *store {
+func NewStore(db *gorm.DB, spaces spaces.Store, fga fgastore.Store) *store {
 	return &store{db: db, spaces: spaces, fga: fga}
 }
 
 var _ Store = &store{}
+
+// WithTx implements [Store], returning a store whose DB operations run on tx.
+func (s *store) WithTx(tx *gorm.DB) Store {
+	return &store{db: tx, spaces: s.spaces, fga: s.fga}
+}
 
 // AddUserRelation implements [Store].
 func (s *store) SetUserRelation(
