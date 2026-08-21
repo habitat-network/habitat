@@ -15,7 +15,6 @@ import (
 
 var (
 	org   = syntax.DID("did:plc:org")
-	orgB  = syntax.DID("did:plc:orgB")
 	alice = syntax.DID("did:plc:alice")
 	bob   = syntax.DID("did:plc:bob")
 
