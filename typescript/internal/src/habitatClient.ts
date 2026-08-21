@@ -420,6 +420,9 @@ export const query = async <T extends keyof QueryEndpoints>(
   if (!response.ok) {
     throw new XRPCError(response.status, data ?? { error: "UnknownError" });
   }
+  if (!data) {
+    return undefined as unknown as QueryEndpoints[T]["output"];
+  }
   // This is a plain fetch, not @atproto/xrpc's client, so lexicon-typed
   // fields (bytes, blobs, CIDs) arrive as raw JSON (e.g. {"$bytes": "..."})
   // rather than the Uint8Array/BlobRef/CID the generated types declare.
@@ -439,6 +442,9 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
   const data = await response.json().catch(() => undefined);
   if (!response.ok) {
     throw new XRPCError(response.status, data);
+  }
+  if (!data) {
+    return undefined as ProcedureEndpoints[T]["output"];
   }
   // See query()'s equivalent comment: decode lexicon-typed fields the same
   // way @atproto/xrpc does, since this is a plain fetch.

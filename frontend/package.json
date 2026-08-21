@@ -15,6 +15,7 @@
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-devtools": "catalog:",
     "@tanstack/router-plugin": "catalog:",
+    "@uiw/react-json-view": "2.0.0-alpha.43",
     "api": "workspace:*",
     "boring-avatars": "catalog:",
     "canvas-confetti": "^1.9.4",
@@ -23,7 +24,6 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
-    "react-json-view": "^1.21.3",
     "tailwindcss": "^4.3.3",
     "zod": "^4.4.3"
   },
