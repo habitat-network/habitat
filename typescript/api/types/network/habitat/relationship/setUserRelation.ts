@@ -13,7 +13,7 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.relationship.writeUserRelation'
+const id = 'network.habitat.relationship.setUserRelation'
 
 export type QueryParams = {}
 

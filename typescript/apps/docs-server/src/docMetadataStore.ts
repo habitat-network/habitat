@@ -8,7 +8,7 @@ export interface DocView {
 
 // DocMetadataStore persists the docs the sap crawler discovers (space URI, id and
 // title). It carries no permission state: what a user may read is resolved on
-// demand via relationship.listObjects, and listDocs intersects that with this
+// demand via relationship.listRelatedSpaces, and listDocs intersects that with this
 // table. Backed by sqlite so the crawl state survives restarts (sap only
 // redelivers unacked messages).
 export class DocMetadataStore {

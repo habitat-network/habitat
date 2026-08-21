@@ -1,6 +1,6 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.relationship.writeSpaceRelation",
+    "id": "network.habitat.relationship.setSpaceRelation",
     "defs": {
         "main": {
             "type": "procedure",

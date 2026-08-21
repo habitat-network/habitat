@@ -1,6 +1,6 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.relationship.listObjects",
+    "id": "network.habitat.relationship.listRelatedSpaces",
     "defs": {
         "main": {
             "type": "query",

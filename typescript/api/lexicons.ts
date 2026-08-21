@@ -2819,9 +2819,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipListObjects: {
+  NetworkHabitatRelationshipListRelatedSpaces: {
     lexicon: 1,
-    id: 'network.habitat.relationship.listObjects',
+    id: 'network.habitat.relationship.listRelatedSpaces',
     defs: {
       main: {
         type: 'query',
@@ -2981,9 +2981,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipListSubjects: {
+  NetworkHabitatRelationshipResolveRelations: {
     lexicon: 1,
-    id: 'network.habitat.relationship.listSubjects',
+    id: 'network.habitat.relationship.resolveRelations',
     defs: {
       main: {
         type: 'query',
@@ -3025,9 +3025,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipWriteSpaceRelation: {
+  NetworkHabitatRelationshipSetSpaceRelation: {
     lexicon: 1,
-    id: 'network.habitat.relationship.writeSpaceRelation',
+    id: 'network.habitat.relationship.setSpaceRelation',
     defs: {
       main: {
         type: 'procedure',
@@ -3092,9 +3092,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipWriteUserRelation: {
+  NetworkHabitatRelationshipSetUserRelation: {
     lexicon: 1,
-    id: 'network.habitat.relationship.writeUserRelation',
+    id: 'network.habitat.relationship.setUserRelation',
     defs: {
       main: {
         type: 'procedure',
@@ -5327,16 +5327,16 @@ export const ids = {
     'network.habitat.relationship.checkUserRelation',
   NetworkHabitatRelationshipDeleteRelation:
     'network.habitat.relationship.deleteRelation',
-  NetworkHabitatRelationshipListObjects:
-    'network.habitat.relationship.listObjects',
+  NetworkHabitatRelationshipListRelatedSpaces:
+    'network.habitat.relationship.listRelatedSpaces',
   NetworkHabitatRelationshipListRelations:
     'network.habitat.relationship.listRelations',
-  NetworkHabitatRelationshipListSubjects:
-    'network.habitat.relationship.listSubjects',
-  NetworkHabitatRelationshipWriteSpaceRelation:
-    'network.habitat.relationship.writeSpaceRelation',
-  NetworkHabitatRelationshipWriteUserRelation:
-    'network.habitat.relationship.writeUserRelation',
+  NetworkHabitatRelationshipResolveRelations:
+    'network.habitat.relationship.resolveRelations',
+  NetworkHabitatRelationshipSetSpaceRelation:
+    'network.habitat.relationship.setSpaceRelation',
+  NetworkHabitatRelationshipSetUserRelation:
+    'network.habitat.relationship.setUserRelation',
   NetworkHabitatRelationshipSpaceRelation:
     'network.habitat.relationship.spaceRelation',
   NetworkHabitatRelationshipUserRelation:

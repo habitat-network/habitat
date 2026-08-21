@@ -1,6 +1,6 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.relationship.listSubjects",
+    "id": "network.habitat.relationship.resolveRelations",
     "defs": {
         "main": {
             "type": "query",

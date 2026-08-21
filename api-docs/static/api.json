@@ -4319,14 +4319,14 @@
         }
       }
     },
-    "/network.habitat.relationship.listObjects": {
+    "/network.habitat.relationship.listRelatedSpaces": {
       "get": {
         "tags": [
           "network.habitat.relationship"
         ],
-        "summary": "network.habitat.relationship.listObjects",
+        "summary": "network.habitat.relationship.listRelatedSpaces",
         "description": "List the spaces on which a user holds a role, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.",
-        "operationId": "network.habitat.relationship.listObjects",
+        "operationId": "network.habitat.relationship.listRelatedSpaces",
         "security": [
           {
             "Bearer": []
@@ -4591,14 +4591,14 @@
         }
       }
     },
-    "/network.habitat.relationship.listSubjects": {
+    "/network.habitat.relationship.resolveRelations": {
       "get": {
         "tags": [
           "network.habitat.relationship"
         ],
-        "summary": "network.habitat.relationship.listSubjects",
+        "summary": "network.habitat.relationship.resolveRelations",
         "description": "List the user DIDs that hold a role on a space, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.",
-        "operationId": "network.habitat.relationship.listSubjects",
+        "operationId": "network.habitat.relationship.resolveRelations",
         "security": [
           {
             "Bearer": []
@@ -4708,14 +4708,14 @@
         }
       }
     },
-    "/network.habitat.relationship.writeSpaceRelation": {
+    "/network.habitat.relationship.setSpaceRelation": {
       "post": {
         "tags": [
           "network.habitat.relationship"
         ],
-        "summary": "network.habitat.relationship.writeSpaceRelation",
+        "summary": "network.habitat.relationship.setSpaceRelation",
         "description": "Write a space relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.",
-        "operationId": "network.habitat.relationship.writeSpaceRelation",
+        "operationId": "network.habitat.relationship.setSpaceRelation",
         "security": [
           {
             "Bearer": []
@@ -4847,14 +4847,14 @@
         }
       }
     },
-    "/network.habitat.relationship.writeUserRelation": {
+    "/network.habitat.relationship.setUserRelation": {
       "post": {
         "tags": [
           "network.habitat.relationship"
         ],
-        "summary": "network.habitat.relationship.writeUserRelation",
+        "summary": "network.habitat.relationship.setUserRelation",
         "description": "Write a user relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.",
-        "operationId": "network.habitat.relationship.writeUserRelation",
+        "operationId": "network.habitat.relationship.setUserRelation",
         "security": [
           {
             "Bearer": []

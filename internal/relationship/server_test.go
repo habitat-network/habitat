@@ -74,7 +74,7 @@ func queryReq(path string, params url.Values) *http.Request {
 	return httptest.NewRequest(http.MethodGet, path+"?"+params.Encode(), http.NoBody)
 }
 
-func TestServer_WriteUserRelation(t *testing.T) {
+func TestServer_SetUserRelation(t *testing.T) {
 	// caller is the org (space owner), so it has the manager role implicitly.
 	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
@@ -85,14 +85,14 @@ func TestServer_WriteUserRelation(t *testing.T) {
 	)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.writeUserRelation",
+		"/xrpc/network.habitat.relationship.setUserRelation",
 		strings.NewReader(body),
 	)
 	w := httptest.NewRecorder()
-	s.WriteUserRelation(w, req)
+	s.SetUserRelation(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var out habitat.NetworkHabitatRelationshipWriteUserRelationOutput
+	var out habitat.NetworkHabitatRelationshipSetUserRelationOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.NotEmpty(t, out.Uri)
 
@@ -103,19 +103,19 @@ func TestServer_WriteUserRelation(t *testing.T) {
 	require.True(t, allowed)
 }
 
-func TestServer_WriteUserRelation_BadBody(t *testing.T) {
+func TestServer_SetUserRelation_BadBody(t *testing.T) {
 	s, _, _ := newTestServer(t, testOrg)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.writeUserRelation",
+		"/xrpc/network.habitat.relationship.setUserRelation",
 		strings.NewReader("{not json"),
 	)
 	w := httptest.NewRecorder()
-	s.WriteUserRelation(w, req)
+	s.SetUserRelation(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestServer_WriteUserRelation_BadSpace(t *testing.T) {
+func TestServer_SetUserRelation_BadSpace(t *testing.T) {
 	s, _, _ := newTestServer(t, testOrg)
 	body := fmt.Sprintf(
 		`{"subject":%q,"relation":"reader","space":"not-a-space"}`,
@@ -123,15 +123,15 @@ func TestServer_WriteUserRelation_BadSpace(t *testing.T) {
 	)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.writeUserRelation",
+		"/xrpc/network.habitat.relationship.setUserRelation",
 		strings.NewReader(body),
 	)
 	w := httptest.NewRecorder()
-	s.WriteUserRelation(w, req)
+	s.SetUserRelation(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestServer_WriteUserRelation_InvalidRelation(t *testing.T) {
+func TestServer_SetUserRelation_InvalidRelation(t *testing.T) {
 	s, _, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 	body := fmt.Sprintf(
@@ -140,15 +140,15 @@ func TestServer_WriteUserRelation_InvalidRelation(t *testing.T) {
 	)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.writeUserRelation",
+		"/xrpc/network.habitat.relationship.setUserRelation",
 		strings.NewReader(body),
 	)
 	w := httptest.NewRecorder()
-	s.WriteUserRelation(w, req)
+	s.SetUserRelation(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestServer_WriteSpaceRelation(t *testing.T) {
+func TestServer_SetSpaceRelation(t *testing.T) {
 	s, ps, sp := newTestServer(t, testOrg)
 	group := newSpace(t, sp, groupType, "team")
 	space := newSpace(t, sp, docsType, "doc")
@@ -159,14 +159,14 @@ func TestServer_WriteSpaceRelation(t *testing.T) {
 	)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.writeSpaceRelation",
+		"/xrpc/network.habitat.relationship.setSpaceRelation",
 		strings.NewReader(body),
 	)
 	w := httptest.NewRecorder()
-	s.WriteSpaceRelation(w, req)
+	s.SetSpaceRelation(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var out habitat.NetworkHabitatRelationshipWriteSpaceRelationOutput
+	var out habitat.NetworkHabitatRelationshipSetSpaceRelationOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.NotEmpty(t, out.Uri)
 
@@ -179,7 +179,7 @@ func TestServer_WriteSpaceRelation(t *testing.T) {
 	require.True(t, allowed)
 }
 
-func TestServer_WriteSpaceRelation_InvalidSubjectRole(t *testing.T) {
+func TestServer_SetSpaceRelation_InvalidSubjectRole(t *testing.T) {
 	s, _, sp := newTestServer(t, testOrg)
 	group := newSpace(t, sp, groupType, "team")
 	space := newSpace(t, sp, docsType, "doc")
@@ -189,11 +189,11 @@ func TestServer_WriteSpaceRelation_InvalidSubjectRole(t *testing.T) {
 	)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/xrpc/network.habitat.relationship.writeSpaceRelation",
+		"/xrpc/network.habitat.relationship.setSpaceRelation",
 		strings.NewReader(body),
 	)
 	w := httptest.NewRecorder()
-	s.WriteSpaceRelation(w, req)
+	s.SetSpaceRelation(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
@@ -340,43 +340,43 @@ func TestServer_CheckSpaceRelation(t *testing.T) {
 	require.True(t, out.Allowed)
 }
 
-func TestServer_ListSubjects(t *testing.T) {
+func TestServer_ResolveRelations(t *testing.T) {
 	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 	_, err := ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
-	s.ListSubjects(w, queryReq(
-		"/xrpc/network.habitat.relationship.listSubjects",
+	s.ResolveRelations(w, queryReq(
+		"/xrpc/network.habitat.relationship.resolveRelations",
 		url.Values{"space": {space.String()}, "relation": {"reader"}},
 	))
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var out habitat.NetworkHabitatRelationshipListSubjectsOutput
+	var out habitat.NetworkHabitatRelationshipResolveRelationsOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Contains(t, out.Dids, alice.String())
 }
 
-func TestServer_ListObjects(t *testing.T) {
+func TestServer_ListRelatedSpaces(t *testing.T) {
 	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 	_, err := ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
-	s.ListObjects(w, queryReq(
-		"/xrpc/network.habitat.relationship.listObjects",
+	s.ListRelatedSpaces(w, queryReq(
+		"/xrpc/network.habitat.relationship.listRelatedSpaces",
 		url.Values{"did": {alice.String()}, "relation": {"reader"}},
 	))
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var out habitat.NetworkHabitatRelationshipListObjectsOutput
+	var out habitat.NetworkHabitatRelationshipListRelatedSpacesOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Contains(t, out.Spaces, space.String())
 }
 
-func TestServer_ListObjects_FiltersUnreadable(t *testing.T) {
+func TestServer_ListRelatedSpaces_FiltersUnreadable(t *testing.T) {
 	// bob can see his own access via the DID param but only spaces bob can read
 	// are returned. bob is a reader of the space, so it is returned.
 	s, ps, sp := newTestServer(t, bob)
@@ -385,13 +385,13 @@ func TestServer_ListObjects_FiltersUnreadable(t *testing.T) {
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
-	s.ListObjects(w, queryReq(
-		"/xrpc/network.habitat.relationship.listObjects",
+	s.ListRelatedSpaces(w, queryReq(
+		"/xrpc/network.habitat.relationship.listRelatedSpaces",
 		url.Values{"did": {bob.String()}, "relation": {"reader"}},
 	))
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var out habitat.NetworkHabitatRelationshipListObjectsOutput
+	var out habitat.NetworkHabitatRelationshipListRelatedSpacesOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Contains(t, out.Spaces, space.String())
 }
