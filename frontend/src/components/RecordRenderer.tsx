@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import ReactJson from "react-json-view";
+import JsonView from "@uiw/react-json-view";
 import { Badge } from "internal/components/ui";
 import { renderSchemaQueryOptions } from "@/queries/renderSchema";
 import type { FieldSchema } from "@/lib/renderSchemas";
@@ -192,11 +192,11 @@ export function RecordRenderer({
   );
 
   if (isLoading) {
-    return <ReactJson src={record} collapsed={1} />;
+    return <JsonView value={record} collapsed={1} />;
   }
 
   if (!schema) {
-    return <ReactJson src={record} />;
+    return <JsonView value={record} />;
   }
 
   const linkHref =

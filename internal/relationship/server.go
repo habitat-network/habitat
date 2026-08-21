@@ -1,7 +1,6 @@
 package relationship
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,8 +12,8 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -24,36 +23,18 @@ import (
 // space, checked via FGA exactly like internal/spaces.
 type Server struct {
 	store     *Store
-	fga       fgastore.Store
+	ps        perms.Store
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
 }
 
-func NewServer(store *Store, fga fgastore.Store, validator authn.RequestValidator) *Server {
+func NewServer(store *Store, ps perms.Store, validator authn.RequestValidator) *Server {
 	return &Server{
 		store:     store,
-		fga:       fga,
+		ps:        ps,
 		validator: validator,
 		decoder:   schema.NewDecoder(),
 	}
-}
-
-// authorize reports whether the caller holds the given relation on the space,
-// using the owner contextual tuple so the org owner always passes.
-func (s *Server) authorize(
-	ctx context.Context,
-	caller *authn.CredentialInfo,
-	space habitat_syntax.SpaceURI,
-	relation string,
-) (bool, error) {
-	return s.fga.Check(
-		ctx,
-		fgastore.MemberUserString(caller.Subject),
-		relation,
-		fgastore.SpaceObjectKey(space),
-		fgastore.OwnerContextualTuple(space),
-		fgastore.OrgMemberContextualTuple(caller.Org.DID()),
-	)
 }
 
 func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +54,7 @@ func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(object, fgastore.RelationSpaceMemberManager),
+		authn.WithSpace(object, habitat_syntax.SpaceRoleManager),
 	).Validate(w, r); !ok {
 		return
 	}
@@ -118,7 +99,7 @@ func (s *Server) DeleteTuple(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(uri.SpaceURI(), fgastore.RelationSpaceMemberManager),
+		authn.WithSpace(uri.SpaceURI(), habitat_syntax.SpaceRoleManager),
 	).Validate(w, r); !ok {
 		return
 	}
@@ -146,7 +127,7 @@ func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(space, fgastore.RelationSpaceReader),
+		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r); !ok {
 		return
 	}
@@ -194,7 +175,7 @@ func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
 
 	credInfo, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(space, fgastore.RelationSpaceReader),
+		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -225,7 +206,7 @@ func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
 	}
 	credInfo, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(space, fgastore.RelationSpaceReader),
+		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -287,11 +268,11 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 	// Only return spaces the caller is allowed to read.
 	out := make([]string, 0, len(spaceURIs))
 	for _, space := range spaceURIs {
-		readable, err := s.authorize(
-			ctx,
-			credInfo,
+		readable, err := s.ps.CheckUserHasSpaceRole(
+			r.Context(),
+			credInfo.Subject,
 			space,
-			fgastore.RelationSpaceReader,
+			habitat_syntax.SpaceRoleReader,
 		)
 		if err != nil {
 			httpx.WriteServerError(ctx, w, fmt.Errorf("check read permission: %w", err))

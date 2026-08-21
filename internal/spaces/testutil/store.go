@@ -33,7 +33,6 @@ type Config struct {
 type TestStore struct {
 	spaces.Store
 	Notifier *testutil.TestNotifier
-	FGA      fgastore.Store
 	HostKey  atcrypto.PrivateKey
 }
 
@@ -70,14 +69,9 @@ func NewTestStore(t *testing.T, cfgs ...Config) *TestStore {
 	return &TestStore{
 		Store:    s,
 		Notifier: notifier,
-		FGA:      cfg.FgaStore,
 		HostKey:  cfg.HostKey,
 	}
 }
-
-// FGAStore exposes the underlying FGA store for tests that rebuild a Server
-// against an existing test store.
-func (t *TestStore) FGAStore() fgastore.Store { return t.FGA }
 
 // noMemberSigner never resolves a habitat-managed signer, so Authority.Build
 // always falls back to the host key.

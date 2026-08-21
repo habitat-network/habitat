@@ -20,8 +20,6 @@ export interface Main {
   subject: string
   /** Role granted on the object space (owner|manager|writer|reader). */
   relation: 'owner' | 'manager' | 'writer' | 'reader' | (string & {})
-  /** URI of the space the role is granted on. */
-  object: string
   createdAt?: string
   [k: string]: unknown
 }

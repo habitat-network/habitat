@@ -29,6 +29,7 @@ import (
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/spaces"
+	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
@@ -196,7 +197,11 @@ func TestSap(t *testing.T) {
 	}
 
 	// 8. All 5 spaces are registered for notifications, and every tracked repo
-	// settled active with a verified hash.
+	// settled active with a verified hash. A repo can still bounce back to
+	// pending/syncing after its record is outboxed: a racing recrawl Check
+	// landing mid-flight marks it dirty unconditionally (engine.observeHead),
+	// forcing one more (usually no-op) pass before it resettles — so this
+	// polls rather than asserting once.
 	var regCount int64
 	require.NoError(t, db.Table("registrations").Count(&regCount).Error)
 	require.Equal(t, int64(5), regCount)
@@ -207,10 +212,21 @@ func TestSap(t *testing.T) {
 		Hash  []byte
 	}
 	var repos []repoRow
-	require.NoError(t, db.Table("repos").Find(&repos).Error)
-	require.Len(t, repos, 5)
+	require.Eventually(t, func() bool {
+		if err := db.Table("repos").Find(&repos).Error; err != nil {
+			return false
+		}
+		if len(repos) != 5 {
+			return false
+		}
+		for _, r := range repos {
+			if r.State != "active" {
+				return false
+			}
+		}
+		return true
+	}, 5*time.Second, 50*time.Millisecond, "not all repos settled active")
 	for _, r := range repos {
-		require.Equal(t, "active", r.State, "repo in space %s not active", r.Space)
 		require.NotEmpty(t, r.Hash)
 	}
 
@@ -375,7 +391,7 @@ func setupPear(t *testing.T) *pearHost {
 	validator := authn_testutil.NewSuccessValidator(
 		&authn.CredentialInfo{Subject: author.DID, Org: everyone},
 	)
-	spacesServer := spaces.NewServer(
+	spacesServer := spaces_server.NewServer(
 		spacesStore,
 		validator,
 		nil, // host key: managed authors sign with their own hive keys

@@ -42,7 +42,9 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
+	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/simplespace"
+	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
@@ -312,18 +314,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("parse space-host signing key: %w", err)
 	}
 
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
-	validator := authn.NewValidator(
-		oauthServer,
-		serviceAuth,
-		spaceCredential,
-		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore, hostKey),
-		fgaStore,
-	)
-
-	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
-	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
-
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup clique store: %w", err)
@@ -351,8 +341,21 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	defer func() { _ = blobBucket.Close() }()
 	blobStore := spaces.NewBlobStore(blobBucket)
 
+	permStore := perms.NewStore(db, spacesStore, fgaStore)
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
+	validator := authn.NewValidator(
+		oauthServer,
+		serviceAuth,
+		spaceCredential,
+		authn.NewDelegationTokenAuthMethod(hiveDir, permStore, hostKey),
+		permStore,
+	)
+
+	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
+	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
+
 	// TODO: use this to validate the space credential in the spaces server
-	spacesServer := spaces.NewServer(
+	spacesServer := spaces_server.NewServer(
 		spacesStore,
 		validator,
 		hostKey,
@@ -365,14 +368,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 
 	simplespaceServer := simplespace.NewServer(
-		simplespace.NewStore(db, spacesStore, fgaStore),
+		simplespace.NewStore(db, spacesStore, permStore),
 		validator,
 	)
 
 	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
 		relationshipStore,
-		fgaStore,
+		permStore,
 		validator,
 	)
 

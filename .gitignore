@@ -61,3 +61,6 @@ cmd/pear/repo.db
 
 # Ignore plans + specs
 ./docs/
+
+# UI MCP
+.playwright-mcp/

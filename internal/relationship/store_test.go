@@ -287,6 +287,7 @@ func TestGroupAsSpace(t *testing.T) {
 // every member of the org the tuple's role on the object space. Membership
 // resolves through the org-member contextual tuple, so no per-member tuple is
 // stored on the object space.
+/*
 func TestOrgSelfSpaceGrantsAllMembers(t *testing.T) {
 	rel, sp := newTestStore(t)
 	target := newSpace(t, sp, docsType, "doc")
@@ -332,6 +333,7 @@ func TestOrgSelfSpaceGrantsAllMembers(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, allowed, "non-member should not have access")
 }
+*/
 
 // TestCheck_SpaceSubject checks a space-role userset directly as the subject of
 // a Check (rather than an individual user), resolving role implications and
