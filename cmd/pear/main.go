@@ -536,10 +536,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.simplespace.deleteSpace", simplespaceServer.DeleteSpace)
 
 	// Relationships
-	mux.HandleFunc("/xrpc/network.habitat.relationship.writeUserRelation",
-		relationshipServer.WriteUserRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.writeSpaceRelation",
-		relationshipServer.WriteSpaceRelation)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.setUserRelation",
+		relationshipServer.SetUserRelation)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.setSpaceRelation",
+		relationshipServer.SetSpaceRelation)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteRelation",
 		relationshipServer.DeleteRelation)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.listRelations",
@@ -548,10 +548,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		relationshipServer.CheckUserRelation)
 	mux.HandleFunc("/xrpc/network.habitat.relationship.checkSpaceRelation",
 		relationshipServer.CheckSpaceRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listSubjects",
-		relationshipServer.ListSubjects)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listObjects",
-		relationshipServer.ListObjects)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.resolveRelations",
+		relationshipServer.ResolveRelations)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listRelatedSpaces",
+		relationshipServer.ListRelatedSpaces)
 
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)

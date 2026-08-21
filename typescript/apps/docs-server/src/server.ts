@@ -103,7 +103,7 @@ export function createApp(
   });
 
   // listDocs returns only the docs the caller may read. Permissions are
-  // resolved on demand: relationship.listObjects yields the doc spaces the
+  // resolved on demand: relationship.listRelatedSpaces yields the doc spaces the
   // caller holds the reader role on, and the metadata store supplies titles for
   // them.
   app.get("/xrpc/network.habitat.docs.listDocs", async (c) => {

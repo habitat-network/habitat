@@ -73,13 +73,13 @@ import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 import * as NetworkHabitatRelationshipCheckSpaceRelation from './types/network/habitat/relationship/checkSpaceRelation.js'
 import * as NetworkHabitatRelationshipCheckUserRelation from './types/network/habitat/relationship/checkUserRelation.js'
 import * as NetworkHabitatRelationshipDeleteRelation from './types/network/habitat/relationship/deleteRelation.js'
-import * as NetworkHabitatRelationshipListObjects from './types/network/habitat/relationship/listObjects.js'
+import * as NetworkHabitatRelationshipListRelatedSpaces from './types/network/habitat/relationship/listRelatedSpaces.js'
 import * as NetworkHabitatRelationshipListRelations from './types/network/habitat/relationship/listRelations.js'
-import * as NetworkHabitatRelationshipListSubjects from './types/network/habitat/relationship/listSubjects.js'
+import * as NetworkHabitatRelationshipResolveRelations from './types/network/habitat/relationship/resolveRelations.js'
+import * as NetworkHabitatRelationshipSetSpaceRelation from './types/network/habitat/relationship/setSpaceRelation.js'
+import * as NetworkHabitatRelationshipSetUserRelation from './types/network/habitat/relationship/setUserRelation.js'
 import * as NetworkHabitatRelationshipSpaceRelation from './types/network/habitat/relationship/spaceRelation.js'
 import * as NetworkHabitatRelationshipUserRelation from './types/network/habitat/relationship/userRelation.js'
-import * as NetworkHabitatRelationshipWriteSpaceRelation from './types/network/habitat/relationship/writeSpaceRelation.js'
-import * as NetworkHabitatRelationshipWriteUserRelation from './types/network/habitat/relationship/writeUserRelation.js'
 import * as NetworkHabitatRenderSchema from './types/network/habitat/render/schema.js'
 import * as NetworkHabitatRepoCreateRecord from './types/network/habitat/repo/createRecord.js'
 import * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
@@ -177,13 +177,13 @@ export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 export * as NetworkHabitatRelationshipCheckSpaceRelation from './types/network/habitat/relationship/checkSpaceRelation.js'
 export * as NetworkHabitatRelationshipCheckUserRelation from './types/network/habitat/relationship/checkUserRelation.js'
 export * as NetworkHabitatRelationshipDeleteRelation from './types/network/habitat/relationship/deleteRelation.js'
-export * as NetworkHabitatRelationshipListObjects from './types/network/habitat/relationship/listObjects.js'
+export * as NetworkHabitatRelationshipListRelatedSpaces from './types/network/habitat/relationship/listRelatedSpaces.js'
 export * as NetworkHabitatRelationshipListRelations from './types/network/habitat/relationship/listRelations.js'
-export * as NetworkHabitatRelationshipListSubjects from './types/network/habitat/relationship/listSubjects.js'
+export * as NetworkHabitatRelationshipResolveRelations from './types/network/habitat/relationship/resolveRelations.js'
+export * as NetworkHabitatRelationshipSetSpaceRelation from './types/network/habitat/relationship/setSpaceRelation.js'
+export * as NetworkHabitatRelationshipSetUserRelation from './types/network/habitat/relationship/setUserRelation.js'
 export * as NetworkHabitatRelationshipSpaceRelation from './types/network/habitat/relationship/spaceRelation.js'
 export * as NetworkHabitatRelationshipUserRelation from './types/network/habitat/relationship/userRelation.js'
-export * as NetworkHabitatRelationshipWriteSpaceRelation from './types/network/habitat/relationship/writeSpaceRelation.js'
-export * as NetworkHabitatRelationshipWriteUserRelation from './types/network/habitat/relationship/writeUserRelation.js'
 export * as NetworkHabitatRenderSchema from './types/network/habitat/render/schema.js'
 export * as NetworkHabitatRepoCreateRecord from './types/network/habitat/repo/createRecord.js'
 export * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
@@ -1554,12 +1554,12 @@ export class NetworkHabitatRelationshipNS {
       })
   }
 
-  listObjects(
-    params?: NetworkHabitatRelationshipListObjects.QueryParams,
-    opts?: NetworkHabitatRelationshipListObjects.CallOptions,
-  ): Promise<NetworkHabitatRelationshipListObjects.Response> {
+  listRelatedSpaces(
+    params?: NetworkHabitatRelationshipListRelatedSpaces.QueryParams,
+    opts?: NetworkHabitatRelationshipListRelatedSpaces.CallOptions,
+  ): Promise<NetworkHabitatRelationshipListRelatedSpaces.Response> {
     return this._client.call(
-      'network.habitat.relationship.listObjects',
+      'network.habitat.relationship.listRelatedSpaces',
       params,
       undefined,
       opts,
@@ -1578,47 +1578,47 @@ export class NetworkHabitatRelationshipNS {
     )
   }
 
-  listSubjects(
-    params?: NetworkHabitatRelationshipListSubjects.QueryParams,
-    opts?: NetworkHabitatRelationshipListSubjects.CallOptions,
-  ): Promise<NetworkHabitatRelationshipListSubjects.Response> {
+  resolveRelations(
+    params?: NetworkHabitatRelationshipResolveRelations.QueryParams,
+    opts?: NetworkHabitatRelationshipResolveRelations.CallOptions,
+  ): Promise<NetworkHabitatRelationshipResolveRelations.Response> {
     return this._client.call(
-      'network.habitat.relationship.listSubjects',
+      'network.habitat.relationship.resolveRelations',
       params,
       undefined,
       opts,
     )
   }
 
-  writeSpaceRelation(
-    data?: NetworkHabitatRelationshipWriteSpaceRelation.InputSchema,
-    opts?: NetworkHabitatRelationshipWriteSpaceRelation.CallOptions,
-  ): Promise<NetworkHabitatRelationshipWriteSpaceRelation.Response> {
+  setSpaceRelation(
+    data?: NetworkHabitatRelationshipSetSpaceRelation.InputSchema,
+    opts?: NetworkHabitatRelationshipSetSpaceRelation.CallOptions,
+  ): Promise<NetworkHabitatRelationshipSetSpaceRelation.Response> {
     return this._client
       .call(
-        'network.habitat.relationship.writeSpaceRelation',
+        'network.habitat.relationship.setSpaceRelation',
         opts?.qp,
         data,
         opts,
       )
       .catch((e) => {
-        throw NetworkHabitatRelationshipWriteSpaceRelation.toKnownErr(e)
+        throw NetworkHabitatRelationshipSetSpaceRelation.toKnownErr(e)
       })
   }
 
-  writeUserRelation(
-    data?: NetworkHabitatRelationshipWriteUserRelation.InputSchema,
-    opts?: NetworkHabitatRelationshipWriteUserRelation.CallOptions,
-  ): Promise<NetworkHabitatRelationshipWriteUserRelation.Response> {
+  setUserRelation(
+    data?: NetworkHabitatRelationshipSetUserRelation.InputSchema,
+    opts?: NetworkHabitatRelationshipSetUserRelation.CallOptions,
+  ): Promise<NetworkHabitatRelationshipSetUserRelation.Response> {
     return this._client
       .call(
-        'network.habitat.relationship.writeUserRelation',
+        'network.habitat.relationship.setUserRelation',
         opts?.qp,
         data,
         opts,
       )
       .catch((e) => {
-        throw NetworkHabitatRelationshipWriteUserRelation.toKnownErr(e)
+        throw NetworkHabitatRelationshipSetUserRelation.toKnownErr(e)
       })
   }
 }

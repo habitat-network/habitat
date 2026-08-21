@@ -118,9 +118,9 @@ func (p *pearClient) writeUserTuple(
 	relation string,
 	object habitat_syntax.SpaceURI,
 ) (habitat_syntax.SpaceRecordURI, error) {
-	var out habitat.NetworkHabitatRelationshipWriteUserRelationOutput
-	err := p.post(ctx, "network.habitat.relationship.writeUserRelation",
-		habitat.NetworkHabitatRelationshipWriteUserRelationInput{
+	var out habitat.NetworkHabitatRelationshipSetUserRelationOutput
+	err := p.post(ctx, "network.habitat.relationship.setUserRelation",
+		habitat.NetworkHabitatRelationshipSetUserRelationInput{
 			Subject:  did.String(),
 			Relation: relation,
 			Space:    object.String(),
@@ -139,9 +139,9 @@ func (p *pearClient) writeGroupTuple(
 	relation string,
 	object habitat_syntax.SpaceURI,
 ) (habitat_syntax.SpaceRecordURI, error) {
-	var out habitat.NetworkHabitatRelationshipWriteSpaceRelationOutput
-	err := p.post(ctx, "network.habitat.relationship.writeSpaceRelation",
-		habitat.NetworkHabitatRelationshipWriteSpaceRelationInput{
+	var out habitat.NetworkHabitatRelationshipSetSpaceRelationOutput
+	err := p.post(ctx, "network.habitat.relationship.setSpaceRelation",
+		habitat.NetworkHabitatRelationshipSetSpaceRelationInput{
 			Subject:     subjectGroup.String(),
 			SubjectRole: "writer",
 			Relation:    relation,
@@ -159,17 +159,17 @@ func (p *pearClient) deleteTuple(ctx context.Context, uri habitat_syntax.SpaceRe
 		habitat.NetworkHabitatRelationshipDeleteRelationInput{Uri: uri.String()}, nil)
 }
 
-// listObjects returns the spaces on which did holds relation, resolved
+// listRelatedSpaces returns the spaces on which did holds relation, resolved
 // authoritatively by pear's FGA. pear only returns spaces the calling
 // credential (the org) can also read, so this is the org-visible set of spaces
 // the user can see.
-func (p *pearClient) listObjects(
+func (p *pearClient) listRelatedSpaces(
 	ctx context.Context,
 	did syntax.DID,
 	relation string,
 ) ([]string, error) {
-	var out habitat.NetworkHabitatRelationshipListObjectsOutput
-	err := p.get(ctx, "network.habitat.relationship.listObjects", url.Values{
+	var out habitat.NetworkHabitatRelationshipListRelatedSpacesOutput
+	err := p.get(ctx, "network.habitat.relationship.listRelatedSpaces", url.Values{
 		"did":      []string{did.String()},
 		"relation": []string{relation},
 	}, &out)
