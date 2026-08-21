@@ -70,7 +70,8 @@ import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat
 import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
-import * as NetworkHabitatRelationshipCheck from './types/network/habitat/relationship/check.js'
+import * as NetworkHabitatRelationshipCheckSpaceRelation from './types/network/habitat/relationship/checkSpaceRelation.js'
+import * as NetworkHabitatRelationshipCheckUserRelation from './types/network/habitat/relationship/checkUserRelation.js'
 import * as NetworkHabitatRelationshipDeleteRelation from './types/network/habitat/relationship/deleteRelation.js'
 import * as NetworkHabitatRelationshipListObjects from './types/network/habitat/relationship/listObjects.js'
 import * as NetworkHabitatRelationshipListRelations from './types/network/habitat/relationship/listRelations.js'
@@ -173,7 +174,8 @@ export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat
 export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
-export * as NetworkHabitatRelationshipCheck from './types/network/habitat/relationship/check.js'
+export * as NetworkHabitatRelationshipCheckSpaceRelation from './types/network/habitat/relationship/checkSpaceRelation.js'
+export * as NetworkHabitatRelationshipCheckUserRelation from './types/network/habitat/relationship/checkUserRelation.js'
 export * as NetworkHabitatRelationshipDeleteRelation from './types/network/habitat/relationship/deleteRelation.js'
 export * as NetworkHabitatRelationshipListObjects from './types/network/habitat/relationship/listObjects.js'
 export * as NetworkHabitatRelationshipListRelations from './types/network/habitat/relationship/listRelations.js'
@@ -1517,12 +1519,24 @@ export class NetworkHabitatRelationshipNS {
     this.userRelation = new NetworkHabitatRelationshipUserRelationRecord(client)
   }
 
-  check(
-    params?: NetworkHabitatRelationshipCheck.QueryParams,
-    opts?: NetworkHabitatRelationshipCheck.CallOptions,
-  ): Promise<NetworkHabitatRelationshipCheck.Response> {
+  checkSpaceRelation(
+    params?: NetworkHabitatRelationshipCheckSpaceRelation.QueryParams,
+    opts?: NetworkHabitatRelationshipCheckSpaceRelation.CallOptions,
+  ): Promise<NetworkHabitatRelationshipCheckSpaceRelation.Response> {
     return this._client.call(
-      'network.habitat.relationship.check',
+      'network.habitat.relationship.checkSpaceRelation',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  checkUserRelation(
+    params?: NetworkHabitatRelationshipCheckUserRelation.QueryParams,
+    opts?: NetworkHabitatRelationshipCheckUserRelation.CallOptions,
+  ): Promise<NetworkHabitatRelationshipCheckUserRelation.Response> {
+    return this._client.call(
+      'network.habitat.relationship.checkUserRelation',
       params,
       undefined,
       opts,

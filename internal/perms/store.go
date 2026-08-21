@@ -2,6 +2,7 @@ package perms
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -54,6 +55,10 @@ type Store interface {
 		subjectRole habitat_syntax.SpaceRole,
 		objectSpace habitat_syntax.SpaceURI,
 	) error
+
+	// DeleteRelation removes the relation record at uri (either a userRelation
+	// or a spaceRelation record) from both the governing space and FGA.
+	DeleteRelation(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error
 	UnsafeRevokeAllSpaceRoles(ctx context.Context, space habitat_syntax.SpaceURI) error
 
 	// Permission checks
@@ -72,8 +77,17 @@ type Store interface {
 	) (bool, error)
 
 	// List various things using relations
-	ListUserSubjects(ctx context.Context, space habitat_syntax.SpaceURI) ([]syntax.DID, error)
-	ListObjects(ctx context.Context, did syntax.DID) ([]habitat_syntax.SpaceURI, error)
+	ListUserSubjects(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		role habitat_syntax.SpaceRole,
+	) ([]syntax.DID, error)
+	ListObjects(
+		ctx context.Context,
+		did syntax.DID,
+		role habitat_syntax.SpaceRole,
+		filterType *syntax.NSID,
+	) ([]habitat_syntax.SpaceURI, error)
 
 	// WithTx returns a copy of the store scoped to the given transaction, so
 	// its DB writes participate in a caller-managed transaction rather than
@@ -92,6 +106,8 @@ func NewStore(db *gorm.DB, spaces spaces.Store, fga fgastore.Store) *store {
 	return &store{db: db, spaces: spaces, fga: fga}
 }
 
+var ErrRelationNotFound = errors.New("relation not found")
+
 var _ Store = &store{}
 
 // WithTx implements [Store], returning a store whose DB operations run on tx.
@@ -106,7 +122,6 @@ func (s *store) SetUserRelation(
 	space habitat_syntax.SpaceURI,
 	role habitat_syntax.SpaceRole,
 ) (habitat_syntax.SpaceRecordURI, error) {
-
 	var uri habitat_syntax.SpaceRecordURI
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		record := map[string]any{
@@ -173,7 +188,6 @@ func (s *store) SetSpaceRoleRelation(
 	object habitat_syntax.SpaceURI,
 	objectRole habitat_syntax.SpaceRole,
 ) (habitat_syntax.SpaceRecordURI, error) {
-
 	var uri habitat_syntax.SpaceRecordURI
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		record := map[string]any{
@@ -408,11 +422,12 @@ func (s *store) CheckSpaceRelationHasSpaceRole(
 func (s *store) ListUserSubjects(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
+	role habitat_syntax.SpaceRole,
 ) ([]syntax.DID, error) {
 	users, err := s.fga.ListUsers(
 		ctx,
 		fgastore.SpaceObjectKey(space),
-		fgastore.RelationSpaceReader,
+		fgaRelationFromRole[role],
 		fgastore.OwnerContextualTuple(space),
 	)
 	if err != nil {
@@ -430,19 +445,18 @@ func (s *store) ListUserSubjects(
 	return dids, nil
 }
 
-// ListObjects implements [Store]. It returns the spaces did directly holds
-// at least habitat_syntax.SpaceRoleReader on (reader is implied by every other role, so
-// this covers manager/writer/owner too). Owner/org-member implications
-// aren't expanded here, since that would require checking every space in
-// every org did could be a member of.
+// ListObjects implements [Store]. It returns the spaces `did` holds `role` on.
+// This includes implicit grants from the relationship graph and role interitance.
 func (s *store) ListObjects(
 	ctx context.Context,
 	did syntax.DID,
+	role habitat_syntax.SpaceRole,
+	filterType *syntax.NSID,
 ) ([]habitat_syntax.SpaceURI, error) {
 	keys, err := s.fga.ListObjects(
 		ctx,
 		fgastore.MemberUserString(did),
-		fgaRelationFromRole[habitat_syntax.SpaceRoleReader],
+		fgaRelationFromRole[role],
 		fgastore.TypeSpace,
 	)
 	if err != nil {
@@ -455,7 +469,58 @@ func (s *store) ListObjects(
 		if err != nil {
 			return nil, fmt.Errorf("perms: list objects: %w", err)
 		}
+		if filterType != nil && uri.SpaceType() != *filterType {
+			continue
+		}
 		spaceURIs = append(spaceURIs, uri)
 	}
 	return spaceURIs, nil
+}
+
+// DeleteRelation implements [Store].
+func (s *store) DeleteRelation(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error {
+	space := uri.SpaceURI()
+	collection := uri.Collection()
+
+	record, err := s.spaces.GetRecord(ctx, space, space.SpaceOwner(), collection, uri.Rkey())
+	if errors.Is(err, spaces.ErrRecordNotFound) {
+		return ErrRelationNotFound
+	} else if err != nil {
+		return fmt.Errorf("perms: get relation record: %w", err)
+	}
+
+	switch collection {
+	case habitat_syntax.UserRelationCollection:
+		subjectStr, _ := record.Value["subject"].(string)
+		did, err := syntax.ParseDID(subjectStr)
+		if err != nil {
+			return fmt.Errorf("perms: invalid subject did in relation record: %w", err)
+		}
+		err = s.RevokeUser(ctx, did, space)
+		if err != nil {
+			return fmt.Errorf("revoking user relation: %w", err)
+		}
+		return nil
+
+	case habitat_syntax.SpaceRelationCollection:
+		subjectStr, _ := record.Value["subject"].(string)
+		subjectRoleStr, _ := record.Value["subjectRole"].(string)
+		subject, err := habitat_syntax.ParseSpaceURI(subjectStr)
+		if err != nil {
+			return fmt.Errorf("perms: invalid subject space uri in relation record: %w", err)
+		}
+		err = s.RevokeSpaceRole(
+			ctx,
+			subject,
+			habitat_syntax.SpaceRole(subjectRoleStr),
+			space,
+		)
+		if err != nil {
+			return fmt.Errorf("revoking space relation: %w", err)
+		}
+		return nil
+
+	default:
+	}
+	return ErrRelationNotFound
 }

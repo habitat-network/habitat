@@ -3962,14 +3962,14 @@
         }
       }
     },
-    "/network.habitat.relationship.check": {
+    "/network.habitat.relationship.checkSpaceRelation": {
       "get": {
         "tags": [
           "network.habitat.relationship"
         ],
-        "summary": "network.habitat.relationship.check",
-        "description": "Check whether a subject holds a role on a space. The subject is either a user (DID) or a space-role userset (a space URI plus subjectRole), resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.",
-        "operationId": "network.habitat.relationship.check",
+        "summary": "network.habitat.relationship.checkSpaceRelation",
+        "description": "Check whether a space-role userset (all subjects holding subjectRole on subject, a space or group-space) holds a role on space, resolving built-in role implications (owner implies manager implies writer implies reader). Enables checking cross-space inheritance, e.g. whether spaceA's writers hold a role on spaceB. Caller must have the reader role on space.",
+        "operationId": "network.habitat.relationship.checkSpaceRelation",
         "security": [
           {
             "Bearer": []
@@ -3979,21 +3979,147 @@
           {
             "name": "subject",
             "in": "query",
-            "description": "The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required.",
+            "description": "URI of the subject space (or group-space) whose role-holders form the userset to check.",
             "required": true,
             "schema": {
               "type": "string",
-              "description": "The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required."
+              "description": "URI of the subject space (or group-space) whose role-holders form the userset to check.",
+              "format": "uri"
             }
           },
           {
             "name": "subjectRole",
             "in": "query",
-            "description": "The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID.",
-            "required": false,
+            "description": "The role held on the subject space, forming the userset.",
+            "required": true,
             "schema": {
               "type": "string",
-              "description": "The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID."
+              "description": "The role held on the subject space, forming the userset."
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
+            "description": "The role to check for on the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The role to check for on the space."
+            }
+          },
+          {
+            "name": "space",
+            "in": "query",
+            "description": "URI of the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "URI of the space.",
+              "format": "uri"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "allowed"
+                  ],
+                  "properties": {
+                    "allowed": {
+                      "type": "boolean",
+                      "description": "Whether the subject userset holds the role on the space."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.relationship.checkUserRelation": {
+      "get": {
+        "tags": [
+          "network.habitat.relationship"
+        ],
+        "summary": "network.habitat.relationship.checkUserRelation",
+        "description": "Check whether a user holds a role on a space, resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.",
+        "operationId": "network.habitat.relationship.checkUserRelation",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "description": "DID of the user to check.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "DID of the user to check.",
+              "format": "did"
             }
           },
           {
@@ -4347,17 +4473,6 @@
             }
           },
           {
-            "name": "object",
-            "in": "query",
-            "description": "Optional. Restrict to relations whose object is this space or group URI.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Optional. Restrict to relations whose object is this space or group URI.",
-              "format": "uri"
-            }
-          },
-          {
             "name": "subjectDid",
             "in": "query",
             "description": "Optional. Restrict to relations whose subject is this user DID.",
@@ -4381,11 +4496,11 @@
           {
             "name": "relation",
             "in": "query",
-            "description": "Optional. Restrict to relations with this relation.",
+            "description": "Optional. Restrict to relations with this role.",
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Optional. Restrict to relations with this relation."
+              "description": "Optional. Restrict to relations with this role."
             }
           }
         ],
@@ -9043,8 +9158,7 @@
         "required": [
           "subject",
           "subjectRole",
-          "relation",
-          "object"
+          "relation"
         ],
         "properties": {
           "subject": {
@@ -9066,11 +9180,6 @@
               "reader"
             ]
           },
-          "object": {
-            "type": "string",
-            "description": "URI of the space the role is granted on.",
-            "format": "uri"
-          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -9081,8 +9190,7 @@
         "type": "object",
         "required": [
           "subject",
-          "relation",
-          "object"
+          "relation"
         ],
         "properties": {
           "subject": {
@@ -9099,11 +9207,6 @@
               "writer",
               "reader"
             ]
-          },
-          "object": {
-            "type": "string",
-            "description": "URI of the space the role is granted on.",
-            "format": "uri"
           },
           "createdAt": {
             "type": "string",
