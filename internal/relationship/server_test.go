@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -406,4 +407,62 @@ func TestServer_Unauthenticated(t *testing.T) {
 		url.Values{"space": {space.String()}, "subject": {alice.String()}, "relation": {"reader"}},
 	))
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func Test_authorizeCanWrite(t *testing.T) {
+	s, ps, sp := newTestServer(t, testOrg)
+	space := newSpace(t, sp, docsType, "doc")
+
+	ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleManager)
+
+	t.Run("caller is not space owner but subject is", func(t *testing.T) {
+		require.False(t, s.authorizeCanWrite(
+			t.Context(),
+			httptest.NewRecorder(),
+			&authn.CredentialInfo{Subject: alice},
+			true,
+			space,
+			habitat_syntax.SpaceRoleReader,
+		))
+	})
+	t.Run("caller is not space owner but role is", func(t *testing.T) {
+		require.False(t, s.authorizeCanWrite(
+			t.Context(),
+			httptest.NewRecorder(),
+			&authn.CredentialInfo{Subject: alice},
+			false,
+			space,
+			habitat_syntax.SpaceRoleOwner,
+		))
+	})
+	t.Run("caller is space owner but subject isn't", func(t *testing.T) {
+		require.True(t, s.authorizeCanWrite(
+			t.Context(),
+			httptest.NewRecorder(),
+			&authn.CredentialInfo{Subject: testOrg},
+			false,
+			space,
+			habitat_syntax.SpaceRoleOwner,
+		))
+	})
+	t.Run("caller and subject are space owner", func(t *testing.T) {
+		require.True(t, s.authorizeCanWrite(
+			t.Context(),
+			httptest.NewRecorder(),
+			&authn.CredentialInfo{Subject: testOrg},
+			true,
+			space,
+			habitat_syntax.SpaceRoleReader,
+		))
+	})
+	t.Run("caller and subject are not space owner", func(t *testing.T) {
+		require.True(t, s.authorizeCanWrite(
+			t.Context(),
+			httptest.NewRecorder(),
+			&authn.CredentialInfo{Subject: alice},
+			false,
+			space,
+			habitat_syntax.SpaceRoleReader,
+		))
+	})
 }

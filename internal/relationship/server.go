@@ -59,15 +59,29 @@ func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok = s.validator.Request(
+	credInfo, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(space, habitat_syntax.SpaceRoleManager),
-	).Validate(w, r); !ok {
+	).Validate(w, r)
+	if !ok {
 		return
 	}
 	role, err := parseSpaceRole(input.Relation)
 	if err != nil {
 		httpx.WriteError(ctx, w, "InvalidRelation", err.Error(), http.StatusBadRequest)
+		return
+	}
+	isSubjectCurrentlyOwner, err := s.perms.CheckUserHasSpaceRole(
+		ctx,
+		subject,
+		space,
+		habitat_syntax.SpaceRoleOwner,
+	)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check subject is owner: %w", err))
+		return
+	}
+	if !s.authorizeCanWrite(ctx, w, credInfo, isSubjectCurrentlyOwner, space, role) {
 		return
 	}
 	uri, err := s.perms.SetUserRelation(ctx, subject, space, role)
@@ -97,10 +111,11 @@ func (s *Server) WriteSpaceRelation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok = s.validator.Request(
+	credInfo, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(space, fgastore.RelationSpaceMemberManager),
-	).Validate(w, r); !ok {
+	).Validate(w, r)
+	if !ok {
 		return
 	}
 	subjectRole, err := parseSpaceRole(input.SubjectRole)
@@ -108,12 +123,26 @@ func (s *Server) WriteSpaceRelation(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(ctx, w, "InvalidRelation", err.Error(), http.StatusBadRequest)
 		return
 	}
-	relation, err := parseSpaceRole(input.Relation)
+	role, err := parseSpaceRole(input.Relation)
 	if err != nil {
 		httpx.WriteError(ctx, w, "InvalidRelation", err.Error(), http.StatusBadRequest)
 		return
 	}
-	uri, err := s.perms.SetSpaceRoleRelation(ctx, subject, subjectRole, space, relation)
+	isSubjectCurrentlyOwner, err := s.perms.CheckSpaceRelationHasSpaceRole(
+		ctx,
+		subject,
+		subjectRole,
+		space,
+		habitat_syntax.SpaceRoleOwner,
+	)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check subject is owner: %w", err))
+		return
+	}
+	if !s.authorizeCanWrite(ctx, w, credInfo, isSubjectCurrentlyOwner, space, role) {
+		return
+	}
+	uri, err := s.perms.SetSpaceRoleRelation(ctx, subject, subjectRole, space, role)
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
@@ -446,4 +475,36 @@ func (s *Server) listSpaceRelationViews(
 		})
 	}
 	return views, nil
+}
+
+func (s *Server) authorizeCanWrite(
+	ctx context.Context,
+	w http.ResponseWriter,
+	credInfo *authn.CredentialInfo,
+	isSubjectCurrentlyOwner bool,
+	space habitat_syntax.SpaceURI,
+	role habitat_syntax.SpaceRole,
+) bool {
+	isCallerOwner, err := s.perms.CheckUserHasSpaceRole(
+		ctx,
+		credInfo.Subject,
+		space,
+		habitat_syntax.SpaceRoleOwner,
+	)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check owner: %w", err))
+		return false
+	}
+	if isCallerOwner {
+		return true
+	}
+	if role == habitat_syntax.SpaceRoleOwner {
+		httpx.WriteInvalidRequest(ctx, w, "caller must be owner to grant ownership to others", nil)
+		return false
+	}
+	if isSubjectCurrentlyOwner {
+		httpx.WriteInvalidRequest(ctx, w, "caller must be owner to change other owners", nil)
+		return false
+	}
+	return true
 }
