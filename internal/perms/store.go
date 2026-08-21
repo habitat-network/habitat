@@ -63,7 +63,7 @@ type Store interface {
 	// decode its (subject[, subjectRole], relation) fields, and call the
 	// matching Revoke* method. Should return ErrRelationNotFound if no record
 	// exists at uri.
-	RevokeRelation(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error
+	DeleteRelation(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error
 	UnsafeRevokeAllSpaceRoles(ctx context.Context, space habitat_syntax.SpaceURI) error
 
 	// Permission checks
@@ -82,8 +82,17 @@ type Store interface {
 	) (bool, error)
 
 	// List various things using relations
-	ListUserSubjects(ctx context.Context, space habitat_syntax.SpaceURI) ([]syntax.DID, error)
-	ListObjects(ctx context.Context, did syntax.DID) ([]habitat_syntax.SpaceURI, error)
+	ListUserSubjects(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		role habitat_syntax.SpaceRole,
+	) ([]syntax.DID, error)
+	ListObjects(
+		ctx context.Context,
+		did syntax.DID,
+		role habitat_syntax.SpaceRole,
+		filterType *syntax.NSID,
+	) ([]habitat_syntax.SpaceURI, error)
 
 	// WithTx returns a copy of the store scoped to the given transaction, so
 	// its DB writes participate in a caller-managed transaction rather than
@@ -102,8 +111,10 @@ func NewStore(db *gorm.DB, spaces spaces.Store, fga fgastore.Store) *store {
 	return &store{db: db, spaces: spaces, fga: fga}
 }
 
-var ErrRelationNotFound = errors.New("relation not found")
-var _ Store = &store{}
+var (
+	ErrRelationNotFound       = errors.New("relation not found")
+	_                   Store = &store{}
+)
 
 // WithTx implements [Store], returning a store whose DB operations run on tx.
 func (s *store) WithTx(tx *gorm.DB) Store {
@@ -446,6 +457,8 @@ func (s *store) ListUserSubjects(
 func (s *store) ListObjects(
 	ctx context.Context,
 	did syntax.DID,
+	role habitat_syntax.SpaceRole,
+	filterType *syntax.NSID,
 ) ([]habitat_syntax.SpaceURI, error) {
 	keys, err := s.fga.ListObjects(
 		ctx,

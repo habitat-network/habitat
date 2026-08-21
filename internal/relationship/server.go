@@ -63,7 +63,7 @@ func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(object, habitat_syntax.SpaceRoleManager),
+		authn.WithSpace(space, habitat_syntax.SpaceRoleManager),
 	).Validate(w, r); !ok {
 		return
 	}
@@ -72,7 +72,7 @@ func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(ctx, w, "InvalidRelation", err.Error(), http.StatusBadRequest)
 		return
 	}
-	uri, err := s.perms.AddUserRelation(ctx, subject, space, role)
+	uri, err := s.perms.SetUserRelation(ctx, subject, space, role)
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
@@ -115,7 +115,7 @@ func (s *Server) WriteSpaceRelation(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(ctx, w, "InvalidRelation", err.Error(), http.StatusBadRequest)
 		return
 	}
-	uri, err := s.perms.AddSpaceRoleRelation(ctx, subject, subjectRole, space, relation)
+	uri, err := s.perms.SetSpaceRoleRelation(ctx, subject, subjectRole, space, relation)
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
@@ -171,7 +171,6 @@ func (s *Server) CheckUserRelation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
@@ -183,16 +182,7 @@ func (s *Server) CheckUserRelation(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse relation", err)
 		return
 	}
-
-	// Is this correct? We need to pass in the org for the subject to make the contextual
-	// tuple. Temporary until org members + admins get built on top of spaces.
-	org, err := s.orgStore.GetOrgForDID(ctx, subject)
-	if err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "failed to lookup subject org", err)
-		return
-	}
-
-	allowed, err := s.perms.CheckUserHasSpaceRole(ctx, subject, space, role, org.DID())
+	allowed, err := s.perms.CheckUserHasSpaceRole(ctx, subject, space, role)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("check user relation: %w", err))
 		return
