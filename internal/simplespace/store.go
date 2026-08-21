@@ -163,7 +163,7 @@ func (m *Store) IsMember(
 	uri habitat_syntax.SpaceURI,
 	did syntax.DID,
 ) (bool, error) {
-	ok, err := m.perms.CheckUserHasSpaceRole(ctx, did, uri, habitat_syntax.SpaceRoleReader, org)
+	ok, err := m.perms.CheckUserHasSpaceRole(ctx, did, uri, habitat_syntax.SpaceRoleReader)
 	if err != nil {
 		return false, fmt.Errorf("err checking membership: %w", err)
 	}

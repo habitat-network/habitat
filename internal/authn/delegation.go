@@ -74,9 +74,6 @@ func (d *DelegationTokenAuthMethod) Validate(
 		syntax.DID(issuer),
 		space,
 		habitat_syntax.SpaceRoleReader,
-		// No caller-org context is available for a delegation token, so fall
-		// back to the space's own owning org for the implicit org-member check.
-		space.SpaceOwner(),
 	)
 
 	if err != nil {

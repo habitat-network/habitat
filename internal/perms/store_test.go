@@ -60,7 +60,7 @@ func TestStoreSetUserRelationAndCheckUserHasSpaceRole(t *testing.T) {
 	space := newSpace(t, s.spaces, docsType, "doc1")
 
 	t.Run("no relation is denied", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader, org)
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.False(t, ok)
 	})
@@ -71,7 +71,7 @@ func TestStoreSetUserRelationAndCheckUserHasSpaceRole(t *testing.T) {
 		require.Equal(t, habitat_syntax.UserRelationCollection, uri.Collection())
 		require.Equal(t, space, uri.SpaceURI())
 
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader, org)
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
@@ -82,7 +82,7 @@ func TestStoreSetUserRelationAndCheckUserHasSpaceRole(t *testing.T) {
 	})
 
 	t.Run("a role does not imply a higher role", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleWriter, org)
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleWriter)
 		require.NoError(t, err)
 		require.False(t, ok)
 	})
@@ -90,7 +90,7 @@ func TestStoreSetUserRelationAndCheckUserHasSpaceRole(t *testing.T) {
 	t.Run("a higher role implies a lower role", func(t *testing.T) {
 		_, err := s.SetUserRelation(ctx, bob, space, habitat_syntax.SpaceRoleWriter)
 		require.NoError(t, err)
-		ok, err := s.CheckUserHasSpaceRole(ctx, bob, space, habitat_syntax.SpaceRoleReader, org)
+		ok, err := s.CheckUserHasSpaceRole(ctx, bob, space, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
@@ -101,7 +101,6 @@ func TestStoreSetUserRelationAndCheckUserHasSpaceRole(t *testing.T) {
 			"did:plc:stranger",
 			space,
 			habitat_syntax.SpaceRoleReader,
-			org,
 		)
 		require.NoError(t, err)
 		require.False(t, ok)
@@ -125,19 +124,19 @@ func TestStoreSetUserRelationReplacesPriorRole(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("alice now has both the writer role and the reader role it implies", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleWriter, org)
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleWriter)
 		require.NoError(t, err)
 		require.True(t, ok)
 
-		ok, err = s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader, org)
+		ok, err = s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.True(t, ok)
 
-		ok, err = s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleManager, org)
+		ok, err = s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleManager)
 		require.NoError(t, err)
 		require.False(t, ok)
 
-		ok, err = s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleOwner, org)
+		ok, err = s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleOwner)
 		require.NoError(t, err)
 		require.False(t, ok)
 	})
@@ -164,7 +163,6 @@ func TestStoreCheckUserHasSpaceRoleImplicitAccess(t *testing.T) {
 			space.SpaceOwner(),
 			space,
 			habitat_syntax.SpaceRoleOwner,
-			org,
 		)
 		require.NoError(t, err)
 		require.True(t, ok)
@@ -176,7 +174,6 @@ func TestStoreCheckUserHasSpaceRoleImplicitAccess(t *testing.T) {
 			space.SpaceOwner(),
 			space,
 			habitat_syntax.SpaceRoleReader,
-			org,
 		)
 		require.NoError(t, err)
 		require.True(t, ok)
@@ -271,7 +268,7 @@ func TestStoreCheckUserHasSpaceRoleDoesNotLeakAccessFromUnrelatedOrgMembership(t
 	// ...but she is NOT a member of orgB, the org she's actually acting as in
 	// this request (belongsToOrg). Her unrelated membership in org must not
 	// leak her access to a space just because org happens to own it.
-	ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader, orgB)
+	ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 	require.False(t, ok, "alice must not gain access via an org she isn't acting as")
 }
@@ -283,12 +280,12 @@ func TestStoreRevokeUser(t *testing.T) {
 
 	_, err := s.SetUserRelation(ctx, alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
-	ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader, org)
+	ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 	require.True(t, ok)
 
 	require.NoError(t, s.RevokeUser(ctx, alice, space))
-	ok, err = s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader, org)
+	ok, err = s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 	require.False(t, ok)
 
@@ -315,7 +312,7 @@ func TestStoreSpaceRoleRelation(t *testing.T) {
 		require.Equal(t, habitat_syntax.SpaceRelationCollection, uri.Collection())
 		require.Equal(t, doc, uri.SpaceURI())
 
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader, org)
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.False(t, ok)
 	})
@@ -323,7 +320,7 @@ func TestStoreSpaceRoleRelation(t *testing.T) {
 	t.Run("granting the space-role relation propagates to its subjects", func(t *testing.T) {
 		_, err := s.SetUserRelation(ctx, alice, group, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader, org)
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
@@ -363,7 +360,7 @@ func TestStoreSpaceRoleRelation(t *testing.T) {
 				doc,
 			),
 		)
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader, org)
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.False(t, ok)
 
@@ -403,7 +400,7 @@ func TestStoreUnsafeRevokeAllSpaceRoles(t *testing.T) {
 	require.NoError(t, s.UnsafeRevokeAllSpaceRoles(ctx, space))
 
 	for _, did := range []syntax.DID{alice, bob} {
-		ok, err := s.CheckUserHasSpaceRole(ctx, did, space, habitat_syntax.SpaceRoleReader, org)
+		ok, err := s.CheckUserHasSpaceRole(ctx, did, space, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.False(t, ok)
 	}

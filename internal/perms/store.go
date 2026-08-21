@@ -62,7 +62,6 @@ type Store interface {
 		did syntax.DID,
 		space habitat_syntax.SpaceURI,
 		role habitat_syntax.SpaceRole,
-		belongsToOrg syntax.DID,
 	) (bool, error)
 	CheckSpaceRelationHasSpaceRole(
 		ctx context.Context,
@@ -367,7 +366,6 @@ func (s *store) CheckUserHasSpaceRole(
 	did syntax.DID,
 	space habitat_syntax.SpaceURI,
 	role habitat_syntax.SpaceRole,
-	belongsToOrg syntax.DID,
 ) (bool, error) {
 	return s.fga.Check(
 		ctx,
