@@ -413,7 +413,8 @@ func Test_authorizeCanWrite(t *testing.T) {
 	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 
-	ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleManager)
+	_, err := ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleManager)
+	require.NoError(t, err)
 
 	t.Run("caller is not space owner but subject is", func(t *testing.T) {
 		require.False(t, s.authorizeCanWrite(
