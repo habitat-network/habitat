@@ -7,7 +7,7 @@ sidebar_position: 2
 
 # Endpoints
 
-Every endpoint is served at `https://pear.habitat.network/xrpc/{nsid}`, and each row links to its full request/response schema in the [HTTP reference](/docs/api/habitat-api). All of them accept OAuth or service auth, and all authorization is expressed as a role on the space being touched: **writes require `manager`, reads require `reader`.** Since [roles imply one another](./overview.mdx#the-model), an owner or writer satisfies the reader requirement without a separate grant.
+Every endpoint is served at `https://pear.habitat.network/xrpc/{nsid}`, and each row links to its full request/response schema in the [HTTP reference](/docs/api/habitat-api). All of them accept OAuth or service auth, and all authorization is expressed as a role on the space being touched: **writes require `manager`, reads require `reader`.** Since [roles imply one another](./overview.mdx#roles), an owner or writer satisfies the reader requirement without a separate grant.
 
 ## Writing relations
 
