@@ -375,8 +375,12 @@ func (s *Server) listUserRelationViews(
 	space habitat_syntax.SpaceURI,
 	params habitat.NetworkHabitatRelationshipListRelationsParams,
 ) ([]any, error) {
-	collection := habitat_syntax.UserRelationCollection
-	records, err := s.spaces.ListRecords(ctx, space, space.SpaceOwner(), &collection)
+	records, err := s.spaces.ListRecords(
+		ctx,
+		space,
+		space.SpaceOwner(),
+		new(habitat_syntax.UserRelationCollection),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -409,8 +413,12 @@ func (s *Server) listSpaceRelationViews(
 	space habitat_syntax.SpaceURI,
 	params habitat.NetworkHabitatRelationshipListRelationsParams,
 ) ([]any, error) {
-	collection := habitat_syntax.SpaceRelationCollection
-	records, err := s.spaces.ListRecords(ctx, space, space.SpaceOwner(), &collection)
+	records, err := s.spaces.ListRecords(
+		ctx,
+		space,
+		space.SpaceOwner(),
+		new(habitat_syntax.SpaceRelationCollection),
+	)
 	if err != nil {
 		return nil, err
 	}
