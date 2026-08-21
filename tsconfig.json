@@ -12,7 +12,7 @@
       "path": "./typescript/api"
     },
     {
-      "path": "./typescript/habitat"
+      "path": "./typescript/apps/chalk"
     },
     {
       "path": "./typescript/apps/docs"
@@ -25,6 +25,9 @@
     },
     {
       "path": "./typescript/apps/pear-pages"
+    },
+    {
+      "path": "./typescript/habitat"
     },
     {
       "path": "./typescript/internal"

@@ -1,5 +1,11 @@
 ignoreScripts: true
 
+onlyBuiltDependencies:
+  - better-sqlite3
+
+ignoredBuiltDependencies:
+  - core-js
+
 packages:
   - frontend
   - camera
