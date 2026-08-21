@@ -1,0 +1,109 @@
+---
+id: getting-started
+slug: /rebac/getting-started
+sidebar_label: Getting started
+sidebar_position: 1
+---
+
+# Getting started
+
+Every call goes to `https://pear.habitat.network/xrpc/{nsid}` and carries a bearer token — an OAuth access token through the [space proxy](/docs/space-proxy), or a service auth token from the user's PDS. The examples below use `$TOKEN` for whichever you have.
+
+## 1. Create a space
+
+Spaces are created with the simplespace method — so there is no ReBAC-specific create yet.
+
+```bash
+curl -X POST https://pear.habitat.network/xrpc/network.habitat.simplespace.createSpace \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "type": "network.habitat.document" }'
+```
+
+```json
+{ "uri": "at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n" }
+```
+
+The returned URI is the created under the Habitat space host (`did:web:pear.habitat.network`).
+
+## 2. Add a specific user
+
+[`setUserRelation`](./endpoints.mdx#writing-relations) grants one DID one role. Requires `manager` on the space, which the creator has via `owner`.
+
+```bash
+curl -X POST https://pear.habitat.network/xrpc/network.habitat.relationship.setUserRelation \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "space": "at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n",
+        "subject": "did:plc:alice",
+        "relation": "writer"
+      }'
+```
+
+```json
+{ "uri": "at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n/did:web:pear.habitat.network/network.habitat.relationship.userRelation/<rkey>" }
+```
+
+The response URI is the [`userRelation` record](./records.mdx#userrelation) the grant was written as — pass it to `deleteRelation` to revoke. The call is an upsert keyed by the subject, so calling it again with `"relation": "reader"` [replaces the grant](./records.mdx#one-role-per-subject) rather than adding a second one.
+
+## 3. Add another space
+
+[`setSpaceRelation`](./endpoints.mdx#writing-relations) grants a role to *everyone holding `subjectRole` on another space*. 
+
+```bash
+curl -X POST https://pear.habitat.network/xrpc/network.habitat.relationship.setSpaceRelation \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "space": "at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n",
+        "subject": "at://did:web:pear.habitat.network/space/network.habitat.group/eng",
+        "subjectRole": "reader",
+        "relation": "writer"
+      }'
+```
+
+Nothing is copied. Adding someone to the `eng` group later gives them `writer` here immediately, and the grant survives as one record no matter how the group changes.
+
+## 4. Query the resolved members
+
+[`resolveRelations`](./endpoints.mdx#listing) expands the graph — role implications, group membership, and nested groups — into a flat list of DIDs. Requires `reader` on the space.
+
+```bash
+curl -G https://pear.habitat.network/xrpc/network.habitat.relationship.resolveRelations \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode "space=at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n" \
+  --data-urlencode "relation=writer"
+```
+
+```json
+{ "dids": ["did:plc:creator", "did:plc:alice", "did:plc:bob", "did:plc:carol"] }
+```
+
+Alice is there from step 2; Bob and Carol are members of `eng` from step 3; the creator is there because `owner ⇒ writer`. Ask for `relation=reader` and the same list comes back, since writers are readers.
+
+To see the two grants that produced this list rather than the people it reaches, call [`listRelations`](./endpoints.mdx#listing) instead.
+
+## 5. List the spaces a member can reach
+
+[`listRelatedSpaces`](./endpoints.mdx#listing) is the reverse query: the spaces on which a DID holds a role, expanded the same way. Results are filtered to spaces the **caller** can read, so no space-level role is needed up front — passing the caller's own DID answers "what can I get to?".
+
+```bash
+curl -G https://pear.habitat.network/xrpc/network.habitat.relationship.listRelatedSpaces \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode "did=<caller-did>" \
+  --data-urlencode "relation=writer" \
+  --data-urlencode "type=network.habitat.document"
+```
+
+```json
+{
+  "spaces": [
+    "at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n"
+  ]
+}
+```
+
+Bob never appeared in a grant on this space — he is reachable only through `eng` — and the query still finds it. The optional `type` filter narrows to one space type, which is how an app lists just the spaces it knows how to render.
+
+Next: [Relationship records](./records.mdx) for what these calls write, or [Endpoints](./endpoints.mdx) for the full surface.
