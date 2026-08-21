@@ -13,6 +13,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -171,7 +172,7 @@ func (s *Server) CheckUserRelation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, ok = s.validator.Request(
+	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r); !ok {
@@ -218,8 +219,7 @@ func (s *Server) CheckSpaceRelation(w http.ResponseWriter, r *http.Request) {
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
-	).Validate(w, r)
-	if !ok {
+	).Validate(w, r); !ok {
 		return
 	}
 	subjectRole, err := parseSpaceRole(params.SubjectRole)
@@ -255,8 +255,7 @@ func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
-	).Validate(w, r)
-	if !ok {
+	).Validate(w, r); !ok {
 		return
 	}
 	role, err := parseSpaceRole(params.Relation)

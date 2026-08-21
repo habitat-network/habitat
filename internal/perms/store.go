@@ -2,11 +2,7 @@ package perms
 
 import (
 	"context"
-<<<<<<< HEAD
-=======
-	"database/sql"
 	"errors"
->>>>>>> 2da956a4 (gen changes)
 	"fmt"
 	"time"
 
@@ -106,6 +102,9 @@ func NewStore(db *gorm.DB, spaces spaces.Store, fga fgastore.Store) *store {
 	return &store{db: db, spaces: spaces, fga: fga}
 }
 
+var (
+	ErrRelationNotFound = errors.New("relation not found")
+)
 var _ Store = &store{}
 
 // WithTx implements [Store], returning a store whose DB operations run on tx.
@@ -447,15 +446,10 @@ func (s *store) ListUserSubjects(
 
 // ListObjects implements [Store]. It returns the spaces did directly holds
 // role on (owner/manager/writer imply reader, so a lower role requested
-// returns spaces held via a higher one too). Owner/org-member implications
-// aren't expanded here, since that would require checking every space in
-// every org did could be a member of. If filterType is non-nil, only spaces
-// of that type are returned.
+// returns spaces held via a higher one too). xw
 func (s *store) ListObjects(
 	ctx context.Context,
 	did syntax.DID,
-	role habitat_syntax.SpaceRole,
-	filterType *syntax.NSID,
 ) ([]habitat_syntax.SpaceURI, error) {
 	keys, err := s.fga.ListObjects(
 		ctx,
@@ -496,12 +490,11 @@ func (s *store) DeleteRelation(ctx context.Context, uri habitat_syntax.SpaceReco
 	switch collection {
 	case habitat_syntax.UserRelationCollection:
 		subjectStr, _ := record.Value["subject"].(string)
-		relationStr, _ := record.Value["relation"].(string)
 		did, err := syntax.ParseDID(subjectStr)
 		if err != nil {
 			return fmt.Errorf("perms: invalid subject did in relation record: %w", err)
 		}
-		err = s.RevokeUserRelation(ctx, did, space, habitat_syntax.SpaceRole(relationStr))
+		err = s.RevokeUser(ctx, did, space)
 		if err != nil {
 			return fmt.Errorf("revoking user relation: %w", err)
 		}
@@ -510,17 +503,15 @@ func (s *store) DeleteRelation(ctx context.Context, uri habitat_syntax.SpaceReco
 	case habitat_syntax.SpaceRelationCollection:
 		subjectStr, _ := record.Value["subject"].(string)
 		subjectRoleStr, _ := record.Value["subjectRole"].(string)
-		relationStr, _ := record.Value["relation"].(string)
 		subject, err := habitat_syntax.ParseSpaceURI(subjectStr)
 		if err != nil {
 			return fmt.Errorf("perms: invalid subject space uri in relation record: %w", err)
 		}
-		err = s.RevokeSpaceRoleRelation(
+		err = s.RevokeSpaceRole(
 			ctx,
 			subject,
 			habitat_syntax.SpaceRole(subjectRoleStr),
 			space,
-			habitat_syntax.SpaceRole(relationStr),
 		)
 		if err != nil {
 			return fmt.Errorf("revoking space relation: %w", err)
