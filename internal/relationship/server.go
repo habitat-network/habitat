@@ -13,7 +13,6 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -113,7 +112,7 @@ func (s *Server) SetSpaceRelation(w http.ResponseWriter, r *http.Request) {
 	}
 	credInfo, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(space, fgastore.RelationSpaceMemberManager),
+		authn.WithSpace(space, habitat_syntax.SpaceRoleManager),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -366,7 +365,7 @@ func (s *Server) ListRelations(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(space, fgastore.RelationSpaceReader),
+		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r); !ok {
 		return
 	}
