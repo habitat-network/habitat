@@ -33,9 +33,9 @@ func newTestStore(t *testing.T) *store {
 	t.Cleanup(func() { _ = fga.Close() })
 
 	db := db_testutil.NewDB(t)
-	sp := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
+	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
 
-	return NewStore(db, sp.Store, fga)
+	return NewStore(db, sp, fga)
 }
 
 // newSpace creates a space owned by org in sp and returns its URI.
