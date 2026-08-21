@@ -1,0 +1,51 @@
+---
+id: endpoints
+slug: /rebac/endpoints
+sidebar_label: Endpoints
+sidebar_position: 3
+---
+
+# Endpoints
+
+Every endpoint is served at `https://pear.habitat.network/xrpc/{nsid}`, and each row links to its full request/response schema in the [HTTP reference](/docs/api/habitat-api). 
+
+## Authentication
+Applications can make requests to the space host using service auth tokens from the user's PDS.
+This lets the space host verify that the user has permission to the spaces they are asking about.
+
+With the [space proxy](/docs/space-proxy) you can also use an OAuth token since we centralize the authorization server between the space host and PDS.
+
+## Writing relations
+
+Both writes are upserts keyed by the subject, so re-granting a subject a different role [replaces its existing grant](./records.mdx#one-role-per-subject) rather than adding a second one. Each returns the URI of the relation record it wrote.
+
+| Endpoint                                                                                                         | Required role      | Notes                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`relationship.setUserRelation`](/docs/api/network-habitat-relationship-set-user-relation)   | `manager` | Grants `relation` to a user DID on `space`. Writes a [`userRelation`](./records.mdx#userrelation) record into the space. `SpaceNotFound` if the space doesn't exist.                                                                  |
+| [`relationship.setSpaceRelation`](/docs/api/network-habitat-relationship-set-space-relation) | `manager` | Grants `relation` to the userset "everyone with `subjectRole` on `subject`" on `space`. Writes a [`spaceRelation`](./records.mdx#spacerelation) record. This is how groups, nested groups, and cross-space inheritance are expressed. |
+| [`relationship.deleteRelation`](/docs/api/network-habitat-relationship-delete-relation)          | `manager` | Deletes by relation-record URI — the URI returned by a write or by `listRelations`. Removes both the record and the underlying tuple. `RelationNotFound` if nothing is there.                                                         |
+
+The role is checked on the space the relation governs: for `deleteRelation`, that's the space embedded in the record URI, not a separate parameter.
+
+## Checking access
+
+Checks resolve the whole graph — role implications, group membership, nested groups, and cross-space usersets — and answer with a single `allowed` boolean. Use these rather than reading relation records and resolving them yourself.
+
+| Endpoint                                                                                                         | Required role     | Notes                                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`relationship.checkUserRelation`](/docs/api/network-habitat-relationship-check-user-relation)   | `reader` | Does this DID hold `relation` on `space`? Resolves through group-spaces and nested usersets.                                                                      |
+| [`relationship.checkSpaceRelation`](/docs/api/network-habitat-relationship-check-space-relation) | `reader` | Does the userset "holders of `subjectRole` on `subject`" hold `relation` on `space`? Answers cross-space questions like "are spaceA's writers readers of spaceB?" |
+
+## Listing
+
+| Endpoint                                                                                              | Required role     | Notes                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`relationship.listRelations`](/docs/api/network-habitat-relationship-list-relations) | `reader` | The **stored** relations governing a space — the interoperable read surface other apps use to understand the permission structure. Returns `userRelationView` and `spaceRelationView` unions, each with the record URI. Filter by `subjectDid`, `subjectType` (`user`/`space`), or `relation`. Not expanded: it returns grants as written. |
+| [`relationship.resolveRelations`](/docs/api/network-habitat-relationship-resolve-relations)   | `reader` | The **expanded** set of user DIDs holding `relation` on a space, flattening usersets and role implications.                                                                                                                                                                                                                                |
+| [`relationship.listRelatedSpaces`](/docs/api/network-habitat-relationship-list-related-spaces)     | —        | The reverse: spaces on which a given DID holds `relation`, expanded the same way. Optional `type` filter by space NSID. Results are filtered to the spaces the **caller** can read, so no space-level role is required up front.                                                                                                           |
+
+`listRelations` and `resolveRelations` answer different questions: the first tells you what a manager configured, the second tells you who that actually reaches. A user who is only a member of a group granted access appears in `resolveRelations` but has no `userRelation` record of their own.
+
+## Not yet implemented
+
+- **Pagination.** No listing endpoint takes a cursor; each returns one unpaginated page.
