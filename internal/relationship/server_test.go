@@ -96,7 +96,7 @@ func TestServer_WriteUserRelation(t *testing.T) {
 	require.NotEmpty(t, out.Uri)
 
 	allowed, err := ps.CheckUserHasSpaceRole(
-		t.Context(), alice, space, habitat_syntax.SpaceRoleReader, testOrg,
+		t.Context(), alice, space, habitat_syntax.SpaceRoleReader,
 	)
 	require.NoError(t, err)
 	require.True(t, allowed)
@@ -212,11 +212,11 @@ func TestServer_ListRelations(t *testing.T) {
 	s, ps, sp := newTestServer(t, testOrg)
 	group := newSpace(t, sp, groupType, "team")
 	space := newSpace(t, sp, docsType, "doc")
-	_, err := ps.AddUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
+	_, err := ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
-	_, err = ps.AddUserRelation(t.Context(), bob, space, habitat_syntax.SpaceRoleWriter)
+	_, err = ps.SetUserRelation(t.Context(), bob, space, habitat_syntax.SpaceRoleWriter)
 	require.NoError(t, err)
-	_, err = ps.AddSpaceRoleRelation(
+	_, err = ps.SetSpaceRoleRelation(
 		t.Context(),
 		group, habitat_syntax.SpaceRoleReader,
 		space, habitat_syntax.SpaceRoleReader,
@@ -286,7 +286,7 @@ func TestServer_ListRelations_InvalidSubjectType(t *testing.T) {
 func TestServer_CheckUserRelation(t *testing.T) {
 	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
-	_, err := ps.AddUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
+	_, err := ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
@@ -317,7 +317,7 @@ func TestServer_CheckSpaceRelation(t *testing.T) {
 	s, ps, sp := newTestServer(t, testOrg)
 	group := newSpace(t, sp, groupType, "team")
 	space := newSpace(t, sp, docsType, "doc")
-	_, err := ps.AddSpaceRoleRelation(
+	_, err := ps.SetSpaceRoleRelation(
 		t.Context(),
 		group, habitat_syntax.SpaceRoleReader,
 		space, habitat_syntax.SpaceRoleWriter,
@@ -342,7 +342,7 @@ func TestServer_CheckSpaceRelation(t *testing.T) {
 func TestServer_ListSubjects(t *testing.T) {
 	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
-	_, err := ps.AddUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
+	_, err := ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
@@ -360,7 +360,7 @@ func TestServer_ListSubjects(t *testing.T) {
 func TestServer_ListObjects(t *testing.T) {
 	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
-	_, err := ps.AddUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
+	_, err := ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
@@ -380,7 +380,7 @@ func TestServer_ListObjects_FiltersUnreadable(t *testing.T) {
 	// are returned. bob is a reader of the space, so it is returned.
 	s, ps, sp := newTestServer(t, bob)
 	space := newSpace(t, sp, docsType, "doc")
-	_, err := ps.AddUserRelation(t.Context(), bob, space, habitat_syntax.SpaceRoleReader)
+	_, err := ps.SetUserRelation(t.Context(), bob, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()

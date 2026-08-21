@@ -384,23 +384,23 @@ func TestStoreDeleteRelation(t *testing.T) {
 	doc := newSpace(t, s.spaces, docsType, "doc1")
 
 	t.Run("deletes a user relation and revokes access", func(t *testing.T) {
-		uri, err := s.AddUserRelation(ctx, alice, doc, habitat_syntax.SpaceRoleReader)
+		uri, err := s.SetUserRelation(ctx, alice, doc, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader, org)
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.True(t, ok)
 
 		require.NoError(t, s.DeleteRelation(ctx, uri))
 
-		ok, err = s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader, org)
+		ok, err = s.CheckUserHasSpaceRole(ctx, alice, doc, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.False(t, ok)
 	})
 
 	t.Run("deletes a space-role relation and revokes access", func(t *testing.T) {
-		_, err := s.AddUserRelation(ctx, bob, group, habitat_syntax.SpaceRoleReader)
+		_, err := s.SetUserRelation(ctx, bob, group, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
-		uri, err := s.AddSpaceRoleRelation(
+		uri, err := s.SetSpaceRoleRelation(
 			ctx,
 			group,
 			habitat_syntax.SpaceRoleReader,
@@ -408,13 +408,13 @@ func TestStoreDeleteRelation(t *testing.T) {
 			habitat_syntax.SpaceRoleReader,
 		)
 		require.NoError(t, err)
-		ok, err := s.CheckUserHasSpaceRole(ctx, bob, doc, habitat_syntax.SpaceRoleReader, org)
+		ok, err := s.CheckUserHasSpaceRole(ctx, bob, doc, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.True(t, ok)
 
 		require.NoError(t, s.DeleteRelation(ctx, uri))
 
-		ok, err = s.CheckUserHasSpaceRole(ctx, bob, doc, habitat_syntax.SpaceRoleReader, org)
+		ok, err = s.CheckUserHasSpaceRole(ctx, bob, doc, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.False(t, ok)
 	})
