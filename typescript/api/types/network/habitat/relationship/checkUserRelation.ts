@@ -13,13 +13,11 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.relationship.check'
+const id = 'network.habitat.relationship.checkUserRelation'
 
 export type QueryParams = {
-  /** The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required. */
+  /** DID of the user to check. */
   subject: string
-  /** The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID. */
-  subjectRole?: 'owner' | 'manager' | 'writer' | 'reader'
   /** The role to check for on the space. */
   relation: 'owner' | 'manager' | 'writer' | 'reader'
   /** URI of the space. */

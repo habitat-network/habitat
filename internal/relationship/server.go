@@ -345,15 +345,6 @@ func (s *Server) ListRelations(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "invalid subjectType", nil)
 		return
 	}
-	if params.Object != "" && params.Object != space.String() {
-		// The object of a relation record is always the space it's written
-		// into (the governing space itself), so a mismatched object filter
-		// can never match anything.
-		httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipListRelationsOutput{
-			Relations: []any{},
-		})
-		return
-	}
 
 	views := make([]any, 0)
 

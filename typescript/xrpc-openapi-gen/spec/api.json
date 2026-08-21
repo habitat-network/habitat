@@ -4473,17 +4473,6 @@
             }
           },
           {
-            "name": "object",
-            "in": "query",
-            "description": "Optional. Restrict to relations whose object is this space or group URI.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Optional. Restrict to relations whose object is this space or group URI.",
-              "format": "uri"
-            }
-          },
-          {
             "name": "subjectDid",
             "in": "query",
             "description": "Optional. Restrict to relations whose subject is this user DID.",
@@ -4507,11 +4496,11 @@
           {
             "name": "relation",
             "in": "query",
-            "description": "Optional. Restrict to relations with this relation.",
+            "description": "Optional. Restrict to relations with this role.",
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Optional. Restrict to relations with this relation."
+              "description": "Optional. Restrict to relations with this role."
             }
           }
         ],
