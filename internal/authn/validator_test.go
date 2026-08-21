@@ -46,8 +46,8 @@ func TestValidator(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 
-	sp := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
-	ps := perms.NewStore(db, sp.Store, fga)
+	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
+	ps := perms.NewStore(db, sp, fga)
 
 	v := authn.NewValidator(
 		oauth,

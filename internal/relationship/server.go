@@ -44,9 +44,9 @@ func NewServer(
 	}
 }
 
-func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
+func (s *Server) SetUserRelation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var input habitat.NetworkHabitatRelationshipWriteUserRelationInput
+	var input habitat.NetworkHabitatRelationshipSetUserRelationInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to decode request body", err)
 		return
@@ -93,12 +93,12 @@ func (s *Server) WriteUserRelation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(ctx, w,
-		habitat.NetworkHabitatRelationshipWriteUserRelationOutput{Uri: uri.String()})
+		habitat.NetworkHabitatRelationshipSetUserRelationOutput{Uri: uri.String()})
 }
 
-func (s *Server) WriteSpaceRelation(w http.ResponseWriter, r *http.Request) {
+func (s *Server) SetSpaceRelation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var input habitat.NetworkHabitatRelationshipWriteSpaceRelationInput
+	var input habitat.NetworkHabitatRelationshipSetSpaceRelationInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to decode request body", err)
 		return
@@ -151,7 +151,7 @@ func (s *Server) WriteSpaceRelation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(ctx, w,
-		habitat.NetworkHabitatRelationshipWriteSpaceRelationOutput{Uri: uri.String()})
+		habitat.NetworkHabitatRelationshipSetSpaceRelationOutput{Uri: uri.String()})
 }
 
 func (s *Server) DeleteRelation(w http.ResponseWriter, r *http.Request) {
@@ -264,9 +264,9 @@ func (s *Server) CheckSpaceRelation(w http.ResponseWriter, r *http.Request) {
 		habitat.NetworkHabitatRelationshipCheckSpaceRelationOutput{Allowed: allowed})
 }
 
-func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ResolveRelations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var params habitat.NetworkHabitatRelationshipListSubjectsParams
+	var params habitat.NetworkHabitatRelationshipResolveRelationsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to decode query params", err)
 		return
@@ -295,10 +295,10 @@ func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
 	for i, did := range dids {
 		out[i] = did.String()
 	}
-	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipListSubjectsOutput{Dids: out})
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipResolveRelationsOutput{Dids: out})
 }
 
-func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ListRelatedSpaces(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
@@ -306,7 +306,7 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var params habitat.NetworkHabitatRelationshipListObjectsParams
+	var params habitat.NetworkHabitatRelationshipListRelatedSpacesParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to decode query params", err)
 		return
@@ -350,7 +350,7 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 			out = append(out, space.String())
 		}
 	}
-	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipListObjectsOutput{Spaces: out})
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRelationshipListRelatedSpacesOutput{Spaces: out})
 }
 
 func (s *Server) ListRelations(w http.ResponseWriter, r *http.Request) {

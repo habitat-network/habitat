@@ -33,8 +33,8 @@ func newTestPermsStore(t *testing.T) (perms.Store, spaces.Store) {
 	t.Cleanup(func() { _ = fga.Close() })
 
 	db := db_testutil.NewDB(t)
-	sp := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
-	return perms.NewStore(db, sp.Store, fga), sp.Store
+	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
+	return perms.NewStore(db, sp, fga), sp
 }
 
 // newTestSpace creates the space used throughout this test's subtests,

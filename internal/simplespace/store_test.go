@@ -30,7 +30,11 @@ func newTestStore(t *testing.T) *Store {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 
-	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
+	spacesStore := spaces_testutil.NewTestStore(
+		t,
+		spaces_testutil.WithDB(db),
+		spaces_testutil.WithFGA(fga),
+	)
 	permsStore := perms.NewStore(db, spacesStore, fga)
 	return NewStore(db, spacesStore, permsStore)
 }
@@ -261,7 +265,11 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 
-	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.Config{DB: db, FgaStore: fga})
+	spacesStore := spaces_testutil.NewTestStore(
+		t,
+		spaces_testutil.WithDB(db),
+		spaces_testutil.WithFGA(fga),
+	)
 	permsStore := perms.NewStore(db, spacesStore, fga)
 	s := NewStore(db, spacesStore, permsStore)
 

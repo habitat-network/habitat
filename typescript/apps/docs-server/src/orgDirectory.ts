@@ -4,7 +4,7 @@ import type { PearClient } from "./pearClient";
 
 // OrgDirectory maps a user DID to the org they belong to. The orgs are the ones
 // sap manages (GET /org/list); each org's membership is read via
-// relationship.listSubjects on the org's self space
+// relationship.resolveRelations on the org's self space
 // (at://<org>/space/network.habitat.organization/self), where every member holds the
 // reader role. The mapping is persisted to sqlite (shared with the doc stores)
 // so it survives restarts. It is refreshed on demand rather than on an interval:

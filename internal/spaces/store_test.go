@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	notify_testutil "github.com/habitat-network/habitat/internal/notify/testutil"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -595,7 +596,8 @@ func TestListRepoOps(t *testing.T) {
 }
 
 func TestPutRecordTriggersNotify(t *testing.T) {
-	s := spaces_testutil.NewTestStore(t)
+	notifier := &notify_testutil.TestNotifier{}
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
 
 	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "notify-space")
 	require.NoError(t, err)
@@ -604,14 +606,15 @@ func TestPutRecordTriggersNotify(t *testing.T) {
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
-	require.Len(t, s.Notifier.Writes, 1)
-	require.Equal(t, uri, s.Notifier.Writes[0].Space)
-	require.Equal(t, owner, s.Notifier.Writes[0].Repo)
-	require.NotEmpty(t, s.Notifier.Writes[0].Rev)
+	require.Len(t, notifier.Writes, 1)
+	require.Equal(t, uri, notifier.Writes[0].Space)
+	require.Equal(t, owner, notifier.Writes[0].Repo)
+	require.NotEmpty(t, notifier.Writes[0].Rev)
 }
 
 func TestPutRecordSkipsNotifyWhenCidUnchanged(t *testing.T) {
-	s := spaces_testutil.NewTestStore(t)
+	notifier := &notify_testutil.TestNotifier{}
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
 
 	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "notify-space")
 	require.NoError(t, err)
@@ -619,27 +622,28 @@ func TestPutRecordSkipsNotifyWhenCidUnchanged(t *testing.T) {
 	coll := syntax.NSID("network.habitat.note")
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	require.Len(t, s.Notifier.Writes, 1)
+	require.Len(t, notifier.Writes, 1)
 
 	// Writing the exact same value again produces the same CID.
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	require.Len(t, s.Notifier.Writes, 1, "no-op write should not trigger another notify")
+	require.Len(t, notifier.Writes, 1, "no-op write should not trigger another notify")
 
 	// A write that actually changes the content still notifies.
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 2})
 	require.NoError(t, err)
-	require.Len(t, s.Notifier.Writes, 2)
+	require.Len(t, notifier.Writes, 2)
 }
 
 func TestDeleteSpaceTriggersNotify(t *testing.T) {
-	s := spaces_testutil.NewTestStore(t)
+	notifier := &notify_testutil.TestNotifier{}
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
 
 	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "doomed")
 	require.NoError(t, err)
 
 	require.NoError(t, s.DeleteSpace(t.Context(), uri))
-	require.Equal(t, []habitat_syntax.SpaceURI{uri}, s.Notifier.Deleted)
+	require.Equal(t, []habitat_syntax.SpaceURI{uri}, notifier.Deleted)
 }
 
 // TestListRepoOpsPrev tracks the previous cid of each op so a syncer can fold
@@ -696,7 +700,8 @@ func TestListRepoOpsPrevCreateIsEmpty(t *testing.T) {
 // LtHash state so syncers can detect writes that arrive with the same rev but
 // a different hash (i.e. a write we missed).
 func TestPutRecordNotifiesRepoHash(t *testing.T) {
-	s := spaces_testutil.NewTestStore(t)
+	notifier := &notify_testutil.TestNotifier{}
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
 
 	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
 	require.NoError(t, err)
@@ -707,12 +712,12 @@ func TestPutRecordNotifiesRepoHash(t *testing.T) {
 	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"v": 2})
 	require.NoError(t, err)
 
-	require.Len(t, s.Notifier.Writes, 2)
+	require.Len(t, notifier.Writes, 2)
 
 	var expected spacecommit.LtHash
 	expected.Add(spacecommit.RecordElement(coll, "k1", cid1.String()))
 	expected.Add(spacecommit.RecordElement(coll, "k2", cid2.String()))
-	require.Equal(t, expected.Sum(), s.Notifier.Writes[1].Hash)
+	require.Equal(t, expected.Sum(), notifier.Writes[1].Hash)
 }
 
 // TestListRepoOps_RevTooFar pins that a since cursor beyond the repo's actual

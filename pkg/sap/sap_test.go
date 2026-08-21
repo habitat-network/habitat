@@ -381,9 +381,7 @@ func setupPear(t *testing.T) *pearHost {
 	require.NoError(t, err)
 
 	// Managed authors sign with their own hive keys.
-	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.Config{
-		MemberSigner: orgHive,
-	})
+	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.WithMemberSigner(orgHive))
 
 	require.NoError(t, err)
 

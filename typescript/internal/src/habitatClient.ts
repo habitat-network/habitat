@@ -58,8 +58,8 @@ import type {
   NetworkHabitatGroupsAddMember,
   NetworkHabitatCollectionsListCollections,
   NetworkHabitatCollectionsListRecords,
-  NetworkHabitatRelationshipWriteUserRelation,
-  NetworkHabitatRelationshipWriteSpaceRelation,
+  NetworkHabitatRelationshipSetUserRelation,
+  NetworkHabitatRelationshipSetSpaceRelation,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -242,13 +242,13 @@ type ProcedureEndpoints = {
     NetworkHabitatGroupsAddMember.OutputSchema
   >;
   // Write a relationship tuple granting a role on a space. Implemented by pear.
-  "network.habitat.relationship.writeUserRelation": Procedure<
-    NetworkHabitatRelationshipWriteUserRelation.InputSchema,
-    NetworkHabitatRelationshipWriteUserRelation.OutputSchema
+  "network.habitat.relationship.setUserRelation": Procedure<
+    NetworkHabitatRelationshipSetUserRelation.InputSchema,
+    NetworkHabitatRelationshipSetUserRelation.OutputSchema
   >;
-  "network.habitat.relationship.writeSpaceRelation": Procedure<
-    NetworkHabitatRelationshipWriteSpaceRelation.InputSchema,
-    NetworkHabitatRelationshipWriteSpaceRelation.OutputSchema
+  "network.habitat.relationship.setSpaceRelation": Procedure<
+    NetworkHabitatRelationshipSetSpaceRelation.InputSchema,
+    NetworkHabitatRelationshipSetSpaceRelation.OutputSchema
   >;
   "network.habitat.repo.putRecord": Procedure<
     NetworkHabitatRepoPutRecord.InputSchema,

@@ -1,21 +1,21 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.relationship.listSubjects",
+    "id": "network.habitat.relationship.listRelatedSpaces",
     "defs": {
         "main": {
             "type": "query",
-            "description": "List the user DIDs that hold a role on a space, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.",
+            "description": "List the spaces on which a user holds a role, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.",
             "parameters": {
                 "type": "params",
                 "required": [
-                    "space",
+                    "did",
                     "relation"
                 ],
                 "properties": {
-                    "space": {
+                    "did": {
                         "type": "string",
-                        "format": "uri",
-                        "description": "URI of the space."
+                        "format": "did",
+                        "description": "DID of the user."
                     },
                     "relation": {
                         "type": "string",
@@ -25,7 +25,12 @@
                             "writer",
                             "reader"
                         ],
-                        "description": "The role to expand."
+                        "description": "The role to query for."
+                    },
+                    "type": {
+                        "type": "string",
+                        "format": "nsid",
+                        "description": "Filter to spaces of this type."
                     }
                 }
             },
@@ -34,16 +39,16 @@
                 "schema": {
                     "type": "object",
                     "required": [
-                        "dids"
+                        "spaces"
                     ],
                     "properties": {
-                        "dids": {
+                        "spaces": {
                             "type": "array",
                             "items": {
                                 "type": "string",
-                                "format": "did"
+                                "format": "uri"
                             },
-                            "description": "DIDs of users holding the role on the space."
+                            "description": "URIs of spaces where the user holds the role."
                         }
                     }
                 }

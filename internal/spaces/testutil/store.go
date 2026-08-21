@@ -17,60 +17,74 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
-type Config struct {
-	FgaStore fgastore.Store
-	DB       *gorm.DB
-	// HostKey signs repo-head commits for authors MemberSigner does not
-	// resolve. Generated fresh when unset.
-	HostKey atcrypto.PrivateKey
-	// MemberSigner resolves habitat-managed authors' own signing keys.
-	// Defaults to one that resolves none, since callers' fixture DIDs are
-	// never actually hive-managed identities — every commit falls back to
-	// HostKey.
-	MemberSigner spacecommit.MemberSigner
+type testOptions struct {
+	fga      fgastore.Store
+	db       *gorm.DB
+	hostKey  atcrypto.PrivateKey
+	signer   spacecommit.MemberSigner
+	notifier spaces.Notifier
 }
 
-type TestStore struct {
-	spaces.Store
-	Notifier *testutil.TestNotifier
-	HostKey  atcrypto.PrivateKey
+type Option func(*testOptions)
+
+func WithFGA(fga fgastore.Store) Option {
+	return func(o *testOptions) {
+		o.fga = fga
+	}
 }
 
-func NewTestStore(t *testing.T, cfgs ...Config) *TestStore {
+func WithDB(db *gorm.DB) Option {
+	return func(o *testOptions) {
+		o.db = db
+	}
+}
+
+func WithHostKey(key atcrypto.PrivateKey) Option {
+	return func(o *testOptions) {
+		o.hostKey = key
+	}
+}
+
+func WithMemberSigner(signer spacecommit.MemberSigner) Option {
+	return func(o *testOptions) {
+		o.signer = signer
+	}
+}
+
+func WithNotifier(notifier spaces.Notifier) Option {
+	return func(o *testOptions) {
+		o.notifier = notifier
+	}
+}
+
+func NewTestStore(t *testing.T, opts ...Option) spaces.Store {
 	t.Helper()
-	cfg := Config{}
-	if len(cfgs) > 0 {
-		cfg = cfgs[0]
+
+	fga, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err)
+
+	key, err := atcrypto.GeneratePrivateKeyK256()
+	require.NoError(t, err)
+
+	options := &testOptions{
+		fga:      fga,
+		db:       db_testutil.NewDB(t),
+		hostKey:  key,
+		signer:   noMemberSigner{},
+		notifier: &testutil.TestNotifier{},
 	}
-	if cfg.FgaStore == nil {
-		fga, err := fgastore.NewMemory(t.Context())
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = fga.Close() })
-		cfg.FgaStore = fga
+
+	for _, o := range opts {
+		o(options)
 	}
-	if cfg.DB == nil {
-		cfg.DB = db_testutil.NewDB(t)
-	}
-	if cfg.HostKey == nil {
-		key, err := atcrypto.GeneratePrivateKeyK256()
-		require.NoError(t, err)
-		cfg.HostKey = key
-	}
-	if cfg.MemberSigner == nil {
-		cfg.MemberSigner = noMemberSigner{}
-	}
-	notifier := &testutil.TestNotifier{}
+
 	s, err := spaces.NewStore(
-		cfg.DB,
-		notifier,
-		spacecommit.NewAuthority(cfg.HostKey, cfg.MemberSigner),
+		options.db,
+		options.notifier,
+		spacecommit.NewAuthority(options.hostKey, options.signer),
 	)
 	require.NoError(t, err)
-	return &TestStore{
-		Store:    s,
-		Notifier: notifier,
-		HostKey:  cfg.HostKey,
-	}
+	return s
 }
 
 // noMemberSigner never resolves a habitat-managed signer, so Authority.Build
