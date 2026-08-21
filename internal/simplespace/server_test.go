@@ -301,7 +301,14 @@ func TestServer_SpaceLifecycle(t *testing.T) {
 	uri := habitat_syntax.SpaceURI(createOutput.Uri)
 
 	// PutRecord in the space, as the owner.
-	_, _, err := s.store.spaces.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err := s.store.spaces.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		map[string]any{"x": 1},
+	)
 	require.NoError(t, err)
 
 	// It shows up in ListSpaces.
@@ -321,7 +328,14 @@ func TestServer_SpaceLifecycle(t *testing.T) {
 	require.Equal(t, http.StatusOK, addW.Code)
 
 	// Alice writes into the space too, so she shows up as a repo.
-	_, _, err = s.store.spaces.PutRecord(t.Context(), uri, alice, coll, "k1", map[string]any{"x": 2})
+	_, _, err = s.store.spaces.PutRecord(
+		t.Context(),
+		uri,
+		alice,
+		coll,
+		"k1",
+		map[string]any{"x": 2},
+	)
 	require.NoError(t, err)
 
 	// ListRepos now shows both members.
