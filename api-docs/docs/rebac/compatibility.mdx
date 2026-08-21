@@ -17,7 +17,7 @@ The `network.habitat.simplespace.*` methods are a narrow view onto the same rela
 | `createSpace`      | Grants the creator [`owner`](./overview.mdx#roles) on the new space, as a [`userRelation`](./records.mdx#userrelation) record. |
 | `addMember`        | Grants the new member `writer` |
 | `removeMember`     | Revokes the DID's grant on the space, whichever role it was.                                               |
-| `listMembers`      | The **expanded** set of DIDs holding `reader`, identical to [`listSubjects`](./endpoints.mdx#listing) with `relation: reader`. |
+| `listMembers`      | The **expanded** set of DIDs holding `reader`, identical to [`resolveRelations`](./endpoints.mdx#listing) with `relation: reader`. |
 | `deleteSpace`      | Deletes the space and every relation governing it.                                                         |
 
 Two consequences fall out of the [role implication chain](./overview.mdx#roles):

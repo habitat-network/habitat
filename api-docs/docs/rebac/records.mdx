@@ -11,7 +11,7 @@ Every grant is a record in the space it governs. There are two lexicons — one 
 
 Both are written into their space under the space authority's repo, so a space's full permission structure is readable by anyone that can read the space. [`listRelations`](./endpoints.mdx#listing) is a helper that will list both types of records for a space.
 
-Since the records are written in the space authority's repo, the only way to write them is to use [writeUserRelation](./endpoints.mdx#writing-relations) or [writeSpaceRelation](./endpoints.mdx#writing-relations). That will authorize the calling user and write to the space auhthority's repo on their behalf.
+Since the records are written in the space authority's repo, the only way to write them is to use [setUserRelation](./endpoints.mdx#writing-relations) or [setSpaceRelation](./endpoints.mdx#writing-relations). That will authorize the calling user and write to the space auhthority's repo on their behalf.
 Relation records in a space that are not in the space authority's repo can be ignored.
 
 ## userRelation
