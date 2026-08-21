@@ -111,10 +111,9 @@ func NewStore(db *gorm.DB, spaces spaces.Store, fga fgastore.Store) *store {
 	return &store{db: db, spaces: spaces, fga: fga}
 }
 
-var (
-	ErrRelationNotFound       = errors.New("relation not found")
-	_                   Store = &store{}
-)
+var ErrRelationNotFound = errors.New("relation not found")
+
+var _ Store = &store{}
 
 // WithTx implements [Store], returning a store whose DB operations run on tx.
 func (s *store) WithTx(tx *gorm.DB) Store {
