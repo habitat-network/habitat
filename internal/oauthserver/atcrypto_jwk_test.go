@@ -34,6 +34,7 @@ func TestAtcryptoJWKtoJose(t *testing.T) {
 		require.NoError(t, err)
 		yb, err := base64.RawURLEncoding.DecodeString(jwk.Y)
 		require.NoError(t, err)
+		//nolint:staticcheck // SA1019: deprecated ecdsa.PublicKey X/Y fields
 		want := &ecdsa.PublicKey{
 			Curve: elliptic.P256(),
 			X:     new(big.Int).SetBytes(xb),
