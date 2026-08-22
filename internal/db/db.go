@@ -78,7 +78,7 @@ func New(dsn string, opts ...utils.Opt[config]) (db *gorm.DB, err error) {
 		if err := goose.SetDialect(string(ParseDialect(dsn))); err != nil {
 			return nil, err
 		}
-		if err := goose.Up(sqlDB, "migrations"); err != nil {
+		if err := goose.Up(sqlDB, "."); err != nil {
 			return nil, err
 		}
 

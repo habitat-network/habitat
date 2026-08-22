@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"embed"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -42,6 +41,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
+	"github.com/habitat-network/habitat/internal/pearsetup/migrations"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
@@ -61,12 +61,7 @@ import (
 	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
-
-	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
 )
-
-//go:embed migrations/*.go migrations/*.sql
-var embedMigrations embed.FS
 
 func main() {
 	cmd := &cli.Command{
@@ -112,7 +107,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	slog.InfoContext(startupCtx, "running with flags", "flags", cmd.FlagNames())
 
-	db, err := db.New(cmd.String(fDB), db.WithMigrations(embedMigrations))
+	db, err := db.New(cmd.String(fDB), db.WithMigrations(migrations.FS))
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
 	}

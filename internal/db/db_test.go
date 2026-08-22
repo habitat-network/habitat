@@ -11,7 +11,7 @@ import (
 func TestNewRunsMigrations(t *testing.T) {
 	dir := t.TempDir()
 	db, err := New("sqlite://"+dir+"/test.db", WithMigrations(fstest.MapFS{
-		"migrations/20260101000000_create_widgets.sql": &fstest.MapFile{
+		"20260101000000_create_widgets.sql": &fstest.MapFile{
 			Data: []byte(`-- +goose Up
 CREATE TABLE widgets (id INTEGER PRIMARY KEY, name TEXT);
 
