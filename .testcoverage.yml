@@ -34,3 +34,5 @@ exclude:
     - testutil/
     - internal/pear # Outdated will remove this package soon
     - api/
+    - ^internal/pearsetup/[^/]+\.go$ # Wiring: New/routes.go/run.go are construction, exercised by smoke tests but not line-by-line
+    - ^internal/pearsetup/testutil # Test infrastructure, not the subject of coverage
