@@ -1,140 +1,70 @@
-package server
+package server_test
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/stretchr/testify/require"
+
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
-	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/instance"
 	orgpkg "github.com/habitat-network/habitat/internal/org"
-	orgtestutil "github.com/habitat-network/habitat/internal/org/testutil"
-	"github.com/stretchr/testify/require"
+	"github.com/habitat-network/habitat/internal/pearsetup/testutil"
 )
 
-// successValidator authenticates the given DID as a user.
-func successValidator(did syntax.DID) authn.RequestValidator {
-	return authntest.NewSuccessValidator(&authn.CredentialInfo{
-		Subject: did,
-	})
+// decodeBody decodes a response body regardless of status, for assertions on
+// non-200 responses that Query/Procedure don't decode automatically.
+func decodeBody(resp *http.Response, out any) error {
+	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-type fakeInstancePolicy struct {
-	policy           instance.InvitePolicy
-	validateErr      error
-	markUsedErr      error
-	validatedTokens  []string
-	markedUsedTokens []string
-}
-
-func (f *fakeInstancePolicy) GetOrgCreationPolicy(
-	ctx context.Context,
-) (instance.InvitePolicy, error) {
-	return f.policy, nil
-}
-
-func (f *fakeInstancePolicy) ValidateInvite(ctx context.Context, token string) error {
-	f.validatedTokens = append(f.validatedTokens, token)
-	return f.validateErr
-}
-
-func (f *fakeInstancePolicy) MarkInviteUsed(ctx context.Context, token string) error {
-	f.markedUsedTokens = append(f.markedUsedTokens, token)
-	return f.markUsedErr
-}
-
-func newTestServer(
-	t *testing.T,
-	policy instance.PolicyStore,
-) (*Server, orgpkg.Store, syntax.DID, syntax.DID) {
+// policyStore returns p's instance store as an instance.PolicyStore. Pear
+// exposes InstanceStore as an instance.AdminStore since that's what routes
+// need; the same underlying store also satisfies PolicyStore, which is what
+// invite validation needs here.
+func policyStore(t *testing.T, p *testutil.TestPear) instance.PolicyStore {
 	t.Helper()
-	store := orgtestutil.NewTestStore(t)
-
-	orgIdIdent, adminIdent, err := store.CreateOrg(
-		t.Context(),
-		"test-org",
-		"admin",
-		"password",
-		"password",
-		"",
-		"",
-		"contact@example.com",
-	)
-	require.NoError(t, err)
-
-	srv, err := NewServer(
-		store,
-		successValidator(adminIdent.DID),
-		"pear.example.com",
-		identity.DefaultDirectory(),
-		policy,
-	)
-	require.NoError(t, err)
-	return srv, store, orgIdIdent.DID, adminIdent.DID
+	ps, ok := p.InstanceStore.(instance.PolicyStore)
+	require.True(t, ok, "instance store must also implement PolicyStore")
+	return ps
 }
 
 func TestIssueTokenThenMintIdentity(t *testing.T) {
-	srv, store, orgId, adminDID := newTestServer(t, &fakeInstancePolicy{policy: "open"})
-
-	// Admin issues an invite token
-	issueBody, _ := json.Marshal(habitat.NetworkHabitatOrgIssueInviteTokenInput{
-		ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339),
-	})
-	issueReq := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.issueInviteToken",
-		bytes.NewReader(issueBody),
-	)
-	issueReq.Header.Set("Content-Type", "application/json")
-	issueW := httptest.NewRecorder()
-	srv.IssueInviteToken(issueW, issueReq)
-	require.Equal(t, http.StatusOK, issueW.Code)
+	p := testutil.New(t)
+	admin := p.NewOrg("acme")
 
 	var issueOut habitat.NetworkHabitatOrgIssueInviteTokenOutput
-	require.NoError(t, json.NewDecoder(issueW.Body).Decode(&issueOut))
+	issueResp := p.Procedure(admin, "network.habitat.org.issueInviteToken", habitat.NetworkHabitatOrgIssueInviteTokenInput{
+		ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339),
+	}, &issueOut)
+	require.Equal(t, http.StatusOK, issueResp.StatusCode)
 	require.NotEmpty(t, issueOut.Token)
 
-	// Someone uses the token to mint an identity
-	mintBody, _ := json.Marshal(habitat.NetworkHabitatOrgMintMemberIdentityInput{
-		OrgId:    orgId.String(),
+	var mintOut habitat.NetworkHabitatOrgMintMemberIdentityOutput
+	mintResp := p.Procedure(nil, "network.habitat.org.mintMemberIdentity", habitat.NetworkHabitatOrgMintMemberIdentityInput{
+		OrgId:    admin.Org.String(),
 		Token:    issueOut.Token,
 		Password: "password",
 		Handle:   "alice",
-	})
-	mintReq := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.mintMemberIdentity",
-		bytes.NewReader(mintBody),
-	)
-	mintReq.Header.Set("Content-Type", "application/json")
-	mintW := httptest.NewRecorder()
-	srv.MintMemberIdentity(mintW, mintReq)
-	require.Equal(t, http.StatusOK, mintW.Code)
-
-	var mintOut habitat.NetworkHabitatOrgMintMemberIdentityOutput
-	require.NoError(t, json.NewDecoder(mintW.Body).Decode(&mintOut))
+	}, &mintOut)
+	require.Equal(t, http.StatusOK, mintResp.StatusCode)
 	require.NotEmpty(t, mintOut.Did)
 	require.NotEmpty(t, mintOut.Handle)
 
 	newMemberDID, err := syntax.ParseDID(mintOut.Did)
 	require.NoError(t, err)
 
-	testOrg, err := store.GetOrg(context.Background(), orgId)
+	org, err := p.OrgStore.GetOrg(t.Context(), admin.Org)
 	require.NoError(t, err)
-	members, err := testOrg.GetMembers(context.Background())
+	members, err := org.GetMembers(t.Context())
 	require.NoError(t, err)
 	require.Len(t, members, 2)
-	require.Contains(t, members, adminDID, "contains the admin")
+	require.Contains(t, members, admin.DID, "contains the admin")
 	require.Contains(t, members, newMemberDID, "contains the new member")
 }
 
@@ -142,102 +72,72 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 //  1. orgID in query params + an org-signed token in the Authorization header
 //  2. a regular authenticated caller (no orgID), resolved to their org
 func TestGetMetadataViaSignedToken(t *testing.T) {
-	srv, store, orgId, adminDID := newTestServer(t, &fakeInstancePolicy{policy: "open"})
+	p := testutil.New(t)
+	admin := p.NewOrg("acme")
 
-	// Mint an org-signed token to authenticate the request.
-	token, err := store.IssueIdentityToken(
-		context.Background(),
-		orgId,
-		adminDID,
-		true,
-		time.Now().Add(time.Hour),
+	// Mint an org-signed token to authenticate the request — distinct from an
+	// OAuth actor token, so it's driven through the store directly and sent
+	// as a raw bearer token.
+	token, err := p.OrgStore.IssueIdentityToken(
+		t.Context(), admin.Org, admin.DID, true, time.Now().Add(time.Hour),
 	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/xrpc/network.habitat.org.getMetadata?OrgId="+orgId.String(),
+		"/xrpc/network.habitat.org.getMetadata?OrgId="+admin.Org.String(),
 		http.NoBody,
 	)
 	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	srv.GetMetadata(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
+	resp := p.Do(nil, req)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var out habitat.NetworkHabitatOrgGetMetadataOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
-	require.Equal(t, orgId.String(), out.OrgId)
-	require.Equal(t, "test-org", out.Name)
+	require.NoError(t, decodeBody(resp, &out))
+	require.Equal(t, admin.Org.String(), out.OrgId)
+	require.Equal(t, "acme", out.Name)
 	require.Equal(t, string(orgpkg.LoginMethodPassword), out.LoginMethod)
 }
 
 func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
-	srv, _, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
+	p := testutil.New(t)
+	admin := p.NewOrg("acme")
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/xrpc/network.habitat.org.getMetadata?OrgId="+orgId.String(),
+		"/xrpc/network.habitat.org.getMetadata?OrgId="+admin.Org.String(),
 		http.NoBody,
 	)
 	req.Header.Set("Authorization", "Bearer not-a-valid-token")
-	w := httptest.NewRecorder()
-	srv.GetMetadata(w, req)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+	resp := p.Do(nil, req)
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestGetMetadataViaAuthenticatedCaller(t *testing.T) {
-	srv, _, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
-
-	// No orgID query param: the caller is resolved to their org via the
-	// stub authn method configured in newTestServer (adminDID).
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.org.getMetadata", http.NoBody)
-	w := httptest.NewRecorder()
-	srv.GetMetadata(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
+	p := testutil.New(t)
+	admin := p.NewOrg("acme")
 
 	var out habitat.NetworkHabitatOrgGetMetadataOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
-	require.Equal(t, orgId.String(), out.OrgId)
-	require.Equal(t, "test-org", out.Name)
+	resp := p.Query(admin, "network.habitat.org.getMetadata", url.Values{}, &out)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, admin.Org.String(), out.OrgId)
+	require.Equal(t, "acme", out.Name)
 	require.Equal(t, string(orgpkg.LoginMethodPassword), out.LoginMethod)
 }
 
-func newCreateTestServer(t *testing.T) *Server {
-	t.Helper()
-	srv, err := NewServer(
-		orgtestutil.NewTestStore(t),
-		nil,
-		"domain",
-		identity.DefaultDirectory(),
-		&fakeInstancePolicy{policy: "open"},
-	)
-	require.NoError(t, err)
-	return srv
-}
-
 func TestCreateOrg(t *testing.T) {
-	srv := newCreateTestServer(t)
+	p := testutil.New(t)
 
-	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+	var out habitat.NetworkHabitatOrgCreateOutput
+	resp := p.Procedure(nil, "network.habitat.org.create", habitat.NetworkHabitatOrgCreateInput{
 		Name:            "My Org",
 		AdminHandle:     "admin",
 		AdminPassword:   "securepassword123",
 		LoginMethod:     "password",
 		HandleSubdomain: "org",
 		ContactEmail:    "contact@example.com",
-	})
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.create",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	srv.CreateOrg(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
-	var out habitat.NetworkHabitatOrgCreateOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	}, &out)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NotEmpty(t, out.OrgId)
 	require.NotEmpty(t, out.AdminDid)
 	require.Contains(t, out.AdminHandle, "admin")
@@ -245,42 +145,33 @@ func TestCreateOrg(t *testing.T) {
 
 	adminDID, err := syntax.ParseDID(out.AdminDid)
 	require.NoError(t, err)
-
 	orgID, err := syntax.ParseDID(out.OrgId)
 	require.NoError(t, err)
 
-	org, err := srv.store.GetOrg(context.Background(), orgID)
+	org, err := p.OrgStore.GetOrg(t.Context(), orgID)
 	require.NoError(t, err)
-	members, err := org.GetMembers(context.Background())
+	members, err := org.GetMembers(t.Context())
 	require.NoError(t, err)
 	require.Len(t, members, 1)
 	require.Equal(t, adminDID, members[0])
 
-	admins, err := org.GetAdmins(context.Background())
+	admins, err := org.GetAdmins(t.Context())
 	require.NoError(t, err)
 	require.Len(t, admins, 1)
 	require.Equal(t, adminDID, admins[0])
 }
 
 func TestCreateOrg_InvalidHandle(t *testing.T) {
-	srv := newCreateTestServer(t)
+	p := testutil.New(t)
 
-	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+	resp := p.Procedure(nil, "network.habitat.org.create", habitat.NetworkHabitatOrgCreateInput{
 		AdminHandle:     "invalid handle with spaces!",
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "org",
 		ContactEmail:    "contact@example.com",
-	})
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.create",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	srv.CreateOrg(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	}, nil)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestCreateOrg_ContactEmailValidation(t *testing.T) {
@@ -294,117 +185,66 @@ func TestCreateOrg_ContactEmailValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := newCreateTestServer(t)
-
-			body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+			p := testutil.New(t)
+			resp := p.Procedure(nil, "network.habitat.org.create", habitat.NetworkHabitatOrgCreateInput{
 				Name:            "My Org",
 				AdminHandle:     "admin",
 				AdminPassword:   "securepassword123",
 				LoginMethod:     "password",
 				HandleSubdomain: "org",
 				ContactEmail:    tt.contactEmail,
-			})
-			req := httptest.NewRequest(
-				http.MethodPost,
-				"/xrpc/network.habitat.org.create",
-				bytes.NewReader(body),
-			)
-			req.Header.Set("Content-Type", "application/json")
-			w := httptest.NewRecorder()
-			srv.CreateOrg(w, req)
-			require.Equal(t, http.StatusBadRequest, w.Code)
+			}, nil)
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		})
 	}
 }
 
 func TestCreateOrg_MissingFields(t *testing.T) {
-	srv := newCreateTestServer(t)
+	p := testutil.New(t)
 
-	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+	resp := p.Procedure(nil, "network.habitat.org.create", habitat.NetworkHabitatOrgCreateInput{
 		AdminHandle:     "admin",
 		HandleSubdomain: "org",
 		ContactEmail:    "contact@example.com",
-	})
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.create",
-		bytes.NewReader(body),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	srv.CreateOrg(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	}, nil)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
-	srv, err := NewServer(
-		orgtestutil.NewTestStore(t),
-		successValidator(syntax.DID("did:plc:alice111")),
-		"pear.example.com",
-		identity.DefaultDirectory(),
-		&fakeInstancePolicy{policy: "open"},
-	)
-	require.NoError(t, err)
+	p := testutil.New(t)
+	require.NoError(t, p.InstanceStore.UpdateSettings(t.Context(), "Acme Hosting", "open"))
 
-	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+	resp := p.Procedure(nil, "network.habitat.org.create", habitat.NetworkHabitatOrgCreateInput{
 		Name:            "test-org",
 		AdminHandle:     "admin",
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
 		ContactEmail:    "contact@example.com",
-	})
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.create",
-		bytes.NewReader(body),
-	)
-	rec := httptest.NewRecorder()
-	srv.CreateOrg(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
+	}, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
-	srv, err := NewServer(
-		orgtestutil.NewTestStore(t),
-		successValidator(syntax.DID("did:plc:alice111")),
-		"pear.example.com",
-		identity.DefaultDirectory(),
-		&fakeInstancePolicy{policy: "invite_only"},
-	)
-	require.NoError(t, err)
+	p := testutil.New(t)
+	require.NoError(t, p.InstanceStore.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
 
-	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+	resp := p.Procedure(nil, "network.habitat.org.create", habitat.NetworkHabitatOrgCreateInput{
 		Name:            "test-org",
 		AdminHandle:     "admin",
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
 		ContactEmail:    "contact@example.com",
-	})
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.create",
-		bytes.NewReader(body),
-	)
-	rec := httptest.NewRecorder()
-	srv.CreateOrg(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
+	}, nil)
+	require.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
 func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
-	srv, err := NewServer(
-		orgtestutil.NewTestStore(t),
-		successValidator(syntax.DID("did:plc:alice111")),
-		"pear.example.com",
-		identity.DefaultDirectory(),
-		&fakeInstancePolicy{policy: "invite_only", validateErr: errors.New("bad token")},
-	)
-	require.NoError(t, err)
+	p := testutil.New(t)
+	require.NoError(t, p.InstanceStore.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
 
-	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+	resp := p.Procedure(nil, "network.habitat.org.create", habitat.NetworkHabitatOrgCreateInput{
 		Name:            "test-org",
 		AdminHandle:     "admin",
 		AdminPassword:   "password",
@@ -412,128 +252,17 @@ func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 		HandleSubdomain: "test",
 		ContactEmail:    "contact@example.com",
 		InviteToken:     "garbage",
-	})
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.create",
-		bytes.NewReader(body),
-	)
-	rec := httptest.NewRecorder()
-	srv.CreateOrg(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
+	}, nil)
+	require.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
 func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
-	policy := &fakeInstancePolicy{policy: "invite_only"}
-	srv, err := NewServer(
-		orgtestutil.NewTestStore(t),
-		successValidator(syntax.DID("did:plc:alice111")),
-		"pear.example.com",
-		identity.DefaultDirectory(),
-		policy,
-	)
+	p := testutil.New(t)
+	require.NoError(t, p.InstanceStore.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+	token, err := p.InstanceStore.IssueInvite(t.Context())
 	require.NoError(t, err)
 
-	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
-		Name:            "test-org",
-		AdminHandle:     "admin",
-		AdminPassword:   "password",
-		LoginMethod:     "password",
-		HandleSubdomain: "test",
-		ContactEmail:    "contact@example.com",
-		InviteToken:     "a-valid-token",
-	})
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.create",
-		bytes.NewReader(body),
-	)
-	rec := httptest.NewRecorder()
-	srv.CreateOrg(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, []string{"a-valid-token"}, policy.validatedTokens)
-	require.Equal(t, []string{"a-valid-token"}, policy.markedUsedTokens)
-}
-
-func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
-	policy := &fakeInstancePolicy{policy: "invite_only"}
-	store := orgtestutil.NewTestStore(t)
-	srv, err := NewServer(
-		store,
-		successValidator(syntax.DID("did:plc:alice111")),
-		"pear.example.com",
-		identity.DefaultDirectory(),
-		policy,
-	)
-	require.NoError(t, err)
-
-	// Pre-create an org using the same handle subdomain so the subsequent
-	// CreateOrg call fails (the hive identity mint for that subdomain
-	// collides, surfacing as a generic creation failure - the precise
-	// status code isn't the point here, only that CreateOrg fails and the
-	// invite must not be marked used in that case).
-	_, _, err = store.CreateOrg(
-		t.Context(),
-		"existing-org",
-		"admin",
-		"password",
-		"password",
-		"",
-		"test",
-		"contact@example.com",
-	)
-	require.NoError(t, err)
-
-	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
-		Name:            "test-org",
-		AdminHandle:     "admin",
-		AdminPassword:   "password",
-		LoginMethod:     "password",
-		HandleSubdomain: "test",
-		ContactEmail:    "contact@example.com",
-		InviteToken:     "a-valid-token",
-	})
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.create",
-		bytes.NewReader(body),
-	)
-	rec := httptest.NewRecorder()
-	srv.CreateOrg(rec, req)
-
-	require.NotEqual(t, http.StatusOK, rec.Code)
-	require.Equal(t, []string{"a-valid-token"}, policy.validatedTokens)
-	require.Empty(t, policy.markedUsedTokens)
-}
-
-// TestCreateOrg_InviteOnlyAcceptsRealIssuedToken proves a real
-// instanceadmin.Store-issued invite is accepted end-to-end by a real
-// server.Server.CreateOrg, not just by the fakeInstancePolicy used elsewhere in
-// this file.
-func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
-	instanceStore, err := instance.NewStore(
-		testutil.NewDB(t),
-		[]byte("key"),
-		"passhash",
-		"pear.example.com",
-	)
-	require.NoError(t, err)
-	require.NoError(t, instanceStore.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
-	token, err := instanceStore.IssueInvite(t.Context())
-	require.NoError(t, err)
-
-	srv, err := NewServer(
-		orgtestutil.NewTestStore(t),
-		successValidator(syntax.DID("did:plc:alice111")),
-		"pear.example.com",
-		identity.DefaultDirectory(),
-		instanceStore,
-	)
-	require.NoError(t, err)
-
-	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+	resp := p.Procedure(nil, "network.habitat.org.create", habitat.NetworkHabitatOrgCreateInput{
 		Name:            "test-org",
 		AdminHandle:     "admin",
 		AdminPassword:   "password",
@@ -541,21 +270,79 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 		HandleSubdomain: "test",
 		ContactEmail:    "contact@example.com",
 		InviteToken:     token,
-	})
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.create",
-		bytes.NewReader(body),
-	)
-	rec := httptest.NewRecorder()
-	srv.CreateOrg(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
+	}, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// The real invite should now be consumed - validating it again should fail.
-	require.ErrorIs(
-		t,
-		instanceStore.ValidateInvite(t.Context(), token),
-		instance.ErrInvalidInvite,
+	require.ErrorIs(t, policyStore(t, p).ValidateInvite(t.Context(), token), instance.ErrInvalidInvite)
+}
+
+func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
+	p := testutil.New(t)
+	require.NoError(t, p.InstanceStore.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+
+	// Pre-create an org using the same handle subdomain so the subsequent
+	// CreateOrg call fails (the hive identity mint for that subdomain
+	// collides, surfacing as a generic creation failure — the precise
+	// status code isn't the point here, only that CreateOrg fails and the
+	// invite must not be marked used in that case).
+	_, _, err := p.OrgStore.CreateOrg(
+		t.Context(), "existing-org", "admin", "password", "password", "", "test", "contact@example.com",
 	)
+	require.NoError(t, err)
+
+	token, err := p.InstanceStore.IssueInvite(t.Context())
+	require.NoError(t, err)
+
+	resp := p.Procedure(nil, "network.habitat.org.create", habitat.NetworkHabitatOrgCreateInput{
+		Name:            "test-org",
+		AdminHandle:     "admin",
+		AdminPassword:   "password",
+		LoginMethod:     "password",
+		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
+		InviteToken:     token,
+	}, nil)
+	require.NotEqual(t, http.StatusOK, resp.StatusCode)
+
+	// The invite must still validate — it was never marked used.
+	require.NoError(t, policyStore(t, p).ValidateInvite(t.Context(), token))
+}
+
+func TestAddAdminRejectsNonAdmin(t *testing.T) {
+	p := testutil.New(t)
+	admin := p.NewOrg("acme")
+	member := p.NewMember(admin, "alice")
+	target := p.NewMember(admin, "bob")
+
+	resp := p.Procedure(member, "network.habitat.org.addAdmin", habitat.NetworkHabitatOrgAddAdminInput{
+		Admin: target.DID.String(),
+	}, nil)
+	require.NotEqual(t, http.StatusOK, resp.StatusCode,
+		"a plain member must not be able to promote an admin")
+}
+
+func TestAddAdminAllowsAdmin(t *testing.T) {
+	p := testutil.New(t)
+	admin := p.NewOrg("acme")
+	target := p.NewMember(admin, "alice")
+
+	resp := p.Procedure(admin, "network.habitat.org.addAdmin", habitat.NetworkHabitatOrgAddAdminInput{
+		Admin: target.DID.String(),
+	}, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	org, err := p.OrgStore.GetOrg(t.Context(), admin.Org)
+	require.NoError(t, err)
+	isAdmin, err := org.IsAdmin(t.Context(), target.DID)
+	require.NoError(t, err)
+	require.True(t, isAdmin)
+}
+
+func TestGetMembersRejectsAnonymous(t *testing.T) {
+	p := testutil.New(t)
+	p.NewOrg("acme")
+
+	resp := p.Query(p.Anonymous(), "network.habitat.org.getMembers", url.Values{}, nil)
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
