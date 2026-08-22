@@ -1,77 +1,55 @@
-package simplespace
+package simplespace_test
 
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"strings"
+	"net/url"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/gorilla/schema"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
-	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	"github.com/habitat-network/habitat/internal/pearsetup/testutil"
+	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-type testServerOptions struct {
-	validator authn.RequestValidator
+var groupType = syntax.NSID("network.habitat.group")
+
+// decodeBody decodes an error response's body. Procedure only decodes 200
+// responses, so error-path assertions decode directly.
+func decodeBody(resp *http.Response, out any) error {
+	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-type Option func(*testServerOptions)
-
-func WithValidator(v authn.RequestValidator) Option {
-	return func(tso *testServerOptions) {
-		tso.validator = v
-	}
-}
-
-func newTestServer(t *testing.T, opts ...Option) *Server {
-	store := newTestStore(t)
-
-	options := &testServerOptions{
-		validator: authntest.NewSuccessValidatorWithOrg(owner, orgID),
-	}
-	for _, o := range opts {
-		o(options)
-	}
-
-	return &Server{
-		store:     store,
-		validator: options.validator,
-		decoder:   schema.NewDecoder(),
-	}
+// newTestPear returns a harness, its org admin, and a simplespace.Store built
+// on the same underlying stores the harness's own routes use — so fixtures
+// seeded through it are visible to the routed handlers, and vice versa.
+func newTestPear(t *testing.T) (*testutil.TestPear, *testutil.Actor, *simplespace.Store) {
+	t.Helper()
+	p := testutil.New(t)
+	admin := p.NewOrg("acme")
+	return p, admin, simplespace.NewStore(p.DB, p.SpacesStore, p.PermStore)
 }
 
 func TestServer_CreateSpace(t *testing.T) {
-	s := newTestServer(t)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.createSpace",
-		strings.NewReader(`{"type": "network.habitat.group"}`),
-	)
-	w := httptest.NewRecorder()
-	s.CreateSpace(w, req)
+	p, admin, _ := newTestPear(t)
 
-	require.Equal(t, http.StatusOK, w.Code)
+	var out habitat.NetworkHabitatSimplespaceCreateSpaceOutput
+	resp := p.Procedure(admin, "network.habitat.simplespace.createSpace", map[string]string{
+		"type": "network.habitat.group",
+	}, &out)
 
-	var output habitat.NetworkHabitatSimplespaceCreateSpaceOutput
-	err := json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
-	require.Contains(
-		t,
-		output.Uri,
-		"at://did:plc:org/space/network.habitat.group/",
-	)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Contains(t, out.Uri, "at://"+admin.Org.String()+"/space/network.habitat.group/")
 }
 
 func TestServer_CreateSpaceWithDidInput(t *testing.T) {
-	s := newTestServer(t)
+	p, admin, _ := newTestPear(t)
+	other := p.NewMember(admin, "other")
 
 	tests := []struct {
 		name    string
@@ -79,43 +57,26 @@ func TestServer_CreateSpaceWithDidInput(t *testing.T) {
 		want    int
 		wantErr string
 	}{
-		{
-			name: "caller did",
-			did:  owner.String(),
-			want: http.StatusOK,
-		},
-		{
-			name: "caller org",
-			did:  orgID.String(),
-			want: http.StatusOK,
-		},
+		{name: "caller did", did: admin.DID.String(), want: http.StatusOK},
+		{name: "caller org", did: admin.Org.String(), want: http.StatusOK},
 		{
 			name:    "other did",
-			did:     alice.String(),
+			did:     other.DID.String(),
 			want:    http.StatusBadRequest,
 			wantErr: "only caller did or caller org are allowed",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			body, err := json.Marshal(habitat.NetworkHabitatSimplespaceCreateSpaceInput{
-				Did:  tt.did,
-				Type: "network.habitat.group",
-			})
-			require.NoError(t, err)
-			req := httptest.NewRequest(
-				http.MethodPost,
-				"/xrpc/network.habitat.simplespace.createSpace",
-				strings.NewReader(string(body)),
-			)
-			w := httptest.NewRecorder()
-			s.CreateSpace(w, req)
-
-			require.Equal(t, tt.want, w.Code)
+			var apiErr atclient.ErrorBody
+			resp := p.Procedure(admin, "network.habitat.simplespace.createSpace",
+				habitat.NetworkHabitatSimplespaceCreateSpaceInput{
+					Did:  tt.did,
+					Type: "network.habitat.group",
+				}, nil)
+			require.Equal(t, tt.want, resp.StatusCode)
 			if tt.wantErr != "" {
-				var apiErr atclient.ErrorBody
-				err := json.NewDecoder(w.Body).Decode(&apiErr)
-				require.NoError(t, err)
+				require.NoError(t, decodeBody(resp, &apiErr))
 				require.Equal(t, tt.wantErr, apiErr.Message)
 			}
 		})
@@ -128,85 +89,71 @@ func TestServer_CreateSpaceWithDidInput(t *testing.T) {
 // spaces.ErrSpaceAlreadyExists into the local ErrSpaceAlreadyExists that this
 // handler's errors.Is check actually matches against.
 func TestServer_CreateSpace_Duplicate(t *testing.T) {
-	s := newTestServer(t)
+	p, admin, ss := newTestPear(t)
 
-	_, err := s.store.CreateSpace(t.Context(), orgID, owner, groupType, "dup")
+	_, err := ss.CreateSpace(t.Context(), admin.Org, admin.DID, groupType, "dup")
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.createSpace",
-		strings.NewReader(`{"type": "network.habitat.group", "skey": "dup"}`),
-	)
-	w := httptest.NewRecorder()
-	s.CreateSpace(w, req)
+	resp := p.Procedure(admin, "network.habitat.simplespace.createSpace", map[string]string{
+		"type": "network.habitat.group",
+		"skey": "dup",
+	}, nil)
 
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	var apiErr atclient.ErrorBody
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&apiErr))
+	require.NoError(t, decodeBody(resp, &apiErr))
 	require.Equal(t, "SpaceAlreadyExists", apiErr.Name)
 }
 
 func TestServer_AddMember(t *testing.T) {
-	s := newTestServer(t)
+	p, admin, ss := newTestPear(t)
+	alice := p.NewMember(admin, "alice")
 
-	uri, err := s.store.CreateSpace(t.Context(), orgID, owner, groupType, "shared")
+	uri, err := ss.CreateSpace(t.Context(), admin.Org, admin.DID, groupType, "shared")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.addMember",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.AddMember(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
+	resp := p.Procedure(admin, "network.habitat.simplespace.addMember", map[string]string{
+		"space": uri.String(),
+		"did":   alice.DID.String(),
+	}, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	isMember, err := s.store.IsMember(t.Context(), orgID, uri, alice)
+	isMember, err := ss.IsMember(t.Context(), admin.Org, uri, alice.DID)
 	require.NoError(t, err)
 	require.True(t, isMember)
 }
 
 func TestServer_AddMember_SpaceNotFound(t *testing.T) {
-	s := newTestServer(t)
+	p, admin, _ := newTestPear(t)
+	alice := p.NewMember(admin, "alice")
+	uri := habitat_syntax.ConstructSpaceURI(admin.DID, groupType, "nonexistent")
 
-	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.addMember",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.AddMember(w, req)
+	resp := p.Procedure(admin, "network.habitat.simplespace.addMember", map[string]string{
+		"space": uri.String(),
+		"did":   alice.DID.String(),
+	}, nil)
 
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	var apiErr atclient.ErrorBody
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&apiErr))
+	require.NoError(t, decodeBody(resp, &apiErr))
 	require.Equal(t, "SpaceNotFound", apiErr.Name)
 }
 
 func TestServer_RemoveMember(t *testing.T) {
-	s := newTestServer(t)
+	p, admin, ss := newTestPear(t)
+	alice := p.NewMember(admin, "alice")
 
-	uri, err := s.store.CreateSpace(t.Context(), orgID, owner, groupType, "shared")
+	uri, err := ss.CreateSpace(t.Context(), admin.Org, admin.DID, groupType, "shared")
 	require.NoError(t, err)
+	require.NoError(t, ss.AddMember(t.Context(), uri, alice.DID))
 
-	err = s.store.AddMember(t.Context(), uri, alice)
-	require.NoError(t, err)
+	resp := p.Procedure(admin, "network.habitat.simplespace.removeMember", map[string]string{
+		"space": uri.String(),
+		"did":   alice.DID.String(),
+	}, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.removeMember",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.RemoveMember(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
-	isMember, err := s.store.IsMember(t.Context(), orgID, uri, alice)
+	isMember, err := ss.IsMember(t.Context(), admin.Org, uri, alice.DID)
 	require.NoError(t, err)
 	require.False(t, isMember)
 }
@@ -216,64 +163,45 @@ func TestServer_RemoveMember(t *testing.T) {
 // removed as a member, even by a request that's otherwise authorized to
 // manage members.
 func TestServer_RemoveMember_CannotRemoveOrg(t *testing.T) {
-	s := newTestServer(t)
+	p, admin, ss := newTestPear(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), orgID, owner, groupType, "shared")
+	uri, err := ss.CreateSpace(t.Context(), admin.Org, admin.DID, groupType, "shared")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "did": "` + orgID.String() + `"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.removeMember",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.RemoveMember(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	resp := p.Procedure(admin, "network.habitat.simplespace.removeMember", map[string]string{
+		"space": uri.String(),
+		"did":   admin.Org.String(),
+	}, nil)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestServer_ListMembers(t *testing.T) {
-	s := newTestServer(t)
+	p, admin, ss := newTestPear(t)
+	alice := p.NewMember(admin, "alice")
 
-	uri, err := s.store.CreateSpace(t.Context(), orgID, owner, groupType, "shared")
+	uri, err := ss.CreateSpace(t.Context(), admin.Org, admin.DID, groupType, "shared")
 	require.NoError(t, err)
+	require.NoError(t, ss.AddMember(t.Context(), uri, alice.DID))
 
-	err = s.store.AddMember(t.Context(), uri, alice)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.simplespace.listMembers?space="+uri.String(),
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListMembers(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-
-	var output habitat.NetworkHabitatSimplespaceListMembersOutput
-	err = json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
+	var out habitat.NetworkHabitatSimplespaceListMembersOutput
+	resp := p.Query(admin, "network.habitat.simplespace.listMembers",
+		url.Values{"space": {uri.String()}}, &out)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var dids []string
-	for _, m := range output.Members {
+	for _, m := range out.Members {
 		dids = append(dids, m.Did)
 	}
-	require.ElementsMatch(t, []string{owner.String(), alice.String(), orgID.String()}, dids)
+	require.ElementsMatch(t, []string{admin.DID.String(), alice.DID.String(), admin.Org.String()}, dids)
 }
 
 func TestServer_Unauthorized(t *testing.T) {
-	s := newTestServer(t, WithValidator(authntest.NewFailureValidator()))
+	p, _, _ := newTestPear(t)
 
-	body := `{"type": "network.habitat.group"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.createSpace",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.CreateSpace(w, req)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+	resp := p.Procedure(p.Anonymous(), "network.habitat.simplespace.createSpace", map[string]string{
+		"type": "network.habitat.group",
+	}, nil)
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 // TestServer_SpaceLifecycle exercises the full member lifecycle end-to-end:
@@ -283,134 +211,96 @@ func TestServer_Unauthorized(t *testing.T) {
 // the space's stored repos, so ListRepos still shows both writers after the
 // removal.
 func TestServer_SpaceLifecycle(t *testing.T) {
-	s := newTestServer(t)
+	p, admin, ss := newTestPear(t)
+	alice := p.NewMember(admin, "alice")
 	coll := syntax.NSID("network.habitat.note")
 
-	// createSpace
-	createReq := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.createSpace",
-		strings.NewReader(`{"type": "network.habitat.group", "skey": "shared"}`),
-	)
-	createW := httptest.NewRecorder()
-	s.CreateSpace(createW, createReq)
-	require.Equal(t, http.StatusOK, createW.Code)
-
 	var createOutput habitat.NetworkHabitatSimplespaceCreateSpaceOutput
-	require.NoError(t, json.NewDecoder(createW.Body).Decode(&createOutput))
+	createResp := p.Procedure(admin, "network.habitat.simplespace.createSpace", map[string]string{
+		"type": "network.habitat.group",
+		"skey": "shared",
+	}, &createOutput)
+	require.Equal(t, http.StatusOK, createResp.StatusCode)
 	uri := habitat_syntax.SpaceURI(createOutput.Uri)
 
 	// PutRecord in the space, as the owner.
-	_, _, err := s.store.spaces.PutRecord(
-		t.Context(),
-		uri,
-		owner,
-		coll,
-		"k1",
-		map[string]any{"x": 1},
-	)
+	_, _, err := p.SpacesStore.PutRecord(t.Context(), uri, admin.DID, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
 	// It shows up in ListSpaces.
-	spaceURIs, err := s.store.spaces.ListSpaces(t.Context(), owner, nil, nil)
+	spaceURIs, err := p.SpacesStore.ListSpaces(t.Context(), admin.DID, nil, nil)
 	require.NoError(t, err)
 	require.Contains(t, spaceURIs, uri)
 
 	// Add someone to the space.
-	addBody := `{"space": "` + uri.String() + `", "did": "` + alice.String() + `"}`
-	addReq := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.addMember",
-		strings.NewReader(addBody),
-	)
-	addW := httptest.NewRecorder()
-	s.AddMember(addW, addReq)
-	require.Equal(t, http.StatusOK, addW.Code)
+	addResp := p.Procedure(admin, "network.habitat.simplespace.addMember", map[string]string{
+		"space": uri.String(),
+		"did":   alice.DID.String(),
+	}, nil)
+	require.Equal(t, http.StatusOK, addResp.StatusCode)
 
 	// Alice writes into the space too, so she shows up as a repo.
-	_, _, err = s.store.spaces.PutRecord(
-		t.Context(),
-		uri,
-		alice,
-		coll,
-		"k1",
-		map[string]any{"x": 2},
-	)
+	_, _, err = p.SpacesStore.PutRecord(t.Context(), uri, alice.DID, coll, "k1", map[string]any{"x": 2})
 	require.NoError(t, err)
 
 	// ListRepos now shows both members.
-	repos, err := s.store.spaces.ListRepos(t.Context(), uri)
+	repos, err := p.SpacesStore.ListRepos(t.Context(), uri)
 	require.NoError(t, err)
 	var repoDIDs []syntax.DID
 	for _, r := range repos {
 		repoDIDs = append(repoDIDs, r.DID)
 	}
-	require.ElementsMatch(t, []syntax.DID{owner, alice, orgID}, repoDIDs)
+	require.ElementsMatch(t, []syntax.DID{admin.DID, alice.DID, admin.Org}, repoDIDs)
 
 	// Remove that member from the space.
-	removeBody := `{"space": "` + uri.String() + `", "did": "` + alice.String() + `"}`
-	removeReq := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.removeMember",
-		strings.NewReader(removeBody),
-	)
-	removeW := httptest.NewRecorder()
-	s.RemoveMember(removeW, removeReq)
-	require.Equal(t, http.StatusOK, removeW.Code)
+	removeResp := p.Procedure(admin, "network.habitat.simplespace.removeMember", map[string]string{
+		"space": uri.String(),
+		"did":   alice.DID.String(),
+	}, nil)
+	require.Equal(t, http.StatusOK, removeResp.StatusCode)
 
-	isMember, err := s.store.IsMember(t.Context(), orgID, uri, alice)
+	isMember, err := ss.IsMember(t.Context(), admin.Org, uri, alice.DID)
 	require.NoError(t, err)
 	require.False(t, isMember)
 
 	// ListRepos still shows that member: removing a member revokes their
 	// permission grant, but the repo they already wrote to is untouched.
-	repos, err = s.store.spaces.ListRepos(t.Context(), uri)
+	repos, err = p.SpacesStore.ListRepos(t.Context(), uri)
 	require.NoError(t, err)
 	repoDIDs = nil
 	for _, r := range repos {
 		repoDIDs = append(repoDIDs, r.DID)
 	}
-	require.ElementsMatch(t, []syntax.DID{owner, alice, orgID}, repoDIDs)
+	require.ElementsMatch(t, []syntax.DID{admin.DID, alice.DID, admin.Org}, repoDIDs)
 }
 
 func TestServer_DeleteSpace(t *testing.T) {
-	s := newTestServer(t)
+	p, admin, ss := newTestPear(t)
+	alice := p.NewMember(admin, "alice")
 
-	uri, err := s.store.CreateSpace(t.Context(), orgID, owner, groupType, "to-delete")
+	uri, err := ss.CreateSpace(t.Context(), admin.Org, admin.DID, groupType, "to-delete")
 	require.NoError(t, err)
+	require.NoError(t, ss.AddMember(t.Context(), uri, alice.DID))
 
-	err = s.store.AddMember(t.Context(), uri, alice)
-	require.NoError(t, err)
+	resp := p.Procedure(admin, "network.habitat.simplespace.deleteSpace", map[string]string{
+		"space": uri.String(),
+	}, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	body := `{"space": "` + uri.String() + `"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.deleteSpace",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.DeleteSpace(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
-	_, err = s.store.spaces.ListRepos(t.Context(), uri)
+	_, err = p.SpacesStore.ListRepos(t.Context(), uri)
 	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
 func TestServer_DeleteSpace_SpaceNotFound(t *testing.T) {
-	s := newTestServer(t)
+	p, admin, _ := newTestPear(t)
+	uri := habitat_syntax.ConstructSpaceURI(admin.DID, groupType, "nonexistent")
 
-	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	body := `{"space": "` + uri.String() + `"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.deleteSpace",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.DeleteSpace(w, req)
+	resp := p.Procedure(admin, "network.habitat.simplespace.deleteSpace", map[string]string{
+		"space": uri.String(),
+	}, nil)
 
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	var apiErr atclient.ErrorBody
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&apiErr))
+	require.NoError(t, decodeBody(resp, &apiErr))
 	require.Equal(t, "SpaceNotFound", apiErr.Name)
 }
