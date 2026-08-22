@@ -13,21 +13,21 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.relationship.listObjects'
+const id = 'network.habitat.relationship.checkUserRelation'
 
 export type QueryParams = {
-  /** DID of the user. */
-  did: string
-  /** The role to query for. */
+  /** DID of the user to check. */
+  subject: string
+  /** The role to check for on the space. */
   relation: 'owner' | 'manager' | 'writer' | 'reader'
-  /** Filter to spaces of this type. */
-  type?: string
+  /** URI of the space. */
+  space: string
 }
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  /** URIs of spaces where the user holds the role. */
-  spaces: string[]
+  /** Whether the subject holds the role on the space. */
+  allowed: boolean
 }
 
 export interface CallOptions {

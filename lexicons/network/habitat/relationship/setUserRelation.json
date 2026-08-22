@@ -1,35 +1,24 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.relationship.writeSpaceRelation",
+    "id": "network.habitat.relationship.setUserRelation",
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Write a space relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.",
+            "description": "Write a user relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.",
             "input": {
                 "encoding": "application/json",
                 "schema": {
                     "type": "object",
                     "required": [
                         "subject",
-                        "subjectRole",
                         "relation",
                         "space"
                     ],
                     "properties": {
                         "subject": {
                             "type": "string",
-                            "format": "uri",
-                            "description": "URI of the subject space (or group-space) whose role-holders form the userset to grant the role to."
-                        },
-                        "subjectRole": {
-                            "type": "string",
-                            "enum": [
-                                "owner",
-                                "manager",
-                                "writer",
-                                "reader"
-                            ],
-                            "description": "The role held on the subject space, forming the userset."
+                            "format": "did",
+                            "description": "DID of the user to grant the role to."
                         },
                         "relation": {
                             "type": "string",

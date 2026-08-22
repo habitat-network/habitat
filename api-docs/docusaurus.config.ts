@@ -85,6 +85,12 @@ const config: Config = {
         },
         {
           type: "docSidebar",
+          sidebarId: "rebac",
+          position: "left",
+          label: "ReBAC",
+        },
+        {
+          type: "docSidebar",
           sidebarId: "httpReference",
           position: "left",
           label: "HTTP Reference",

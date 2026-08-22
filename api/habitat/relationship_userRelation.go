@@ -8,7 +8,6 @@ import "encoding/json"
 type NetworkHabitatRelationshipUserRelation struct {
 	LexiconTypeID string `json:"$type"`
 	CreatedAt     string `json:"createdAt,omitempty"`
-	Object        string `json:"object"`
 	Relation      string `json:"relation"`
 	Subject       string `json:"subject"`
 }

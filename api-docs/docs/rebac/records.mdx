@@ -1,0 +1,67 @@
+---
+id: records
+slug: /rebac/records
+sidebar_label: Records
+sidebar_position: 2
+---
+
+# Relationship records
+
+Every grant is a record in the space it governs. There are two lexicons — one for granting to a user, one for granting to another space's role.
+
+Both are written into their space under the space authority's repo, so a space's full permission structure is readable by anyone that can read the space. [`listRelations`](./endpoints.mdx#listing) is a helper that will list both types of records for a space.
+
+Since the records are written in the space authority's repo, the only way to write them is to use [setUserRelation](./endpoints.mdx#writing-relations) or [setSpaceRelation](./endpoints.mdx#writing-relations). That will authorize the calling user and write to the space auhthority's repo on their behalf.
+Relation records in a space that are not in the space authority's repo can be ignored.
+
+## userRelation
+
+`network.habitat.relationship.userRelation` — grants a role to one user, by DID.
+
+| Field       | Type     | Required | Description                                |
+| ----------- | -------- | -------- | ------------------------------------------ |
+| `subject`   | DID      | yes      | The user the role is granted to.           |
+| `relation`  | string   | yes      | `owner`, `manager`, `writer`, or `reader`. |
+| `createdAt` | datetime | no       | When the grant was written.                |
+
+```json
+// in space at://did:web:space.host/space/network.habitat.document/testdoc
+{
+  "$type": "network.habitat.relationship.userRelation",
+  "subject": "did:plc:alice",
+  "relation": "writer",
+  "createdAt": "2026-04-02T17:05:00Z"
+}
+```
+
+Reads as: **Alice is a writer on `testdoc`.**
+
+## spaceRelation
+
+`network.habitat.relationship.spaceRelation` — grants a role to a everyone holding `subjectRole` on the `subject` space.
+
+| Field         | Type      | Required | Description                                                            |
+| ------------- | --------- | -------- | ---------------------------------------------------------------------- |
+| `subject`     | space URI | yes      | The space whose role-holders form the userset.   |
+| `subjectRole` | string    | yes      | The role held on `subject`: `owner`, `manager`, `writer`, or `reader`. |
+| `relation`    | string    | yes      | The role granted on the object space.                                  |
+| `createdAt`   | datetime  | no       | When the grant was written.                                            |
+
+```json
+// in space at://did:web:space.host/space/network.habitat.document/testdoc
+{
+  "$type": "network.habitat.relationship.spaceRelation",
+  "subject": "at://did:web:space.host/space/network.habitat.group/eng",
+  "subjectRole": "reader",
+  "relation": "writer",
+  "createdAt": "2026-04-02T17:05:00Z"
+}
+```
+
+Reads as: **everyone who can read the `eng` group is a writer on `testdoc`.**
+
+## One role per subject
+
+A grant is keyed by its subject, not by its role: the record key is derived deterministically from the subject (and, for a space relation, the `subjectRole`). Granting a subject a role on a space it already holds a role on **replaces** the old grant rather than adding a second one — there is exactly one `userRelation` per (user, space) and one `spaceRelation` per (subject, subjectRole, space).
+
+Since roles imply one another, this loses nothing: an `owner` grant already covers everything a `reader` grant would.

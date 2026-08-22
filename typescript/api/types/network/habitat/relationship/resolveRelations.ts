@@ -13,7 +13,7 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.relationship.listSubjects'
+const id = 'network.habitat.relationship.resolveRelations'
 
 export type QueryParams = {
   /** URI of the space. */

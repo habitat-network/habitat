@@ -52,6 +52,7 @@ type OAuthRequest struct {
 	RedirectURI         string    `gorm:"size:1024"`
 	State               string    `gorm:"size:1024"` // the client's own OAuth state param
 	ResponseType        string    `gorm:"size:64"`
+	ResponseMode        string    `gorm:"size:32"`
 	ExpiresAt           time.Time `gorm:"index"`
 }
 
@@ -64,6 +65,7 @@ func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) *fosite.Authoriz
 	redirectURI, _ = url.Parse(r.RedirectURI)
 	return &fosite.AuthorizeRequest{
 		ResponseTypes:        fosite.Arguments(strings.Fields(r.ResponseType)),
+		ResponseMode:         fosite.ResponseModeType(r.ResponseMode),
 		HandledResponseTypes: fosite.Arguments{},
 		RedirectURI:          redirectURI,
 		State:                r.State,
@@ -97,6 +99,7 @@ func fromRequester(uri string, requester fosite.Requester, expiresAt time.Time) 
 		RedirectURI:         form.Get("redirect_uri"),
 		State:               form.Get("state"),
 		ResponseType:        form.Get("response_type"),
+		ResponseMode:        form.Get("response_mode"),
 		ExpiresAt:           expiresAt,
 		Subject:             requester.GetSession().GetSubject(),
 	}
@@ -360,6 +363,10 @@ func atcryptoJWKtoJose(jwk atcrypto.JWK) (*jose.JSONWebKey, error) {
 		keyID = *jwk.KeyID
 	}
 	return &jose.JSONWebKey{
+		// TODO: Go 1.26 deprecated building an ecdsa.PublicKey from raw X/Y.
+		// Switch to ecdsa.ParseUncompressedPublicKey, which also validates the
+		// point is on the curve.
+		//nolint:staticcheck // SA1019: deprecated ecdsa.PublicKey X/Y fields
 		Key: &ecdsa.PublicKey{
 			Curve: curve,
 			X:     new(big.Int).SetBytes(x),

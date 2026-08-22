@@ -165,7 +165,7 @@ export const ShareDialogV2 = ({
     mutationFn: async (handle: string) => {
       const did = await resolveHandleToDid(handle);
       await procedure(
-        "network.habitat.relationship.writeUserRelation",
+        "network.habitat.relationship.setUserRelation",
         {
           subject: did,
           relation,
@@ -183,7 +183,7 @@ export const ShareDialogV2 = ({
   const addGroup = useMutation({
     mutationFn: async (group: GroupView) => {
       await procedure(
-        "network.habitat.relationship.writeSpaceRelation",
+        "network.habitat.relationship.setSpaceRelation",
         {
           subject: group.uri,
           subjectRole: GROUP_MEMBER_ROLE,
