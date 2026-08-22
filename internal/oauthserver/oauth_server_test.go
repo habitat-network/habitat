@@ -983,6 +983,83 @@ func TestValidateWithScopeChecking(t *testing.T) {
 	})
 }
 
+// newTestServer builds an OAuthServer with a fresh in-memory-backed database
+// and a seeded test org, for tests that only need MintAccessToken and
+// ValidateRaw and don't care about the login flow.
+func newTestServer(t *testing.T) *OAuthServer {
+	t.Helper()
+	db := dbtestutil.NewDB(t)
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	srv, err := NewOAuthServer(
+		bytes,
+		&org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
+		dummyDir,
+		db,
+		noop.Meter{},
+		testStore(t),
+		"https://habitat.example",
+		NewJWTBearerStore(),
+	)
+	require.NoError(t, err)
+	return srv
+}
+
+func TestMintAccessTokenValidates(t *testing.T) {
+	srv := newTestServer(t)
+	did := syntax.DID("did:web:alice.pear.test")
+
+	token, err := srv.MintAccessToken(t.Context(), did, []string{"org:*"}, time.Hour)
+	require.NoError(t, err)
+
+	credInfo, ok, err := srv.ValidateRaw(t.Context(), token, "org:com.example.thing")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, did, credInfo.Subject)
+}
+
+func TestMintAccessTokenIsRecognizedAsOAuth(t *testing.T) {
+	srv := newTestServer(t)
+
+	token, err := srv.MintAccessToken(t.Context(), syntax.DID("did:web:alice.pear.test"), nil, time.Hour)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/whatever", http.NoBody)
+	req.Header.Set("Authorization", "Bearer "+token)
+	require.True(t, srv.CanHandle(req), "minted token must carry the oauth+JWT typ header")
+}
+
+func TestMintAccessTokenExpires(t *testing.T) {
+	srv := newTestServer(t)
+
+	token, err := srv.MintAccessToken(t.Context(), syntax.DID("did:web:alice.pear.test"), nil, -time.Minute)
+	require.NoError(t, err)
+
+	_, ok, err := srv.ValidateRaw(t.Context(), token)
+	require.Error(t, err)
+	require.False(t, ok)
+}
+
+func TestMintAccessTokenRejectsInsufficientScope(t *testing.T) {
+	srv := newTestServer(t)
+
+	token, err := srv.MintAccessToken(
+		t.Context(),
+		syntax.DID("did:web:alice.pear.test"),
+		[]string{"org:com.example.allowed"},
+		time.Hour,
+	)
+	require.NoError(t, err)
+
+	_, ok, err := srv.ValidateRaw(t.Context(), token, "org:com.example.denied")
+	require.Error(t, err)
+	require.False(t, ok)
+}
+
 // TestIndigoClientApp exercises the full OAuth 2.0 authorization code flow
 // (PAR → authorize → callback → token → resource) using the indigo
 // oauth.ClientApp. Unlike the existing TestOAuthServerE2E which uses Go's
