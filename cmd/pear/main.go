@@ -6,61 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strings"
 	"syscall"
-	"time"
 
 	"github.com/alexedwards/argon2id"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
-	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
-	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/clique"
-	"github.com/habitat-network/habitat/internal/db"
-	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/fgastore"
-	"github.com/habitat-network/habitat/internal/forwarding"
-	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/httpx"
-	habitat_identity "github.com/habitat-network/habitat/internal/identity"
-	"github.com/habitat-network/habitat/internal/instance"
-	"github.com/habitat-network/habitat/internal/login"
-	"github.com/habitat-network/habitat/internal/notify"
-	"github.com/habitat-network/habitat/internal/oauthserver"
-	"github.com/habitat-network/habitat/internal/org"
-	org_server "github.com/habitat-network/habitat/internal/org/server"
-	"github.com/habitat-network/habitat/internal/pearsetup/migrations"
-	"github.com/habitat-network/habitat/internal/perms"
-	"github.com/habitat-network/habitat/internal/simplespace"
-	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/habitat-network/habitat/internal/log"
-	"github.com/habitat-network/habitat/internal/p2p"
-	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
-	"github.com/habitat-network/habitat/internal/pear"
-	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/relationship"
-	"github.com/habitat-network/habitat/internal/repo"
-	"github.com/habitat-network/habitat/internal/spacecommit"
-	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/pearsetup"
 	"github.com/habitat-network/habitat/internal/telemetry"
-	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
-	"gocloud.dev/blob"
 )
 
 func main() {
@@ -76,9 +35,6 @@ func main() {
 }
 
 func run(ctx context.Context, cmd *cli.Command) error {
-	port := cmd.String(fPort)
-	httpsCerts := cmd.String(fHttpsCerts)
-
 	notifyCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -107,527 +63,57 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	slog.InfoContext(startupCtx, "running with flags", "flags", cmd.FlagNames())
 
-	db, err := db.New(cmd.String(fDB), db.WithMigrations(migrations.FS))
-	if err != nil {
-		return fmt.Errorf("setup database: %w", err)
-	}
-	fgaStore, err := setupFGA(startupCtx, cmd)
-	if err != nil {
-		return fmt.Errorf("setup fga store: %w", err)
-	}
-
 	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))
 	if err != nil {
-		return fmt.Errorf("parse oauth server secret for login provider: %w", err)
+		return fmt.Errorf("parse oauth server secret: %w", err)
 	}
-
-	passwordHash, err := setupInstanceAdminPassword(startupCtx, cmd)
-	if err != nil {
-		return fmt.Errorf("setup instance admin password: %w", err)
-	}
-	// Reuse the oauth server secret
-	instanceAdminStore, err := instance.NewStore(
-		db.WithContext(startupCtx),
-		oauthSecret,
-		fDomain,
-		passwordHash,
-	)
-	if err != nil {
-		return fmt.Errorf("setup instance admin store: %w", err)
-	}
-
-	instanceAdminServer := instance.NewServer(instanceAdminStore, "habitat.network")
-
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
 		return fmt.Errorf("load PDS encryption key: %w", err)
 	}
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(db.WithContext(startupCtx), credKey)
-	if err != nil {
-		return fmt.Errorf("setup pds cred store: %w", err)
-	}
-
-	domain := cmd.String(fDomain)
-	var clientUri string
-	if cmd.String(fPdsOauthClientUri) != "" {
-		clientUri = "https://" + cmd.String(fPdsOauthClientUri)
-	}
-	if clientUri == "" {
-		clientUri = "https://" + domain
-	}
-	oauthClient, err := pdsclient.NewPdsOAuthClient(
-		clientUri+"/client-metadata.json",
-		clientUri,
-		"https://"+domain+"/oauth-callback",
-		cmd.String(fOauthClientSecret),
-		meter,
-	)
-	if err != nil {
-		return fmt.Errorf("setup oauth client: %w", err)
-	}
-
-	mux := mux.NewRouter()
-
-	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
-	mux.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			span := trace.SpanFromContext(r.Context())
-			span.SetAttributes(attribute.String("http.request.header.referer", r.Referer()))
-			next.ServeHTTP(w, r)
-		})
-	})
-	mux.Use(handlers.CORS(
-		handlers.AllowedOrigins([]string{"*"}),
-		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
-		handlers.AllowedHeaders([]string{
-			"Content-Type",
-			"Authorization",
-			"habitat-auth-method",
-			"User-Agent",
-			"atproto-accept-labelers",
-			"atproto-proxy",
-			"DPoP",
-		}),
-		handlers.MaxAge(86400),
-		handlers.ExposedHeaders([]string{"DPoP-Nonce"}),
-	))
-	if cmd.Bool(fDebug) {
-		mux.Use(func(next http.Handler) http.Handler {
-			return handlers.LoggingHandler(os.Stdout, next)
-		})
-	}
-
-	// Canonical liveness endpoint. Registered before any auth-gated routes so
-	// it stays reachable without credentials; used by deploy healthchecks and
-	// the startup smoke test.
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
-
-	hiveDomain := cmd.String(fHiveDomain)
-	if hiveDomain == "" {
-		hiveDomain = domain
-	}
-
-	hive, err := hive.NewHive(hiveDomain, domain, db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup hive (identity service for org): %w", err)
-	}
-	// Be careful about where this is passed, because only privileged services that are doing auth
-	// should be able to fallback to the hive directory implementation
-	defaultDir := identity.DefaultDirectory()
-	// hive is the base directory (tried first) since it resolves DIDs under our
-	// own domain locally; falling back to defaultDir's network resolution first
-	// would make this server make an outbound HTTP request back to itself for
-	// any locally-hosted DID.
-	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
-
-	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
-		pdsCredStore,
-		oauthClient,
-		defaultDir,
-	)
-	if err != nil {
-		return fmt.Errorf("setup PDS client factory: %w", err)
-	}
-
-	passwordProvider, err := login.NewPasswordProvider(
-		db,
-		cmd.String(fDomain),
-		oauthSecret,
-		hiveDir,
-	)
-	if err != nil {
-		return fmt.Errorf("setup password login provider: %w", err)
-	}
-	everyoneOrg := org.NewEveryoneOrg(domain)
-	orgStore, err := org.NewStore(
-		db.WithContext(startupCtx),
-		hive,
-		hiveDir,
-		domain,
-		passwordProvider,
-		fgaStore,
-		everyoneOrg,
-	)
-	if err != nil {
-		return fmt.Errorf("setup org store: %w", err)
-	}
-
-	loginRouter := &org.LoginRouter{
-		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
-		Password: passwordProvider,
-		OrgStore: orgStore,
-	}
-	googleClientID := cmd.String(fGoogleClientID)
-	googleClientSecret := cmd.String(fGoogleClientSecret)
-	if googleClientID != "" && googleClientSecret != "" {
-		googleProvider, err := login.NewGoogleProvider(
-			googleClientID,
-			googleClientSecret,
-			"https://"+domain+"/oauth-callback",
-			db.WithContext(startupCtx),
-			credKey,
-		)
-		if err != nil {
-			return fmt.Errorf("setup google login provider: %w", err)
-		}
-		loginRouter.Google = googleProvider
-		slog.InfoContext(startupCtx, "google login provider enabled")
-	}
-
-	oauthServer, err := oauthserver.NewOAuthServer(
-		oauthSecret,
-		loginRouter,
-		// OAuth server needs privileged access to lookup hive-hosted identities
-		hiveDir,
-		db.WithContext(startupCtx),
-		meter,
-		orgStore,
-		"https://"+domain,
-		oauthserver.NewJWTBearerStore(
-			cmd.StringSlice(fBuiltinApps)...,
-		),
-	)
-	if err != nil {
-		return fmt.Errorf("setup oauth server: %w", err)
-	}
-	oauthGC := oauthserver.NewCollector(db.WithContext(startupCtx), 5*time.Minute)
-
-	serviceAuth := authn.NewServiceAuthMethod(
-		everyoneOrg,
-		defaultDir,
-		fmt.Sprintf("did:web:%s#habitat", domain),
-	)
-
-	// Habitat's single host signing key signs permissioned-repo commits for repo
-	// owners on external PDSes (habitat-managed owners sign with their own hive
-	// key instead). Optional: if unset, host-signed commits are omitted.
 	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
 	if err != nil {
 		return fmt.Errorf("parse space-host signing key: %w", err)
 	}
-
-	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
+	passwordHash, err := setupInstanceAdminPassword(startupCtx, cmd)
 	if err != nil {
-		return fmt.Errorf("setup clique store: %w", err)
+		return fmt.Errorf("setup instance admin password: %w", err)
 	}
 
-	notifyStore, err := notify.NewStore(db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup notify store: %w", err)
-	}
-	notifier := notify.NewNotifier(notifyStore, httpx.NewClient(), hive)
-
-	spacesStore, err := spaces.NewStore(
-		db.WithContext(startupCtx),
-		notifier,
-		spacecommit.NewAuthority(hostKey, hive),
-	)
-	if err != nil {
-		return fmt.Errorf("setup spaces store: %w", err)
-	}
-
-	blobBucket, err := blob.OpenBucket(startupCtx, cmd.String(fBlobBucket))
-	if err != nil {
-		return fmt.Errorf("open blob bucket: %w", err)
-	}
-	defer func() { _ = blobBucket.Close() }()
-	blobStore := spaces.NewBlobStore(blobBucket)
-
-	permStore := perms.NewStore(db, spacesStore, fgaStore)
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
-	validator := authn.NewValidator(
-		oauthServer,
-		serviceAuth,
-		spaceCredential,
-		authn.NewDelegationTokenAuthMethod(hiveDir, permStore, hostKey),
-		permStore,
-	)
-
-	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
-	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
-
-	// TODO: use this to validate the space credential in the spaces server
-	spacesServer := spaces_server.NewServer(
-		spacesStore,
-		validator,
-		hostKey,
-		hive,
-		blobStore,
-	)
-	notifyServer := notify.NewServer(
-		notifyStore,
-		validator,
-	)
-
-	simplespaceServer := simplespace.NewServer(
-		simplespace.NewStore(db, spacesStore, permStore),
-		validator,
-	)
-
-	relationshipServer := relationship.NewServer(
-		permStore,
-		spacesStore,
-		validator,
-	)
-
-	repo, err := repo.NewRepo(db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup repo: %w", err)
+	cfg := pearsetup.Config{
+		Domain:             cmd.String(fDomain),
+		HiveDomain:         cmd.String(fHiveDomain),
+		DB:                 cmd.String(fDB),
+		Port:               cmd.String(fPort),
+		HTTPSCerts:         cmd.String(fHttpsCerts),
+		Debug:              cmd.Bool(fDebug),
+		OAuthServerSecret:  oauthSecret,
+		PDSCredEncryptKey:  credKey,
+		OAuthClientSecret:  cmd.String(fOauthClientSecret),
+		PDSOAuthClientURI:  cmd.String(fPdsOauthClientUri),
+		SpaceSigningKey:    hostKey,
+		AdminPasswordHash:  passwordHash,
+		GoogleClientID:     cmd.String(fGoogleClientID),
+		GoogleClientSecret: cmd.String(fGoogleClientSecret),
+		UIDevProxy:         cmd.String(fUiDevProxy),
+		BuiltinApps:        cmd.StringSlice(fBuiltinApps),
+		BlobBucket:         cmd.String(fBlobBucket),
 	}
 
-	permissions, err := permissions.NewStore(db, cliqueStore)
+	p, err := pearsetup.New(startupCtx, cfg)
 	if err != nil {
-		return fmt.Errorf("create permission store: %w", err)
+		return fmt.Errorf("setup pear: %w", err)
 	}
-
-	pearStore := pear.NewPear(hiveDir, permissions, repo)
-	// Server for org management routes
-	orgServer, err := org_server.NewServer(
-		orgStore,
-		validator,
-		domain,
-		hiveDir,
-		instanceAdminStore,
-	)
-	if err != nil {
-		return fmt.Errorf("setup org server for domain %q: %w", domain, err)
-	}
-	mux.HandleFunc("/xrpc/network.habitat.org.getMetadata", orgServer.GetMetadata)
-	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
-	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
-	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
-	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
-	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
-	mux.HandleFunc("/xrpc/network.habitat.org.downgradeAdmin", orgServer.DowngradeAdmin)
-	mux.HandleFunc("/xrpc/network.habitat.org.issueInviteToken", orgServer.IssueInviteToken)
-	mux.HandleFunc("/xrpc/network.habitat.org.mintMemberIdentity", orgServer.MintMemberIdentity)
-	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
-
-	cliqueServer := clique.NewServer(cliqueStore, validator)
-	pearServer := pear.NewServer(
-		pearStore,
-		validator,
-		orgStore,
-	)
-	p2pServer, err := p2p.NewServer(startupCtx, serviceAuth, pearStore, meter)
-	if err != nil {
-		return fmt.Errorf("setup p2p server: %w", err)
-	}
-	pdsForwarding := forwarding.NewPDSForwarding(
-		pdsCredStore,
-		validator,
-		pdsClientFactory,
-		defaultDir,
-	)
-
-	idServer, err := habitat_identity.NewServer(hive, validator, orgStore, pdsForwarding, domain)
-	if err != nil {
-		return fmt.Errorf("setup hive server: %w", err)
-	}
-
-	mux.Host("{opaqueID:.+}." + hiveDomain).
-		Path("/.well-known/did.json").
-		HandlerFunc(idServer.ServeDIDDoc)
-	mux.Host("{handle:.+}." + hiveDomain).
-		Path("/.well-known/atproto-did").
-		HandlerFunc(idServer.ServeHandle)
-	mux.Headers(habitat_identity.HabitatHostHeader, "").
-		Path("/.well-known/did.json").
-		HandlerFunc(idServer.ServeDIDDoc)
-	mux.Headers(habitat_identity.HabitatHostHeader, "").
-		Path("/.well-known/atproto-did").
-		HandlerFunc(idServer.ServeHandle)
-
-	mux.HandleFunc("/admin/login", instanceAdminServer.ServeLoginPage).Methods("GET")
-	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
-	mux.HandleFunc("/admin/logout", instanceAdminServer.HandleLogout).Methods("POST")
-	mux.HandleFunc("/admin", instanceAdminServer.ServeAdminHome).Methods("GET")
-	mux.HandleFunc("/admin/config", instanceAdminServer.ServeConfig).Methods("GET")
-	mux.HandleFunc("/xrpc/network.habitat.admin.getSettings", instanceAdminServer.GetSettings)
-	mux.HandleFunc("/xrpc/network.habitat.admin.updateSettings", instanceAdminServer.UpdateSettings)
-	mux.HandleFunc("/xrpc/network.habitat.admin.issueInvite", instanceAdminServer.IssueInvite)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.instance.describeInstance",
-		instanceAdminServer.DescribeInstance,
-	)
-
-	hostPublicKey, err := hostKey.PublicKey()
-	if err != nil {
-		return fmt.Errorf("failed to get host public key: %w", err)
-	}
-	mux.Handle("/.well-known/did.json", did.NewHandler(
-		did.Web(domain).
-			ATProtoSpaceKey(hostPublicKey.Multibase()).
-			HabitatKey(hostPublicKey.Multibase()).
-			Habitat("https://"+domain).
-			ATProtoSpaceHost("https://"+domain).
-			Build(),
-	))
-	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
-		httpx.WriteJSON(r.Context(), w, oauthClient.ClientMetadata())
-	})
-
-	mux.HandleFunc(
-		"/.well-known/oauth-authorization-server",
-		oauthServer.HandleAuthServerMetadata,
-	)
-	mux.HandleFunc(
-		"/.well-known/oauth-protected-resource",
-		oauthServer.HandleProtectedResourceMetadata,
-	)
-
-	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
-	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
-	mux.HandleFunc("/oauth/par", oauthServer.HandlePAR)
-	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsent)
-	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
-	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
-	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
-
-	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.listRecords", pearServer.ListRecords)
-	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
-	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", spacesServer.UploadBlob)
-
-	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
-	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
-	mux.HandleFunc("/xrpc/network.habitat.permissions.removePermission",
-		pearServer.RemovePermission)
-
-	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", cliqueServer.CreateClique)
-	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", cliqueServer.AddCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", cliqueServer.RemoveCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
-
-	// Spaces
-	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
-	mux.HandleFunc("/xrpc/network.habitat.space.putRecord", spacesServer.PutRecord)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRecord", spacesServer.GetRecord)
-	mux.HandleFunc("/xrpc/network.habitat.space.getBlob", spacesServer.GetBlob)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
-	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
-	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit", spacesServer.GetLatestCommit)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
-	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
-	mux.HandleFunc("/xrpc/network.habitat.space.getDelegationToken",
-		spacesServer.GetDelegationToken)
-	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
-		spacesServer.GetSpaceCredential)
-
-	// Simplespaces
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", simplespaceServer.CreateSpace)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.addMember", simplespaceServer.AddMember)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", simplespaceServer.RemoveMember)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", simplespaceServer.ListMembers)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.deleteSpace", simplespaceServer.DeleteSpace)
-
-	// Relationships
-	mux.HandleFunc("/xrpc/network.habitat.relationship.setUserRelation",
-		relationshipServer.SetUserRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.setSpaceRelation",
-		relationshipServer.SetSpaceRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteRelation",
-		relationshipServer.DeleteRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listRelations",
-		relationshipServer.ListRelations)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.checkUserRelation",
-		relationshipServer.CheckUserRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.checkSpaceRelation",
-		relationshipServer.CheckSpaceRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.resolveRelations",
-		relationshipServer.ResolveRelations)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listRelatedSpaces",
-		relationshipServer.ListRelatedSpaces)
-
-	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
-	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
-
-	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", idServer.GetServiceAuth)
-	mux.HandleFunc("/xrpc/com.atproto.identity.resolveDid", idServer.ResolveDID)
-	mux.HandleFunc("/xrpc/com.atproto.identity.resolveHandle", idServer.ResolveHandle)
-	mux.HandleFunc("/xrpc/com.atproto.identity.resolveIdentity", idServer.ResolveIdentity)
-
-	uiHandler, err := webui.New(cmd.String(fUiDevProxy))
-	if err != nil {
-		return fmt.Errorf("setup embedded UI handler: %w", err)
-	}
-	mux.PathPrefix("/ui/").Handler(uiHandler)
-
-	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
+	defer func() { _ = p.Close() }()
 
 	startupSpan.End()
 	slog.SetDefault(log.New(log.WithStdout(cmd.Bool(fDebug))))
 
-	s := &http.Server{
-		Handler: mux,
-		Addr:    fmt.Sprintf(":%s", port),
-	}
-
-	eg, egCtx := errgroup.WithContext(startupCtx)
-	eg.Go(func() error {
-		return oauthGC.Run(egCtx)
-	})
-	eg.Go(func() error {
-		slog.InfoContext(egCtx, "starting server", "port", port)
-		if httpsCerts == "" {
-			return s.ListenAndServe()
-		}
-		return s.ListenAndServeTLS(
-			filepath.Join(httpsCerts, "fullchain.pem"),
-			filepath.Join(httpsCerts, "privkey.pem"),
-		)
-	})
-
-	eg.Go(func() error {
-		<-egCtx.Done()
-		slog.InfoContext(egCtx, "shutting down p2p server")
-		if err := p2pServer.Close(); err != nil {
-			slog.ErrorContext(egCtx, "error closing p2p host", "err", err)
-		}
-		slog.InfoContext(egCtx, "shutting down server")
-		if err := s.Shutdown(context.Background()); err != nil {
-			slog.ErrorContext(egCtx, "error shutting down http server", "err", err)
-		}
-		return nil
-	})
-
-	err = eg.Wait()
+	err = p.Run(notifyCtx)
 	if !errors.Is(err, context.Canceled) {
 		slog.ErrorContext(startupCtx, "server shut down returned an error", "err", err)
 	}
 	return err
-}
-
-func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
-	dsn := cmd.String(fDB)
-	// Share the main Postgres database for FGA when one is configured; only fall
-	// back to a separate SQLite file when the main store is SQLite.
-	if db.ParseDialect(dsn) == db.Postgres {
-		fga, err := fgastore.NewPostgres(ctx, dsn)
-		if err != nil {
-			return nil, fmt.Errorf("setup fga store with postgres: %w", err)
-		}
-		return fga, nil
-	}
-	// Use a separate SQLite file for FGA to avoid lock conflicts between
-	// mattn/go-sqlite3 (used by GORM) and modernc.org/sqlite (used by OpenFGA).
-	// Strip the "sqlite://" scheme (as internal/db does) so we hand OpenFGA a
-	// plain filesystem path rather than a URI it parses as a host.
-	fgaPath := strings.TrimPrefix(cmd.String(fDB), "sqlite://") + ".fga.db"
-	fga, err := fgastore.NewSQLite(ctx, fgaPath)
-	if err != nil {
-		return nil, fmt.Errorf("setup fga sqlite store %q: %w", fgaPath, err)
-	}
-	return fga, nil
 }
 
 func setupInstanceAdminPassword(ctx context.Context, cmd *cli.Command) (string, error) {
