@@ -2691,28 +2691,75 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipCheck: {
+  NetworkHabitatRelationshipCheckSpaceRelation: {
     lexicon: 1,
-    id: 'network.habitat.relationship.check',
+    id: 'network.habitat.relationship.checkSpaceRelation',
     defs: {
       main: {
         type: 'query',
         description:
-          'Check whether a subject holds a role on a space. The subject is either a user (DID) or a space-role userset (a space URI plus subjectRole), resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
+          "Check whether a space-role userset (all subjects holding subjectRole on another space) holds a role on space, resolving built-in role implications. Enables checking cross-space inheritance, e.g. whether spaceA's writers hold reader role on spaceB. Caller must have the reader role on space.",
+        parameters: {
+          type: 'params',
+          required: ['subject', 'subjectRole', 'relation', 'space'],
+          properties: {
+            subject: {
+              type: 'string',
+              format: 'uri',
+              description:
+                'URI of the subject space (or group-space) whose role-holders form the userset to check.',
+            },
+            subjectRole: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'The role held on the subject space, forming the userset.',
+            },
+            relation: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description: 'The role to check for on the space.',
+            },
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the space.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['allowed'],
+            properties: {
+              allowed: {
+                type: 'boolean',
+                description:
+                  'Whether the subject userset holds the role on the space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipCheckUserRelation: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.checkUserRelation',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Check whether a user holds a role on a space, resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
         parameters: {
           type: 'params',
           required: ['subject', 'relation', 'space'],
           properties: {
             subject: {
               type: 'string',
-              description:
-                'The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required.',
-            },
-            subjectRole: {
-              type: 'string',
-              enum: ['owner', 'manager', 'writer', 'reader'],
-              description:
-                'The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID.',
+              format: 'did',
+              description: 'DID of the user to check.',
             },
             relation: {
               type: 'string',
@@ -2772,9 +2819,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipListObjects: {
+  NetworkHabitatRelationshipListRelatedSpaces: {
     lexicon: 1,
-    id: 'network.habitat.relationship.listObjects',
+    id: 'network.habitat.relationship.listRelatedSpaces',
     defs: {
       main: {
         type: 'query',
@@ -2839,12 +2886,6 @@ export const schemaDict = {
               description:
                 'URI of the governing space whose relations to list.',
             },
-            object: {
-              type: 'string',
-              format: 'uri',
-              description:
-                'Optional. Restrict to relations whose object is this space or group URI.',
-            },
             subjectDid: {
               type: 'string',
               format: 'did',
@@ -2859,8 +2900,7 @@ export const schemaDict = {
             },
             relation: {
               type: 'string',
-              description:
-                'Optional. Restrict to relations with this relation.',
+              description: 'Optional. Restrict to relations with this role.',
             },
           },
         },
@@ -2941,9 +2981,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipListSubjects: {
+  NetworkHabitatRelationshipResolveRelations: {
     lexicon: 1,
-    id: 'network.habitat.relationship.listSubjects',
+    id: 'network.habitat.relationship.resolveRelations',
     defs: {
       main: {
         type: 'query',
@@ -2982,6 +3022,133 @@ export const schemaDict = {
             },
           },
         },
+      },
+    },
+  },
+  NetworkHabitatRelationshipSetSpaceRelation: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.setSpaceRelation',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Write a space relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['subject', 'subjectRole', 'relation', 'space'],
+            properties: {
+              subject: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'URI of the subject space (or group-space) whose role-holders form the userset to grant the role to.',
+              },
+              subjectRole: {
+                type: 'string',
+                enum: ['owner', 'manager', 'writer', 'reader'],
+                description:
+                  'The role held on the subject space, forming the userset.',
+              },
+              relation: {
+                type: 'string',
+                knownValues: ['owner', 'manager', 'writer', 'reader'],
+                description:
+                  'Role granted on the space (owner|manager|writer|reader).',
+              },
+              space: {
+                type: 'string',
+                format: 'uri',
+                description: 'URI of the space to grant the role on.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the written relation record.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+            description: 'The space does not exist.',
+          },
+          {
+            name: 'InvalidRelation',
+            description:
+              'The subject, relation, and space combination is not valid.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatRelationshipSetUserRelation: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.setUserRelation',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Write a user relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['subject', 'relation', 'space'],
+            properties: {
+              subject: {
+                type: 'string',
+                format: 'did',
+                description: 'DID of the user to grant the role to.',
+              },
+              relation: {
+                type: 'string',
+                knownValues: ['owner', 'manager', 'writer', 'reader'],
+                description:
+                  'Role granted on the space (owner|manager|writer|reader).',
+              },
+              space: {
+                type: 'string',
+                format: 'uri',
+                description: 'URI of the space to grant the role on.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the written relation record.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+            description: 'The space does not exist.',
+          },
+          {
+            name: 'InvalidRelation',
+            description:
+              'The subject, relation, and space combination is not valid.',
+          },
+        ],
       },
     },
   },
@@ -3055,133 +3222,6 @@ export const schemaDict = {
             },
           },
         },
-      },
-    },
-  },
-  NetworkHabitatRelationshipWriteSpaceRelation: {
-    lexicon: 1,
-    id: 'network.habitat.relationship.writeSpaceRelation',
-    defs: {
-      main: {
-        type: 'procedure',
-        description:
-          'Write a space relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['subject', 'subjectRole', 'relation', 'space'],
-            properties: {
-              subject: {
-                type: 'string',
-                format: 'uri',
-                description:
-                  'URI of the subject space (or group-space) whose role-holders form the userset to grant the role to.',
-              },
-              subjectRole: {
-                type: 'string',
-                enum: ['owner', 'manager', 'writer', 'reader'],
-                description:
-                  'The role held on the subject space, forming the userset.',
-              },
-              relation: {
-                type: 'string',
-                knownValues: ['owner', 'manager', 'writer', 'reader'],
-                description:
-                  'Role granted on the space (owner|manager|writer|reader).',
-              },
-              space: {
-                type: 'string',
-                format: 'uri',
-                description: 'URI of the space to grant the role on.',
-              },
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['uri'],
-            properties: {
-              uri: {
-                type: 'string',
-                description: 'URI of the written relation record.',
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceNotFound',
-            description: 'The space does not exist.',
-          },
-          {
-            name: 'InvalidRelation',
-            description:
-              'The subject, relation, and space combination is not valid.',
-          },
-        ],
-      },
-    },
-  },
-  NetworkHabitatRelationshipWriteUserRelation: {
-    lexicon: 1,
-    id: 'network.habitat.relationship.writeUserRelation',
-    defs: {
-      main: {
-        type: 'procedure',
-        description:
-          'Write a user relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['subject', 'relation', 'space'],
-            properties: {
-              subject: {
-                type: 'string',
-                format: 'did',
-                description: 'DID of the user to grant the role to.',
-              },
-              relation: {
-                type: 'string',
-                knownValues: ['owner', 'manager', 'writer', 'reader'],
-                description:
-                  'Role granted on the space (owner|manager|writer|reader).',
-              },
-              space: {
-                type: 'string',
-                format: 'uri',
-                description: 'URI of the space to grant the role on.',
-              },
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['uri'],
-            properties: {
-              uri: {
-                type: 'string',
-                description: 'URI of the written relation record.',
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceNotFound',
-            description: 'The space does not exist.',
-          },
-          {
-            name: 'InvalidRelation',
-            description:
-              'The subject, relation, and space combination is not valid.',
-          },
-        ],
       },
     },
   },
@@ -5281,23 +5321,26 @@ export const ids = {
   NetworkHabitatPermissionsRemovePermission:
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
-  NetworkHabitatRelationshipCheck: 'network.habitat.relationship.check',
+  NetworkHabitatRelationshipCheckSpaceRelation:
+    'network.habitat.relationship.checkSpaceRelation',
+  NetworkHabitatRelationshipCheckUserRelation:
+    'network.habitat.relationship.checkUserRelation',
   NetworkHabitatRelationshipDeleteRelation:
     'network.habitat.relationship.deleteRelation',
-  NetworkHabitatRelationshipListObjects:
-    'network.habitat.relationship.listObjects',
+  NetworkHabitatRelationshipListRelatedSpaces:
+    'network.habitat.relationship.listRelatedSpaces',
   NetworkHabitatRelationshipListRelations:
     'network.habitat.relationship.listRelations',
-  NetworkHabitatRelationshipListSubjects:
-    'network.habitat.relationship.listSubjects',
+  NetworkHabitatRelationshipResolveRelations:
+    'network.habitat.relationship.resolveRelations',
+  NetworkHabitatRelationshipSetSpaceRelation:
+    'network.habitat.relationship.setSpaceRelation',
+  NetworkHabitatRelationshipSetUserRelation:
+    'network.habitat.relationship.setUserRelation',
   NetworkHabitatRelationshipSpaceRelation:
     'network.habitat.relationship.spaceRelation',
   NetworkHabitatRelationshipUserRelation:
     'network.habitat.relationship.userRelation',
-  NetworkHabitatRelationshipWriteSpaceRelation:
-    'network.habitat.relationship.writeSpaceRelation',
-  NetworkHabitatRelationshipWriteUserRelation:
-    'network.habitat.relationship.writeUserRelation',
   NetworkHabitatRenderSchema: 'network.habitat.render.schema',
   NetworkHabitatRepoCreateRecord: 'network.habitat.repo.createRecord',
   NetworkHabitatRepoDeleteRecord: 'network.habitat.repo.deleteRecord',

@@ -18,13 +18,11 @@ const id = 'network.habitat.relationship.listRelations'
 export type QueryParams = {
   /** URI of the governing space whose relations to list. */
   space: string
-  /** Optional. Restrict to relations whose object is this space or group URI. */
-  object?: string
   /** Optional. Restrict to relations whose subject is this user DID. */
   subjectDid?: string
   /** Optional. Restrict to relations whose subject is a user (userRelation) or a space userset (spaceRelation). */
   subjectType?: 'user' | 'space'
-  /** Optional. Restrict to relations with this relation. */
+  /** Optional. Restrict to relations with this role. */
   relation?: string
 }
 export type InputSchema = undefined

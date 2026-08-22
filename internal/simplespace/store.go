@@ -56,7 +56,6 @@ func (m *Store) CreateSpace(
 	spaceType syntax.NSID,
 	skey habitat_syntax.SpaceKey,
 ) (habitat_syntax.SpaceURI, error) {
-
 	var uri habitat_syntax.SpaceURI
 	err := m.db.Transaction(func(tx *gorm.DB) error {
 		var err error
@@ -109,7 +108,7 @@ func (m *Store) ListMembers(
 	callerOrg syntax.DID,
 	space habitat_syntax.SpaceURI,
 ) ([]syntax.DID, error) {
-	dids, err := m.perms.ListUserSubjects(ctx, space)
+	dids, err := m.perms.ListUserSubjects(ctx, space, habitat_syntax.SpaceRoleReader)
 	if err != nil {
 		return nil, fmt.Errorf("err listing users: %w", err)
 	}

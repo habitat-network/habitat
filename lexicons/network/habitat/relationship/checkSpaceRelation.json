@@ -1,0 +1,66 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.checkSpaceRelation",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "Check whether a space-role userset (all subjects holding subjectRole on another space) holds a role on space, resolving built-in role implications. Enables checking cross-space inheritance, e.g. whether spaceA's writers hold reader role on spaceB. Caller must have the reader role on space.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "subject",
+                    "subjectRole",
+                    "relation",
+                    "space"
+                ],
+                "properties": {
+                    "subject": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the subject space (or group-space) whose role-holders form the userset to check."
+                    },
+                    "subjectRole": {
+                        "type": "string",
+                        "enum": [
+                            "owner",
+                            "manager",
+                            "writer",
+                            "reader"
+                        ],
+                        "description": "The role held on the subject space, forming the userset."
+                    },
+                    "relation": {
+                        "type": "string",
+                        "enum": [
+                            "owner",
+                            "manager",
+                            "writer",
+                            "reader"
+                        ],
+                        "description": "The role to check for on the space."
+                    },
+                    "space": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the space."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "allowed"
+                    ],
+                    "properties": {
+                        "allowed": {
+                            "type": "boolean",
+                            "description": "Whether the subject userset holds the role on the space."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

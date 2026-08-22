@@ -1,0 +1,37 @@
+---
+id: compatibility
+slug: /rebac/compatibility
+sidebar_label: Simplespace compatibility
+sidebar_position: 4
+---
+
+# simplespace compatibility
+
+Applications that are only compatible with simplespaces will still work with ReBAC spaces.
+The `network.habitat.simplespace.*` methods are a narrow view onto the same relation graph the `network.habitat.relationship.*` methods write to.
+
+## How the methods map
+
+| Simplespace method | What it does in the graph                                                                                 |
+| ------------------ | --------------------------------------------------------------------------------------------------------- |
+| `createSpace`      | Grants the creator [`owner`](./overview.mdx#roles) on the new space, as a [`userRelation`](./records.mdx#userrelation) record. |
+| `addMember`        | Grants the new member `writer` |
+| `removeMember`     | Revokes the DID's grant on the space, whichever role it was.                                               |
+| `listMembers`      | The **expanded** set of DIDs holding `reader`, identical to [`resolveRelations`](./endpoints.mdx#listing) with `relation: reader`. |
+| `deleteSpace`      | Deletes the space and every relation governing it.                                                         |
+
+- **A "member" is anyone with `reader`.** Since `owner ⇒ manager ⇒ writer ⇒ reader`, everyone the graph grants any role to is a member as far as simplespace is concerned. `addMember` grants `writer` because that is what a plain simplespace member is expected to be able to do — write into the space.
+- **The space owner is a member without a record.** The DID in the space URI holds `owner` implicitly, which is why `removeMember` refuses to remove it.
+
+## Where the two views diverge
+
+Simplespace's vocabulary is smaller than the graph's, so reading a ReBAC space through it is lossy:
+
+**`listMembers` flattens.** It returns DIDs, so the "reasons" for membership like space relations and role inheritance are not visible.
+
+**`removeMember` only removes direct grants.** It deletes the user's `userRelation` on that space. If the user also has a grant on the space indirectly through a `spaceRelation`, they will still remain a member, and `listMembers` will still return them. Removing them for real means removing them from the group, or removing the group's grant with [`deleteRelation`](./endpoints.mdx#writing-relations).
+
+**`addMember` cannot express anything but `writer`.** Granting a weaker or stronger role requires the relationship methods.
+
+None of these are states a simplespace client can create on its own. A space only ever managed through `addMember`/`removeMember` holds nothing but direct user grants, and the two views stay exactly in step. The divergences only shows up once some other app uses the relationship methods to update the ACL.
+

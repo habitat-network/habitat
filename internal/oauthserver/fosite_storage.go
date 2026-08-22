@@ -360,6 +360,10 @@ func atcryptoJWKtoJose(jwk atcrypto.JWK) (*jose.JSONWebKey, error) {
 		keyID = *jwk.KeyID
 	}
 	return &jose.JSONWebKey{
+		// TODO: Go 1.26 deprecated building an ecdsa.PublicKey from raw X/Y.
+		// Switch to ecdsa.ParseUncompressedPublicKey, which also validates the
+		// point is on the curve.
+		//nolint:staticcheck // SA1019: deprecated ecdsa.PublicKey X/Y fields
 		Key: &ecdsa.PublicKey{
 			Curve: curve,
 			X:     new(big.Int).SetBytes(x),

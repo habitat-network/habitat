@@ -38,7 +38,7 @@ func (c *CollectionService) readableSpaces(
 		return nil, fmt.Errorf("build org client: %w", err)
 	}
 	pear := &pearClient{session: session}
-	return pear.listObjects(ctx, caller, "reader")
+	return pear.listRelatedSpaces(ctx, caller, "reader")
 }
 
 // ListCollections lists the collections the caller can see with a count of the
