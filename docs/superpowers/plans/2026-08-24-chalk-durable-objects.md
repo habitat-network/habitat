@@ -1251,14 +1251,14 @@ git commit -m "[Chalk] Republish owner-canonical snapshot from DocRoom alarm"
   - `class SapChannel extends DurableObject<Env>` with `ensureConnected(): Promise<void>` and `handleOutboxMessage(msg: OutboxMessage): Promise<void>`
   - binding name `SAP`
 
-- [ ] **Step 1: Verify `spaceUri.ts` is in place**
+- [x] **Step 1: Verify `spaceUri.ts` is in place**
 
 Task 5 Step 9 already moved `parseSpaceRecordUri`, `ParsedSpaceRecordUri`, and `OutboxMessage` into `src/server/spaceUri.ts`, with their tests in `test/spaceUri.test.ts` (Ruling A). Confirm both exist; if they do not, perform that move now exactly as described there.
 
 Run: `pnpm --filter chalk test test/spaceUri.test.ts`
 Expected: PASS.
 
-- [ ] **Step 2: Write the failing routing test**
+- [x] **Step 2: Write the failing routing test**
 
 ```ts
 // test/sapChannel.test.ts
@@ -1317,12 +1317,12 @@ it("ignores a malformed uri", async () => {
 });
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `pnpm --filter chalk test test/sapChannel.test.ts`
 Expected: FAIL — `../src/server/rooms/sapChannel` not found.
 
-- [ ] **Step 4: Complete `DocRoom.applyRemote`**
+- [x] **Step 4: Complete `DocRoom.applyRemote`**
 
 ```ts
   async applyRemote(id: DocIdentity, cid: string): Promise<void> {
@@ -1337,7 +1337,7 @@ Expected: FAIL — `../src/server/rooms/sapChannel` not found.
   }
 ```
 
-- [ ] **Step 5: Write `SapChannel`**
+- [x] **Step 5: Write `SapChannel`**
 
 ```ts
 // src/server/rooms/sapChannel.ts
@@ -1414,16 +1414,20 @@ export class SapChannel extends DurableObject<Env> {
 }
 ```
 
-- [ ] **Step 6: Add the binding**
+- [x] **Step 6: Add the binding**
 
 Add `{ "name": "SAP", "class_name": "SapChannel" }` to `durable_objects.bindings` and `"SapChannel"` to `new_sqlite_classes`. Export the class from the Worker entry.
 
-- [ ] **Step 7: Run test to verify it passes**
+- [x] **Step 7: Run test to verify it passes**
 
 Run: `pnpm --filter chalk test test/sapChannel.test.ts test/spaceUri.test.ts`
 Expected: PASS (5 + moved cases).
 
-- [ ] **Step 8: Commit**
+**Executor's notes:**
+- The "routes a crdt record to its doc room" test's `fetchMock.mockResolvedValue(new Response(...))` hit a real Workers I/O-ownership restriction: that `Response`'s body is read inside `DocRoom.applyRemote` (a different Durable Object than the one running the test's `SapChannel` code), and workerd rejects "I/O on behalf of a different Durable Object". Switched to `mockImplementation(async () => new Response(...))` so each call constructs a fresh `Response` in whichever DO's context is actually running — same category of fix as Task 5's shared-`Response`-body issue, different underlying cause.
+- That same test's mocked `getBlob` response, `new Uint8Array([0, 0])`, isn't a well-formed Yjs V2 update (`applyRemote` feeds it straight into `mergeUpdate`, which decodes it) — decoding it throws `"Unexpected end of array"` before the test's assertion runs. Replaced with `Y.encodeStateAsUpdateV2(new Y.Doc())` (13 bytes), a genuinely empty update.
+
+- [x] **Step 8: Commit**
 
 ```bash
 git add typescript/apps/chalk

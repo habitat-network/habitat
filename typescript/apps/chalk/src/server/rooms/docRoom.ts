@@ -59,9 +59,15 @@ export class DocRoom extends DurableObject<Env> {
     await this.schedule("member", memberDid);
   }
 
-  async applyRemote(id: DocIdentity, _cid: string): Promise<void> {
+  async applyRemote(id: DocIdentity, cid: string): Promise<void> {
     await this.rememberIdentity(id);
-    // Blob dereference lands in Task 7.
+    // A putRecord'd network.habitat.docs.crdt record carries a blob
+    // *reference*, not the update's bytes inline, so the bytes have to be
+    // fetched separately via getBlob.
+    const ownerDid = this.id?.ownerDid;
+    if (!ownerDid) return;
+    const bytes = await new SapClient(this.env, ownerDid).getBlob(id.spaceUri, cid);
+    await this.mergeUpdate(bytes);
   }
 
   // rememberIdentity records spaceUri/ownerDid the first time any caller

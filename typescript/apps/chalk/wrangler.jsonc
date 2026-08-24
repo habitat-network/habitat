@@ -7,10 +7,11 @@
   "durable_objects": {
     "bindings": [
       { "name": "PING", "class_name": "PingRoom" },
-      { "name": "DOC", "class_name": "DocRoom" }
+      { "name": "DOC", "class_name": "DocRoom" },
+      { "name": "SAP", "class_name": "SapChannel" }
     ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PingRoom", "DocRoom"] }],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PingRoom", "DocRoom", "SapChannel"] }],
   "d1_databases": [
     { "binding": "DB", "database_name": "chalk", "database_id": "local", "migrations_dir": "drizzle" }
   ],
