@@ -9,6 +9,8 @@ var (
 	fDomain       = "domain"
 	fLogLevel     = "log-level"
 	fSecret       = "secret"
+
+	fIdentityResolver = "identity-resolver"
 )
 
 func getFlags() []cli.Flag {
@@ -42,6 +44,12 @@ func getFlags() []cli.Flag {
 			Usage:   "Log level (debug, info, warn, error)",
 			Value:   "info",
 			Sources: cli.EnvVars("SAP_LOG_LEVEL"),
+		},
+		&cli.StringFlag{
+			Name: fIdentityResolver,
+			Usage: "Base URL of an atproto identity service (e.g. a Habitat instance) to resolve " +
+				"identities through instead of the public network",
+			Sources: cli.EnvVars("SAP_IDENTITY_RESOLVER"),
 		},
 		&cli.StringFlag{
 			Name:    fSecret,
