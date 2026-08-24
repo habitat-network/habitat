@@ -73,12 +73,15 @@ domains and database id. Durable Object migrations (`migrations` in
 
 `moon chalk:dev` starts pear, sap, Caddy, and the Worker on port 5177.
 
-Two things need doing by hand the first time:
+The local D1 database starts out empty and nothing in the Workers runtime
+creates its schema, so `dev` applies the migrations in `drizzle/` on every
+start (`pnpm db:migrate-local`, idempotent) before handing off to Vite.
+Deleting `.wrangler/` resets that database; the next `dev` re-applies the
+migrations, but any documents it held are gone.
+
+One thing does need doing by hand the first time:
 
 ```bash
-# D1 starts empty; nothing applies migrations automatically in local dev.
-pnpm exec wrangler d1 migrations apply chalk --local
-
 # CHALK_SESSION_SECRET comes from .dev.vars (gitignored). Create it with:
 echo 'CHALK_SESSION_SECRET=dev-only-32-char-minimum-secret!!' > .dev.vars
 ```

@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "cf-typegen": "wrangler types",
-    "dev": "wrangler types && vite dev",
+    "db:migrate-local": "CI=1 wrangler d1 migrations apply chalk --local",
+    "dev": "wrangler types && pnpm db:migrate-local && vite dev",
     "build": "wrangler types && vite build",
     "start": "node .output/server/index.mjs",
     "test": "wrangler types && vitest run"
