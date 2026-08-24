@@ -8,5 +8,8 @@
     "bindings": [{ "name": "PING", "class_name": "PingRoom" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PingRoom"] }],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "chalk", "database_id": "local", "migrations_dir": "drizzle" }
+  ],
   "dev": { "port": 5177 }
 }

@@ -188,7 +188,7 @@ If step 8 could not be made to work by any of the three routes, **stop and repor
   - `docByUri(db, spaceUri): Promise<DocSummary | undefined>`
   - `DocSummary` keeps its existing shape: `{ docId, uri, ownerDid, title }`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/docsIndex.test.ts
@@ -225,12 +225,12 @@ it("returns undefined for an unknown uri", async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter chalk test test/docsIndex.test.ts`
 Expected: FAIL — `getDb` is not exported from `../src/db`.
 
-- [ ] **Step 3: Write the schema**
+- [x] **Step 3: Write the schema**
 
 ```ts
 // src/db/schema.ts
@@ -249,7 +249,7 @@ export const docs = sqliteTable(
 );
 ```
 
-- [ ] **Step 4: Write the accessors**
+- [x] **Step 4: Write the accessors**
 
 ```ts
 // src/db/index.ts
@@ -299,7 +299,7 @@ export async function docByUri(db: Db, spaceUri: string): Promise<DocSummary | u
 }
 ```
 
-- [ ] **Step 5: Add the D1 binding and generate the migration**
+- [x] **Step 5: Add the D1 binding and generate the migration**
 
 Add to `wrangler.jsonc`:
 
@@ -328,18 +328,22 @@ Apply locally: `pnpm exec wrangler d1 migrations apply chalk --local`
 
 Create the local database first if wrangler reports it missing: `pnpm exec wrangler d1 create chalk`, then replace `"database_id": "local"` with the id it prints.
 
-- [ ] **Step 6: Run test to verify it passes**
+**Executor's note:** `drizzle-kit` couldn't be installed in this environment — its dependency chain isn't in the workspace lockfile and this sandbox has no network access to add it (see Task 1's lockfile note; the same restriction applies here, and drizzle-kit's own deps aren't already present the way `@cloudflare/vite-plugin`'s were). `drizzle/0000_docs.sql` was hand-written instead, matching drizzle-kit's usual output shape for this schema (`CREATE TABLE`, then the `unique()` and `index()` as separate statements). `drizzle.config.ts` is still in place as written, so `pnpm add -D drizzle-kit && pnpm exec drizzle-kit generate` in an environment with network access will regenerate/verify this file against the schema. vitest-pool-workers applies this migration to the in-memory D1 per test file via `readD1Migrations` (Node-side, in `vitest.config.ts`) feeding a `TEST_MIGRATIONS` binding that `test/applyMigrations.ts` (a `setupFiles` entry, runs inside the worker) passes to `applyD1Migrations`.
+
+Also required but not called out in the plan's file list: `wrangler.jsonc`'s bindings (`PING`, now `DB`) only produce a typed global `Env` after running `wrangler types`, which writes `worker-configuration.d.ts` (gitignored, regenerated on demand). `package.json`'s `dev`/`build`/`test` scripts were changed to run `wrangler types &&` first so this stays current automatically; `cf-typegen` runs it standalone.
+
+- [x] **Step 6: Run test to verify it passes**
 
 Run: `pnpm --filter chalk test test/docsIndex.test.ts`
 Expected: PASS (3 tests).
 
-- [ ] **Step 7: Rewire `listDocs` and `createDoc`**
+- [x] **Step 7: Rewire `listDocs` and `createDoc`**
 
 In `src/server/functions.ts`, replace `store.docsForOwner(did)` with `docsForOwner(getDb(env), did)` and `store.upsertDoc({...})` with `upsertDoc(getDb(env), {...})`, using Task 1's `env` idiom. Leave every sap call in `createDoc` exactly as-is, including the `trackSpace` call and its comment.
 
 Do **not** add the room identity-seeding call here — Task 3 adds it live once `DocRoom` exists (Ruling B).
 
-- [ ] **Step 8: Verify and commit**
+- [x] **Step 8: Verify and commit**
 
 Run: `pnpm --filter chalk test`
 Expected: PASS. `docStore.test.ts` still passes at this point — `DocStore` is still present for CRDT state and is removed in Task 9.

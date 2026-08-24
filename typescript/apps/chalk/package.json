@@ -3,10 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
+    "cf-typegen": "wrangler types",
+    "dev": "wrangler types && vite dev",
+    "build": "wrangler types && vite build",
     "start": "node .output/server/index.mjs",
-    "test": "vitest run"
+    "test": "wrangler types && vitest run"
   },
   "dependencies": {
     "@atproto/identity": "^0.5.6",
@@ -19,6 +20,7 @@
     "@tiptap/pm": "^3.28.0",
     "@tiptap/react": "^3.28.0",
     "@tiptap/starter-kit": "^3.28.0",
+    "drizzle-orm": "0.45.2",
     "internal": "workspace:*",
     "lucide-react": "^1.0.0",
     "react": "catalog:",

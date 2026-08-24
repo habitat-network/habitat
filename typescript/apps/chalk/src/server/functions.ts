@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import * as Y from "yjs";
-import type { DocSummary } from "./docStore";
+import { docsForOwner, getDb, upsertDoc, type DocSummary } from "../db";
 import {
   DOCS_SPACE_TYPE,
   docSync,
@@ -66,7 +66,7 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     // is self-describing.
     const docId = created.uri;
 
-    store.upsertDoc({
+    await upsertDoc(getDb(env), {
       spaceUri: created.uri,
       docId,
       ownerDid: did,
@@ -79,7 +79,7 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
 export const listDocs = createServerFn({ method: "GET" }).handler(
   async (): Promise<DocSummary[]> => {
     const { did } = await requireSession();
-    return store.docsForOwner(did);
+    return docsForOwner(getDb(env), did);
   },
 );
 
