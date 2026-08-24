@@ -17,7 +17,7 @@ function sapInternalUrl(): string {
 export async function startLogin(handle: string): Promise<string> {
   const base = process.env.CHALK_BASE_URL;
   if (!base) throw new Error("CHALK_BASE_URL is not set");
-  const res = await fetch(`${sapInternalUrl()}/org/add`, {
+  const res = await fetch(`${sapInternalUrl()}/session/add`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
