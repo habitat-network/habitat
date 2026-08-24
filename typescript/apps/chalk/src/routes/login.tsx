@@ -1,6 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { useMutation } from "@tanstack/react-query";
+import {
+  Button,
+  Card,
+  CardContent,
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+  Input,
+} from "internal/components/ui";
 import { startLogin } from "@/server/sapClient";
 
 // startLogin itself isn't a TanStack server function (it's a plain async
@@ -13,48 +26,64 @@ const startLoginFn = createServerFn({ method: "POST" })
     redirectUrl: await startLogin(data.handle),
   }));
 
+interface LoginFormData {
+  handle: string;
+}
+
 export const Route = createFileRoute("/login")({
   component() {
-    const [handle, setHandle] = useState("");
-    const [pending, setPending] = useState(false);
-    const [error, setError] = useState<string>();
+    const {
+      register,
+      handleSubmit,
+      formState: { errors },
+    } = useForm<LoginFormData>();
+    const {
+      mutate: login,
+      isPending,
+      error,
+    } = useMutation({
+      async mutationFn({ handle }: LoginFormData) {
+        const { redirectUrl } = await startLoginFn({ data: { handle } });
+        window.location.href = redirectUrl;
+        // Keep the button in its loading state while the browser navigates.
+        await new Promise(() => {});
+      },
+    });
 
     return (
-      <div className="h-full w-full flex items-center justify-center">
-        <form
-          className="flex flex-col gap-3 w-72"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setPending(true);
-            setError(undefined);
-            try {
-              const { redirectUrl } = await startLoginFn({ data: { handle } });
-              window.location.href = redirectUrl;
-            } catch (err) {
-              setError(err instanceof Error ? err.message : String(err));
-              setPending(false);
-            }
-          }}
-        >
-          <h1 className="text-lg font-medium">Sign In</h1>
-          <label className="flex flex-col gap-1">
-            <span>Handle</span>
-            <input
-              className="border rounded px-2 py-1"
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              required
-            />
-          </label>
-          {error && <p className="text-red-600 text-sm">{error}</p>}
-          <button
-            type="submit"
-            disabled={pending}
-            className="border rounded px-3 py-1.5 bg-black text-white disabled:opacity-50"
-          >
-            {pending ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
+      <div className="flex items-center justify-center py-32">
+        <Card className="w-full max-w-sm">
+          <CardContent>
+            <form onSubmit={handleSubmit((data) => login(data))}>
+              <FieldSet>
+                <FieldLegend>Sign In</FieldLegend>
+                <FieldGroup>
+                  <Field>
+                    <FieldLabel>Handle</FieldLabel>
+                    <Input
+                      {...register("handle", {
+                        required: "Handle is required",
+                      })}
+                      placeholder="alice.bsky.social"
+                    />
+                    <FieldError
+                      errors={[error, errors.handle].filter((e) => !!e)}
+                    />
+                  </Field>
+                  <Field>
+                    <Button
+                      loading={isPending}
+                      type="submit"
+                      className="w-full"
+                    >
+                      Sign In
+                    </Button>
+                  </Field>
+                </FieldGroup>
+              </FieldSet>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     );
   },
