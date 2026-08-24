@@ -329,14 +329,7 @@ Expected: PASS (3 tests).
 
 In `src/server/functions.ts`, replace `store.docsForOwner(did)` with `docsForOwner(getDb(env), did)` and `store.upsertDoc({...})` with `upsertDoc(getDb(env), {...})`, using Task 1's `env` idiom. Leave every sap call in `createDoc` exactly as-is, including the `trackSpace` call and its comment.
 
-`createDoc` must also seed the room's identity, so that alarm-driven republish knows the owner before any caller supplies it. Add this after the `upsertDoc` call (the method lands in Task 3; until then, leave the line commented with a `TODO(Task 3)` and uncomment it there):
-
-```ts
-await env.DOC.get(env.DOC.idFromName(created.uri))
-  .applyEdit({ spaceUri: created.uri, ownerDid: did }, did, new Uint8Array(0));
-```
-
-An empty update is a valid no-op merge in Yjs, so this records identity without altering the document.
+Do **not** add the room identity-seeding call here — Task 3 adds it live once `DocRoom` exists (Ruling B).
 
 - [ ] **Step 8: Verify and commit**
 
@@ -566,6 +559,18 @@ export class DocRoom extends DurableObject<Env> {
     await this.db.insert(docState).values(row).onConflictDoUpdate({ target: docState.id, set: row });
   }
 }
+```
+
+- [ ] **Step 5a: Seed room identity from `createDoc` (Ruling B)**
+
+In `src/server/functions.ts`, after `createDoc`'s `upsertDoc` call, add:
+
+```ts
+// Record the room's identity now, so the owner-republish alarm knows the
+// owner before any SapChannel delivery supplies it. An empty update is a
+// valid no-op merge in Yjs, so this changes no document content.
+await env.DOC.get(env.DOC.idFromName(created.uri))
+  .applyEdit({ spaceUri: created.uri, ownerDid: did }, did, new Uint8Array(0));
 ```
 
 - [ ] **Step 5: Add the binding**
@@ -1006,13 +1011,46 @@ export const sendEdit = createServerFn({ method: "POST" })
   });
 ```
 
-- [ ] **Step 9: Verify and commit**
+- [ ] **Step 9: Retire the Node-era sync modules (Ruling A)**
+
+Changing `SapClient`'s constructor in Step 1 breaks every remaining caller, and
+those callers are already dead: `subscribeDoc` stopped using `DocPubSub` in
+Task 4, and Step 8 above just stopped `sendEdit` using `memberEditQueue` and
+`DocSync`. Leaving them in place would keep the branch red for four tasks, so
+retire them here rather than in Task 9.
+
+First move `parseSpaceRecordUri`, `ParsedSpaceRecordUri`, and `OutboxMessage`
+out of `docSync.ts` into a new `src/server/spaceUri.ts` — unchanged, comments
+included — and move their cases from `test/docSync.test.ts` into a new
+`test/spaceUri.test.ts`, changing only the import path. Task 7 consumes these.
+
+Then delete:
+
+```bash
+cd typescript/apps/chalk
+git rm src/server/docSync.ts src/server/pubsub.ts src/server/debounceQueue.ts src/server/docStore.ts
+git rm test/docSync.test.ts test/pubsub.test.ts test/debounceQueue.test.ts test/docStore.test.ts
+```
+
+And in `src/server/functions.server.ts`, delete `createSingletons`, the
+`ChalkSingletons` interface, the `declare global` block, the
+`globalThis.__chalkSingletons ??=` export, the `import.meta.hot.dispose` block,
+and `memberEditKey`/`splitMemberEditKey` — along with their long comments,
+which describe a Vite-in-one-Node-process problem that no longer exists. Keep
+`requireSession`, `DOCS_SPACE_TYPE`, and `CRDT_COLLECTION`. Drop the
+`memberEditKey` cases from `test/functions.server.test.ts`, keeping the
+`requireSession` ones.
+
+`DocSync`'s `private queue: Promise<void>` has no replacement and needs none —
+a DO instance is single-threaded, so per-doc ordering is a platform guarantee.
+
+- [ ] **Step 10: Verify and commit**
 
 Run: `pnpm --filter chalk test`
 Expected: PASS.
 
 ```bash
-git add typescript/apps/chalk
+git add -A typescript/apps/chalk
 git commit -m "[Chalk] Replace setTimeout debounce with DO alarms for member edits"
 ```
 
@@ -1048,9 +1086,16 @@ beforeEach(async () => {
   await env.DB.exec("DELETE FROM docs");
 });
 
+// renderDoc walks ydoc.getXmlFragment("default") (see src/render.ts), which
+// is what TipTap's Collaboration extension writes into. A getText() fixture
+// would leave that fragment empty and the title would always be "Untitled",
+// so the fixture must build the XML fragment renderDoc actually reads.
 function headingUpdate(text: string): Uint8Array {
   const d = new Y.Doc();
-  d.getText("body").insert(0, text);
+  const heading = new Y.XmlElement("heading");
+  heading.setAttribute("level", "1");
+  heading.insert(0, [new Y.XmlText(text)]);
+  d.getXmlFragment("default").insert(0, [heading]);
   return Y.encodeStateAsUpdateV2(d);
 }
 
@@ -1093,7 +1138,7 @@ it("writes the rendered title back to the D1 index", async () => {
     r.applyEdit({ spaceUri: uri, ownerDid: "did:web:alice.example" }, "did:web:bob.example", headingUpdate("Hello")),
   );
   await runDurableObjectAlarm(stub);
-  expect((await docByUri(getDb(env), uri))?.title).not.toBe("Untitled");
+  expect((await docByUri(getDb(env), uri))?.title).toBe("Hello");
 });
 ```
 
@@ -1171,12 +1216,12 @@ git commit -m "[Chalk] Republish owner-canonical snapshot from DocRoom alarm"
   - `class SapChannel extends DurableObject<Env>` with `ensureConnected(): Promise<void>` and `handleOutboxMessage(msg: OutboxMessage): Promise<void>`
   - binding name `SAP`
 
-- [ ] **Step 1: Move `parseSpaceRecordUri` and its tests**
+- [ ] **Step 1: Verify `spaceUri.ts` is in place**
 
-Move `parseSpaceRecordUri`, `ParsedSpaceRecordUri`, and `OutboxMessage` from `src/server/docSync.ts` into `src/server/spaceUri.ts` unchanged, comments included. Move the corresponding cases out of `test/docSync.test.ts` into `test/spaceUri.test.ts`, changing only the import path.
+Task 5 Step 9 already moved `parseSpaceRecordUri`, `ParsedSpaceRecordUri`, and `OutboxMessage` into `src/server/spaceUri.ts`, with their tests in `test/spaceUri.test.ts` (Ruling A). Confirm both exist; if they do not, perform that move now exactly as described there.
 
 Run: `pnpm --filter chalk test test/spaceUri.test.ts`
-Expected: PASS — this is a pure move, so it should be green immediately.
+Expected: PASS.
 
 - [ ] **Step 2: Write the failing routing test**
 
@@ -1463,26 +1508,16 @@ git commit -m "[Chalk] Keep SapChannel connected via cron trigger and reconnect 
 - Consumes: everything from Tasks 1-8.
 - Produces: no module-global singletons anywhere in chalk.
 
-- [ ] **Step 1: Delete the superseded modules and their tests**
+- [ ] **Step 1: Remove the Task 1 spike scaffolding**
+
+Task 5 Step 9 already deleted `docSync.ts`, `pubsub.ts`, `debounceQueue.ts`, `docStore.ts`, their tests, and the `functions.server.ts` singleton block (Ruling A). What remains here is the spike's own scaffolding:
 
 ```bash
 cd typescript/apps/chalk
-git rm src/server/docSync.ts src/server/pubsub.ts src/server/debounceQueue.ts src/server/docStore.ts
-git rm test/docSync.test.ts test/pubsub.test.ts test/debounceQueue.test.ts test/docStore.test.ts
 git rm test/ping.test.ts src/server/rooms/ping.ts
 ```
 
-`pubsub.ts` is replaced by `DocRoom`'s subscriber set; `debounceQueue.ts` by `DocRoom`'s alarm; `docStore.ts` by D1 plus `doc_state`; `docSync.ts` by `SapChannel` plus `DocRoom`. `DocSync`'s `private queue: Promise<void>` has no replacement and needs none — a DO instance is single-threaded, so per-doc ordering is a platform guarantee.
-
-Also remove the `PING` binding and its migration entry from `wrangler.jsonc`.
-
-- [ ] **Step 2: Gut `functions.server.ts`**
-
-Delete `createSingletons`, the `ChalkSingletons` interface, the `declare global` block, the `globalThis.__chalkSingletons ??=` export, and the `import.meta.hot.dispose` block — including their long comments, which describe a Vite-in-one-Node-process problem that no longer exists. Keep `requireSession`, `DOCS_SPACE_TYPE`, and `CRDT_COLLECTION`. Delete `memberEditKey`/`splitMemberEditKey`: the (docId, member) composite key existed because one process keyed a global queue by both, and `DocRoom` is already scoped to one doc.
-
-- [ ] **Step 3: Update `functions.server.test.ts`**
-
-Drop the cases covering `memberEditKey` and the singleton wiring; keep the `requireSession` cases.
+Remove the `PING` binding and its migration entry from `wrangler.jsonc`, and drop the temporary `ping` server fn from `src/server/functions.ts`.
 
 Run: `pnpm --filter chalk test`
 Expected: PASS.
