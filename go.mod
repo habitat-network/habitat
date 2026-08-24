@@ -108,6 +108,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang/mock v1.7.0-rc.1 // indirect
+	github.com/golang/snappy v0.0.5-0.20231225225746-43d5d4cd4e0e // indirect
 	github.com/google/cel-go v0.29.2 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/wire v0.7.0 // indirect
