@@ -1,6 +1,4 @@
-import { MenuIcon } from "lucide-react";
-import { Button, SidebarTrigger, useSidebar } from "internal/components/ui";
-import { useIsMobile } from "internal/hooks";
+import { SidebarTrigger } from "internal/components/ui";
 
 export function PageHeader({ children }: { children?: React.ReactNode }) {
   return (
