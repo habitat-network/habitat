@@ -5,8 +5,11 @@ import * as Y from "yjs";
 import { docState, pendingFlush } from "./docRoomSchema";
 import { frame } from "./frames";
 import { SapClient } from "../sapClient";
+import { renderDoc } from "../../render";
+import { docByUri, getDb, upsertDoc } from "../../db";
 
 const CRDT_COLLECTION = "network.habitat.docs.crdt";
+const MARKDOWN_COLLECTION = "network.habitat.docs.markdown";
 const SELF = "self";
 
 export interface DocIdentity {
@@ -83,6 +86,7 @@ export class DocRoom extends DurableObject<Env> {
     Y.applyUpdateV2(this.ydoc, update);
     await this.persist();
     this.broadcast();
+    await this.schedule("owner", "");
   }
 
   private subscribers = new Set<ReadableStreamDefaultController<Uint8Array>>();
@@ -176,7 +180,7 @@ export class DocRoom extends DurableObject<Env> {
         .delete(pendingFlush)
         .where(and(eq(pendingFlush.kind, row.kind), eq(pendingFlush.memberDid, row.memberDid)));
       if (row.kind === "member") await this.flushMember(row.memberDid);
-      // "owner" is handled in Task 6.
+      if (row.kind === "owner") await this.republishCanonical();
     }
     await this.rearm();
   }
@@ -196,6 +200,39 @@ export class DocRoom extends DurableObject<Env> {
       collection: CRDT_COLLECTION,
       rkey: SELF,
       record: { blob: blob.blob },
+    });
+  }
+
+  // republishCanonical writes the merged markdown + CRDT snapshot back under
+  // the doc owner's own repo. This is itself a network.habitat.docs.crdt
+  // write, so it comes back through SapChannel looking like a fresh delta.
+  // It does not loop: pear's PutRecord skips advancing the record (and the
+  // notifyWrite it would cause) when a write does not change the record's
+  // CID (see internal/spaces/store.go), so a no-op republish produces no
+  // outbox event.
+  private async republishCanonical(): Promise<void> {
+    const ownerDid = this.id?.ownerDid;
+    if (!this.id || !ownerDid) return;
+    const rendered = renderDoc(this.ydoc);
+    const client = new SapClient(this.env, ownerDid);
+    const blob = await client.uploadBlob(
+      Y.encodeStateAsUpdateV2(this.ydoc), "application/octet-stream",
+    );
+    await client.call("network.habitat.space.putRecord", "POST", {
+      space: this.id.spaceUri, repo: ownerDid,
+      collection: CRDT_COLLECTION, rkey: SELF, record: { blob: blob.blob },
+    });
+    await client.call("network.habitat.space.putRecord", "POST", {
+      space: this.id.spaceUri, repo: ownerDid,
+      collection: MARKDOWN_COLLECTION, rkey: SELF,
+      record: { title: rendered.title, content: rendered.markdown },
+    });
+    const existing = await docByUri(getDb(this.env), this.id.spaceUri);
+    await upsertDoc(getDb(this.env), {
+      spaceUri: this.id.spaceUri,
+      docId: existing?.docId ?? this.id.spaceUri,
+      ownerDid,
+      title: rendered.title,
     });
   }
 

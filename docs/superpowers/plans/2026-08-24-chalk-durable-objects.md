@@ -1101,7 +1101,7 @@ git commit -m "[Chalk] Replace setTimeout debounce with DO alarms for member edi
 - Consumes: `schedule`/`alarm`/`flushMember` from Task 5; `renderDoc` from `src/render.ts`; `upsertDoc`/`getDb` from Task 2.
 - Produces: `DocRoom`'s `"owner"` flush branch, writing both `network.habitat.docs.crdt` and `network.habitat.docs.markdown` under the owner's repo and updating the D1 title.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/docRoomRepublish.test.ts
@@ -1177,12 +1177,12 @@ it("writes the rendered title back to the D1 index", async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter chalk test test/docRoomRepublish.test.ts`
 Expected: FAIL — only the member put is issued; no owner put exists.
 
-- [ ] **Step 3: Implement the owner branch**
+- [x] **Step 3: Implement the owner branch**
 
 ```ts
   // republishCanonical writes the merged markdown + CRDT snapshot back under
@@ -1221,12 +1221,12 @@ Expected: FAIL — only the member put is issued; no owner put exists.
 
 Add `const MARKDOWN_COLLECTION = "network.habitat.docs.markdown";` at module top, import `renderDoc` from `../../render` and `getDb, docByUri, upsertDoc` from `../../db`. In `alarm()`, replace the `// "owner" is handled in Task 6.` comment with `if (row.kind === "owner") await this.republishCanonical();`. In `mergeUpdate`, after `broadcast()`, call `await this.schedule("owner", "")`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter chalk test test/docRoomRepublish.test.ts`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add typescript/apps/chalk
