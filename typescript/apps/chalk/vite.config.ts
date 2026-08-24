@@ -1,6 +1,5 @@
 import { defineConfig } from "vite";
 import viteReact from "@vitejs/plugin-react";
-import viteTsConfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import { devtools } from "@tanstack/devtools-vite";
@@ -20,9 +19,10 @@ export default defineConfig({
       ? parseInt(process.env.SERVER_PORT, 10)
       : undefined,
   },
+  resolve: {
+    tsconfigPaths: true,
+  },
   plugins: [
-    // this is the plugin that enables path aliases
-    viteTsConfigPaths({ projects: ["./tsconfig.json"] }),
     tailwindcss(),
     ...devtools({
       eventBusConfig: {
