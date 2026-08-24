@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/identity/apidir"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/log"
@@ -85,6 +87,16 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	oauthApp := oauth.NewClientApp(&config, store)
 	oauthApp.Resolver.Client = httpx.NewClient()
+
+	// When an identity resolver is configured, resolve identities through that
+	// service instead of the public network. It rewrites the #atproto_pds
+	// service entry of the DID documents it returns to point at itself, so
+	// every PDS request sap makes is routed through it.
+	if resolverURL := cmd.String(fIdentityResolver); resolverURL != "" {
+		dir := apidir.NewAPIDirectory(strings.TrimSuffix(resolverURL, "/"))
+		dir.Client = httpx.NewClient()
+		oauthApp.Dir = dir
+	}
 
 	endpoint := "https://" + domain
 
