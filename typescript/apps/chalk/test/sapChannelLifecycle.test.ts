@@ -32,7 +32,11 @@ it("connects once and no-ops while the socket is open", async () => {
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
-it("targets sap's /channel over ws", async () => {
+// Regression test: this originally asserted a `ws://` URL, matching an
+// implementation that rewrote the scheme. It passed only because `fetch` was
+// mocked — the real workerd fetch rejects ws:// with "Fetch API cannot load".
+// An outbound WebSocket on Workers is an http(s) fetch carrying `Upgrade`.
+it("targets sap's /channel over http with an Upgrade header", async () => {
   const stub = env.SAP.get(env.SAP.idFromName("lifecycle-2"));
   // 200, not 101: the Fetch spec's Response constructor rejects
   // non-2xx-except-network-status codes, and ensureConnected only checks
@@ -41,5 +45,9 @@ it("targets sap's /channel over ws", async () => {
   Object.defineProperty(res, "webSocket", { value: fakeSocket() });
   fetchMock.mockResolvedValue(res);
   await runInDurableObject(stub, (c: SapChannel) => c.ensureConnected());
-  expect(String(fetchMock.mock.calls[0]![0])).toMatch(/^ws:\/\/.*\/channel$/);
+  const [url, init] = fetchMock.mock.calls[0]!;
+  expect(String(url)).toMatch(/^https?:\/\/.*\/channel$/);
+  expect((init as RequestInit).headers).toMatchObject({
+    Upgrade: "websocket",
+  });
 });

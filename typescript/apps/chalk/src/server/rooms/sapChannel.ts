@@ -14,7 +14,11 @@ export class SapChannel extends DurableObject<Env> {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
     const base = this.env.CHALK_SAP_INTERNAL_URL;
     if (!base) throw new Error("CHALK_SAP_INTERNAL_URL is not set");
-    const res = await fetch(`${base.replace(/^http/, "ws")}/channel`, {
+    // The URL keeps its http(s):// scheme — workerd's fetch rejects ws:// and
+    // wss:// outright ("Fetch API cannot load: ws://..."). An outbound
+    // WebSocket on Workers is an ordinary http(s) fetch carrying the
+    // `Upgrade: websocket` header, with the socket on `res.webSocket`.
+    const res = await fetch(`${base}/channel`, {
       headers: { Upgrade: "websocket" },
     });
     const ws = res.webSocket;

@@ -69,6 +69,33 @@ bindings cover local dev already; update them for a real deployment's
 domains and database id. Durable Object migrations (`migrations` in
 `wrangler.jsonc`) are applied automatically by `wrangler deploy`.
 
+### Local development
+
+`moon chalk:dev` starts pear, sap, Caddy, and the Worker on port 5177.
+
+Two things need doing by hand the first time:
+
+```bash
+# D1 starts empty; nothing applies migrations automatically in local dev.
+pnpm exec wrangler d1 migrations apply chalk --local
+
+# CHALK_SESSION_SECRET comes from .dev.vars (gitignored). Create it with:
+echo 'CHALK_SESSION_SECRET=dev-only-32-char-minimum-secret!!' > .dev.vars
+```
+
+**Cron triggers do not fire on a schedule in local dev.** `SapChannel`'s
+connection to sap's `/channel` is established by the `scheduled()` handler,
+so in production the every-minute cron connects it (and reconnects it after
+an eviction) on its own — locally nothing calls it. Kick it manually:
+
+```bash
+curl http://127.0.0.1:5177/cdn-cgi/handler/scheduled
+```
+
+Until you do, edits still sync between browser tabs (that path is
+`DocRoom`-local) and still get written back to pear on the debounce, but
+inbound outbox events from sap are not consumed.
+
 Regenerate `worker-configuration.d.ts` (the typed `Env` global) after any
 binding or var change: `pnpm cf-typegen` (also runs automatically before
 `dev`/`build`/`test`).

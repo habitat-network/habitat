@@ -1600,6 +1600,66 @@ git commit -m "[Chalk] Remove Node-era sync singletons superseded by durable obj
 
 ---
 
+## Post-implementation: bugs found by live testing
+
+Tasks 1-9 were implemented and committed in a sandbox with no reachable
+`sap`/`pear`, so Task 8 Step 5 and Task 9 Step 6's by-hand exercise were
+recorded as "not runnable here". Running the app for real afterwards
+(`moon chalk:dev` + a browser, signed in as a real member) found **three
+bugs that the whole automated suite passed straight through**. All three are
+fixed; each now has a regression test.
+
+1. **`createDoc` failed outright — every time.** Task 3 Step 5a's snippet
+   seeds the room's identity with `applyEdit(..., new Uint8Array(0))`,
+   asserting in its comment that "an empty update is a valid no-op merge in
+   Yjs". It is not: there is no zero-length Yjs update, and
+   `Y.applyUpdateV2(doc, new Uint8Array(0))` throws `Unexpected end of
+   array`. Replaced with a dedicated `DocRoom.seedIdentity(id)` that records
+   identity without touching the document — which is what the step actually
+   wanted, and which also avoids scheduling a member + owner flush (and
+   publishing an empty blob to two repos) for a doc nobody has typed in yet.
+   No test covered `createDoc`, and every `DocRoom` test happened to pass a
+   real update.
+
+2. **The cron handler was never wired up.** Task 8 Step 4 puts `scheduled()`
+   beside the default export as a sibling named export. workerd resolves
+   handlers off the *default export object* only, and rejects the delivery
+   with `Expected "default" export ... to define a scheduled() function`.
+   `entry.ts` now builds its own default export object carrying both `fetch`
+   and `scheduled`. Note the Task 8 Step 6 verification I recorded —
+   `grep -c scheduled dist/server/index.js` is non-zero, and
+   `dist/server/wrangler.json` carries the cron — passed happily against the
+   broken version: both facts were true and neither proved the handler was
+   reachable.
+
+3. **`SapChannel` could never connect.** Task 7 Step 5's `ensureConnected`
+   rewrites the sap URL's scheme to `ws://`. workerd's `fetch` rejects that
+   outright (`Fetch API cannot load: ws://...`); an outbound WebSocket on
+   Workers is an ordinary http(s) fetch carrying `Upgrade: websocket`, with
+   the socket on `res.webSocket`. `test/sapChannelLifecycle.test.ts`
+   asserted the `ws://` URL and passed — because `fetch` was mocked, so the
+   test only ever confirmed the code did the wrong thing consistently. Both
+   the implementation and that assertion are fixed.
+
+After the fixes, verified live end-to-end: sign-in through sap's OAuth,
+`createDoc`, typing, cross-tab live sync with no reload, content surviving a
+reload, the debounced flush reaching pear (`uploadBlob` + `putRecord` for
+both the member repo and the owner's crdt+markdown), the rendered title
+propagating back into the D1 index, and outbox events arriving over
+`/channel` and driving `applyRemote`'s `getBlob` — which then stopped rather
+than looping, confirming `republishCanonical`'s no-op-CID reasoning.
+
+**Lesson for future plans in this repo:** a mocked-`fetch` unit test and a
+`grep` over build output can both pass while the feature is entirely
+non-functional. Anything touching a Workers *handler contract* (default-export
+shape, cron/alarm delivery) or an *outbound protocol* (URL schemes, upgrade
+headers) needs at least one run against the real runtime before it counts as
+done. Also note cron triggers do not fire on a schedule under local dev —
+`curl http://127.0.0.1:5177/cdn-cgi/handler/scheduled` to invoke one (now
+documented in the app README).
+
+---
+
 ## Notes for the executor
 
 - **Task 1 is a gate.** If the custom-DO export cannot be made to work, stop and report; do not improvise a different architecture.

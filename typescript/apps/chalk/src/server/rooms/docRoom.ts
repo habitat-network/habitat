@@ -70,6 +70,19 @@ export class DocRoom extends DurableObject<Env> {
     await this.schedule("member", memberDid);
   }
 
+  // seedIdentity records spaceUri/ownerDid without touching the document.
+  // createDoc calls this so the owner-republish alarm knows the owner before
+  // any SapChannel delivery would supply it. It is deliberately not an
+  // `applyEdit` with an empty update: there is no such thing as a
+  // zero-length Yjs update — `Y.applyUpdateV2` throws "Unexpected end of
+  // array" on `new Uint8Array(0)` — and even a well-formed empty update
+  // (`Y.encodeStateAsUpdateV2(new Y.Doc())`) would schedule a member and an
+  // owner flush, publishing an empty blob to two repos for a doc nobody has
+  // typed in yet.
+  async seedIdentity(id: DocIdentity): Promise<void> {
+    await this.rememberIdentity(id);
+  }
+
   async applyRemote(id: DocIdentity, cid: string): Promise<void> {
     await this.rememberIdentity(id);
     // A putRecord'd network.habitat.docs.crdt record carries a blob

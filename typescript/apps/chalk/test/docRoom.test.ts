@@ -80,6 +80,23 @@ it("remembers its identity so alarm-driven work can use it", async () => {
   });
 });
 
+// createDoc calls seedIdentity on a brand-new room, before anyone has typed
+// anything. Regression test: this was originally an `applyEdit` with
+// `new Uint8Array(0)` as a supposedly-empty update, which made every
+// createDoc fail with "Unexpected end of array" — there is no zero-length
+// Yjs update.
+it("seeds identity on an untouched room without scheduling a flush", async () => {
+  const uri = URI + "-6";
+  const stub = env.DOC.get(env.DOC.idFromName(uri));
+  const id = { spaceUri: uri, ownerDid: "did:web:erin.example" };
+  await runInDurableObject(stub, (r: DocRoom) => r.seedIdentity(id));
+  await runInDurableObject(stub, async (r: DocRoom, state) => {
+    expect(await r.identity()).toEqual(id);
+    expect(await r.snapshot()).toEqual(Y.encodeStateAsUpdateV2(new Y.Doc()));
+    expect(await state.storage.getAlarm()).toBeNull();
+  });
+});
+
 it("keeps a known ownerDid when a later caller omits it", async () => {
   const stub = env.DOC.get(env.DOC.idFromName(URI + "-5"));
   const uri = URI + "-5";
