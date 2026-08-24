@@ -43,6 +43,14 @@ export async function requireSession(): Promise<{ did: string }> {
   return { did: session.data.did };
 }
 
+// clearSession drops the member DID from the session cookie, ending the
+// login. Session state lives only in the cookie (see session.ts), so
+// clearing it is all a sign-out has to do on chalk's side.
+export async function clearSession(): Promise<void> {
+  const session = await useAppSession();
+  await session.clear();
+}
+
 // memberEditKey/splitMemberEditKey encode the (docId, memberDid) pair as a
 // single string DebounceQueue key. docId is a full at:// space URI
 // (did:web:... DIDs and all), so a plain delimiter like ":" isn't safe —

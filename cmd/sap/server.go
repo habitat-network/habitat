@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -364,6 +365,21 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		slog.ErrorContext(r.Context(), "proxy: copy response body", "err", err)
 	}
+}
+
+// basicAuthMiddleware requires an HTTP basic auth password matching secret
+// on every request (the username is ignored). It's used to protect sap's
+// internal routes when a secret is configured.
+func basicAuthMiddleware(secret string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, password, ok := r.BasicAuth()
+		if !ok || subtle.ConstantTimeCompare([]byte(password), []byte(secret)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="sap-internal"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {

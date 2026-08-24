@@ -6,6 +6,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { TanStackDevtools } from "@tanstack/react-devtools";
+import { Toaster } from "internal/components/ui";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import "../index.css";
 
@@ -32,6 +33,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           <QueryClientProvider client={queryClient}>
             <Outlet />
           </QueryClientProvider>
+          <Toaster />
           <TanStackDevtools
             plugins={[
               {
