@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "internal/components/ui";
-import ReactJson from "react-json-view";
+import JsonView from "@uiw/react-json-view";
 import { RecordRenderer } from "@/components/RecordRenderer";
 import {
   collectionRecordsQueryOptions,
@@ -111,7 +111,7 @@ function RecordBody({
           uri={`at://${record.repo}/${record.collection}/${record.rkey}`}
         />
       ) : (
-        <ReactJson src={{ value: data }} collapsed={1} />
+        <JsonView value={{ value: data }} collapsed={1} />
       )}
     </div>
   );

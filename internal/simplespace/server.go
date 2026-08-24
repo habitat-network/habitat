@@ -9,7 +9,6 @@ import (
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/spaces"
 
@@ -98,7 +97,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 	}
 	_, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceMemberManager),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleManager),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -132,7 +131,7 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	}
 	_, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceMemberManager),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleManager),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -169,7 +168,7 @@ func (s *Server) ListMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	credInfo, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceReader),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -200,7 +199,7 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 	}
 	_, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceOwner),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleOwner),
 	).Validate(w, r)
 	if !ok {
 		return

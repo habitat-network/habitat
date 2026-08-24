@@ -2,10 +2,10 @@ import type {
   NetworkHabitatSimplespaceCreateSpace,
   NetworkHabitatSpacePutRecord,
   NetworkHabitatSpaceGetRecord,
-  NetworkHabitatRelationshipWriteUserRelation,
-  NetworkHabitatRelationshipListSubjects,
-  NetworkHabitatRelationshipListObjects,
-  NetworkHabitatRelationshipCheck,
+  NetworkHabitatRelationshipSetUserRelation,
+  NetworkHabitatRelationshipResolveRelations,
+  NetworkHabitatRelationshipListRelatedSpaces,
+  NetworkHabitatRelationshipCheckUserRelation,
 } from "api";
 import type { DerivedConfig } from "./config";
 
@@ -16,7 +16,7 @@ const habitatDIDHeader = "Habitat-Did";
 
 // Every org has a self space
 // (at://<org>/space/network.habitat.organization/self) on which all org members
-// hold the reader role, so listSubjects on it yields the org's membership.
+// hold the reader role, so resolveRelations on it yields the org's membership.
 const ORG_SPACE_TYPE = "network.habitat.organization";
 const SELF_SKEY = "self";
 const DOCS_SPACE_TYPE = "network.habitat.docs";
@@ -94,9 +94,9 @@ export class PearClient {
   // reader role on the org's self space (org membership chains through it).
   async listOrgMembers(org: string): Promise<string[]> {
     const out =
-      await this.call<NetworkHabitatRelationshipListSubjects.OutputSchema>(
+      await this.call<NetworkHabitatRelationshipResolveRelations.OutputSchema>(
         org,
-        "network.habitat.relationship.listSubjects",
+        "network.habitat.relationship.resolveRelations",
         "GET",
         {
           space: `at://${org}/space/${ORG_SPACE_TYPE}/${SELF_SKEY}`,
@@ -111,9 +111,9 @@ export class PearClient {
   // read every space, so the caller-visibility filter never hides results.
   async listReadableSpaces(org: string, did: string): Promise<string[]> {
     const out =
-      await this.call<NetworkHabitatRelationshipListObjects.OutputSchema>(
+      await this.call<NetworkHabitatRelationshipListRelatedSpaces.OutputSchema>(
         org,
-        "network.habitat.relationship.listObjects",
+        "network.habitat.relationship.listRelatedSpaces",
         "GET",
         { did, relation: "reader", type: DOCS_SPACE_TYPE },
       );
@@ -188,15 +188,15 @@ export class PearClient {
     did: string,
     relation: "owner" | "manager" | "writer" | "reader",
   ): Promise<void> {
-    await this.call<NetworkHabitatRelationshipWriteUserRelation.OutputSchema>(
+    await this.call<NetworkHabitatRelationshipSetUserRelation.OutputSchema>(
       org,
-      "network.habitat.relationship.writeUserRelation",
+      "network.habitat.relationship.setUserRelation",
       "POST",
       {
         subject: did,
         relation,
         space,
-      } satisfies NetworkHabitatRelationshipWriteUserRelation.InputSchema,
+      } satisfies NetworkHabitatRelationshipSetUserRelation.InputSchema,
     );
   }
 
@@ -209,16 +209,17 @@ export class PearClient {
     relation: Role,
     space: string,
   ): Promise<boolean> {
-    const out = await this.call<NetworkHabitatRelationshipCheck.OutputSchema>(
-      org,
-      "network.habitat.relationship.check",
-      "GET",
-      {
-        subject: did,
-        relation,
-        space,
-      } satisfies NetworkHabitatRelationshipCheck.QueryParams,
-    );
+    const out =
+      await this.call<NetworkHabitatRelationshipCheckUserRelation.OutputSchema>(
+        org,
+        "network.habitat.relationship.checkUserRelation",
+        "GET",
+        {
+          subject: did,
+          relation,
+          space,
+        } satisfies NetworkHabitatRelationshipCheckUserRelation.QueryParams,
+      );
     return out.allowed;
   }
 }

@@ -52,24 +52,6 @@ func OwnerContextualTuple(space habitat_syntax.SpaceURI) Tuple {
 	}
 }
 
-// OrgMemberContextualTuple returns a Tuple granting org members (via the
-// organization:#member userset) the can_read relation on the org's self space
-// (at://<org>/space/network.habitat.organization/self).  This lets org membership
-// chain through stored tuples like "self#reader → can_read → <space>" without
-// storing per-member tuples on every space.
-func OrgMemberContextualTuple(org syntax.DID) Tuple {
-	selfSpace := habitat_syntax.ConstructSpaceURI(
-		org,
-		"network.habitat.organization",
-		habitat_syntax.SpaceKey("self"),
-	)
-	return Tuple{
-		User:     OrgMemberUsersetString(org),
-		Relation: RelationSpaceReader,
-		Object:   SpaceObjectKey(selfSpace),
-	}
-}
-
 // SpaceUsersetString returns the FGA userset string for all subjects holding
 // `relation` on the given space, e.g. "space:<spaceURI>#can_read". This is how a
 // space (including a group-space) is referenced as a grantee on another space.

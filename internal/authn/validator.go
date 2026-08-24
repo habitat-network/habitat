@@ -1,10 +1,11 @@
 package authn
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
-	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -23,12 +24,21 @@ type RequestValidator interface {
 	Request(options ...utils.Opt[EndpointOptions]) Validator
 }
 
+type SpaceRoleValidator interface {
+	CheckUserHasSpaceRole(
+		ctx context.Context,
+		did syntax.DID,
+		space habitat_syntax.SpaceURI,
+		role habitat_syntax.SpaceRole,
+	) (bool, error)
+}
+
 type validator struct {
 	oauth           Method
 	serviceAuth     *AtprotoServiceAuthMethod
 	spaceCredential *SpaceCredentialAuthMethod
 	delegationToken *DelegationTokenAuthMethod
-	fga             fgastore.Store
+	srv             SpaceRoleValidator
 }
 
 func NewValidator(
@@ -36,14 +46,14 @@ func NewValidator(
 	serviceAuth *AtprotoServiceAuthMethod,
 	spaceCredential *SpaceCredentialAuthMethod,
 	delegationToken *DelegationTokenAuthMethod,
-	fga fgastore.Store,
+	srv SpaceRoleValidator,
 ) *validator {
 	return &validator{
 		oauth:           oauth,
 		serviceAuth:     serviceAuth,
 		spaceCredential: spaceCredential,
 		delegationToken: delegationToken,
-		fga:             fga,
+		srv:             srv,
 	}
 }
 
@@ -60,7 +70,10 @@ func WithMethods(authMethods ...ValidatorMethod) utils.Opt[EndpointOptions] {
 	}
 }
 
-func WithSpace(space habitat_syntax.SpaceURI, relation string) utils.Opt[EndpointOptions] {
+func WithSpace(
+	space habitat_syntax.SpaceURI,
+	relation habitat_syntax.SpaceRole,
+) utils.Opt[EndpointOptions] {
 	return func(rv *EndpointOptions) {
 		rv.space = space
 		rv.relation = relation
@@ -71,7 +84,7 @@ type EndpointOptions struct {
 	v           *validator
 	authMethods []ValidatorMethod
 	space       habitat_syntax.SpaceURI
-	relation    string
+	relation    habitat_syntax.SpaceRole
 }
 
 func (rv *EndpointOptions) getMethod(method ValidatorMethod) Method {
@@ -105,7 +118,7 @@ func (rv *EndpointOptions) Validate(
 		}
 		if rv.space != "" {
 			if credInfo.Space != "" {
-				if rv.relation != fgastore.RelationSpaceReader {
+				if rv.relation != habitat_syntax.SpaceRoleReader {
 					httpx.WriteUnauthorized(ctx, w, "space token can only read")
 					return nil, false
 				}
@@ -114,17 +127,11 @@ func (rv *EndpointOptions) Validate(
 					return nil, false
 				}
 			} else if credInfo.Subject != "" {
-				authz, err := rv.v.fga.Check(
+				authz, err := rv.v.srv.CheckUserHasSpaceRole(
 					ctx,
-					fgastore.MemberUserString(credInfo.Subject),
+					credInfo.Subject,
+					rv.space,
 					rv.relation,
-					fgastore.SpaceObjectKey(rv.space),
-					fgastore.Tuple{
-						User:     fgastore.MemberUserString(rv.space.SpaceOwner()),
-						Relation: fgastore.RelationSpaceOwner,
-						Object:   fgastore.SpaceObjectKey(rv.space),
-					},
-					fgastore.OrgMemberContextualTuple(credInfo.Org.DID()),
 				)
 				if err != nil {
 					httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))

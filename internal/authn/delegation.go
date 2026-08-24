@@ -9,27 +9,28 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
+
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 type DelegationTokenAuthMethod struct {
 	dir     identity.Directory
-	fga     fgastore.Store
 	hostKey atcrypto.PrivateKey
+	srv     SpaceRoleValidator
 }
 
 var _ Method = (*DelegationTokenAuthMethod)(nil)
 
 func NewDelegationTokenAuthMethod(
 	directory identity.Directory,
-	fga fgastore.Store,
+	srv SpaceRoleValidator,
 	hostKey atcrypto.PrivateKey,
 ) *DelegationTokenAuthMethod {
 	return &DelegationTokenAuthMethod{
 		dir:     directory,
-		fga:     fga,
 		hostKey: hostKey,
+		srv:     srv,
 	}
 }
 
@@ -68,12 +69,13 @@ func (d *DelegationTokenAuthMethod) Validate(
 		return nil, false
 	}
 	issuer, _ /* issuer must exist from verification */ := token.Claims.GetIssuer()
-	allowed, err := d.fga.Check(
+	allowed, err := d.srv.CheckUserHasSpaceRole(
 		ctx,
-		fgastore.MemberUserString(syntax.DID(issuer)),
-		fgastore.RelationSpaceReader,
-		fgastore.SpaceObjectKey(space),
+		syntax.DID(issuer),
+		space,
+		habitat_syntax.SpaceRoleReader,
 	)
+
 	if err != nil {
 		httpx.WriteServerError(ctx, w, err)
 		return nil, false
