@@ -72,6 +72,16 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
       ownerDid: did,
       title: "Untitled",
     });
+
+    // Record the room's identity now, so the owner-republish alarm knows the
+    // owner before any SapChannel delivery supplies it. An empty update is a
+    // valid no-op merge in Yjs, so this changes no document content.
+    await env.DOC.get(env.DOC.idFromName(created.uri)).applyEdit(
+      { spaceUri: created.uri, ownerDid: did },
+      did,
+      new Uint8Array(0),
+    );
+
     return { docId, uri: created.uri };
   },
 );

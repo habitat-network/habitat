@@ -374,7 +374,7 @@ The heart of the refactor. No streaming, no debounce, no sap yet — just "a DO 
   - `snapshot(): Promise<Uint8Array>` returning `Y.encodeStateAsUpdateV2` of current state
   - binding name `DOC`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/docRoom.test.ts
@@ -455,12 +455,12 @@ it("keeps a known ownerDid when a later caller omits it", async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter chalk test test/docRoom.test.ts`
 Expected: FAIL — module `../src/server/rooms/docRoom` not found.
 
-- [ ] **Step 3: Write the DO-side schema**
+- [x] **Step 3: Write the DO-side schema**
 
 ```ts
 // src/server/rooms/docRoomSchema.ts
@@ -479,7 +479,7 @@ export const docState = sqliteTable("doc_state", {
 });
 ```
 
-- [ ] **Step 4: Write the DO**
+- [x] **Step 4: Write the DO**
 
 ```ts
 // src/server/rooms/docRoom.ts
@@ -573,7 +573,7 @@ export class DocRoom extends DurableObject<Env> {
 }
 ```
 
-- [ ] **Step 5a: Seed room identity from `createDoc` (Ruling B)**
+- [x] **Step 5a: Seed room identity from `createDoc` (Ruling B)**
 
 In `src/server/functions.ts`, after `createDoc`'s `upsertDoc` call, add:
 
@@ -585,16 +585,16 @@ await env.DOC.get(env.DOC.idFromName(created.uri))
   .applyEdit({ spaceUri: created.uri, ownerDid: did }, did, new Uint8Array(0));
 ```
 
-- [ ] **Step 5: Add the binding**
+- [x] **Step 5: Add the binding**
 
 In `wrangler.jsonc`, add `{ "name": "DOC", "class_name": "DocRoom" }` to `durable_objects.bindings` and `"DocRoom"` to the `new_sqlite_classes` migration. Export `DocRoom` from the Worker entry using the mechanism Task 1 established.
 
-- [ ] **Step 6: Run test to verify it passes**
+- [x] **Step 6: Run test to verify it passes**
 
 Run: `pnpm --filter chalk test test/docRoom.test.ts`
 Expected: PASS (5 tests).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add typescript/apps/chalk

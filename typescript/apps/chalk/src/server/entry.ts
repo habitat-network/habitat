@@ -9,3 +9,4 @@
 export { default } from "@tanstack/react-start/server-entry";
 
 export { PingRoom } from "./rooms/ping";
+export { DocRoom } from "./rooms/docRoom";
