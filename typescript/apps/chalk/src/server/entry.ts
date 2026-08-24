@@ -8,7 +8,6 @@
 // as its own default export and adds every DO class beside it.
 export { default } from "@tanstack/react-start/server-entry";
 
-export { PingRoom } from "./rooms/ping";
 export { DocRoom } from "./rooms/docRoom";
 export { SapChannel } from "./rooms/sapChannel";
 

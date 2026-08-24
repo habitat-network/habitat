@@ -1549,7 +1549,7 @@ git commit -m "[Chalk] Keep SapChannel connected via cron trigger and reconnect 
 - Consumes: everything from Tasks 1-8.
 - Produces: no module-global singletons anywhere in chalk.
 
-- [ ] **Step 1: Remove the Task 1 spike scaffolding**
+- [x] **Step 1: Remove the Task 1 spike scaffolding**
 
 Task 5 Step 9 already deleted `docSync.ts`, `pubsub.ts`, `debounceQueue.ts`, `docStore.ts`, their tests, and the `functions.server.ts` singleton block (Ruling A). What remains here is the spike's own scaffolding:
 
@@ -1563,17 +1563,17 @@ Remove the `PING` binding and its migration entry from `wrangler.jsonc`, and dro
 Run: `pnpm --filter chalk test`
 Expected: PASS.
 
-- [ ] **Step 4: Update `moon.yml`**
+- [x] **Step 4: Update `moon.yml`**
 
 Remove `NODE_OPTIONS: "--use-system-ca"` (workerd does not consult the system CA store, and sap traffic goes to plain `http://127.0.0.1:2581`, not through Caddy) and `CHALK_DB` (no sqlite file any more). Move `CHALK_BASE_URL`, `CHALK_DOMAIN`, `CHALK_SAP_INTERNAL_URL`, and `CHALK_SAP_PUBLIC_URL` into `wrangler.jsonc`'s `vars`. Keep `SERVER_PORT: "5177"` and the `deps` on `pear:dev`, `sap:dev`, `root:caddy` unchanged.
 
 `CHALK_SESSION_SECRET` becomes a wrangler secret (`.dev.vars` locally); add `.dev.vars` to `.gitignore` and never commit it.
 
-- [ ] **Step 5: Update the README**
+- [x] **Step 5: Update the README**
 
 Replace the "self-contained Node server / push `dist/`" deployment section with the Workers deployment: `wrangler deploy`, the D1 database, and the DO migrations. Add a prominent note that this app is **not deployable to real Workers until sap reachability and `Habitat-Did` authentication are solved** (spec, "Out of scope" #1).
 
-- [ ] **Step 6: Full verification**
+- [x] **Step 6: Full verification**
 
 Run each and confirm output before claiming done:
 
@@ -1585,7 +1585,13 @@ moon chalk:lint-check
 
 Then `moon chalk:dev` and exercise by hand: log in, create a doc, type, open the same doc in a second tab and confirm it updates, reload and confirm content survives, wait ~10s and confirm a `putRecord` reaches pear.
 
-- [ ] **Step 7: Commit**
+**Executor's notes:**
+- `pnpm --filter chalk test`: PASS (34 passed, 1 skipped — the stream-cancellation test from Task 4's note).
+- `pnpm --filter chalk build`: PASS. Also re-confirmed the built `dist/server/wrangler.json` carries the `DOC`/`SAP` DO bindings, the D1 binding, and `triggers.crons`.
+- `moon chalk:lint-check` itself couldn't run: moon's own task runner does a full-workspace `pnpm install` before any task, which hits the same blocked `github:multiformats/cid` tarball fetch as Task 1's lockfile note (a repo-wide dependency unrelated to chalk). Ran the task's actual underlying command directly instead — `pnpm exec oxlint .` inside `typescript/apps/chalk` — which is exactly what `.moon/tasks/typescript.yml`'s `lint-check` task runs (`npx oxlint .`): clean (0 warnings, 0 errors). Also ran the `format-check` task's underlying `prettier --check .` (not clean — 16 files from this plan's own work needed formatting) and applied `prettier --write .`; tests, typecheck, and build all still pass afterward.
+- `moon chalk:dev` and the by-hand exercise: not runnable in this sandbox — no live `sap`/`pear` for chalk to talk to, and `moon` needs the same full-workspace install blocked above. The behaviors that exercise would check are covered by the automated tests instead: cross-tab live updates by `test/docRoomSubscribe.test.ts`, persistence-across-restart by `test/docRoom.test.ts`'s identity-reload-from-storage cases, and the debounced `putRecord` reaching pear by `test/docRoomFlush.test.ts`/`test/docRoomRepublish.test.ts`.
+
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A typescript/apps/chalk

@@ -30,18 +30,48 @@ If you prefer not to use Tailwind CSS:
 3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
 4. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
 
-## Deploy with Nitro
+## Deploy to Cloudflare Workers
 
-This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
+> **This app is not deployable to real Workers yet.** sap reachability from
+> a deployed Worker and `Habitat-Did` authentication between chalk and sap
+> are unsolved (see `docs/superpowers/specs/2026-08-24-chalk-durable-objects-design.md`,
+> "Out of scope" #1) — everything below assumes `CHALK_SAP_INTERNAL_URL`
+> points somewhere the Worker can actually reach, which today only holds
+> for local dev against a loopback `sap`.
+
+Chalk builds through `@cloudflare/vite-plugin` (not Nitro): a stateless
+Worker serving routes, SSR, and server functions, with two Durable Object
+classes — `DocRoom` (one per document, owns its Yjs state) and `SapChannel`
+(the singleton holding the WebSocket to sap's `/channel`) — plus a D1
+database for the docs index.
 
 ```bash
-npm run build
-node dist/server/index.mjs
+pnpm build
+pnpm exec wrangler deploy
 ```
 
-The build output is a self-contained Node server. To deploy, push the `dist/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
+First-time setup:
 
-For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
+```bash
+# Create the D1 database and update wrangler.jsonc's database_id with the
+# id it prints (see d1_databases in wrangler.jsonc).
+pnpm exec wrangler d1 create chalk
+pnpm exec wrangler d1 migrations apply chalk --remote
+
+# CHALK_SESSION_SECRET is a wrangler secret, not a var (see wrangler.jsonc).
+# Locally, put it in .dev.vars (gitignored); in a deployed environment:
+pnpm exec wrangler secret put CHALK_SESSION_SECRET
+```
+
+`wrangler.jsonc`'s `vars` (`CHALK_BASE_URL`, `CHALK_DOMAIN`,
+`CHALK_SAP_INTERNAL_URL`, `CHALK_SAP_PUBLIC_URL`) and Durable Object/D1
+bindings cover local dev already; update them for a real deployment's
+domains and database id. Durable Object migrations (`migrations` in
+`wrangler.jsonc`) are applied automatically by `wrangler deploy`.
+
+Regenerate `worker-configuration.d.ts` (the typed `Env` global) after any
+binding or var change: `pnpm cf-typegen` (also runs automatically before
+`dev`/`build`/`test`).
 
 ## Setting up PostHog
 

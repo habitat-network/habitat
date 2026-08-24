@@ -25,20 +25,44 @@ export async function upsertDoc(
     .values(row)
     .onConflictDoUpdate({
       target: docs.spaceUri,
-      set: { docId: row.docId, ownerDid: row.ownerDid, title: row.title, updatedAt: row.updatedAt },
+      set: {
+        docId: row.docId,
+        ownerDid: row.ownerDid,
+        title: row.title,
+        updatedAt: row.updatedAt,
+      },
     });
 }
 
 function toSummary(r: typeof docs.$inferSelect): DocSummary {
-  return { docId: r.docId, uri: r.spaceUri, ownerDid: r.ownerDid, title: r.title };
+  return {
+    docId: r.docId,
+    uri: r.spaceUri,
+    ownerDid: r.ownerDid,
+    title: r.title,
+  };
 }
 
-export async function docsForOwner(db: Db, ownerDid: string): Promise<DocSummary[]> {
-  const rows = await db.select().from(docs).where(eq(docs.ownerDid, ownerDid)).orderBy(desc(docs.updatedAt));
+export async function docsForOwner(
+  db: Db,
+  ownerDid: string,
+): Promise<DocSummary[]> {
+  const rows = await db
+    .select()
+    .from(docs)
+    .where(eq(docs.ownerDid, ownerDid))
+    .orderBy(desc(docs.updatedAt));
   return rows.map(toSummary);
 }
 
-export async function docByUri(db: Db, spaceUri: string): Promise<DocSummary | undefined> {
-  const [row] = await db.select().from(docs).where(eq(docs.spaceUri, spaceUri)).limit(1);
+export async function docByUri(
+  db: Db,
+  spaceUri: string,
+): Promise<DocSummary | undefined> {
+  const [row] = await db
+    .select()
+    .from(docs)
+    .where(eq(docs.spaceUri, spaceUri))
+    .limit(1);
   return row ? toSummary(row) : undefined;
 }

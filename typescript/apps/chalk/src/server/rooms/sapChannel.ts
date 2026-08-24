@@ -22,7 +22,10 @@ export class SapChannel extends DurableObject<Env> {
     ws.accept();
     this.ws = ws;
     ws.addEventListener("message", (ev) => {
-      void this.onMessage(ws, typeof ev.data === "string" ? ev.data : String(ev.data));
+      void this.onMessage(
+        ws,
+        typeof ev.data === "string" ? ev.data : String(ev.data),
+      );
     });
     ws.addEventListener("close", () => {
       if (this.ws === ws) this.ws = undefined;
@@ -50,7 +53,8 @@ export class SapChannel extends DurableObject<Env> {
       console.error("[sapChannel] handle message", err);
       return;
     }
-    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ id: msg.id }));
+    if (ws.readyState === WebSocket.OPEN)
+      ws.send(JSON.stringify({ id: msg.id }));
   }
 
   // handleOutboxMessage routes one outbox event. Messages this deliberately
@@ -66,6 +70,9 @@ export class SapChannel extends DurableObject<Env> {
     const doc = await docByUri(getDb(this.env), parsed.spaceUri);
     if (!doc) return; // this deployment does not know this doc
     const stub = this.env.DOC.get(this.env.DOC.idFromName(parsed.spaceUri));
-    await stub.applyRemote({ spaceUri: parsed.spaceUri, ownerDid: doc.ownerDid }, cid);
+    await stub.applyRemote(
+      { spaceUri: parsed.spaceUri, ownerDid: doc.ownerDid },
+      cid,
+    );
   }
 }

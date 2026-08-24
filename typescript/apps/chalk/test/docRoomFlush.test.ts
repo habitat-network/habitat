@@ -1,4 +1,8 @@
-import { env, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
+import {
+  env,
+  runInDurableObject,
+  runDurableObjectAlarm,
+} from "cloudflare:test";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import type { DocRoom } from "../src/server/rooms/docRoom";
@@ -14,7 +18,9 @@ beforeEach(() => {
   // .json() — a single Response instance can only have its body read once.
   fetchMock.mockImplementation(
     async () =>
-      new Response(JSON.stringify({ blob: { ref: { $link: "cid1" } }, cid: "cid1" })),
+      new Response(
+        JSON.stringify({ blob: { ref: { $link: "cid1" } }, cid: "cid1" }),
+      ),
   );
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -28,7 +34,11 @@ function updateFrom(fn: (d: Y.Doc) => void): Uint8Array {
 it("does not write to sap before the debounce fires", async () => {
   const stub = env.DOC.get(env.DOC.idFromName(URI));
   await runInDurableObject(stub, (r: DocRoom) =>
-    r.applyEdit(ID, "did:web:bob.example", updateFrom((d) => d.getText("body").insert(0, "x"))),
+    r.applyEdit(
+      ID,
+      "did:web:bob.example",
+      updateFrom((d) => d.getText("body").insert(0, "x")),
+    ),
   );
   expect(fetchMock).not.toHaveBeenCalled();
 });
@@ -37,7 +47,11 @@ it("schedules an alarm on the first edit", async () => {
   const uri = URI + "-2";
   const stub = env.DOC.get(env.DOC.idFromName(uri));
   await runInDurableObject(stub, (r: DocRoom) =>
-    r.applyEdit({ spaceUri: uri }, "did:web:bob.example", updateFrom((d) => d.getText("body").insert(0, "x"))),
+    r.applyEdit(
+      { spaceUri: uri },
+      "did:web:bob.example",
+      updateFrom((d) => d.getText("body").insert(0, "x")),
+    ),
   );
   await runInDurableObject(stub, async (r: DocRoom, state) => {
     expect(await state.storage.getAlarm()).not.toBeNull();
@@ -48,7 +62,11 @@ it("uploads a blob and putRecords to the member's own repo when the alarm fires"
   const uri = URI + "-3";
   const stub = env.DOC.get(env.DOC.idFromName(uri));
   await runInDurableObject(stub, (r: DocRoom) =>
-    r.applyEdit({ spaceUri: uri }, "did:web:bob.example", updateFrom((d) => d.getText("body").insert(0, "x"))),
+    r.applyEdit(
+      { spaceUri: uri },
+      "did:web:bob.example",
+      updateFrom((d) => d.getText("body").insert(0, "x")),
+    ),
   );
   // runDurableObjectAlarm runs the alarm handler unconditionally — it does
   // not fast-forward this environment's Date.now() to the alarm's scheduled
@@ -60,13 +78,17 @@ it("uploads a blob and putRecords to the member's own repo when the alarm fires"
   await new Promise((resolve) => setTimeout(resolve, 2100));
   await runDurableObjectAlarm(stub);
   const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-  expect(urls.some((u) => u.includes("network.habitat.repo.uploadBlob"))).toBe(true);
+  expect(urls.some((u) => u.includes("network.habitat.repo.uploadBlob"))).toBe(
+    true,
+  );
   // Earlier tests' real alarms (also scheduled IDLE_MS out) can fire in the
   // background during this test's real wait above, so filter on this test's
   // own space URI rather than assuming the first/only "space.putRecord" call
   // observed belongs to it.
   const put = fetchMock.mock.calls.find(
-    (c) => String(c[0]).includes("space.putRecord") && JSON.parse(String(c[1].body)).space === uri,
+    (c) =>
+      String(c[0]).includes("space.putRecord") &&
+      JSON.parse(String(c[1].body)).space === uri,
   );
   expect(JSON.parse(String(put![1].body))).toMatchObject({
     space: uri,
@@ -81,15 +103,23 @@ it("flushes each member to their own repo separately", async () => {
   const stub = env.DOC.get(env.DOC.idFromName(uri));
   for (const did of ["did:web:bob.example", "did:web:carol.example"]) {
     await runInDurableObject(stub, (r: DocRoom) =>
-      r.applyEdit({ spaceUri: uri }, did, updateFrom((d) => d.getText("body").insert(0, did[8]!))),
+      r.applyEdit(
+        { spaceUri: uri },
+        did,
+        updateFrom((d) => d.getText("body").insert(0, did[8]!)),
+      ),
     );
   }
   await new Promise((resolve) => setTimeout(resolve, 2100)); // see the note above
   await runDurableObjectAlarm(stub);
   const repos = fetchMock.mock.calls
     .filter((c) => String(c[0]).includes("space.putRecord"))
-    .map((c) => JSON.parse(String(c[1].body)) as { space: string; repo: string })
+    .map(
+      (c) => JSON.parse(String(c[1].body)) as { space: string; repo: string },
+    )
     .filter((body) => body.space === uri)
     .map((body) => body.repo);
-  expect(new Set(repos)).toEqual(new Set(["did:web:bob.example", "did:web:carol.example"]));
+  expect(new Set(repos)).toEqual(
+    new Set(["did:web:bob.example", "did:web:carol.example"]),
+  );
 });

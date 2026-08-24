@@ -1,6 +1,9 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
-import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import {
+  cloudflareTest,
+  readD1Migrations,
+} from "@cloudflare/vitest-pool-workers";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 
 // The plan this app follows was written against an older
@@ -21,7 +24,9 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 // migrations here and threads them into the worker as a TEST_MIGRATIONS
 // binding; test/applyMigrations.ts (a setupFile, so it runs inside the
 // worker before each test file) applies them via `applyD1Migrations`.
-const migrations = await readD1Migrations(path.join(import.meta.dirname, "drizzle"));
+const migrations = await readD1Migrations(
+  path.join(import.meta.dirname, "drizzle"),
+);
 
 export default defineConfig({
   test: {

@@ -11,7 +11,8 @@ const habitatDIDHeader = "Habitat-Did";
 export async function startLogin(env: Env, handle: string): Promise<string> {
   const base = env.CHALK_BASE_URL;
   if (!base) throw new Error("CHALK_BASE_URL is not set");
-  if (!env.CHALK_SAP_INTERNAL_URL) throw new Error("CHALK_SAP_INTERNAL_URL is not set");
+  if (!env.CHALK_SAP_INTERNAL_URL)
+    throw new Error("CHALK_SAP_INTERNAL_URL is not set");
   const res = await fetch(`${env.CHALK_SAP_INTERNAL_URL}/session/add`, {
     method: "POST",
     headers: { "content-type": "application/json" },

@@ -16,7 +16,11 @@ function updateFrom(fn: (d: Y.Doc) => void): Uint8Array {
 it("sends the current snapshot as the first frame", async () => {
   const stub = env.DOC.get(env.DOC.idFromName(URI));
   await runInDurableObject(stub, (r: DocRoom) =>
-    r.applyEdit(ID, "did:web:bob.example", updateFrom((d) => d.getText("body").insert(0, "hi"))),
+    r.applyEdit(
+      ID,
+      "did:web:bob.example",
+      updateFrom((d) => d.getText("body").insert(0, "hi")),
+    ),
   );
   const res = await stub.fetch("https://do/subscribe");
   const frames = readFrames(res.body!);
@@ -31,13 +35,21 @@ it("pushes subsequent merges to a live subscriber", async () => {
   const stub = env.DOC.get(env.DOC.idFromName(uri));
   const id = { spaceUri: uri, ownerDid: ID.ownerDid };
   await runInDurableObject(stub, (r: DocRoom) =>
-    r.applyEdit(id, "did:web:bob.example", updateFrom((d) => d.getText("body").insert(0, "a"))),
+    r.applyEdit(
+      id,
+      "did:web:bob.example",
+      updateFrom((d) => d.getText("body").insert(0, "a")),
+    ),
   );
   const res = await stub.fetch("https://do/subscribe");
   const frames = readFrames(res.body!);
   await frames.next(); // snapshot
   await runInDurableObject(stub, (r: DocRoom) =>
-    r.applyEdit(id, "did:web:carol.example", updateFrom((d) => d.getText("body").insert(0, "b"))),
+    r.applyEdit(
+      id,
+      "did:web:carol.example",
+      updateFrom((d) => d.getText("body").insert(0, "b")),
+    ),
   );
   const next = (await frames.next()).value as Uint8Array;
   const d = new Y.Doc();
@@ -63,8 +75,11 @@ it.skip("drops a subscriber whose stream is cancelled without failing merges", a
   await reader.read(); // pump the snapshot frame through before cancelling
   await reader.cancel();
   await runInDurableObject(stub, (r: DocRoom) =>
-    r.applyEdit({ spaceUri: uri }, "did:web:bob.example",
-      updateFrom((d) => d.getText("body").insert(0, "c"))),
+    r.applyEdit(
+      { spaceUri: uri },
+      "did:web:bob.example",
+      updateFrom((d) => d.getText("body").insert(0, "c")),
+    ),
   );
   await runInDurableObject(stub, async (r: DocRoom) => {
     expect(await r.subscriberCount()).toBe(0);

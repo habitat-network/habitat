@@ -1,4 +1,10 @@
-import { sqliteTable, text, integer, blob, primaryKey } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  blob,
+  primaryKey,
+} from "drizzle-orm/sqlite-core";
 
 // One row, id = 0: this room's merged CRDT snapshot and its identity. A DO
 // cannot read back the name it was addressed by, so spaceUri/ownerDid are

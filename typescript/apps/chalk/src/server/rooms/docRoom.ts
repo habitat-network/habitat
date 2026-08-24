@@ -1,5 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
-import { drizzle, type DrizzleSqliteDODatabase } from "drizzle-orm/durable-sqlite";
+import {
+  drizzle,
+  type DrizzleSqliteDODatabase,
+} from "drizzle-orm/durable-sqlite";
 import { and, eq } from "drizzle-orm";
 import * as Y from "yjs";
 import { docState, pendingFlush } from "./docRoomSchema";
@@ -37,7 +40,11 @@ export class DocRoom extends DurableObject<Env> {
         kind TEXT NOT NULL, member_did TEXT NOT NULL,
         first_push_at INTEGER NOT NULL, idle_deadline INTEGER NOT NULL,
         PRIMARY KEY (kind, member_did))`);
-      const [row] = await this.db.select().from(docState).where(eq(docState.id, 0)).limit(1);
+      const [row] = await this.db
+        .select()
+        .from(docState)
+        .where(eq(docState.id, 0))
+        .limit(1);
       if (!row) return;
       this.id = { spaceUri: row.spaceUri, ownerDid: row.ownerDid ?? undefined };
       if (row.state) Y.applyUpdateV2(this.ydoc, new Uint8Array(row.state));
@@ -53,7 +60,11 @@ export class DocRoom extends DurableObject<Env> {
     return Y.encodeStateAsUpdateV2(this.ydoc);
   }
 
-  async applyEdit(id: DocIdentity, memberDid: string, update: Uint8Array): Promise<void> {
+  async applyEdit(
+    id: DocIdentity,
+    memberDid: string,
+    update: Uint8Array,
+  ): Promise<void> {
     await this.rememberIdentity(id);
     await this.mergeUpdate(update);
     await this.schedule("member", memberDid);
@@ -66,7 +77,10 @@ export class DocRoom extends DurableObject<Env> {
     // fetched separately via getBlob.
     const ownerDid = this.id?.ownerDid;
     if (!ownerDid) return;
-    const bytes = await new SapClient(this.env, ownerDid).getBlob(id.spaceUri, cid);
+    const bytes = await new SapClient(this.env, ownerDid).getBlob(
+      id.spaceUri,
+      cid,
+    );
     await this.mergeUpdate(bytes);
   }
 
@@ -77,7 +91,11 @@ export class DocRoom extends DurableObject<Env> {
       spaceUri: id.spaceUri,
       ownerDid: id.ownerDid ?? this.id?.ownerDid,
     };
-    if (this.id?.spaceUri === next.spaceUri && this.id?.ownerDid === next.ownerDid) return;
+    if (
+      this.id?.spaceUri === next.spaceUri &&
+      this.id?.ownerDid === next.ownerDid
+    )
+      return;
     this.id = next;
     await this.persist();
   }
@@ -143,12 +161,17 @@ export class DocRoom extends DurableObject<Env> {
   private static readonly IDLE_MS = 2000;
   private static readonly MAX_WAIT_MS = 10000;
 
-  private async schedule(kind: "member" | "owner", memberDid: string): Promise<void> {
+  private async schedule(
+    kind: "member" | "owner",
+    memberDid: string,
+  ): Promise<void> {
     const now = Date.now();
     const [existing] = await this.db
       .select()
       .from(pendingFlush)
-      .where(and(eq(pendingFlush.kind, kind), eq(pendingFlush.memberDid, memberDid)))
+      .where(
+        and(eq(pendingFlush.kind, kind), eq(pendingFlush.memberDid, memberDid)),
+      )
       .limit(1);
     await this.db
       .insert(pendingFlush)
@@ -171,7 +194,9 @@ export class DocRoom extends DurableObject<Env> {
     const rows = await this.db.select().from(pendingFlush);
     if (rows.length === 0) return;
     const next = Math.min(
-      ...rows.map((r) => Math.min(r.idleDeadline, r.firstPushAt + DocRoom.MAX_WAIT_MS)),
+      ...rows.map((r) =>
+        Math.min(r.idleDeadline, r.firstPushAt + DocRoom.MAX_WAIT_MS),
+      ),
     );
     await this.ctx.storage.setAlarm(next);
   }
@@ -180,11 +205,19 @@ export class DocRoom extends DurableObject<Env> {
     const now = Date.now();
     const rows = await this.db.select().from(pendingFlush);
     for (const row of rows) {
-      const due = Math.min(row.idleDeadline, row.firstPushAt + DocRoom.MAX_WAIT_MS);
+      const due = Math.min(
+        row.idleDeadline,
+        row.firstPushAt + DocRoom.MAX_WAIT_MS,
+      );
       if (due > now) continue;
       await this.db
         .delete(pendingFlush)
-        .where(and(eq(pendingFlush.kind, row.kind), eq(pendingFlush.memberDid, row.memberDid)));
+        .where(
+          and(
+            eq(pendingFlush.kind, row.kind),
+            eq(pendingFlush.memberDid, row.memberDid),
+          ),
+        );
       if (row.kind === "member") await this.flushMember(row.memberDid);
       if (row.kind === "owner") await this.republishCanonical();
     }
@@ -199,7 +232,10 @@ export class DocRoom extends DurableObject<Env> {
   private async flushMember(memberDid: string): Promise<void> {
     if (!this.id) return;
     const client = new SapClient(this.env, memberDid);
-    const blob = await client.uploadBlob(Y.encodeStateAsUpdateV2(this.ydoc), "application/octet-stream");
+    const blob = await client.uploadBlob(
+      Y.encodeStateAsUpdateV2(this.ydoc),
+      "application/octet-stream",
+    );
     await client.call("network.habitat.space.putRecord", "POST", {
       space: this.id.spaceUri,
       repo: memberDid,
@@ -222,15 +258,21 @@ export class DocRoom extends DurableObject<Env> {
     const rendered = renderDoc(this.ydoc);
     const client = new SapClient(this.env, ownerDid);
     const blob = await client.uploadBlob(
-      Y.encodeStateAsUpdateV2(this.ydoc), "application/octet-stream",
+      Y.encodeStateAsUpdateV2(this.ydoc),
+      "application/octet-stream",
     );
     await client.call("network.habitat.space.putRecord", "POST", {
-      space: this.id.spaceUri, repo: ownerDid,
-      collection: CRDT_COLLECTION, rkey: SELF, record: { blob: blob.blob },
+      space: this.id.spaceUri,
+      repo: ownerDid,
+      collection: CRDT_COLLECTION,
+      rkey: SELF,
+      record: { blob: blob.blob },
     });
     await client.call("network.habitat.space.putRecord", "POST", {
-      space: this.id.spaceUri, repo: ownerDid,
-      collection: MARKDOWN_COLLECTION, rkey: SELF,
+      space: this.id.spaceUri,
+      repo: ownerDid,
+      collection: MARKDOWN_COLLECTION,
+      rkey: SELF,
       record: { title: rendered.title, content: rendered.markdown },
     });
     const existing = await docByUri(getDb(this.env), this.id.spaceUri);
@@ -251,6 +293,9 @@ export class DocRoom extends DurableObject<Env> {
       state: Buffer.from(Y.encodeStateAsUpdateV2(this.ydoc)),
       updatedAt: Date.now(),
     };
-    await this.db.insert(docState).values(row).onConflictDoUpdate({ target: docState.id, set: row });
+    await this.db
+      .insert(docState)
+      .values(row)
+      .onConflictDoUpdate({ target: docState.id, set: row });
   }
 }

@@ -6,22 +6,32 @@
   "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
     "bindings": [
-      { "name": "PING", "class_name": "PingRoom" },
       { "name": "DOC", "class_name": "DocRoom" },
-      { "name": "SAP", "class_name": "SapChannel" }
-    ]
+      { "name": "SAP", "class_name": "SapChannel" },
+    ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PingRoom", "DocRoom", "SapChannel"] }],
-  "d1_databases": [
-    { "binding": "DB", "database_name": "chalk", "database_id": "local", "migrations_dir": "drizzle" }
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["DocRoom", "SapChannel"] },
   ],
-  // CHALK_SESSION_SECRET is a wrangler secret (.dev.vars locally), not a var
-  // — see Task 9. CHALK_DOMAIN/CHALK_SAP_PUBLIC_URL join these once Task 9
-  // moves the rest of moon.yml's dev env in.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "chalk",
+      "database_id": "local",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  // CHALK_SESSION_SECRET is a wrangler secret (.dev.vars locally), not a
+  // var — see README.md's deployment section.
   "vars": {
     "CHALK_BASE_URL": "https://chalk.local.habitat.network",
-    "CHALK_SAP_INTERNAL_URL": "http://127.0.0.1:2581"
+    "CHALK_DOMAIN": "chalk.local.habitat.network",
+    // sap's internal port (2581) serves /proxy, /org/add, /org/list,
+    // /channel. Reached directly, not via Caddy/TLS.
+    "CHALK_SAP_INTERNAL_URL": "http://127.0.0.1:2581",
+    // sap's public OAuth port, for the browser-facing redirect through it.
+    "CHALK_SAP_PUBLIC_URL": "https://sap.local.habitat.network",
   },
   "triggers": { "crons": ["* * * * *"] },
-  "dev": { "port": 5177 }
+  "dev": { "port": 5177 },
 }

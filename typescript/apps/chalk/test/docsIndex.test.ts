@@ -10,16 +10,31 @@ beforeEach(async () => {
 
 it("returns a member's docs newest first", async () => {
   const db = getDb(env);
-  await upsertDoc(db, { spaceUri: URI, docId: URI, ownerDid: "did:web:alice.example", title: "Untitled" });
+  await upsertDoc(db, {
+    spaceUri: URI,
+    docId: URI,
+    ownerDid: "did:web:alice.example",
+    title: "Untitled",
+  });
   const rows = await docsForOwner(db, "did:web:alice.example");
   expect(rows).toEqual([
-    { docId: URI, uri: URI, ownerDid: "did:web:alice.example", title: "Untitled" },
+    {
+      docId: URI,
+      uri: URI,
+      ownerDid: "did:web:alice.example",
+      title: "Untitled",
+    },
   ]);
 });
 
 it("upserts on conflict rather than duplicating", async () => {
   const db = getDb(env);
-  const doc = { spaceUri: URI, docId: URI, ownerDid: "did:web:alice.example", title: "Untitled" };
+  const doc = {
+    spaceUri: URI,
+    docId: URI,
+    ownerDid: "did:web:alice.example",
+    title: "Untitled",
+  };
   await upsertDoc(db, doc);
   await upsertDoc(db, { ...doc, title: "Renamed" });
   expect(await docsForOwner(db, "did:web:alice.example")).toHaveLength(1);
