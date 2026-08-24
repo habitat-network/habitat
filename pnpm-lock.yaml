@@ -416,7 +416,7 @@ importers:
         version: 12.5.1
       '@posthog/react':
         specifier: ^1.10.3
-        version: 1.10.3(@types/react@19.2.18)(posthog-js@1.417.3)(react@19.2.8)
+        version: 1.10.4(@types/react@19.2.18)(posthog-js@1.417.3)(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.12(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -3174,8 +3174,8 @@ packages:
   '@posthog/core@1.48.2':
     resolution: {integrity: sha512-zZNvsEg+YCezvJKeWdaZ77ngjKJvGnAEo31DIy2guYeDtZ5kNjJ4c6CkwqtmXmwNXjzOFGJyshzv3Fv2gHVJYA==}
 
-  '@posthog/react@1.10.3':
-    resolution: {integrity: sha512-Qu//fGQmVlX0B9kTA3LLg67e7AYLEmeuA0Bf1qSyUM0uUILcRQGjQezhNQPLYSTakOqvXEnl6fM2iQBF6Toxrw==}
+  '@posthog/react@1.10.4':
+    resolution: {integrity: sha512-vL06Scc6yGIMiL9EaeRfY9w5U1+N6jc8s/6wXb50MO/yLz0XOvkt21aWswbrDJsLdfplqd/U6BSl/mZumserlw==}
     peerDependencies:
       '@types/react': '>=16.8.0'
       posthog-js: '>=1.257.2'
@@ -14466,7 +14466,7 @@ snapshots:
     dependencies:
       '@posthog/types': 1.404.1
 
-  '@posthog/react@1.10.3(@types/react@19.2.18)(posthog-js@1.417.3)(react@19.2.8)':
+  '@posthog/react@1.10.4(@types/react@19.2.18)(posthog-js@1.417.3)(react@19.2.8)':
     dependencies:
       posthog-js: 1.417.3
       react: 19.2.8
