@@ -9,50 +9,135 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
+import { Route as RequireAuthUriRouteImport } from './routes/_requireAuth/$uri'
+import { Route as SessionCallbackRouteImport } from './routes/session.callback'
 
-const IndexRoute = IndexRouteImport.update({
+const RequireAuthRoute = RequireAuthRouteImport.update({
+  id: '/_requireAuth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RequireAuthIndexRoute = RequireAuthIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
+const RequireAuthUriRoute = RequireAuthUriRouteImport.update({
+  id: '/$uri',
+  path: '/$uri',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
+const SessionCallbackRoute = SessionCallbackRouteImport.update({
+  id: '/session/callback',
+  path: '/session/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof RequireAuthIndexRoute
+  '/login': typeof LoginRoute
+  '/$uri': typeof RequireAuthUriRoute
+  '/session/callback': typeof SessionCallbackRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/$uri': typeof RequireAuthUriRoute
+  '/session/callback': typeof SessionCallbackRoute
+  '/': typeof RequireAuthIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_requireAuth': typeof RequireAuthRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_requireAuth/$uri': typeof RequireAuthUriRoute
+  '/session/callback': typeof SessionCallbackRoute
+  '/_requireAuth/': typeof RequireAuthIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/login' | '/$uri' | '/session/callback'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/login' | '/$uri' | '/session/callback' | '/'
+  id:
+    | '__root__'
+    | '/_requireAuth'
+    | '/login'
+    | '/_requireAuth/$uri'
+    | '/session/callback'
+    | '/_requireAuth/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  RequireAuthRoute: typeof RequireAuthRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  SessionCallbackRoute: typeof SessionCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_requireAuth': {
+      id: '/_requireAuth'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof RequireAuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_requireAuth/': {
+      id: '/_requireAuth/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof RequireAuthIndexRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/$uri': {
+      id: '/_requireAuth/$uri'
+      path: '/$uri'
+      fullPath: '/$uri'
+      preLoaderRoute: typeof RequireAuthUriRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/session/callback': {
+      id: '/session/callback'
+      path: '/session/callback'
+      fullPath: '/session/callback'
+      preLoaderRoute: typeof SessionCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
+interface RequireAuthRouteChildren {
+  RequireAuthUriRoute: typeof RequireAuthUriRoute
+  RequireAuthIndexRoute: typeof RequireAuthIndexRoute
+}
+
+const RequireAuthRouteChildren: RequireAuthRouteChildren = {
+  RequireAuthUriRoute: RequireAuthUriRoute,
+  RequireAuthIndexRoute: RequireAuthIndexRoute,
+}
+
+const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(
+  RequireAuthRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  RequireAuthRoute: RequireAuthRouteWithChildren,
+  LoginRoute: LoginRoute,
+  SessionCallbackRoute: SessionCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
