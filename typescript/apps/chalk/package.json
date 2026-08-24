@@ -28,6 +28,8 @@
     "yjs": "^13.6.31"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20260823.1",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/devtools-vite": "catalog:",
@@ -38,6 +40,7 @@
     "msw": "^2.11.5",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "wrangler": "^4.125.0"
   }
 }

@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "chalk",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "PING", "class_name": "PingRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PingRoom"] }],
+  "dev": { "port": 5177 }
+}
