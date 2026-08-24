@@ -1,71 +1,48 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  Outlet,
+  createRootRouteWithContext,
   HeadContent,
   Scripts,
-  createRootRouteWithContext,
 } from "@tanstack/react-router";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
+import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import "../index.css";
 
-import PostHogProvider from "../integrations/posthog/provider";
-
-import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
-
-import appCss from "../styles.css?url";
-
-import type { QueryClient } from "@tanstack/react-query";
-
-interface MyRouterContext {
+interface RouterContext {
   queryClient: QueryClient;
 }
 
-export const Route = createRootRouteWithContext<MyRouterContext>()({
+export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
     meta: [
-      {
-        charSet: "utf-8",
-      },
-      {
-        name: "viewport",
-        content: "width=device-width, initial-scale=1",
-      },
-      {
-        title: "TanStack Start Starter",
-      },
-    ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { charSet: "utf-8" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: "Chalk" },
     ],
   }),
-  shellComponent: RootDocument,
-});
-
-function RootDocument({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <PostHogProvider>
-          {children}
+  component() {
+    const { queryClient } = Route.useRouteContext();
+    return (
+      <html lang="en">
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          <QueryClientProvider client={queryClient}>
+            <Outlet />
+          </QueryClientProvider>
           <TanStackDevtools
-            config={{
-              position: "bottom-right",
-            }}
             plugins={[
               {
-                name: "Tanstack Router",
+                name: "TanStack Router",
                 render: <TanStackRouterDevtoolsPanel />,
               },
-              TanStackQueryDevtools,
             ]}
           />
-        </PostHogProvider>
-        <Scripts />
-      </body>
-    </html>
-  );
-}
+          <Scripts />
+        </body>
+      </html>
+    );
+  },
+});

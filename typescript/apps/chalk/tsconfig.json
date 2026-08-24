@@ -1,25 +1,17 @@
 {
-  "include": ["**/*.ts", "**/*.tsx"],
+  "extends": "../../../tsconfig.options.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "jsx": "react-jsx",
-    "module": "ESNext",
+    "noEmit": true,
     "paths": {
-      "#/*": ["./src/*"],
       "@/*": ["./src/*"]
     },
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true,
+    "types": ["vite/client", "node"],
     "outDir": "../../../.moon/cache/types/typescript/apps/chalk"
-  }
+  },
+  "include": ["src/**/*", "../../globals.d.ts"],
+  "references": [
+    {
+      "path": "../../internal"
+    }
+  ]
 }
