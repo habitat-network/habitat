@@ -258,6 +258,41 @@ func TestHandleNotifyWriteRejectsMissingOrInvalidAuth(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+func TestBasicAuthMiddlewareRejectsMissingOrWrongPassword(t *testing.T) {
+	t.Parallel()
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := basicAuthMiddleware("s3cret", next)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+
+	req = httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.SetBasicAuth("anyone", "wrong")
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestBasicAuthMiddlewareAllowsAnyUsernameWithCorrectPassword(t *testing.T) {
+	t.Parallel()
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := basicAuthMiddleware("s3cret", next)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.SetBasicAuth("whoever", "s3cret")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
 func TestHandleTrackSpaceRejectsUnparsableSpace(t *testing.T) {
 	t.Parallel()
 

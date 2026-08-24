@@ -135,10 +135,18 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
 	internalMux.HandleFunc("/proxy/", server.handleProxy)
 
+	var internalHandler http.Handler = internalMux
+	if internalAuthSecret := cmd.String(fInternalAuthSecret); internalAuthSecret != "" {
+		internalHandler = basicAuthMiddleware(internalAuthSecret, internalMux)
+	}
+
+	port := cmd.String(fPort)
+	internalPort := cmd.String(fInternalPort)
+
 	slog.InfoContext(
 		ctx, "listening",
-		"oauth_port", cmd.String(fPort),
-		"internal_port", cmd.String(fInternalPort),
+		"oauth_port", port,
+		"internal_port", internalPort,
 	)
 
 	eg, ctx := errgroup.WithContext(ctx)
@@ -147,12 +155,27 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		slog.ErrorContext(ctx, "stopped", "error", err)
 		return err
 	})
-	eg.Go(func() error {
-		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fPort)), oauthMux)
-	})
-	eg.Go(func() error {
-		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fInternalPort)), internalMux)
-	})
+
+	if port == internalPort {
+		// Same port configured for both: share a single listener, with the
+		// public OAuth routes taking precedence over the internal ones on
+		// any overlapping pattern.
+		combinedMux := http.NewServeMux()
+		combinedMux.Handle("/", internalHandler)
+		combinedMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
+		combinedMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+		combinedMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", server.handleNotifyWrite)
+		eg.Go(func() error {
+			return serve(ctx, fmt.Sprintf(":%s", port), combinedMux)
+		})
+	} else {
+		eg.Go(func() error {
+			return serve(ctx, fmt.Sprintf(":%s", port), oauthMux)
+		})
+		eg.Go(func() error {
+			return serve(ctx, fmt.Sprintf(":%s", internalPort), internalHandler)
+		})
+	}
 
 	err = eg.Wait()
 	return err
