@@ -1,6 +1,5 @@
 import { defineConfig } from "vite";
 import viteReact from "@vitejs/plugin-react";
-import viteTsConfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 
@@ -14,10 +13,8 @@ export default defineConfig({
     host: true,
     allowedHosts: [".ts.net", ".local.habitat.network"],
   },
-  plugins: [
-    tanstackRouter(),
-    viteTsConfigPaths({ projects: ["./tsconfig.json"] }),
-    tailwindcss(),
-    viteReact(),
-  ],
+  resolve: {
+    tsconfigPaths: true,
+  },
+  plugins: [tanstackRouter(), tailwindcss(), viteReact()],
 });
