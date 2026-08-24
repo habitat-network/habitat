@@ -4,20 +4,15 @@
 // needs to be tracked or sent.
 const habitatDIDHeader = "Habitat-Did";
 
-function sapInternalUrl(): string {
-  const url = process.env.CHALK_SAP_INTERNAL_URL;
-  if (!url) throw new Error("CHALK_SAP_INTERNAL_URL is not set");
-  return url;
-}
-
 // startLogin asks sap to begin an atproto OAuth flow for handle, telling it
 // to redirect the browser back to chalk's /session/callback (with the
 // resolved DID) once the PDS OAuth handshake completes. Returns the
 // PDS-authorize URL the browser should be sent to next.
-export async function startLogin(handle: string): Promise<string> {
-  const base = process.env.CHALK_BASE_URL;
+export async function startLogin(env: Env, handle: string): Promise<string> {
+  const base = env.CHALK_BASE_URL;
   if (!base) throw new Error("CHALK_BASE_URL is not set");
-  const res = await fetch(`${sapInternalUrl()}/session/add`, {
+  if (!env.CHALK_SAP_INTERNAL_URL) throw new Error("CHALK_SAP_INTERNAL_URL is not set");
+  const res = await fetch(`${env.CHALK_SAP_INTERNAL_URL}/session/add`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -38,14 +33,27 @@ export async function startLogin(handle: string): Promise<string> {
 // /proxy/<nsid>, which resumes the (single) OAuth session sap tracks for did
 // and attaches the access token.
 export class SapClient {
-  constructor(private did: string) {}
+  constructor(
+    private env: Env,
+    private did: string,
+  ) {}
+
+  // base is a getter, not a constructor-time value: `process.env` does not
+  // exist on workerd, and Cloudflare's canonical way to read bindings
+  // (including from module scope) is `env` from `cloudflare:workers`, read
+  // per-call here rather than cached.
+  private get base(): string {
+    const url = this.env.CHALK_SAP_INTERNAL_URL;
+    if (!url) throw new Error("CHALK_SAP_INTERNAL_URL is not set");
+    return url;
+  }
 
   async call<T>(
     nsid: string,
     method: "GET" | "POST",
     payload: Record<string, unknown>,
   ): Promise<T> {
-    const base = `${sapInternalUrl()}/proxy/${nsid}`;
+    const base = `${this.base}/proxy/${nsid}`;
     let url = base;
     let body: string | undefined;
     const headers: Record<string, string> = {
@@ -76,7 +84,7 @@ export class SapClient {
     mimeType: string,
   ): Promise<{ blob: unknown; cid: string }> {
     const res = await fetch(
-      `${sapInternalUrl()}/proxy/network.habitat.repo.uploadBlob`,
+      `${this.base}/proxy/network.habitat.repo.uploadBlob`,
       {
         method: "POST",
         headers: {
@@ -100,7 +108,7 @@ export class SapClient {
   async getBlob(space: string, cid: string): Promise<Uint8Array> {
     const qs = new URLSearchParams({ space, cid });
     const res = await fetch(
-      `${sapInternalUrl()}/proxy/network.habitat.space.getBlob?${qs.toString()}`,
+      `${this.base}/proxy/network.habitat.space.getBlob?${qs.toString()}`,
       {
         method: "GET",
         headers: {
@@ -120,7 +128,7 @@ export class SapClient {
   // a space: sap otherwise has no way to know it exists, so nothing this
   // member (or anyone else) writes into it ever reaches sap's outbox.
   async trackSpace(spaceUri: string): Promise<void> {
-    const res = await fetch(`${sapInternalUrl()}/space/track`, {
+    const res = await fetch(`${this.base}/space/track`, {
       method: "POST",
       headers: {
         [habitatDIDHeader]: this.did,

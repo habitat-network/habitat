@@ -826,7 +826,7 @@ Replaces `DebounceQueue`'s `setTimeout` timers, which do not survive DO eviction
 - Consumes: `DocRoom` from Tasks 3-4; `SapClient` from the existing code.
 - Produces: `DocRoom.alarm()`; a `pending_flush` table; `SapClient` constructed as `new SapClient(env, did)` rather than reading `process.env`.
 
-- [ ] **Step 1: Change `SapClient` to take `env`**
+- [x] **Step 1: Change `SapClient` to take `env`**
 
 Replace the module-level `sapInternalUrl()` with a constructor argument. `process.env` does not exist on workerd, so this is required, not cosmetic:
 
@@ -844,12 +844,16 @@ export class SapClient {
 
 `startLogin` becomes `startLogin(env, handle)` with the same body, reading `env.CHALK_BASE_URL`. Update its caller in `src/routes/login.tsx`.
 
-- [ ] **Step 2: Run the existing sapClient tests**
+- [x] **Step 2: Run the existing sapClient tests**
 
 Run: `pnpm --filter chalk test test/sapClient.test.ts`
 Expected: FAIL to compile until the tests pass an `env` stub. Update them to `new SapClient({ CHALK_SAP_INTERNAL_URL: "http://sap.test" } as Env, "did:web:alice.example")`. Then: PASS.
 
-- [ ] **Step 3: Write the failing flush test**
+**Executor's notes:**
+- `startLogin`'s `describe("startLogin", ...)` test mocks a POST to `/org/add`, but `startLogin` (both before and after this task's changes) posts to `/session/add` — a pre-existing mismatch, unrelated to the `env`-arg change, that made this test fail under `onUnhandledRequest: "error"` regardless of environment. Fixed the mocked path to `/session/add`.
+- `wrangler.jsonc` needed `CHALK_BASE_URL`/`CHALK_SAP_INTERNAL_URL` added under `vars` now (ahead of Task 9's full env migration) so `wrangler types` gives `SapClient`'s `env.CHALK_SAP_INTERNAL_URL` etc. a real `Env` type — Task 9 folds the rest of `moon.yml`'s dev env in alongside these.
+
+- [x] **Step 3: Write the failing flush test**
 
 ```ts
 // test/docRoomFlush.test.ts
@@ -927,12 +931,12 @@ it("flushes each member to their own repo separately", async () => {
 });
 ```
 
-- [ ] **Step 4: Run test to verify it fails**
+- [x] **Step 4: Run test to verify it fails**
 
 Run: `pnpm --filter chalk test test/docRoomFlush.test.ts`
 Expected: FAIL — no alarm is ever scheduled.
 
-- [ ] **Step 5: Add the pending-flush table**
+- [x] **Step 5: Add the pending-flush table**
 
 ```ts
 // append to src/server/rooms/docRoomSchema.ts
@@ -948,7 +952,7 @@ export const pendingFlush = sqliteTable("pending_flush", {
 
 Import `primaryKey` from `drizzle-orm/sqlite-core` and add the matching `CREATE TABLE IF NOT EXISTS pending_flush (kind TEXT NOT NULL, member_did TEXT NOT NULL, first_push_at INTEGER NOT NULL, idle_deadline INTEGER NOT NULL, PRIMARY KEY (kind, member_did))` to the constructor's `blockConcurrencyWhile`.
 
-- [ ] **Step 6: Implement the debounce**
+- [x] **Step 6: Implement the debounce**
 
 ```ts
   // Policy carried over verbatim from today's DebounceQueue: flush 2s after
@@ -1019,12 +1023,16 @@ Call `await this.schedule("member", memberDid)` at the end of `applyEdit`. Defin
 
 Note this drops today's separate queue of update *bytes*: because the room already holds the merged doc, uploading `this.ydoc` is both simpler and strictly more correct than replaying stored diffs.
 
-- [ ] **Step 7: Run test to verify it passes**
+- [x] **Step 7: Run test to verify it passes**
 
 Run: `pnpm --filter chalk test test/docRoomFlush.test.ts`
 Expected: PASS (4 tests).
 
-- [ ] **Step 8: Rewire `sendEdit`**
+**Executor's note:** two adjustments needed to make this test pass as given:
+1. `runDurableObjectAlarm` in this environment's `@cloudflare/vitest-pool-workers` runs the alarm handler unconditionally — it does not fast-forward `Date.now()` to the alarm's scheduled time. `alarm()`'s own due-check (comparing `idleDeadline`/`firstPushAt` against a freshly-read `Date.now()` — a genuine production guard, since one DO alarm can have several pending rows with different deadlines and only the due ones should flush) would otherwise skip a row scheduled moments ago. The two flush-triggering tests now `await new Promise((r) => setTimeout(r, 2100))` (past `IDLE_MS`) before calling `runDurableObjectAlarm`, matching what a live alarm firing at its scheduled time would see.
+2. `fetchMock.mockResolvedValue(new Response(...))` shares one `Response` instance across every call; `flushMember` makes two `fetch` calls (`uploadBlob` then `putRecord`), each reading its own body via `.json()`, and a `Response` body can only be read once. Changed to `fetchMock.mockImplementation(async () => new Response(...))` so each call gets a fresh instance. Because of (1)'s real wait, a previous test's own background alarm can also fire during it and add stray `fetchMock` calls for a different `space` URI — both flush tests now filter matched calls by their own `uri` rather than taking the first/only match.
+
+- [x] **Step 8: Rewire `sendEdit`**
 
 ```ts
 export const sendEdit = createServerFn({ method: "POST" })
@@ -1038,7 +1046,7 @@ export const sendEdit = createServerFn({ method: "POST" })
   });
 ```
 
-- [ ] **Step 9: Retire the Node-era sync modules (Ruling A)**
+- [x] **Step 9: Retire the Node-era sync modules (Ruling A)**
 
 Changing `SapClient`'s constructor in Step 1 breaks every remaining caller, and
 those callers are already dead: `subscribeDoc` stopped using `DocPubSub` in
@@ -1071,7 +1079,7 @@ which describe a Vite-in-one-Node-process problem that no longer exists. Keep
 `DocSync`'s `private queue: Promise<void>` has no replacement and needs none —
 a DO instance is single-threaded, so per-doc ordering is a platform guarantee.
 
-- [ ] **Step 10: Verify and commit**
+- [x] **Step 10: Verify and commit**
 
 Run: `pnpm --filter chalk test`
 Expected: PASS.

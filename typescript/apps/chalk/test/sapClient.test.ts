@@ -3,10 +3,13 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { SapClient, startLogin } from "../src/server/sapClient";
 
+const testEnv = {
+  CHALK_SAP_INTERNAL_URL: "http://sap-internal.test",
+  CHALK_BASE_URL: "https://chalk.test",
+} as Env;
+
 const server = setupServer();
 beforeEach(() => {
-  process.env.CHALK_SAP_INTERNAL_URL = "http://sap-internal.test";
-  process.env.CHALK_BASE_URL = "https://chalk.test";
   server.listen({ onUnhandledRequest: "error" });
 });
 afterEach(() => {
@@ -18,14 +21,14 @@ describe("startLogin", () => {
   it("posts handle and return_to, returns the redirect URL", async () => {
     let body: unknown;
     server.use(
-      http.post("http://sap-internal.test/org/add", async ({ request }) => {
+      http.post("http://sap-internal.test/session/add", async ({ request }) => {
         body = await request.json();
         return HttpResponse.json({
           redirect_url: "https://pds.example/authorize",
         });
       }),
     );
-    const url = await startLogin("alice.test");
+    const url = await startLogin(testEnv, "alice.test");
     expect(url).toBe("https://pds.example/authorize");
     expect(body).toEqual({
       handle: "alice.test",
@@ -46,7 +49,7 @@ describe("SapClient", () => {
         },
       ),
     );
-    const client = new SapClient("did:plc:member1");
+    const client = new SapClient(testEnv, "did:plc:member1");
     await client.call("network.habitat.space.listRecords", "GET", {});
     expect(headers?.get("Habitat-Did")).toBe("did:plc:member1");
   });
@@ -68,7 +71,7 @@ describe("SapClient", () => {
         },
       ),
     );
-    const client = new SapClient("did:plc:member1");
+    const client = new SapClient(testEnv, "did:plc:member1");
     const out = await client.uploadBlob(
       new Uint8Array([1, 2, 3]),
       "application/octet-stream",
@@ -86,7 +89,7 @@ describe("SapClient", () => {
         return new HttpResponse(null, { status: 200 });
       }),
     );
-    const client = new SapClient("did:plc:member1");
+    const client = new SapClient(testEnv, "did:plc:member1");
     await client.trackSpace(
       "at://did:plc:owner/space/network.habitat.docs/abc",
     );

@@ -1,9 +1,13 @@
 import { DurableObject } from "cloudflare:workers";
 import { drizzle, type DrizzleSqliteDODatabase } from "drizzle-orm/durable-sqlite";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as Y from "yjs";
-import { docState } from "./docRoomSchema";
+import { docState, pendingFlush } from "./docRoomSchema";
 import { frame } from "./frames";
+import { SapClient } from "../sapClient";
+
+const CRDT_COLLECTION = "network.habitat.docs.crdt";
+const SELF = "self";
 
 export interface DocIdentity {
   spaceUri: string;
@@ -26,6 +30,10 @@ export class DocRoom extends DurableObject<Env> {
       this.db.run(`CREATE TABLE IF NOT EXISTS doc_state (
         id INTEGER PRIMARY KEY, space_uri TEXT NOT NULL,
         owner_did TEXT, state BLOB, updated_at INTEGER NOT NULL)`);
+      this.db.run(`CREATE TABLE IF NOT EXISTS pending_flush (
+        kind TEXT NOT NULL, member_did TEXT NOT NULL,
+        first_push_at INTEGER NOT NULL, idle_deadline INTEGER NOT NULL,
+        PRIMARY KEY (kind, member_did))`);
       const [row] = await this.db.select().from(docState).where(eq(docState.id, 0)).limit(1);
       if (!row) return;
       this.id = { spaceUri: row.spaceUri, ownerDid: row.ownerDid ?? undefined };
@@ -42,9 +50,10 @@ export class DocRoom extends DurableObject<Env> {
     return Y.encodeStateAsUpdateV2(this.ydoc);
   }
 
-  async applyEdit(id: DocIdentity, _memberDid: string, update: Uint8Array): Promise<void> {
+  async applyEdit(id: DocIdentity, memberDid: string, update: Uint8Array): Promise<void> {
     await this.rememberIdentity(id);
     await this.mergeUpdate(update);
+    await this.schedule("member", memberDid);
   }
 
   async applyRemote(id: DocIdentity, _cid: string): Promise<void> {
@@ -117,6 +126,77 @@ export class DocRoom extends DurableObject<Env> {
         this.subscribers.delete(controller);
       }
     }
+  }
+
+  // Policy carried over verbatim from today's DebounceQueue: flush 2s after
+  // the last push, but never let more than 10s of edits go unwritten.
+  private static readonly IDLE_MS = 2000;
+  private static readonly MAX_WAIT_MS = 10000;
+
+  private async schedule(kind: "member" | "owner", memberDid: string): Promise<void> {
+    const now = Date.now();
+    const [existing] = await this.db
+      .select()
+      .from(pendingFlush)
+      .where(and(eq(pendingFlush.kind, kind), eq(pendingFlush.memberDid, memberDid)))
+      .limit(1);
+    await this.db
+      .insert(pendingFlush)
+      .values({
+        kind,
+        memberDid,
+        firstPushAt: existing?.firstPushAt ?? now,
+        idleDeadline: now + DocRoom.IDLE_MS,
+      })
+      .onConflictDoUpdate({
+        target: [pendingFlush.kind, pendingFlush.memberDid],
+        set: { idleDeadline: now + DocRoom.IDLE_MS },
+      });
+    await this.rearm();
+  }
+
+  // A DO has exactly one alarm, so it is always set to the earliest deadline
+  // across every pending row: min(idleDeadline, firstPushAt + MAX_WAIT_MS).
+  private async rearm(): Promise<void> {
+    const rows = await this.db.select().from(pendingFlush);
+    if (rows.length === 0) return;
+    const next = Math.min(
+      ...rows.map((r) => Math.min(r.idleDeadline, r.firstPushAt + DocRoom.MAX_WAIT_MS)),
+    );
+    await this.ctx.storage.setAlarm(next);
+  }
+
+  async alarm(): Promise<void> {
+    const now = Date.now();
+    const rows = await this.db.select().from(pendingFlush);
+    for (const row of rows) {
+      const due = Math.min(row.idleDeadline, row.firstPushAt + DocRoom.MAX_WAIT_MS);
+      if (due > now) continue;
+      await this.db
+        .delete(pendingFlush)
+        .where(and(eq(pendingFlush.kind, row.kind), eq(pendingFlush.memberDid, row.memberDid)));
+      if (row.kind === "member") await this.flushMember(row.memberDid);
+      // "owner" is handled in Task 6.
+    }
+    await this.rearm();
+  }
+
+  // flushMember writes the merged state to this member's own repo. It uploads
+  // `this.ydoc` — the full merged snapshot, not the queued diffs — because
+  // each queued update is an incremental diff, meaningful only relative to the
+  // state it was generated against; uploading diffs alone would publish a blob
+  // missing everything that predates this batch.
+  private async flushMember(memberDid: string): Promise<void> {
+    if (!this.id) return;
+    const client = new SapClient(this.env, memberDid);
+    const blob = await client.uploadBlob(Y.encodeStateAsUpdateV2(this.ydoc), "application/octet-stream");
+    await client.call("network.habitat.space.putRecord", "POST", {
+      space: this.id.spaceUri,
+      repo: memberDid,
+      collection: CRDT_COLLECTION,
+      rkey: SELF,
+      record: { blob: blob.blob },
+    });
   }
 
   private async persist(): Promise<void> {

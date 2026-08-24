@@ -14,5 +14,12 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "chalk", "database_id": "local", "migrations_dir": "drizzle" }
   ],
+  // CHALK_SESSION_SECRET is a wrangler secret (.dev.vars locally), not a var
+  // — see Task 9. CHALK_DOMAIN/CHALK_SAP_PUBLIC_URL join these once Task 9
+  // moves the rest of moon.yml's dev env in.
+  "vars": {
+    "CHALK_BASE_URL": "https://chalk.local.habitat.network",
+    "CHALK_SAP_INTERNAL_URL": "http://127.0.0.1:2581"
+  },
   "dev": { "port": 5177 }
 }

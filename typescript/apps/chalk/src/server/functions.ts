@@ -2,14 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import { docsForOwner, getDb, upsertDoc, type DocSummary } from "../db";
 import { readFrames } from "./rooms/frames";
-import {
-  DOCS_SPACE_TYPE,
-  docSync,
-  memberEditKey,
-  memberEditQueue,
-  clearSession,
-  requireSession,
-} from "./functions.server";
+import { DOCS_SPACE_TYPE, clearSession, requireSession } from "./functions.server";
 import { SapClient } from "./sapClient";
 
 // Every export below is a createServerFn wrapper — safe to statically
@@ -43,7 +36,7 @@ export const ping = createServerFn({ method: "GET" }).handler(async () => {
 export const createDoc = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ docId: string; uri: string }> => {
     const { did } = await requireSession();
-    const client = new SapClient(did);
+    const client = new SapClient(env, did);
 
     const created = await client.call<{ uri: string }>(
       "network.habitat.simplespace.createSpace",
@@ -95,21 +88,21 @@ export const sendEdit = createServerFn({ method: "POST" })
   .validator((input: { docId: string; update: Uint8Array }) => input)
   .handler(async ({ data }) => {
     const { did } = await requireSession();
-    // Merge into this instance's in-memory doc (and publish to subscribers)
-    // right away, rather than waiting on the queued repo write below to
-    // round-trip through pear -> sap's outbox back to handleOutboxMessage —
-    // see applyEdit's comment for why that round trip is safe to leave in
-    // place as a redundant, idempotent confirmation rather than removing it.
-    docSync.applyEdit(data.docId, data.update);
-    memberEditQueue.push(memberEditKey(data.docId, did), [data.update]);
+    // One RPC, not two: the immediate fanout and the debounced repo
+    // writeback both live in the same object now.
+    await env.DOC.get(env.DOC.idFromName(data.docId)).applyEdit(
+      { spaceUri: data.docId },
+      did,
+      data.update,
+    );
   });
 
 // subscribeDoc streams a doc's merged state: its current snapshot first (if
-// one exists yet), then every subsequent merge DocSync publishes. docId is
+// one exists yet), then every subsequent merge DocRoom broadcasts. docId is
 // itself the doc's full space URI, so this works whether the caller is the
 // doc's owner or (once sharing exists) another editor, and even for a doc
-// this chalk instance's DocStore has never seen — unlike deriving the space
-// URI from a DocStore lookup or from the caller's own DID.
+// this deployment's D1 index has never seen — unlike deriving the space URI
+// from that index or from the caller's own DID.
 //
 // Yields the raw Yjs update bytes directly rather than base64 — seroval (the
 // serializer behind TanStack Start's server-fn RPC, including this streamed
