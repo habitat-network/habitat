@@ -79,6 +79,21 @@ start (`pnpm db:migrate-local`, idempotent) before handing off to Vite.
 Deleting `.wrangler/` resets that database; the next `dev` re-applies the
 migrations, but any documents it held are gone.
 
+Each `DocRoom` Durable Object carries its own separate SQLite, migrated at
+construction by `drizzle-orm/durable-sqlite/migrator` from
+`src/server/rooms/migrations/`. If you have local Durable Object state that
+predates those generated migrations, its rooms fail with `DrizzleError:
+Rollback` (the first migration tries to create tables that already exist);
+clear it with `rm -rf .wrangler/state/v3/do`.
+
+Regenerate migrations after changing either schema:
+
+```bash
+pnpm db:generate            # both
+pnpm db:generate-d1         # src/db/schema.ts        -> drizzle/
+pnpm db:generate-docroom    # rooms/docRoomSchema.ts  -> rooms/migrations/
+```
+
 One thing does need doing by hand the first time:
 
 ```bash

@@ -4,6 +4,9 @@
   "type": "module",
   "scripts": {
     "cf-typegen": "wrangler types",
+    "db:generate": "pnpm db:generate-d1 && pnpm db:generate-docroom",
+    "db:generate-d1": "drizzle-kit generate --config=drizzle.config.ts",
+    "db:generate-docroom": "drizzle-kit generate --config=drizzle.docroom.config.ts",
     "db:migrate-local": "CI=1 wrangler d1 migrations apply chalk --local",
     "dev": "wrangler types && pnpm db:migrate-local && vite dev",
     "build": "wrangler types && vite build",
@@ -41,6 +44,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "drizzle-kit": "^0.31.10",
     "msw": "^2.11.5",
     "typescript": "catalog:",
     "vite": "catalog:",

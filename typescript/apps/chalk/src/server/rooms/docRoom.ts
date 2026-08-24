@@ -3,9 +3,11 @@ import {
   drizzle,
   type DrizzleSqliteDODatabase,
 } from "drizzle-orm/durable-sqlite";
+import { migrate } from "drizzle-orm/durable-sqlite/migrator";
 import { and, eq } from "drizzle-orm";
 import * as Y from "yjs";
 import { docState, pendingFlush } from "./docRoomSchema";
+import migrations from "./migrations/migrations";
 import { frame } from "./frames";
 import { SapClient } from "../sapClient";
 import { renderDoc } from "../../render";
@@ -33,13 +35,12 @@ export class DocRoom extends DurableObject<Env> {
     super(ctx, env);
     this.db = drizzle(ctx.storage);
     ctx.blockConcurrencyWhile(async () => {
-      this.db.run(`CREATE TABLE IF NOT EXISTS doc_state (
-        id INTEGER PRIMARY KEY, space_uri TEXT NOT NULL,
-        owner_did TEXT, state BLOB, updated_at INTEGER NOT NULL)`);
-      this.db.run(`CREATE TABLE IF NOT EXISTS pending_flush (
-        kind TEXT NOT NULL, member_did TEXT NOT NULL,
-        first_push_at INTEGER NOT NULL, idle_deadline INTEGER NOT NULL,
-        PRIMARY KEY (kind, member_did))`);
+      // Schema comes from drizzle-kit (drizzle.docroom.config.ts →
+      // ./migrations), not hand-written DDL: this SQLite is a real database
+      // with its own migration history, and `migrate()` tracks what it has
+      // applied in a __drizzle_migrations table. Regenerate with
+      // `pnpm db:generate-docroom` after editing docRoomSchema.ts.
+      await migrate(this.db, migrations);
       const [row] = await this.db
         .select()
         .from(docState)
