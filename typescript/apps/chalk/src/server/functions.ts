@@ -1,16 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
-import * as Y from "yjs";
 import { docsForOwner, getDb, upsertDoc, type DocSummary } from "../db";
+import { readFrames } from "./rooms/frames";
 import {
   DOCS_SPACE_TYPE,
   docSync,
   memberEditKey,
   memberEditQueue,
-  pubsub,
   clearSession,
   requireSession,
-  store,
 } from "./functions.server";
 import { SapClient } from "./sapClient";
 
@@ -122,12 +120,9 @@ export const subscribeDoc = createServerFn({ method: "GET" })
   .handler(async function* ({ data }): AsyncGenerator<{ state: Uint8Array }> {
     await requireSession();
 
-    const spaceUri = data.docId;
-    const current = store.mergedState(spaceUri);
-    if (current) {
-      yield { state: Y.encodeStateAsUpdateV2(current) };
-    }
-    for await (const ydoc of pubsub.subscribe(spaceUri)) {
-      yield { state: Y.encodeStateAsUpdateV2(ydoc) };
+    const stub = env.DOC.get(env.DOC.idFromName(data.docId));
+    const res = await stub.fetch("https://do/subscribe");
+    for await (const state of readFrames(res.body!)) {
+      yield { state };
     }
   });

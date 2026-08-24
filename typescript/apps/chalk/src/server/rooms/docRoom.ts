@@ -3,6 +3,7 @@ import { drizzle, type DrizzleSqliteDODatabase } from "drizzle-orm/durable-sqlit
 import { eq } from "drizzle-orm";
 import * as Y from "yjs";
 import { docState } from "./docRoomSchema";
+import { frame } from "./frames";
 
 export interface DocIdentity {
   spaceUri: string;
@@ -72,6 +73,50 @@ export class DocRoom extends DurableObject<Env> {
   protected async mergeUpdate(update: Uint8Array): Promise<void> {
     Y.applyUpdateV2(this.ydoc, update);
     await this.persist();
+    this.broadcast();
+  }
+
+  private subscribers = new Set<ReadableStreamDefaultController<Uint8Array>>();
+
+  async subscriberCount(): Promise<number> {
+    return this.subscribers.size;
+  }
+
+  async fetch(req: Request): Promise<Response> {
+    if (new URL(req.url).pathname !== "/subscribe") {
+      return new Response("not found", { status: 404 });
+    }
+    const subscribers = this.subscribers;
+    const snapshot = frame(Y.encodeStateAsUpdateV2(this.ydoc));
+    let self: ReadableStreamDefaultController<Uint8Array>;
+    const readable = new ReadableStream<Uint8Array>({
+      start(controller) {
+        self = controller;
+        subscribers.add(controller);
+        // Emitting the snapshot here, after registration, closes a race
+        // today's code has: `store.mergedState` and `pubsub.subscribe` were
+        // two separate steps, so a merge landing between them was lost.
+        controller.enqueue(snapshot);
+      },
+      cancel() {
+        // The subscriber's own stream cancellation is the only signal that
+        // it's gone — a broadcast().enqueue() on a cancelled controller
+        // would otherwise throw and take mergeUpdate down with it.
+        subscribers.delete(self);
+      },
+    });
+    return new Response(readable);
+  }
+
+  private broadcast(): void {
+    const bytes = frame(Y.encodeStateAsUpdateV2(this.ydoc));
+    for (const controller of this.subscribers) {
+      try {
+        controller.enqueue(bytes);
+      } catch {
+        this.subscribers.delete(controller);
+      }
+    }
   }
 
   private async persist(): Promise<void> {
