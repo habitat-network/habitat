@@ -4,3 +4,4 @@ dist
 .nitro
 .tanstack
 .chalk
+.wrangler

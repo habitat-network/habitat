@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { env } from "cloudflare:workers";
 import * as Y from "yjs";
 import type { DocSummary } from "./docStore";
 import {
@@ -30,6 +31,15 @@ export const getCaller = createServerFn({ method: "GET" }).handler(async () =>
 // the client can't drop it itself — it has to go through the server.
 export const signOut = createServerFn({ method: "POST" }).handler(async () => {
   await clearSession();
+});
+
+// Task 1 spike: proves a server function can reach a Durable Object binding
+// via `env` from `cloudflare:workers` — Cloudflare's canonical way to read
+// bindings, including from module scope where `process.env` does not exist
+// on workerd. Task 9 removes this once the real rooms exist.
+export const ping = createServerFn({ method: "GET" }).handler(async () => {
+  const stub = env.PING.get(env.PING.idFromName("a"));
+  return stub.bump();
 });
 
 export const createDoc = createServerFn({ method: "POST" }).handler(

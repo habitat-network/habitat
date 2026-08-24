@@ -28,6 +28,7 @@
     "yjs": "^13.6.31"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.53.1",
     "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@cloudflare/workers-types": "^5.20260823.1",
     "@tailwindcss/typography": "^0.5.20",
