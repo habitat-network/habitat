@@ -5,6 +5,7 @@
 package testutil
 
 import (
+	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/base64"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/pearsetup"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // Domain is the domain every harness instance is served from. Tests that build
@@ -30,33 +32,31 @@ const Domain = "pear.test"
 type TestPear struct {
 	*pearsetup.Pear
 
-	T *testing.T
+	T               *testing.T
+	OAuthSigningKey *ecdsa.PrivateKey
 }
-
-// Option mutates the config before the instance is built.
-type Option func(*pearsetup.Config)
 
 // WithDirectory replaces the identity directory used for DIDs hive does not
 // host. The default resolves nothing, which keeps tests offline; supply a
 // populated identity.MockDirectory when a test needs an external DID.
-func WithDirectory(dir identity.Directory) Option {
+func WithDirectory(dir identity.Directory) utils.Opt[pearsetup.Config] {
 	return func(c *pearsetup.Config) { c.Directory = dir }
 }
 
 // WithFGA replaces the relationship store.
-func WithFGA(store fgastore.Store) Option {
+func WithFGA(store fgastore.Store) utils.Opt[pearsetup.Config] {
 	return func(c *pearsetup.Config) { c.FGA = store }
 }
 
 // WithConfig is the escape hatch for settings without a dedicated option.
-func WithConfig(fn func(*pearsetup.Config)) Option {
+func WithConfig(fn func(*pearsetup.Config)) utils.Opt[pearsetup.Config] {
 	return fn
 }
 
 // New builds a Pear backed by a temporary SQLite database, an in-memory
 // relationship store, and in-memory blob storage, with the libp2p host and the
 // UI handler switched off. Everything is torn down when the test ends.
-func New(t *testing.T, opts ...Option) *TestPear {
+func New(t *testing.T, opts ...utils.Opt[pearsetup.Config]) *TestPear {
 	t.Helper()
 
 	hostKey, err := atcrypto.GeneratePrivateKeyK256()
@@ -69,10 +69,15 @@ func New(t *testing.T, opts ...Option) *TestPear {
 	passwordHash, err := argon2id.CreateHash("admin", argon2id.DefaultParams)
 	require.NoError(t, err)
 
+	oauthServerKey := randomKey(t)
+
+	oauthServerSigningKey, err := ecdsa.ParseRawPrivateKey(oauthServerKey)
+	require.NoError(t, err)
+
 	cfg := pearsetup.Config{
 		Domain:            Domain,
 		DB:                "sqlite://" + filepath.Join(t.TempDir(), "test.db"),
-		OAuthServerSecret: randomKey(t),
+		OAuthServerSecret: oauthServerKey,
 		PDSCredEncryptKey: randomKey(t),
 		OAuthClientSecret: randomEncryptionKey(t),
 		SpaceSigningKey:   hostKey,
@@ -91,7 +96,7 @@ func New(t *testing.T, opts ...Option) *TestPear {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = p.Close() })
 
-	return &TestPear{Pear: p, T: t}
+	return &TestPear{Pear: p, T: t, OAuthSigningKey: oauthServerSigningKey}
 }
 
 // randomKey returns 32 random bytes. The OAuth server parses its secret as a

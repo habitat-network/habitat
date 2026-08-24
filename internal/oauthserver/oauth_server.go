@@ -59,11 +59,6 @@ type OAuthServer struct {
 	directory   identity.Directory // AT Protocol identity directory for handle resolution
 	storage     *store
 
-	// strategy mints and validates access tokens. Retained so MintAccessToken can
-	// issue tokens through the same path the token endpoint uses, rather than
-	// re-deriving the signing key and duplicating the claim shape.
-	strategy *oauth2.DefaultJWTStrategy
-
 	// Org store for membership lookups
 	orgStore org.Store
 
@@ -164,50 +159,7 @@ func NewOAuthServer(
 		storage:      storage,
 		orgStore:     orgStore,
 		issuer:       issuer,
-		strategy:     strategy,
 	}, nil
-}
-
-// mintedTokenClientID is the client_id recorded in tokens from
-// MintAccessToken. Stateless introspection never resolves the client, so this
-// only has to be identifiable in logs.
-const mintedTokenClientID = "habitat-minted"
-
-// MintAccessToken issues an access token for did without running the
-// authorization code flow. It is the seam test harnesses use to authenticate as
-// an arbitrary DID: because access tokens are stateless JWTs, a token minted
-// here is indistinguishable from one issued at the token endpoint, so callers
-// exercise the real validation path rather than a stub.
-//
-// scopes become the token's granted scopes; nil grants none. ttl sets expiry and
-// may be negative to mint an already-expired token.
-func (o *OAuthServer) MintAccessToken(
-	ctx context.Context,
-	did syntax.DID,
-	scopes []string,
-	ttl time.Duration,
-) (string, error) {
-	req := fosite.NewAccessRequest(&session{
-		Subject:              did.String(),
-		ClientID:             mintedTokenClientID,
-		Scopes:               scopes,
-		AccessTokenExpiresAt: time.Now().Add(ttl),
-	})
-	req.Client = &fosite.DefaultClient{ID: mintedTokenClientID}
-	req.GrantedScope = scopes
-
-	token, _, err := o.strategy.GenerateAccessToken(ctx, req)
-	if err != nil {
-		return "", fmt.Errorf("generate access token for %s: %w", did, err)
-	}
-	return token, nil
-}
-
-func fositeErrReason(err error) string {
-	if rfcErr, ok := errors.AsType[*fosite.RFC6749Error](err); ok {
-		return rfcErr.ErrorField // "invalid_grant", "invalid_client", etc.
-	}
-	return "unknown"
 }
 
 // HandleAuthorize processes OAuth 2.0 authorization requests from the client.
@@ -734,4 +686,11 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	httpx.WriteJSON(ctx, w, output)
+}
+
+func fositeErrReason(err error) string {
+	if rfcErr, ok := errors.AsType[*fosite.RFC6749Error](err); ok {
+		return rfcErr.ErrorField // "invalid_grant", "invalid_client", etc.
+	}
+	return "unknown"
 }

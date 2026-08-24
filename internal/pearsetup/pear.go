@@ -52,22 +52,23 @@ import (
 type Pear struct {
 	Config Config
 
-	DB            *gorm.DB
-	FGA           fgastore.Store
-	Hive          hive.Hive
-	Directory     identity.Directory
-	OrgStore      org.Store
-	CliqueStore   clique.Store
-	SpacesStore   spaces.Store
-	PermStore     perms.Store
-	NotifyStore   notify.Store
-	Repo          repo.Repo
-	Permissions   permissions.Store
-	InstanceStore instance.AdminStore
-	PDSCredStore  pdscred.PDSCredentialStore
-	OAuthServer   *oauthserver.OAuthServer
-	Validator     authn.RequestValidator
-	HostKey       atcrypto.PrivateKey
+	DB               *gorm.DB
+	FGA              fgastore.Store
+	Hive             hive.Hive
+	Directory        identity.Directory
+	OrgStore         org.Store
+	CliqueStore      clique.Store
+	SpacesStore      spaces.Store
+	PermStore        perms.Store
+	NotifyStore      notify.Store
+	Repo             repo.Repo
+	Permissions      permissions.Store
+	InstanceStore    instance.AdminStore
+	PDSCredStore     pdscred.PDSCredentialStore
+	OAuthServer      *oauthserver.OAuthServer
+	Validator        authn.RequestValidator
+	HostKey          atcrypto.PrivateKey
+	SimpleSpaceStore *simplespace.Store
 
 	Router *mux.Router
 
@@ -136,7 +137,10 @@ func New(ctx context.Context, cfg Config) (*Pear, error) {
 	p.InstanceStore = instanceStore
 	p.instanceServer = instance.NewServer(instanceStore, "habitat.network")
 
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(gormDB.WithContext(ctx), cfg.PDSCredEncryptKey)
+	pdsCredStore, err := pdscred.NewPDSCredentialStore(
+		gormDB.WithContext(ctx),
+		cfg.PDSCredEncryptKey,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("setup pds cred store: %w", err)
 	}
@@ -176,7 +180,12 @@ func New(ctx context.Context, cfg Config) (*Pear, error) {
 	}
 	p.pdsClientFactory = pdsClientFactory
 
-	passwordProvider, err := login.NewPasswordProvider(gormDB, cfg.Domain, cfg.OAuthServerSecret, hiveDir)
+	passwordProvider, err := login.NewPasswordProvider(
+		gormDB,
+		cfg.Domain,
+		cfg.OAuthServerSecret,
+		hiveDir,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("setup password login provider: %w", err)
 	}
@@ -292,6 +301,7 @@ func New(ctx context.Context, cfg Config) (*Pear, error) {
 	// TODO: use this to validate the space credential in the spaces server
 	p.spacesServer = spaces_server.NewServer(spacesStore, validator, p.HostKey, h, blobStore)
 	p.notifyServer = notify.NewServer(notifyStore, validator)
+	p.SimpleSpaceStore = simplespace.NewStore(gormDB, spacesStore, permStore)
 	p.simplespaceServer = simplespace.NewServer(
 		simplespace.NewStore(gormDB, spacesStore, permStore),
 		validator,
@@ -329,7 +339,12 @@ func New(ctx context.Context, cfg Config) (*Pear, error) {
 		p.p2pServer = p2pServer
 	}
 
-	pdsForwarding := forwarding.NewPDSForwarding(pdsCredStore, validator, pdsClientFactory, defaultDir)
+	pdsForwarding := forwarding.NewPDSForwarding(
+		pdsCredStore,
+		validator,
+		pdsClientFactory,
+		defaultDir,
+	)
 	p.pdsForwarding = pdsForwarding
 
 	idServer, err := habitat_identity.NewServer(h, validator, orgStore, pdsForwarding, cfg.Domain)

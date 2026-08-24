@@ -2,6 +2,8 @@ package oauthserver
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1025,7 +1027,12 @@ func TestMintAccessTokenValidates(t *testing.T) {
 func TestMintAccessTokenIsRecognizedAsOAuth(t *testing.T) {
 	srv := newTestServer(t)
 
-	token, err := srv.MintAccessToken(t.Context(), syntax.DID("did:web:alice.pear.test"), nil, time.Hour)
+	token, err := srv.MintAccessToken(
+		t.Context(),
+		syntax.DID("did:web:alice.pear.test"),
+		nil,
+		time.Hour,
+	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/xrpc/whatever", http.NoBody)
@@ -1036,7 +1043,12 @@ func TestMintAccessTokenIsRecognizedAsOAuth(t *testing.T) {
 func TestMintAccessTokenExpires(t *testing.T) {
 	srv := newTestServer(t)
 
-	token, err := srv.MintAccessToken(t.Context(), syntax.DID("did:web:alice.pear.test"), nil, -time.Minute)
+	token, err := srv.MintAccessToken(
+		t.Context(),
+		syntax.DID("did:web:alice.pear.test"),
+		nil,
+		-time.Minute,
+	)
 	require.NoError(t, err)
 
 	_, ok, err := srv.ValidateRaw(t.Context(), token)
@@ -1394,4 +1406,39 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 
 	require.True(t, disambiguateVisited, "disambiguation page should have been visited")
 	require.NotEmpty(t, capturedToken, "OAuth flow should complete after disambiguation")
+}
+
+func TestGenerateJWT(t *testing.T) {
+	db := dbtestutil.NewDB(t)
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	pds := login_testutil.NewPassthroughProvider(t)
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	oauthServer, err := NewOAuthServer(
+		bytes,
+		&org.LoginRouter{
+			Pds: pds,
+		},
+		dummyDir,
+		db,
+		noop.Meter{},
+		testStore(t),
+		"https://habitat.example",
+		NewJWTBearerStore(),
+	)
+
+	privKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), bytes)
+
+	testToken, err := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.RegisteredClaims{
+		Subject: "did:web:sashank.gogula",
+	}).SignedString(privKey)
+	require.NoError(t, err)
+
+	credInfo, ok, err := oauthServer.ValidateRaw(t.Context(), testToken)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "did:web:sashank.gogula", credInfo.Subject.String())
 }

@@ -70,57 +70,99 @@ func decodeBody(t *testing.T, resp *http.Response, out any) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(out))
 }
 
-func TestServer_UploadAndGetBlob(t *testing.T) {
-	p, ownerActor := newTestPear(t)
-	uri := newSpace(t, p, ownerActor, groupType, "blobs")
-
-	upReq := httptest.NewRequest(
-		http.MethodPost, "/xrpc/network.habitat.repo.uploadBlob", strings.NewReader("hello blobs"))
-	upReq.Header.Set("Content-Type", "text/plain")
-	upResp := p.Do(ownerActor, upReq)
-	require.Equal(t, http.StatusOK, upResp.StatusCode)
-
-	var out habitat.NetworkHabitatRepoUploadBlobOutput
-	decodeBody(t, upResp, &out)
-	require.NotEmpty(t, out.Cid)
-
-	getResp := p.Do(ownerActor, httptest.NewRequest(http.MethodGet,
-		"/xrpc/network.habitat.space.getBlob?space="+url.QueryEscape(uri.String())+"&cid="+out.Cid,
-		http.NoBody))
-
-	require.Equal(t, http.StatusOK, getResp.StatusCode)
-	require.Equal(t, "text/plain", getResp.Header.Get("Content-Type"))
-	body, err := io.ReadAll(getResp.Body)
+func TestServer(t *testing.T) {
+	ctx := t.Context()
+	p := testutil.New(t)
+	org := p.NewOrg("test-org")
+	alice := p.NewMember(org, "alice")
+	bob := p.NewMember(org, "bob")
+	space1, err := p.SimpleSpaceStore.CreateSpace(
+		ctx,
+		org.DID,
+		alice.DID,
+		"test.space.type",
+		"",
+	)
 	require.NoError(t, err)
-	require.Equal(t, "hello blobs", string(body))
-}
+	space2, err := p.SimpleSpaceStore.CreateSpace(
+		ctx,
+		org.DID,
+		bob.DID,
+		"test.space.type",
+		"",
+	)
+	require.NoError(t, err)
+	space3, err := p.SimpleSpaceStore.CreateSpace(
+		ctx,
+		org.DID,
+		bob.DID,
+		"another.space.type",
+		"",
+	)
+	p.XRPCProcedure("network.habitat.spaces.putRecord"
+		habitat.NetworkHabitatSpacePutRecordInput{
+		Collection: ,
+	}
 
-func TestServer_UploadBlob_RejectsOversized(t *testing.T) {
-	p, ownerActor := newTestPear(t)
-
-	// 500 KiB upload limit + 1 byte must be rejected.
-	oversized := make([]byte, 500*1024+1)
-	upReq := httptest.NewRequest(
-		http.MethodPost, "/xrpc/network.habitat.repo.uploadBlob", bytes.NewReader(oversized))
-	upReq.Header.Set("Content-Type", "application/octet-stream")
-	resp := p.Do(ownerActor, upReq)
-
-	require.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode)
-}
-
-func TestServer_ListSpaces(t *testing.T) {
-	p, ownerActor := newTestPear(t)
-	uri := newSpace(t, p, ownerActor, groupType, "my-space")
-
-	coll := syntax.NSID("network.habitat.note")
-	_, _, err := p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+		)
 	require.NoError(t, err)
 
-	var out habitat.NetworkHabitatSpaceListSpacesOutput
-	resp := p.Query(ownerActor, "network.habitat.space.listSpaces", url.Values{}, &out)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Len(t, out.Spaces, 1)
-	require.Equal(t, uri.String(), out.Spaces[0].Uri)
+	t.Run("uploadBlob and getBlob", func(t *testing.T) {
+		var uploadBlobResp habitat.NetworkHabitatRepoUploadBlobOutput
+		p.XRPC(
+			httptest.NewRequest(
+				http.MethodPost,
+				"/xrpc/network.habitat.repo.uploadBlob",
+				strings.NewReader("hello blobs"),
+			),
+			&uploadBlobResp,
+			testutil.WithHeader("Content-Type", "text/plain"),
+			testutil.WithOAuth(alice.DID),
+		)
+		getBlobReq, err := json.Marshal(habitat.NetworkHabitatSpaceGetBlobParams{
+			Space: space1.String(),
+			Cid:   uploadBlobResp.Cid,
+		})
+		require.NoError(t, err)
+		getBlobResp := p.Do(
+			httptest.NewRequest(
+				http.MethodGet,
+				"/xrpc/network.habitat.space.getBlob",
+				bytes.NewReader(getBlobReq),
+			),
+			testutil.WithOAuth(alice.DID),
+		)
+		require.Equal(t, []byte("hello blobs"), getBlobResp.Body.Bytes())
+	})
+	t.Run("uploadBlob rejects oversized", func(t *testing.T) {
+		oversized := make([]byte, 500*1024+1)
+		var uploadBlobResp atclient.ErrorBody
+		p.XRPC(
+			httptest.NewRequest(
+				http.MethodPost,
+				"/xrpc/network.habitat.repo.uploadBlob",
+				bytes.NewReader(oversized),
+			),
+			&uploadBlobResp,
+			testutil.WithHeader("Content-Type", "text/plain"),
+			testutil.WithOAuth("did:web:test.com"),
+		)
+		require.Equal(t, "BlobTooLarge", uploadBlobResp.Name)
+	})
+
+	t.Run("listSpaces", func(t *testing.T) {
+		t.Run("no filter", func(t *testing.T) {
+			var listSpacsResp habitat.NetworkHabitatSpaceListSpacesOutput
+			p.XRPCQuery(
+				"network.habitat.space.listSpaces",
+				url.Values{},
+				&listSpacsResp,
+				testutil.WithOAuth(alice.DID),
+			)
+			require.Len(t, listSpacsResp.Spaces, 1)
+			require.Equal(t, space1.String(), listSpacsResp.Spaces[0])
+		})
+	})
 }
 
 func TestServer_ListRepos(t *testing.T) {
@@ -128,11 +170,23 @@ func TestServer_ListRepos(t *testing.T) {
 	uri := newSpace(t, p, ownerActor, groupType, "shared")
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err := p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err := p.SpacesStore.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		map[string]any{"x": 1},
+	)
 	require.NoError(t, err)
 
 	var out habitat.NetworkHabitatSpaceListReposOutput
-	resp := p.Query(ownerActor, "network.habitat.space.listRepos", url.Values{"space": {uri.String()}}, &out)
+	resp := p.Query(
+		ownerActor,
+		"network.habitat.space.listRepos",
+		url.Values{"space": {uri.String()}},
+		&out,
+	)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	// 2, not 1: newSpace's own fixture grant (writing the owner relation) is
 	// authored under the space's own owner DID, so it shows up as a second
@@ -182,7 +236,12 @@ func TestServer_DeleteRecord(t *testing.T) {
 	uri := newSpace(t, p, ownerActor, groupType, "test")
 
 	_, _, err := p.SpacesStore.PutRecord(
-		t.Context(), uri, owner, syntax.NSID("network.habitat.note"), "del-me", map[string]any{"x": 1},
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"del-me",
+		map[string]any{"x": 1},
 	)
 	require.NoError(t, err)
 
@@ -192,7 +251,13 @@ func TestServer_DeleteRecord(t *testing.T) {
 	}, nil)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	_, err = p.SpacesStore.GetRecord(t.Context(), uri, owner, syntax.NSID("network.habitat.note"), "del-me")
+	_, err = p.SpacesStore.GetRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"del-me",
+	)
 	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
 }
 
@@ -201,7 +266,14 @@ func TestServer_ListRecords(t *testing.T) {
 	uri := newSpace(t, p, ownerActor, groupType, "test")
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err := p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err := p.SpacesStore.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		map[string]any{"x": 1},
+	)
 	require.NoError(t, err)
 	_, _, err = p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
@@ -228,8 +300,11 @@ func TestServer_GetRepo(t *testing.T) {
 	_, _, err = p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
 
-	resp := p.Do(ownerActor, httptest.NewRequest(http.MethodGet,
-		"/xrpc/network.habitat.space.getRepo?space="+uri.String()+"&repo="+owner.String(), http.NoBody))
+	resp := p.Do(ownerActor, httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getRepo?space="+uri.String()+"&repo="+owner.String(),
+		http.NoBody,
+	))
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Equal(t, "application/vnd.ipld.car", resp.Header.Get("Content-Type"))
 
@@ -281,8 +356,11 @@ func TestServer_GetRepo_RepoNotFound(t *testing.T) {
 	p, ownerActor := newTestPear(t)
 	uri := newSpace(t, p, ownerActor, groupType, "test")
 
-	resp := p.Do(ownerActor, httptest.NewRequest(http.MethodGet,
-		"/xrpc/network.habitat.space.getRepo?space="+uri.String()+"&repo="+alice.String(), http.NoBody))
+	resp := p.Do(ownerActor, httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getRepo?space="+uri.String()+"&repo="+alice.String(),
+		http.NoBody,
+	))
 
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
@@ -296,8 +374,11 @@ func TestServer_GetRepo_SpaceNotFound(t *testing.T) {
 	p, ownerActor := newTestPear(t)
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
 
-	resp := p.Do(ownerActor, httptest.NewRequest(http.MethodGet,
-		"/xrpc/network.habitat.space.getRepo?space="+uri.String()+"&repo="+owner.String(), http.NoBody))
+	resp := p.Do(ownerActor, httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getRepo?space="+uri.String()+"&repo="+owner.String(),
+		http.NoBody,
+	))
 
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
@@ -321,7 +402,12 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 	uri := newSpace(t, p, ownerActor, groupType, "test")
 
 	_, _, err := p.SpacesStore.PutRecord(
-		t.Context(), uri, owner, syntax.NSID("network.habitat.note"), "test", map[string]any{"x": 1},
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"test",
+		map[string]any{"x": 1},
 	)
 	require.NoError(t, err)
 
@@ -337,7 +423,14 @@ func TestServer_ListRepoOps(t *testing.T) {
 	uri := newSpace(t, p, ownerActor, groupType, "test")
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err := p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err := p.SpacesStore.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		map[string]any{"x": 1},
+	)
 	require.NoError(t, err)
 	_, _, err = p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
@@ -365,7 +458,14 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	require.NoError(t, err)
 
 	uri := newSpace(t, p, ownerActor, groupType, "test")
-	_, _, err = p.SpacesStore.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+	_, _, err = p.SpacesStore.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		groupType,
+		"k1",
+		map[string]any{"x": 1},
+	)
 	require.NoError(t, err)
 
 	var out habitat.NetworkHabitatSpaceListRepoOpsOutput
@@ -400,7 +500,14 @@ func TestServer_GetLatestCommit(t *testing.T) {
 	require.NoError(t, err)
 
 	uri := newSpace(t, p, ownerActor, groupType, "test")
-	_, _, err = p.SpacesStore.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+	_, _, err = p.SpacesStore.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		groupType,
+		"k1",
+		map[string]any{"x": 1},
+	)
 	require.NoError(t, err)
 
 	var out habitat.NetworkHabitatSpaceGetLatestCommitOutput
@@ -442,7 +549,14 @@ func TestServer_ListRepoOps_Since(t *testing.T) {
 	uri := newSpace(t, p, ownerActor, groupType, "test")
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err := p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err := p.SpacesStore.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		map[string]any{"x": 1},
+	)
 	require.NoError(t, err)
 	_, _, err = p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
@@ -465,7 +579,14 @@ func TestServer_ListRepoOps_IncludesValue(t *testing.T) {
 	uri := newSpace(t, p, ownerActor, groupType, "test")
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err := p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
+	_, _, err := p.SpacesStore.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		map[string]any{"text": "hello"},
+	)
 	require.NoError(t, err)
 
 	var out habitat.NetworkHabitatSpaceListRepoOpsOutput
@@ -483,7 +604,14 @@ func TestServer_ListRepoOps_ExcludeValues(t *testing.T) {
 	uri := newSpace(t, p, ownerActor, groupType, "test")
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err := p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
+	_, _, err := p.SpacesStore.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		map[string]any{"text": "hello"},
+	)
 	require.NoError(t, err)
 
 	var out habitat.NetworkHabitatSpaceListRepoOpsOutput
@@ -504,7 +632,14 @@ func TestServer_ListRepoOpsSinceAheadRejects(t *testing.T) {
 	uri := newSpace(t, p, ownerActor, groupType, "test")
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err := p.SpacesStore.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	_, _, err := p.SpacesStore.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		map[string]any{"v": 1},
+	)
 	require.NoError(t, err)
 
 	// A TID-like string that sorts after any real TID (base32 is a-z + 2-7).
