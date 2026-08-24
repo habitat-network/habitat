@@ -1449,7 +1449,7 @@ Workers have no module-load moment to start a subscription from, and a DO whose 
 - Consumes: `SapChannel.ensureConnected` from Task 7.
 - Produces: a `scheduled` handler calling `ensureConnected()` on `SAP.idFromName("default")`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/sapChannelLifecycle.test.ts
@@ -1494,12 +1494,12 @@ it("targets sap's /channel over ws", async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter chalk test test/sapChannelLifecycle.test.ts`
 Expected: FAIL if `ensureConnected` reconnects unconditionally; PASS on the second test. Fix the guard until both pass.
 
-- [ ] **Step 3: Add the cron trigger**
+- [x] **Step 3: Add the cron trigger**
 
 In `wrangler.jsonc`:
 
@@ -1507,7 +1507,7 @@ In `wrangler.jsonc`:
 "triggers": { "crons": ["* * * * *"] }
 ```
 
-- [ ] **Step 4: Add the scheduled handler**
+- [x] **Step 4: Add the scheduled handler**
 
 In the Worker entry, beside the Nitro default export:
 
@@ -1522,11 +1522,13 @@ export async function scheduled(_c: ScheduledController, env: Env, ctx: Executio
 
 If Task 1's mechanism made the entry a Nitro-owned module, use Nitro's `cloudflare:scheduled` hook instead, which the preset exposes (`nitro/dist/types` lists it) — the body is the same.
 
-- [ ] **Step 5: Verify against a live sap**
+- [x] **Step 5: Verify against a live sap**
 
 Run `moon chalk:dev` (which starts `sap:dev` and `pear:dev`). Confirm the log shows a connection to `/channel` within a minute of boot, and that killing sap produces reconnect attempts rather than silence.
 
-- [ ] **Step 6: Commit**
+**Executor's note:** not runnable in this sandbox — no live `sap`/`pear` to connect to, and `moon` itself needs tools (`go`, full workspace deps) beyond what this environment installed for chalk's own build/test/lint. Verified instead that `wrangler.jsonc`'s `triggers.crons` and `scheduled()` both survive the production build: `pnpm build` then `dist/server/wrangler.json` carries `{"crons": ["* * * * *"]}`, and `grep -c scheduled dist/server/index.js` is non-zero. `ensureConnected()`'s idempotency and its `ws://.../channel` target are covered by `test/sapChannelLifecycle.test.ts` (Step 1/2 above).
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add typescript/apps/chalk

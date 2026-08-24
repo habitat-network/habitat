@@ -11,3 +11,14 @@ export { default } from "@tanstack/react-start/server-entry";
 export { PingRoom } from "./rooms/ping";
 export { DocRoom } from "./rooms/docRoom";
 export { SapChannel } from "./rooms/sapChannel";
+
+// The cron trigger (wrangler.jsonc's `triggers.crons`) is what guarantees
+// recovery from eviction; SapChannel's own close-alarm only makes ordinary
+// reconnects fast rather than up to a minute. Both are idempotent.
+export async function scheduled(
+  _controller: ScheduledController,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<void> {
+  ctx.waitUntil(env.SAP.get(env.SAP.idFromName("default")).ensureConnected());
+}

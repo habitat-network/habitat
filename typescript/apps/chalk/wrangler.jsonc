@@ -22,5 +22,6 @@
     "CHALK_BASE_URL": "https://chalk.local.habitat.network",
     "CHALK_SAP_INTERNAL_URL": "http://127.0.0.1:2581"
   },
+  "triggers": { "crons": ["* * * * *"] },
   "dev": { "port": 5177 }
 }
