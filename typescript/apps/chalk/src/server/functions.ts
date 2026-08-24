@@ -7,6 +7,7 @@ import {
   memberEditKey,
   memberEditQueue,
   pubsub,
+  clearSession,
   requireSession,
   store,
 } from "./functions.server";
@@ -24,6 +25,12 @@ import { SapClient } from "./sapClient";
 export const getCaller = createServerFn({ method: "GET" }).handler(async () =>
   requireSession(),
 );
+
+// signOut clears the session cookie. The session cookie is httpOnly, so
+// the client can't drop it itself — it has to go through the server.
+export const signOut = createServerFn({ method: "POST" }).handler(async () => {
+  await clearSession();
+});
 
 export const createDoc = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ docId: string; uri: string }> => {

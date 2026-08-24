@@ -15,8 +15,9 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "internal";
+import { toast } from "internal/components/ui";
 import { FileTextIcon, PlusIcon } from "lucide-react";
-import { createDoc, getCaller, listDocs } from "@/server/functions";
+import { createDoc, getCaller, listDocs, signOut } from "@/server/functions";
 
 export const Route = createFileRoute("/_requireAuth")({
   beforeLoad: async () => await getCaller(),
@@ -56,10 +57,27 @@ export const Route = createFileRoute("/_requireAuth")({
       },
     });
 
+    const { mutate: logOut } = useMutation({
+      mutationFn: () => signOut(),
+      onSuccess: async () => {
+        await router.navigate({ to: "/login" });
+        queryClient.clear();
+        await router.invalidate();
+      },
+      onError: (error) => {
+        toast.add({
+          type: "error",
+          title: "Couldn't sign out",
+          description: error.message,
+        });
+      },
+    });
+
     return (
       <AppLayout
         actor={{ did }}
         title="Chalk"
+        onSignOut={() => logOut()}
         sidebar={
           <>
             <SidebarGroup>
