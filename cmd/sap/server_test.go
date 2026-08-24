@@ -18,7 +18,7 @@ import (
 )
 
 // newTestServer wires up a sap server with a fresh in-memory-backed OAuth
-// client app, suitable for exercising handleAddOrg/handleOAuthCallback
+// client app, suitable for exercising handleAddSession/handleOAuthCallback
 // without any network access.
 func newTestServer(t *testing.T) *server {
 	t.Helper()
@@ -41,7 +41,7 @@ func newTestServer(t *testing.T) *server {
 	return NewSapServer(s, oauthApp, "https://example.com")
 }
 
-func TestHandleAddOrgWithoutReturnToUnaffected(t *testing.T) {
+func TestHandleAddSessionWithoutReturnToUnaffected(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
@@ -49,10 +49,10 @@ func TestHandleAddOrgWithoutReturnToUnaffected(t *testing.T) {
 	body, err := json.Marshal(map[string]string{"handle": "not a valid handle!!"})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/org/add", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/session/add", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
-	srv.handleAddOrg(w, req)
+	srv.handleAddSession(w, req)
 
 	// An unresolvable/invalid handle fails fast inside StartAuthFlow (no
 	// network call), same as before this change.
@@ -63,7 +63,7 @@ func TestHandleAddOrgWithoutReturnToUnaffected(t *testing.T) {
 	require.Empty(t, srv.pendingReturnTo)
 }
 
-func TestHandleAddOrgStoresReturnToForResolvedDID(t *testing.T) {
+func TestHandleAddSessionStoresReturnToForResolvedDID(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
@@ -86,10 +86,10 @@ func TestHandleAddOrgStoresReturnToForResolvedDID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/org/add", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/session/add", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
-	srv.handleAddOrg(w, req)
+	srv.handleAddSession(w, req)
 
 	// StartAuthFlow itself still fails (no PDS host), but our own
 	// resolution should have already stored the pending return_to.
@@ -127,7 +127,7 @@ func TestRedirectToReturnToRedirectsAndClearsPending(t *testing.T) {
 	require.Empty(t, srv.pendingReturnTo)
 }
 
-func TestHandleListOrgsIncludesSessionIDPerEntry(t *testing.T) {
+func TestHandleListSessions(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
@@ -136,18 +136,18 @@ func TestHandleListOrgsIncludesSessionIDPerEntry(t *testing.T) {
 	const testSessionID = "session-abc"
 	require.NoError(t, srv.sap.AddSession(t.Context(), testDID, testSessionID))
 
-	req := httptest.NewRequest(http.MethodGet, "/org/list", nil)
+	req := httptest.NewRequest(http.MethodGet, "/session/list", nil)
 	w := httptest.NewRecorder()
 
-	srv.handleListOrgs(w, req)
+	srv.handleListSessions(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 
 	var body struct {
-		Orgs []orgSession `json:"orgs"`
+		Sessions []string `json:"sessions"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	require.Equal(t, []orgSession{{DID: testDID, SessionID: testSessionID}}, body.Orgs)
+	require.Equal(t, []string{string(testDID)}, body.Sessions)
 }
 
 func TestRedirectToReturnToNoPendingFallsBackToFalse(t *testing.T) {
@@ -238,12 +238,20 @@ func TestHandleNotifyWriteRejectsMissingOrInvalidAuth(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.notifyWrite", bytes.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.notifyWrite",
+		bytes.NewReader(body),
+	)
 	w := httptest.NewRecorder()
 	srv.handleNotifyWrite(w, req)
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 
-	req = httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.notifyWrite", bytes.NewReader(body))
+	req = httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.notifyWrite",
+		bytes.NewReader(body),
+	)
 	req.Header.Set("Authorization", "Bearer not-a-real-jwt")
 	w = httptest.NewRecorder()
 	srv.handleNotifyWrite(w, req)

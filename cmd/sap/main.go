@@ -117,8 +117,8 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	internalMux := http.NewServeMux()
 	internalMux.HandleFunc("/health", server.handleHealth)
-	internalMux.HandleFunc("/org/add", server.handleAddOrg)
-	internalMux.HandleFunc("/org/list", server.handleListOrgs)
+	internalMux.HandleFunc("/session/add", server.handleAddSession)
+	internalMux.HandleFunc("/session/list", server.handleListSessions)
 	internalMux.HandleFunc("/space/track", server.handleTrackSpace)
 	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
 	internalMux.HandleFunc("/proxy/", server.handleProxy)
