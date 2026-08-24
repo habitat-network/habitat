@@ -16,7 +16,15 @@ import (
 	"gorm.io/gorm"
 )
 
-func openOutboxTestServer(t *testing.T) (*httptest.Server, *sap.Sap, *gorm.DB) {
+// openOutboxTestServer starts a test server for the /channel websocket.
+// configure, if non-nil, runs against the *server before it starts serving —
+// e.g. to shrink the outbox ping/pong timeouts. Each call gets its own
+// *server instance, so tests that configure different timeouts stay safe
+// under t.Parallel() (see TestServer_OutboxChannelClosesUnresponsiveConnection).
+func openOutboxTestServer(
+	t *testing.T,
+	configure func(*server),
+) (*httptest.Server, *sap.Sap, *gorm.DB) {
 	t.Helper()
 
 	db := testutil.NewDB(t)
@@ -37,7 +45,10 @@ func openOutboxTestServer(t *testing.T) (*httptest.Server, *sap.Sap, *gorm.DB) {
 	})
 	require.NoError(t, err)
 
-	server := NewSapServer(s, oauthApp)
+	server := NewSapServer(s, oauthApp, "https://example.com")
+	if configure != nil {
+		configure(server)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/channel", server.handleOutboxChannel)
 	httpServer := httptest.NewServer(mux)
@@ -77,7 +88,7 @@ func dialOutboxChannel(t *testing.T, httpServer *httptest.Server) *websocket.Con
 func TestServer_OutboxChannelDeliversAndAcks(t *testing.T) {
 	t.Parallel()
 
-	httpServer, s, db := openOutboxTestServer(t)
+	httpServer, s, db := openOutboxTestServer(t, nil)
 
 	uri := "at://did:plc:org/space/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1"
 	id := createOutboxRow(t, db, uri, `{"text":"hello"}`)
@@ -108,10 +119,63 @@ func TestServer_OutboxChannelDeliversAndAcks(t *testing.T) {
 	require.Empty(t, remaining)
 }
 
+// TestServer_OutboxChannelClosesUnresponsiveConnection guards against a
+// silently half-open /channel connection (e.g. the peer process is
+// suspended, or the network path breaks without a clean TCP close):
+// unlike a clean close or a client that hangs up mid-read, this leaves the
+// TCP connection looking perfectly healthy while application data stops
+// flowing in both directions, so the server needs its own liveness check to
+// notice and tear the connection down (letting the client's normal
+// reconnect-and-repoll path recover the backlog) instead of leaving it
+// stuck forever.
+func TestServer_OutboxChannelClosesUnresponsiveConnection(t *testing.T) {
+	t.Parallel()
+
+	httpServer, _, _ := openOutboxTestServer(t, func(s *server) {
+		s.outboxPingPeriod = 10 * time.Millisecond
+		s.outboxPongWait = 30 * time.Millisecond
+		s.outboxWriteWait = 50 * time.Millisecond
+	})
+	conn := dialOutboxChannel(t, httpServer)
+
+	// gorilla only answers a Ping automatically while something is actively
+	// pumping Read, so a connection with no reader at all would never even
+	// see the Ping (indistinguishable from "server never pings"). Installing
+	// a handler that observes the Ping but skips the default auto-pong
+	// simulates a peer that received it but has otherwise gone silent.
+	pinged := make(chan struct{}, 1)
+	conn.SetPingHandler(func(string) error {
+		select {
+		case pinged <- struct{}{}:
+		default:
+		}
+		return nil
+	})
+
+	readErr := make(chan error, 1)
+	go func() {
+		_, _, err := conn.ReadMessage()
+		readErr <- err
+	}()
+
+	select {
+	case <-pinged:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server never sent a ping")
+	}
+
+	select {
+	case err := <-readErr:
+		require.Error(t, err, "server should close a connection that stops answering pings")
+	case <-time.After(2 * time.Second):
+		t.Fatal("server never closed the unresponsive connection")
+	}
+}
+
 func TestServer_OutboxChannelRedeliversUnackedAfterReconnect(t *testing.T) {
 	t.Parallel()
 
-	httpServer, _, db := openOutboxTestServer(t)
+	httpServer, _, db := openOutboxTestServer(t, nil)
 
 	uri := "at://did:plc:org/space/network.habitat.space/my-space/did:plc:member/network.habitat.note/k1"
 	id := createOutboxRow(t, db, uri, `{"text":"hello"}`)
