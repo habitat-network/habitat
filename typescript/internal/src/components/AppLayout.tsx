@@ -1,7 +1,6 @@
 import { ReactNode } from "react";
 import { Actor } from "@/types/Actor";
 
-import { HabitatLogo } from "./HabitatLogo";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -18,7 +17,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  useSidebar,
   SidebarRail,
 } from "./ui/sidebar";
 import { LogOut } from "lucide-react";
@@ -35,8 +33,7 @@ interface AppLayoutProps {
 
 export const AppLayout = ({
   actor,
-  title,
-  sidebarContent: sidebarContent,
+  sidebarContent,
   sidebarHeader,
   onSignOut,
   children,
@@ -44,9 +41,7 @@ export const AppLayout = ({
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon" variant="inset">
-        <SidebarHeader>
-          {sidebarHeader}
-        </SidebarHeader>
+        <SidebarHeader>{sidebarHeader}</SidebarHeader>
         <SidebarContent>{sidebarContent}</SidebarContent>
         <SidebarFooter>
           {actor && (

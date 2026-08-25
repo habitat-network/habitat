@@ -102,10 +102,7 @@ export const Route = createFileRoute("/_requireAuth")({
               New Document
             </SidebarMenuButton>
             <SidebarMenuItem>
-              <SidebarMenuButton
-                isActive={onHomePage}
-                render={<Link to="/" />}
-              >
+              <SidebarMenuButton isActive={onHomePage} render={<Link to="/" />}>
                 <HomeIcon />
                 <span>Home</span>
               </SidebarMenuButton>
@@ -114,7 +111,6 @@ export const Route = createFileRoute("/_requireAuth")({
         }
         sidebarContent={
           <>
-
             {recentDocs.length > 0 && (
               <SidebarGroup>
                 <SidebarGroupLabel>Recent</SidebarGroupLabel>
