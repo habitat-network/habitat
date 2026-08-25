@@ -33,13 +33,17 @@ If you prefer not to use Tailwind CSS:
 ## Deploy to Cloudflare Workers
 
 Chalk builds through `@cloudflare/vite-plugin` (not Nitro): a stateless
-Worker serving routes, SSR, and server functions, with two Durable Object
-classes — `DocRoom` (one per document, owns its Yjs state) and `SapChannel`
-(the singleton holding the WebSocket to sap's `/channel`) — plus a D1
-database for the docs index. This only works against a sap that the
-deployed Worker can actually reach over the public internet and that
-authenticates chalk's requests (see below) — a loopback sap only works for
-local dev.
+Worker serving routes, SSR, and server functions, with one Durable Object
+class — `DocRoom` (one per document, owns its Yjs state) — plus a D1
+database for the docs index. sap pushes outbox events to chalk via a
+webhook POST to `/webhook/sap` (`src/routes/webhook.sap.ts`, backed by
+`cmd/sap/webhook.go`'s `--webhook-url`/`SAP_WEBHOOK_URL`), rather than
+chalk holding an open connection to sap — an ordinary momentary Worker
+request instead of a Durable Object with a permanently open WebSocket,
+which Durable Object "duration" billing charges for continuously (wall
+clock, not CPU time) for as long as the connection stays open. This only
+works against a sap that can reach the deployed Worker's `/webhook/sap`
+over the public internet — a loopback sap only works for local dev.
 
 ```bash
 pnpm build
@@ -60,10 +64,17 @@ Local dev instead overrides `vars` via `.dev.vars` (gitignored, wins over
 If sap runs with `--internal-auth-secret` (real deployments should — see
 `cmd/sap/server.go`'s `basicAuthMiddleware`), set
 `CHALK_SAP_INTERNAL_AUTH_SECRET` to match, as a wrangler secret. Every
-`SapClient`/`SapChannel` call sends it as HTTP basic auth automatically
-when it's set (`sapAuthHeaders` in `sapClient.ts`); a local sap without
-that flag needs no header, which is why local dev's `.dev.vars` sets a
-placeholder value that's simply never read.
+`SapClient` call sends it as HTTP basic auth automatically when it's set
+(`sapAuthHeaders` in `sapClient.ts`); a local sap without that flag needs
+no header, which is why local dev's `.dev.vars` sets a placeholder value
+that's simply never read.
+
+sap's webhook consumer sends a bare POST with no custom headers, so the
+`/webhook/sap` endpoint is instead authenticated via a `secret` query
+param baked directly into the URL sap is configured with. Set
+`CHALK_SAP_WEBHOOK_SECRET` as a wrangler secret, and configure sap's
+`SAP_WEBHOOK_URL`/`--webhook-url` as
+`https://<chalk domain>/webhook/sap?secret=<same value>`.
 
 First-time setup:
 
@@ -73,9 +84,10 @@ First-time setup:
 pnpm exec wrangler d1 create chalk
 pnpm exec wrangler d1 migrations apply chalk --remote
 
-# Both are wrangler secrets, not vars (see wrangler.jsonc):
+# All three are wrangler secrets, not vars (see wrangler.jsonc):
 pnpm exec wrangler secret put CHALK_SESSION_SECRET
 pnpm exec wrangler secret put CHALK_SAP_INTERNAL_AUTH_SECRET  # if sap requires it
+pnpm exec wrangler secret put CHALK_SAP_WEBHOOK_SECRET
 ```
 
 Update `wrangler.jsonc`'s `vars` (`CHALK_BASE_URL`, `CHALK_SAP_INTERNAL_URL`)
@@ -122,18 +134,10 @@ One thing does need doing by hand the first time:
 echo 'CHALK_SESSION_SECRET=dev-only-32-char-minimum-secret!!' > .dev.vars
 ```
 
-**Cron triggers do not fire on a schedule in local dev.** `SapChannel`'s
-connection to sap's `/channel` is established by the `scheduled()` handler,
-so in production the every-minute cron connects it (and reconnects it after
-an eviction) on its own — locally nothing calls it. Kick it manually:
-
-```bash
-curl http://127.0.0.1:5177/cdn-cgi/handler/scheduled
-```
-
-Until you do, edits still sync between browser tabs (that path is
-`DocRoom`-local) and still get written back to pear on the debounce, but
-inbound outbox events from sap are not consumed.
+Local sap is started with `SAP_WEBHOOK_URL=http://127.0.0.1:5177/webhook/sap`
+(`cmd/sap/moon.yml`), posting straight to the dev Worker with no secret —
+nothing else on the machine can reach that loopback URL. No manual step is
+needed for inbound outbox events to reach chalk locally.
 
 Regenerate `worker-configuration.d.ts` (the typed `Env` global) after any
 binding or var change: `pnpm cf-typegen` (also runs automatically before
