@@ -1,9 +1,20 @@
 import { DurableObject } from "cloudflare:workers";
 import * as Y from "yjs";
-import { frame } from "./frames";
+import * as encoding from "lib0/encoding";
+import * as decoding from "lib0/decoding";
+import * as syncProtocol from "y-protocols/sync";
+import * as awarenessProtocol from "y-protocols/awareness";
 import { SapClient } from "../sapClient";
 import { renderDoc } from "../../render";
 import { docByUri, getDb, upsertDoc } from "../../db";
+
+// The outer wire-protocol byte y-websocket's WebsocketProvider (client)
+// wraps every message in — see y-websocket/src/y-websocket.js. This DO
+// implements the two message types a client-authoritative-server setup
+// actually needs; messageAuth/messageQueryAwareness (2/3) go unhandled,
+// matching the reference server's own scope.
+const MESSAGE_SYNC = 0;
+const MESSAGE_AWARENESS = 1;
 
 const CRDT_COLLECTION = "network.habitat.docs.crdt";
 const MARKDOWN_COLLECTION = "network.habitat.docs.markdown";
@@ -53,15 +64,49 @@ function pendingKey(kind: "member" | "owner", memberDid: string): string {
 export class DocRoom extends DurableObject<Env> {
   private ydoc = new Y.Doc();
   private id: DocIdentity | undefined;
+  // Ephemeral (cursor-position-style) presence, not persisted — a
+  // hibernation eviction re-running the constructor is expected to reset
+  // it, which is fine: presence doesn't need to survive that the way the
+  // document content does.
+  private awareness = new awarenessProtocol.Awareness(this.ydoc);
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
       const doc = await ctx.storage.get<StoredDoc>(DOC_KEY);
-      if (!doc) return;
-      this.id = { spaceUri: doc.spaceUri, ownerDid: doc.ownerDid };
-      Y.applyUpdateV2(this.ydoc, doc.state);
+      if (doc) {
+        this.id = { spaceUri: doc.spaceUri, ownerDid: doc.ownerDid };
+        Y.applyUpdateV2(this.ydoc, doc.state);
+      }
+      // Registered only after the load above applies: an "updateV2"
+      // listener attached earlier would fire onUpdate for this restore on
+      // every cold start/hibernation wake, needlessly re-scheduling a
+      // member/owner flush (and its SapClient upload) for content that
+      // hasn't actually changed.
+      //
+      // Pushed onto `pending` rather than awaited here directly: Yjs's
+      // event emitter invokes listeners synchronously and doesn't await
+      // them, so a bare `void this.onUpdate(...)` would let onUpdate's I/O
+      // keep running after the RPC/webSocketMessage call that triggered
+      // the update has already returned — which Workers tears down the
+      // I/O context for, surfacing as "Network connection lost" from
+      // whatever storage/fetch call was still in flight. Every call site
+      // that can trigger a mutation (applyEdit, applyRemote,
+      // webSocketMessage's syncProtocol.readSyncMessage) awaits
+      // flushPending() immediately after, so this object's own call stack
+      // is what actually stays open until the side effects finish.
+      this.ydoc.on("updateV2", (update: Uint8Array, origin: unknown) => {
+        this.pending.push(this.onUpdate(update, origin));
+      });
     });
+  }
+
+  private pending: Promise<void>[] = [];
+
+  private async flushPending(): Promise<void> {
+    const batch = this.pending;
+    this.pending = [];
+    await Promise.all(batch);
   }
 
   async identity(): Promise<DocIdentity> {
@@ -73,14 +118,20 @@ export class DocRoom extends DurableObject<Env> {
     return Y.encodeStateAsUpdateV2(this.ydoc);
   }
 
+  // applyEdit is the identity-establishing entry point for a member edit
+  // applied directly (as opposed to one arriving over an already-open
+  // WebSocket, where identity was established at connect time — see
+  // fetch()). Kept as its own RPC method rather than folded away: tests
+  // exercising the debounced flush/republish behavior use it to simulate
+  // an edit without needing a live socket.
   async applyEdit(
     id: DocIdentity,
     memberDid: string,
     update: Uint8Array,
   ): Promise<void> {
     await this.rememberIdentity(id);
-    await this.mergeUpdate(update);
-    await this.schedule("member", memberDid);
+    Y.applyUpdateV2(this.ydoc, update, memberDid);
+    await this.flushPending();
   }
 
   // seedIdentity records spaceUri/ownerDid without touching the document.
@@ -107,7 +158,12 @@ export class DocRoom extends DurableObject<Env> {
       id.spaceUri,
       cid,
     );
-    await this.mergeUpdate(bytes);
+    // No transaction origin: this update is already the merged/canonical
+    // state as sap has it, not a specific member's edit, so onUpdate below
+    // must not attribute it to (and re-flush it back into) anyone's repo —
+    // only the owner-republish scheduling applies.
+    Y.applyUpdateV2(this.ydoc, bytes);
+    await this.flushPending();
   }
 
   // rememberIdentity records spaceUri/ownerDid the first time any caller
@@ -126,60 +182,147 @@ export class DocRoom extends DurableObject<Env> {
     await this.persist();
   }
 
-  // mergeUpdate applies a Yjs update to the in-memory doc and persists the
-  // merged result. `this.ydoc` is loaded from storage in the constructor,
-  // never a bare `new Y.Doc()` at merge time: `update` is an *incremental*
-  // diff relative to the sender's state, so merging it into an empty doc
-  // would reconstruct only that fragment and persisting it would destroy
-  // everything that came before.
-  protected async mergeUpdate(update: Uint8Array): Promise<void> {
-    Y.applyUpdateV2(this.ydoc, update);
+  // onUpdate is the single funnel every doc mutation runs through,
+  // regardless of source — the ydoc "updateV2" listener registered in the
+  // constructor, not a method any caller invokes directly. That's what
+  // makes it safe for applyEdit and applyRemote to just call
+  // Y.applyUpdateV2 themselves: persistence, live broadcast, and the
+  // debounced-flush scheduling all happen exactly once, here, however the
+  // update arrived.
+  //
+  // origin tells us who to attribute the edit to: a WebSocket (a live
+  // subscriber's own edit, applied via webSocketMessage's sync-protocol
+  // handling below) or a plain memberDid string (applyEdit's direct RPC
+  // path) both schedule a member flush; anything else (applyRemote's
+  // unset origin, or the constructor's own initial-load apply — though
+  // that one never reaches here, see the constructor's comment) does not.
+  private async onUpdate(update: Uint8Array, origin: unknown): Promise<void> {
     await this.persist();
-    this.broadcast();
+    this.broadcast(update, origin instanceof WebSocket ? origin : undefined);
+    const memberDid =
+      origin instanceof WebSocket
+        ? ((origin.deserializeAttachment() as string | null) ?? undefined)
+        : typeof origin === "string"
+          ? origin
+          : undefined;
+    if (memberDid) await this.schedule("member", memberDid);
     await this.schedule("owner", "");
   }
 
-  private subscribers = new Set<ReadableStreamDefaultController<Uint8Array>>();
+  // fetch handles a WebSocket upgrade for a live subscriber, accepted via
+  // the Hibernation API (ctx.acceptWebSocket) rather than plain ws.accept():
+  // that's what lets this object be evicted from memory between edits while
+  // an editor's tab sits open, instead of being billed Durable Object
+  // "duration" continuously for as long as the connection is held — the
+  // same wall-clock-not-CPU-time cost that made SapChannel's WebSocket to
+  // sap expensive (see src/server/webhook.ts's replacement of that). The
+  // Worker route that forwards here (src/routes/ws.$docId.ts) has already
+  // done the auth/access check and set these two headers; DocRoom itself
+  // has no ACL.
+  //
+  // Nothing is sent here: y-websocket's WebsocketProvider (the client)
+  // always sends sync step 1 as soon as the socket opens, and this room's
+  // reply — carrying its full current state — happens naturally from
+  // webSocketMessage's y-protocols/sync handling below. That's the
+  // client-initiated handshake the protocol is documented to expect (see
+  // y-protocols/sync.js's module comment); the room doesn't need its own
+  // "send the snapshot on connect" step the way the old ReadableStream
+  // version did.
+  async fetch(request: Request): Promise<Response> {
+    if (request.headers.get("Upgrade") !== "websocket") {
+      return new Response("expected a websocket upgrade", { status: 426 });
+    }
+    const docId = request.headers.get("X-Chalk-Doc-Id");
+    const memberDid = request.headers.get("X-Chalk-Member-Did");
+    if (!docId || !memberDid) {
+      return new Response("missing doc/member identity", { status: 400 });
+    }
+    await this.rememberIdentity({ spaceUri: docId });
 
-  async subscriberCount(): Promise<number> {
-    return this.subscribers.size;
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    this.ctx.acceptWebSocket(server);
+    // Persists through hibernation (per the Hibernation API's own
+    // serializeAttachment guarantee), so onUpdate can still attribute an
+    // edit to the right member's repo after this object has been evicted
+    // and woken back up.
+    server.serializeAttachment(memberDid);
+
+    return new Response(null, { status: 101, webSocket: client });
   }
 
-  // subscribe returns a live stream of length-prefixed Yjs V2 update frames
-  // (see ./frames): the current snapshot first, then every subsequent
-  // merge. Returned directly as an RPC value — Workers RPC streams
-  // ReadableStream return values with proper flow control and transfers
-  // stream ownership to the caller, so this needs no `fetch()`/synthetic
-  // URL indirection the way an HTTP-only Worker would.
-  async subscribe(): Promise<ReadableStream<Uint8Array>> {
-    const subscribers = this.subscribers;
-    const snapshot = frame(Y.encodeStateAsUpdateV2(this.ydoc));
-    let self: ReadableStreamDefaultController<Uint8Array>;
-    return new ReadableStream<Uint8Array>({
-      start(controller) {
-        self = controller;
-        subscribers.add(controller);
-        // Emitting the snapshot here, after registration, closes a race
-        // today's code has: `store.mergedState` and `pubsub.subscribe` were
-        // two separate steps, so a merge landing between them was lost.
-        controller.enqueue(snapshot);
-      },
-      cancel() {
-        // The subscriber's own stream cancellation is the only signal that
-        // it's gone — a broadcast().enqueue() on a cancelled controller
-        // would otherwise throw and take mergeUpdate down with it.
-        subscribers.delete(self);
-      },
-    });
+  // webSocketMessage is the Hibernation API's per-message handler — see
+  // fetch()'s comment on why nothing here keeps the object resident
+  // between messages. Every message is y-websocket's own two-level wire
+  // format: an outer MESSAGE_SYNC/MESSAGE_AWARENESS byte, then (for sync)
+  // y-protocols/sync's own inner step1/step2/update framing.
+  async webSocketMessage(
+    ws: WebSocket,
+    message: ArrayBuffer | string,
+  ): Promise<void> {
+    if (typeof message === "string") return; // the protocol is binary-only
+    const decoder = decoding.createDecoder(new Uint8Array(message));
+    const messageType = decoding.readVarUint(decoder);
+    if (messageType === MESSAGE_SYNC) {
+      const encoder = encoding.createEncoder();
+      encoding.writeVarUint(encoder, MESSAGE_SYNC);
+      // readSyncMessage does the real work: for the client's initial sync
+      // step 1 (its — empty — state vector), it writes this room's full
+      // state into encoder as a step 2 reply; for a step 2/update (an
+      // actual edit), it applies it to this.ydoc directly, which is what
+      // fires the "updateV2" listener (onUpdate, above) with `ws` as the
+      // transaction origin — synchronously, but its actual persist/
+      // broadcast/schedule work is only awaited below via flushPending(),
+      // for the same reason applyEdit/applyRemote do.
+      syncProtocol.readSyncMessage(decoder, encoder, this.ydoc, ws);
+      if (encoding.length(encoder) > 1) ws.send(encoding.toUint8Array(encoder));
+      await this.flushPending();
+    } else if (messageType === MESSAGE_AWARENESS) {
+      awarenessProtocol.applyAwarenessUpdate(
+        this.awareness,
+        decoding.readVarUint8Array(decoder),
+        ws,
+      );
+      // Relayed as-is (not re-encoded): the awareness protocol's own
+      // update payload is peer-to-peer data this room doesn't otherwise
+      // need to inspect, so the already-correctly-framed incoming bytes
+      // are exactly what every other subscriber needs to receive too.
+      const raw = new Uint8Array(message);
+      for (const other of this.ctx.getWebSockets()) {
+        if (other === ws) continue;
+        try {
+          other.send(raw);
+        } catch {
+          // See broadcast()'s comment: getWebSockets() self-corrects.
+        }
+      }
+    }
   }
 
-  private broadcast(): void {
-    const bytes = frame(Y.encodeStateAsUpdateV2(this.ydoc));
-    for (const controller of this.subscribers) {
+  // broadcast reads ctx.getWebSockets() fresh on every call rather than
+  // keeping an in-memory subscriber list: a hibernation eviction clears
+  // this object's JS heap (including any such list) but not the runtime's
+  // own record of which sockets are attached, so getWebSockets() is the
+  // only source of truth that survives hibernation. exceptOrigin skips the
+  // socket an edit came from — it already has this update applied locally
+  // (that's how Yjs's own optimistic local editing works), so echoing it
+  // back would just be wasted bandwidth, not incorrect.
+  private broadcast(
+    update: Uint8Array,
+    exceptOrigin: WebSocket | undefined,
+  ): void {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_SYNC);
+    syncProtocol.writeUpdate(encoder, Y.convertUpdateFormatV2ToV1(update));
+    const bytes = encoding.toUint8Array(encoder);
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === exceptOrigin) continue;
       try {
-        controller.enqueue(bytes);
+        ws.send(bytes);
       } catch {
-        this.subscribers.delete(controller);
+        // A send to a socket the runtime hasn't yet reported as closed can
+        // still throw; getWebSockets() excludes it on the next call
+        // regardless, so there's nothing to clean up here.
       }
     }
   }
