@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import { docsForAccessor, getDb, upsertDoc, type DocSummary } from "../db";
-import { readFrames } from "./rooms/frames";
 import {
   DOCS_SPACE_TYPE,
   clearSession,
@@ -77,74 +76,12 @@ export const listDocs = createServerFn({ method: "GET" }).handler(
   },
 );
 
-export const sendEdit = createServerFn({ method: "POST" })
-  .validator((input: { docId: string; update: Uint8Array }) => input)
-  .handler(async ({ data }) => {
-    const { did } = await requireSession();
-    // One RPC, not two: the immediate fanout and the debounced repo
-    // writeback both live in the same object now.
-    await env.DOC.get(env.DOC.idFromName(data.docId)).applyEdit(
-      { spaceUri: data.docId },
-      did,
-      data.update,
-    );
-  });
-
-// subscribeDoc streams a doc's merged state: its current snapshot first (if
-// one exists yet), then every subsequent merge DocRoom broadcasts. docId is
-// itself the doc's full space URI, so this works whether the caller is the
-// doc's owner or another editor it's been shared with, and even for a doc
-// this deployment's D1 index has never seen — unlike deriving the space URI
-// from that index or from the caller's own DID.
-//
-// Yields the raw Yjs update bytes directly rather than base64 — seroval (the
-// serializer behind TanStack Start's server-fn RPC, including this streamed
-// path) has native Uint8Array support, so encoding to a string first is
-// unnecessary overhead.
-export const subscribeDoc = createServerFn({ method: "GET" })
-  .validator((input: { docId: string }) => input)
-  .handler(async function* ({ data }): AsyncGenerator<{ state: Uint8Array }> {
-    const { did } = await requireSession();
-    await requireDocAccess(new SapClient(env, did), did, data.docId);
-
-    const stub = env.DOC.get(env.DOC.idFromName(data.docId));
-    const stream = await stub.subscribe();
-    for await (const state of readFrames(stream)) {
-      yield { state };
-    }
-  });
-
 // A userRelation record as network.habitat.relationship.listRelations
 // returns it — only the fields sharing.ts actually reads.
 interface UserRelationView {
   uri: string;
   subject: string;
   relation: string;
-}
-
-// requireDocAccess is the one place chalk actually checks
-// network.habitat.relationship before returning a doc's content: DocRoom
-// itself has no ACL, so it would otherwise fan out to whoever asks. A
-// caller who doesn't already hold at least reader has that same check
-// endpoint reject the query itself (it requires reader to call), not
-// return { allowed: false } — both outcomes mean "no access" here.
-async function requireDocAccess(
-  client: SapClient,
-  did: string,
-  docId: string,
-): Promise<void> {
-  let allowed = false;
-  try {
-    const res = await client.call<{ allowed: boolean }>(
-      "network.habitat.relationship.checkUserRelation",
-      "GET",
-      { subject: did, relation: "reader", space: docId },
-    );
-    allowed = res.allowed;
-  } catch {
-    allowed = false;
-  }
-  if (!allowed) throw new Error("You do not have access to this doc");
 }
 
 // listDocAccess returns the DIDs of every user with a direct grant on the

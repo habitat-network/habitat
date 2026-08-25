@@ -15,6 +15,7 @@ import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/inde
 import { Route as RequireAuthUriRouteImport } from './routes/_requireAuth/$uri'
 import { Route as SessionCallbackRouteImport } from './routes/session.callback'
 import { Route as WebhookSapRouteImport } from './routes/webhook.sap'
+import { Route as WsDocIdRouteImport } from './routes/ws.$docId'
 
 const RequireAuthRoute = RequireAuthRouteImport.update({
   id: '/_requireAuth',
@@ -45,6 +46,11 @@ const WebhookSapRoute = WebhookSapRouteImport.update({
   path: '/webhook/sap',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WsDocIdRoute = WsDocIdRouteImport.update({
+  id: '/ws/$docId',
+  path: '/ws/$docId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof RequireAuthIndexRoute
@@ -52,12 +58,14 @@ export interface FileRoutesByFullPath {
   '/$uri': typeof RequireAuthUriRoute
   '/session/callback': typeof SessionCallbackRoute
   '/webhook/sap': typeof WebhookSapRoute
+  '/ws/$docId': typeof WsDocIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/$uri': typeof RequireAuthUriRoute
   '/session/callback': typeof SessionCallbackRoute
   '/webhook/sap': typeof WebhookSapRoute
+  '/ws/$docId': typeof WsDocIdRoute
   '/': typeof RequireAuthIndexRoute
 }
 export interface FileRoutesById {
@@ -67,13 +75,26 @@ export interface FileRoutesById {
   '/_requireAuth/$uri': typeof RequireAuthUriRoute
   '/session/callback': typeof SessionCallbackRoute
   '/webhook/sap': typeof WebhookSapRoute
+  '/ws/$docId': typeof WsDocIdRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/$uri' | '/session/callback' | '/webhook/sap'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/$uri'
+    | '/session/callback'
+    | '/webhook/sap'
+    | '/ws/$docId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/$uri' | '/session/callback' | '/webhook/sap' | '/'
+  to:
+    | '/login'
+    | '/$uri'
+    | '/session/callback'
+    | '/webhook/sap'
+    | '/ws/$docId'
+    | '/'
   id:
     | '__root__'
     | '/_requireAuth'
@@ -81,6 +102,7 @@ export interface FileRouteTypes {
     | '/_requireAuth/$uri'
     | '/session/callback'
     | '/webhook/sap'
+    | '/ws/$docId'
     | '/_requireAuth/'
   fileRoutesById: FileRoutesById
 }
@@ -89,6 +111,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SessionCallbackRoute: typeof SessionCallbackRoute
   WebhookSapRoute: typeof WebhookSapRoute
+  WsDocIdRoute: typeof WsDocIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -135,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WebhookSapRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ws/$docId': {
+      id: '/ws/$docId'
+      path: '/ws/$docId'
+      fullPath: '/ws/$docId'
+      preLoaderRoute: typeof WsDocIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -157,6 +187,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SessionCallbackRoute: SessionCallbackRoute,
   WebhookSapRoute: WebhookSapRoute,
+  WsDocIdRoute: WsDocIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
