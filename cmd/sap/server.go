@@ -168,6 +168,31 @@ func (s *server) handleTrackSpace(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleRecrawl retriggers a crawl for a session via Sap.Recrawl, discarding
+// any progress from a previous crawl and re-running discovery from the top.
+// Internal endpoint, for operators to unstick a session whose crawl is stuck
+// or errored without waiting for the next periodic re-crawl. Sap.Recrawl
+// schedules the crawl and returns immediately, so this always responds 202
+// once scheduled rather than waiting for the crawl to finish.
+func (s *server) handleRecrawl(w http.ResponseWriter, r *http.Request) {
+	didStr := r.Header.Get(habitatDIDHeader)
+	if didStr == "" {
+		http.Error(w, "missing "+habitatDIDHeader+" header", http.StatusBadRequest)
+		return
+	}
+	did, ok := httpx.ParseDIDInput(r.Context(), w, didStr, habitatDIDHeader)
+	if !ok {
+		return
+	}
+	// Optional: empty resolves fine under WithSingleSessionPerUser (the
+	// session ID is ignored), and callers that don't track one can just omit
+	// the header.
+	sessionID := r.Header.Get(habitatSessionHeader)
+
+	s.sap.Recrawl(r.Context(), did, sessionID)
+	w.WriteHeader(http.StatusAccepted)
+}
+
 // handleNotifyWrite receives network.habitat.space.notifyWrite deliveries —
 // the callback a space host makes (internal/notify.Deliverer) to every
 // endpoint sap has registered via registerNotify (see pkg/sap/register) —
