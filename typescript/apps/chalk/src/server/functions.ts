@@ -107,8 +107,8 @@ export const subscribeDoc = createServerFn({ method: "GET" })
     await requireSession();
 
     const stub = env.DOC.get(env.DOC.idFromName(data.docId));
-    const res = await stub.fetch("https://do/subscribe");
-    for await (const state of readFrames(res.body!)) {
+    const stream = await stub.subscribe();
+    for await (const state of readFrames(stream)) {
       yield { state };
     }
   });

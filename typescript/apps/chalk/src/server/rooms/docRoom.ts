@@ -133,14 +133,17 @@ export class DocRoom extends DurableObject<Env> {
     return this.subscribers.size;
   }
 
-  async fetch(req: Request): Promise<Response> {
-    if (new URL(req.url).pathname !== "/subscribe") {
-      return new Response("not found", { status: 404 });
-    }
+  // subscribe returns a live stream of length-prefixed Yjs V2 update frames
+  // (see ./frames): the current snapshot first, then every subsequent
+  // merge. Returned directly as an RPC value — Workers RPC streams
+  // ReadableStream return values with proper flow control and transfers
+  // stream ownership to the caller, so this needs no `fetch()`/synthetic
+  // URL indirection the way an HTTP-only Worker would.
+  async subscribe(): Promise<ReadableStream<Uint8Array>> {
     const subscribers = this.subscribers;
     const snapshot = frame(Y.encodeStateAsUpdateV2(this.ydoc));
     let self: ReadableStreamDefaultController<Uint8Array>;
-    const readable = new ReadableStream<Uint8Array>({
+    return new ReadableStream<Uint8Array>({
       start(controller) {
         self = controller;
         subscribers.add(controller);
@@ -156,7 +159,6 @@ export class DocRoom extends DurableObject<Env> {
         subscribers.delete(self);
       },
     });
-    return new Response(readable);
   }
 
   private broadcast(): void {
