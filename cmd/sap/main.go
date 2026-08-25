@@ -127,13 +127,20 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	oauthMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
 	oauthMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", server.handleNotifyWrite)
 
+	webhookURL := cmd.String(fWebhookURL)
+
 	internalMux := http.NewServeMux()
 	internalMux.HandleFunc("/health", server.handleHealth)
 	internalMux.HandleFunc("/session/add", server.handleAddSession)
 	internalMux.HandleFunc("/session/list", server.handleListSessions)
 	internalMux.HandleFunc("/space/track", server.handleTrackSpace)
 	internalMux.HandleFunc("/session/recrawl", server.handleRecrawl)
-	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
+	if webhookURL == "" {
+		// The outbox is single-consumer (see outbox.Outbox.Watch): once the
+		// webhook consumer is draining it, a /channel client polling the
+		// same outbox would race it for messages and acks.
+		internalMux.HandleFunc("/channel", server.handleOutboxChannel)
+	}
 	internalMux.HandleFunc("/proxy/", server.handleProxy)
 
 	var internalHandler http.Handler = internalMux
@@ -156,6 +163,14 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		slog.ErrorContext(ctx, "stopped", "error", err)
 		return err
 	})
+
+	if webhookURL != "" {
+		consumer := newWebhookConsumer(s, webhookURL)
+		eg.Go(func() error {
+			consumer.run(ctx)
+			return nil
+		})
+	}
 
 	if port == internalPort {
 		// Same port configured for both: share a single listener, with the
