@@ -16,7 +16,7 @@ import {
   SidebarMenuButton,
 } from "internal";
 import { toast } from "internal/components/ui";
-import { FileTextIcon, PlusIcon } from "lucide-react";
+import { FileTextIcon, HomeIcon, PlusIcon } from "lucide-react";
 import { createDoc, getCaller, listDocs, signOut } from "@/server/functions";
 
 export const Route = createFileRoute("/_requireAuth")({
@@ -42,7 +42,10 @@ export const Route = createFileRoute("/_requireAuth")({
         state.matches.find((x) => x.routeId === "/_requireAuth/$uri")?.params
           .uri,
     });
-
+    const onHomePage = useRouterState({
+      select: (state) =>
+        state.matches.some((x) => x.routeId === "/_requireAuth/"),
+    });
     const { mutate: create, isPending } = useMutation({
       mutationFn: () => createDoc(),
       onSuccess: async ({ docId }) => {
@@ -90,6 +93,19 @@ export const Route = createFileRoute("/_requireAuth")({
                 <PlusIcon />
                 New Document
               </SidebarMenuButton>
+            </SidebarGroup>
+            <SidebarGroup>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={onHomePage}
+                    render={<Link to="/" />}
+                  >
+                    <HomeIcon />
+                    <span>Home</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
             </SidebarGroup>
             {docs && docs.length > 0 && (
               <SidebarGroup>

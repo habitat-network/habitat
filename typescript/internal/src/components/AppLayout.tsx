@@ -33,12 +33,11 @@ interface AppLayoutProps {
 }
 
 function SidebarLogoButton({ title }: { title?: string }) {
-  const { toggleSidebar } = useSidebar();
   return (
-    <SidebarMenuButton size="lg" onClick={toggleSidebar}>
+    <SidebarMenuItem className="flex items-center gap-2">
       <HabitatLogo />
       {title && <span className="font-semibold">{title}</span>}
-    </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 
@@ -51,7 +50,7 @@ export const AppLayout = ({
 }: AppLayoutProps) => {
   return (
     <SidebarProvider>
-      <Sidebar collapsible="icon" variant="floating">
+      <Sidebar collapsible="icon" variant="inset">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
