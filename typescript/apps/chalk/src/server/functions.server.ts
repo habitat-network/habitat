@@ -1,5 +1,6 @@
 import { redirect } from "@tanstack/react-router";
 import { useAppSession } from "./session";
+import type { SapClient } from "./sapClient";
 
 // Server-only helpers, kept out of functions.ts so that file can stay
 // "pure" (only createServerFn-wrapped exports) per TanStack Start's
@@ -33,4 +34,38 @@ export async function requireSession(): Promise<{ did: string }> {
 export async function clearSession(): Promise<void> {
   const session = await useAppSession();
   await session.clear();
+}
+
+// sessionDid resolves the logged-in member's DID without redirecting —
+// unlike requireSession, whose `throw redirect(...)` is meant for a
+// createServerFn/page-load context the router can turn into an HTTP
+// redirect. A WebSocket upgrade handshake (src/routes/ws.$docId.ts) has no
+// such thing as a followable redirect, so that route checks this directly
+// and returns a plain 401 instead.
+export async function sessionDid(): Promise<string | undefined> {
+  const session = await useAppSession();
+  return session.data.did;
+}
+
+// hasDocAccess is the one place chalk actually checks
+// network.habitat.relationship before returning a doc's content: DocRoom
+// itself has no ACL, so it would otherwise fan out to whoever asks. A
+// caller who doesn't already hold at least reader has that same check
+// endpoint reject the query itself (it requires reader to call), not
+// return { allowed: false } — both outcomes mean "no access" here.
+export async function hasDocAccess(
+  client: SapClient,
+  did: string,
+  docId: string,
+): Promise<boolean> {
+  try {
+    const res = await client.call<{ allowed: boolean }>(
+      "network.habitat.relationship.checkUserRelation",
+      "GET",
+      { subject: did, relation: "reader", space: docId },
+    );
+    return res.allowed;
+  } catch {
+    return false;
+  }
 }

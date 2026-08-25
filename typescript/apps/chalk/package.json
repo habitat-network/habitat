@@ -24,11 +24,14 @@
     "@tiptap/starter-kit": "^3.28.0",
     "drizzle-orm": "0.45.2",
     "internal": "workspace:*",
+    "lib0": "^0.2.117",
     "lucide-react": "^1.0.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
     "tailwindcss": "^4.3.3",
+    "y-protocols": "^1.0.7",
+    "y-websocket": "^3.1.0",
     "yjs": "^13.6.31"
   },
   "devDependencies": {
