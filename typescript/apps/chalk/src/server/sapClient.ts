@@ -4,6 +4,17 @@
 // needs to be tracked or sent.
 const habitatDIDHeader = "Habitat-Did";
 
+// sapAuthHeaders builds the extra headers every call to sap's internal port
+// needs. When CHALK_SAP_INTERNAL_AUTH_SECRET is configured, sap gates those
+// routes behind HTTP basic auth (cmd/sap/server.go's basicAuthMiddleware);
+// the username is ignored, so it stays empty. Unset (local dev, where sap
+// runs without --internal-auth-secret), no header is sent.
+export function sapAuthHeaders(env: Env): Record<string, string> {
+  const secret = env.CHALK_SAP_INTERNAL_AUTH_SECRET;
+  if (!secret) return {};
+  return { Authorization: `Basic ${btoa(`:${secret}`)}` };
+}
+
 // startLogin asks sap to begin an atproto OAuth flow for handle, telling it
 // to redirect the browser back to chalk's /session/callback (with the
 // resolved DID) once the PDS OAuth handshake completes. Returns the
@@ -15,7 +26,10 @@ export async function startLogin(env: Env, handle: string): Promise<string> {
     throw new Error("CHALK_SAP_INTERNAL_URL is not set");
   const res = await fetch(`${env.CHALK_SAP_INTERNAL_URL}/session/add`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...sapAuthHeaders(env),
+    },
     body: JSON.stringify({
       handle,
       return_to: `${base}/session/callback`,
@@ -59,6 +73,7 @@ export class SapClient {
     let body: string | undefined;
     const headers: Record<string, string> = {
       [habitatDIDHeader]: this.did,
+      ...sapAuthHeaders(this.env),
     };
     if (method === "GET") {
       const qs = new URLSearchParams();
@@ -91,6 +106,7 @@ export class SapClient {
         headers: {
           [habitatDIDHeader]: this.did,
           "content-type": mimeType,
+          ...sapAuthHeaders(this.env),
         },
         body: bytes as BodyInit,
       },
@@ -114,6 +130,7 @@ export class SapClient {
         method: "GET",
         headers: {
           [habitatDIDHeader]: this.did,
+          ...sapAuthHeaders(this.env),
         },
       },
     );
@@ -134,6 +151,7 @@ export class SapClient {
       headers: {
         [habitatDIDHeader]: this.did,
         "content-type": "application/json",
+        ...sapAuthHeaders(this.env),
       },
       body: JSON.stringify({ space: spaceUri }),
     });

@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { docByUri, getDb } from "../../db";
+import { sapAuthHeaders } from "../sapClient";
 import { parseSpaceRecordUri, type OutboxMessage } from "../spaceUri";
 
 const CRDT_COLLECTION = "network.habitat.docs.crdt";
@@ -19,7 +20,7 @@ export class SapChannel extends DurableObject<Env> {
     // WebSocket on Workers is an ordinary http(s) fetch carrying the
     // `Upgrade: websocket` header, with the socket on `res.webSocket`.
     const res = await fetch(`${base}/channel`, {
-      headers: { Upgrade: "websocket" },
+      headers: { Upgrade: "websocket", ...sapAuthHeaders(this.env) },
     });
     const ws = res.webSocket;
     if (!ws) throw new Error("sap did not upgrade to a websocket");

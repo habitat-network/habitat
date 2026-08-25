@@ -39,7 +39,13 @@ export default defineConfig({
     cloudflareTest({
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
-        bindings: { TEST_MIGRATIONS: migrations },
+        bindings: {
+          TEST_MIGRATIONS: migrations,
+          // Test-only stand-in for the wrangler secret deployed
+          // environments configure; lets DO tests exercise sap's basic-auth
+          // gate (test/sapChannelLifecycle.test.ts).
+          CHALK_SAP_INTERNAL_AUTH_SECRET: "test-channel-secret",
+        },
       },
     }),
   ],

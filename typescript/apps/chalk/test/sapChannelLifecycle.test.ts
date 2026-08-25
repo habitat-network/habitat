@@ -51,3 +51,19 @@ it("targets sap's /channel over http with an Upgrade header", async () => {
     Upgrade: "websocket",
   });
 });
+
+// The value comes from the test-only CHALK_SAP_INTERNAL_AUTH_SECRET binding
+// defined in vitest.config.ts (deployed environments set it as a wrangler
+// secret instead).
+it("authenticates the upgrade when the internal-auth secret is set", async () => {
+  const stub = env.SAP.get(env.SAP.idFromName("lifecycle-auth"));
+  const res = new Response(null, { status: 200 });
+  Object.defineProperty(res, "webSocket", { value: fakeSocket() });
+  fetchMock.mockResolvedValue(res);
+  await runInDurableObject(stub, (c: SapChannel) => c.ensureConnected());
+  const [, init] = fetchMock.mock.calls[0]!;
+  expect((init as RequestInit).headers).toMatchObject({
+    Upgrade: "websocket",
+    Authorization: `Basic ${btoa(":test-channel-secret")}`,
+  });
+});

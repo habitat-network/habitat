@@ -37,6 +37,63 @@ describe("startLogin", () => {
   });
 });
 
+describe("internal auth", () => {
+  // sap's internal routes sit behind HTTP basic auth when it runs with
+  // --internal-auth-secret (cmd/sap/server.go's basicAuthMiddleware); the
+  // username is ignored, so it stays empty.
+  const secretEnv = {
+    ...testEnv,
+    CHALK_SAP_INTERNAL_AUTH_SECRET: "s3cret",
+  } as Env;
+
+  async function captureHeaders(
+    env: Env,
+    fn: (client: SapClient) => Promise<unknown>,
+  ): Promise<Headers> {
+    let headers: Headers | undefined;
+    server.use(
+      http.get(
+        "http://sap-internal.test/proxy/network.habitat.space.listRecords",
+        ({ request }) => {
+          headers = request.headers;
+          return HttpResponse.json({ records: [] });
+        },
+      ),
+    );
+    await fn(new SapClient(env, "did:plc:member1"));
+    expect(headers).toBeDefined();
+    return headers!;
+  }
+
+  it("sends basic auth on proxied calls when the secret is set", async () => {
+    const headers = await captureHeaders(secretEnv, (client) =>
+      client.call("network.habitat.space.listRecords", "GET", {}),
+    );
+    expect(headers.get("Authorization")).toBe(`Basic ${btoa(":s3cret")}`);
+  });
+
+  it("sends basic auth on session/add when the secret is set", async () => {
+    let headers: Headers | undefined;
+    server.use(
+      http.post("http://sap-internal.test/session/add", ({ request }) => {
+        headers = request.headers;
+        return HttpResponse.json({
+          redirect_url: "https://pds.example/authorize",
+        });
+      }),
+    );
+    await startLogin(secretEnv, "alice.test");
+    expect(headers?.get("Authorization")).toBe(`Basic ${btoa(":s3cret")}`);
+  });
+
+  it("sends no Authorization header without a secret (local dev)", async () => {
+    const headers = await captureHeaders(testEnv, (client) =>
+      client.call("network.habitat.space.listRecords", "GET", {}),
+    );
+    expect(headers.get("Authorization")).toBeNull();
+  });
+});
+
 describe("SapClient", () => {
   it("sends the Habitat-Did header on every call", async () => {
     let headers: Headers | undefined;
