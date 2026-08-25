@@ -237,6 +237,53 @@ func TestCrawlerRunCompleteThenRestart(t *testing.T) {
 	require.Empty(t, cr.Cursor)
 }
 
+// TestCrawlerRestartResetsErroredCrawl verifies that Restart discards a
+// stale cursor left by a previous errored crawl and re-crawls from the top,
+// rather than resuming from where the error happened (which Run alone would
+// do).
+func TestCrawlerRestartResetsErroredCrawl(t *testing.T) {
+	t.Parallel()
+
+	space := "at://did:plc:owner/space/network.habitat.space/s1"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/xrpc/network.habitat.space.listSpaces":
+			require.Empty(t, r.URL.Query().Get("cursor"),
+				"Restart must not resume from the stale cursor")
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListSpacesOutput{
+				Spaces: []habitat.NetworkHabitatSpaceListSpacesSpaceView{{Uri: space}},
+			})
+		case "/xrpc/network.habitat.space.listRepos":
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{})
+		}
+	}))
+	t.Cleanup(srv.Close)
+	base, _ := url.Parse(srv.URL)
+
+	db := db_testutil.NewDB(t)
+	rec := &recorder{}
+	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
+	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
+	require.NoError(t, err)
+
+	// Seed a prior crawl left errored with a stale cursor pointing well past
+	// what the fake server above accepts.
+	require.NoError(t, db.Create(&crawl{
+		DID:      "did:plc:alice",
+		State:    stateErrored,
+		Cursor:   "stale-cursor",
+		ErrorMsg: "boom",
+	}).Error)
+
+	c.Restart(t.Context(), "did:plc:alice", "sess1")
+
+	var cr crawl
+	require.NoError(t, db.First(&cr, "did = ?", "did:plc:alice").Error)
+	require.Equal(t, stateComplete, cr.State)
+	require.Empty(t, cr.Cursor)
+	require.Equal(t, []habitat_syntax.SpaceURI{habitat_syntax.SpaceURI(space)}, rec.access)
+}
+
 // TestDetachCancel verifies that detachCancel returns a context that inherits
 // cancellation from the parent.
 func TestDetachCancel(t *testing.T) {

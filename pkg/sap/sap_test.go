@@ -350,6 +350,104 @@ func TestSapTrackSpace(t *testing.T) {
 	require.Equal(t, int64(1), repoCount)
 }
 
+// TestSapRecrawl verifies that Recrawl re-crawls a session even when a prior
+// crawl for it is stuck errored with a stale cursor — the scenario Recrawl
+// exists for, distinguishing it from a crawl.Crawler.Run resume.
+func TestSapRecrawl(t *testing.T) {
+	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	pear := setupPear(t)
+	t.Cleanup(func() {
+		pear.server.CloseClientConnections()
+		pear.server.Close()
+	})
+	author := pear.author.DID
+
+	groupType := syntax.NSID("network.habitat.group")
+	collection := syntax.NSID("network.habitat.test")
+	space, err := pear.store.CreateSpace(
+		t.Context(), author, author, groupType, habitat_syntax.SpaceKey("recrawl-space"),
+	)
+	require.NoError(t, err)
+	recURI, _, err := pear.store.PutRecord(
+		t.Context(), space, author, collection,
+		syntax.RecordKey("rkey-0"), map[string]any{"data": "recrawled"},
+	)
+	require.NoError(t, err)
+
+	mux := http.NewServeMux()
+	sapServer := httptest.NewTLSServer(mux)
+	t.Cleanup(sapServer.Close)
+
+	db := db_testutil.NewDB(t)
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		sapServer.URL+"/client-metadata.json",
+		sapServer.URL+"/oauth-callback",
+		[]string{},
+	)
+	oauthApp := oauth.NewClientApp(&cfg, store)
+
+	s, err := New(Config{
+		DB:          db,
+		OAuthClient: oauthApp,
+		Directory:   pear.hive,
+		Endpoint:    sapServer.URL,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	go func() {
+		require.NoError(t, s.Start(ctx))
+	}()
+
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:              author,
+		SessionID:               "sess1",
+		HostURL:                 pear.server.URL,
+		AccessToken:             futureJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
+	}))
+
+	// Seed a crawl left stuck errored with a stale cursor, as if a previous
+	// crawl for this session failed partway through.
+	require.NoError(t, db.Exec(
+		`INSERT INTO crawls (did, session_id, state, cursor, error_msg, created_at, updated_at)
+		 VALUES (?, 'sess1', 'errored', 'stale-cursor', 'boom', ?, ?)`,
+		author, time.Now(), time.Now(),
+	).Error)
+
+	s.Recrawl(t.Context(), author, "sess1")
+
+	var got []outbox.Message
+	require.Eventually(t, func() bool {
+		var err error
+		got, err = s.Outbox().Poll(t.Context(), 10)
+		require.NoError(t, err)
+		return len(got) >= 1
+	}, 15*time.Second, 100*time.Millisecond)
+	for _, msg := range got {
+		require.Equal(t, recURI.String(), string(msg.URI))
+	}
+
+	type crawlRow struct {
+		State  string
+		Cursor string
+	}
+	var cr crawlRow
+	require.Eventually(t, func() bool {
+		if err := db.Table("crawls").Where("did = ?", author).First(&cr).Error; err != nil {
+			return false
+		}
+		return cr.State == "complete"
+	}, 5*time.Second, 50*time.Millisecond, "crawl never completed")
+	require.Empty(t, cr.Cursor)
+}
+
 // pearHost bundles the host-side pieces the test drives.
 type pearHost struct {
 	server *httptest.Server

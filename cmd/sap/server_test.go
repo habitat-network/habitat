@@ -226,6 +226,49 @@ func TestHandleTrackSpaceAllowsMissingSessionHeader(t *testing.T) {
 	require.NotEqual(t, http.StatusBadRequest, w.Code)
 }
 
+func TestHandleRecrawlRequiresDIDHeader(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/session/recrawl", nil)
+	w := httptest.NewRecorder()
+	srv.handleRecrawl(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestHandleRecrawlAllowsMissingSessionHeader pins that the session header is
+// optional, mirroring handleTrackSpace: it resolves fine under
+// WithSingleSessionPerUser, and a caller that doesn't track one can just omit
+// it.
+func TestHandleRecrawlAllowsMissingSessionHeader(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/session/recrawl", nil)
+	req.Header.Set(habitatDIDHeader, "did:plc:member")
+	w := httptest.NewRecorder()
+	srv.handleRecrawl(w, req)
+	require.Equal(t, http.StatusAccepted, w.Code)
+}
+
+// TestHandleRecrawlSchedulesAndReturnsAccepted pins that a well-formed
+// request returns 202 immediately — Recrawl schedules the crawl in the
+// background rather than the handler waiting for it to finish.
+func TestHandleRecrawlSchedulesAndReturnsAccepted(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/session/recrawl", nil)
+	req.Header.Set(habitatDIDHeader, "did:plc:member")
+	req.Header.Set(habitatSessionHeader, "session-abc")
+	w := httptest.NewRecorder()
+	srv.handleRecrawl(w, req)
+	require.Equal(t, http.StatusAccepted, w.Code)
+}
+
 func TestHandleNotifyWriteRejectsMissingOrInvalidAuth(t *testing.T) {
 	t.Parallel()
 
