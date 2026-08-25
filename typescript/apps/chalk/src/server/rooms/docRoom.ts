@@ -313,7 +313,7 @@ export class DocRoom extends DurableObject<Env> {
   ): void {
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_SYNC);
-    syncProtocol.writeUpdate(encoder, update);
+    syncProtocol.writeUpdate(encoder, Y.convertUpdateFormatV2ToV1(update));
     const bytes = encoding.toUint8Array(encoder);
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === exceptOrigin) continue;
