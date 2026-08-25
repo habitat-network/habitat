@@ -39,10 +39,8 @@
   // reverse of the usual pattern, but the only one this build pipeline
   // supports.
   "vars": {
-    "CHALK_BASE_URL": "https://chalk.arb-arushibandi.workers.dev",
-    "CHALK_DOMAIN": "chalk.arb-arushibandi.workers.dev",
+    "CHALK_BASE_URL": "https://chalk.habitat.network",
     "CHALK_SAP_INTERNAL_URL": "https://sap-953995456319.us-west1.run.app",
-    "CHALK_SAP_PUBLIC_URL": "https://sap-953995456319.us-west1.run.app",
   },
   "triggers": { "crons": ["* * * * *"] },
   "dev": { "port": 5177 },

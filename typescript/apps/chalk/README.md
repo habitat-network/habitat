@@ -78,16 +78,15 @@ pnpm exec wrangler secret put CHALK_SESSION_SECRET
 pnpm exec wrangler secret put CHALK_SAP_INTERNAL_AUTH_SECRET  # if sap requires it
 ```
 
-Update `wrangler.jsonc`'s `vars` (`CHALK_BASE_URL`, `CHALK_DOMAIN`,
-`CHALK_SAP_INTERNAL_URL`, `CHALK_SAP_PUBLIC_URL`) for the real deployment's
-domain and sap URL, and its `d1_databases[0].database_id` for the id
-`wrangler d1 create` printed. Durable Object migrations (`migrations` in
-`wrangler.jsonc`) are applied automatically by `wrangler deploy`. Without a
-custom domain, the Worker is served from `https://<name>.<account
-subdomain>.workers.dev` — find the account subdomain with `wrangler
-whoami` (Cloudflare dashboard → Workers & Pages → your account) or the
-`GET /accounts/:id/workers/subdomain` API — `CHALK_BASE_URL`/`CHALK_DOMAIN`
-need to match wherever it actually ends up.
+Update `wrangler.jsonc`'s `vars` (`CHALK_BASE_URL`, `CHALK_SAP_INTERNAL_URL`)
+for the real deployment's domain and sap URL, and its
+`d1_databases[0].database_id` for the id `wrangler d1 create` printed.
+Durable Object migrations (`migrations` in `wrangler.jsonc`) are applied
+automatically by `wrangler deploy`. Without a custom domain, the Worker is
+served from `https://<name>.<account subdomain>.workers.dev` — find the
+account subdomain with `wrangler whoami` (Cloudflare dashboard → Workers &
+Pages → your account) or the `GET /accounts/:id/workers/subdomain` API —
+`CHALK_BASE_URL` needs to match wherever it actually ends up.
 
 ### Local development
 
