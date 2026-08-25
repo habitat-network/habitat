@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
-import { docsForOwner, getDb, upsertDoc, type DocSummary } from "../db";
+import { docsForAccessor, getDb, upsertDoc, type DocSummary } from "../db";
 import {
   DOCS_SPACE_TYPE,
   clearSession,
@@ -72,7 +72,7 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
 export const listDocs = createServerFn({ method: "GET" }).handler(
   async (): Promise<DocSummary[]> => {
     const { did } = await requireSession();
-    return docsForOwner(getDb(env), did);
+    return docsForAccessor(getDb(env), did);
   },
 );
 

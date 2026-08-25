@@ -3,18 +3,23 @@ import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { ShareDialog, getProfiles, type Actor } from "internal";
 import { toast } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
 import { useYDoc } from "@/hooks/useYDoc";
 import { listDocAccess, revokeDocAccess, shareDoc } from "@/server/functions";
+import { useRecentDocsStore } from "@/stores/recentDocs";
 
 export const Route = createFileRoute("/_requireAuth/$uri")({
   component() {
     const { uri } = Route.useParams();
     const ydoc = useYDoc(uri);
     const queryClient = useQueryClient();
+
+    const addRecentDoc = useRecentDocsStore((state) => state.addRecentDoc);
+    useEffect(() => addRecentDoc(uri), [uri, addRecentDoc]);
 
     const accessQueryKey = ["docAccess", uri];
     const { data: grantees = [] } = useQuery({
