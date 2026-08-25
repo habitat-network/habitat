@@ -89,7 +89,14 @@ export class SapClient {
     if (!res.ok) {
       throw new Error(`${nsid} failed (${res.status}): ${await res.text()}`);
     }
-    return (await res.json()) as T;
+    // A procedure with no output schema (e.g.
+    // network.habitat.relationship.deleteRelation) returns an empty 200
+    // body. res.json() throws "Unexpected end of JSON input" on that —
+    // read as text first and only parse when there's actually something to
+    // parse, so a call whose return value the caller ignores doesn't throw
+    // regardless.
+    const text = await res.text();
+    return (text ? JSON.parse(text) : undefined) as T;
   }
 
   // uploadBlob uploads raw bytes to the member's own repo via

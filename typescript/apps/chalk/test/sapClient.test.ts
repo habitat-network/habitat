@@ -136,6 +136,27 @@ describe("SapClient", () => {
     expect(out.cid).toBe("bafy123");
   });
 
+  // Regression test: a procedure with no output schema (e.g.
+  // network.habitat.relationship.deleteRelation) returns an empty 200 body.
+  // call() used to do an unconditional res.json(), which throws "Unexpected
+  // end of JSON input" on an empty body — surfaced live as "Couldn't remove
+  // access: Unexpected end of JSON input" when deleteRelation's caller
+  // ignores the return value, exactly as it's meant to.
+  it("does not throw on a 200 response with an empty body", async () => {
+    server.use(
+      http.post(
+        "http://sap-internal.test/proxy/network.habitat.relationship.deleteRelation",
+        () => new HttpResponse(null, { status: 200 }),
+      ),
+    );
+    const client = new SapClient(testEnv, "did:plc:member1");
+    await expect(
+      client.call("network.habitat.relationship.deleteRelation", "POST", {
+        uri: "at://did:plc:owner/space/network.habitat.docs/abc/rel/xyz",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it("trackSpace POSTs the space URI with the auth header to /space/track", async () => {
     let body: unknown;
     let headers: Headers | undefined;
