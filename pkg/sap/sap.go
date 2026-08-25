@@ -223,6 +223,14 @@ func (s *Sap) AddSession(ctx context.Context, did syntax.DID, sessionID string) 
 	return nil
 }
 
+// Recrawl retriggers a crawl for an already-tracked session, discarding any
+// progress from a previous crawl and re-running discovery from the top —
+// e.g. after fixing whatever left a prior crawl stuck or errored. Like
+// AddSession, it returns once the crawl is scheduled, not once it completes.
+func (s *Sap) Recrawl(ctx context.Context, did syntax.DID, sessionID string) {
+	go s.crawler.Restart(detachSpan(ctx), did, sessionID)
+}
+
 // Sessions lists the DIDs of the sessions sap syncs on behalf of.
 func (s *Sap) Sessions(ctx context.Context) ([]syntax.DID, error) {
 	sessions, err := s.sessions.List(ctx)
