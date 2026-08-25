@@ -1,7 +1,7 @@
-import { env, runInDurableObject } from "cloudflare:test";
+import { env } from "cloudflare:test";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as Y from "yjs";
-import type { SapChannel } from "../src/server/rooms/sapChannel";
+import { processOutboxMessage } from "../src/server/outbox";
 import { getDb, upsertDoc } from "../src/db";
 
 // A well-formed empty Yjs V2 update — `applyRemote` feeds getBlob's response
@@ -32,51 +32,36 @@ function msg(uri: string, cid: string | undefined) {
 }
 
 it("routes a crdt record to its doc room", async () => {
-  const stub = env.SAP.get(env.SAP.idFromName("default"));
   // A fresh Response per call, not a shared instance: this Response's body
   // ends up read inside DocRoom (via applyRemote -> getBlob), a different
-  // Durable Object than the one running this test's setup code — reusing an
+  // Durable Object than this test's own execution context — reusing an
   // instance created here hits a real Workers I/O-ownership restriction
   // ("Cannot perform I/O on behalf of a different Durable Object").
   fetchMock.mockImplementation(async () => new Response(EMPTY_UPDATE));
-  await runInDurableObject(stub, (c: SapChannel) =>
-    c.handleOutboxMessage(msg(RECORD, "cid1")),
-  );
+  await processOutboxMessage(env, msg(RECORD, "cid1"));
   expect(
     fetchMock.mock.calls.some((c) => String(c[0]).includes("space.getBlob")),
   ).toBe(true);
 });
 
 it("ignores a record in a different collection", async () => {
-  const stub = env.SAP.get(env.SAP.idFromName("default"));
   const other = `${URI}/did:web:bob.example/network.habitat.docs.markdown/self`;
-  await runInDurableObject(stub, (c: SapChannel) =>
-    c.handleOutboxMessage(msg(other, "cid1")),
-  );
+  await processOutboxMessage(env, msg(other, "cid1"));
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
 it("ignores a doc absent from the index", async () => {
-  const stub = env.SAP.get(env.SAP.idFromName("default"));
   const unknown = `at://${OWNER}/space/network.habitat.docs/zzz/did:web:bob.example/network.habitat.docs.crdt/self`;
-  await runInDurableObject(stub, (c: SapChannel) =>
-    c.handleOutboxMessage(msg(unknown, "cid1")),
-  );
+  await processOutboxMessage(env, msg(unknown, "cid1"));
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
 it("ignores a record with no blob reference", async () => {
-  const stub = env.SAP.get(env.SAP.idFromName("default"));
-  await runInDurableObject(stub, (c: SapChannel) =>
-    c.handleOutboxMessage(msg(RECORD, undefined)),
-  );
+  await processOutboxMessage(env, msg(RECORD, undefined));
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
 it("ignores a malformed uri", async () => {
-  const stub = env.SAP.get(env.SAP.idFromName("default"));
-  await runInDurableObject(stub, (c: SapChannel) =>
-    c.handleOutboxMessage(msg("not-a-uri", "cid1")),
-  );
+  await processOutboxMessage(env, msg("not-a-uri", "cid1"));
   expect(fetchMock).not.toHaveBeenCalled();
 });

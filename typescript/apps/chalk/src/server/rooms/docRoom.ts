@@ -85,7 +85,7 @@ export class DocRoom extends DurableObject<Env> {
 
   // seedIdentity records spaceUri/ownerDid without touching the document.
   // createDoc calls this so the owner-republish alarm knows the owner before
-  // any SapChannel delivery would supply it. It is deliberately not an
+  // the webhook (src/server/webhook.ts) would supply it. It is deliberately not an
   // `applyEdit` with an empty update: there is no such thing as a
   // zero-length Yjs update — `Y.applyUpdateV2` throws "Unexpected end of
   // array" on `new Uint8Array(0)` — and even a well-formed empty update
@@ -261,7 +261,7 @@ export class DocRoom extends DurableObject<Env> {
 
   // republishCanonical writes the merged markdown + CRDT snapshot back under
   // the doc owner's own repo. This is itself a network.habitat.docs.crdt
-  // write, so it comes back through SapChannel looking like a fresh delta.
+  // write, so it comes back through the webhook looking like a fresh delta.
   // It does not loop: pear's PutRecord skips advancing the record (and the
   // notifyWrite it would cause) when a write does not change the record's
   // CID (see internal/spaces/store.go), so a no-op republish produces no

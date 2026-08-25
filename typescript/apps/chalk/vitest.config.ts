@@ -40,8 +40,8 @@ export default defineConfig({
         bindings: {
           TEST_MIGRATIONS: migrations,
           // Test-only stand-in for the wrangler secret deployed
-          // environments configure; lets DO tests exercise sap's basic-auth
-          // gate (test/sapChannelLifecycle.test.ts).
+          // environments configure; lets test/sapClient.test.ts exercise
+          // sap's basic-auth gate.
           CHALK_SAP_INTERNAL_AUTH_SECRET: "test-channel-secret",
         },
       },

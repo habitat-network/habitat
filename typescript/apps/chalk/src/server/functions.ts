@@ -60,7 +60,7 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     });
 
     // Record the room's identity now, so the owner-republish alarm knows the
-    // owner before any SapChannel delivery supplies it.
+    // owner before the webhook (src/server/webhook.ts) delivers it.
     await env.DOC.get(env.DOC.idFromName(created.uri)).seedIdentity({
       spaceUri: created.uri,
       ownerDid: did,

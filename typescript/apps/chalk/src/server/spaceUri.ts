@@ -1,6 +1,6 @@
-// OutboxMessage is sap's wire format for a single outbox event delivered over
-// the /channel websocket (see cmd/sap/websocket.go outboxWireMessage). The
-// consumer acks it back by id ({id}).
+// OutboxMessage is sap's wire format for a single outbox event, delivered as
+// a webhook POST body (see cmd/sap/webhook.go webhookPayload). A JSON-null
+// value is a delete tombstone: the record at uri was removed.
 export interface OutboxMessage {
   id: number;
   uri: string;

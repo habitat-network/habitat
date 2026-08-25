@@ -9,7 +9,6 @@
 import startEntry from "@tanstack/react-start/server-entry";
 
 export { DocRoom } from "./rooms/docRoom";
-export { SapChannel } from "./rooms/sapChannel";
 
 export default {
   // Only the request is forwarded: Start's handler is `(request, opts?)`,
@@ -17,16 +16,4 @@ export default {
   // reads bindings from `cloudflare:workers` at module scope like the rest
   // of this app does, so it needs nothing else from the invocation.
   fetch: (request) => startEntry.fetch(request),
-
-  // `scheduled` has to be a method on the default export, not a sibling
-  // named export — workerd resolves handlers off the default export object
-  // only, and rejects a cron delivery with "Expected 'default' export ... to
-  // define a `scheduled()` function" otherwise.
-  //
-  // The cron trigger (wrangler.jsonc's `triggers.crons`) is what guarantees
-  // recovery from eviction; SapChannel's own close-alarm only makes ordinary
-  // reconnects fast rather than up to a minute. Both are idempotent.
-  scheduled: (_controller, env, ctx) => {
-    ctx.waitUntil(env.SAP.get(env.SAP.idFromName("default")).ensureConnected());
-  },
 } satisfies ExportedHandler<Env>;
