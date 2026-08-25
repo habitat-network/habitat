@@ -253,6 +253,21 @@ func (c *Crawler) Run(ctx context.Context, did syntax.DID, sessionID string) {
 	slog.InfoContext(ctx, "crawl finished", "session", did)
 }
 
+// Restart forces did's crawl to re-run from the top regardless of the
+// previous crawl's state — unlike Run, which resumes from the stored cursor
+// when the previous crawl is stuck stateRunning or ended stateErrored.
+// Intended for a caller-triggered recrawl, where a stale cursor from a
+// crawl that failed (or never finished) shouldn't be resumed silently.
+func (c *Crawler) Restart(ctx context.Context, did syntax.DID, sessionID string) {
+	if err := c.db.WithContext(ctx).Model(&crawl{}).
+		Where("did = ?", did).
+		Updates(map[string]any{"state": stateComplete, "cursor": ""}).Error; err != nil {
+		slog.ErrorContext(ctx, "reset crawl state", "session", did, "err", err)
+		return
+	}
+	c.Run(ctx, did, sessionID)
+}
+
 func (c *Crawler) crawlSession(
 	ctx context.Context,
 	did syntax.DID,
