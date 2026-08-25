@@ -12,6 +12,7 @@ var (
 	fInternalAuthSecret = "internal-auth-secret"
 
 	fIdentityResolver = "identity-resolver"
+	fWebhookURL       = "webhook-url"
 )
 
 func getFlags() []cli.Flag {
@@ -62,6 +63,12 @@ func getFlags() []cli.Flag {
 			Usage:   "Secret used in OAuth flow",
 			Value:   "secret",
 			Sources: cli.EnvVars("SAP_SECRET"),
+		},
+		&cli.StringFlag{
+			Name: fWebhookURL,
+			Usage: "If set, POST each outbox message to this URL as it's synced, retrying " +
+				"a failed delivery with exponential backoff until it succeeds",
+			Sources: cli.EnvVars("SAP_WEBHOOK_URL"),
 		},
 	}
 }
