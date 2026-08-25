@@ -32,23 +32,38 @@ If you prefer not to use Tailwind CSS:
 
 ## Deploy to Cloudflare Workers
 
-> **This app is not deployable to real Workers yet.** sap reachability from
-> a deployed Worker and `Habitat-Did` authentication between chalk and sap
-> are unsolved (see `docs/superpowers/specs/2026-08-24-chalk-durable-objects-design.md`,
-> "Out of scope" #1) — everything below assumes `CHALK_SAP_INTERNAL_URL`
-> points somewhere the Worker can actually reach, which today only holds
-> for local dev against a loopback `sap`.
-
 Chalk builds through `@cloudflare/vite-plugin` (not Nitro): a stateless
 Worker serving routes, SSR, and server functions, with two Durable Object
 classes — `DocRoom` (one per document, owns its Yjs state) and `SapChannel`
 (the singleton holding the WebSocket to sap's `/channel`) — plus a D1
-database for the docs index.
+database for the docs index. This only works against a sap that the
+deployed Worker can actually reach over the public internet and that
+authenticates chalk's requests (see below) — a loopback sap only works for
+local dev.
 
 ```bash
 pnpm build
 pnpm exec wrangler deploy
 ```
+
+**`wrangler.jsonc`'s top-level `vars` are the real deployment's values, not
+local dev's** — the reverse of the usual convention. `@cloudflare/
+vite-plugin`'s `vite build` bakes the top-level config into
+`dist/server/wrangler.json` regardless of `--env`, so Wrangler's named
+environments (`wrangler deploy --env production`) don't work for selecting
+per-environment vars in this build pipeline — confirmed by inspecting that
+file after a build with an `env.production` override in place, and by a
+`--dry-run` that reported the top-level values back regardless of `--env`.
+Local dev instead overrides `vars` via `.dev.vars` (gitignored, wins over
+`vars` for `wrangler dev`/`vite dev`) — see that file for the local values.
+
+If sap runs with `--internal-auth-secret` (real deployments should — see
+`cmd/sap/server.go`'s `basicAuthMiddleware`), set
+`CHALK_SAP_INTERNAL_AUTH_SECRET` to match, as a wrangler secret. Every
+`SapClient`/`SapChannel` call sends it as HTTP basic auth automatically
+when it's set (`sapAuthHeaders` in `sapClient.ts`); a local sap without
+that flag needs no header, which is why local dev's `.dev.vars` sets a
+placeholder value that's simply never read.
 
 First-time setup:
 
@@ -58,16 +73,21 @@ First-time setup:
 pnpm exec wrangler d1 create chalk
 pnpm exec wrangler d1 migrations apply chalk --remote
 
-# CHALK_SESSION_SECRET is a wrangler secret, not a var (see wrangler.jsonc).
-# Locally, put it in .dev.vars (gitignored); in a deployed environment:
+# Both are wrangler secrets, not vars (see wrangler.jsonc):
 pnpm exec wrangler secret put CHALK_SESSION_SECRET
+pnpm exec wrangler secret put CHALK_SAP_INTERNAL_AUTH_SECRET  # if sap requires it
 ```
 
-`wrangler.jsonc`'s `vars` (`CHALK_BASE_URL`, `CHALK_DOMAIN`,
-`CHALK_SAP_INTERNAL_URL`, `CHALK_SAP_PUBLIC_URL`) and Durable Object/D1
-bindings cover local dev already; update them for a real deployment's
-domains and database id. Durable Object migrations (`migrations` in
-`wrangler.jsonc`) are applied automatically by `wrangler deploy`.
+Update `wrangler.jsonc`'s `vars` (`CHALK_BASE_URL`, `CHALK_DOMAIN`,
+`CHALK_SAP_INTERNAL_URL`, `CHALK_SAP_PUBLIC_URL`) for the real deployment's
+domain and sap URL, and its `d1_databases[0].database_id` for the id
+`wrangler d1 create` printed. Durable Object migrations (`migrations` in
+`wrangler.jsonc`) are applied automatically by `wrangler deploy`. Without a
+custom domain, the Worker is served from `https://<name>.<account
+subdomain>.workers.dev` — find the account subdomain with `wrangler
+whoami` (Cloudflare dashboard → Workers & Pages → your account) or the
+`GET /accounts/:id/workers/subdomain` API — `CHALK_BASE_URL`/`CHALK_DOMAIN`
+need to match wherever it actually ends up.
 
 ### Local development
 
