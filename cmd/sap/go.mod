@@ -4,6 +4,7 @@ go 1.26.3
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
+	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/stretchr/testify v1.12.1
