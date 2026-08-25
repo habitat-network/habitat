@@ -4,16 +4,6 @@ tasks:
   dev:
     env:
       SERVER_PORT: "5177"
-      CHALK_BASE_URL: "https://chalk.local.habitat.network"
-      CHALK_DOMAIN: "chalk.local.habitat.network"
-      # sap's internal port (2581) serves /proxy, /org/add, /org/list, /channel.
-      # Reached directly, not via Caddy/TLS.
-      CHALK_SAP_INTERNAL_URL: "http://127.0.0.1:2581"
-      # sap's public OAuth port, for the browser-facing redirect through it.
-      CHALK_SAP_PUBLIC_URL: "https://sap.local.habitat.network"
-      NODE_OPTIONS: "--use-system-ca"
-      CHALK_SESSION_SECRET: "dev-only-32-char-minimum-secret!!"
-      CHALK_DB: ".chalk/chalk.db"
     deps:
       - pear:dev
       - sap:dev

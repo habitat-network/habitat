@@ -30,18 +30,114 @@ If you prefer not to use Tailwind CSS:
 3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
 4. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
 
-## Deploy with Nitro
+## Deploy to Cloudflare Workers
 
-This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
+Chalk builds through `@cloudflare/vite-plugin` (not Nitro): a stateless
+Worker serving routes, SSR, and server functions, with two Durable Object
+classes — `DocRoom` (one per document, owns its Yjs state) and `SapChannel`
+(the singleton holding the WebSocket to sap's `/channel`) — plus a D1
+database for the docs index. This only works against a sap that the
+deployed Worker can actually reach over the public internet and that
+authenticates chalk's requests (see below) — a loopback sap only works for
+local dev.
 
 ```bash
-npm run build
-node dist/server/index.mjs
+pnpm build
+pnpm exec wrangler deploy
 ```
 
-The build output is a self-contained Node server. To deploy, push the `dist/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
+**`wrangler.jsonc`'s top-level `vars` are the real deployment's values, not
+local dev's** — the reverse of the usual convention. `@cloudflare/
+vite-plugin`'s `vite build` bakes the top-level config into
+`dist/server/wrangler.json` regardless of `--env`, so Wrangler's named
+environments (`wrangler deploy --env production`) don't work for selecting
+per-environment vars in this build pipeline — confirmed by inspecting that
+file after a build with an `env.production` override in place, and by a
+`--dry-run` that reported the top-level values back regardless of `--env`.
+Local dev instead overrides `vars` via `.dev.vars` (gitignored, wins over
+`vars` for `wrangler dev`/`vite dev`) — see that file for the local values.
 
-For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
+If sap runs with `--internal-auth-secret` (real deployments should — see
+`cmd/sap/server.go`'s `basicAuthMiddleware`), set
+`CHALK_SAP_INTERNAL_AUTH_SECRET` to match, as a wrangler secret. Every
+`SapClient`/`SapChannel` call sends it as HTTP basic auth automatically
+when it's set (`sapAuthHeaders` in `sapClient.ts`); a local sap without
+that flag needs no header, which is why local dev's `.dev.vars` sets a
+placeholder value that's simply never read.
+
+First-time setup:
+
+```bash
+# Create the D1 database and update wrangler.jsonc's database_id with the
+# id it prints (see d1_databases in wrangler.jsonc).
+pnpm exec wrangler d1 create chalk
+pnpm exec wrangler d1 migrations apply chalk --remote
+
+# Both are wrangler secrets, not vars (see wrangler.jsonc):
+pnpm exec wrangler secret put CHALK_SESSION_SECRET
+pnpm exec wrangler secret put CHALK_SAP_INTERNAL_AUTH_SECRET  # if sap requires it
+```
+
+Update `wrangler.jsonc`'s `vars` (`CHALK_BASE_URL`, `CHALK_SAP_INTERNAL_URL`)
+for the real deployment's domain and sap URL, and its
+`d1_databases[0].database_id` for the id `wrangler d1 create` printed.
+Durable Object migrations (`migrations` in `wrangler.jsonc`) are applied
+automatically by `wrangler deploy`. Without a custom domain, the Worker is
+served from `https://<name>.<account subdomain>.workers.dev` — find the
+account subdomain with `wrangler whoami` (Cloudflare dashboard → Workers &
+Pages → your account) or the `GET /accounts/:id/workers/subdomain` API —
+`CHALK_BASE_URL` needs to match wherever it actually ends up.
+
+### Local development
+
+`moon chalk:dev` starts pear, sap, Caddy, and the Worker on port 5177.
+
+The local D1 database starts out empty and nothing in the Workers runtime
+creates its schema, so `dev` applies the migrations in `drizzle/` on every
+start (`pnpm db:migrate-local`, idempotent) before handing off to Vite.
+Deleting `.wrangler/` resets that database; the next `dev` re-applies the
+migrations, but any documents it held are gone.
+
+Each `DocRoom` Durable Object carries its own separate storage — a single
+`"doc"` key plus a small, prefix-grouped set of pending-flush keys — read
+directly via `ctx.storage.get`/`put`/`list` (no schema, no migrations;
+Cloudflare's own storage-access guidance recommends the key-value API over
+`ctx.storage.sql` for exactly this shape: one current-state value plus
+simple per-key entries). If you have local Durable Object state from
+before this, its rooms silently start empty rather than erroring — the old
+data lived in SQL tables this code no longer reads — so a document created
+before this change won't show its content locally until edited again;
+clear stale state with `rm -rf .wrangler/state/v3/do` if that's confusing.
+
+Regenerate the D1 migration after changing `src/db/schema.ts`:
+
+```bash
+pnpm db:generate
+```
+
+One thing does need doing by hand the first time:
+
+```bash
+# CHALK_SESSION_SECRET comes from .dev.vars (gitignored). Create it with:
+echo 'CHALK_SESSION_SECRET=dev-only-32-char-minimum-secret!!' > .dev.vars
+```
+
+**Cron triggers do not fire on a schedule in local dev.** `SapChannel`'s
+connection to sap's `/channel` is established by the `scheduled()` handler,
+so in production the every-minute cron connects it (and reconnects it after
+an eviction) on its own — locally nothing calls it. Kick it manually:
+
+```bash
+curl http://127.0.0.1:5177/cdn-cgi/handler/scheduled
+```
+
+Until you do, edits still sync between browser tabs (that path is
+`DocRoom`-local) and still get written back to pear on the debounce, but
+inbound outbox events from sap are not consumed.
+
+Regenerate `worker-configuration.d.ts` (the typed `Env` global) after any
+binding or var change: `pnpm cf-typegen` (also runs automatically before
+`dev`/`build`/`test`).
 
 ## Setting up PostHog
 

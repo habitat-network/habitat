@@ -2,14 +2,64 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
 import { createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ShareDialog, getProfiles, type Actor } from "internal";
+import { toast } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
 import { useYDoc } from "@/hooks/useYDoc";
+import { listDocAccess, revokeDocAccess, shareDoc } from "@/server/functions";
 
 export const Route = createFileRoute("/_requireAuth/$uri")({
   component() {
     const { uri } = Route.useParams();
     const ydoc = useYDoc(uri);
+    const queryClient = useQueryClient();
+
+    const accessQueryKey = ["docAccess", uri];
+    const { data: grantees = [] } = useQuery({
+      queryKey: accessQueryKey,
+      // listDocAccess only returns DIDs (what network.habitat.relationship
+      // actually stores); resolving those to handles/avatars for display is
+      // a separate, client-side lookup against the public directory.
+      queryFn: async () => {
+        const access = await listDocAccess({ data: { docId: uri } });
+        return getProfiles(access.map((a) => a.did));
+      },
+    });
+    const invalidateAccess = () =>
+      queryClient.invalidateQueries({ queryKey: accessQueryKey });
+
+    const { mutate: addPermission, isPending: isAddingPermission } =
+      useMutation({
+        mutationFn: (actors: Actor[]) =>
+          Promise.all(
+            actors.map((actor) =>
+              shareDoc({ data: { docId: uri, subjectDid: actor.did } }),
+            ),
+          ),
+        onSuccess: invalidateAccess,
+        onError: (error) => {
+          toast.add({
+            type: "error",
+            title: "Couldn't share doc",
+            description: error.message,
+          });
+        },
+      });
+
+    const { mutate: removePermission } = useMutation({
+      mutationFn: (actor: Actor) =>
+        revokeDocAccess({ data: { docId: uri, subjectDid: actor.did } }),
+      onSuccess: invalidateAccess,
+      onError: (error) => {
+        toast.add({
+          type: "error",
+          title: "Couldn't remove access",
+          description: error.message,
+        });
+      },
+    });
 
     const editor = useEditor(
       {
@@ -33,6 +83,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           <EditorContent className="w-full flex-1" editor={editor} />
         </div>
         <PageHeader>
+          <ShareDialog
+            grantees={grantees}
+            isAdding={isAddingPermission}
+            onAddPermission={(actors) => addPermission(actors)}
+            onRemovePermission={(actor) => removePermission(actor)}
+          />
           <HelpDialog />
         </PageHeader>
       </div>
