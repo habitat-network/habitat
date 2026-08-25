@@ -98,19 +98,21 @@ start (`pnpm db:migrate-local`, idempotent) before handing off to Vite.
 Deleting `.wrangler/` resets that database; the next `dev` re-applies the
 migrations, but any documents it held are gone.
 
-Each `DocRoom` Durable Object carries its own separate SQLite, migrated at
-construction by `drizzle-orm/durable-sqlite/migrator` from
-`src/server/rooms/migrations/`. If you have local Durable Object state that
-predates those generated migrations, its rooms fail with `DrizzleError:
-Rollback` (the first migration tries to create tables that already exist);
-clear it with `rm -rf .wrangler/state/v3/do`.
+Each `DocRoom` Durable Object carries its own separate storage — a single
+`"doc"` key plus a small, prefix-grouped set of pending-flush keys — read
+directly via `ctx.storage.get`/`put`/`list` (no schema, no migrations;
+Cloudflare's own storage-access guidance recommends the key-value API over
+`ctx.storage.sql` for exactly this shape: one current-state value plus
+simple per-key entries). If you have local Durable Object state from
+before this, its rooms silently start empty rather than erroring — the old
+data lived in SQL tables this code no longer reads — so a document created
+before this change won't show its content locally until edited again;
+clear stale state with `rm -rf .wrangler/state/v3/do` if that's confusing.
 
-Regenerate migrations after changing either schema:
+Regenerate the D1 migration after changing `src/db/schema.ts`:
 
 ```bash
-pnpm db:generate            # both
-pnpm db:generate-d1         # src/db/schema.ts        -> drizzle/
-pnpm db:generate-docroom    # rooms/docRoomSchema.ts  -> rooms/migrations/
+pnpm db:generate
 ```
 
 One thing does need doing by hand the first time:

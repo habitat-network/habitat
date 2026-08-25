@@ -4,7 +4,6 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
-import { sqlRaw } from "./vite-sql-raw.ts";
 
 // TanStack Start's Vite plugin (tanstackStart) owns both the SSR/server-function
 // build and file-based route generation (routeTree.gen.ts) — it supersedes the
@@ -34,7 +33,6 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   plugins: [
-    sqlRaw(),
     cloudflare({ viteEnvironment: { name: "ssr" } }),
     tailwindcss(),
     ...devtools({

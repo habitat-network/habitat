@@ -1,13 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import {
-  drizzle,
-  type DrizzleSqliteDODatabase,
-} from "drizzle-orm/durable-sqlite";
-import { migrate } from "drizzle-orm/durable-sqlite/migrator";
-import { and, eq } from "drizzle-orm";
 import * as Y from "yjs";
-import { docState, pendingFlush } from "./docRoomSchema";
-import migrations from "./migrations/migrations";
 import { frame } from "./frames";
 import { SapClient } from "../sapClient";
 import { renderDoc } from "../../render";
@@ -26,29 +18,49 @@ export interface DocIdentity {
   ownerDid?: string;
 }
 
+// This room's storage needs are a single "current state" value plus a small,
+// prefix-grouped set of pending-flush entries — the shape Cloudflare's own
+// storage-access guidance recommends the key-value API for, over ctx.storage.sql
+// (see docs/durable-objects/best-practices/access-durable-objects-storage).
+// DocRoom is still a SQLite-backed class (wrangler.jsonc's new_sqlite_classes),
+// so this isn't a different storage engine or a smaller size ceiling than SQL
+// would have had — ctx.storage.get/put on a SQLite-backed DO reads/writes the
+// same per-object database, just without a query builder in front of it.
+const DOC_KEY = "doc";
+const PENDING_PREFIX = "pending:";
+
+interface StoredDoc {
+  spaceUri: string;
+  ownerDid?: string;
+  state: Uint8Array;
+  updatedAt: number;
+}
+
+interface PendingFlush {
+  kind: "member" | "owner";
+  memberDid: string;
+  firstPushAt: number;
+  idleDeadline: number;
+}
+
+// The pending-flush key only needs to be unique per (kind, memberDid) — it's
+// never parsed back apart, so a DID's own colons in memberDid can't cause
+// ambiguity the way splitting the key on ":" would.
+function pendingKey(kind: "member" | "owner", memberDid: string): string {
+  return `${PENDING_PREFIX}${kind}:${memberDid}`;
+}
+
 export class DocRoom extends DurableObject<Env> {
-  private db: DrizzleSqliteDODatabase;
   private ydoc = new Y.Doc();
   private id: DocIdentity | undefined;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    this.db = drizzle(ctx.storage);
     ctx.blockConcurrencyWhile(async () => {
-      // Schema comes from drizzle-kit (drizzle.docroom.config.ts →
-      // ./migrations), not hand-written DDL: this SQLite is a real database
-      // with its own migration history, and `migrate()` tracks what it has
-      // applied in a __drizzle_migrations table. Regenerate with
-      // `pnpm db:generate-docroom` after editing docRoomSchema.ts.
-      await migrate(this.db, migrations);
-      const [row] = await this.db
-        .select()
-        .from(docState)
-        .where(eq(docState.id, 0))
-        .limit(1);
-      if (!row) return;
-      this.id = { spaceUri: row.spaceUri, ownerDid: row.ownerDid ?? undefined };
-      if (row.state) Y.applyUpdateV2(this.ydoc, new Uint8Array(row.state));
+      const doc = await ctx.storage.get<StoredDoc>(DOC_KEY);
+      if (!doc) return;
+      this.id = { spaceUri: doc.spaceUri, ownerDid: doc.ownerDid };
+      Y.applyUpdateV2(this.ydoc, doc.state);
     });
   }
 
@@ -181,37 +193,28 @@ export class DocRoom extends DurableObject<Env> {
     kind: "member" | "owner",
     memberDid: string,
   ): Promise<void> {
+    const key = pendingKey(kind, memberDid);
     const now = Date.now();
-    const [existing] = await this.db
-      .select()
-      .from(pendingFlush)
-      .where(
-        and(eq(pendingFlush.kind, kind), eq(pendingFlush.memberDid, memberDid)),
-      )
-      .limit(1);
-    await this.db
-      .insert(pendingFlush)
-      .values({
-        kind,
-        memberDid,
-        firstPushAt: existing?.firstPushAt ?? now,
-        idleDeadline: now + DocRoom.IDLE_MS,
-      })
-      .onConflictDoUpdate({
-        target: [pendingFlush.kind, pendingFlush.memberDid],
-        set: { idleDeadline: now + DocRoom.IDLE_MS },
-      });
+    const existing = await this.ctx.storage.get<PendingFlush>(key);
+    await this.ctx.storage.put<PendingFlush>(key, {
+      kind,
+      memberDid,
+      firstPushAt: existing?.firstPushAt ?? now,
+      idleDeadline: now + DocRoom.IDLE_MS,
+    });
     await this.rearm();
   }
 
   // A DO has exactly one alarm, so it is always set to the earliest deadline
-  // across every pending row: min(idleDeadline, firstPushAt + MAX_WAIT_MS).
+  // across every pending entry: min(idleDeadline, firstPushAt + MAX_WAIT_MS).
   private async rearm(): Promise<void> {
-    const rows = await this.db.select().from(pendingFlush);
-    if (rows.length === 0) return;
+    const pending = await this.ctx.storage.list<PendingFlush>({
+      prefix: PENDING_PREFIX,
+    });
+    if (pending.size === 0) return;
     const next = Math.min(
-      ...rows.map((r) =>
-        Math.min(r.idleDeadline, r.firstPushAt + DocRoom.MAX_WAIT_MS),
+      ...[...pending.values()].map((p) =>
+        Math.min(p.idleDeadline, p.firstPushAt + DocRoom.MAX_WAIT_MS),
       ),
     );
     await this.ctx.storage.setAlarm(next);
@@ -219,23 +222,18 @@ export class DocRoom extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     const now = Date.now();
-    const rows = await this.db.select().from(pendingFlush);
-    for (const row of rows) {
+    const pending = await this.ctx.storage.list<PendingFlush>({
+      prefix: PENDING_PREFIX,
+    });
+    for (const [key, entry] of pending) {
       const due = Math.min(
-        row.idleDeadline,
-        row.firstPushAt + DocRoom.MAX_WAIT_MS,
+        entry.idleDeadline,
+        entry.firstPushAt + DocRoom.MAX_WAIT_MS,
       );
       if (due > now) continue;
-      await this.db
-        .delete(pendingFlush)
-        .where(
-          and(
-            eq(pendingFlush.kind, row.kind),
-            eq(pendingFlush.memberDid, row.memberDid),
-          ),
-        );
-      if (row.kind === "member") await this.flushMember(row.memberDid);
-      if (row.kind === "owner") await this.republishCanonical();
+      await this.ctx.storage.delete(key);
+      if (entry.kind === "member") await this.flushMember(entry.memberDid);
+      if (entry.kind === "owner") await this.republishCanonical();
     }
     await this.rearm();
   }
@@ -302,16 +300,11 @@ export class DocRoom extends DurableObject<Env> {
 
   private async persist(): Promise<void> {
     if (!this.id) return;
-    const row = {
-      id: 0,
+    await this.ctx.storage.put<StoredDoc>(DOC_KEY, {
       spaceUri: this.id.spaceUri,
-      ownerDid: this.id.ownerDid ?? null,
-      state: Buffer.from(Y.encodeStateAsUpdateV2(this.ydoc)),
+      ownerDid: this.id.ownerDid,
+      state: Y.encodeStateAsUpdateV2(this.ydoc),
       updatedAt: Date.now(),
-    };
-    await this.db
-      .insert(docState)
-      .values(row)
-      .onConflictDoUpdate({ target: docState.id, set: row });
+    });
   }
 }

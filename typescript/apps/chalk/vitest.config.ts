@@ -5,7 +5,6 @@ import {
   readD1Migrations,
 } from "@cloudflare/vitest-pool-workers";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
-import { sqlRaw } from "./vite-sql-raw.ts";
 
 // The plan this app follows was written against an older
 // @cloudflare/vitest-pool-workers that exported `defineWorkersConfig` from a
@@ -34,7 +33,6 @@ export default defineConfig({
     setupFiles: ["./test/applyMigrations.ts"],
   },
   plugins: [
-    sqlRaw(),
     tanstackStart(),
     cloudflareTest({
       wrangler: { configPath: "./wrangler.jsonc" },
