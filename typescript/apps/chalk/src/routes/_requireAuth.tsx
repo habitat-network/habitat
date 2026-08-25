@@ -16,8 +16,9 @@ import {
   SidebarMenuButton,
 } from "internal";
 import { toast } from "internal/components/ui";
-import { FileTextIcon, HomeIcon, PlusIcon } from "lucide-react";
+import { HomeIcon, PlusIcon } from "lucide-react";
 import { createDoc, getCaller, listDocs, signOut } from "@/server/functions";
+import { useRecentDocsStore } from "@/stores/recentDocs";
 
 export const Route = createFileRoute("/_requireAuth")({
   beforeLoad: async () => await getCaller(),
@@ -46,6 +47,13 @@ export const Route = createFileRoute("/_requireAuth")({
       select: (state) =>
         state.matches.some((x) => x.routeId === "/_requireAuth/"),
     });
+    const recentDocIds = useRecentDocsStore((state) => state.recentDocIds);
+    // recentDocIds only remembers order of visits; docs (the full
+    // accessor list) is the source of truth for whether a doc still
+    // exists/is still accessible and for its current title.
+    const recentDocs = recentDocIds
+      .map((docId) => docs?.find((doc) => doc.docId === docId))
+      .filter((doc) => doc !== undefined);
     const { mutate: create, isPending } = useMutation({
       mutationFn: () => createDoc(),
       onSuccess: async ({ docId }) => {
@@ -107,12 +115,12 @@ export const Route = createFileRoute("/_requireAuth")({
         sidebarContent={
           <>
 
-            {docs && docs.length > 0 && (
+            {recentDocs.length > 0 && (
               <SidebarGroup>
-                <SidebarGroupLabel>Documents</SidebarGroupLabel>
+                <SidebarGroupLabel>Recent</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {docs.map((doc) => (
+                    {recentDocs.map((doc) => (
                       <SidebarMenuItem key={doc.docId}>
                         <SidebarMenuButton
                           isActive={currentDocId === doc.docId}
