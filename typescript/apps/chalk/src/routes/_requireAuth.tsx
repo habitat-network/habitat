@@ -81,32 +81,32 @@ export const Route = createFileRoute("/_requireAuth")({
         actor={{ did }}
         title="Chalk"
         onSignOut={() => logOut()}
-        sidebar={
-          <>
-            <SidebarGroup>
+        sidebarHeader={
+          <SidebarMenu>
+            <SidebarMenuButton
+              variant="outline"
+              className="bg-sidebar-primary/10 hover:bg-sidebar-primary/20 border-sidebar-primary/30 text-sidebar-primary font-medium"
+              onClick={() => create()}
+              disabled={isPending}
+              size="lg"
+            >
+              <PlusIcon />
+              New Document
+            </SidebarMenuButton>
+            <SidebarMenuItem>
               <SidebarMenuButton
-                variant="outline"
-                className="bg-sidebar-primary/10 hover:bg-sidebar-primary/20 border-sidebar-primary/30 text-sidebar-primary font-medium"
-                onClick={() => create()}
-                disabled={isPending}
+                isActive={onHomePage}
+                render={<Link to="/" />}
               >
-                <PlusIcon />
-                New Document
+                <HomeIcon />
+                <span>Home</span>
               </SidebarMenuButton>
-            </SidebarGroup>
-            <SidebarGroup>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={onHomePage}
-                    render={<Link to="/" />}
-                  >
-                    <HomeIcon />
-                    <span>Home</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroup>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        }
+        sidebarContent={
+          <>
+
             {docs && docs.length > 0 && (
               <SidebarGroup>
                 <SidebarGroupLabel>Documents</SidebarGroupLabel>
@@ -120,7 +120,6 @@ export const Route = createFileRoute("/_requireAuth")({
                             <Link to="/$uri" params={{ uri: doc.docId }} />
                           }
                         >
-                          <FileTextIcon />
                           <span>{doc.title}</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>

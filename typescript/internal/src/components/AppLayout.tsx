@@ -27,24 +27,17 @@ import { UserItem } from "./UserItem";
 interface AppLayoutProps {
   actor?: Actor;
   title?: string;
-  sidebar?: ReactNode;
+  sidebarHeader?: ReactNode;
+  sidebarContent?: ReactNode;
   onSignOut?: () => void;
   children: ReactNode;
-}
-
-function SidebarLogoButton({ title }: { title?: string }) {
-  return (
-    <SidebarMenuItem className="flex items-center gap-2">
-      <HabitatLogo />
-      {title && <span className="font-semibold">{title}</span>}
-    </SidebarMenuItem>
-  );
 }
 
 export const AppLayout = ({
   actor,
   title,
-  sidebar,
+  sidebarContent: sidebarContent,
+  sidebarHeader,
   onSignOut,
   children,
 }: AppLayoutProps) => {
@@ -52,13 +45,9 @@ export const AppLayout = ({
     <SidebarProvider>
       <Sidebar collapsible="icon" variant="inset">
         <SidebarHeader>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarLogoButton title={title} />
-            </SidebarMenuItem>
-          </SidebarMenu>
+          {sidebarHeader}
         </SidebarHeader>
-        <SidebarContent>{sidebar}</SidebarContent>
+        <SidebarContent>{sidebarContent}</SidebarContent>
         <SidebarFooter>
           {actor && (
             <SidebarMenu>
@@ -71,7 +60,7 @@ export const AppLayout = ({
                       </SidebarMenuButton>
                     }
                   ></DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" side="top">
+                  <DropdownMenuContent align="start" side="right">
                     <DropdownMenuItem
                       render={
                         <a
