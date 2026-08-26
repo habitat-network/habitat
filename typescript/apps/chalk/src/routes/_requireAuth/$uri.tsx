@@ -68,6 +68,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
     const editor = useEditor(
       {
+        // The doc's real content comes from ydoc over the WebSocket, not
+        // server-rendered markup — rendering on the server would touch
+        // `document`, which doesn't exist there, and would just be thrown
+        // away on hydration anyway.
+        immediatelyRender: false,
         extensions: [
           StarterKit.configure({ undoRedo: false }),
           Collaboration.configure({ document: ydoc }),
