@@ -147,6 +147,22 @@ export const getDocRole = createServerFn({ method: "GET" })
     return docRole(client, did, data.docId);
   });
 
+// getDocInitialState returns the doc's current Yjs state so the route
+// loader can seed useYDoc's Y.Doc before the editor ever renders, instead of
+// it starting empty and only filling in once the WebSocket connects.
+// DocRoom itself has no ACL (see hasDocAccess's comment), so this is the
+// one place this path checks access before returning content.
+export const getDocInitialState = createServerFn({ method: "GET" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }): Promise<Uint8Array> => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    if (!(await docRole(client, did, data.docId))) {
+      throw new Error("forbidden");
+    }
+    return env.DOC.get(env.DOC.idFromName(data.docId)).snapshot();
+  });
+
 // revokeDocAccess removes a user's grant. deleteRelation takes the relation
 // record's own URI, not a (did, space) pair, so this looks that URI up via
 // the same listRelations query listDocAccess uses, filtered to the one

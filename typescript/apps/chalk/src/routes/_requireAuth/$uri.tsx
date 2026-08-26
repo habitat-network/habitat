@@ -21,6 +21,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
 import { useYDoc } from "@/hooks/useYDoc";
 import {
+  getDocInitialState,
   getDocRole,
   listDocAccess,
   revokeDocAccess,
@@ -34,13 +35,27 @@ const docRoleQueryOptions = (docId: string) =>
     queryFn: () => getDocRole({ data: { docId } }),
   });
 
+const docInitialStateQueryOptions = (docId: string) =>
+  queryOptions({
+    queryKey: ["docInitialState", docId],
+    queryFn: () => getDocInitialState({ data: { docId } }),
+  });
+
 export const Route = createFileRoute("/_requireAuth/$uri")({
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(docRoleQueryOptions(params.uri)),
+  loader: async ({ context, params }) => {
+    const [role, initialState] = await Promise.all([
+      context.queryClient.ensureQueryData(docRoleQueryOptions(params.uri)),
+      context.queryClient.ensureQueryData(
+        docInitialStateQueryOptions(params.uri),
+      ),
+    ]);
+    return { role, initialState };
+  },
   component() {
     const { uri } = Route.useParams();
     const { did: currentUserDid } = Route.useRouteContext();
-    const ydoc = useYDoc(uri);
+    const { role, initialState } = Route.useLoaderData();
+    const ydoc = useYDoc(uri, initialState);
     const queryClient = useQueryClient();
 
     const addRecentDoc = useRecentDocsStore((state) => state.addRecentDoc);
@@ -67,8 +82,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     });
     const invalidateAccess = () =>
       queryClient.invalidateQueries({ queryKey: accessQueryKey });
-
-    const role = Route.useLoaderData();
 
     const { mutate: addPermission, isPending: isAddingPermission } =
       useMutation({
