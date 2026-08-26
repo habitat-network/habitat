@@ -13,13 +13,20 @@ import type { DocSummary } from "@/db";
 // protocol, including its own reconnect-with-backoff. Any editor wired to
 // the returned Y.Doc gets live collaboration for free; nothing here is
 // TipTap/ProseMirror-specific.
-export function useYDoc(docId: string): Y.Doc {
+//
+// initialState, when given, seeds the Y.Doc synchronously on creation (see
+// $uri.tsx's loader) so the editor renders with real content immediately
+// instead of blank until the WebsocketProvider's own handshake completes.
+export function useYDoc(docId: string, initialState?: Uint8Array): Y.Doc {
   // docId isn't referenced in the factory itself — it's deliberately a reset
   // key, not a real dependency: a fresh Y.Doc per doc, discarding the
-  // previous one the moment docId changes.
-  // oxlint-disable-next-line react-hooks/exhaustive-deps
-  const ydoc = useMemo(() => new Y.Doc(), [docId]);
   const queryClient = useQueryClient();
+  const ydoc = useMemo(() => {
+    const _ = docId; // so that it's included in the dependency list
+    const doc = new Y.Doc();
+    if (initialState) Y.applyUpdateV2(doc, initialState);
+    return doc;
+  }, [docId, initialState]);
 
   useEffect(() => {
     // wss:// (not ws://) whenever the page itself is https — a mixed-scheme

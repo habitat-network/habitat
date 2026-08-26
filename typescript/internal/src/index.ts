@@ -9,6 +9,10 @@ export { AppHeader } from "./components/AppHeader";
 export { AppLayout } from "./components/AppLayout";
 export { HabitatLogo } from "./components/HabitatLogo";
 export { default as ShareDialog } from "./components/ShareDialog";
+export type {
+  Role as ShareDialogRole,
+  Grantee as ShareDialogGrantee,
+} from "./components/ShareDialog";
 export { default as ShareDialogV2 } from "./components/ShareDialogV2";
 export { default as GroupCombobox } from "./components/GroupCombobox";
 export type { GroupView } from "./components/GroupCombobox";

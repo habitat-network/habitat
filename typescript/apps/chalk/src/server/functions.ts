@@ -11,6 +11,7 @@ import {
 import {
   DOCS_SPACE_TYPE,
   clearSession,
+  docRole,
   requireSession,
 } from "./functions.server";
 import { SapClient } from "./sapClient";
@@ -105,37 +106,58 @@ interface UserRelationView {
   relation: string;
 }
 
-// listDocAccess returns the DIDs of every user with a direct grant on the
-// doc — the "people with access" list a share dialog shows. Only user
-// grants (subjectType "user"), not space/group usersets: chalk's sharing
-// is user-to-user for now.
+// listDocAccess returns every user with a direct grant on the doc, and
+// their relation — the "people with access" list a share dialog shows.
+// Only user grants (subjectType "user"), not space/group usersets:
+// chalk's sharing is user-to-user for now.
 export const listDocAccess = createServerFn({ method: "GET" })
   .validator((input: { docId: string }) => input)
-  .handler(async ({ data }): Promise<{ did: string }[]> => {
-    const { did } = await requireSession();
-    const client = new SapClient(env, did);
-    const { relations } = await client.call<{ relations: UserRelationView[] }>(
-      "network.habitat.relationship.listRelations",
-      "GET",
-      { space: data.docId, subjectType: "user" },
-    );
-    return relations.map((r) => ({ did: r.subject }));
-  });
+  .handler(
+    async ({
+      data,
+    }): Promise<{ did: string; relation: "writer" | "reader" }[]> => {
+      const { did } = await requireSession();
+      const client = new SapClient(env, did);
+      const { relations } = await client.call<{
+        relations: UserRelationView[];
+      }>("network.habitat.relationship.listRelations", "GET", {
+        space: data.docId,
+        subjectType: "user",
+      });
+      return relations.map((r) => ({
+        did: r.subject,
+        relation: r.relation as "writer" | "reader",
+      }));
+    },
+  );
 
-// shareDoc grants a user write access to a doc. Sharing a doc means being
-// able to edit it — chalk has no read-only collaborator concept — so this
-// always grants "writer", not the "reader" a bare share link might imply
-// elsewhere. Requires the caller to already hold manager (pear enforces
-// this; a non-manager's setUserRelation call fails there, not here).
+// A doc grantee is either an editor (can edit the doc) or a viewer
+// (read-only), which map to the "writer"/"reader" relations
+// network.habitat.relationship actually stores.
+const ROLE_TO_RELATION: Record<"editor" | "viewer", "writer" | "reader"> = {
+  editor: "writer",
+  viewer: "reader",
+};
+
+// shareDoc grants a user access to a doc as either an editor or a viewer.
+// Requires the caller to already hold manager (pear enforces this; a
+// non-manager's setUserRelation call fails there, not here).
 export const shareDoc = createServerFn({ method: "POST" })
-  .validator((input: { docId: string; subjectDid: string }) => input)
+  .validator(
+    (input: { docId: string; subjectDid: string; role: "editor" | "viewer" }) =>
+      input,
+  )
   .handler(async ({ data }) => {
     const { did } = await requireSession();
     const client = new SapClient(env, did);
     const { uri } = await client.call<{ uri: string }>(
       "network.habitat.relationship.setUserRelation",
       "POST",
-      { subject: data.subjectDid, relation: "writer", space: data.docId },
+      {
+        subject: data.subjectDid,
+        relation: ROLE_TO_RELATION[data.role],
+        space: data.docId,
+      },
     );
 
     // Grant local doc_access immediately rather than waiting on the outbox
@@ -147,8 +169,35 @@ export const shareDoc = createServerFn({ method: "POST" })
       uri,
       spaceUri: data.docId,
       subjectDid: data.subjectDid,
-      relation: "writer",
+      relation: ROLE_TO_RELATION[data.role],
     });
+  });
+
+// getDocRole resolves the caller's own role on the doc, so the client can
+// keep the editor read-only for a viewer. See docRole's comment: this is
+// a UX signal, not the access gate itself.
+export const getDocRole = createServerFn({ method: "GET" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }): Promise<"editor" | "viewer" | null> => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    return docRole(client, did, data.docId);
+  });
+
+// getDocInitialState returns the doc's current Yjs state so the route
+// loader can seed useYDoc's Y.Doc before the editor ever renders, instead of
+// it starting empty and only filling in once the WebSocket connects.
+// DocRoom itself has no ACL (see hasDocAccess's comment), so this is the
+// one place this path checks access before returning content.
+export const getDocInitialState = createServerFn({ method: "GET" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }): Promise<Uint8Array> => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    if (!(await docRole(client, did, data.docId))) {
+      throw new Error("forbidden");
+    }
+    return env.DOC.get(env.DOC.idFromName(data.docId)).snapshot();
   });
 
 // revokeDocAccess removes a user's grant. deleteRelation takes the relation
