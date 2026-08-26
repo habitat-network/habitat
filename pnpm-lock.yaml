@@ -9,9 +9,21 @@ catalogs:
     '@atproto/api':
       specifier: 0.20.41
       version: 0.20.41
+    '@atproto/identity':
+      specifier: ^0.5.9
+      version: 0.5.9
     '@atproto/lexicon':
       specifier: 0.7.11
       version: 0.7.11
+    '@atproto/xrpc':
+      specifier: ^0.8.6
+      version: 0.8.10
+    '@tailwindcss/typography':
+      specifier: ^0.5.20
+      version: 0.5.20
+    '@tailwindcss/vite':
+      specifier: ^4.3.3
+      version: 4.3.3
     '@tanstack/devtools-vite':
       specifier: ^0.8.5
       version: 0.8.5
@@ -51,9 +63,18 @@ catalogs:
     boring-avatars:
       specifier: ^2.0.4
       version: 2.0.4
+    clsx:
+      specifier: ^2.1.1
+      version: 2.1.1
     jsdom:
       specifier: ^30.0.1
       version: 30.0.1
+    lucide-react:
+      specifier: ^1.34.0
+      version: 1.34.0
+    multiformats:
+      specifier: ^14.0.0
+      version: 14.0.5
     react:
       specifier: ^19.2.8
       version: 19.2.8
@@ -63,6 +84,9 @@ catalogs:
     react-hook-form:
       specifier: 7.86.0
       version: 7.86.0
+    tailwindcss:
+      specifier: ^4.3.3
+      version: 4.3.3
     typescript:
       specifier: ^7.0.2
       version: 7.0.2
@@ -75,6 +99,9 @@ catalogs:
     vitest:
       specifier: ^4.1.11
       version: 4.1.11
+    zod:
+      specifier: ^4.4.3
+      version: 4.4.3
 
 importers:
 
@@ -87,7 +114,7 @@ importers:
         specifier: 'catalog:'
         version: 0.7.11
       '@atproto/xrpc':
-        specifier: ^0.8.6
+        specifier: 'catalog:'
         version: 0.8.10
       '@types/node':
         specifier: 'catalog:'
@@ -105,7 +132,7 @@ importers:
         specifier: 3.9.6
         version: 3.9.6
       typescript:
-        specifier: ^7.0.0
+        specifier: 'catalog:'
         version: 7.0.2
       vite:
         specifier: 'catalog:'
@@ -126,7 +153,7 @@ importers:
         specifier: ^3.1.1
         version: 3.1.1(@types/react@19.2.18)(react@19.2.8)
       clsx:
-        specifier: ^2.1.1
+        specifier: 'catalog:'
         version: 2.1.1
       docusaurus-plugin-openapi-docs:
         specifier: 5.2.0
@@ -138,10 +165,10 @@ importers:
         specifier: ^2.4.1
         version: 2.4.1(react@19.2.8)
       react:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8
       react-dom:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
     devDependencies:
       '@docusaurus/module-type-aliases':
@@ -160,7 +187,7 @@ importers:
         specifier: 'catalog:'
         version: 19.2.5(@types/react@19.2.18)
       typescript:
-        specifier: ~7.0.0
+        specifier: 'catalog:'
         version: 7.0.2
 
   frontend:
@@ -169,7 +196,7 @@ importers:
         specifier: 'catalog:'
         version: 0.20.41
       '@atproto/identity':
-        specifier: ^0.5.9
+        specifier: 'catalog:'
         version: 0.5.9
       '@tanstack/react-query':
         specifier: 'catalog:'
@@ -199,7 +226,7 @@ importers:
         specifier: workspace:*
         version: link:../typescript/internal
       lucide-react:
-        specifier: ^1.34.0
+        specifier: 'catalog:'
         version: 1.34.0(react@19.2.8)
       react:
         specifier: 'catalog:'
@@ -211,14 +238,14 @@ importers:
         specifier: 'catalog:'
         version: 7.86.0(react@19.2.8)
       tailwindcss:
-        specifier: ^4.3.3
+        specifier: 'catalog:'
         version: 4.3.3
       zod:
-        specifier: ^4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
       '@tailwindcss/vite':
-        specifier: ^4.3.3
+        specifier: 'catalog:'
         version: 4.3.3(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
       '@tanstack/devtools-vite':
         specifier: 'catalog:'
@@ -245,8 +272,8 @@ importers:
         specifier: 'catalog:'
         version: 19.2.5(@types/react@19.2.18)
       '@vitejs/plugin-react':
-        specifier: ^6.1.0
-        version: 6.1.0(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
+        specifier: 'catalog:'
+        version: 5.2.0(supports-color@10.2.2)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
       jsdom:
         specifier: 'catalog:'
         version: 30.0.1(@noble/hashes@2.3.0)
@@ -272,10 +299,10 @@ importers:
         specifier: 'catalog:'
         version: 0.7.11
       '@atproto/xrpc':
-        specifier: ^0.8.6
+        specifier: 'catalog:'
         version: 0.8.10
       multiformats:
-        specifier: ^14.0.0
+        specifier: 'catalog:'
         version: 14.0.5
     devDependencies:
       '@atproto/lex-cli':
@@ -285,7 +312,7 @@ importers:
   typescript/apps/chalk:
     dependencies:
       '@atproto/identity':
-        specifier: ^0.5.6
+        specifier: 'catalog:'
         version: 0.5.9
       '@tanstack/react-devtools':
         specifier: 'catalog:'
@@ -324,8 +351,8 @@ importers:
         specifier: ^0.2.117
         version: 0.2.117
       lucide-react:
-        specifier: ^1.0.0
-        version: 1.33.0(react@19.2.8)
+        specifier: 'catalog:'
+        version: 1.34.0(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -336,7 +363,7 @@ importers:
         specifier: 'catalog:'
         version: 7.86.0(react@19.2.8)
       tailwindcss:
-        specifier: ^4.3.3
+        specifier: 'catalog:'
         version: 4.3.3
       y-protocols:
         specifier: ^1.0.7
@@ -364,10 +391,10 @@ importers:
         specifier: ^5.20260823.1
         version: 5.20260823.1
       '@tailwindcss/typography':
-        specifier: ^0.5.20
+        specifier: 'catalog:'
         version: 0.5.20(tailwindcss@4.3.3)
       '@tailwindcss/vite':
-        specifier: ^4.3.3
+        specifier: 'catalog:'
         version: 4.3.3(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
       '@tanstack/devtools-vite':
         specifier: 'catalog:'
@@ -409,7 +436,7 @@ importers:
         specifier: 'catalog:'
         version: 0.20.41
       '@atproto/identity':
-        specifier: ^0.5.6
+        specifier: 'catalog:'
         version: 0.5.9
       '@chainsafe/libp2p-gossipsub':
         specifier: 14.1.2
@@ -502,10 +529,10 @@ importers:
         specifier: 2.10.0
         version: 2.10.0
       lucide-react:
-        specifier: ^1.0.0
-        version: 1.33.0(react@19.2.8)
+        specifier: 'catalog:'
+        version: 1.34.0(react@19.2.8)
       multiformats:
-        specifier: ^14.0.0
+        specifier: 'catalog:'
         version: 14.0.5
       posthog-js:
         specifier: ^1.406.2
@@ -520,7 +547,7 @@ importers:
         specifier: 'catalog:'
         version: 7.86.0(react@19.2.8)
       tailwindcss:
-        specifier: ^4.3.3
+        specifier: 'catalog:'
         version: 4.3.3
       vite-tsconfig-paths:
         specifier: 'catalog:'
@@ -533,10 +560,10 @@ importers:
         version: 13.6.32
     devDependencies:
       '@tailwindcss/typography':
-        specifier: ^0.5.20
+        specifier: 'catalog:'
         version: 0.5.20(tailwindcss@4.3.3)
       '@tailwindcss/vite':
-        specifier: ^4.3.3
+        specifier: 'catalog:'
         version: 4.3.3(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
       '@tanstack/devtools-vite':
         specifier: 'catalog:'
@@ -599,14 +626,14 @@ importers:
         specifier: 'catalog:'
         version: 7.86.0(react@19.2.8)
       tailwindcss:
-        specifier: ^4.3.3
+        specifier: 'catalog:'
         version: 4.3.3
       zod:
-        specifier: ^4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
       '@tailwindcss/vite':
-        specifier: ^4.3.3
+        specifier: 'catalog:'
         version: 4.3.3(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
       '@types/node':
         specifier: 'catalog:'
@@ -654,7 +681,7 @@ importers:
         specifier: 'catalog:'
         version: 0.20.41
       '@atproto/identity':
-        specifier: ^0.5.6
+        specifier: 'catalog:'
         version: 0.5.9
       '@atproto/oauth-client-browser':
         specifier: ^0.5.0
@@ -678,7 +705,7 @@ importers:
         specifier: ^0.7.1
         version: 0.7.1
       clsx:
-        specifier: ^2.1.1
+        specifier: 'catalog:'
         version: 2.1.1
       date-fns:
         specifier: ^4.4.0
@@ -687,8 +714,8 @@ importers:
         specifier: ^6.2.4
         version: 6.2.10
       lucide-react:
-        specifier: ^1.0.0
-        version: 1.33.0(react@19.2.8)
+        specifier: 'catalog:'
+        version: 1.34.0(react@19.2.8)
       openid-client:
         specifier: ^6.8.4
         version: 6.8.7
@@ -718,10 +745,10 @@ importers:
         version: 5.0.15(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
     devDependencies:
       '@tailwindcss/typography':
-        specifier: ^0.5.20
+        specifier: 'catalog:'
         version: 0.5.20(tailwindcss@4.3.3)
       '@tailwindcss/vite':
-        specifier: ^4.3.3
+        specifier: 'catalog:'
         version: 4.3.3(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
       '@tanstack/devtools-vite':
         specifier: 'catalog:'
@@ -736,7 +763,7 @@ importers:
         specifier: 'catalog:'
         version: 5.2.0(supports-color@10.2.2)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
       tailwindcss:
-        specifier: ^4.3.3
+        specifier: 'catalog:'
         version: 4.3.3
       vite:
         specifier: 'catalog:'
@@ -5499,22 +5526,6 @@ packages:
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
 
-  '@vitejs/plugin-react@6.1.0':
-    resolution: {integrity: sha512-qd2BzUBehkov86WFhg0JkEFEYyCLG9uPCe6qWTY/kRlss9OvJrOF2UbIWT7p+8IzZHkEu0DNGHc4HSv+JdDLsw==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    peerDependencies:
-      '@rolldown/plugin-babel': ^0.1.7 || ^0.2.0
-      babel-plugin-react-compiler: ^1.0.0
-      oxc-transform-react: ^0.145.0
-      vite: ^8.0.0
-    peerDependenciesMeta:
-      '@rolldown/plugin-babel':
-        optional: true
-      babel-plugin-react-compiler:
-        optional: true
-      oxc-transform-react:
-        optional: true
-
   '@vitest/expect@4.1.11':
     resolution: {integrity: sha512-VX2x5vNJXET47KAFzwERI+KRMtTTCSWTfSMKsW7JsUsXV4psq++e3DvZpuTDOpHcxytiDs6p2nhVb2tVDiiUYw==}
 
@@ -8321,11 +8332,6 @@ packages:
 
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
-
-  lucide-react@1.33.0:
-    resolution: {integrity: sha512-MTRwMy0ZlL8Ur/vOAiJ9XGHE+kFPC7brq6MxAm0GiGXEBj0qy0jA/pG4N675oSzciO/UCdX8T+5yUQdmDeTLxg==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   lucide-react@1.34.0:
     resolution: {integrity: sha512-vnjGJNI7Htk5+oWW8gXGuaLgwgAb0T6/iZbBrp9JCfRFwdNWZ0YTm3eyxjOLgwN6r8iyAf3UA70zNmBRBNv7yg==}
@@ -17343,11 +17349,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@vitejs/plugin-react@6.1.0(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))':
-    dependencies:
-      '@rolldown/pluginutils': 1.0.1
-      vite: 8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0)
-
   '@vitest/expect@4.1.11':
     dependencies:
       '@standard-schema/spec': 1.1.0
@@ -20368,10 +20369,6 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
-
-  lucide-react@1.33.0(react@19.2.8):
-    dependencies:
-      react: 19.2.8
 
   lucide-react@1.34.0(react@19.2.8):
     dependencies:

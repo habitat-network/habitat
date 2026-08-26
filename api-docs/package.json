@@ -20,12 +20,12 @@
     "@docusaurus/faster": "^3.10.2",
     "@docusaurus/preset-classic": "3.10.2",
     "@mdx-js/react": "^3.1.1",
-    "clsx": "^2.1.1",
+    "clsx": "catalog:",
     "docusaurus-plugin-openapi-docs": "5.2.0",
     "docusaurus-theme-openapi-docs": "5.2.0",
     "prism-react-renderer": "^2.4.1",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.10.2",
@@ -33,7 +33,7 @@
     "@docusaurus/types": "3.10.2",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "typescript": "~7.0.0"
+    "typescript": "catalog:"
   },
   "browserslist": {
     "production": [
