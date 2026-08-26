@@ -43,6 +43,42 @@ export function renderDoc(ydoc: Y.Doc): RenderedDoc {
   return { title: title || "Untitled", markdown: blocks.join("\n\n") };
 }
 
+// computeTitle derives just the title, the same way renderDoc does (first
+// heading's text, falling back to the first non-empty block's first line),
+// but stops as soon as it has one instead of also rendering every block to
+// markdown. Cheap enough to call on every debounced ydoc update client-side
+// to keep the sidebar/home page title optimistically in sync.
+export function computeTitle(ydoc: Y.Doc): string {
+  const fragment = ydoc.getXmlFragment("default");
+  let title: string | undefined;
+  let firstBlockLine: string | undefined;
+
+  for (const node of fragment.toArray()) {
+    if (!(node instanceof Y.XmlElement)) {
+      continue;
+    }
+    if (!title && node.nodeName === "heading") {
+      const t = inline(node).trim();
+      if (t) {
+        title = t;
+        break;
+      }
+      continue;
+    }
+    if (!firstBlockLine) {
+      const t = renderBlock(node)
+        .replace(/^#+\s*/, "")
+        .trim()
+        .split("\n")[0];
+      if (t) {
+        firstBlockLine = t;
+      }
+    }
+  }
+
+  return title || firstBlockLine || "Untitled";
+}
+
 function renderBlock(el: Y.XmlElement, depth = 0): string {
   switch (el.nodeName) {
     case "heading": {
