@@ -83,7 +83,6 @@ export const AppLayout = ({
             </SidebarMenu>
           )}
         </SidebarFooter>
-        <SidebarRail />
       </Sidebar>
       <SidebarInset>{children}</SidebarInset>
     </SidebarProvider>
