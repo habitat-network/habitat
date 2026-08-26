@@ -17,7 +17,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarRail,
 } from "./ui/sidebar";
 import { LogOut } from "lucide-react";
 import { UserAvatar } from "./UserAvatar";
