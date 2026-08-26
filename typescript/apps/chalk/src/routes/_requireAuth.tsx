@@ -113,7 +113,7 @@ export const Route = createFileRoute("/_requireAuth")({
         sidebarContent={
           <>
             {recentDocs.length > 0 && (
-              <SidebarGroup className="group-data-[collapsible=icon]:hidden" >
+              <SidebarGroup className="group-data-[collapsible=icon]:hidden">
                 <SidebarGroupLabel>Recent</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
