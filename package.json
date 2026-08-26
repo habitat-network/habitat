@@ -9,13 +9,13 @@
   "devDependencies": {
     "@atproto/api": "catalog:",
     "@atproto/lexicon": "catalog:",
-    "@atproto/xrpc": "^0.8.6",
+    "@atproto/xrpc": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "oxlint": "^1.75.0",
     "prettier": "3.9.6",
-    "typescript": "^7.0.0",
+    "typescript": "catalog:",
     "vite": "catalog:"
   },
   "packageManager": "pnpm@11.23.0"
