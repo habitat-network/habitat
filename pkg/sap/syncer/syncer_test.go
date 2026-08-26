@@ -505,6 +505,31 @@ func TestVerifierSignerWebAuthor(t *testing.T) {
 	require.Equal(t, pub.Multibase(), got.Multibase())
 }
 
+// TestVerifierSignerWebAuthorFallsBackToAtprotoSpace covers a did:web author
+// whose identity, like the pear host's own "everyone org" identity (built by
+// cmd/pear/main.go with ATProtoSpaceKey/HabitatKey, not AtprotoKey),
+// publishes no "#atproto" verification method — only "#atproto_space".
+func TestVerifierSignerWebAuthorFallsBackToAtprotoSpace(t *testing.T) {
+	t.Parallel()
+
+	priv, err := atcrypto.GeneratePrivateKeyK256()
+	require.NoError(t, err)
+	pub, err := priv.PublicKey()
+	require.NoError(t, err)
+
+	authorDID := syntax.DID("did:web:pear.example.com")
+	ident := did.New(authorDID).ATProtoSpaceKey(pub.Multibase()).Build()
+
+	dir := identity.NewMockDirectory()
+	dir.Insert(*ident)
+	v := NewVerifier(dir)
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
+
+	got, err := v.signer(t.Context(), space, authorDID)
+	require.NoError(t, err)
+	require.Equal(t, pub.Multibase(), got.Multibase())
+}
+
 // TestVerifierSignerExternalAuthor covers the signer path for external
 // (non-did:web) authors where the host signs the commit.
 func TestVerifierSignerExternalAuthor(t *testing.T) {
