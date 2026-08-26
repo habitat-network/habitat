@@ -8,7 +8,7 @@
     "types": ["vite/client", "node"],
     "outDir": "../../../.moon/cache/types/typescript/apps/chalk"
   },
-  "include": ["src/**/*", "../../globals.d.ts"],
+  "include": ["src/**/*", "../../globals.d.ts", "worker-configuration.d.ts"],
   "references": [
     {
       "path": "../../internal"

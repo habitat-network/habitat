@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1787610626294,
+      "tag": "0000_docs",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787676331665,
+      "tag": "0001_magical_hemingway",
+      "breakpoints": true
+    }
+  ]
+}

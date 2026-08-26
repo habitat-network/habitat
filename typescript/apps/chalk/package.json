@@ -3,10 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
+    "cf-typegen": "wrangler types",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
+    "db:migrate-local": "CI=1 wrangler d1 migrations apply chalk --local",
+    "dev": "wrangler types && pnpm db:migrate-local && vite dev",
+    "build": "wrangler types && vite build",
     "start": "node .output/server/index.mjs",
-    "test": "vitest run"
+    "test": "wrangler types && vitest run"
   },
   "dependencies": {
     "@atproto/identity": "catalog:",
@@ -19,15 +22,23 @@
     "@tiptap/pm": "^3.28.0",
     "@tiptap/react": "^3.28.0",
     "@tiptap/starter-kit": "^3.28.0",
+    "drizzle-orm": "0.45.2",
     "internal": "workspace:*",
+    "lib0": "^0.2.117",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
     "tailwindcss": "catalog:",
-    "yjs": "^13.6.31"
+    "y-protocols": "^1.0.7",
+    "y-websocket": "^3.1.0",
+    "yjs": "^13.6.31",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.53.1",
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20260823.1",
     "@tailwindcss/typography": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
@@ -35,9 +46,11 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "drizzle-kit": "^0.31.10",
     "msw": "^2.11.5",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "wrangler": "^4.125.0"
   }
 }

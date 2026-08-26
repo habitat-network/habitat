@@ -16,7 +16,8 @@
     "@tanstack/router-plugin": "catalog:",
     "internal": "workspace:*",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "vite-tsconfig-paths": "catalog:"
   },
   "devDependencies": {
     "@tanstack/devtools-vite": "catalog:",

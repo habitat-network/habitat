@@ -141,7 +141,7 @@ export const Route = createFileRoute("/_requireAuth")({
         actor={profile}
         onSignOut={() => authManager.logout()}
         title="Habitat Docs"
-        sidebar={
+        sidebarContent={
           <>
             <SidebarGroup>
               <SidebarMenuButton

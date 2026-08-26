@@ -14,16 +14,17 @@ import {
   FieldSet,
   Input,
 } from "internal/components/ui";
+import { env } from "cloudflare:workers";
 import { startLogin } from "@/server/sapClient";
 
 // startLogin itself isn't a TanStack server function (it's a plain async
-// function in sapClient.ts, shared with docSync/functions.ts's composition
-// root) — wrap it here at the route boundary so the client only ever gets
-// an RPC stub, never sap's internal URL or the fetch call itself.
+// function in sapClient.ts, shared with functions.ts's composition root) —
+// wrap it here at the route boundary so the client only ever gets an RPC
+// stub, never sap's internal URL or the fetch call itself.
 const startLoginFn = createServerFn({ method: "POST" })
   .validator((input: { handle: string }) => input)
   .handler(async ({ data }) => ({
-    redirectUrl: await startLogin(data.handle),
+    redirectUrl: await startLogin(env, data.handle),
   }));
 
 interface LoginFormData {

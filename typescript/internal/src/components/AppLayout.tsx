@@ -1,7 +1,6 @@
 import { ReactNode } from "react";
 import { Actor } from "@/types/Actor";
 
-import { HabitatLogo } from "./HabitatLogo";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -18,7 +17,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  useSidebar,
   SidebarRail,
 } from "./ui/sidebar";
 import { LogOut } from "lucide-react";
@@ -27,39 +25,24 @@ import { UserItem } from "./UserItem";
 interface AppLayoutProps {
   actor?: Actor;
   title?: string;
-  sidebar?: ReactNode;
+  sidebarHeader?: ReactNode;
+  sidebarContent?: ReactNode;
   onSignOut?: () => void;
   children: ReactNode;
 }
 
-function SidebarLogoButton({ title }: { title?: string }) {
-  const { toggleSidebar } = useSidebar();
-  return (
-    <SidebarMenuButton size="lg" onClick={toggleSidebar}>
-      <HabitatLogo />
-      {title && <span className="font-semibold">{title}</span>}
-    </SidebarMenuButton>
-  );
-}
-
 export const AppLayout = ({
   actor,
-  title,
-  sidebar,
+  sidebarContent,
+  sidebarHeader,
   onSignOut,
   children,
 }: AppLayoutProps) => {
   return (
     <SidebarProvider>
-      <Sidebar collapsible="icon" variant="floating">
-        <SidebarHeader>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarLogoButton title={title} />
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarHeader>
-        <SidebarContent>{sidebar}</SidebarContent>
+      <Sidebar collapsible="icon" variant="inset">
+        <SidebarHeader>{sidebarHeader}</SidebarHeader>
+        <SidebarContent>{sidebarContent}</SidebarContent>
         <SidebarFooter>
           {actor && (
             <SidebarMenu>
@@ -72,7 +55,7 @@ export const AppLayout = ({
                       </SidebarMenuButton>
                     }
                   ></DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" side="top">
+                  <DropdownMenuContent align="start" side="right">
                     <DropdownMenuItem
                       render={
                         <a

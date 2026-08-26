@@ -1,15 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import * as Y from "yjs";
-import type { DocSummary } from "./docStore";
+import { env } from "cloudflare:workers";
+import { docsForAccessor, getDb, upsertDoc, type DocSummary } from "../db";
 import {
   DOCS_SPACE_TYPE,
-  docSync,
-  memberEditKey,
-  memberEditQueue,
-  pubsub,
   clearSession,
   requireSession,
-  store,
 } from "./functions.server";
 import { SapClient } from "./sapClient";
 
@@ -35,7 +30,7 @@ export const signOut = createServerFn({ method: "POST" }).handler(async () => {
 export const createDoc = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ docId: string; uri: string }> => {
     const { did } = await requireSession();
-    const client = new SapClient(did);
+    const client = new SapClient(env, did);
 
     const created = await client.call<{ uri: string }>(
       "network.habitat.simplespace.createSpace",
@@ -56,12 +51,20 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     // is self-describing.
     const docId = created.uri;
 
-    store.upsertDoc({
+    await upsertDoc(getDb(env), {
       spaceUri: created.uri,
       docId,
       ownerDid: did,
       title: "Untitled",
     });
+
+    // Record the room's identity now, so the owner-republish alarm knows the
+    // owner before the webhook (src/server/webhook.ts) delivers it.
+    await env.DOC.get(env.DOC.idFromName(created.uri)).seedIdentity({
+      spaceUri: created.uri,
+      ownerDid: did,
+    });
+
     return { docId, uri: created.uri };
   },
 );
@@ -69,45 +72,69 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
 export const listDocs = createServerFn({ method: "GET" }).handler(
   async (): Promise<DocSummary[]> => {
     const { did } = await requireSession();
-    return store.docsForOwner(did);
+    return docsForAccessor(getDb(env), did);
   },
 );
 
-export const sendEdit = createServerFn({ method: "POST" })
-  .validator((input: { docId: string; update: Uint8Array }) => input)
-  .handler(async ({ data }) => {
+// A userRelation record as network.habitat.relationship.listRelations
+// returns it — only the fields sharing.ts actually reads.
+interface UserRelationView {
+  uri: string;
+  subject: string;
+  relation: string;
+}
+
+// listDocAccess returns the DIDs of every user with a direct grant on the
+// doc — the "people with access" list a share dialog shows. Only user
+// grants (subjectType "user"), not space/group usersets: chalk's sharing
+// is user-to-user for now.
+export const listDocAccess = createServerFn({ method: "GET" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }): Promise<{ did: string }[]> => {
     const { did } = await requireSession();
-    // Merge into this instance's in-memory doc (and publish to subscribers)
-    // right away, rather than waiting on the queued repo write below to
-    // round-trip through pear -> sap's outbox back to handleOutboxMessage —
-    // see applyEdit's comment for why that round trip is safe to leave in
-    // place as a redundant, idempotent confirmation rather than removing it.
-    docSync.applyEdit(data.docId, data.update);
-    memberEditQueue.push(memberEditKey(data.docId, did), [data.update]);
+    const client = new SapClient(env, did);
+    const { relations } = await client.call<{ relations: UserRelationView[] }>(
+      "network.habitat.relationship.listRelations",
+      "GET",
+      { space: data.docId, subjectType: "user" },
+    );
+    return relations.map((r) => ({ did: r.subject }));
   });
 
-// subscribeDoc streams a doc's merged state: its current snapshot first (if
-// one exists yet), then every subsequent merge DocSync publishes. docId is
-// itself the doc's full space URI, so this works whether the caller is the
-// doc's owner or (once sharing exists) another editor, and even for a doc
-// this chalk instance's DocStore has never seen — unlike deriving the space
-// URI from a DocStore lookup or from the caller's own DID.
-//
-// Yields the raw Yjs update bytes directly rather than base64 — seroval (the
-// serializer behind TanStack Start's server-fn RPC, including this streamed
-// path) has native Uint8Array support, so encoding to a string first is
-// unnecessary overhead.
-export const subscribeDoc = createServerFn({ method: "GET" })
-  .validator((input: { docId: string }) => input)
-  .handler(async function* ({ data }): AsyncGenerator<{ state: Uint8Array }> {
-    await requireSession();
+// shareDoc grants a user write access to a doc. Sharing a doc means being
+// able to edit it — chalk has no read-only collaborator concept — so this
+// always grants "writer", not the "reader" a bare share link might imply
+// elsewhere. Requires the caller to already hold manager (pear enforces
+// this; a non-manager's setUserRelation call fails there, not here).
+export const shareDoc = createServerFn({ method: "POST" })
+  .validator((input: { docId: string; subjectDid: string }) => input)
+  .handler(async ({ data }) => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    await client.call("network.habitat.relationship.setUserRelation", "POST", {
+      subject: data.subjectDid,
+      relation: "writer",
+      space: data.docId,
+    });
+  });
 
-    const spaceUri = data.docId;
-    const current = store.mergedState(spaceUri);
-    if (current) {
-      yield { state: Y.encodeStateAsUpdateV2(current) };
-    }
-    for await (const ydoc of pubsub.subscribe(spaceUri)) {
-      yield { state: Y.encodeStateAsUpdateV2(ydoc) };
-    }
+// revokeDocAccess removes a user's grant. deleteRelation takes the relation
+// record's own URI, not a (did, space) pair, so this looks that URI up via
+// the same listRelations query listDocAccess uses, filtered to the one
+// subject — no separate index of grant URIs needs to be kept anywhere.
+export const revokeDocAccess = createServerFn({ method: "POST" })
+  .validator((input: { docId: string; subjectDid: string }) => input)
+  .handler(async ({ data }) => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    const { relations } = await client.call<{ relations: UserRelationView[] }>(
+      "network.habitat.relationship.listRelations",
+      "GET",
+      { space: data.docId, subjectType: "user", subjectDid: data.subjectDid },
+    );
+    const relation = relations[0];
+    if (!relation) return;
+    await client.call("network.habitat.relationship.deleteRelation", "POST", {
+      uri: relation.uri,
+    });
   });

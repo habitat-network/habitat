@@ -48,6 +48,7 @@
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
     "tailwindcss": "catalog:",
+    "vite-tsconfig-paths": "catalog:",
     "y-protocols": "^1.0.7",
     "yjs": "^13.6.31"
   },

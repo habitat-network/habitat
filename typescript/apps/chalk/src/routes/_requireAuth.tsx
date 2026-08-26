@@ -16,8 +16,9 @@ import {
   SidebarMenuButton,
 } from "internal";
 import { toast } from "internal/components/ui";
-import { FileTextIcon, PlusIcon } from "lucide-react";
+import { HomeIcon, PlusIcon } from "lucide-react";
 import { createDoc, getCaller, listDocs, signOut } from "@/server/functions";
+import { useRecentDocsStore } from "@/stores/recentDocs";
 
 export const Route = createFileRoute("/_requireAuth")({
   beforeLoad: async () => await getCaller(),
@@ -42,7 +43,17 @@ export const Route = createFileRoute("/_requireAuth")({
         state.matches.find((x) => x.routeId === "/_requireAuth/$uri")?.params
           .uri,
     });
-
+    const onHomePage = useRouterState({
+      select: (state) =>
+        state.matches.some((x) => x.routeId === "/_requireAuth/"),
+    });
+    const recentDocIds = useRecentDocsStore((state) => state.recentDocIds);
+    // recentDocIds only remembers order of visits; docs (the full
+    // accessor list) is the source of truth for whether a doc still
+    // exists/is still accessible and for its current title.
+    const recentDocs = recentDocIds
+      .map((docId) => docs?.find((doc) => doc.docId === docId))
+      .filter((doc) => doc !== undefined);
     const { mutate: create, isPending } = useMutation({
       mutationFn: () => createDoc(),
       onSuccess: async ({ docId }) => {
@@ -78,25 +89,34 @@ export const Route = createFileRoute("/_requireAuth")({
         actor={{ did }}
         title="Chalk"
         onSignOut={() => logOut()}
-        sidebar={
-          <>
-            <SidebarGroup>
-              <SidebarMenuButton
-                variant="outline"
-                className="bg-sidebar-primary/10 hover:bg-sidebar-primary/20 border-sidebar-primary/30 text-sidebar-primary font-medium"
-                onClick={() => create()}
-                disabled={isPending}
-              >
-                <PlusIcon />
-                New Document
+        sidebarHeader={
+          <SidebarMenu>
+            <SidebarMenuButton
+              variant="outline"
+              className="bg-sidebar-primary/10 hover:bg-sidebar-primary/20 border-sidebar-primary/30 text-sidebar-primary font-medium"
+              onClick={() => create()}
+              disabled={isPending}
+              size="lg"
+            >
+              <PlusIcon />
+              New Document
+            </SidebarMenuButton>
+            <SidebarMenuItem>
+              <SidebarMenuButton isActive={onHomePage} render={<Link to="/" />}>
+                <HomeIcon />
+                <span>Home</span>
               </SidebarMenuButton>
-            </SidebarGroup>
-            {docs && docs.length > 0 && (
+            </SidebarMenuItem>
+          </SidebarMenu>
+        }
+        sidebarContent={
+          <>
+            {recentDocs.length > 0 && (
               <SidebarGroup>
-                <SidebarGroupLabel>Documents</SidebarGroupLabel>
+                <SidebarGroupLabel>Recent</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {docs.map((doc) => (
+                    {recentDocs.map((doc) => (
                       <SidebarMenuItem key={doc.docId}>
                         <SidebarMenuButton
                           isActive={currentDocId === doc.docId}
@@ -104,7 +124,6 @@ export const Route = createFileRoute("/_requireAuth")({
                             <Link to="/$uri" params={{ uri: doc.docId }} />
                           }
                         >
-                          <FileTextIcon />
                           <span>{doc.title}</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
