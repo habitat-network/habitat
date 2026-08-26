@@ -69,3 +69,36 @@ export async function hasDocAccess(
     return false;
   }
 }
+
+// docRole resolves the caller's own role on a doc — "editor" if they hold
+// at least writer (also true for the owner/a manager), "viewer" if they
+// only hold reader, null otherwise. Used to keep the client-side editor
+// read-only for viewers; it is not itself an access check (hasDocAccess/
+// the WS route's forbidden response is what actually gates the doc).
+async function checkRelation(
+  client: SapClient,
+  did: string,
+  docId: string,
+  relation: "writer" | "reader",
+): Promise<boolean> {
+  try {
+    const res = await client.call<{ allowed: boolean }>(
+      "network.habitat.relationship.checkUserRelation",
+      "GET",
+      { subject: did, relation, space: docId },
+    );
+    return res.allowed;
+  } catch {
+    return false;
+  }
+}
+
+export async function docRole(
+  client: SapClient,
+  did: string,
+  docId: string,
+): Promise<"editor" | "viewer" | null> {
+  if (await checkRelation(client, did, docId, "writer")) return "editor";
+  if (await checkRelation(client, did, docId, "reader")) return "viewer";
+  return null;
+}

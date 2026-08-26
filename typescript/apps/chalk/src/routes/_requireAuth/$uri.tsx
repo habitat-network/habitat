@@ -2,7 +2,12 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect } from "react";
 import {
   ShareDialog,
@@ -15,10 +20,23 @@ import { toast } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
 import { useYDoc } from "@/hooks/useYDoc";
-import { listDocAccess, revokeDocAccess, shareDoc } from "@/server/functions";
+import {
+  getDocRole,
+  listDocAccess,
+  revokeDocAccess,
+  shareDoc,
+} from "@/server/functions";
 import { useRecentDocsStore } from "@/stores/recentDocs";
 
+const docRoleQueryOptions = (docId: string) =>
+  queryOptions({
+    queryKey: ["docRole", docId],
+    queryFn: () => getDocRole({ data: { docId } }),
+  });
+
 export const Route = createFileRoute("/_requireAuth/$uri")({
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(docRoleQueryOptions(params.uri)),
   component() {
     const { uri } = Route.useParams();
     const { did: currentUserDid } = Route.useRouteContext();
@@ -49,6 +67,8 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     });
     const invalidateAccess = () =>
       queryClient.invalidateQueries({ queryKey: accessQueryKey });
+
+    const role = Route.useLoaderData();
 
     const { mutate: addPermission, isPending: isAddingPermission } =
       useMutation({
@@ -94,6 +114,10 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         // `document`, which doesn't exist there, and would just be thrown
         // away on hydration anyway.
         immediatelyRender: false,
+        // Client-side only: keeps a viewer's editor read-only. The actual
+        // access gate is the WS route's reader check (ws.$docId.ts) — this
+        // doesn't stop write attempts made outside the UI.
+        editable: role === "editor",
         extensions: [
           StarterKit.configure({ undoRedo: false }),
           Collaboration.configure({ document: ydoc }),
@@ -105,7 +129,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           },
         },
       },
-      [ydoc],
+      [ydoc, role],
     );
 
     return (

@@ -4,6 +4,7 @@ import { docsForAccessor, getDb, upsertDoc, type DocSummary } from "../db";
 import {
   DOCS_SPACE_TYPE,
   clearSession,
+  docRole,
   requireSession,
 } from "./functions.server";
 import { SapClient } from "./sapClient";
@@ -133,6 +134,17 @@ export const shareDoc = createServerFn({ method: "POST" })
       relation: ROLE_TO_RELATION[data.role],
       space: data.docId,
     });
+  });
+
+// getDocRole resolves the caller's own role on the doc, so the client can
+// keep the editor read-only for a viewer. See docRole's comment: this is
+// a UX signal, not the access gate itself.
+export const getDocRole = createServerFn({ method: "GET" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }): Promise<"editor" | "viewer" | null> => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    return docRole(client, did, data.docId);
   });
 
 // revokeDocAccess removes a user's grant. deleteRelation takes the relation
