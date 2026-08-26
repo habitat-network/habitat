@@ -153,7 +153,11 @@ export const shareDoc = createServerFn({ method: "POST" })
     const { uri } = await client.call<{ uri: string }>(
       "network.habitat.relationship.setUserRelation",
       "POST",
-      { subject: data.subjectDid, relation: ROLE_TO_RELATION[data.role], space: data.docId },
+      {
+        subject: data.subjectDid,
+        relation: ROLE_TO_RELATION[data.role],
+        space: data.docId,
+      },
     );
 
     // Grant local doc_access immediately rather than waiting on the outbox
