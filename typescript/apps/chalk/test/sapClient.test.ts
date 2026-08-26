@@ -176,4 +176,17 @@ describe("SapClient", () => {
     });
     expect(headers?.get("Habitat-Did")).toBe("did:plc:member1");
   });
+
+  it("recrawl POSTs to /session/recrawl with the Habitat-Did header", async () => {
+    let headers: Headers | undefined;
+    server.use(
+      http.post("http://sap-internal.test/session/recrawl", ({ request }) => {
+        headers = request.headers;
+        return new HttpResponse(null, { status: 202 });
+      }),
+    );
+    const client = new SapClient(testEnv, "did:plc:member1");
+    await client.recrawl();
+    expect(headers?.get("Habitat-Did")).toBe("did:plc:member1");
+  });
 });
