@@ -9,7 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@atproto/identity": "^0.5.6",
+    "@atproto/identity": "catalog:",
     "@tanstack/react-devtools": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
@@ -20,16 +20,16 @@
     "@tiptap/react": "^3.28.0",
     "@tiptap/starter-kit": "^3.28.0",
     "internal": "workspace:*",
-    "lucide-react": "^1.0.0",
+    "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
-    "tailwindcss": "^4.3.3",
+    "tailwindcss": "catalog:",
     "yjs": "^13.6.31"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.20",
-    "@tailwindcss/vite": "^4.3.3",
+    "@tailwindcss/typography": "catalog:",
+    "@tailwindcss/vite": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

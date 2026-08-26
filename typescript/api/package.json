@@ -14,8 +14,8 @@
   "dependencies": {
     "@atproto/api": "catalog:",
     "@atproto/lexicon": "catalog:",
-    "@atproto/xrpc": "^0.8.6",
-    "multiformats": "^14.0.0"
+    "@atproto/xrpc": "catalog:",
+    "multiformats": "catalog:"
   },
   "devDependencies": {
     "@atproto/lex-cli": "^0.10.6"
