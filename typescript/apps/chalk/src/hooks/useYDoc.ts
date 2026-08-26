@@ -22,6 +22,7 @@ export function useYDoc(docId: string, initialState?: Uint8Array): Y.Doc {
   // key, not a real dependency: a fresh Y.Doc per doc, discarding the
   const queryClient = useQueryClient();
   const ydoc = useMemo(() => {
+    const _ = docId; // so that it's included in the dependency list
     const doc = new Y.Doc();
     if (initialState) Y.applyUpdateV2(doc, initialState);
     return doc;
