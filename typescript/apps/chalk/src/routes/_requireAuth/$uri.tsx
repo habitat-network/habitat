@@ -4,7 +4,13 @@ import Collaboration from "@tiptap/extension-collaboration";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { ShareDialog, getProfiles, type Actor } from "internal";
+import {
+  ShareDialog,
+  getProfiles,
+  type Actor,
+  type ShareDialogGrantee,
+  type ShareDialogRole,
+} from "internal";
 import { toast } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
@@ -15,6 +21,7 @@ import { useRecentDocsStore } from "@/stores/recentDocs";
 export const Route = createFileRoute("/_requireAuth/$uri")({
   component() {
     const { uri } = Route.useParams();
+    const { did: currentUserDid } = Route.useRouteContext();
     const ydoc = useYDoc(uri);
     const queryClient = useQueryClient();
 
@@ -24,12 +31,20 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const accessQueryKey = ["docAccess", uri];
     const { data: grantees = [] } = useQuery({
       queryKey: accessQueryKey,
-      // listDocAccess only returns DIDs (what network.habitat.relationship
-      // actually stores); resolving those to handles/avatars for display is
-      // a separate, client-side lookup against the public directory.
-      queryFn: async () => {
+      // listDocAccess only returns DIDs and relations (what
+      // network.habitat.relationship actually stores); resolving DIDs to
+      // handles/avatars for display is a separate, client-side lookup
+      // against the public directory.
+      queryFn: async (): Promise<ShareDialogGrantee[]> => {
         const access = await listDocAccess({ data: { docId: uri } });
-        return getProfiles(access.map((a) => a.did));
+        const profiles = await getProfiles(access.map((a) => a.did));
+        const relationByDid = new Map(
+          access.map((a) => [a.did, a.relation] as const),
+        );
+        return profiles.map((profile) => ({
+          ...profile,
+          relation: relationByDid.get(profile.did),
+        }));
       },
     });
     const invalidateAccess = () =>
@@ -37,10 +52,16 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
     const { mutate: addPermission, isPending: isAddingPermission } =
       useMutation({
-        mutationFn: (actors: Actor[]) =>
+        mutationFn: ({
+          actors,
+          role,
+        }: {
+          actors: Actor[];
+          role: ShareDialogRole;
+        }) =>
           Promise.all(
             actors.map((actor) =>
-              shareDoc({ data: { docId: uri, subjectDid: actor.did } }),
+              shareDoc({ data: { docId: uri, subjectDid: actor.did, role } }),
             ),
           ),
         onSuccess: invalidateAccess,
@@ -97,7 +118,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             <ShareDialog
               grantees={grantees}
               isAdding={isAddingPermission}
-              onAddPermission={(actors) => addPermission(actors)}
+              roles
+              currentUserDid={currentUserDid}
+              onAddPermission={(actors, role) =>
+                addPermission({ actors, role })
+              }
               onRemovePermission={(actor) => removePermission(actor)}
             />
             <HelpDialog />
