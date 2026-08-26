@@ -30,5 +30,8 @@ export async function getProfile(did: string): Promise<Actor> {
   const res = await fetch(
     `${PUBLIC_BSKY_API}/xrpc/app.bsky.actor.getProfile?${params}`,
   );
+  if (res.status !== 200) {
+    return { did };
+  }
   return res.json();
 }

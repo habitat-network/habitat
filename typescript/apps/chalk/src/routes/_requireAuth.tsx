@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
   Link,
@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import {
   AppLayout,
+  getProfile,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
@@ -23,18 +24,17 @@ import { useRecentDocsStore } from "@/stores/recentDocs";
 export const Route = createFileRoute("/_requireAuth")({
   beforeLoad: async () => await getCaller(),
   loader: async ({ context }) => {
-    await context.queryClient.prefetchQuery({
-      queryKey: ["docs"],
-      queryFn: () => listDocs(),
-    });
+    const [docs, actor] = await Promise.all([
+      listDocs(),
+      // The AppLayout footer needs a resolved handle/avatar to show
+      // anything besides "Unknown User" — getCaller only gives us the did.
+      getProfile(context.did),
+    ]);
+    return { docs, actor };
   },
   component() {
-    const { did } = Route.useRouteContext();
+    const { docs, actor } = Route.useLoaderData();
     const queryClient = useQueryClient();
-    const { data: docs } = useQuery({
-      queryKey: ["docs"],
-      queryFn: () => listDocs(),
-    });
     const router = useRouter();
     const navigate = Route.useNavigate();
 
@@ -48,19 +48,20 @@ export const Route = createFileRoute("/_requireAuth")({
         state.matches.some((x) => x.routeId === "/_requireAuth/"),
     });
     const recentDocIds = useRecentDocsStore((state) => state.recentDocIds);
+    const addRecentDoc = useRecentDocsStore((state) => state.addRecentDoc);
     // recentDocIds only remembers order of visits; docs (the full
     // accessor list) is the source of truth for whether a doc still
     // exists/is still accessible and for its current title.
     const recentDocs = recentDocIds
-      .map((docId) => docs?.find((doc) => doc.docId === docId))
+      .map((docId) => docs.find((doc) => doc.docId === docId))
       .filter((doc) => doc !== undefined);
     const { mutate: create, isPending } = useMutation({
       mutationFn: () => createDoc(),
       onSuccess: async ({ docId }) => {
-        // Refresh the list so the editor route can resolve the new doc's
-        // space URI from it before navigating.
-        await queryClient.invalidateQueries({ queryKey: ["docs"] });
-        router.invalidate();
+        // Refresh the loader so it resolves the new doc's space URI
+        // before navigating.
+        await router.invalidate();
+        addRecentDoc(docId);
         navigate({ to: "/$uri", params: { uri: docId } });
       },
       onError: (error) => {
@@ -86,25 +87,25 @@ export const Route = createFileRoute("/_requireAuth")({
 
     return (
       <AppLayout
-        actor={{ did }}
+        actor={actor}
         title="Chalk"
         onSignOut={() => logOut()}
         sidebarHeader={
           <SidebarMenu>
-            <SidebarMenuButton
-              variant="outline"
-              className="bg-sidebar-primary/10 hover:bg-sidebar-primary/20 border-sidebar-primary/30 text-sidebar-primary font-medium"
-              onClick={() => create()}
-              disabled={isPending}
-              size="lg"
-            >
-              <PlusIcon />
-              New Document
-            </SidebarMenuButton>
             <SidebarMenuItem>
               <SidebarMenuButton isActive={onHomePage} render={<Link to="/" />}>
                 <HomeIcon />
                 <span>Home</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                variant="outline"
+                onClick={() => create()}
+                disabled={isPending}
+              >
+                <PlusIcon />
+                <span>New Document</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
