@@ -1,6 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
-import { docsForAccessor, getDb, upsertDoc, type DocSummary } from "../db";
+import {
+  deleteDocAccess,
+  docsForAccessor,
+  getDb,
+  upsertDoc,
+  upsertDocAccess,
+  type DocSummary,
+} from "../db";
 import {
   DOCS_SPACE_TYPE,
   clearSession,
@@ -52,11 +59,25 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     // is self-describing.
     const docId = created.uri;
 
-    await upsertDoc(getDb(env), {
+    const db = getDb(env);
+    await upsertDoc(db, {
       spaceUri: created.uri,
       docId,
       ownerDid: did,
       title: "Untitled",
+    });
+
+    // Grant the owner local doc_access now rather than waiting on the
+    // outbox webhook to sync their own userRelation record back — without
+    // this, docsForAccessor's inner join hides the doc the owner just
+    // created until that async round-trip lands. The real userRelation
+    // record's grant overwrites this row (same subjectDid+spaceUri key)
+    // once the webhook delivers it.
+    await upsertDocAccess(db, {
+      uri: created.uri,
+      spaceUri: created.uri,
+      subjectDid: did,
+      relation: "owner",
     });
 
     // Record the room's identity now, so the owner-republish alarm knows the
@@ -129,10 +150,22 @@ export const shareDoc = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { did } = await requireSession();
     const client = new SapClient(env, did);
-    await client.call("network.habitat.relationship.setUserRelation", "POST", {
-      subject: data.subjectDid,
+    const { uri } = await client.call<{ uri: string }>(
+      "network.habitat.relationship.setUserRelation",
+      "POST",
+      { subject: data.subjectDid, relation: ROLE_TO_RELATION[data.role], space: data.docId },
+    );
+
+    // Grant local doc_access immediately rather than waiting on the outbox
+    // webhook to sync this same userRelation record back — without this,
+    // the newly-shared user's own docsForAccessor query won't show the doc
+    // until that async round-trip lands. The webhook's own upsertDocAccess
+    // call is a no-op once this has already landed (same uri).
+    await upsertDocAccess(getDb(env), {
+      uri,
+      spaceUri: data.docId,
+      subjectDid: data.subjectDid,
       relation: ROLE_TO_RELATION[data.role],
-      space: data.docId,
     });
   });
 
@@ -182,4 +215,10 @@ export const revokeDocAccess = createServerFn({ method: "POST" })
     await client.call("network.habitat.relationship.deleteRelation", "POST", {
       uri: relation.uri,
     });
+
+    // Remove local doc_access immediately rather than waiting on the
+    // outbox webhook to sync this same tombstone back — without this, the
+    // revoked user keeps seeing the doc in their own listDocs until that
+    // async round-trip lands.
+    await deleteDocAccess(getDb(env), relation.uri);
   });

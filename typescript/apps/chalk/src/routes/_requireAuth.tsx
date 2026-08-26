@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
   Link,
@@ -24,17 +24,28 @@ import { useRecentDocsStore } from "@/stores/recentDocs";
 export const Route = createFileRoute("/_requireAuth")({
   beforeLoad: async () => await getCaller(),
   loader: async ({ context }) => {
-    const [docs, actor] = await Promise.all([
-      listDocs(),
+    const [, actor] = await Promise.all([
+      // Seed the ["docs"] query cache the sidebar/home page share, so the
+      // component's useQuery below resolves from cache instead of
+      // refetching, while still letting either surface invalidate it (e.g.
+      // right after creating a doc, or optimistically as a title changes).
+      context.queryClient.ensureQueryData({
+        queryKey: ["docs"],
+        queryFn: listDocs,
+      }),
       // The AppLayout footer needs a resolved handle/avatar to show
       // anything besides "Unknown User" — getCaller only gives us the did.
       getProfile(context.did),
     ]);
-    return { docs, actor };
+    return { actor };
   },
   component() {
-    const { docs, actor } = Route.useLoaderData();
+    const { actor } = Route.useLoaderData();
     const queryClient = useQueryClient();
+    const { data: docs = [] } = useQuery({
+      queryKey: ["docs"],
+      queryFn: () => listDocs(),
+    });
     const router = useRouter();
     const navigate = Route.useNavigate();
 
@@ -58,9 +69,9 @@ export const Route = createFileRoute("/_requireAuth")({
     const { mutate: create, isPending } = useMutation({
       mutationFn: () => createDoc(),
       onSuccess: async ({ docId }) => {
-        // Refresh the loader so it resolves the new doc's space URI
-        // before navigating.
-        await router.invalidate();
+        // Refresh the shared ["docs"] cache so the sidebar/home page pick
+        // up the new doc before navigating.
+        await queryClient.invalidateQueries({ queryKey: ["docs"] });
         addRecentDoc(docId);
         navigate({ to: "/$uri", params: { uri: docId } });
       },
