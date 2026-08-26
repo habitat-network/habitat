@@ -63,13 +63,23 @@ func (v *Verifier) signer(
 	author syntax.DID,
 ) (atcrypto.PublicKey, error) {
 	// Habitat-managed identities are did:web accounts whose signing keys the
-	// hive holds; the host signs their commits with their own key.
+	// hive holds; the host signs their commits with their own key. Most
+	// hive-minted identities publish that key under "#atproto" (see
+	// internal/hive's idTemplateBuilder), but the pear host's own identity —
+	// which authors commits for the "everyone" org (see
+	// [EveryoneOrg] Use pear did (#709)) — is built by cmd/pear/main.go with
+	// ATProtoSpaceKey/HabitatKey instead, so it only ever declares
+	// "#atproto_space"/"#habitat". Fall back to "#atproto_space" so both
+	// shapes of habitat-managed identity resolve.
 	if author.Method() == "web" {
 		ident, err := v.dir.LookupDID(ctx, author)
 		if err != nil {
 			return nil, fmt.Errorf("lookup author: %w", err)
 		}
-		pub, err := ident.PublicKey()
+		pub, err := ident.GetPublicKey("atproto_space")
+		if err != nil {
+			pub, err = ident.PublicKey()
+		}
 		if err != nil {
 			return nil, fmt.Errorf("author signing key: %w", err)
 		}
