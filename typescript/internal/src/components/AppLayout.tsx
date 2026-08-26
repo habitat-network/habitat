@@ -1,4 +1,4 @@
-import { act, ReactNode } from "react";
+import { ReactNode } from "react";
 import { Actor } from "@/types/Actor";
 
 import {
@@ -20,7 +20,6 @@ import {
   SidebarRail,
 } from "./ui/sidebar";
 import { LogOut } from "lucide-react";
-import { UserItem } from "./UserItem";
 import { UserAvatar } from "./UserAvatar";
 
 interface AppLayoutProps {
@@ -53,7 +52,9 @@ export const AppLayout = ({
                     render={
                       <SidebarMenuButton size="lg">
                         <UserAvatar actor={actor} size="default" />
-                        <span>{actor.displayName || actor.handle || actor.did}</span>
+                        <span>
+                          {actor.displayName || actor.handle || actor.did}
+                        </span>
                       </SidebarMenuButton>
                     }
                   ></DropdownMenuTrigger>
