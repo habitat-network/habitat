@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { getProfiles, UserAvatar, type Actor } from "internal";
+import { getProfiles, HabitatLogo, UserAvatar, type Actor } from "internal";
 import {
   Table,
   TableHeader,
@@ -50,10 +50,24 @@ export const Route = createFileRoute("/_requireAuth/")({
       <div className="flex flex-col h-full">
         <PageHeader />
         <div className="flex-1 overflow-auto p-4">
+          <div className="px-2">
+            <h1 className="text-2xl font-semibold mb-1">Chalk</h1>
+            <p className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
+              by{" "}
+              <a
+                href="https://habitat.network"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 hover:underline"
+              >
+                <HabitatLogo size={16} /> Habitat
+              </a>
+            </p>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Title</TableHead>
+                <TableHead>Document</TableHead>
                 <TableHead>Owner</TableHead>
               </TableRow>
             </TableHeader>

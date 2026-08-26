@@ -93,13 +93,15 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           <EditorContent className="w-full flex-1" editor={editor} />
         </div>
         <PageHeader>
-          <ShareDialog
-            grantees={grantees}
-            isAdding={isAddingPermission}
-            onAddPermission={(actors) => addPermission(actors)}
-            onRemovePermission={(actor) => removePermission(actor)}
-          />
-          <HelpDialog />
+          <div className="flex gap-2">
+            <ShareDialog
+              grantees={grantees}
+              isAdding={isAddingPermission}
+              onAddPermission={(actors) => addPermission(actors)}
+              onRemovePermission={(actor) => removePermission(actor)}
+            />
+            <HelpDialog />
+          </div>
         </PageHeader>
       </div>
     );

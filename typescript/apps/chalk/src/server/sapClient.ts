@@ -166,4 +166,26 @@ export class SapClient {
       throw new Error(`trackSpace failed (${res.status}): ${await res.text()}`);
     }
   }
+
+  // recrawl asks sap to re-run discovery for this member from scratch
+  // (sap's POST /session/recrawl, backed by Sap.Recrawl) rather than waiting
+  // for the next periodic re-crawl. Called right after sign-in so a member
+  // whose sap session lapsed or missed writes gets caught back up
+  // immediately instead of silently missing spaces/records until the next
+  // scheduled crawl. No session ID is sent — chalk always runs sap with
+  // WithSingleSessionPerUser, so it's optional and ignored. sap schedules
+  // the crawl in the background and responds 202 immediately; this does not
+  // wait for the crawl itself to finish.
+  async recrawl(): Promise<void> {
+    const res = await fetch(`${this.base}/session/recrawl`, {
+      method: "POST",
+      headers: {
+        [habitatDIDHeader]: this.did,
+        ...sapAuthHeaders(this.env),
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`recrawl failed (${res.status}): ${await res.text()}`);
+    }
+  }
 }
