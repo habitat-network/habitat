@@ -29,7 +29,10 @@ export const Route = createFileRoute("/_requireAuth")({
       // component's useQuery below resolves from cache instead of
       // refetching, while still letting either surface invalidate it (e.g.
       // right after creating a doc, or optimistically as a title changes).
-      context.queryClient.ensureQueryData({ queryKey: ["docs"], queryFn: listDocs }),
+      context.queryClient.ensureQueryData({
+        queryKey: ["docs"],
+        queryFn: listDocs,
+      }),
       // The AppLayout footer needs a resolved handle/avatar to show
       // anything besides "Unknown User" — getCaller only gives us the did.
       getProfile(context.did),
