@@ -115,7 +115,7 @@ export const listDocAccess = createServerFn({ method: "GET" })
   .handler(
     async ({
       data,
-    }): Promise<{ did: string; relation: "writer" | "reader" }[]> => {
+    }): Promise<{ did: string; relation: "manager" | "reader" }[]> => {
       const { did } = await requireSession();
       const client = new SapClient(env, did);
       const { relations } = await client.call<{
@@ -126,16 +126,19 @@ export const listDocAccess = createServerFn({ method: "GET" })
       });
       return relations.map((r) => ({
         did: r.subject,
-        relation: r.relation as "writer" | "reader",
+        relation: r.relation as "manager" | "reader",
       }));
     },
   );
 
 // A doc grantee is either an editor (can edit the doc) or a viewer
-// (read-only), which map to the "writer"/"reader" relations
-// network.habitat.relationship actually stores.
-const ROLE_TO_RELATION: Record<"editor" | "viewer", "writer" | "reader"> = {
-  editor: "writer",
+// (read-only), which map to the "manager"/"reader" relations
+// network.habitat.relationship actually stores. Editors get "manager"
+// (not just "writer") so they can share the doc themselves — pear's
+// setUserRelation requires manager — and manager implies writer, so this
+// doesn't change what an editor can do to the doc's content.
+const ROLE_TO_RELATION: Record<"editor" | "viewer", "manager" | "reader"> = {
+  editor: "manager",
   viewer: "reader",
 };
 

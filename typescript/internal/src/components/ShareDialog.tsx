@@ -19,11 +19,11 @@ import { XIcon } from "lucide-react";
 export type Role = "editor" | "viewer";
 
 export interface Grantee extends Actor {
-  relation?: "writer" | "reader";
+  relation?: "manager" | "reader";
 }
 
-const RELATION_LABEL: Record<"writer" | "reader", string> = {
-  writer: "Editor",
+const RELATION_LABEL: Record<"manager" | "reader", string> = {
+  manager: "Editor",
   reader: "Viewer",
 };
 
