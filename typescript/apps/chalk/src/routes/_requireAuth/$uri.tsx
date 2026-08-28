@@ -152,16 +152,18 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         </div>
         <PageHeader>
           <div className="flex gap-2">
-            <ShareDialog
-              grantees={grantees}
-              isAdding={isAddingPermission}
-              roles
-              currentUserDid={currentUserDid}
-              onAddPermission={(actors, role) =>
-                addPermission({ actors, role })
-              }
-              onRemovePermission={(actor) => removePermission(actor)}
-            />
+            {role === "editor" && (
+              <ShareDialog
+                grantees={grantees}
+                isAdding={isAddingPermission}
+                roles
+                currentUserDid={currentUserDid}
+                onAddPermission={(actors, role) =>
+                  addPermission({ actors, role })
+                }
+                onRemovePermission={(actor) => removePermission(actor)}
+              />
+            )}
             <HelpDialog />
           </div>
         </PageHeader>
