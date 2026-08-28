@@ -17,9 +17,6 @@ import { Actor } from "@/types/Actor";
 import { searchActorsTypeahead } from "../bskyPublicApi";
 import { resolveHandleToDid } from "../atprotoDirectory";
 
-// eslint-disable-next-line no-console
-console.log("[UserCombobox debug] module loaded");
-
 interface UserComboboxProps {
   value?: Actor[];
   onValueChange: (value: Actor[]) => void;
@@ -50,28 +47,13 @@ const UserCombobox = ({ value, onValueChange }: UserComboboxProps) => {
     !!trimmedSearchValue &&
     !alreadySuggested &&
     trimmedSearchValue.includes(".");
-  // eslint-disable-next-line no-console
-  console.log("[UserCombobox debug] resolve query enabled?", {
-    trimmedSearchValue,
-    alreadySuggested,
-    resolveEnabled,
-  });
   const { data: resolvedActor } = useQuery<Actor | null>({
     queryKey: ["actorResolve", trimmedSearchValue],
     queryFn: async () => {
-      // eslint-disable-next-line no-console
-      console.log(
-        "[UserCombobox debug] calling resolveHandleToDid for",
-        trimmedSearchValue,
-      );
       try {
         const did = await resolveHandleToDid(trimmedSearchValue);
-        // eslint-disable-next-line no-console
-        console.log("[UserCombobox debug] resolved did", did);
         return { did, handle: trimmedSearchValue };
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.log("[UserCombobox debug] resolveHandleToDid threw", err);
         return null;
       }
     },
