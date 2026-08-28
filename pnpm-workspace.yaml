@@ -18,7 +18,7 @@ packages:
   - website
 
 catalog:
-  '@atproto/api': 0.20.41
+  '@atproto/api': 0.20.42
   '@atproto/identity': ^0.5.9
   '@atproto/lexicon': 0.7.11
   '@atproto/xrpc': ^0.8.6
