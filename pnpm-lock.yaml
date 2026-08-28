@@ -116,6 +116,12 @@ importers:
       '@atproto/xrpc':
         specifier: 'catalog:'
         version: 0.8.10
+      '@tailwindcss/vite':
+        specifier: 'catalog:'
+        version: 4.3.3(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
+      '@tanstack/devtools-vite':
+        specifier: 'catalog:'
+        version: 0.8.5(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.1
@@ -137,6 +143,9 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0)
+      vite-plugin-generate-file:
+        specifier: ^0.3.1
+        version: 0.3.1
 
   api-docs:
     dependencies:
