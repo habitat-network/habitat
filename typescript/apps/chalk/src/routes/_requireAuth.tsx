@@ -20,6 +20,7 @@ import { toast } from "internal/components/ui";
 import { HomeIcon, PlusIcon } from "lucide-react";
 import { createDoc, getCaller, listDocs, signOut } from "@/server/functions";
 import { useRecentDocsStore } from "@/stores/recentDocs";
+import type { DocSummary } from "@/db";
 
 export const Route = createFileRoute("/_requireAuth")({
   beforeLoad: async () => await getCaller(),
@@ -68,10 +69,14 @@ export const Route = createFileRoute("/_requireAuth")({
       .filter((doc) => doc !== undefined);
     const { mutate: create, isPending } = useMutation({
       mutationFn: () => createDoc(),
-      onSuccess: async ({ docId }) => {
-        // Refresh the shared ["docs"] cache so the sidebar/home page pick
-        // up the new doc before navigating.
-        await queryClient.invalidateQueries({ queryKey: ["docs"] });
+      onSuccess: ({ docId, uri }) => {
+        // Append the new doc to the shared ["docs"] cache directly (its
+        // fields mirror what src/server/functions.ts's createDoc handler
+        // just wrote server-side) rather than invalidating and refetching.
+        queryClient.setQueryData<DocSummary[]>(["docs"], (old) => [
+          ...(old ?? []),
+          { docId, uri, ownerDid: actor.did, title: "Untitled" },
+        ]);
         addRecentDoc(docId);
         navigate({ to: "/$uri", params: { uri: docId } });
       },
