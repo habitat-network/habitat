@@ -43,7 +43,7 @@ export default function AuthForm({
     error,
   } = useMutation({
     async mutationFn({ handle }: AuthFormData) {
-      const url = authManager.loginUrl(handle, redirectUrl);
+      const url = authManager.loginUrl(handle.trim(), redirectUrl);
       window.location.href = url.toString();
       await new Promise(() => {});
     },

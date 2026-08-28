@@ -44,7 +44,9 @@ export const Route = createFileRoute("/login")({
       error,
     } = useMutation({
       async mutationFn({ handle }: LoginFormData) {
-        const { redirectUrl } = await startLoginFn({ data: { handle } });
+        const { redirectUrl } = await startLoginFn({
+          data: { handle: handle.trim() },
+        });
         window.location.href = redirectUrl;
         // Keep the button in its loading state while the browser navigates.
         await new Promise(() => {});

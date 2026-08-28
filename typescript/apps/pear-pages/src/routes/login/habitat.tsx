@@ -39,7 +39,10 @@ function HabitatLoginPage() {
       const res = await fetch("/xrpc/network.habitat.org.loginMember", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ handle: formHandle || handle, password }),
+        body: JSON.stringify({
+          handle: (formHandle || handle).trim(),
+          password,
+        }),
       });
       if (!res.ok) {
         throw new Error((await res.text()) || "Login failed");

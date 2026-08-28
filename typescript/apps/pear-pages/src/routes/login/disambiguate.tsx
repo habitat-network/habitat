@@ -1,5 +1,6 @@
 import { Button, Field, FieldLabel, Input } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
+import { useRef } from "react";
 
 // OAuth disambiguation page. pear's authorization endpoint redirects here when
 // an authorize request arrives without a handle. Every original OAuth parameter
@@ -11,17 +12,30 @@ export const Route = createFileRoute("/login/disambiguate")({
 });
 
 function DisambiguatePage() {
+  const handleRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="flex w-full max-w-md flex-col gap-4">
       <h1 className="text-2xl font-semibold">Sign in</h1>
       <p className="text-sm text-muted-foreground">
         Enter your handle to continue.
       </p>
-      <form action="/oauth/authorize">
+      <form
+        action="/oauth/authorize"
+        onSubmit={() => {
+          // Strip leading/trailing whitespace before the native GET
+          // submission fires, since a stray space makes the backend's
+          // handle-format regex reject an otherwise-valid handle.
+          if (handleRef.current) {
+            handleRef.current.value = handleRef.current.value.trim();
+          }
+        }}
+      >
         <fieldset className="flex flex-col gap-4">
           <Field>
             <FieldLabel>Handle</FieldLabel>
             <Input
+              ref={handleRef}
               placeholder="handle"
               autoFocus
               name="disambiguation"
