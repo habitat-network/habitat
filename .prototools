@@ -8,7 +8,7 @@ caddy = "2.11.3"
 
 [plugins.tools]
 golangci-lint = "https://raw.githubusercontent.com/b4nst/proto-plugins/refs/heads/main/toml/golangci-lint.toml"
-caddy = "https://raw.githubusercontent.com/Phault/proto-toml-plugins/main/caddy/plugin.toml"
+caddy = "file://./.moon/proto-plugins/caddy.toml"
 
 [settings]
 auto-install = true

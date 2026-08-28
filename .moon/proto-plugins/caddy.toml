@@ -1,0 +1,35 @@
+# Local TOML plugin for proto (https://moonrepo.dev/docs/proto/non-wasm-plugin).
+#
+# The upstream plugin this repo used to reference
+# (https://raw.githubusercontent.com/Phault/proto-toml-plugins/main/caddy/plugin.toml)
+# disappeared along with the source repo, so this is a minimal replacement that
+# installs caddy directly from its GitHub releases.
+
+name = "caddy"
+type = "cli"
+
+[platform.macos]
+download-file = "caddy_{version}_mac_{arch}.tar.gz"
+checksum-file = "caddy_{version}_checksums.txt"
+exe-path = "caddy"
+
+[platform.linux]
+download-file = "caddy_{version}_linux_{arch}.tar.gz"
+checksum-file = "caddy_{version}_checksums.txt"
+exe-path = "caddy"
+
+[platform.windows]
+download-file = "caddy_{version}_windows_{arch}.zip"
+checksum-file = "caddy_{version}_checksums.txt"
+exe-path = "caddy.exe"
+
+[install]
+download-url = "https://github.com/caddyserver/caddy/releases/download/v{version}/{download_file}"
+checksum-url = "https://github.com/caddyserver/caddy/releases/download/v{version}/{checksum_file}"
+
+[install.arch]
+aarch64 = "arm64"
+x86_64 = "amd64"
+
+[resolve]
+git-url = "https://github.com/caddyserver/caddy"
