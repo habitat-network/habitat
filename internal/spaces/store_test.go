@@ -382,6 +382,20 @@ func TestListRecords(t *testing.T) {
 	}
 }
 
+func TestPutRecord_RejectsNonIntegerFloat(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 0.15})
+	require.ErrorIs(t, err, spaces.ErrInvalidRecord)
+
+	_, err = s.GetRecord(t.Context(), uri, owner, coll, "k1")
+	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+}
+
 func TestDeleteRecord(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 

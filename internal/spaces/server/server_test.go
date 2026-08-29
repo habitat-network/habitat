@@ -469,6 +469,40 @@ func TestServer_PutRecord_Unauthorized(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+// TestServer_PutRecord_InvalidRecord pins that a record violating the
+// atproto data model (e.g. a non-integer float, which atproto only
+// represents as integers) surfaces as a 400 InvalidRequest, not a 500.
+func TestServer_PutRecord_InvalidRecord(t *testing.T) {
+	key, store := newTestStore(t)
+	s := newTestServerWithOpts(
+		t,
+		key,
+		store,
+	)
+	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "my-note", "record": {"x": 0.15}}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.putRecord",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.PutRecord(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+
+	_, err = store.GetRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"my-note",
+	)
+	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+}
+
 func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
