@@ -5,13 +5,26 @@ const PUBLIC_BSKY_API = "https://public.api.bsky.app";
 export async function searchActorsTypeahead(
   q: string,
   limit = 8,
+  { identityResolverUrl }: { identityResolverUrl?: string } = {},
 ): Promise<Actor[]> {
   const params = new URLSearchParams({ q, limit: String(limit) });
-  const res = await fetch(
-    `${PUBLIC_BSKY_API}/xrpc/app.bsky.actor.searchActorsTypeahead?${params}`,
+  const [searchResp, resolveResp] = await Promise.all(
+    [
+      fetch(
+        `${PUBLIC_BSKY_API}/xrpc/app.bsky.actor.searchActorsTypeahead?${params}`,),
+      fetch(
+        `${identityResolverUrl || 'https://pear.habitat.network/xrpc/com.atproto.identity.resolveIdentity'}?identifier=${q}`
+      )
+    ]
   );
-  const data: { actors: Actor[] } = await res.json();
-  return data.actors ?? [];
+  const searchData: { actors: Actor[] } = await searchResp.json();
+  if (resolveResp.ok) {
+    const { did, handle } = await resolveResp.json();
+    if (did) {
+      searchData.actors.push({ did, handle });
+    }
+  }
+  return searchData.actors ?? [];
 }
 
 export async function getProfiles(dids: string[]): Promise<Actor[]> {
