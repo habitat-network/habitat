@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -213,6 +214,7 @@ var (
 	ErrRepoNotFound       = errors.New("repo not found")
 	ErrRevTooFar          = errors.New("since revision is ahead of the repo head")
 	ErrRecordTooLarge     = errors.New("record too large")
+	ErrInvalidRecord      = errors.New("record does not conform to atproto data model")
 )
 
 // ---- Store implementation ----
@@ -454,6 +456,9 @@ func (s *store) PutRecord(
 	} else if !ok {
 		return "", nil, ErrSpaceNotFound
 	}
+	if err := atdata.Validate(value); err != nil {
+		return "", nil, fmt.Errorf("%w: %w", ErrInvalidRecord, err)
+	}
 	bytes, err := atdata.MarshalCBOR(value)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
@@ -585,13 +590,24 @@ func (s *store) ListRecords(
 		return nil, err
 	}
 
-	records := make([]Record, len(rows))
-	for i, row := range rows {
+	records := make([]Record, 0, len(rows))
+	for _, row := range rows {
 		value, err := atdata.UnmarshalCBOR(row.Value)
 		if err != nil {
-			return nil, err
+			// A record that can no longer be decoded (e.g. written before
+			// write-time validation existed) shouldn't take down the whole
+			// listing; skip it and keep going.
+			slog.WarnContext(
+				ctx, "skipping undecodable record in list",
+				"space", uri,
+				"repo", repo,
+				"collection", row.Collection,
+				"rkey", row.Rkey,
+				"err", err,
+			)
+			continue
 		}
-		records[i] = Record{
+		records = append(records, Record{
 			Owner:      row.Repo,
 			Collection: row.Collection,
 			Rkey:       row.Rkey,
@@ -599,7 +615,7 @@ func (s *store) ListRecords(
 			Rev:        string(row.Rev),
 			UpdatedAt:  row.UpdatedAt,
 			Cid:        cid.MustParse(row.Cid),
-		}
+		})
 	}
 
 	return records, nil
