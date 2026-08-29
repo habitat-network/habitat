@@ -8,15 +8,14 @@ export async function searchActorsTypeahead(
   { identityResolverUrl }: { identityResolverUrl?: string } = {},
 ): Promise<Actor[]> {
   const params = new URLSearchParams({ q, limit: String(limit) });
-  const [searchResp, resolveResp] = await Promise.all(
-    [
-      fetch(
-        `${PUBLIC_BSKY_API}/xrpc/app.bsky.actor.searchActorsTypeahead?${params}`,),
-      fetch(
-        `${identityResolverUrl || 'https://pear.habitat.network/xrpc/com.atproto.identity.resolveIdentity'}?identifier=${q}`
-      )
-    ]
-  );
+  const [searchResp, resolveResp] = await Promise.all([
+    fetch(
+      `${PUBLIC_BSKY_API}/xrpc/app.bsky.actor.searchActorsTypeahead?${params}`,
+    ),
+    fetch(
+      `${identityResolverUrl || "https://pear.habitat.network/xrpc/com.atproto.identity.resolveIdentity"}?identifier=${q}`,
+    ),
+  ]);
   const searchData: { actors: Actor[] } = await searchResp.json();
   if (resolveResp.ok) {
     const { did, handle } = await resolveResp.json();
