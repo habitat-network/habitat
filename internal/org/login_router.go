@@ -74,7 +74,7 @@ func (r *LoginRouter) Exchange(
 		if err != nil {
 			return fmt.Errorf("failed to exchange code: %w", err)
 		}
-		member, err := r.OrgStore.GetMemberByLoginID(ctx, loginID)
+		member, err := fetchedOrg.GetMemberByLoginID(ctx, loginID)
 		if err != nil {
 			return fmt.Errorf("failed to get member by login id: %w", err)
 		}
