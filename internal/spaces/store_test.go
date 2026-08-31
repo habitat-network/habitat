@@ -24,7 +24,7 @@ var (
 func TestCreateSpace(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "my-group")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "my-group")
 	require.NoError(t, err)
 	require.Equal(t, "at://did:plc:org/space/network.habitat.group/my-group", uri.String())
 }
@@ -32,7 +32,7 @@ func TestCreateSpace(t *testing.T) {
 func TestCreateSpace_AutoSkey(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "")
 	require.NoError(t, err)
 	require.Contains(t, uri, "at://did:plc:org/space/network.habitat.group/")
 }
@@ -40,20 +40,20 @@ func TestCreateSpace_AutoSkey(t *testing.T) {
 func TestCreateSpace_Duplicate(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	_, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "dup")
+	_, err := s.CreateSpace(t.Context(), orgID, groupType, "dup")
 	require.NoError(t, err)
 
-	_, err = s.CreateSpace(t.Context(), orgID, owner, groupType, "dup")
+	_, err = s.CreateSpace(t.Context(), orgID, groupType, "dup")
 	require.ErrorIs(t, err, spaces.ErrSpaceAlreadyExists)
 }
 
 func TestListSpaces(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	space1, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "space1")
+	space1, err := s.CreateSpace(t.Context(), orgID, groupType, "space1")
 	require.NoError(t, err)
 
-	space2, err := s.CreateSpace(t.Context(), orgID, alice, groupType, "space2")
+	space2, err := s.CreateSpace(t.Context(), orgID, groupType, "space2")
 	require.NoError(t, err)
 
 	// Owning or being granted access to a space alone doesn't put it on a
@@ -83,9 +83,9 @@ func TestListSpaces(t *testing.T) {
 func TestListSpaces_OwningASpaceIsNotWritingToIt(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	space1, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "space1")
+	space1, err := s.CreateSpace(t.Context(), orgID, groupType, "space1")
 	require.NoError(t, err)
-	space2, err := s.CreateSpace(t.Context(), orgID, alice, groupType, "space2")
+	space2, err := s.CreateSpace(t.Context(), orgID, groupType, "space2")
 	require.NoError(t, err)
 
 	// Owning a space is not writing to it: the org holds no repo in either
@@ -109,7 +109,7 @@ func TestListSpaces_OwningASpaceIsNotWritingToIt(t *testing.T) {
 func TestListSpaces_LeavesListingAfterSpaceIsDeleted(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "space1")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "space1")
 	require.NoError(t, err)
 	coll := syntax.NSID("network.habitat.note")
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
@@ -127,7 +127,7 @@ func TestListSpaces_LeavesListingAfterSpaceIsDeleted(t *testing.T) {
 func TestListSpaces_LeavesListingAfterDeletingAllRecords(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -151,10 +151,10 @@ func TestListSpaces_FilterByType(t *testing.T) {
 
 	personal := syntax.NSID("network.habitat.personal")
 
-	group1, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "group1")
+	group1, err := s.CreateSpace(t.Context(), orgID, groupType, "group1")
 	require.NoError(t, err)
 
-	personal1, err := s.CreateSpace(t.Context(), orgID, owner, personal, "personal1")
+	personal1, err := s.CreateSpace(t.Context(), orgID, personal, "personal1")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -179,9 +179,9 @@ func TestListSpaces_FilterByOwnerWithWildcardInDID(t *testing.T) {
 	// is left to act as a wildcard.
 	otherOrg := syntax.DID("did:web:example.comZZ3A8080")
 
-	wanted, err := s.CreateSpace(t.Context(), orgWithPort, owner, groupType, "space1")
+	wanted, err := s.CreateSpace(t.Context(), orgWithPort, groupType, "space1")
 	require.NoError(t, err)
-	other, err := s.CreateSpace(t.Context(), otherOrg, owner, groupType, "space2")
+	other, err := s.CreateSpace(t.Context(), otherOrg, groupType, "space2")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -202,9 +202,9 @@ func TestListSpaces_NilOwnerFilterSpansAllOrgs(t *testing.T) {
 	orgB := syntax.DID("did:plc:org-b")
 	member := syntax.DID("did:plc:cross-org-member")
 
-	spaceA, err := s.CreateSpace(t.Context(), orgA, member, groupType, "space-a")
+	spaceA, err := s.CreateSpace(t.Context(), orgA, groupType, "space-a")
 	require.NoError(t, err)
-	spaceB, err := s.CreateSpace(t.Context(), orgB, member, groupType, "space-b")
+	spaceB, err := s.CreateSpace(t.Context(), orgB, groupType, "space-b")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -229,7 +229,7 @@ func TestListSpaces_NilOwnerFilterSpansAllOrgs(t *testing.T) {
 func TestListRepos_Empty(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	repos, err := s.ListRepos(t.Context(), uri)
@@ -240,7 +240,7 @@ func TestListRepos_Empty(t *testing.T) {
 func TestListRepos_WithRecords(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -266,7 +266,7 @@ func TestListRepos_WithRecords(t *testing.T) {
 func TestListRepos_HashMatchesLtHash(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -296,7 +296,7 @@ func TestListRepos_SpaceNotFound(t *testing.T) {
 func TestPutAndGetRecord(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -326,7 +326,7 @@ func TestPutRecord_SpaceNotFound(t *testing.T) {
 func TestPutRecord_UpdateExisting(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -345,7 +345,7 @@ func TestPutRecord_UpdateExisting(t *testing.T) {
 func TestGetRecord_NotFound(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -356,7 +356,7 @@ func TestGetRecord_NotFound(t *testing.T) {
 func TestListRecords(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	collA := syntax.NSID("network.habitat.alpha")
@@ -385,7 +385,7 @@ func TestListRecords(t *testing.T) {
 func TestPutRecord_RejectsNonIntegerFloat(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -399,7 +399,7 @@ func TestPutRecord_RejectsNonIntegerFloat(t *testing.T) {
 func TestDeleteRecord(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -423,7 +423,7 @@ func TestDeleteRecord(t *testing.T) {
 // new one in), and deleting the last record drops the repo from the writer set.
 func TestRepoHash_IncrementalOnUpdateAndDelete(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 	coll := syntax.NSID("network.habitat.note")
 
@@ -460,7 +460,7 @@ func TestRepoHash_IncrementalOnUpdateAndDelete(t *testing.T) {
 func TestDeleteRecord_Nonexistent(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	// Deleting a nonexistent record should not error
@@ -510,7 +510,7 @@ func TestParseSpaceURI_Invalid(t *testing.T) {
 func TestDeleteSpace(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "to-delete")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "to-delete")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -543,7 +543,7 @@ func TestListRepoOps(t *testing.T) {
 	ctx := t.Context()
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(ctx, orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(ctx, orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -613,7 +613,7 @@ func TestPutRecordTriggersNotify(t *testing.T) {
 	notifier := &notify_testutil.TestNotifier{}
 	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "notify-space")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "notify-space")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -630,7 +630,7 @@ func TestPutRecordSkipsNotifyWhenCidUnchanged(t *testing.T) {
 	notifier := &notify_testutil.TestNotifier{}
 	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "notify-space")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "notify-space")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -653,7 +653,7 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 	notifier := &notify_testutil.TestNotifier{}
 	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "doomed")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "doomed")
 	require.NoError(t, err)
 
 	require.NoError(t, s.DeleteSpace(t.Context(), uri))
@@ -665,7 +665,7 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 func TestListRepoOpsPrev(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -697,7 +697,7 @@ func TestListRepoOpsPrev(t *testing.T) {
 func TestListRepoOpsPrevCreateIsEmpty(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -717,7 +717,7 @@ func TestPutRecordNotifiesRepoHash(t *testing.T) {
 	notifier := &notify_testutil.TestNotifier{}
 	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -741,7 +741,7 @@ func TestPutRecordNotifiesRepoHash(t *testing.T) {
 func TestListRepoOps_RevTooFar(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
-	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")

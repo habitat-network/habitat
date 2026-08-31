@@ -92,7 +92,7 @@ func TestServer_UploadAndGetBlob(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "blobs")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "blobs")
 	require.NoError(t, err)
 
 	// Upload a blob.
@@ -155,7 +155,7 @@ func TestServer_ListSpaces(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "my-space")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "my-space")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -187,7 +187,7 @@ func TestServer_ListRepos(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "shared")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "shared")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -220,7 +220,7 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 		key,
 		store,
 	)
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "my-note", "record": {"text": "hello"}}`
@@ -263,7 +263,7 @@ func TestServer_DeleteRecord(t *testing.T) {
 		key,
 		store,
 	)
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	_, _, err = store.PutRecord(
@@ -304,7 +304,7 @@ func TestServer_ListRecords(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -343,7 +343,7 @@ func TestServer_GetRepo(t *testing.T) {
 	pub, err := key.PublicKey()
 	require.NoError(t, err)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -411,7 +411,7 @@ func TestServer_GetRepo_RepoNotFound(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -455,7 +455,7 @@ func TestServer_PutRecord_Unauthorized(t *testing.T) {
 		key,
 		store,
 	)
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "repo": "did:plc:alice", "collection": "network.habitat.note", "rkey": "test", "record": {"x": 1}}`
@@ -479,7 +479,7 @@ func TestServer_PutRecord_InvalidRecord(t *testing.T) {
 		key,
 		store,
 	)
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "my-note", "record": {"x": 0.15}}`
@@ -511,7 +511,7 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	_, _, err = store.PutRecord(
@@ -543,7 +543,7 @@ func TestServer_ListRepoOps(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -578,7 +578,6 @@ func TestServer_ListRepoOps(t *testing.T) {
 // oplog a host-signed commit is returned, and that it verifies against the host
 // key with the host protocol tag and carries the repo's LtHash.
 func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
-
 	key, store := newTestStore(t)
 	pub, err := key.PublicKey()
 	require.NoError(t, err)
@@ -589,7 +588,7 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
@@ -637,7 +636,7 @@ func TestServer_GetLatestCommit(t *testing.T) {
 	pub, err := key.PublicKey()
 	require.NoError(t, err)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
@@ -680,7 +679,7 @@ func TestServer_GetLatestCommit_EmptyRepo(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -701,7 +700,7 @@ func TestServer_ListRepoOps_Since(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -744,7 +743,7 @@ func TestServer_ListRepoOps_IncludesValue(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -785,7 +784,7 @@ func TestServer_ListRepoOps_ExcludeValues(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
@@ -828,7 +827,7 @@ func TestServer_ListRepoOpsSinceAheadRejects(t *testing.T) {
 		store,
 	)
 
-	uri, err := store.CreateSpace(t.Context(), orgID, owner, groupType, "test")
+	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")

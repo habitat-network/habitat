@@ -42,7 +42,7 @@ func newTestPermsStore(t *testing.T) (perms.Store, spaces.Store) {
 func newTestSpace(t *testing.T, sp spaces.Store, space habitat_syntax.SpaceURI) {
 	t.Helper()
 	owner := space.SpaceOwner()
-	_, err := sp.CreateSpace(t.Context(), owner, owner, space.SpaceType(), space.Skey())
+	_, err := sp.CreateSpace(t.Context(), owner, space.SpaceType(), space.Skey())
 	require.NoError(t, err)
 }
 
