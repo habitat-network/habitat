@@ -1,0 +1,28 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.space",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "Indexes one space that exists under this community, e.g. a modality-specific space. Lives in the community's `members` space, authored by the community DID.",
+            "key": "tid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "uri"
+                ],
+                "properties": {
+                    "uri": {
+                        "type": "string",
+                        "format": "at-uri",
+                        "description": "URI of the indexed space."
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        }
+    }
+}
