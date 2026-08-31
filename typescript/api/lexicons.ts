@@ -881,6 +881,154 @@ export const schemaDict = {
       },
     },
   },
+  CommunityOpensocialAcceptance: {
+    lexicon: 1,
+    id: 'community.opensocial.acceptance',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "A member's side of membership: written by the member (not the community) into the community's `members` space, alongside a matching community.opensocial.membership record. Its presence gates appearing in the member roster, not access itself.",
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['updatedAt'],
+          properties: {
+            updatedAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialMembership: {
+    lexicon: 1,
+    id: 'community.opensocial.membership',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "Grants a member their roles in the community. Lives in the community's `members` space, authored by the community DID, keyed by the member's DID. Membership also requires the member to author a matching community.opensocial.acceptance record; this record alone does not grant access.",
+        key: 'any',
+        record: {
+          type: 'object',
+          required: ['roles', 'updatedAt'],
+          properties: {
+            roles: {
+              type: 'array',
+              description:
+                'Record keys of the community.opensocial.role records held by this member.',
+              items: {
+                type: 'string',
+              },
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialProfile: {
+    lexicon: 1,
+    id: 'community.opensocial.profile',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "A community's public profile. Lives in the community's `about` space, authored by the community DID.",
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: {
+              type: 'string',
+              maxLength: 256,
+              description: "The community's display name.",
+            },
+            description: {
+              type: 'string',
+              maxLength: 2048,
+              description: 'A short description of the community.',
+            },
+            avatar: {
+              type: 'blob',
+              accept: ['image/png', 'image/jpeg', 'image/webp'],
+              maxSize: 1000000,
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialRole: {
+    lexicon: 1,
+    id: 'community.opensocial.role',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "Declares that a role exists within the community. Lives in the community's `members` space, authored by the community DID. What actions a role authorizes is out of scope for this record.",
+        key: 'any',
+        record: {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: {
+              type: 'string',
+              maxLength: 256,
+              description:
+                'Display name for the role, e.g. "Admin" or "Moderator".',
+            },
+            description: {
+              type: 'string',
+              maxLength: 2048,
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialSpace: {
+    lexicon: 1,
+    id: 'community.opensocial.space',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "Indexes one space that exists under this community, e.g. a modality-specific space. Lives in the community's `members` space, authored by the community DID.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['uri'],
+          properties: {
+            uri: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'URI of the indexed space.',
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatAdminGetSettings: {
     lexicon: 1,
     id: 'network.habitat.admin.getSettings',
@@ -5269,6 +5417,11 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
+  CommunityOpensocialAcceptance: 'community.opensocial.acceptance',
+  CommunityOpensocialMembership: 'community.opensocial.membership',
+  CommunityOpensocialProfile: 'community.opensocial.profile',
+  CommunityOpensocialRole: 'community.opensocial.role',
+  CommunityOpensocialSpace: 'community.opensocial.space',
   NetworkHabitatAdminGetSettings: 'network.habitat.admin.getSettings',
   NetworkHabitatAdminIssueInvite: 'network.habitat.admin.issueInvite',
   NetworkHabitatAdminUpdateSettings: 'network.habitat.admin.updateSettings',
