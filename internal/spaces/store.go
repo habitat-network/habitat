@@ -83,8 +83,7 @@ type Store interface {
 	// Space operations
 	CreateSpace(
 		ctx context.Context,
-		org syntax.DID,
-		owner syntax.DID,
+		authority syntax.DID,
 		spaceType syntax.NSID,
 		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
@@ -259,8 +258,7 @@ func (s *store) WithTx(tx *gorm.DB) Store {
 
 func (s *store) CreateSpace(
 	ctx context.Context,
-	org syntax.DID,
-	creator syntax.DID,
+	authority syntax.DID,
 	spaceType syntax.NSID,
 	skey habitat_syntax.SpaceKey,
 ) (habitat_syntax.SpaceURI, error) {
@@ -270,7 +268,7 @@ func (s *store) CreateSpace(
 	}
 
 	err := s.db.Create(&space{
-		Owner: org,
+		Owner: authority,
 		Type:  spaceType,
 		Skey:  skey,
 	}).Error
@@ -278,7 +276,7 @@ func (s *store) CreateSpace(
 		return "", ErrSpaceAlreadyExists
 	}
 
-	return habitat_syntax.ConstructSpaceURI(org, spaceType, skey), nil
+	return habitat_syntax.ConstructSpaceURI(authority, spaceType, skey), nil
 }
 
 func (s *store) ListSpaces(

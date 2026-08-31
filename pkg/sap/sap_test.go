@@ -63,7 +63,7 @@ func TestSap(t *testing.T) {
 
 	createSpace := func(skey string) habitat_syntax.SpaceURI {
 		uri, err := pear.store.CreateSpace(
-			t.Context(), author, author, groupType, habitat_syntax.SpaceKey(skey),
+			t.Context(), author, groupType, habitat_syntax.SpaceKey(skey),
 		)
 		require.NoError(t, err)
 		return uri
@@ -279,7 +279,7 @@ func TestSapTrackSpace(t *testing.T) {
 	groupType := syntax.NSID("network.habitat.group")
 	collection := syntax.NSID("network.habitat.test")
 	space, err := pear.store.CreateSpace(
-		t.Context(), author, author, groupType, habitat_syntax.SpaceKey("tracked-space"),
+		t.Context(), author, groupType, habitat_syntax.SpaceKey("tracked-space"),
 	)
 	require.NoError(t, err)
 	recURI, _, err := pear.store.PutRecord(
@@ -368,7 +368,7 @@ func TestSapRecrawl(t *testing.T) {
 	groupType := syntax.NSID("network.habitat.group")
 	collection := syntax.NSID("network.habitat.test")
 	space, err := pear.store.CreateSpace(
-		t.Context(), author, author, groupType, habitat_syntax.SpaceKey("recrawl-space"),
+		t.Context(), author, groupType, habitat_syntax.SpaceKey("recrawl-space"),
 	)
 	require.NoError(t, err)
 	recURI, _, err := pear.store.PutRecord(

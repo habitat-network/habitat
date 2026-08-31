@@ -48,7 +48,7 @@ func newSpace(
 	skey string,
 ) habitat_syntax.SpaceURI {
 	t.Helper()
-	uri, err := sp.CreateSpace(t.Context(), org, org, spaceType, habitat_syntax.SpaceKey(skey))
+	uri, err := sp.CreateSpace(t.Context(), org, spaceType, habitat_syntax.SpaceKey(skey))
 	require.NoError(t, err)
 	return uri
 }

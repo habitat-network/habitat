@@ -62,7 +62,6 @@ func newSpace(
 	uri, err := sp.CreateSpace(
 		t.Context(),
 		testOrg,
-		testOrg,
 		spaceType,
 		habitat_syntax.SpaceKey(skey),
 	)
