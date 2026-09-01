@@ -37,7 +37,7 @@ func bootstrapMembersSpace(
 	require.NoError(t, err)
 }
 
-func TestCreateInvite_ListInvites_AcceptInvite(t *testing.T) {
+func TestCreateInvite_ListInvites_RequestJoin(t *testing.T) {
 	s, spacesStore := newTestStore(t)
 	bootstrapMembersSpace(t, spacesStore, orgDID)
 
@@ -55,7 +55,7 @@ func TestCreateInvite_ListInvites_AcceptInvite(t *testing.T) {
 	require.Len(t, invites, 1)
 	require.Equal(t, invite.ID, invites[0].ID)
 
-	roles, err := s.AcceptInvite(t.Context(), orgDID, alice)
+	roles, err := s.RequestJoin(t.Context(), orgDID, alice)
 	require.NoError(t, err)
 	require.Equal(t, []string{opensocial.MemberRoleRkey}, roles)
 
@@ -114,19 +114,19 @@ func TestRevokeInvite(t *testing.T) {
 	require.ErrorIs(t, err, opensocial.ErrInviteNotFound)
 }
 
-func TestAcceptInvite_NotFound(t *testing.T) {
+func TestRequestJoin_NotFound(t *testing.T) {
 	s, spacesStore := newTestStore(t)
 	bootstrapMembersSpace(t, spacesStore, orgDID)
 
-	_, err := s.AcceptInvite(t.Context(), orgDID, alice)
+	_, err := s.RequestJoin(t.Context(), orgDID, alice)
 	require.ErrorIs(t, err, opensocial.ErrInviteNotFound)
 }
 
-// TestAcceptInvite_AlreadyMemberNoInvite covers the org creator's flow: they
+// TestRequestJoin_AlreadyMemberNoInvite covers the org creator's flow: they
 // hold a membership record (granted directly by NewOrg) but no invite row,
-// since they were never invited. AcceptInvite should confirm it — used by
+// since they were never invited. RequestJoin should confirm it — used by
 // requestJoin, called under the creator's own credentials — rather than error.
-func TestAcceptInvite_AlreadyMemberNoInvite(t *testing.T) {
+func TestRequestJoin_AlreadyMemberNoInvite(t *testing.T) {
 	s, spacesStore := newTestStore(t)
 	bootstrapMembersSpace(t, spacesStore, orgDID)
 	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self")
@@ -138,7 +138,7 @@ func TestAcceptInvite_AlreadyMemberNoInvite(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	roles, err := s.AcceptInvite(t.Context(), orgDID, alice)
+	roles, err := s.RequestJoin(t.Context(), orgDID, alice)
 	require.NoError(t, err)
 	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
 }
