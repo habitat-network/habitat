@@ -109,13 +109,17 @@ type Store interface {
 	) ([]RepoInfo, error)
 
 	// Record operations
+	//
+	// PutRecord takes the record value as already-validated CBOR bytes
+	// (see [MarshalRecord]) — it is the caller's responsibility to validate
+	// and marshal user input before calling PutRecord.
 	PutRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
-		value any,
+		value []byte,
 	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
 	GetRecord(
 		ctx context.Context,
@@ -435,13 +439,37 @@ func (s *store) ListRepos(
 
 // ---- Record operations ----
 
+// MarshalRecord validates value against the atproto data model and encodes
+// it as the CBOR bytes PutRecord expects. Callers must run their input
+// through this (or otherwise produce equivalent, validated CBOR) before
+// calling PutRecord.
+func MarshalRecord(value any) ([]byte, error) {
+	jsonBytes, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal value: %w", err)
+	}
+	// validates against atproto data model
+	recordMap, err := atdata.UnmarshalJSON(jsonBytes)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidRecord, err)
+	}
+	bytes, err := atdata.MarshalCBOR(recordMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal record: %w", err)
+	}
+	if len(bytes) > atdata.MAX_CBOR_RECORD_SIZE {
+		return nil, ErrRecordTooLarge
+	}
+	return bytes, nil
+}
+
 func (s *store) PutRecord(
 	ctx context.Context,
 	spaceURI habitat_syntax.SpaceURI,
 	repo syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
-	value any,
+	value []byte,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
 	ctx, span := tracer.Start(ctx, "PutRecord", trace.WithAttributes(
 		attribute.String("space", spaceURI.String()),
@@ -455,25 +483,12 @@ func (s *store) PutRecord(
 	} else if !ok {
 		return "", nil, ErrSpaceNotFound
 	}
-	jsonBytes, err := json.Marshal(value)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to marshal value: %w", err)
-	}
-	// validates against atproto data model
-	recordMap, err := atdata.UnmarshalJSON(jsonBytes)
-	if err != nil {
-		return "", nil, fmt.Errorf("%w: %w", ErrInvalidRecord, err)
-	}
-	bytes, err := atdata.MarshalCBOR(recordMap)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
-	}
-	span.SetAttributes(attribute.Int("cbor_bytes", len(bytes)))
-	if len(bytes) > atdata.MAX_CBOR_RECORD_SIZE {
+	span.SetAttributes(attribute.Int("cbor_bytes", len(value)))
+	if len(value) > atdata.MAX_CBOR_RECORD_SIZE {
 		return "", nil, ErrRecordTooLarge
 	}
 
-	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
+	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(value)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
@@ -527,7 +542,7 @@ func (s *store) PutRecord(
 			Space:      spaceURI,
 			Collection: collection,
 			Rkey:       rkey,
-			Value:      bytes,
+			Value:      value,
 			Rev:        tid,
 			PrevCid:    existing.Cid,
 			Cid:        newCidStr,

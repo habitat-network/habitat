@@ -22,6 +22,15 @@ var (
 	groupType = syntax.NSID("network.habitat.group")
 )
 
+// mustMarshalRecord validates and CBOR-encodes value the way a real
+// PutRecord caller must before calling the store's PutRecord.
+func mustMarshalRecord(t *testing.T, value any) []byte {
+	t.Helper()
+	bytes, err := spaces.MarshalRecord(value)
+	require.NoError(t, err)
+	return bytes
+}
+
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 
@@ -214,9 +223,9 @@ func TestDeleteSpace(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.spaces.PutRecord(t.Context(), uri, owner, coll, "r1", map[string]any{"x": 1})
+	_, _, err = s.spaces.PutRecord(t.Context(), uri, owner, coll, "r1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
-	_, _, err = s.spaces.PutRecord(t.Context(), uri, owner, coll, "r2", map[string]any{"x": 2})
+	_, _, err = s.spaces.PutRecord(t.Context(), uri, owner, coll, "r2", mustMarshalRecord(t, map[string]any{"x": 2}))
 	require.NoError(t, err)
 	require.NoError(t, s.AddMember(t.Context(), uri, alice))
 

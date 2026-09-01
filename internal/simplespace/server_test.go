@@ -307,7 +307,7 @@ func TestServer_SpaceLifecycle(t *testing.T) {
 		owner,
 		coll,
 		"k1",
-		map[string]any{"x": 1},
+		mustMarshalRecord(t, map[string]any{"x": 1}),
 	)
 	require.NoError(t, err)
 
@@ -334,7 +334,7 @@ func TestServer_SpaceLifecycle(t *testing.T) {
 		alice,
 		coll,
 		"k1",
-		map[string]any{"x": 2},
+		mustMarshalRecord(t, map[string]any{"x": 2}),
 	)
 	require.NoError(t, err)
 

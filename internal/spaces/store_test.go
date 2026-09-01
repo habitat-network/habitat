@@ -21,6 +21,15 @@ var (
 	groupType = syntax.NSID("network.habitat.group")
 )
 
+// mustMarshalRecord validates and CBOR-encodes value the way a real
+// PutRecord caller must before calling the store's PutRecord.
+func mustMarshalRecord(t *testing.T, value any) []byte {
+	t.Helper()
+	bytes, err := spaces.MarshalRecord(value)
+	require.NoError(t, err)
+	return bytes
+}
+
 func TestCreateSpace(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
@@ -61,9 +70,9 @@ func TestListSpaces(t *testing.T) {
 	// permissioned repo in — the ones it has written to — and consults no
 	// access store.
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), space1, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), space1, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
-	_, _, err = s.PutRecord(t.Context(), space2, alice, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), space2, alice, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
 
 	// Owner sees the space it wrote to, not the one it was merely granted read
@@ -97,7 +106,7 @@ func TestListSpaces_OwningASpaceIsNotWritingToIt(t *testing.T) {
 	// A write on the org's behalf — how relationship tuples land in a space —
 	// puts that one space, and only that one, on its listing.
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), space1, orgID, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), space1, orgID, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
 
 	spaces, err = s.ListSpaces(t.Context(), orgID, nil, nil)
@@ -112,7 +121,7 @@ func TestListSpaces_LeavesListingAfterSpaceIsDeleted(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "space1")
 	require.NoError(t, err)
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
 
 	// Deleting the space drops its permissioned repos, so it leaves the
@@ -131,7 +140,7 @@ func TestListSpaces_LeavesListingAfterDeletingAllRecords(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
 
 	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
@@ -158,9 +167,9 @@ func TestListSpaces_FilterByType(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), group1, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), group1, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
-	_, _, err = s.PutRecord(t.Context(), personal1, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), personal1, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
 
 	spaces, err := s.ListSpaces(t.Context(), owner, nil, &groupType)
@@ -185,9 +194,9 @@ func TestListSpaces_FilterByOwnerWithWildcardInDID(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), wanted, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), wanted, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
-	_, _, err = s.PutRecord(t.Context(), other, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), other, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
 
 	spaces, err := s.ListSpaces(t.Context(), owner, &orgWithPort, nil)
@@ -208,9 +217,9 @@ func TestListSpaces_NilOwnerFilterSpansAllOrgs(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), spaceA, member, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), spaceA, member, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
-	_, _, err = s.PutRecord(t.Context(), spaceB, member, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), spaceB, member, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
 
 	// With no owner filter, the member sees spaces across every org they
@@ -244,9 +253,9 @@ func TestListRepos_WithRecords(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
-	_, _, err = s.PutRecord(t.Context(), uri, alice, coll, "k2", map[string]any{"x": 2})
+	_, _, err = s.PutRecord(t.Context(), uri, alice, coll, "k2", mustMarshalRecord(t, map[string]any{"x": 2}))
 	require.NoError(t, err)
 
 	repos, err := s.ListRepos(t.Context(), uri)
@@ -270,9 +279,9 @@ func TestListRepos_HashMatchesLtHash(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
-	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k2", mustMarshalRecord(t, map[string]any{"x": 2}))
 	require.NoError(t, err)
 
 	repos, err := s.ListRepos(t.Context(), uri)
@@ -302,7 +311,7 @@ func TestPutAndGetRecord(t *testing.T) {
 	coll := syntax.NSID("network.habitat.note")
 	val := map[string]any{"text": "hello world"}
 
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "my-rkey", val)
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "my-rkey", mustMarshalRecord(t, val))
 	require.NoError(t, err)
 
 	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "my-rkey")
@@ -319,7 +328,7 @@ func TestPutRecord_SpaceNotFound(t *testing.T) {
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
@@ -331,10 +340,10 @@ func TestPutRecord_UpdateExisting(t *testing.T) {
 
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"v": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", mustMarshalRecord(t, map[string]any{"v": 1}))
 	require.NoError(t, err)
 
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"v": 2})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", mustMarshalRecord(t, map[string]any{"v": 2}))
 	require.NoError(t, err)
 
 	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "rkey")
@@ -361,11 +370,11 @@ func TestListRecords(t *testing.T) {
 
 	collA := syntax.NSID("network.habitat.alpha")
 	collB := syntax.NSID("network.habitat.beta")
-	_, _, err = s.PutRecord(t.Context(), uri, owner, collA, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, collA, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
-	_, _, err = s.PutRecord(t.Context(), uri, owner, collA, "k2", map[string]any{"x": 2})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, collA, "k2", mustMarshalRecord(t, map[string]any{"x": 2}))
 	require.NoError(t, err)
-	_, _, err = s.PutRecord(t.Context(), uri, owner, collB, "k1", map[string]any{"x": 3})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, collB, "k1", mustMarshalRecord(t, map[string]any{"x": 3}))
 	require.NoError(t, err)
 
 	// All records
@@ -382,18 +391,12 @@ func TestListRecords(t *testing.T) {
 	}
 }
 
-func TestPutRecord_RejectsNonIntegerFloat(t *testing.T) {
-	s := spaces_testutil.NewTestStore(t)
-
-	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
-	require.NoError(t, err)
-
-	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 0.15})
+// TestMarshalRecord_RejectsNonIntegerFloat pins that MarshalRecord — which
+// callers must run over user input before calling PutRecord — rejects values
+// that don't conform to the atproto data model.
+func TestMarshalRecord_RejectsNonIntegerFloat(t *testing.T) {
+	_, err := spaces.MarshalRecord(map[string]any{"x": 0.15})
 	require.ErrorIs(t, err, spaces.ErrInvalidRecord)
-
-	_, err = s.GetRecord(t.Context(), uri, owner, coll, "k1")
-	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
 }
 
 func TestDeleteRecord(t *testing.T) {
@@ -403,7 +406,7 @@ func TestDeleteRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
 
 	err = s.DeleteRecord(t.Context(), uri, owner, coll, "rkey")
@@ -427,7 +430,7 @@ func TestRepoHash_IncrementalOnUpdateAndDelete(t *testing.T) {
 	require.NoError(t, err)
 	coll := syntax.NSID("network.habitat.note")
 
-	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"v": 1}))
 	require.NoError(t, err)
 	var want1 spacecommit.LtHash
 	want1.Add(spacecommit.RecordElement(coll, "k1", cid1.String()))
@@ -437,7 +440,7 @@ func TestRepoHash_IncrementalOnUpdateAndDelete(t *testing.T) {
 	require.Equal(t, want1.Sum(), hash)
 
 	// Update the same rkey: the old element must be folded out and the new in.
-	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 2})
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"v": 2}))
 	require.NoError(t, err)
 	require.NotEqual(t, cid1.String(), cid2.String())
 	var want2 spacecommit.LtHash
@@ -514,9 +517,9 @@ func TestDeleteSpace(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "r1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "r1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "r2", map[string]any{"x": 2})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "r2", mustMarshalRecord(t, map[string]any{"x": 2}))
 	require.NoError(t, err)
 
 	err = s.DeleteSpace(t.Context(), uri)
@@ -554,11 +557,11 @@ func TestListRepoOps(t *testing.T) {
 		require.Len(t, records, 0)
 	})
 	t.Run("multiple", func(t *testing.T) {
-		_, _, err = s.PutRecord(ctx, uri, owner, coll, "k1", map[string]any{"x": 1})
+		_, _, err = s.PutRecord(ctx, uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 		require.NoError(t, err)
-		_, _, err = s.PutRecord(ctx, uri, alice, coll, "k2", map[string]any{"x": 2})
+		_, _, err = s.PutRecord(ctx, uri, alice, coll, "k2", mustMarshalRecord(t, map[string]any{"x": 2}))
 		require.NoError(t, err)
-		_, _, err = s.PutRecord(ctx, uri, owner, coll, "k3", map[string]any{"x": 3})
+		_, _, err = s.PutRecord(ctx, uri, owner, coll, "k3", mustMarshalRecord(t, map[string]any{"x": 3}))
 		require.NoError(t, err)
 
 		records, _, err := s.ListRepoOps(ctx, uri, owner, "", 1)
@@ -598,7 +601,7 @@ func TestListRepoOps(t *testing.T) {
 
 	t.Run("includes value", func(t *testing.T) {
 		owner := syntax.DID("did:web:bob")
-		_, _, err = s.PutRecord(ctx, uri, owner, coll, "k1", map[string]any{"text": "hello"})
+		_, _, err = s.PutRecord(ctx, uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"text": "hello"}))
 		require.NoError(t, err)
 
 		records, _, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
@@ -617,7 +620,7 @@ func TestPutRecordTriggersNotify(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
 
 	require.Len(t, notifier.Writes, 1)
@@ -634,17 +637,17 @@ func TestPutRecordSkipsNotifyWhenCidUnchanged(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
 	require.Len(t, notifier.Writes, 1)
 
 	// Writing the exact same value again produces the same CID.
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 1}))
 	require.NoError(t, err)
 	require.Len(t, notifier.Writes, 1, "no-op write should not trigger another notify")
 
 	// A write that actually changes the content still notifies.
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 2})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"x": 2}))
 	require.NoError(t, err)
 	require.Len(t, notifier.Writes, 2)
 }
@@ -669,9 +672,9 @@ func TestListRepoOpsPrev(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"v": 1}))
 	require.NoError(t, err)
-	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 2})
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"v": 2}))
 	require.NoError(t, err)
 
 	// An update overwrites in place: one op whose prev is the old cid.
@@ -701,7 +704,7 @@ func TestListRepoOpsPrevCreateIsEmpty(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"v": 1}))
 	require.NoError(t, err)
 
 	ops, _, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
@@ -721,9 +724,9 @@ func TestPutRecordNotifiesRepoHash(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"v": 1}))
 	require.NoError(t, err)
-	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"v": 2})
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k2", mustMarshalRecord(t, map[string]any{"v": 2}))
 	require.NoError(t, err)
 
 	require.Len(t, notifier.Writes, 2)
@@ -745,7 +748,7 @@ func TestListRepoOps_RevTooFar(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", mustMarshalRecord(t, map[string]any{"v": 1}))
 	require.NoError(t, err)
 
 	// A TID-like string that sorts after any real TID (base32 is a-z + 2-7).
