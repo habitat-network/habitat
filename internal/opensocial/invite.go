@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"gorm.io/gorm"
 )
@@ -175,13 +176,17 @@ func (s *store) AcceptInvite(
 			if err := tx.Delete(&row).Error; err != nil {
 				return fmt.Errorf("delete invite: %w", err)
 			}
+			membershipRecord, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialMembership{
+				Roles:     roles,
+				UpdatedAt: time.Now().Format(time.RFC3339),
+			})
+			if err != nil {
+				return fmt.Errorf("marshal membership record: %w", err)
+			}
 			if _, _, err := spacesStoreTx.PutRecord(
 				ctx, membersSpace, orgDID, "community.opensocial.membership",
 				syntax.RecordKey(invitee),
-				opensocial_api.CommunityOpensocialMembership{
-					Roles:     roles,
-					UpdatedAt: time.Now().Format(time.RFC3339),
-				},
+				membershipRecord,
 			); err != nil {
 				return fmt.Errorf("put membership record: %w", err)
 			}

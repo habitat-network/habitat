@@ -10,6 +10,7 @@ import (
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
+	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -74,11 +75,14 @@ func TestCreateInvite_AlreadyMember(t *testing.T) {
 	s, spacesStore := newTestStore(t)
 	bootstrapMembersSpace(t, spacesStore, orgDID)
 	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self")
+	membership := spaces_testutil.MustMarshalRecord(
+		t, opensocial_api.CommunityOpensocialMembership{Roles: []string{opensocial.MemberRoleRkey}},
+	)
 
 	_, _, err := spacesStore.PutRecord(
 		t.Context(), membersSpace, orgDID, "community.opensocial.membership",
 		syntax.RecordKey(alice),
-		opensocial_api.CommunityOpensocialMembership{Roles: []string{opensocial.MemberRoleRkey}},
+		membership,
 	)
 	require.NoError(t, err)
 
@@ -130,11 +134,14 @@ func TestAcceptInvite_AlreadyMemberNoInvite(t *testing.T) {
 	s, spacesStore := newTestStore(t)
 	bootstrapMembersSpace(t, spacesStore, orgDID)
 	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self")
+	membership := spaces_testutil.MustMarshalRecord(
+		t, opensocial_api.CommunityOpensocialMembership{Roles: []string{opensocial.AdminRoleRkey}},
+	)
 
 	_, _, err := spacesStore.PutRecord(
 		t.Context(), membersSpace, orgDID, "community.opensocial.membership",
 		syntax.RecordKey(alice),
-		opensocial_api.CommunityOpensocialMembership{Roles: []string{opensocial.AdminRoleRkey}},
+		membership,
 	)
 	require.NoError(t, err)
 

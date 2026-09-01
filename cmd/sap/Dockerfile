@@ -4,7 +4,7 @@
 #### Builds the Go binary. sap has no embedded frontend (unlike cmd/pear),
 #### so this is a single stage.
 
-FROM golang:1.26-alpine AS build
+FROM golang:1.27-alpine AS build
 WORKDIR /app
 
 # Copy go module files first for better layer caching

@@ -7,8 +7,8 @@ settings:
 catalogs:
   default:
     '@atproto/api':
-      specifier: 0.20.41
-      version: 0.20.41
+      specifier: 0.20.42
+      version: 0.20.42
     '@atproto/identity':
       specifier: ^0.5.9
       version: 0.5.9
@@ -32,7 +32,7 @@ catalogs:
       version: 0.10.12
     '@tanstack/react-query':
       specifier: ^5.102.2
-      version: 5.102.2
+      version: 5.102.8
     '@tanstack/react-router':
       specifier: ^1.170.32
       version: 1.170.32
@@ -109,7 +109,7 @@ importers:
     devDependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.41
+        version: 0.20.42
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.11
@@ -194,13 +194,13 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.41
+        version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.9
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.102.2(react@19.2.8)
+        version: 5.102.8(react@19.2.8)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.32(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -294,7 +294,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.41
+        version: 0.20.42
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.11
@@ -319,7 +319,7 @@ importers:
         version: 0.10.12(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.102.2(react@19.2.8)
+        version: 5.102.8(react@19.2.8)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.32(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -434,7 +434,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.41
+        version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.9
@@ -485,7 +485,7 @@ importers:
         version: 0.10.12(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.102.2(react@19.2.8)
+        version: 5.102.8(react@19.2.8)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.32(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -606,7 +606,7 @@ importers:
     dependencies:
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.102.2(react@19.2.8)
+        version: 5.102.8(react@19.2.8)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.32(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -679,7 +679,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.41
+        version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.9
@@ -691,7 +691,7 @@ importers:
         version: 1.7.0(@date-fns/tz@1.5.0)(@types/react@19.2.18)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.102.2(react@19.2.8)
+        version: 5.102.8(react@19.2.8)
       '@uidotdev/usehooks':
         specifier: ^2.4.1
         version: 2.4.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -912,8 +912,12 @@ packages:
     resolution: {integrity: sha512-vfvoDhu6ds6BT3Pqe+d2/LBU1WpDRtt69y6zltlfMCoucPm82m1j50/Wb6xTvv+oZ+2j0JyZVXsmXQ12SWYQJg==}
     engines: {node: '>=22'}
 
-  '@atproto/api@0.20.41':
-    resolution: {integrity: sha512-qNgnB8VE9z9DMQkP3twlwNeIlmosfcmGVAkACqDpArvlUmtlOiXVX1t6xhOC3AjznzJvXxdXJcPmlPIQiGMRRg==}
+  '@atproto/api@0.20.42':
+    resolution: {integrity: sha512-x86WgkHFcNqDIo8gf52npc1KvFXlIPDLAJdIhiH1uUAwiQxDw8/WU0iH3pTl1OXMKkB93kwxG0ihx0fTi5FPbw==}
+    engines: {node: '>=22'}
+
+  '@atproto/common-web@0.5.10':
+    resolution: {integrity: sha512-w4JUdsJ3VXt8ewkavYh5m/u0UbxDtFdCKhNZPEpJ0U1vcWIjDaSInIexteETDgD7fBJAhidIEi30MGz1kk49ug==}
     engines: {node: '>=22'}
 
   '@atproto/common-web@0.5.9':
@@ -961,6 +965,10 @@ packages:
     resolution: {integrity: sha512-ukCZMCWmiu7fAlssBbLs+IMaf2K2R9mADaTKz2jEeC/xeZ3jT77Ka0S2G+ELBB+Dc9ijBACU0iPMQLhquOkuzQ==}
     engines: {node: '>=22'}
 
+  '@atproto/lexicon@0.7.12':
+    resolution: {integrity: sha512-bXVWXc2+ctVVUc3CEuWV9mVXRMMQcWmdzmyRE7w2Rli0B36HADU49Vvi7PWTw26zFFqumYVl9b23bW3vrzAzbg==}
+    engines: {node: '>=22'}
+
   '@atproto/oauth-client-browser@0.5.3':
     resolution: {integrity: sha512-e9QH5FHJC+NOiDsLA9290TJ/nEMVgta8G8GKHcxtOgAHnXYM+KTy2rMTgRzG+k213Zf4e8eS4apk+NsBNW/Sqw==}
     engines: {node: '>=22'}
@@ -977,8 +985,16 @@ packages:
     resolution: {integrity: sha512-EHsEHtasH/DGPljBYecVDjweGMQ5eTu6Ns0GZ5z0qdqpOI8ipBvldWnMIxWkA+5HfZ9Dsu4V1MX0WP7wgL8cuA==}
     engines: {node: '>=22'}
 
+  '@atproto/syntax@0.7.5':
+    resolution: {integrity: sha512-6vnLQK8OAzg0dO6z/xnvuXn5zMV0UMI54zbxk7G7BXhGlIlLMb1yo+JVYtAlv8Nxzr+AaFdNZ8AJt+L/QhJMFQ==}
+    engines: {node: '>=22'}
+
   '@atproto/xrpc@0.8.10':
     resolution: {integrity: sha512-++FNpTVF61fF8+3Kk1RYtdTO7xyUTdIc/Cmfk2CMn29Qw9tZD8bmW+M5db1Z0okYWFWK8Wqu7bc9VmF8tUB8Jg==}
+    engines: {node: '>=22'}
+
+  '@atproto/xrpc@0.8.11':
+    resolution: {integrity: sha512-5M38m9REQouVIA4/Gh0wqo6Vncr3QbG7rb5oqlEbqB+f77pruCk4JLDipfrOrsXH+pdnVnU2IaPXvpsSAC7Mqw==}
     engines: {node: '>=22'}
 
   '@babel/code-frame@7.27.1':
@@ -4833,8 +4849,8 @@ packages:
     resolution: {integrity: sha512-DR9t6lfLVdrjgCwpglrR9DR7Ok8/HlXjcOE+goWXF3zyuLUO/ug7vMbSFxTqrQTtbRghJfyhmIZ0S6LhPIy44w==}
     engines: {node: '>=20.19'}
 
-  '@tanstack/query-core@5.102.2':
-    resolution: {integrity: sha512-zQ5794PXBlV5Wl7N23SR1/Ss+wPE/h2Ye4XlKpm3omN8i8b/Fd4DAdqpLS2AXj5M/RMObt3k5qy3E7kzt/AvBA==}
+  '@tanstack/query-core@5.102.8':
+    resolution: {integrity: sha512-ZNjkJ33CqvPNec/6lZBnHqLc3EVGPZ9ySLhYahU9TcuRFdmwXewuj0c4hwSWcGHqEUwcSrKeZ+oGcvPBqXcQcg==}
 
   '@tanstack/react-devtools@0.10.12':
     resolution: {integrity: sha512-dgoz7TFm97Izo/D34z91PD0h+ufk+eBmoN9OgRHJlj/c7Ol5xpIP7bqLBNByjgt5paRE2eSu5AQHV92Ul+G6iw==}
@@ -4845,8 +4861,8 @@ packages:
       react: '>=16.8'
       react-dom: '>=16.8'
 
-  '@tanstack/react-query@5.102.2':
-    resolution: {integrity: sha512-KxU8ZyOEuJ81eTSgXa8GQbk/jO/rz0elYtNKt3VMtM2pRjeO8ADIu7sqqmEjFKJKqco9h2N1ojIDuHs6VfDItQ==}
+  '@tanstack/react-query@5.102.8':
+    resolution: {integrity: sha512-TYBea4OuXWD7MhaSHq069TWbFe7rcwWN6kzT7JF0OKi1K6c1gTv2IzD6A6ExJsCMozdkqBWeuIUZmu4KQg0O5A==}
     peerDependencies:
       react: ^18 || ^19
 
@@ -11883,15 +11899,22 @@ snapshots:
 
   '@atproto-labs/simple-store@0.5.1': {}
 
-  '@atproto/api@0.20.41':
+  '@atproto/api@0.20.42':
     dependencies:
-      '@atproto/common-web': 0.5.9
-      '@atproto/lexicon': 0.7.11
-      '@atproto/syntax': 0.7.4
-      '@atproto/xrpc': 0.8.10
+      '@atproto/common-web': 0.5.10
+      '@atproto/lexicon': 0.7.12
+      '@atproto/syntax': 0.7.5
+      '@atproto/xrpc': 0.8.11
       await-lock: 3.0.0
       multiformats: 13.4.2
       tlds: 1.261.0
+      zod: 3.25.76
+
+  '@atproto/common-web@0.5.10':
+    dependencies:
+      '@atproto/lex-data': 0.1.7
+      '@atproto/lex-json': 0.1.6
+      '@atproto/syntax': 0.7.5
       zod: 3.25.76
 
   '@atproto/common-web@0.5.9':
@@ -11961,6 +11984,13 @@ snapshots:
       multiformats: 13.4.2
       zod: 3.25.76
 
+  '@atproto/lexicon@0.7.12':
+    dependencies:
+      '@atproto/common-web': 0.5.10
+      '@atproto/syntax': 0.7.5
+      multiformats: 13.4.2
+      zod: 3.25.76
+
   '@atproto/oauth-client-browser@0.5.3':
     dependencies:
       '@atproto-labs/did-resolver': 0.3.7
@@ -12000,9 +12030,19 @@ snapshots:
       iso-datestring-validator: 2.2.2
       tslib: 2.8.1
 
+  '@atproto/syntax@0.7.5':
+    dependencies:
+      iso-datestring-validator: 2.2.2
+      tslib: 2.8.1
+
   '@atproto/xrpc@0.8.10':
     dependencies:
       '@atproto/lexicon': 0.7.11
+      zod: 3.25.76
+
+  '@atproto/xrpc@0.8.11':
+    dependencies:
+      '@atproto/lexicon': 0.7.12
       zod: 3.25.76
 
   '@babel/code-frame@7.27.1':
@@ -16571,7 +16611,7 @@ snapshots:
 
   '@tanstack/history@1.162.1': {}
 
-  '@tanstack/query-core@5.102.2': {}
+  '@tanstack/query-core@5.102.8': {}
 
   '@tanstack/react-devtools@0.10.12(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)':
     dependencies:
@@ -16586,9 +16626,9 @@ snapshots:
       - solid-js
       - utf-8-validate
 
-  '@tanstack/react-query@5.102.2(react@19.2.8)':
+  '@tanstack/react-query@5.102.8(react@19.2.8)':
     dependencies:
-      '@tanstack/query-core': 5.102.2
+      '@tanstack/query-core': 5.102.8
       react: 19.2.8
 
   '@tanstack/react-router-devtools@1.167.1(@tanstack/react-router@1.170.32(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@tanstack/router-core@1.171.27)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':

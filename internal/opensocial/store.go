@@ -117,12 +117,16 @@ func (s *store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 		if err != nil {
 			return fmt.Errorf("create profile space: %w", err)
 		}
-		if _, _, err := spacesStoreTx.PutRecord(
+		profileRecord, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialProfile{
+			Name:      handle,
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal profile record: %w", err)
+		}
+		if _, _, err = spacesStoreTx.PutRecord(
 			ctx, aboutSpace, orgID.DID, "community.opensocial.profile", "self",
-			opensocial_api.CommunityOpensocialProfile{
-				Name:      handle,
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
+			profileRecord,
 		); err != nil {
 			return fmt.Errorf("put profile record: %w", err)
 		}
@@ -132,51 +136,71 @@ func (s *store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 		if err != nil {
 			return fmt.Errorf("create members space: %w", err)
 		}
-		if _, _, err := spacesStoreTx.PutRecord(
+		adminRoleRecord, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialRole{
+			Name:      "Admin",
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal role record: %w", err)
+		}
+		if _, _, err = spacesStoreTx.PutRecord(
 			ctx, membersSpace, orgID.DID, "community.opensocial.role",
 			AdminRoleRkey,
-			opensocial_api.CommunityOpensocialRole{
-				Name:      "Admin",
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
+			adminRoleRecord,
 		); err != nil {
 			return fmt.Errorf("put role record: %w", err)
 		}
-		if _, _, err := spacesStoreTx.PutRecord(
+		memberRoleRecord, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialRole{
+			Name:      "Member",
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal role record: %w", err)
+		}
+		if _, _, err = spacesStoreTx.PutRecord(
 			ctx, membersSpace, orgID.DID, "community.opensocial.role",
 			MemberRoleRkey,
-			opensocial_api.CommunityOpensocialRole{
-				Name:      "Member",
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
+			memberRoleRecord,
 		); err != nil {
 			return fmt.Errorf("put role record: %w", err)
+		}
+		membershipRecord, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialMembership{
+			Roles:     []string{AdminRoleRkey},
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal membership record: %w", err)
 		}
 		if _, _, err = spacesStoreTx.PutRecord(
 			ctx, membersSpace, orgID.DID, "community.opensocial.membership",
 			syntax.RecordKey(creator),
-			opensocial_api.CommunityOpensocialMembership{
-				Roles:     []string{AdminRoleRkey},
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
+			membershipRecord,
 		); err != nil {
 			return fmt.Errorf("put membership record: %w", err)
 		}
+		membersAccessRecord, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
+			Roles:     []string{MemberRoleRkey, AdminRoleRkey},
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal access record: %w", err)
+		}
 		if _, _, err = spacesStoreTx.PutRecord(
 			ctx, membersSpace, orgID.DID, "community.opensocial.access", "self",
-			opensocial_api.CommunityOpensocialAccess{
-				Roles:     []string{MemberRoleRkey, AdminRoleRkey},
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
+			membersAccessRecord,
 		); err != nil {
 			return fmt.Errorf("put access record: %w", err)
 		}
+		aboutAccessRecord, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
+			Roles:     []string{MemberRoleRkey, AdminRoleRkey},
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal access record: %w", err)
+		}
 		if _, _, err = spacesStoreTx.PutRecord(
 			ctx, aboutSpace, orgID.DID, "community.opensocial.access", "self",
-			opensocial_api.CommunityOpensocialAccess{
-				Roles:     []string{MemberRoleRkey, AdminRoleRkey},
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
+			aboutAccessRecord,
 		); err != nil {
 			return fmt.Errorf("put access record: %w", err)
 		}
@@ -203,20 +227,28 @@ func (s *store) CreateSpace(
 		if err != nil {
 			return fmt.Errorf("space store create: %w", err)
 		}
+		accessRecord, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
+			Roles:     roles,
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal access record: %w", err)
+		}
 		if _, _, err = spacesStoreTx.PutRecord(
 			ctx, spaceURI, orgDID, "community.opensocial.access", "self",
-			opensocial_api.CommunityOpensocialAccess{
-				Roles:     roles,
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
+			accessRecord,
 		); err != nil {
 			return fmt.Errorf("put access record: %w", err)
 		}
+		spaceRecord, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialSpace{
+			Uri: spaceURI.String(),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal space record: %w", err)
+		}
 		if _, _, err = spacesStoreTx.PutRecord(
 			ctx, spaceURI, orgDID, "community.opensocial.space", "",
-			opensocial_api.CommunityOpensocialSpace{
-				Uri: spaceURI.String(),
-			},
+			spaceRecord,
 		); err != nil {
 			return fmt.Errorf("put space record: %w", err)
 		}
@@ -253,8 +285,12 @@ func (s *store) UploadImage(
 			MimeType: mimeType,
 		}
 		existingRecord.Value["avatar"] = blob
+		profileRecord, err := spaces.MarshalRecord(existingRecord.Value)
+		if err != nil {
+			return fmt.Errorf("marshal profile record: %w", err)
+		}
 		if _, _, err = spacesStoreTx.PutRecord(
-			ctx, aboutSpace, orgDID, "community.opensocial.profile", "self", existingRecord.Value,
+			ctx, aboutSpace, orgDID, "community.opensocial.profile", "self", profileRecord,
 		); err != nil {
 			return fmt.Errorf("put profile record: %w", err)
 		}
@@ -289,8 +325,12 @@ func (s *store) UpdateProfile(
 		existingRecord.Value["joinPolicy"] = joinPolicy
 	}
 	existingRecord.Value["updatedAt"] = time.Now().Format(time.RFC3339)
+	profileRecord, err := spaces.MarshalRecord(existingRecord.Value)
+	if err != nil {
+		return fmt.Errorf("marshal profile record: %w", err)
+	}
 	if _, _, err = s.spacesStore.PutRecord(
-		ctx, aboutSpace, orgDID, "community.opensocial.profile", "self", existingRecord.Value,
+		ctx, aboutSpace, orgDID, "community.opensocial.profile", "self", profileRecord,
 	); err != nil {
 		return fmt.Errorf("put profile record: %w", err)
 	}
@@ -303,16 +343,20 @@ func (s *store) AssignRoles(
 	user syntax.DID,
 	roles []string,
 ) error {
-	_, _, err := s.spacesStore.PutRecord(
+	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialMembership{
+		Roles:     roles,
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal membership record: %w", err)
+	}
+	_, _, err = s.spacesStore.PutRecord(
 		ctx,
 		habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self"),
 		orgDID,
 		"community.opensocial.membership",
 		syntax.RecordKey(user),
-		opensocial_api.CommunityOpensocialMembership{
-			Roles:     roles,
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		},
+		recordBytes,
 	)
 	return err
 }

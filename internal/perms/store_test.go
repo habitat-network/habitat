@@ -202,12 +202,12 @@ func TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant(t *testing.T) {
 	// the about space's access record makes that role a reader.
 	_, _, err = s.spaces.PutRecord(
 		ctx, membersSpace, org, "community.opensocial.membership", syntax.RecordKey(alice),
-		map[string]any{"roles": []string{"member"}},
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"roles": []string{"member"}}),
 	)
 	require.NoError(t, err)
 	_, _, err = s.spaces.PutRecord(
 		ctx, aboutSpace, org, "community.opensocial.access", "self",
-		map[string]any{"roles": []string{"member"}},
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"roles": []string{"member"}}),
 	)
 	require.NoError(t, err)
 

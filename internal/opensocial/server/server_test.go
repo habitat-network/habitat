@@ -18,6 +18,7 @@ import (
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_server "github.com/habitat-network/habitat/internal/opensocial/server"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
+	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 )
 
 var (
@@ -43,7 +44,9 @@ func newTestStore(t *testing.T) opensocial.Store {
 	_, _, err = spacesStore.PutRecord(
 		t.Context(), membersSpace, orgDID, "community.opensocial.membership",
 		syntax.RecordKey(admin),
-		opensocial_api.CommunityOpensocialMembership{Roles: []string{opensocial.AdminRoleRkey}},
+		spaces_testutil.MustMarshalRecord(
+			t, opensocial_api.CommunityOpensocialMembership{Roles: []string{opensocial.AdminRoleRkey}},
+		),
 	)
 	require.NoError(t, err)
 

@@ -110,7 +110,7 @@ func TestRedirectToReturnToRedirectsAndClearsPending(t *testing.T) {
 	srv.pendingReturnTo[testDID] = "https://app.example.com/callback"
 	srv.mu.Unlock()
 
-	req := httptest.NewRequest(http.MethodGet, "/oauth-callback", nil)
+	req := httptest.NewRequest(http.MethodGet, "/oauth-callback", http.NoBody)
 	w := httptest.NewRecorder()
 
 	handled := srv.redirectToReturnTo(w, req, testDID)
@@ -136,7 +136,7 @@ func TestHandleListSessions(t *testing.T) {
 	const testSessionID = "session-abc"
 	require.NoError(t, srv.sap.AddSession(t.Context(), testDID, testSessionID))
 
-	req := httptest.NewRequest(http.MethodGet, "/session/list", nil)
+	req := httptest.NewRequest(http.MethodGet, "/session/list", http.NoBody)
 	w := httptest.NewRecorder()
 
 	srv.handleListSessions(w, req)
@@ -155,7 +155,7 @@ func TestRedirectToReturnToNoPendingFallsBackToFalse(t *testing.T) {
 
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/oauth-callback", nil)
+	req := httptest.NewRequest(http.MethodGet, "/oauth-callback", http.NoBody)
 	w := httptest.NewRecorder()
 
 	handled := srv.redirectToReturnTo(w, req, "did:plc:unknown")
@@ -173,7 +173,7 @@ func TestHandleClientMetadataIncludesJWKSForConfidentialClient(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, srv.oauthClient.Config.SetClientSecret(priv, "sap"))
 
-	req := httptest.NewRequest(http.MethodGet, "/client-metadata.json", nil)
+	req := httptest.NewRequest(http.MethodGet, "/client-metadata.json", http.NoBody)
 	w := httptest.NewRecorder()
 
 	srv.handleClientMetadata(w, req)
@@ -231,7 +231,7 @@ func TestHandleRecrawlRequiresDIDHeader(t *testing.T) {
 
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/session/recrawl", nil)
+	req := httptest.NewRequest(http.MethodPost, "/session/recrawl", http.NoBody)
 	w := httptest.NewRecorder()
 	srv.handleRecrawl(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
@@ -246,7 +246,7 @@ func TestHandleRecrawlAllowsMissingSessionHeader(t *testing.T) {
 
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/session/recrawl", nil)
+	req := httptest.NewRequest(http.MethodPost, "/session/recrawl", http.NoBody)
 	req.Header.Set(habitatDIDHeader, "did:plc:member")
 	w := httptest.NewRecorder()
 	srv.handleRecrawl(w, req)
@@ -261,7 +261,7 @@ func TestHandleRecrawlSchedulesAndReturnsAccepted(t *testing.T) {
 
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/session/recrawl", nil)
+	req := httptest.NewRequest(http.MethodPost, "/session/recrawl", http.NoBody)
 	req.Header.Set(habitatDIDHeader, "did:plc:member")
 	req.Header.Set(habitatSessionHeader, "session-abc")
 	w := httptest.NewRecorder()
@@ -309,12 +309,12 @@ func TestBasicAuthMiddlewareRejectsMissingOrWrongPassword(t *testing.T) {
 	})
 	handler := basicAuthMiddleware("s3cret", next)
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", http.NoBody)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 
-	req = httptest.NewRequest(http.MethodGet, "/health", nil)
+	req = httptest.NewRequest(http.MethodGet, "/health", http.NoBody)
 	req.SetBasicAuth("anyone", "wrong")
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -329,7 +329,7 @@ func TestBasicAuthMiddlewareAllowsAnyUsernameWithCorrectPassword(t *testing.T) {
 	})
 	handler := basicAuthMiddleware("s3cret", next)
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", http.NoBody)
 	req.SetBasicAuth("whoever", "s3cret")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
