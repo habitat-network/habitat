@@ -459,9 +459,6 @@ func (s *store) PutRecord(
 		return "", nil, ErrSpaceNotFound
 	}
 	span.SetAttributes(attribute.Int("cbor_bytes", len(value)))
-	if len(value) > atdata.MAX_CBOR_RECORD_SIZE {
-		return "", nil, ErrRecordTooLarge
-	}
 
 	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(value)
 	if err != nil {
