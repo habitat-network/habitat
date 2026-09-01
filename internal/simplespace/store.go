@@ -59,7 +59,7 @@ func (m *Store) CreateSpace(
 	var uri habitat_syntax.SpaceURI
 	err := m.db.Transaction(func(tx *gorm.DB) error {
 		var err error
-		uri, err = m.spaces.WithTx(tx).CreateSpace(ctx, org, creator, spaceType, skey)
+		uri, err = m.spaces.WithTx(tx).CreateSpace(ctx, org, spaceType, skey)
 		if errors.Is(err, spaces.ErrSpaceAlreadyExists) {
 			return ErrSpaceAlreadyExists
 		} else if err != nil {

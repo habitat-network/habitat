@@ -62,6 +62,11 @@ export function useYDoc(docId: string, initialState?: Uint8Array): Y.Doc {
     };
     ydoc.on("update", onUpdate);
     return () => {
+      // Flush rather than drop a pending debounced update — otherwise
+      // navigating away within the 2s window leaves the last edit's title
+      // out of the ["docs"] cache, and the sidebar/home page show the
+      // previous (stale) title until something else invalidates it.
+      if (timeout) flushTitle();
       clearTimeout(timeout);
       ydoc.off("update", onUpdate);
     };

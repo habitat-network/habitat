@@ -4,5 +4,11 @@
     "prefix": "network.habitat",
     "outdir": "api/habitat",
     "import": "github.com/habitat-network/habitat/api/habitat"
+  },
+  {
+    "package": "opensocial",
+    "prefix": "community.opensocial",
+    "outdir": "api/opensocial",
+    "import": "github.com/habitat-network/habitat/api/opensocial"
   }
 ]

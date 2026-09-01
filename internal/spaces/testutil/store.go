@@ -10,12 +10,23 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"gocloud.dev/blob/memblob"
+
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/notify/testutil"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
+
+// NewTestBlobStore returns a spaces.BlobStore backed by an in-memory bucket,
+// closed automatically on test cleanup.
+func NewTestBlobStore(t *testing.T) spaces.BlobStore {
+	t.Helper()
+	bucket := memblob.OpenBucket(nil)
+	t.Cleanup(func() { _ = bucket.Close() })
+	return spaces.NewBlobStore(bucket)
+}
 
 type testOptions struct {
 	fga      fgastore.Store
@@ -85,6 +96,15 @@ func NewTestStore(t *testing.T, opts ...Option) spaces.Store {
 	)
 	require.NoError(t, err)
 	return s
+}
+
+// MustMarshalRecord validates and CBOR-encodes value the way a real
+// PutRecord caller must before calling the store's PutRecord.
+func MustMarshalRecord(t *testing.T, value any) spaces.MarshaledRecord {
+	t.Helper()
+	record, err := spaces.MarshalRecord(value)
+	require.NoError(t, err)
+	return record
 }
 
 // noMemberSigner never resolves a habitat-managed signer, so Authority.Build

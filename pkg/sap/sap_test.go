@@ -63,15 +63,21 @@ func TestSap(t *testing.T) {
 
 	createSpace := func(skey string) habitat_syntax.SpaceURI {
 		uri, err := pear.store.CreateSpace(
-			t.Context(), author, author, groupType, habitat_syntax.SpaceKey(skey),
+			t.Context(), author, groupType, habitat_syntax.SpaceKey(skey),
 		)
 		require.NoError(t, err)
 		return uri
 	}
 	putRecord := func(space habitat_syntax.SpaceURI, rkey string, data string) {
 		recURI, _, err := pear.store.PutRecord(
-			t.Context(), space, author, collection,
-			syntax.RecordKey(rkey), map[string]any{"data": data},
+			t.Context(),
+			space,
+			author,
+			collection,
+			syntax.RecordKey(
+				rkey,
+			),
+			spaces_testutil.MustMarshalRecord(t, map[string]any{"data": data}),
 		)
 		require.NoError(t, err)
 		createdURIs[recURI.String()] = true
@@ -279,12 +285,18 @@ func TestSapTrackSpace(t *testing.T) {
 	groupType := syntax.NSID("network.habitat.group")
 	collection := syntax.NSID("network.habitat.test")
 	space, err := pear.store.CreateSpace(
-		t.Context(), author, author, groupType, habitat_syntax.SpaceKey("tracked-space"),
+		t.Context(), author, groupType, habitat_syntax.SpaceKey("tracked-space"),
 	)
 	require.NoError(t, err)
 	recURI, _, err := pear.store.PutRecord(
-		t.Context(), space, author, collection,
-		syntax.RecordKey("rkey-0"), map[string]any{"data": "tracked"},
+		t.Context(),
+		space,
+		author,
+		collection,
+		syntax.RecordKey(
+			"rkey-0",
+		),
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "tracked"}),
 	)
 	require.NoError(t, err)
 
@@ -368,12 +380,18 @@ func TestSapRecrawl(t *testing.T) {
 	groupType := syntax.NSID("network.habitat.group")
 	collection := syntax.NSID("network.habitat.test")
 	space, err := pear.store.CreateSpace(
-		t.Context(), author, author, groupType, habitat_syntax.SpaceKey("recrawl-space"),
+		t.Context(), author, groupType, habitat_syntax.SpaceKey("recrawl-space"),
 	)
 	require.NoError(t, err)
 	recURI, _, err := pear.store.PutRecord(
-		t.Context(), space, author, collection,
-		syntax.RecordKey("rkey-0"), map[string]any{"data": "recrawled"},
+		t.Context(),
+		space,
+		author,
+		collection,
+		syntax.RecordKey(
+			"rkey-0",
+		),
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "recrawled"}),
 	)
 	require.NoError(t, err)
 

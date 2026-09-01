@@ -206,13 +206,21 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "record must be a JSON object", nil)
 		return
 	}
+	recordBytes, err := spaces.MarshalRecord(value)
+	if errors.Is(err, spaces.ErrInvalidRecord) {
+		httpx.WriteInvalidRequest(ctx, w, fmt.Sprintf("invalid record: %v", err), err)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("marshal record: %w", err))
+		return
+	}
 	recordURI, cid, err := s.store.PutRecord(
 		ctx,
 		spaceURI,
 		repo,
 		collection,
 		rkey,
-		value,
+		recordBytes,
 	)
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)

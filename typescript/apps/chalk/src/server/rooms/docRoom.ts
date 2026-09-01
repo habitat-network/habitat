@@ -61,6 +61,54 @@ function pendingKey(kind: "member" | "owner", memberDid: string): string {
   return `${PENDING_PREFIX}${kind}:${memberDid}`;
 }
 
+// syncReplies applies one y-websocket sync message to `doc` and returns every
+// message that has to go back, in order.
+//
+// A client-server sync is only complete when *both* sides have asked the other
+// what it is missing. y-protocols spells this out (see y-protocols/sync.js's
+// module comment): "When the server receives SyncStep1, it should reply with
+// SyncStep2 immediately followed by SyncStep1. The client replies with
+// SyncStep2 when it receives SyncStep1." readSyncMessage only ever writes the
+// first of those two, so the trailing step 1 has to be appended here.
+//
+// Without it the handshake is one-way — the client learns everything this room
+// has, and the room never learns what the client has that it doesn't — and
+// there is no other backfill path. y-websocket's own broadcastMessage writes
+// an update to the socket only when one is currently open and keeps no
+// outbound queue, so an edit made while the provider is disconnected is
+// dropped outright, and on reconnect WebsocketProvider sends only a step 1.
+// Every later edit then causally depends on the update the room never got, so
+// Yjs parks the whole lot in pendingStructs and the room's document is frozen
+// at the last complete update forever — which is what renderDoc goes on
+// publishing as the doc's title.
+export function syncReplies(
+  message: Uint8Array,
+  doc: Y.Doc,
+  origin: unknown,
+): Uint8Array[] {
+  const decoder = decoding.createDecoder(message);
+  if (decoding.readVarUint(decoder) !== MESSAGE_SYNC) return [];
+
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, MESSAGE_SYNC);
+  // readSyncMessage does the real work: for a step 1 (the peer's state
+  // vector) it writes this doc's matching state back as a step 2; for a step
+  // 2/update (an actual edit) it applies it to `doc` directly, firing the
+  // "updateV2" listener with `origin` as the transaction origin.
+  const type = syncProtocol.readSyncMessage(decoder, encoder, doc, origin);
+
+  const replies: Uint8Array[] = [];
+  if (encoding.length(encoder) > 1)
+    replies.push(encoding.toUint8Array(encoder));
+  if (type === syncProtocol.messageYjsSyncStep1) {
+    const ask = encoding.createEncoder();
+    encoding.writeVarUint(ask, MESSAGE_SYNC);
+    syncProtocol.writeSyncStep1(ask, doc);
+    replies.push(encoding.toUint8Array(ask));
+  }
+  return replies;
+}
+
 export class DocRoom extends DurableObject<Env> {
   private ydoc = new Y.Doc();
   private id: DocIdentity | undefined;
@@ -221,13 +269,14 @@ export class DocRoom extends DurableObject<Env> {
   // has no ACL.
   //
   // Nothing is sent here: y-websocket's WebsocketProvider (the client)
-  // always sends sync step 1 as soon as the socket opens, and this room's
-  // reply — carrying its full current state — happens naturally from
-  // webSocketMessage's y-protocols/sync handling below. That's the
-  // client-initiated handshake the protocol is documented to expect (see
-  // y-protocols/sync.js's module comment); the room doesn't need its own
-  // "send the snapshot on connect" step the way the old ReadableStream
-  // version did.
+  // always sends sync step 1 as soon as the socket opens, and both halves of
+  // this room's answer — its own state, and its own step 1 asking the client
+  // for what this room is missing — are written by syncReplies from
+  // webSocketMessage below. The reference server (y-websocket-server's
+  // setupWSConnection) instead sends its step 1 eagerly here at connect time;
+  // replying to the client's step 1 is the same exchange in the order
+  // y-protocols/sync.js's module comment actually prescribes, and it still
+  // happens on a hibernation wake, where fetch() is not re-run.
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 });
@@ -264,18 +313,16 @@ export class DocRoom extends DurableObject<Env> {
     const decoder = decoding.createDecoder(new Uint8Array(message));
     const messageType = decoding.readVarUint(decoder);
     if (messageType === MESSAGE_SYNC) {
-      const encoder = encoding.createEncoder();
-      encoding.writeVarUint(encoder, MESSAGE_SYNC);
-      // readSyncMessage does the real work: for the client's initial sync
-      // step 1 (its — empty — state vector), it writes this room's full
-      // state into encoder as a step 2 reply; for a step 2/update (an
-      // actual edit), it applies it to this.ydoc directly, which is what
-      // fires the "updateV2" listener (onUpdate, above) with `ws` as the
-      // transaction origin — synchronously, but its actual persist/
-      // broadcast/schedule work is only awaited below via flushPending(),
-      // for the same reason applyEdit/applyRemote do.
-      syncProtocol.readSyncMessage(decoder, encoder, this.ydoc, ws);
-      if (encoding.length(encoder) > 1) ws.send(encoding.toUint8Array(encoder));
+      // syncReplies applies the message and returns both halves of the
+      // handshake — this room's state, and its own step 1 asking the client
+      // for whatever this room is missing. Its updates are applied
+      // synchronously with `ws` as the transaction origin, firing the
+      // "updateV2" listener (onUpdate, above); that listener's actual
+      // persist/broadcast/schedule work is only awaited below via
+      // flushPending(), for the same reason applyEdit/applyRemote do.
+      for (const reply of syncReplies(new Uint8Array(message), this.ydoc, ws)) {
+        ws.send(reply);
+      }
       await this.flushPending();
     } else if (messageType === MESSAGE_AWARENESS) {
       awarenessProtocol.applyAwarenessUpdate(
@@ -374,9 +421,22 @@ export class DocRoom extends DurableObject<Env> {
         entry.firstPushAt + DocRoom.MAX_WAIT_MS,
       );
       if (due > now) continue;
-      await this.ctx.storage.delete(key);
+      // Flush first, delete only once it has actually landed. A throwing
+      // flush (sap down, a failed putRecord) makes Cloudflare retry this
+      // alarm, and deleting up front would leave that retry with nothing to
+      // flush — the edit would never reach the member's repo. Both flushes
+      // are safe to repeat: uploadBlob is content-addressed, and pear's
+      // PutRecord skips a write that doesn't change the record's CID.
       if (entry.kind === "member") await this.flushMember(entry.memberDid);
       if (entry.kind === "owner") await this.republishCanonical();
+      // Re-read rather than deleting blind: an edit arriving while the
+      // flush above was awaiting the network will have re-scheduled this
+      // same key with a later deadline, and that new entry must not be
+      // dropped along with the one this iteration just satisfied.
+      const current = await this.ctx.storage.get<PendingFlush>(key);
+      if (current?.idleDeadline === entry.idleDeadline) {
+        await this.ctx.storage.delete(key);
+      }
     }
     await this.rearm();
   }

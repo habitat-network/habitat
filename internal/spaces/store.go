@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -82,8 +83,7 @@ type Store interface {
 	// Space operations
 	CreateSpace(
 		ctx context.Context,
-		org syntax.DID,
-		owner syntax.DID,
+		authority syntax.DID,
 		spaceType syntax.NSID,
 		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
@@ -108,13 +108,17 @@ type Store interface {
 	) ([]RepoInfo, error)
 
 	// Record operations
+	//
+	// PutRecord takes the record value as a [MarshaledRecord] — callers must
+	// validate and marshal user input via [MarshalRecord] before calling
+	// PutRecord.
 	PutRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
-		value map[string]any,
+		value MarshaledRecord,
 	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
 	GetRecord(
 		ctx context.Context,
@@ -213,6 +217,7 @@ var (
 	ErrRepoNotFound       = errors.New("repo not found")
 	ErrRevTooFar          = errors.New("since revision is ahead of the repo head")
 	ErrRecordTooLarge     = errors.New("record too large")
+	ErrInvalidRecord      = errors.New("record does not conform to atproto data model")
 )
 
 // ---- Store implementation ----
@@ -257,8 +262,7 @@ func (s *store) WithTx(tx *gorm.DB) Store {
 
 func (s *store) CreateSpace(
 	ctx context.Context,
-	org syntax.DID,
-	creator syntax.DID,
+	authority syntax.DID,
 	spaceType syntax.NSID,
 	skey habitat_syntax.SpaceKey,
 ) (habitat_syntax.SpaceURI, error) {
@@ -268,7 +272,7 @@ func (s *store) CreateSpace(
 	}
 
 	err := s.db.Create(&space{
-		Owner: org,
+		Owner: authority,
 		Type:  spaceType,
 		Skey:  skey,
 	}).Error
@@ -276,7 +280,7 @@ func (s *store) CreateSpace(
 		return "", ErrSpaceAlreadyExists
 	}
 
-	return habitat_syntax.ConstructSpaceURI(org, spaceType, skey), nil
+	return habitat_syntax.ConstructSpaceURI(authority, spaceType, skey), nil
 }
 
 func (s *store) ListSpaces(
@@ -440,7 +444,7 @@ func (s *store) PutRecord(
 	repo syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
-	value map[string]any,
+	value MarshaledRecord,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
 	ctx, span := tracer.Start(ctx, "PutRecord", trace.WithAttributes(
 		attribute.String("space", spaceURI.String()),
@@ -454,16 +458,9 @@ func (s *store) PutRecord(
 	} else if !ok {
 		return "", nil, ErrSpaceNotFound
 	}
-	bytes, err := atdata.MarshalCBOR(value)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
-	}
-	span.SetAttributes(attribute.Int("cbor_bytes", len(bytes)))
-	if len(bytes) > atdata.MAX_CBOR_RECORD_SIZE {
-		return "", nil, ErrRecordTooLarge
-	}
+	span.SetAttributes(attribute.Int("cbor_bytes", len(value)))
 
-	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
+	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(value)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
@@ -517,7 +514,7 @@ func (s *store) PutRecord(
 			Space:      spaceURI,
 			Collection: collection,
 			Rkey:       rkey,
-			Value:      bytes,
+			Value:      value,
 			Rev:        tid,
 			PrevCid:    existing.Cid,
 			Cid:        newCidStr,
@@ -585,13 +582,24 @@ func (s *store) ListRecords(
 		return nil, err
 	}
 
-	records := make([]Record, len(rows))
-	for i, row := range rows {
+	records := make([]Record, 0, len(rows))
+	for _, row := range rows {
 		value, err := atdata.UnmarshalCBOR(row.Value)
 		if err != nil {
-			return nil, err
+			// A record that can no longer be decoded (e.g. written before
+			// write-time validation existed) shouldn't take down the whole
+			// listing; skip it and keep going.
+			slog.WarnContext(
+				ctx, "skipping undecodable record in list",
+				"space", uri,
+				"repo", repo,
+				"collection", row.Collection,
+				"rkey", row.Rkey,
+				"err", err,
+			)
+			continue
 		}
-		records[i] = Record{
+		records = append(records, Record{
 			Owner:      row.Repo,
 			Collection: row.Collection,
 			Rkey:       row.Rkey,
@@ -599,7 +607,7 @@ func (s *store) ListRecords(
 			Rev:        string(row.Rev),
 			UpdatedAt:  row.UpdatedAt,
 			Cid:        cid.MustParse(row.Cid),
-		}
+		})
 	}
 
 	return records, nil

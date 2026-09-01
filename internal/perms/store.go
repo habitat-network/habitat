@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -124,15 +125,17 @@ func (s *store) SetUserRelation(
 ) (habitat_syntax.SpaceRecordURI, error) {
 	var uri habitat_syntax.SpaceRecordURI
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		record := map[string]any{
-			"subject":   did.String(),
-			"relation":  string(role),
-			"createdAt": time.Now().UTC().Format(time.RFC3339),
-			/* object is the space being written into itself */
+		recordBytes, err := spaces.MarshalRecord(habitat.NetworkHabitatRelationshipUserRelation{
+			Subject:   did.String(),
+			Relation:  string(role),
+			CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("err marshaling relationship record: %w", err)
 		}
-		var err error
 		uri, _, err = s.spaces.WithTx(tx).
-			PutRecord(ctx, space, space.SpaceOwner(), habitat_syntax.UserRelationCollection, userRelationRkey(did), record)
+			PutRecord(ctx, space, space.SpaceOwner(), habitat_syntax.UserRelationCollection, userRelationRkey(did),
+				recordBytes)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
 		}
@@ -190,16 +193,18 @@ func (s *store) SetSpaceRoleRelation(
 ) (habitat_syntax.SpaceRecordURI, error) {
 	var uri habitat_syntax.SpaceRecordURI
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		record := map[string]any{
-			"subject":     subject.String(),
-			"subjectRole": string(subjectRole),
-			"relation":    string(objectRole),
-			"createdAt":   time.Now().UTC().Format(time.RFC3339),
-			/* object is the space being written into itself */
+		recordBytes, err := spaces.MarshalRecord(habitat.NetworkHabitatRelationshipSpaceRelation{
+			Subject:     subject.String(),
+			SubjectRole: string(subjectRole),
+			Relation:    string(objectRole),
+			CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("err marshaling relationship record: %w", err)
 		}
-		var err error
 		uri, _, err = s.spaces.WithTx(tx).
-			PutRecord(ctx, object, object.SpaceOwner(), habitat_syntax.SpaceRelationCollection, spaceRelationRkey(subject, subjectRole), record)
+			PutRecord(ctx, object, object.SpaceOwner(), habitat_syntax.SpaceRelationCollection, spaceRelationRkey(subject, subjectRole),
+				recordBytes)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
 		}
