@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/alexedwards/argon2id"
@@ -125,7 +126,9 @@ func (p *PasswordLoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *ht
 		return
 	}
 
-	atid, err := syntax.ParseAtIdentifier(req.Handle)
+	// Strip surrounding whitespace so a stray space can't make an
+	// otherwise-valid handle fail to parse.
+	atid, err := syntax.ParseAtIdentifier(strings.TrimSpace(req.Handle))
 	if err != nil {
 		utils.LogAndHTTPError(ctx, w, err, "parsing at identifier", http.StatusBadRequest)
 		return

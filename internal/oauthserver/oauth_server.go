@@ -327,6 +327,9 @@ func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *OAuthServer) resolveLoginHint(loginHint string) (syntax.DID, error) {
+	// Strip surrounding whitespace: a stray space makes handle parsing (and
+	// thus the Lookup below) fail for an otherwise-valid handle.
+	loginHint = strings.TrimSpace(loginHint)
 	if loginHint == "" {
 		return "", nil
 	}

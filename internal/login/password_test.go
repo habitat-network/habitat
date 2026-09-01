@@ -131,6 +131,23 @@ func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 	require.Equal(t, "did:web:example.did.com", loginID)
 }
 
+func TestLoginProvider_HandlePasswordLogin_TrimsHandleWhitespace(t *testing.T) {
+	p := newTestLoginProvider(t)
+	// the dummy directory resolves any "example.com"-ish handle to
+	// did:web:example.did.com
+	err := p.AddLoginEntry("did:web:example.did.com", "12345")
+	require.NoError(t, err)
+	body, _ := json.Marshal(habitat.NetworkHabitatOrgLoginMemberInput{
+		Handle:   "  alice.example.com  ",
+		Password: "12345",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	p.HandlePasswordLogin(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
 func TestLoginProvider_HandlePasswordLogin_BadRequestBody(t *testing.T) {
 	p := newTestLoginProvider(t)
 	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewReader([]byte("not-json")))

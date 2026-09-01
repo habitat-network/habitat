@@ -100,6 +100,43 @@ func TestHandleAddSessionStoresReturnToForResolvedDID(t *testing.T) {
 	require.Equal(t, "https://app.example.com/callback", srv.pendingReturnTo[testDID.String()])
 }
 
+// TestHandleAddSessionTrimsHandleWhitespace pins that surrounding whitespace on
+// the handle is stripped before resolution, so a stray space can't make an
+// otherwise-valid handle fail to resolve. The mock directory below resolves
+// "alice.test" (with or without the whitespace) to the same DID, so the
+// pending return_to keyed by that DID being set is what proves the trimmed
+// handle was used.
+func TestHandleAddSessionTrimsHandleWhitespace(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	const testDID = syntax.DID("did:plc:testtrim")
+	const testHandle = syntax.Handle("alice.test")
+
+	mockDir := identity.NewMockDirectory()
+	mockDir.Insert(identity.Identity{
+		DID:    testDID,
+		Handle: testHandle,
+	})
+	srv.oauthClient.Dir = mockDir
+
+	body, err := json.Marshal(map[string]string{
+		"handle":    "  " + string(testHandle) + "  ",
+		"return_to": "https://app.example.com/callback",
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/session/add", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	srv.handleAddSession(w, req)
+
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	require.Equal(t, "https://app.example.com/callback", srv.pendingReturnTo[testDID.String()])
+}
+
 func TestRedirectToReturnToRedirectsAndClearsPending(t *testing.T) {
 	t.Parallel()
 

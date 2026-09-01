@@ -95,6 +95,7 @@ func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
 	// return_to keyed by that DID for handleOAuthCallback to pick up later.
 	// Resolution failures here must not block the StartAuthFlow call below —
 	// they just mean the caller won't get redirected back.
+	req.Handle = strings.TrimSpace(req.Handle)
 	if req.ReturnTo != "" {
 		if atid, err := syntax.ParseAtIdentifier(req.Handle); err == nil {
 			if ident, err := s.oauthClient.Dir.Lookup(r.Context(), atid); err == nil {

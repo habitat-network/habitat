@@ -1318,3 +1318,29 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 	require.True(t, disambiguateVisited, "disambiguation page should have been visited")
 	require.NotEmpty(t, capturedToken, "OAuth flow should complete after disambiguation")
 }
+
+// TestResolveLoginHintTrimsWhitespace pins that surrounding whitespace on a
+// login hint handle (e.g. from an OAuth authorize/disambiguation form) is
+// stripped before resolution, so a stray space can't make an otherwise-valid
+// handle fail to look up.
+func TestResolveLoginHintTrimsWhitespace(t *testing.T) {
+	o := &OAuthServer{
+		directory: pdsclient.NewDummyDirectory("https://pds.example.com"),
+	}
+
+	for _, hint := range []string{
+		"alice.example.com ",
+		" alice.example.com",
+		"\talice.example.com\n",
+	} {
+		did, err := o.resolveLoginHint(hint)
+		require.NoError(t, err)
+		require.Equal(t, syntax.DID("did:web:example.did.com"), did)
+	}
+
+	// An all-whitespace hint trims down to empty, which resolves to no DID
+	// (the disambiguation redirect path) rather than erroring.
+	did, err := o.resolveLoginHint("   \t ")
+	require.NoError(t, err)
+	require.Empty(t, did)
+}
