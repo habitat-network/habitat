@@ -61,7 +61,7 @@ export const AppLayout = ({
                     <DropdownMenuItem
                       render={
                         <a
-                          href="https://habitat.network/habitat"
+                          href="https://home.habitat.network"
                           target="_blank"
                         />
                       }
