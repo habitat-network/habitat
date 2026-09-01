@@ -131,7 +131,10 @@ func TestStore(t *testing.T) {
 
 	t.Run("AssignRoles", func(t *testing.T) {
 		other := syntax.DID("did:plc:other")
-		require.NoError(t, s.AssignRoles(t.Context(), org, other, []string{opensocial.MemberRoleRkey}))
+		require.NoError(
+			t,
+			s.AssignRoles(t.Context(), org, other, []string{opensocial.MemberRoleRkey}),
+		)
 
 		roles, err := s.GetUserRoles(t.Context(), org, other)
 		require.NoError(t, err)
