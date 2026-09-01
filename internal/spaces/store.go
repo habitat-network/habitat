@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/spacecommit"
@@ -44,6 +45,19 @@ type spaceRecord struct {
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	DeletedAt  gorm.DeletedAt
+}
+
+// blobRef tracks which record within a space references a blob CID.
+// getBlob uses it to authorize a request: a cid is readable if it is
+// referenced by some record in the space the caller can already read.
+// PutRecord keeps it in sync by clearing a record's prior refs and
+// re-inserting the ones extracted from its new value on every write.
+type blobRef struct {
+	Cid        string                  `gorm:"primaryKey"`
+	Space      habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Repo       syntax.DID              `gorm:"primaryKey"`
+	Collection syntax.NSID             `gorm:"primaryKey"`
+	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
 }
 
 // spaceRepo caches a permissioned repo's LtHash so reads (listRepos,
@@ -152,6 +166,15 @@ type Store interface {
 		rkey string,
 	) error
 
+	// BlobReferenced reports whether cid is referenced by some record within
+	// space, so getBlob can authorize a request without exposing which
+	// record does the referencing.
+	BlobReferenced(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		c cid.Cid,
+	) (bool, error)
+
 	// Oplog operations
 	//
 	// ListRepoOps returns a repo's operations within a space after a given
@@ -239,7 +262,7 @@ func NewStore(
 	notifier Notifier,
 	commit *spacecommit.Authority,
 ) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceRepo{}); err != nil {
+	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
 	return &store{
@@ -459,6 +482,14 @@ func (s *store) PutRecord(
 		return "", nil, ErrSpaceNotFound
 	}
 	span.SetAttributes(attribute.Int("cbor_bytes", len(value)))
+	// value is already validated and CBOR-encoded by [MarshalRecord]; decode
+	// it back to structured atdata types so the blobs it references can be
+	// extracted for the ref table below.
+	parsed, err := atdata.UnmarshalCBOR(value)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to decode record: %w", err)
+	}
+	blobs := atdata.ExtractBlobs(parsed)
 
 	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(value)
 	if err != nil {
@@ -509,6 +540,33 @@ func (s *store) PutRecord(
 			return fmt.Errorf("failed to save repo hash: %w", err)
 		}
 		repoHash = h.Sum()
+
+		// Clear this record's prior blob references and set them to exactly
+		// what its new value references.
+		if err := tx.
+			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+				spaceURI, repo, collection, rkey).
+			Delete(&blobRef{}).Error; err != nil {
+			return fmt.Errorf("failed to clear blob refs: %w", err)
+		}
+		if len(blobs) > 0 {
+			refs := make([]blobRef, len(blobs))
+			for i, b := range blobs {
+				refs[i] = blobRef{
+					Cid:        b.Ref.CID().String(),
+					Space:      spaceURI,
+					Repo:       repo,
+					Collection: collection,
+					Rkey:       rkey,
+				}
+			}
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).
+				Create(&refs).
+				Error; err != nil {
+				return fmt.Errorf("failed to save blob refs: %w", err)
+			}
+		}
+
 		return tx.Save(&spaceRecord{
 			Repo:       repo,
 			Space:      spaceURI,
@@ -860,6 +918,13 @@ func (s *store) DeleteRecord(
 			}).Error; err != nil {
 			return fmt.Errorf("delete record: %w", err)
 		}
+		// A deleted record no longer authorizes reads of the blobs it referenced.
+		if err := tx.
+			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+				uri, repo, collection, rkey).
+			Delete(&blobRef{}).Error; err != nil {
+			return fmt.Errorf("clear blob refs: %w", err)
+		}
 		// Fold the deleted records out of the cached LtHash.
 		h, _, _, err := loadRepoHash(tx, uri, repo)
 		if err != nil {
@@ -880,4 +945,22 @@ func (s *store) DeleteRecord(
 		}
 		return saveRepoHash(tx, uri, repo, h, rev)
 	})
+}
+
+// BlobReferenced implements [Store].
+func (s *store) BlobReferenced(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	c cid.Cid,
+) (bool, error) {
+	var ref blobRef
+	err := s.db.WithContext(ctx).
+		Where("space = ? AND cid = ?", space, c.String()).
+		First(&ref).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("check blob reference: %w", err)
+	}
+	return true, nil
 }

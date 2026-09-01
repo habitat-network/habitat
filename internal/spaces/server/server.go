@@ -353,6 +353,14 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse cid", err)
 		return
 	}
+	referenced, err := s.store.BlobReferenced(ctx, spaceURI, c)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check blob reference: %w", err))
+		return
+	} else if !referenced {
+		httpx.WriteError(ctx, w, "BlobNotFound", "blob not found", http.StatusNotFound)
+		return
+	}
 	mimeType, data, err := s.blobs.GetBlob(ctx, c)
 	if errors.Is(err, spaces.ErrBlobNotFound) {
 		httpx.WriteError(ctx, w, "BlobNotFound", "blob not found", http.StatusNotFound)

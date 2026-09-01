@@ -110,6 +110,21 @@ func TestServer_UploadAndGetBlob(t *testing.T) {
 	require.NoError(t, json.NewDecoder(upW.Body).Decode(&out))
 	require.NotEmpty(t, out.Cid)
 
+	// GetBlob authorizes by checking the requested cid is referenced by some
+	// record in the space, so put one that references the uploaded blob.
+	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "", spaces_testutil.MustMarshalRecord(
+		t, map[string]any{
+			"$type": groupType.String(),
+			"image": map[string]any{
+				"$type":    "blob",
+				"ref":      map[string]any{"$link": out.Cid},
+				"mimeType": "text/plain",
+				"size":     float64(len("hello blobs")),
+			},
+		},
+	))
+	require.NoError(t, err)
+
 	// Get it back through the space.
 	getW := httptest.NewRecorder()
 	s.GetBlob(
