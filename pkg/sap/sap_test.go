@@ -71,7 +71,7 @@ func TestSap(t *testing.T) {
 	putRecord := func(space habitat_syntax.SpaceURI, rkey string, data string) {
 		recURI, _, err := pear.store.PutRecord(
 			t.Context(), space, author, collection,
-			syntax.RecordKey(rkey), mustMarshalRecord(t, map[string]any{"data": data}),
+			syntax.RecordKey(rkey), spaces_testutil.MustMarshalRecord(t, map[string]any{"data": data}),
 		)
 		require.NoError(t, err)
 		createdURIs[recURI.String()] = true
@@ -284,7 +284,7 @@ func TestSapTrackSpace(t *testing.T) {
 	require.NoError(t, err)
 	recURI, _, err := pear.store.PutRecord(
 		t.Context(), space, author, collection,
-		syntax.RecordKey("rkey-0"), mustMarshalRecord(t, map[string]any{"data": "tracked"}),
+		syntax.RecordKey("rkey-0"), spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "tracked"}),
 	)
 	require.NoError(t, err)
 
@@ -373,7 +373,7 @@ func TestSapRecrawl(t *testing.T) {
 	require.NoError(t, err)
 	recURI, _, err := pear.store.PutRecord(
 		t.Context(), space, author, collection,
-		syntax.RecordKey("rkey-0"), mustMarshalRecord(t, map[string]any{"data": "recrawled"}),
+		syntax.RecordKey("rkey-0"), spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "recrawled"}),
 	)
 	require.NoError(t, err)
 
@@ -446,15 +446,6 @@ func TestSapRecrawl(t *testing.T) {
 		return cr.State == "complete"
 	}, 5*time.Second, 50*time.Millisecond, "crawl never completed")
 	require.Empty(t, cr.Cursor)
-}
-
-// mustMarshalRecord validates and CBOR-encodes value the way a real
-// PutRecord caller must before calling the store's PutRecord.
-func mustMarshalRecord(t *testing.T, value any) []byte {
-	t.Helper()
-	bytes, err := spaces.MarshalRecord(value)
-	require.NoError(t, err)
-	return bytes
 }
 
 // pearHost bundles the host-side pieces the test drives.

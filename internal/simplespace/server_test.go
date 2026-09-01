@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
+	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -307,7 +308,7 @@ func TestServer_SpaceLifecycle(t *testing.T) {
 		owner,
 		coll,
 		"k1",
-		mustMarshalRecord(t, map[string]any{"x": 1}),
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
 	)
 	require.NoError(t, err)
 
@@ -334,7 +335,7 @@ func TestServer_SpaceLifecycle(t *testing.T) {
 		alice,
 		coll,
 		"k1",
-		mustMarshalRecord(t, map[string]any{"x": 2}),
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 2}),
 	)
 	require.NoError(t, err)
 
