@@ -2,6 +2,7 @@ package spaces
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -114,7 +115,7 @@ type Store interface {
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
-		value map[string]any,
+		value any,
 	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
 	GetRecord(
 		ctx context.Context,
@@ -440,7 +441,7 @@ func (s *store) PutRecord(
 	repo syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
-	value map[string]any,
+	value any,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
 	ctx, span := tracer.Start(ctx, "PutRecord", trace.WithAttributes(
 		attribute.String("space", spaceURI.String()),
@@ -454,10 +455,16 @@ func (s *store) PutRecord(
 	} else if !ok {
 		return "", nil, ErrSpaceNotFound
 	}
-	if err := atdata.Validate(value); err != nil {
+	jsonBytes, err := json.Marshal(value)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to marshal value: %w", err)
+	}
+	// validates against atproto data model
+	recordMap, err := atdata.UnmarshalJSON(jsonBytes)
+	if err != nil {
 		return "", nil, fmt.Errorf("%w: %w", ErrInvalidRecord, err)
 	}
-	bytes, err := atdata.MarshalCBOR(value)
+	bytes, err := atdata.MarshalCBOR(recordMap)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
 	}
