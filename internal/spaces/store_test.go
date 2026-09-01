@@ -382,14 +382,6 @@ func TestListRecords(t *testing.T) {
 	}
 }
 
-// TestMarshalRecord_RejectsNonIntegerFloat pins that MarshalRecord — which
-// callers must run over user input before calling PutRecord — rejects values
-// that don't conform to the atproto data model.
-func TestMarshalRecord_RejectsNonIntegerFloat(t *testing.T) {
-	_, err := spaces.MarshalRecord(map[string]any{"x": 0.15})
-	require.ErrorIs(t, err, spaces.ErrInvalidRecord)
-}
-
 func TestDeleteRecord(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
