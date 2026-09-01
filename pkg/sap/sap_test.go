@@ -70,8 +70,14 @@ func TestSap(t *testing.T) {
 	}
 	putRecord := func(space habitat_syntax.SpaceURI, rkey string, data string) {
 		recURI, _, err := pear.store.PutRecord(
-			t.Context(), space, author, collection,
-			syntax.RecordKey(rkey), spaces_testutil.MustMarshalRecord(t, map[string]any{"data": data}),
+			t.Context(),
+			space,
+			author,
+			collection,
+			syntax.RecordKey(
+				rkey,
+			),
+			spaces_testutil.MustMarshalRecord(t, map[string]any{"data": data}),
 		)
 		require.NoError(t, err)
 		createdURIs[recURI.String()] = true
@@ -283,8 +289,14 @@ func TestSapTrackSpace(t *testing.T) {
 	)
 	require.NoError(t, err)
 	recURI, _, err := pear.store.PutRecord(
-		t.Context(), space, author, collection,
-		syntax.RecordKey("rkey-0"), spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "tracked"}),
+		t.Context(),
+		space,
+		author,
+		collection,
+		syntax.RecordKey(
+			"rkey-0",
+		),
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "tracked"}),
 	)
 	require.NoError(t, err)
 
@@ -372,8 +384,14 @@ func TestSapRecrawl(t *testing.T) {
 	)
 	require.NoError(t, err)
 	recURI, _, err := pear.store.PutRecord(
-		t.Context(), space, author, collection,
-		syntax.RecordKey("rkey-0"), spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "recrawled"}),
+		t.Context(),
+		space,
+		author,
+		collection,
+		syntax.RecordKey(
+			"rkey-0",
+		),
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "recrawled"}),
 	)
 	require.NoError(t, err)
 

@@ -214,9 +214,23 @@ func TestDeleteSpace(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = s.spaces.PutRecord(t.Context(), uri, owner, coll, "r1", spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}))
+	_, _, err = s.spaces.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"r1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
 	require.NoError(t, err)
-	_, _, err = s.spaces.PutRecord(t.Context(), uri, owner, coll, "r2", spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 2}))
+	_, _, err = s.spaces.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"r2",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 2}),
+	)
 	require.NoError(t, err)
 	require.NoError(t, s.AddMember(t.Context(), uri, alice))
 
