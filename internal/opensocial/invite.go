@@ -53,7 +53,7 @@ func (r inviteRow) toInvite() (Invite, error) {
 	}, nil
 }
 
-func (s *store) CreateInvite(
+func (s *Store) CreateInvite(
 	ctx context.Context,
 	orgDID syntax.DID,
 	invitee syntax.DID,
@@ -88,7 +88,7 @@ func (s *store) CreateInvite(
 
 // ListInvites returns invitee's pending invites across every org on this
 // instance.
-func (s *store) ListInvites(ctx context.Context, invitee syntax.DID) ([]Invite, error) {
+func (s *Store) ListInvites(ctx context.Context, invitee syntax.DID) ([]Invite, error) {
 	var rows []inviteRow
 	if err := s.db.WithContext(ctx).
 		Where("invitee = ?", invitee).
@@ -99,7 +99,7 @@ func (s *store) ListInvites(ctx context.Context, invitee syntax.DID) ([]Invite, 
 	return rowsToInvites(rows)
 }
 
-func (s *store) ListPendingInvites(ctx context.Context, orgDID syntax.DID) ([]Invite, error) {
+func (s *Store) ListPendingInvites(ctx context.Context, orgDID syntax.DID) ([]Invite, error) {
 	var rows []inviteRow
 	if err := s.db.WithContext(ctx).
 		Where("org_id = ?", orgDID).
@@ -122,7 +122,7 @@ func rowsToInvites(rows []inviteRow) ([]Invite, error) {
 	return invites, nil
 }
 
-func (s *store) RevokeInvite(ctx context.Context, orgDID syntax.DID, id string) error {
+func (s *Store) RevokeInvite(ctx context.Context, orgDID syntax.DID, id string) error {
 	result := s.db.WithContext(ctx).
 		Where("org_id = ? AND id = ?", orgDID, id).
 		Delete(&inviteRow{})
@@ -135,14 +135,14 @@ func (s *store) RevokeInvite(ctx context.Context, orgDID syntax.DID, id string) 
 	return nil
 }
 
-// AcceptInvite consumes invitee's pending invite to orgDID, or — if they hold
+// RequestJoin consumes invitee's pending invite to orgDID, or — if they hold
 // no pending invite but already have a membership (e.g. the org's creator,
 // bootstrapped directly by NewOrg) — just confirms it, returning the roles
 // granted. It does not write invitee's own acceptance record: that's the
 // frontend's responsibility, done under invitee's own credentials after this
 // returns, since it's their explicit act of joining and not something the
 // backend should author on their behalf.
-func (s *store) AcceptInvite(
+func (s *Store) RequestJoin(
 	ctx context.Context,
 	orgDID syntax.DID,
 	invitee syntax.DID,

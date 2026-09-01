@@ -25,78 +25,23 @@ const (
 // Store manages opensocial communities: their profile/role/membership repo
 // records (via spacesStore) and the org-local state, such as pending
 // invites, that has no repo record until a member accepts it.
-type Store interface {
-	NewOrg(ctx context.Context, handle string, creator syntax.DID) (string, error)
-	CreateSpace(
-		ctx context.Context,
-		orgDID syntax.DID,
-		roles []string,
-		spaceType syntax.NSID,
-		skey habitat_syntax.SpaceKey,
-	) (habitat_syntax.SpaceURI, error)
-	UploadImage(
-		ctx context.Context,
-		orgDID syntax.DID,
-		mimeType string,
-		image []byte,
-	) (atdata.Blob, error)
-	// UpdateProfile replaces the community's profile name/description/join
-	// policy, preserving its avatar. description == "" clears any existing
-	// description; joinPolicy == "" leaves the existing policy unchanged.
-	UpdateProfile(
-		ctx context.Context,
-		orgDID syntax.DID,
-		name string,
-		description string,
-		joinPolicy string,
-	) error
-	AssignRoles(ctx context.Context, orgDID syntax.DID, user syntax.DID, roles []string) error
-	CheckPermission(
-		ctx context.Context,
-		user syntax.DID,
-		space habitat_syntax.SpaceURI,
-	) (bool, error)
-	GetUserRoles(ctx context.Context, orgDID syntax.DID, user syntax.DID) ([]string, error)
-
-	CreateInvite(
-		ctx context.Context,
-		orgDID syntax.DID,
-		invitee syntax.DID,
-		roles []string,
-	) (Invite, error)
-	// ListInvites returns invitee's pending invites across every org on this
-	// instance.
-	ListInvites(ctx context.Context, invitee syntax.DID) ([]Invite, error)
-	ListPendingInvites(ctx context.Context, orgDID syntax.DID) ([]Invite, error)
-	RevokeInvite(ctx context.Context, orgDID syntax.DID, id string) error
-	// AcceptInvite consumes invitee's pending invite: it removes the invite
-	// row and writes a membership record (in the org repo) and an acceptance
-	// record (in the invitee's own repo, members space), returning the roles
-	// granted. If invitee holds no pending invite but already has a
-	// membership (e.g. the org's creator), it just writes the acceptance
-	// record and returns their existing roles.
-	AcceptInvite(ctx context.Context, orgDID syntax.DID, invitee syntax.DID) ([]string, error)
-}
-
-type store struct {
+type Store struct {
 	db          *gorm.DB
 	spacesStore spaces.Store
 	blobStore   spaces.BlobStore
 	hive        hive.Hive
 }
 
-var _ Store = (*store)(nil)
-
 func NewStore(
 	db *gorm.DB,
 	spacesStore spaces.Store,
 	blobStore spaces.BlobStore,
 	hve hive.Hive,
-) (Store, error) {
+) (*Store, error) {
 	if err := db.AutoMigrate(&inviteRow{}); err != nil {
 		return nil, fmt.Errorf("automigrate: %w", err)
 	}
-	return &store{
+	return &Store{
 		db:          db,
 		spacesStore: spacesStore,
 		blobStore:   blobStore,
@@ -104,7 +49,7 @@ func NewStore(
 	}, nil
 }
 
-func (s *store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (string, error) {
+func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (string, error) {
 	var orgDID syntax.DID
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		orgID, err := s.hive.WithTx(tx).MintOrgIdentity(ctx, handle)
@@ -188,7 +133,7 @@ func (s *store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 	return orgDID.String(), nil
 }
 
-func (s *store) CreateSpace(
+func (s *Store) CreateSpace(
 	ctx context.Context,
 	orgDID syntax.DID,
 	roles []string,
@@ -227,7 +172,7 @@ func (s *store) CreateSpace(
 	return spaceURI, nil
 }
 
-func (s *store) UploadImage(
+func (s *Store) UploadImage(
 	ctx context.Context,
 	orgDID syntax.DID,
 	mimeType string,
@@ -265,7 +210,7 @@ func (s *store) UploadImage(
 	return blob, nil
 }
 
-func (s *store) UpdateProfile(
+func (s *Store) UpdateProfile(
 	ctx context.Context,
 	orgDID syntax.DID,
 	name string,
@@ -297,7 +242,7 @@ func (s *store) UpdateProfile(
 	return nil
 }
 
-func (s *store) AssignRoles(
+func (s *Store) AssignRoles(
 	ctx context.Context,
 	orgDID syntax.DID,
 	user syntax.DID,
@@ -317,7 +262,7 @@ func (s *store) AssignRoles(
 	return err
 }
 
-func (s *store) CheckPermission(
+func (s *Store) CheckPermission(
 	ctx context.Context,
 	user syntax.DID,
 	space habitat_syntax.SpaceURI,
@@ -350,7 +295,7 @@ func (s *store) CheckPermission(
 	return len(intersection) > 0, nil
 }
 
-func (s *store) GetUserRoles(
+func (s *Store) GetUserRoles(
 	ctx context.Context,
 	orgDID syntax.DID,
 	user syntax.DID,

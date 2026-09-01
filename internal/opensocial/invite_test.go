@@ -20,7 +20,7 @@ var (
 	bob         = syntax.DID("did:plc:bob")
 )
 
-func newTestStore(t *testing.T) (opensocial.Store, spaces.Store) {
+func newTestStore(t *testing.T) (*opensocial.Store, spaces.Store) {
 	t.Helper()
 	return opensocial_testutil.NewTestStore(t)
 }

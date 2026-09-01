@@ -17,7 +17,7 @@ import (
 
 // NewTestStore returns an opensocial.Store and the spaces.Store it shares a
 // DB with, so callers can seed or inspect repo records directly.
-func NewTestStore(t *testing.T) (opensocial.Store, spaces.Store) {
+func NewTestStore(t *testing.T) (*opensocial.Store, spaces.Store) {
 	t.Helper()
 	db := db_testutil.NewDB(t)
 	return NewTestStoreWithDB(t, db)
@@ -25,7 +25,7 @@ func NewTestStore(t *testing.T) (opensocial.Store, spaces.Store) {
 
 // NewTestStoreWithDB is like NewTestStore, but shares the given DB rather
 // than creating a new one.
-func NewTestStoreWithDB(t *testing.T, db *gorm.DB) (opensocial.Store, spaces.Store) {
+func NewTestStoreWithDB(t *testing.T, db *gorm.DB) (*opensocial.Store, spaces.Store) {
 	t.Helper()
 	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db))
 	blobStore := spaces_testutil.NewTestBlobStore(t)
