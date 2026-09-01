@@ -10,12 +10,23 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"gocloud.dev/blob/memblob"
+
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/notify/testutil"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
+
+// NewTestBlobStore returns a spaces.BlobStore backed by an in-memory bucket,
+// closed automatically on test cleanup.
+func NewTestBlobStore(t *testing.T) spaces.BlobStore {
+	t.Helper()
+	bucket := memblob.OpenBucket(nil)
+	t.Cleanup(func() { _ = bucket.Close() })
+	return spaces.NewBlobStore(bucket)
+}
 
 type testOptions struct {
 	fga      fgastore.Store
