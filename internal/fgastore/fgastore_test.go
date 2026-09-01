@@ -2,8 +2,6 @@ package fgastore
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -14,37 +12,20 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-func newTestSQLite(t *testing.T) *FGA {
+func newTestMemory(t *testing.T) *FGA {
 	t.Helper()
 
-	// Manage the temp dir ourselves rather than via t.TempDir(): OpenFGA's Check
-	// resolver, union() in internal/graph/check.go (v1.18.3), short-circuits as
-	// soon as one branch resolves true and returns without waiting for sibling
-	// goroutines dispatched via its worker pool to finish:
-	//   https://github.com/openfga/openfga/blob/v1.18.3/internal/graph/check.go#L179-L181
-	//   https://github.com/openfga/openfga/blob/v1.18.3/internal/graph/check.go#L206-L208
-	// It relies on the deferred context cancel (L166) to "clean up workers", but
-	// a worker blocked in modernc.org/sqlite's busy-handler retry never observes
-	// ctx.Done(), so a query can still be touching the SQLite file briefly after
-	// FGA.Close() returns. Unfixed as of v1.18.3 (latest release, checked
-	// 2026-08-19)
-	dir, err := os.MkdirTemp("", "fgastore-test-*")
-	require.NoError(t, err, "MkdirTemp should succeed")
+	f, err := NewMemory(t.Context())
+	require.NoError(t, err, "NewMemory should succeed")
 
-	f, err := NewSQLite(t.Context(), filepath.Join(dir, "fga.db"))
-	require.NoError(t, err, "NewSQLite should succeed")
-
-	t.Cleanup(func() {
-		_ = f.Close()
-		_ = os.RemoveAll(dir)
-	})
+	t.Cleanup(func() { _ = f.Close() })
 
 	return f
 }
 
 func TestCheck_ReturnsTrueForExistingTuple(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	err := f.Write(ctx, "user:alice", "member", "organization:myorg")
 	require.NoError(t, err, "Write should succeed")
@@ -56,7 +37,7 @@ func TestCheck_ReturnsTrueForExistingTuple(t *testing.T) {
 
 func TestCheck_ReturnsFalseForNonExistentTuple(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	ok, err := f.Check(ctx, "user:alice", "member", "organization:myorg")
 	require.NoError(t, err, "Check should not error")
@@ -65,7 +46,7 @@ func TestCheck_ReturnsFalseForNonExistentTuple(t *testing.T) {
 
 func TestCheck_UsesContextualTuples(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	ok, err := f.Check(
 		ctx,
@@ -84,7 +65,7 @@ func TestCheck_UsesContextualTuples(t *testing.T) {
 
 func TestCheck_ReturnsFalseAfterDelete(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	err := f.Write(ctx, "user:alice", "member", "organization:myorg")
 	require.NoError(t, err, "Write should succeed")
@@ -99,7 +80,7 @@ func TestCheck_ReturnsFalseAfterDelete(t *testing.T) {
 
 func TestCheck_DifferentRelation(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	err := f.Write(ctx, "user:alice", "member", "organization:myorg")
 	require.NoError(t, err, "Write should succeed")
@@ -111,7 +92,7 @@ func TestCheck_DifferentRelation(t *testing.T) {
 
 func TestCheck_DifferentUser(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	err := f.Write(ctx, "user:alice", "member", "organization:myorg")
 	require.NoError(t, err, "Write should succeed")
@@ -123,7 +104,7 @@ func TestCheck_DifferentUser(t *testing.T) {
 
 func TestCheck_AdminInheritsMember(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	err := f.Write(ctx, "user:alice", "admin", "organization:myorg")
 	require.NoError(t, err, "Write admin tuple should succeed")
@@ -135,7 +116,7 @@ func TestCheck_AdminInheritsMember(t *testing.T) {
 
 func TestCheck_SpaceOwnerGrantsCanWrite(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	err := f.Write(ctx, "user:alice", RelationSpaceOwner, "space:myorg/myspace")
 	require.NoError(t, err, "Write owner tuple should succeed")
@@ -147,7 +128,7 @@ func TestCheck_SpaceOwnerGrantsCanWrite(t *testing.T) {
 
 func TestListObjects_ReturnsReadableSpaces(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	require.NoError(
 		t,
@@ -177,7 +158,7 @@ func TestListObjects_ReturnsReadableSpaces(t *testing.T) {
 
 func TestListObjects_CanWriteImpliesCanRead(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	err := f.Write(ctx, "user:bob", RelationSpaceWriter, "space:org/x")
 	require.NoError(t, err, "Write can_write should succeed")
@@ -189,7 +170,7 @@ func TestListObjects_CanWriteImpliesCanRead(t *testing.T) {
 
 func TestListObjects_ReturnsEmptyForNoAccess(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	objects, err := f.ListObjects(ctx, "user:alice", RelationSpaceReader, "space")
 	require.NoError(t, err, "ListObjects should not error")
@@ -198,7 +179,7 @@ func TestListObjects_ReturnsEmptyForNoAccess(t *testing.T) {
 
 func TestListObjects_UsesContextualTuples(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	objects, err := f.ListObjects(
 		ctx,
@@ -217,7 +198,7 @@ func TestListObjects_UsesContextualTuples(t *testing.T) {
 
 func TestListUsers_ReturnsReadersOfSpace(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	require.NoError(
 		t,
@@ -242,7 +223,7 @@ func TestListUsers_ReturnsReadersOfSpace(t *testing.T) {
 
 func TestListUsers_ReturnsWritersOfSpace(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	require.NoError(
 		t,
@@ -267,7 +248,7 @@ func TestListUsers_ReturnsWritersOfSpace(t *testing.T) {
 
 func TestListUsers_WriterImpliedAsReader(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	require.NoError(
 		t,
@@ -282,7 +263,7 @@ func TestListUsers_WriterImpliedAsReader(t *testing.T) {
 
 func TestListUsers_ReturnsEmptyForNoReaders(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	users, err := f.ListUsers(ctx, "space:org/myspace", RelationSpaceReader)
 	require.NoError(t, err, "ListUsers should not error")
@@ -291,7 +272,7 @@ func TestListUsers_ReturnsEmptyForNoReaders(t *testing.T) {
 
 func TestListUsers_ReturnsEmptyForNoWriters(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	users, err := f.ListUsers(ctx, "space:org/myspace", RelationSpaceWriter)
 	require.NoError(t, err, "ListUsers should not error")
@@ -300,7 +281,7 @@ func TestListUsers_ReturnsEmptyForNoWriters(t *testing.T) {
 
 func TestListUsers_ReturnsErrorForInvalidObject(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	users, err := f.ListUsers(ctx, "space-without-type-separator", RelationSpaceReader)
 	require.Error(t, err)
@@ -309,7 +290,7 @@ func TestListUsers_ReturnsErrorForInvalidObject(t *testing.T) {
 
 func TestListUsers_UsesContextualTuples(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	users, err := f.ListUsers(
 		ctx,
@@ -327,7 +308,7 @@ func TestListUsers_UsesContextualTuples(t *testing.T) {
 
 func TestCheck_CanReadReturnsTrueForCanWriteUser(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	err := f.Write(ctx, "user:alice", RelationSpaceWriter, "space:org/myspace")
 	require.NoError(t, err, "Write can_write should succeed")
@@ -339,7 +320,7 @@ func TestCheck_CanReadReturnsTrueForCanWriteUser(t *testing.T) {
 
 func TestCheck_CanManageMembersGrantsCanWrite(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	err := f.Write(ctx, "user:bob", RelationSpaceMemberManager, "space:org/myspace")
 	require.NoError(t, err, "Write can_manage_members should succeed")
@@ -355,7 +336,7 @@ func TestCheck_CanManageMembersGrantsCanWrite(t *testing.T) {
 
 func TestWriteRaw_OnDuplicateIgnore(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	tuples := []*openfgav1.TupleKey{
 		tuple.NewTupleKey("space:org/x", RelationSpaceReader, "user:alice"),
@@ -385,7 +366,7 @@ func TestWriteRaw_OnDuplicateIgnore(t *testing.T) {
 
 func TestWriteRaw_OnMissingIgnore(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	err := f.WriteRaw(ctx, &openfgav1.WriteRequest{
 		Deletes: &openfgav1.WriteRequestDeletes{
@@ -402,7 +383,7 @@ func TestWriteRaw_OnMissingIgnore(t *testing.T) {
 
 func TestWriteRaw_ReadUpgradeToWrite(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	// Add as reader
 	readKey := tuple.NewTupleKey("space:org/x", RelationSpaceReader, "user:alice")
@@ -453,7 +434,7 @@ func TestWriteRaw_ReadUpgradeToWrite(t *testing.T) {
 
 func TestWriteRaw_DowngradeWriteToRead(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	readKey := tuple.NewTupleKey("space:org/x", RelationSpaceReader, "user:alice")
 	writeKey := tuple.NewTupleKey("space:org/x", RelationSpaceWriter, "user:alice")
@@ -497,7 +478,7 @@ func TestWriteRaw_DowngradeWriteToRead(t *testing.T) {
 
 func TestWriteRaw_DeleteReadAndWrite(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	readKey := tuple.NewTupleKey("space:org/x", RelationSpaceReader, "user:alice")
 	writeKey := tuple.NewTupleKey("space:org/x", RelationSpaceWriter, "user:alice")
@@ -533,7 +514,7 @@ func TestWriteRaw_DeleteReadAndWrite(t *testing.T) {
 
 func TestRead_ReturnsAllAndFilteredTuples(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	require.NoError(t, f.Write(ctx, "user:alice", RelationSpaceReader, "space:org/a"))
 	require.NoError(t, f.Write(ctx, "user:bob", RelationSpaceWriter, "space:org/b"))
@@ -635,7 +616,7 @@ func TestEncodingHelpers_ReturnErrorsForInvalidInput(t *testing.T) {
 
 func TestCheck_SpaceUsersetCrossSpaceInheritance(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	// alice is a writer of space A.
 	require.NoError(t, f.Write(ctx, "user:alice", RelationSpaceWriter, "space:A"))
@@ -688,7 +669,7 @@ func TestSpaceUsersetString(t *testing.T) {
 
 func TestRead_ReturnsEmptyForNoMatch(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	require.NoError(t, f.Write(ctx, "user:alice", RelationSpaceReader, "space:org/a"))
 
@@ -699,7 +680,7 @@ func TestRead_ReturnsEmptyForNoMatch(t *testing.T) {
 
 func TestCheck_NestedGroupSpaces(t *testing.T) {
 	ctx := context.Background()
-	f := newTestSQLite(t)
+	f := newTestMemory(t)
 
 	// bob is a member (reader) of group-space A.
 	require.NoError(t, f.Write(ctx, "user:bob", RelationSpaceOwner, "space:groupA"))
