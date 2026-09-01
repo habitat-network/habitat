@@ -11,7 +11,7 @@ catalogs:
       version: 0.20.42
     '@atproto/identity':
       specifier: ^0.5.9
-      version: 0.5.10
+      version: 0.5.9
     '@atproto/lexicon':
       specifier: 0.7.11
       version: 0.7.11
@@ -197,7 +197,7 @@ importers:
         version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.10
+        version: 0.5.9
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)
@@ -307,13 +307,13 @@ importers:
     devDependencies:
       '@atproto/lex-cli':
         specifier: ^0.10.6
-        version: 0.10.11
+        version: 0.10.10
 
   typescript/apps/chalk:
     dependencies:
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.10
+        version: 0.5.9
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.12(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -437,7 +437,7 @@ importers:
         version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.10
+        version: 0.5.9
       '@chainsafe/libp2p-gossipsub':
         specifier: 14.1.2
         version: 14.1.2
@@ -479,7 +479,7 @@ importers:
         version: 12.5.1
       '@posthog/react':
         specifier: ^1.10.3
-        version: 1.10.5(@types/react@19.2.18)(posthog-js@1.422.5(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)
+        version: 1.10.4(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.12(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -536,7 +536,7 @@ importers:
         version: 14.0.5
       posthog-js:
         specifier: ^1.406.2
-        version: 1.422.5(@types/react@19.2.18)(react@19.2.8)
+        version: 1.418.10
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -682,7 +682,7 @@ importers:
         version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.10
+        version: 0.5.9
       '@atproto/oauth-client-browser':
         specifier: ^0.5.0
         version: 0.5.3
@@ -739,7 +739,7 @@ importers:
         version: 1.4.0
       web-vitals:
         specifier: ^6.0.0
-        version: 6.2.1
+        version: 6.1.1
       zustand:
         specifier: ^5.0.14
         version: 5.0.15(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
@@ -920,14 +920,6 @@ packages:
     resolution: {integrity: sha512-w4JUdsJ3VXt8ewkavYh5m/u0UbxDtFdCKhNZPEpJ0U1vcWIjDaSInIexteETDgD7fBJAhidIEi30MGz1kk49ug==}
     engines: {node: '>=22'}
 
-  '@atproto/common-web@0.5.10':
-    resolution: {integrity: sha512-w4JUdsJ3VXt8ewkavYh5m/u0UbxDtFdCKhNZPEpJ0U1vcWIjDaSInIexteETDgD7fBJAhidIEi30MGz1kk49ug==}
-    engines: {node: '>=22'}
-
-  '@atproto/common-web@0.5.10':
-    resolution: {integrity: sha512-w4JUdsJ3VXt8ewkavYh5m/u0UbxDtFdCKhNZPEpJ0U1vcWIjDaSInIexteETDgD7fBJAhidIEi30MGz1kk49ug==}
-    engines: {node: '>=22'}
-
   '@atproto/common-web@0.5.9':
     resolution: {integrity: sha512-2c5C6YV8352JJz9Z5fNfcsstllaKGAb3cQW9aO7unMAGh/FzTGFq+xOwNMW2lTeagO6z530uxYm8AiSRM6O+DQ==}
     engines: {node: '>=22'}
@@ -940,8 +932,8 @@ packages:
     resolution: {integrity: sha512-BlnwQ+obL+4ZA71KH/EzZ3TY+cpSxnLiUI85mjBJIQwvDF/oN2sQA18wIj9jpduviIt2b/cMtlJuzHjzBkfXvw==}
     engines: {node: '>=22'}
 
-  '@atproto/identity@0.5.10':
-    resolution: {integrity: sha512-aan/2rKWznpZ8MKuFPmakEVQs4f5K4+yTyVhV3CnJUR8zoXM7O51tw6KTpFKljbA/IgrepFEynZCKF6/BLva7Q==}
+  '@atproto/identity@0.5.9':
+    resolution: {integrity: sha512-jkgTJc4mDGEj6El4oJfkBtd2mT+q/+xYpQ6U1RJ6IHUSZw1Aqv+3m47cI1S4/vP0zlSOZnXHjexZiHPNFqqe7w==}
     engines: {node: '>=22'}
 
   '@atproto/jwk-jose@0.2.4':
@@ -956,8 +948,8 @@ packages:
     resolution: {integrity: sha512-tq7TUDmNfe1yDfpRgdGQMJdl9TUlJmREQNCag9yg5w8Evu+TOiFiLgiOCbo7X4ouRPSgd1DpOzXbUa8UyKKMZA==}
     engines: {node: '>=22'}
 
-  '@atproto/lex-cli@0.10.11':
-    resolution: {integrity: sha512-Q+2H6VCabhSOlXvfgPx6y0qTuqKdCioAt9P8Ploy9o9EuRMnKIkz8B1ZSl+SbeHvQEXdr4iHKlqSOabmEZhQKA==}
+  '@atproto/lex-cli@0.10.10':
+    resolution: {integrity: sha512-a8v7Mkxo3MPsALr94poC72FAw04+VtASHn9oyjJypF8FRhCovkfAaQIRW/ke/MI+keAdjV6TPEoMamAH5lHd4A==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -3966,14 +3958,14 @@ packages:
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
 
-  '@posthog/browser-common@0.7.0':
-    resolution: {integrity: sha512-Kr6j9sH7NisT3fC3w7jZlonYeCFjPXZrDwHl3usFpjNEdgbHUrxPAmekEkTt+zRAa2huldFPIAmibZ3KC4hXoQ==}
+  '@posthog/browser-common@0.5.0':
+    resolution: {integrity: sha512-8DaxVZS1bQPbA514RePurLNbYjei3P4jhnC206DwVv5XThmZM3QdlsXenI2ujE3pLbgQ79hYn9o1Kda8I3WK/Q==}
 
-  '@posthog/core@1.49.2':
-    resolution: {integrity: sha512-AXHDo/4nisUg7OPG1TQNgREK7n+chBQXLQyttp7bDTDsDg2k9lV06TmnpvuNbwJs53q9mP9hjezKEZu4fYadfg==}
+  '@posthog/core@1.48.8':
+    resolution: {integrity: sha512-LAOBOjMQrQmgcbZxnubl74l2GQd5OWqxCJJ8mzcWdZRWbfO6Y/A6E3fqWjDtm68hY4LxC/bbopG60cxZW8cfWw==}
 
-  '@posthog/react@1.10.5':
-    resolution: {integrity: sha512-lehh9+mJwb6iEjRBkIvh8olnJ6RV+YgQgdgJ6fdTr+T7EMoml/G1k+q92Oil8vZPcA9Dzg+2n0xaLY5yZrY3YA==}
+  '@posthog/react@1.10.4':
+    resolution: {integrity: sha512-vL06Scc6yGIMiL9EaeRfY9w5U1+N6jc8s/6wXb50MO/yLz0XOvkt21aWswbrDJsLdfplqd/U6BSl/mZumserlw==}
     peerDependencies:
       '@types/react': '>=16.8.0'
       posthog-js: '>=1.257.2'
@@ -3982,8 +3974,8 @@ packages:
       '@types/react':
         optional: true
 
-  '@posthog/types@1.407.1':
-    resolution: {integrity: sha512-WhbkXPC2rgylXqmxHqv70ffI3k+KxyR6s7DBIfr5NvIqHkxp6v0pk31D/jbz0DNVbzwkLjyll2pxr4FNbJiYzg==}
+  '@posthog/types@1.405.1':
+    resolution: {integrity: sha512-JvaR4ChUKUk7qSTG58vKN2Br6es9riFF5mvlu7YGcwbB476vfyTO0o/TBh+zE88QhsfxnE5Tr/jKxI+e1v3Q5A==}
 
   '@react-native/assets-registry@0.86.0':
     resolution: {integrity: sha512-nIaXbm2jX1OTYp0qbviJ3O6KZivoE8z3BnhUQ2LsqfZSWRoOK/n1qsiAr6oALiNKWnXY3j2KPwtYORnZzp8xew==}
@@ -9712,16 +9704,8 @@ packages:
     resolution: {integrity: sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.422.5:
-    resolution: {integrity: sha512-p1CLXsGoHwNkdElxXtd1KzNP/df8sIrp8CRII+lAPRhaHdpi1HfNxrybqLSzWvJLw2w5Nou5vpXfGABUI5BVwA==}
-    peerDependencies:
-      '@types/react': '>=16.8.0'
-      react: '>=16.8.0'
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-      react:
-        optional: true
+  posthog-js@1.418.10:
+    resolution: {integrity: sha512-XMvmmnuFoesSPjFo+wvzXkvuzYqIho8CVqxugG1Wt768offFARYNZDd1/xWfm9vk/pJTJ4RhUEHRzLpggmGx9Q==}
 
   postman-code-generators@2.1.1:
     resolution: {integrity: sha512-+egQK1Jf9a92QP23vRTKcDLOthIQmI7WI4czEsZq/wgguLMnVHJ26KlT8AVtpAdVw28hqUbHwicerYxRWCfjoA==}
@@ -11388,8 +11372,8 @@ packages:
   web-vitals@6.0.0:
     resolution: {integrity: sha512-Guaibvy/+uNtL6Bsu4jmMJGzuSl91oeRH5iO9pPRbYftnFUr3yqT1TUNX/OE4o9HexuEMU3Kb/Wg7iKhlffZUA==}
 
-  web-vitals@6.2.1:
-    resolution: {integrity: sha512-rLcLXA2sx6+9dE88NHFubwTtGxpK4yYBLj6qHPdFoCaLr0cXGb4efOqtKLlm4loGA4OEKHIQKMKzZkKyOh5ctw==}
+  web-vitals@6.1.1:
+    resolution: {integrity: sha512-r93gKnR6ZC2O8F3JrS0AAGIQ0v0OhXuyg4DAj2oG7K+GPkwXfUSc3ZcWeu50AsV5yIc6xxnTjERipJ6EvSw2vg==}
 
   webcrypto-core@1.9.2:
     resolution: {integrity: sha512-gsXecm82UQNlTBURJGuqOWy1Ww08S3kZUcr3aOJS02Pk0xLtkfeUAVC0u0xhgdonFme80edSJUIJyuvL/7250Q==}
@@ -11950,9 +11934,9 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
-  '@atproto/identity@0.5.10':
+  '@atproto/identity@0.5.9':
     dependencies:
-      '@atproto/common-web': 0.5.10
+      '@atproto/common-web': 0.5.9
       '@atproto/crypto': 0.5.4
 
   '@atproto/jwk-jose@0.2.4':
@@ -11971,10 +11955,10 @@ snapshots:
       multiformats: 13.4.2
       zod: 3.25.76
 
-  '@atproto/lex-cli@0.10.11':
+  '@atproto/lex-cli@0.10.10':
     dependencies:
-      '@atproto/lexicon': 0.7.12
-      '@atproto/syntax': 0.7.5
+      '@atproto/lexicon': 0.7.11
+      '@atproto/syntax': 0.7.4
       chalk: 4.1.2
       commander: 9.5.0
       prettier: 3.9.6
@@ -15885,23 +15869,23 @@ snapshots:
 
   '@poppinss/exception@1.2.3': {}
 
-  '@posthog/browser-common@0.7.0':
+  '@posthog/browser-common@0.5.0':
     dependencies:
-      '@posthog/core': 1.49.2
-      '@posthog/types': 1.407.1
+      '@posthog/core': 1.48.8
+      '@posthog/types': 1.405.1
 
-  '@posthog/core@1.49.2':
+  '@posthog/core@1.48.8':
     dependencies:
-      '@posthog/types': 1.407.1
+      '@posthog/types': 1.405.1
 
-  '@posthog/react@1.10.5(@types/react@19.2.18)(posthog-js@1.422.5(@types/react@19.2.18)(react@19.2.8))(react@19.2.8)':
+  '@posthog/react@1.10.4(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)':
     dependencies:
-      posthog-js: 1.422.5(@types/react@19.2.18)(react@19.2.8)
+      posthog-js: 1.418.10
       react: 19.2.8
     optionalDependencies:
       '@types/react': 19.2.18
 
-  '@posthog/types@1.407.1': {}
+  '@posthog/types@1.405.1': {}
 
   '@react-native/assets-registry@0.86.0': {}
 
@@ -22252,11 +22236,11 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  posthog-js@1.422.5(@types/react@19.2.18)(react@19.2.8):
+  posthog-js@1.418.10:
     dependencies:
-      '@posthog/browser-common': 0.7.0
-      '@posthog/core': 1.49.2
-      '@posthog/types': 1.407.1
+      '@posthog/browser-common': 0.5.0
+      '@posthog/core': 1.48.8
+      '@posthog/types': 1.405.1
       core-js: 3.50.0
       dompurify: 3.4.14
       fflate: 0.4.9
@@ -22264,9 +22248,6 @@ snapshots:
       query-selector-shadow-dom: 1.0.1
       web-vitals: 5.3.0
       web-vitals-soft-navs: web-vitals@6.0.0
-    optionalDependencies:
-      '@types/react': 19.2.18
-      react: 19.2.8
     transitivePeerDependencies:
       - preact-render-to-string
 
@@ -24165,7 +24146,7 @@ snapshots:
 
   web-vitals@6.0.0: {}
 
-  web-vitals@6.2.1: {}
+  web-vitals@6.1.1: {}
 
   webcrypto-core@1.9.2:
     dependencies:
