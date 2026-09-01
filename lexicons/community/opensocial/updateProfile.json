@@ -1,0 +1,43 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.updateProfile",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Replace the community's profile: name, description, and join policy. Avatar is set separately via uploadImage. Requires service-auth. Requires the `community.configure` action.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org",
+                        "name"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the community whose profile to update."
+                        },
+                        "name": {
+                            "type": "string",
+                            "maxLength": 256
+                        },
+                        "description": {
+                            "type": "string",
+                            "maxLength": 2048
+                        },
+                        "joinPolicy": {
+                            "type": "string",
+                            "knownValues": [
+                                "community.opensocial.profile#open",
+                                "community.opensocial.profile#invite",
+                                "community.opensocial.profile#request"
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

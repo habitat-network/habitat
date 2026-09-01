@@ -1,0 +1,37 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.revokeInvite",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Retract a pending invite before it is accepted. Requires service-auth. Requires the `invite` action.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org",
+                        "id"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the community the invite belongs to."
+                        },
+                        "id": {
+                            "type": "string",
+                            "description": "Id of the invite to revoke, from community.opensocial.defs#inviteView."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "InviteNotFound",
+                    "description": "No pending invite exists with this id."
+                }
+            ]
+        }
+    }
+}

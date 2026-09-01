@@ -1,0 +1,70 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.createSpace",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Create a modality-specific space under the community DID and index it with a community.opensocial.space record. Requires service-auth. Requires the `space.create` action.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org",
+                        "type"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the community to create the space under."
+                        },
+                        "type": {
+                            "type": "string",
+                            "format": "nsid",
+                            "description": "The NSID of the space's type, describing its modality."
+                        },
+                        "skey": {
+                            "type": "string",
+                            "maxLength": 512,
+                            "description": "The space key. If not provided, one will be auto-generated (TID)."
+                        },
+                        "roles": {
+                            "type": "array",
+                            "description": "Record keys of the community.opensocial.role records that may read the space, written into its community.opensocial.access record.",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "format": "at-uri",
+                            "description": "URI of the created space."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "SpaceAlreadyExists",
+                    "description": "A space with this type and skey already exists under the community DID."
+                },
+                {
+                    "name": "InvalidType",
+                    "description": "The provided space type NSID is not a recognized or valid space type."
+                }
+            ]
+        }
+    }
+}

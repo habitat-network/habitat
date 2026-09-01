@@ -18,7 +18,7 @@ import (
 // also where NewOrg's bootstrap behavior is asserted; subtests then reuse that
 // org.
 func TestStore(t *testing.T) {
-	s, spacesStore := opensocial_testutil.NewTestStore(t)
+	s := opensocial_testutil.NewTestStore(t)
 	creator := syntax.DID("did:plc:creator")
 
 	orgDIDStr, err := s.NewOrg(t.Context(), "acme", creator)
@@ -32,7 +32,7 @@ func TestStore(t *testing.T) {
 	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
 
 	// The about space carries the org's profile.
-	_, err = spacesStore.GetRecord(
+	_, err = s.SpaceStore.GetRecord(
 		t.Context(),
 		habitat_syntax.ConstructSpaceURI(org, "community.opensocial.about", "self"),
 		org, "community.opensocial.profile", "self",
@@ -41,11 +41,11 @@ func TestStore(t *testing.T) {
 
 	// The members space carries both bootstrap roles.
 	membersSpace := habitat_syntax.ConstructSpaceURI(org, "community.opensocial.members", "self")
-	_, err = spacesStore.GetRecord(
+	_, err = s.SpaceStore.GetRecord(
 		t.Context(), membersSpace, org, "community.opensocial.role", opensocial.AdminRoleRkey,
 	)
 	require.NoError(t, err)
-	_, err = spacesStore.GetRecord(
+	_, err = s.SpaceStore.GetRecord(
 		t.Context(), membersSpace, org, "community.opensocial.role", opensocial.MemberRoleRkey,
 	)
 	require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestStore(t *testing.T) {
 
 		require.NoError(t, s.UpdateProfile(t.Context(), org, "Acme Corp", "We make widgets", ""))
 
-		record, err := spacesStore.GetRecord(
+		record, err := s.SpaceStore.GetRecord(
 			t.Context(), aboutSpace, org, "community.opensocial.profile", "self",
 		)
 		require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestStore(t *testing.T) {
 		// Clearing the description removes the field rather than leaving an
 		// empty string.
 		require.NoError(t, s.UpdateProfile(t.Context(), org, "Acme Corp", "", ""))
-		record, err = spacesStore.GetRecord(
+		record, err = s.SpaceStore.GetRecord(
 			t.Context(), aboutSpace, org, "community.opensocial.profile", "self",
 		)
 		require.NoError(t, err)
@@ -89,12 +89,12 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, spaceURI)
 
-		exists, err := spacesStore.CheckSpaceExists(t.Context(), spaceURI)
+		exists, err := s.SpaceStore.CheckSpaceExists(t.Context(), spaceURI)
 		require.NoError(t, err)
 		require.True(t, exists)
 
 		// The space carries an access record with the requested roles.
-		record, err := spacesStore.GetRecord(
+		record, err := s.SpaceStore.GetRecord(
 			t.Context(), spaceURI, org, "community.opensocial.access", "self",
 		)
 		require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestStore(t *testing.T) {
 		// The avatar is attached to the org's profile record, preserving the
 		// rest of the record (here the name set by UpdateProfile above).
 		aboutSpace := habitat_syntax.ConstructSpaceURI(org, "community.opensocial.about", "self")
-		record, err := spacesStore.GetRecord(
+		record, err := s.SpaceStore.GetRecord(
 			t.Context(), aboutSpace, org, "community.opensocial.profile", "self",
 		)
 		require.NoError(t, err)
