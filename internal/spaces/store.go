@@ -2,7 +2,6 @@ package spaces
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -123,13 +122,17 @@ type Store interface {
 	) ([]RepoInfo, error)
 
 	// Record operations
+	//
+	// PutRecord takes the record value as a [MarshaledRecord] — callers must
+	// validate and marshal user input via [MarshalRecord] before calling
+	// PutRecord.
 	PutRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
-		value map[string]any,
+		value MarshaledRecord,
 	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
 	GetRecord(
 		ctx context.Context,
@@ -464,7 +467,7 @@ func (s *store) PutRecord(
 	repo syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
-	value map[string]any,
+	value MarshaledRecord,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
 	ctx, span := tracer.Start(ctx, "PutRecord", trace.WithAttributes(
 		attribute.String("space", spaceURI.String()),
@@ -478,28 +481,17 @@ func (s *store) PutRecord(
 	} else if !ok {
 		return "", nil, ErrSpaceNotFound
 	}
-	// UnmarshalJSON both validates against the atproto data model and parses
-	// blob/link/bytes fields into their structured atdata types, so the same
-	// parsed value can be used to extract blob references below.
-	marshalled, err := json.Marshal(value)
+	span.SetAttributes(attribute.Int("cbor_bytes", len(value)))
+	// value is already validated and CBOR-encoded by [MarshalRecord]; decode
+	// it back to structured atdata types so the blobs it references can be
+	// extracted for the ref table below.
+	parsed, err := atdata.UnmarshalCBOR(value)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
-	}
-	parsed, err := atdata.UnmarshalJSON(marshalled)
-	if err != nil {
-		return "", nil, fmt.Errorf("%w: %w", ErrInvalidRecord, err)
-	}
-	bytes, err := atdata.MarshalCBOR(parsed)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
+		return "", nil, fmt.Errorf("failed to decode record: %w", err)
 	}
 	blobs := atdata.ExtractBlobs(parsed)
-	span.SetAttributes(attribute.Int("cbor_bytes", len(bytes)))
-	if len(bytes) > atdata.MAX_CBOR_RECORD_SIZE {
-		return "", nil, ErrRecordTooLarge
-	}
 
-	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
+	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(value)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
@@ -580,7 +572,7 @@ func (s *store) PutRecord(
 			Space:      spaceURI,
 			Collection: collection,
 			Rkey:       rkey,
-			Value:      bytes,
+			Value:      value,
 			Rev:        tid,
 			PrevCid:    existing.Cid,
 			Cid:        newCidStr,
