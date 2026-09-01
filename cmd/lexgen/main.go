@@ -459,7 +459,7 @@ func writeStructField(
 	lexSchema *lex.Schema,
 ) {
 	goType := schemaToGoType(propSchema, lexiconID, lexSchema)
-	if !isRequired && propSchema != nil && propSchema.Type == "ref" {
+	if !isRequired && propSchema != nil && (propSchema.Type == "ref" || propSchema.Type == "blob") {
 		goType = "*" + goType
 	}
 	jsonTag := propName

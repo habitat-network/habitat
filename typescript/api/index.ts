@@ -26,6 +26,7 @@ import * as CommunityLexiconLocationFsq from './types/community/lexicon/location
 import * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 import * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 import * as CommunityOpensocialAcceptance from './types/community/opensocial/acceptance.js'
+import * as CommunityOpensocialAccess from './types/community/opensocial/access.js'
 import * as CommunityOpensocialMembership from './types/community/opensocial/membership.js'
 import * as CommunityOpensocialProfile from './types/community/opensocial/profile.js'
 import * as CommunityOpensocialRole from './types/community/opensocial/role.js'
@@ -135,6 +136,7 @@ export * as CommunityLexiconLocationFsq from './types/community/lexicon/location
 export * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 export * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 export * as CommunityOpensocialAcceptance from './types/community/opensocial/acceptance.js'
+export * as CommunityOpensocialAccess from './types/community/opensocial/access.js'
 export * as CommunityOpensocialMembership from './types/community/opensocial/membership.js'
 export * as CommunityOpensocialProfile from './types/community/opensocial/profile.js'
 export * as CommunityOpensocialRole from './types/community/opensocial/role.js'
@@ -684,6 +686,7 @@ export class CommunityLexiconLocationNS {
 export class CommunityOpensocialNS {
   _client: XrpcClient
   acceptance: CommunityOpensocialAcceptanceRecord
+  access: CommunityOpensocialAccessRecord
   membership: CommunityOpensocialMembershipRecord
   profile: CommunityOpensocialProfileRecord
   role: CommunityOpensocialRoleRecord
@@ -692,6 +695,7 @@ export class CommunityOpensocialNS {
   constructor(client: XrpcClient) {
     this._client = client
     this.acceptance = new CommunityOpensocialAcceptanceRecord(client)
+    this.access = new CommunityOpensocialAccessRecord(client)
     this.membership = new CommunityOpensocialMembershipRecord(client)
     this.profile = new CommunityOpensocialProfileRecord(client)
     this.role = new CommunityOpensocialRoleRecord(client)
@@ -782,6 +786,94 @@ export class CommunityOpensocialAcceptanceRecord {
       'com.atproto.repo.deleteRecord',
       undefined,
       { collection: 'community.opensocial.acceptance', ...params },
+      { headers },
+    )
+  }
+}
+
+export class CommunityOpensocialAccessRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: CommunityOpensocialAccess.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'community.opensocial.access',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{
+    uri: string
+    cid: string
+    value: CommunityOpensocialAccess.Record
+  }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'community.opensocial.access',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<CommunityOpensocialAccess.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'community.opensocial.access'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      {
+        collection,
+        rkey: 'self',
+        ...params,
+        record: { ...record, $type: collection },
+      },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<CommunityOpensocialAccess.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'community.opensocial.access'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'community.opensocial.access', ...params },
       { headers },
     )
   }

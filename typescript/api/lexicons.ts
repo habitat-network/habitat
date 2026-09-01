@@ -903,6 +903,36 @@ export const schemaDict = {
       },
     },
   },
+  CommunityOpensocialAccess: {
+    lexicon: 1,
+    id: 'community.opensocial.access',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          'Specifies which roles may read this space. Lives in any space belonging to the community (an opensocial space or a modality-specific one), authored by the community DID. Read access is enforced by the space host.',
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['roles'],
+          properties: {
+            roles: {
+              type: 'array',
+              description:
+                'Record keys of the community.opensocial.role records that may read this space.',
+              items: {
+                type: 'string',
+              },
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
   CommunityOpensocialMembership: {
     lexicon: 1,
     id: 'community.opensocial.membership',
@@ -5418,6 +5448,7 @@ export const ids = {
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
   CommunityOpensocialAcceptance: 'community.opensocial.acceptance',
+  CommunityOpensocialAccess: 'community.opensocial.access',
   CommunityOpensocialMembership: 'community.opensocial.membership',
   CommunityOpensocialProfile: 'community.opensocial.profile',
   CommunityOpensocialRole: 'community.opensocial.role',
