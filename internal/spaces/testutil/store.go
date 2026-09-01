@@ -89,11 +89,11 @@ func NewTestStore(t *testing.T, opts ...Option) spaces.Store {
 
 // MustMarshalRecord validates and CBOR-encodes value the way a real
 // PutRecord caller must before calling the store's PutRecord.
-func MustMarshalRecord(t *testing.T, value any) []byte {
+func MustMarshalRecord(t *testing.T, value any) spaces.MarshaledRecord {
 	t.Helper()
-	bytes, err := spaces.MarshalRecord(value)
+	record, err := spaces.MarshalRecord(value)
 	require.NoError(t, err)
-	return bytes
+	return record
 }
 
 // noMemberSigner never resolves a habitat-managed signer, so Authority.Build

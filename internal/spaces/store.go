@@ -109,16 +109,16 @@ type Store interface {
 
 	// Record operations
 	//
-	// PutRecord takes the record value as already-validated CBOR bytes
-	// (see [MarshalRecord]) — it is the caller's responsibility to validate
-	// and marshal user input before calling PutRecord.
+	// PutRecord takes the record value as a [MarshaledRecord] — callers must
+	// validate and marshal user input via [MarshalRecord] before calling
+	// PutRecord.
 	PutRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
-		value []byte,
+		value MarshaledRecord,
 	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
 	GetRecord(
 		ctx context.Context,
@@ -444,7 +444,7 @@ func (s *store) PutRecord(
 	repo syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
-	value []byte,
+	value MarshaledRecord,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
 	ctx, span := tracer.Start(ctx, "PutRecord", trace.WithAttributes(
 		attribute.String("space", spaceURI.String()),

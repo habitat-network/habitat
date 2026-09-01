@@ -7,11 +7,16 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atdata"
 )
 
+// MarshaledRecord is a record value that has been validated against the
+// atproto data model and CBOR-encoded by [MarshalRecord]. PutRecord only
+// accepts this type so callers can't pass unvalidated bytes by mistake.
+type MarshaledRecord []byte
+
 // MarshalRecord validates value against the atproto data model and encodes
 // it as the CBOR bytes PutRecord expects. Callers must run their input
 // through this (or otherwise produce equivalent, validated CBOR) before
 // calling PutRecord.
-func MarshalRecord(value any) ([]byte, error) {
+func MarshalRecord(value any) (MarshaledRecord, error) {
 	jsonBytes, err := json.Marshal(value)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal value: %w", err)
@@ -28,5 +33,5 @@ func MarshalRecord(value any) ([]byte, error) {
 	if len(bytes) > atdata.MAX_CBOR_RECORD_SIZE {
 		return nil, ErrRecordTooLarge
 	}
-	return bytes, nil
+	return MarshaledRecord(bytes), nil
 }
