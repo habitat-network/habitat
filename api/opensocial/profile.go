@@ -9,11 +9,11 @@ import (
 
 // CommunityOpensocialProfile represents a community.opensocial.profile record
 type CommunityOpensocialProfile struct {
-	LexiconTypeID string      `json:"$type"`
-	Avatar        atdata.Blob `json:"avatar,omitempty"`
-	Description   string      `json:"description,omitempty"`
-	Name          string      `json:"name"`
-	UpdatedAt     string      `json:"updatedAt,omitempty"`
+	LexiconTypeID string       `json:"$type"`
+	Avatar        *atdata.Blob `json:"avatar,omitempty"`
+	Description   string       `json:"description,omitempty"`
+	Name          string       `json:"name"`
+	UpdatedAt     string       `json:"updatedAt,omitempty"`
 }
 
 // MarshalJSON sets $type to "community.opensocial.profile" before encoding.

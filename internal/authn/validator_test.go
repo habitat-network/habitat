@@ -12,7 +12,9 @@ import (
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/perms"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -47,7 +49,12 @@ func TestValidator(t *testing.T) {
 	t.Cleanup(func() { _ = fga.Close() })
 
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
-	ps := perms.NewStore(db, sp, fga)
+	hve, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	blobStore := spaces_testutil.NewTestBlobStore(t)
+	os, err := opensocial.NewStore(db, sp, blobStore, hve)
+	require.NoError(t, err)
+	ps := perms.NewStore(db, sp, fga, os)
 
 	v := authn.NewValidator(
 		oauth,

@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 
@@ -35,7 +37,12 @@ func newTestStore(t *testing.T) *Store {
 		spaces_testutil.WithDB(db),
 		spaces_testutil.WithFGA(fga),
 	)
-	permsStore := perms.NewStore(db, spacesStore, fga)
+	hve, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	blobStore := spaces_testutil.NewTestBlobStore(t)
+	os, err := opensocial.NewStore(db, spacesStore, blobStore, hve)
+	require.NoError(t, err)
+	permsStore := perms.NewStore(db, spacesStore, fga, os)
 	return NewStore(db, spacesStore, permsStore)
 }
 
@@ -270,7 +277,12 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 		spaces_testutil.WithDB(db),
 		spaces_testutil.WithFGA(fga),
 	)
-	permsStore := perms.NewStore(db, spacesStore, fga)
+	hve, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	blobStore := spaces_testutil.NewTestBlobStore(t)
+	os, err := opensocial.NewStore(db, spacesStore, blobStore, hve)
+	require.NoError(t, err)
+	permsStore := perms.NewStore(db, spacesStore, fga, os)
 	s := NewStore(db, spacesStore, permsStore)
 
 	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "doomed")

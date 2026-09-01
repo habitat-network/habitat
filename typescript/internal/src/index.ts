@@ -2,6 +2,8 @@
 export { default as AuthForm } from "./AuthForm";
 export { UserAvatar } from "./components/UserAvatar";
 export type { UserAvatarProps } from "./components/UserAvatar";
+export { OrgAvatar } from "./components/OrgAvatar";
+export type { OrgAvatarProps } from "./components/OrgAvatar";
 export { default as UserCombobox } from "./components/UserCombobox";
 export { SingleHandleCombobox } from "./components/SingleHandleCombobox";
 export type { Actor } from "./types/Actor";

@@ -40,6 +40,8 @@ import (
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/opensocial"
+	opensocial_server "github.com/habitat-network/habitat/internal/opensocial/server"
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -341,7 +343,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	defer func() { _ = blobBucket.Close() }()
 	blobStore := spaces.NewBlobStore(blobBucket)
 
-	permStore := perms.NewStore(db, spacesStore, fgaStore)
+	opensocialStore, err := opensocial.NewStore(
+		db.WithContext(startupCtx), spacesStore, blobStore, hive,
+	)
+	if err != nil {
+		return fmt.Errorf("setup opensocial store: %w", err)
+	}
+
+	permStore := perms.NewStore(db, spacesStore, fgaStore, opensocialStore)
 	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
 	validator := authn.NewValidator(
 		oauthServer,
@@ -410,6 +419,19 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.issueInviteToken", orgServer.IssueInviteToken)
 	mux.HandleFunc("/xrpc/network.habitat.org.mintMemberIdentity", orgServer.MintMemberIdentity)
 	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
+
+	// Server for opensocial community routes
+	opensocialServer := opensocial_server.NewServer(opensocialStore, validator)
+	mux.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", opensocialServer.CreateOrg)
+	mux.HandleFunc("/xrpc/community.opensocial.updateProfile", opensocialServer.UpdateProfile)
+	mux.HandleFunc("/xrpc/community.opensocial.uploadImage", opensocialServer.UploadImage)
+	mux.HandleFunc("/xrpc/community.opensocial.createInvite", opensocialServer.CreateInvite)
+	mux.HandleFunc("/xrpc/community.opensocial.listInvites", opensocialServer.ListInvites)
+	mux.HandleFunc(
+		"/xrpc/community.opensocial.listPendingInvites", opensocialServer.ListPendingInvites,
+	)
+	mux.HandleFunc("/xrpc/community.opensocial.revokeInvite", opensocialServer.RevokeInvite)
+	mux.HandleFunc("/xrpc/community.opensocial.requestJoin", opensocialServer.RequestJoin)
 
 	cliqueServer := clique.NewServer(cliqueStore, validator)
 	pearServer := pear.NewServer(

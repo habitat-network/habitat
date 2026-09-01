@@ -252,28 +252,7 @@ func generateQueryCode(
 		typeName += toFieldName(defName)
 	}
 
-	// Generate input params struct
-	if defData.Parameters != nil {
-		fmt.Fprintf(&builder, "// %sParams represents the input parameters for %s\n", typeName, id)
-		fmt.Fprintf(&builder, "type %sParams struct {\n", typeName)
-
-		if defData.Parameters.Properties != nil {
-			// Sort property names for deterministic output
-			propNames := make([]string, 0, len(defData.Parameters.Properties))
-			for propName := range defData.Parameters.Properties {
-				propNames = append(propNames, propName)
-			}
-			slices.Sort(propNames)
-
-			for _, propName := range propNames {
-				propSchema := defData.Parameters.Properties[propName]
-				isRequired := slices.Contains(defData.Parameters.Required, propName)
-				writeStructField(&builder, propName, propSchema, isRequired, id, schema)
-			}
-		}
-
-		builder.WriteString("}\n\n")
-	}
+	generateParamsCode(&builder, typeName, id, defData, schema)
 
 	// Generate output struct
 	if defData.Output != nil && defData.Output.Schema != nil {
@@ -301,6 +280,40 @@ func generateQueryCode(
 	return builder.String(), nil
 }
 
+// generateParamsCode emits a <TypeName>Params struct from defData.Parameters,
+// shared by queries and procedures — both support a `parameters` field per
+// https://atproto.com/specs/lexicon.
+func generateParamsCode(
+	builder *strings.Builder,
+	typeName string,
+	id string,
+	defData *lex.TypeSchema,
+	schema *lex.Schema,
+) {
+	if defData.Parameters == nil {
+		return
+	}
+	fmt.Fprintf(builder, "// %sParams represents the input parameters for %s\n", typeName, id)
+	fmt.Fprintf(builder, "type %sParams struct {\n", typeName)
+
+	if defData.Parameters.Properties != nil {
+		// Sort property names for deterministic output
+		propNames := make([]string, 0, len(defData.Parameters.Properties))
+		for propName := range defData.Parameters.Properties {
+			propNames = append(propNames, propName)
+		}
+		slices.Sort(propNames)
+
+		for _, propName := range propNames {
+			propSchema := defData.Parameters.Properties[propName]
+			isRequired := slices.Contains(defData.Parameters.Required, propName)
+			writeStructField(builder, propName, propSchema, isRequired, id, schema)
+		}
+	}
+
+	builder.WriteString("}\n\n")
+}
+
 func generateProcedureCode(
 	id string,
 	defName string,
@@ -313,6 +326,8 @@ func generateProcedureCode(
 	if defName != "main" {
 		typeName += toFieldName(defName)
 	}
+
+	generateParamsCode(&builder, typeName, id, defData, schema)
 
 	// Generate input struct
 	if defData.Input != nil && defData.Input.Schema != nil {
@@ -446,10 +461,13 @@ func generateObjectCode(id string, defName string, defData *lex.TypeSchema) (str
 }
 
 // writeStructField emits a single struct field for a lexicon property.
-// Optional refs are pointer-wrapped so an absent value (the field omitted
-// from the response entirely, e.g. listRepoOps' commit) can be represented
-// distinctly from the referenced type's zero value, which for a lexgen
-// record/object with required fields is not marshalable as JSON.
+// Optional refs and blobs are pointer-wrapped so an absent value (the field
+// omitted from the response entirely, e.g. listRepoOps' commit, or an unset
+// profile avatar) can be represented distinctly from the underlying type's
+// zero value. `omitempty` alone doesn't do this for a struct type: encoding/json
+// only treats pointers, slices, maps, and basic types as "empty", so a
+// zero-value struct still gets marshaled — and atdata.Blob's custom
+// MarshalJSON errors on a zero-value (nil CID) blob rather than encoding it.
 func writeStructField(
 	builder *strings.Builder,
 	propName string,
@@ -459,7 +477,7 @@ func writeStructField(
 	lexSchema *lex.Schema,
 ) {
 	goType := schemaToGoType(propSchema, lexiconID, lexSchema)
-	if !isRequired && propSchema != nil && propSchema.Type == "ref" {
+	if !isRequired && propSchema != nil && (propSchema.Type == "ref" || propSchema.Type == "blob") {
 		goType = "*" + goType
 	}
 	jsonTag := propName

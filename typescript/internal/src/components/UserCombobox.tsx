@@ -19,16 +19,17 @@ import { searchActorsTypeahead } from "../bskyPublicApi";
 interface UserComboboxProps {
   value?: Actor[];
   onValueChange: (value: Actor[]) => void;
+  identityResolverUrl?: string;
 }
 
-const UserCombobox = ({ value, onValueChange }: UserComboboxProps) => {
+const UserCombobox = ({ value, onValueChange, identityResolverUrl }: UserComboboxProps) => {
   const [searchValue, setSearchValue] = useState("");
   const debouncedSearchValue = useDebounce(searchValue, 250);
   const anchor = useComboboxAnchor();
 
   const { data: suggestions = [] } = useQuery<Actor[]>({
     queryKey: ["actorSearch", debouncedSearchValue],
-    queryFn: () => searchActorsTypeahead(debouncedSearchValue),
+    queryFn: () => searchActorsTypeahead(debouncedSearchValue, { identityResolverUrl }),
     enabled: !!debouncedSearchValue.trim(),
   });
 

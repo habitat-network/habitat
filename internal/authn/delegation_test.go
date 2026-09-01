@@ -12,6 +12,8 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -34,7 +36,12 @@ func newTestPermsStore(t *testing.T) (perms.Store, spaces.Store) {
 
 	db := db_testutil.NewDB(t)
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
-	return perms.NewStore(db, sp, fga), sp
+	hve, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	blobStore := spaces_testutil.NewTestBlobStore(t)
+	os, err := opensocial.NewStore(db, sp, blobStore, hve)
+	require.NoError(t, err)
+	return perms.NewStore(db, sp, fga, os), sp
 }
 
 // newTestSpace creates the space used throughout this test's subtests,

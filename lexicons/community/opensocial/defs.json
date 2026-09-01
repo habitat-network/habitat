@@ -1,0 +1,44 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.defs",
+    "defs": {
+        "inviteView": {
+            "type": "object",
+            "description": "A pending invite to join the community, tracked in the org's invite table (not yet a repo record).",
+            "required": [
+                "id",
+                "org",
+                "invitee",
+                "roles",
+                "createdAt"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Opaque id of the invite, used to revoke it."
+                },
+                "org": {
+                    "type": "string",
+                    "format": "did",
+                    "description": "DID of the community the invite is for."
+                },
+                "invitee": {
+                    "type": "string",
+                    "format": "did",
+                    "description": "DID of the invited user."
+                },
+                "roles": {
+                    "type": "array",
+                    "description": "Record keys of the community.opensocial.role records the invitee will hold once they accept.",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "datetime"
+                }
+            }
+        }
+    }
+}

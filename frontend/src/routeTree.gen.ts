@@ -27,6 +27,8 @@ import { Route as RequireAuthCollectionsIndexRouteImport } from './routes/_requi
 import { Route as RequireAuthCollectionsCollectionRouteImport } from './routes/_requireAuth/collections/$collection'
 import { Route as RequireAuthGroupsIndexRouteImport } from './routes/_requireAuth/groups/index'
 import { Route as RequireAuthGroupsGroupRouteImport } from './routes/_requireAuth/groups/$group'
+import { Route as RequireAuthOpensocialIndexRouteImport } from './routes/_requireAuth/opensocial/index'
+import { Route as RequireAuthOpensocialOrgRouteImport } from './routes/_requireAuth/opensocial/$org'
 import { Route as RequireAuthOrgIndexRouteImport } from './routes/_requireAuth/org/index'
 import { Route as RequireAuthPearTestIndexRouteImport } from './routes/_requireAuth/pear-test/index'
 import { Route as RequireAuthPearTestViewRouteImport } from './routes/_requireAuth/pear-test/view'
@@ -136,6 +138,18 @@ const RequireAuthGroupsGroupRoute = RequireAuthGroupsGroupRouteImport.update({
   path: '/groups/$group',
   getParentRoute: () => RequireAuthRoute,
 } as any)
+const RequireAuthOpensocialIndexRoute =
+  RequireAuthOpensocialIndexRouteImport.update({
+    id: '/opensocial/',
+    path: '/opensocial/',
+    getParentRoute: () => RequireAuthRoute,
+  } as any)
+const RequireAuthOpensocialOrgRoute =
+  RequireAuthOpensocialOrgRouteImport.update({
+    id: '/opensocial/$org',
+    path: '/opensocial/$org',
+    getParentRoute: () => RequireAuthRoute,
+  } as any)
 const RequireAuthOrgIndexRoute = RequireAuthOrgIndexRouteImport.update({
   id: '/org/',
   path: '/org/',
@@ -249,12 +263,14 @@ export interface FileRoutesByFullPath {
   '/org/join': typeof OrgJoinRoute
   '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
   '/groups/$group': typeof RequireAuthGroupsGroupRoute
+  '/opensocial/$org': typeof RequireAuthOpensocialOrgRoute
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
   '/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
   '/blob-test/': typeof RequireAuthBlobTestIndexRoute
   '/collections/': typeof RequireAuthCollectionsIndexRoute
   '/groups/': typeof RequireAuthGroupsIndexRoute
+  '/opensocial/': typeof RequireAuthOpensocialIndexRoute
   '/org/': typeof RequireAuthOrgIndexRoute
   '/pear-test/': typeof RequireAuthPearTestIndexRoute
   '/permissions/': typeof RequireAuthPermissionsIndexRoute
@@ -283,11 +299,13 @@ export interface FileRoutesByTo {
   '/': typeof RequireAuthIndexRoute
   '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
   '/groups/$group': typeof RequireAuthGroupsGroupRoute
+  '/opensocial/$org': typeof RequireAuthOpensocialOrgRoute
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
   '/blob-test': typeof RequireAuthBlobTestIndexRoute
   '/collections': typeof RequireAuthCollectionsIndexRoute
   '/groups': typeof RequireAuthGroupsIndexRoute
+  '/opensocial': typeof RequireAuthOpensocialIndexRoute
   '/org': typeof RequireAuthOrgIndexRoute
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions': typeof RequireAuthPermissionsIndexRoute
@@ -319,12 +337,14 @@ export interface FileRoutesById {
   '/_requireAuth/': typeof RequireAuthIndexRoute
   '/_requireAuth/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
   '/_requireAuth/groups/$group': typeof RequireAuthGroupsGroupRoute
+  '/_requireAuth/opensocial/$org': typeof RequireAuthOpensocialOrgRoute
   '/_requireAuth/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/_requireAuth/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
   '/_requireAuth/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
   '/_requireAuth/blob-test/': typeof RequireAuthBlobTestIndexRoute
   '/_requireAuth/collections/': typeof RequireAuthCollectionsIndexRoute
   '/_requireAuth/groups/': typeof RequireAuthGroupsIndexRoute
+  '/_requireAuth/opensocial/': typeof RequireAuthOpensocialIndexRoute
   '/_requireAuth/org/': typeof RequireAuthOrgIndexRoute
   '/_requireAuth/pear-test/': typeof RequireAuthPearTestIndexRoute
   '/_requireAuth/permissions/': typeof RequireAuthPermissionsIndexRoute
@@ -356,12 +376,14 @@ export interface FileRouteTypes {
     | '/org/join'
     | '/collections/$collection'
     | '/groups/$group'
+    | '/opensocial/$org'
     | '/pear-test/view'
     | '/permissions/lexicons'
     | '/permissions/people'
     | '/blob-test/'
     | '/collections/'
     | '/groups/'
+    | '/opensocial/'
     | '/org/'
     | '/pear-test/'
     | '/permissions/'
@@ -390,11 +412,13 @@ export interface FileRouteTypes {
     | '/'
     | '/collections/$collection'
     | '/groups/$group'
+    | '/opensocial/$org'
     | '/pear-test/view'
     | '/permissions/people'
     | '/blob-test'
     | '/collections'
     | '/groups'
+    | '/opensocial'
     | '/org'
     | '/pear-test'
     | '/permissions'
@@ -425,12 +449,14 @@ export interface FileRouteTypes {
     | '/_requireAuth/'
     | '/_requireAuth/collections/$collection'
     | '/_requireAuth/groups/$group'
+    | '/_requireAuth/opensocial/$org'
     | '/_requireAuth/pear-test/view'
     | '/_requireAuth/permissions/lexicons'
     | '/_requireAuth/permissions/people'
     | '/_requireAuth/blob-test/'
     | '/_requireAuth/collections/'
     | '/_requireAuth/groups/'
+    | '/_requireAuth/opensocial/'
     | '/_requireAuth/org/'
     | '/_requireAuth/pear-test/'
     | '/_requireAuth/permissions/'
@@ -584,6 +610,20 @@ declare module '@tanstack/react-router' {
       path: '/groups/$group'
       fullPath: '/groups/$group'
       preLoaderRoute: typeof RequireAuthGroupsGroupRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/opensocial/': {
+      id: '/_requireAuth/opensocial/'
+      path: '/opensocial'
+      fullPath: '/opensocial/'
+      preLoaderRoute: typeof RequireAuthOpensocialIndexRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/opensocial/$org': {
+      id: '/_requireAuth/opensocial/$org'
+      path: '/opensocial/$org'
+      fullPath: '/opensocial/$org'
+      preLoaderRoute: typeof RequireAuthOpensocialOrgRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/org/': {
@@ -759,10 +799,12 @@ interface RequireAuthRouteChildren {
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
   RequireAuthCollectionsCollectionRoute: typeof RequireAuthCollectionsCollectionRoute
   RequireAuthGroupsGroupRoute: typeof RequireAuthGroupsGroupRoute
+  RequireAuthOpensocialOrgRoute: typeof RequireAuthOpensocialOrgRoute
   RequireAuthPearTestViewRoute: typeof RequireAuthPearTestViewRoute
   RequireAuthBlobTestIndexRoute: typeof RequireAuthBlobTestIndexRoute
   RequireAuthCollectionsIndexRoute: typeof RequireAuthCollectionsIndexRoute
   RequireAuthGroupsIndexRoute: typeof RequireAuthGroupsIndexRoute
+  RequireAuthOpensocialIndexRoute: typeof RequireAuthOpensocialIndexRoute
   RequireAuthOrgIndexRoute: typeof RequireAuthOrgIndexRoute
   RequireAuthPearTestIndexRoute: typeof RequireAuthPearTestIndexRoute
   RequireAuthSpacesIndexRoute: typeof RequireAuthSpacesIndexRoute
@@ -780,10 +822,12 @@ const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthIndexRoute: RequireAuthIndexRoute,
   RequireAuthCollectionsCollectionRoute: RequireAuthCollectionsCollectionRoute,
   RequireAuthGroupsGroupRoute: RequireAuthGroupsGroupRoute,
+  RequireAuthOpensocialOrgRoute: RequireAuthOpensocialOrgRoute,
   RequireAuthPearTestViewRoute: RequireAuthPearTestViewRoute,
   RequireAuthBlobTestIndexRoute: RequireAuthBlobTestIndexRoute,
   RequireAuthCollectionsIndexRoute: RequireAuthCollectionsIndexRoute,
   RequireAuthGroupsIndexRoute: RequireAuthGroupsIndexRoute,
+  RequireAuthOpensocialIndexRoute: RequireAuthOpensocialIndexRoute,
   RequireAuthOrgIndexRoute: RequireAuthOrgIndexRoute,
   RequireAuthPearTestIndexRoute: RequireAuthPearTestIndexRoute,
   RequireAuthSpacesIndexRoute: RequireAuthSpacesIndexRoute,
