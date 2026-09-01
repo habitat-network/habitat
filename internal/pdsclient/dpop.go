@@ -179,7 +179,12 @@ func doInternal(
 	if err := sign(req, nonceProvider, key, accessToken); err != nil {
 		return nil, err
 	}
-	hasBody := req.Body != nil
+	// http.NoBody is a sentinel Go's HTTP/2 transport uses to send a
+	// request with no body stream at all (no DATA frame). Rewrapping it
+	// into a plain empty io.Reader below would make the transport send a
+	// zero-length body stream instead, which some XRPC servers reject on
+	// GET requests as "a request body was provided when none was expected".
+	hasBody := req.Body != nil && req.Body != http.NoBody
 	// Read out the body since we'll need it twice
 	bodyBytes := []byte{}
 	var err error

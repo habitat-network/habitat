@@ -1,0 +1,113 @@
+---
+id: getting-started
+slug: /rebac/getting-started
+sidebar_label: Getting started
+sidebar_position: 1
+---
+
+# Getting started
+
+In this example we create a space for a design document, give one teammate access to it directly, and let everyone on the eng team in through their group space. By the end, the doc has an ACL that says *"Alice can write here, and anyone on eng can read it"* — and adding someone to eng later gets them in without touching the document's space.
+
+Every call goes to `https://pear.habitat.network/xrpc/{nsid}` and carries a bearer token — an OAuth access token through the [space proxy](/docs/space-proxy), or a service auth token from the user's PDS. The examples below use `$TOKEN` for whichever you have.
+
+## 1. Create a space
+
+First, the space the document lives in. Spaces are created with the simplespace method — there is no ReBAC-specific create yet.
+
+```bash
+curl -X POST https://pear.habitat.network/xrpc/network.habitat.simplespace.createSpace \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "type": "network.habitat.document" }'
+```
+
+```json
+{ "uri": "at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n" }
+```
+
+The returned URI is the created under the Habitat space host (`did:web:pear.habitat.network`).
+
+## 2. Add a specific user
+
+Alice is working on this doc with us, so she gets a grant of her own. [`setUserRelation`](./endpoints.mdx#writing-relations) grants one DID one role. Requires `manager` on the space, which the creator has via `owner`.
+
+```bash
+curl -X POST https://pear.habitat.network/xrpc/network.habitat.relationship.setUserRelation \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "space": "at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n",
+        "subject": "did:plc:alice",
+        "relation": "writer"
+      }'
+```
+
+```json
+{ "uri": "at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n/did:web:pear.habitat.network/network.habitat.relationship.userRelation/<rkey>" }
+```
+
+The response URI is the [`userRelation` record](./records.mdx#userrelation) the grant was written as — pass it to `deleteRelation` to revoke. The call is an upsert keyed by the subject, so calling it again with `"relation": "reader"` [replaces the grant](./records.mdx#one-role-per-subject) rather than adding a second one.
+
+## 3. Add another space
+
+The rest of the eng team should be able to read the doc, and we don't want to add them one at a time. The team already exists as its own space — a group-space of type `network.habitat.group` — whose members are its `reader`s. Bob and Carol are on it.
+
+Now we grant the whole team access to the doc in one call. [`setSpaceRelation`](./endpoints.mdx#writing-relations) grants a role to *everyone holding `subjectRole` on another space* — here, everyone who can read `eng` becomes a reader on the doc.
+
+```bash
+curl -X POST https://pear.habitat.network/xrpc/network.habitat.relationship.setSpaceRelation \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "space": "at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n",
+        "subject": "at://did:web:pear.habitat.network/space/network.habitat.group/eng",
+        "subjectRole": "reader",
+        "relation": "reader"
+      }'
+```
+
+Nothing is copied — the doc's ACL holds one record pointing at the group, not a snapshot of who was in it. Adding someone to the `eng` group later gives them `reader` here immediately, and the grant survives as one record no matter how the group changes.
+
+## 4. Query the resolved members
+
+Two grants are in place now — Alice on the doc, and the eng team on the doc — so who can actually read it? [`resolveRelations`](./endpoints.mdx#listing) expands the graph — role implications, group membership, and nested groups — into a flat list of DIDs. Requires `reader` on the space.
+
+```bash
+curl -G https://pear.habitat.network/xrpc/network.habitat.relationship.resolveRelations \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode "space=at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n" \
+  --data-urlencode "relation=reader"
+```
+
+```json
+{ "dids": ["did:plc:creator", "did:plc:alice", "did:plc:bob", "did:plc:carol"] }
+```
+
+Four DIDs, from three different sources: Alice because her `writer` grant from step 2 implies `reader`, Bob and Carol through their membership in `eng`, and the creator because `owner` implies everything. Nothing in the call had to know which was which. Ask for `relation=writer` instead and only the creator and Alice come back — the eng team was granted `reader`, and roles imply downward, not up.
+
+To see the grants that produced this list rather than the people it reaches, call [`listRelations`](./endpoints.mdx#listing) instead.
+
+## 5. List the spaces a member can reach
+
+Finally, the question an app asks on load: what should we show the person who just signed in? [`listRelatedSpaces`](./endpoints.mdx#listing) is the reverse query: the spaces on which a DID holds a role, expanded the same way. Results are filtered to spaces the **caller** can read, so no space-level role is needed up front — passing the caller's own DID answers "what can I get to?".
+
+```bash
+curl -G https://pear.habitat.network/xrpc/network.habitat.relationship.listRelatedSpaces \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode "did=<caller-did>" \
+  --data-urlencode "relation=reader" \
+  --data-urlencode "type=network.habitat.document"
+```
+
+```json
+{
+  "spaces": [
+    "at://did:web:pear.habitat.network/space/network.habitat.document/3lbf2kqhx7c2n"
+  ]
+}
+```
+
+If Bob is the caller, the doc comes back even though he was never granted anything on it — his only path to it is through `eng`, and the expansion follows it for him. The optional `type` filter narrows to one space type, which is how an app lists just the spaces it knows how to render.
+
+Next: [Relationship records](./records.mdx) for what these calls write, or [Endpoints](./endpoints.mdx) for the full surface.

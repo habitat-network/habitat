@@ -8,13 +8,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-// ReservedRelationshipTupleNSID is the collection for relationship tuple
-// records. Like network.habitat.clique, it is managed exclusively through its
-// dedicated XRPC endpoints (network.habitat.relationship.*) and must not be
-// writable via the generic record-write path, so the FGA graph and the AT
-// Protocol records it mirrors stay in sync.
-const ReservedRelationshipTupleNSID = "network.habitat.relationship.tuple"
-
 type SpaceKey string
 
 func NewSkey(tid syntax.TID) SpaceKey {

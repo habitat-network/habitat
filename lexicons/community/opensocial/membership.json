@@ -1,0 +1,31 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.membership",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "Grants a member their roles in the community. Lives in the community's `members` space, authored by the community DID, keyed by the member's DID. Membership also requires the member to author a matching community.opensocial.acceptance record; this record alone does not grant access.",
+            "key": "any",
+            "record": {
+                "type": "object",
+                "required": [
+                    "roles",
+                    "updatedAt"
+                ],
+                "properties": {
+                    "roles": {
+                        "type": "array",
+                        "description": "Record keys of the community.opensocial.role records held by this member.",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        }
+    }
+}

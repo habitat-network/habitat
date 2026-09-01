@@ -881,6 +881,154 @@ export const schemaDict = {
       },
     },
   },
+  CommunityOpensocialAcceptance: {
+    lexicon: 1,
+    id: 'community.opensocial.acceptance',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "A member's side of membership: written by the member (not the community) into the community's `members` space, alongside a matching community.opensocial.membership record. Its presence gates appearing in the member roster, not access itself.",
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['updatedAt'],
+          properties: {
+            updatedAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialMembership: {
+    lexicon: 1,
+    id: 'community.opensocial.membership',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "Grants a member their roles in the community. Lives in the community's `members` space, authored by the community DID, keyed by the member's DID. Membership also requires the member to author a matching community.opensocial.acceptance record; this record alone does not grant access.",
+        key: 'any',
+        record: {
+          type: 'object',
+          required: ['roles', 'updatedAt'],
+          properties: {
+            roles: {
+              type: 'array',
+              description:
+                'Record keys of the community.opensocial.role records held by this member.',
+              items: {
+                type: 'string',
+              },
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialProfile: {
+    lexicon: 1,
+    id: 'community.opensocial.profile',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "A community's public profile. Lives in the community's `about` space, authored by the community DID.",
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: {
+              type: 'string',
+              maxLength: 256,
+              description: "The community's display name.",
+            },
+            description: {
+              type: 'string',
+              maxLength: 2048,
+              description: 'A short description of the community.',
+            },
+            avatar: {
+              type: 'blob',
+              accept: ['image/png', 'image/jpeg', 'image/webp'],
+              maxSize: 1000000,
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialRole: {
+    lexicon: 1,
+    id: 'community.opensocial.role',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "Declares that a role exists within the community. Lives in the community's `members` space, authored by the community DID. What actions a role authorizes is out of scope for this record.",
+        key: 'any',
+        record: {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: {
+              type: 'string',
+              maxLength: 256,
+              description:
+                'Display name for the role, e.g. "Admin" or "Moderator".',
+            },
+            description: {
+              type: 'string',
+              maxLength: 2048,
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialSpace: {
+    lexicon: 1,
+    id: 'community.opensocial.space',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "Indexes one space that exists under this community, e.g. a modality-specific space. Lives in the community's `members` space, authored by the community DID.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['uri'],
+          properties: {
+            uri: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'URI of the indexed space.',
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatAdminGetSettings: {
     lexicon: 1,
     id: 'network.habitat.admin.getSettings',
@@ -2691,28 +2839,75 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipCheck: {
+  NetworkHabitatRelationshipCheckSpaceRelation: {
     lexicon: 1,
-    id: 'network.habitat.relationship.check',
+    id: 'network.habitat.relationship.checkSpaceRelation',
     defs: {
       main: {
         type: 'query',
         description:
-          'Check whether a subject holds a role on a space. The subject is either a user (DID) or a space-role userset (a space URI plus subjectRole), resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
+          "Check whether a space-role userset (all subjects holding subjectRole on another space) holds a role on space, resolving built-in role implications. Enables checking cross-space inheritance, e.g. whether spaceA's writers hold reader role on spaceB. Caller must have the reader role on space.",
+        parameters: {
+          type: 'params',
+          required: ['subject', 'subjectRole', 'relation', 'space'],
+          properties: {
+            subject: {
+              type: 'string',
+              format: 'uri',
+              description:
+                'URI of the subject space (or group-space) whose role-holders form the userset to check.',
+            },
+            subjectRole: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'The role held on the subject space, forming the userset.',
+            },
+            relation: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description: 'The role to check for on the space.',
+            },
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the space.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['allowed'],
+            properties: {
+              allowed: {
+                type: 'boolean',
+                description:
+                  'Whether the subject userset holds the role on the space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipCheckUserRelation: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.checkUserRelation',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Check whether a user holds a role on a space, resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
         parameters: {
           type: 'params',
           required: ['subject', 'relation', 'space'],
           properties: {
             subject: {
               type: 'string',
-              description:
-                'The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required.',
-            },
-            subjectRole: {
-              type: 'string',
-              enum: ['owner', 'manager', 'writer', 'reader'],
-              description:
-                'The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID.',
+              format: 'did',
+              description: 'DID of the user to check.',
             },
             relation: {
               type: 'string',
@@ -2772,9 +2967,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipListObjects: {
+  NetworkHabitatRelationshipListRelatedSpaces: {
     lexicon: 1,
-    id: 'network.habitat.relationship.listObjects',
+    id: 'network.habitat.relationship.listRelatedSpaces',
     defs: {
       main: {
         type: 'query',
@@ -2839,12 +3034,6 @@ export const schemaDict = {
               description:
                 'URI of the governing space whose relations to list.',
             },
-            object: {
-              type: 'string',
-              format: 'uri',
-              description:
-                'Optional. Restrict to relations whose object is this space or group URI.',
-            },
             subjectDid: {
               type: 'string',
               format: 'did',
@@ -2859,8 +3048,7 @@ export const schemaDict = {
             },
             relation: {
               type: 'string',
-              description:
-                'Optional. Restrict to relations with this relation.',
+              description: 'Optional. Restrict to relations with this role.',
             },
           },
         },
@@ -2941,9 +3129,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipListSubjects: {
+  NetworkHabitatRelationshipResolveRelations: {
     lexicon: 1,
-    id: 'network.habitat.relationship.listSubjects',
+    id: 'network.habitat.relationship.resolveRelations',
     defs: {
       main: {
         type: 'query',
@@ -2985,92 +3173,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipSpaceRelation: {
+  NetworkHabitatRelationshipSetSpaceRelation: {
     lexicon: 1,
-    id: 'network.habitat.relationship.spaceRelation',
-    defs: {
-      main: {
-        type: 'record',
-        description:
-          "A relationship record granting a role to all subjects holding subjectRole on subject (a space userset) on object (a space). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. The object is always a space; groups are spaces too, so granting a role to a group's members on a group-space is just an ordinary space relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
-        key: 'tid',
-        record: {
-          type: 'object',
-          required: ['subject', 'subjectRole', 'relation', 'object'],
-          properties: {
-            subject: {
-              type: 'string',
-              format: 'uri',
-              description:
-                'URI of the subject space (or group-space) whose role-holders form the userset.',
-            },
-            subjectRole: {
-              type: 'string',
-              enum: ['owner', 'manager', 'writer', 'reader'],
-              description:
-                'The role held on the subject space, forming the userset.',
-            },
-            relation: {
-              type: 'string',
-              knownValues: ['owner', 'manager', 'writer', 'reader'],
-              description:
-                'Role granted on the object space (owner|manager|writer|reader).',
-            },
-            object: {
-              type: 'string',
-              format: 'uri',
-              description: 'URI of the space the role is granted on.',
-            },
-            createdAt: {
-              type: 'string',
-              format: 'datetime',
-            },
-          },
-        },
-      },
-    },
-  },
-  NetworkHabitatRelationshipUserRelation: {
-    lexicon: 1,
-    id: 'network.habitat.relationship.userRelation',
-    defs: {
-      main: {
-        type: 'record',
-        description:
-          'A relationship record granting a role to a user (by DID) on object (a space). The object is always a space; groups are spaces too, so granting a role to a user on a group-space is just an ordinary user relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.',
-        key: 'tid',
-        record: {
-          type: 'object',
-          required: ['subject', 'relation', 'object'],
-          properties: {
-            subject: {
-              type: 'string',
-              format: 'did',
-              description: 'DID of the user the role is granted to.',
-            },
-            relation: {
-              type: 'string',
-              knownValues: ['owner', 'manager', 'writer', 'reader'],
-              description:
-                'Role granted on the object space (owner|manager|writer|reader).',
-            },
-            object: {
-              type: 'string',
-              format: 'uri',
-              description: 'URI of the space the role is granted on.',
-            },
-            createdAt: {
-              type: 'string',
-              format: 'datetime',
-            },
-          },
-        },
-      },
-    },
-  },
-  NetworkHabitatRelationshipWriteSpaceRelation: {
-    lexicon: 1,
-    id: 'network.habitat.relationship.writeSpaceRelation',
+    id: 'network.habitat.relationship.setSpaceRelation',
     defs: {
       main: {
         type: 'procedure',
@@ -3135,9 +3240,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatRelationshipWriteUserRelation: {
+  NetworkHabitatRelationshipSetUserRelation: {
     lexicon: 1,
-    id: 'network.habitat.relationship.writeUserRelation',
+    id: 'network.habitat.relationship.setUserRelation',
     defs: {
       main: {
         type: 'procedure',
@@ -3192,6 +3297,79 @@ export const schemaDict = {
               'The subject, relation, and space combination is not valid.',
           },
         ],
+      },
+    },
+  },
+  NetworkHabitatRelationshipSpaceRelation: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.spaceRelation',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "A relationship record granting a role to all subjects holding subjectRole on subject (a space userset) on object, which is the space this record is written into. Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. The object is always the space this record is written into; groups are spaces too, so granting a role to a group's members on a group-space is just an ordinary space relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['subject', 'subjectRole', 'relation'],
+          properties: {
+            subject: {
+              type: 'string',
+              format: 'uri',
+              description:
+                'URI of the subject space (or group-space) whose role-holders form the userset.',
+            },
+            subjectRole: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'The role held on the subject space, forming the userset.',
+            },
+            relation: {
+              type: 'string',
+              knownValues: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'Role granted on the object space (owner|manager|writer|reader).',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipUserRelation: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.userRelation',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          'A relationship record granting a role to a user (by DID) on object (a space). The object is always the space this record is written into; groups are spaces too, so granting a role to a user on a group-space is just an ordinary user relation. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.',
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['subject', 'relation'],
+          properties: {
+            subject: {
+              type: 'string',
+              format: 'did',
+              description: 'DID of the user the role is granted to.',
+            },
+            relation: {
+              type: 'string',
+              knownValues: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'Role granted on the object space (owner|manager|writer|reader).',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
       },
     },
   },
@@ -5239,6 +5417,11 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
+  CommunityOpensocialAcceptance: 'community.opensocial.acceptance',
+  CommunityOpensocialMembership: 'community.opensocial.membership',
+  CommunityOpensocialProfile: 'community.opensocial.profile',
+  CommunityOpensocialRole: 'community.opensocial.role',
+  CommunityOpensocialSpace: 'community.opensocial.space',
   NetworkHabitatAdminGetSettings: 'network.habitat.admin.getSettings',
   NetworkHabitatAdminIssueInvite: 'network.habitat.admin.issueInvite',
   NetworkHabitatAdminUpdateSettings: 'network.habitat.admin.updateSettings',
@@ -5291,23 +5474,26 @@ export const ids = {
   NetworkHabitatPermissionsRemovePermission:
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
-  NetworkHabitatRelationshipCheck: 'network.habitat.relationship.check',
+  NetworkHabitatRelationshipCheckSpaceRelation:
+    'network.habitat.relationship.checkSpaceRelation',
+  NetworkHabitatRelationshipCheckUserRelation:
+    'network.habitat.relationship.checkUserRelation',
   NetworkHabitatRelationshipDeleteRelation:
     'network.habitat.relationship.deleteRelation',
-  NetworkHabitatRelationshipListObjects:
-    'network.habitat.relationship.listObjects',
+  NetworkHabitatRelationshipListRelatedSpaces:
+    'network.habitat.relationship.listRelatedSpaces',
   NetworkHabitatRelationshipListRelations:
     'network.habitat.relationship.listRelations',
-  NetworkHabitatRelationshipListSubjects:
-    'network.habitat.relationship.listSubjects',
+  NetworkHabitatRelationshipResolveRelations:
+    'network.habitat.relationship.resolveRelations',
+  NetworkHabitatRelationshipSetSpaceRelation:
+    'network.habitat.relationship.setSpaceRelation',
+  NetworkHabitatRelationshipSetUserRelation:
+    'network.habitat.relationship.setUserRelation',
   NetworkHabitatRelationshipSpaceRelation:
     'network.habitat.relationship.spaceRelation',
   NetworkHabitatRelationshipUserRelation:
     'network.habitat.relationship.userRelation',
-  NetworkHabitatRelationshipWriteSpaceRelation:
-    'network.habitat.relationship.writeSpaceRelation',
-  NetworkHabitatRelationshipWriteUserRelation:
-    'network.habitat.relationship.writeUserRelation',
   NetworkHabitatRenderSchema: 'network.habitat.render.schema',
   NetworkHabitatRepoCreateRecord: 'network.habitat.repo.createRecord',
   NetworkHabitatRepoDeleteRecord: 'network.habitat.repo.deleteRecord',

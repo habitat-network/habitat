@@ -10,8 +10,8 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/httpx"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 // registrationTTL is how long a registerNotify subscription stays valid before
@@ -44,7 +44,7 @@ func (s *Server) RegisterNotify(w http.ResponseWriter, r *http.Request) {
 	// The space credential must authorize the space being registered against.
 	if _, ok = s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodSpaceCredential),
-		authn.WithSpace(spaceURI, fgastore.RelationSpaceReader),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r); !ok {
 		return
 	}

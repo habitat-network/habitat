@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -289,12 +290,23 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 }
 
 // HandlePAR processes RFC 9126 Pushed Authorization Requests. The client POSTs
-// the authorization request parameters (form-encoded) and receives a
+// the authorization request parameters (form-encoded, or JSON — see
+// parRequestBody) and receives a
 // request_uri it can then hand to the authorization endpoint. PAR is supported
 // but not required, so clients may also call /oauth/authorize directly.
 func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	sess := newSession()
+	if hasJSONBody(r) {
+		var body parRequestBody
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "failed to decode json request body", err)
+			return
+		}
+		// fosite's PAR handler reads r.Form. Setting it also makes the
+		// ParseMultipartForm call in there skip parsing the JSON body.
+		r.Form = body.formValues()
+	}
 	did, err := o.resolveLoginHint(r.FormValue("login_hint"))
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
@@ -399,6 +411,16 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 	ctx := r.Context()
+	if hasJSONBody(r) {
+		var body tokenRequestBody
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "failed to decode json request body", err)
+			return
+		}
+		// fosite's token handler reads r.PostForm. ParseForm then derives
+		// r.Form from it plus the URL query, rather than parsing the body.
+		r.PostForm = body.formValues()
+	}
 	req, err := o.provider.NewAccessRequest(ctx, r, newSession())
 	if err != nil {
 		logError(ctx, err)

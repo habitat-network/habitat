@@ -1,0 +1,68 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.setUserRelation",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Write a user relation, creating it if it does not already exist. The relation record is owned by the org repo within its governing space. Caller must have the manager role on the space.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "subject",
+                        "relation",
+                        "space"
+                    ],
+                    "properties": {
+                        "subject": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the user to grant the role to."
+                        },
+                        "relation": {
+                            "type": "string",
+                            "knownValues": [
+                                "owner",
+                                "manager",
+                                "writer",
+                                "reader"
+                            ],
+                            "description": "Role granted on the space (owner|manager|writer|reader)."
+                        },
+                        "space": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URI of the space to grant the role on."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "URI of the written relation record."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "SpaceNotFound",
+                    "description": "The space does not exist."
+                },
+                {
+                    "name": "InvalidRelation",
+                    "description": "The subject, relation, and space combination is not valid."
+                }
+            ]
+        }
+    }
+}

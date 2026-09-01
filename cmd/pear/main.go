@@ -42,6 +42,9 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
+	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/simplespace"
+	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
@@ -311,18 +314,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("parse space-host signing key: %w", err)
 	}
 
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
-	validator := authn.NewValidator(
-		oauthServer,
-		serviceAuth,
-		spaceCredential,
-		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore, hostKey),
-		fgaStore,
-	)
-
-	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
-	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
-
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup clique store: %w", err)
@@ -336,7 +327,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	spacesStore, err := spaces.NewStore(
 		db.WithContext(startupCtx),
-		fgaStore,
 		notifier,
 		spacecommit.NewAuthority(hostKey, hive),
 	)
@@ -351,13 +341,23 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	defer func() { _ = blobBucket.Close() }()
 	blobStore := spaces.NewBlobStore(blobBucket)
 
-	// TODO: use this to validate the space credential in the spaces server
+	permStore := perms.NewStore(db, spacesStore, fgaStore)
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
+	validator := authn.NewValidator(
+		oauthServer,
+		serviceAuth,
+		spaceCredential,
+		authn.NewDelegationTokenAuthMethod(hiveDir, permStore, hostKey),
+		permStore,
+	)
 
-	spacesServer := spaces.NewServer(
+	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
+	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
+
+	// TODO: use this to validate the space credential in the spaces server
+	spacesServer := spaces_server.NewServer(
 		spacesStore,
-		fgaStore,
 		validator,
-		orgStore,
 		hostKey,
 		hive,
 		blobStore,
@@ -367,10 +367,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		validator,
 	)
 
-	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
+	simplespaceServer := simplespace.NewServer(
+		simplespace.NewStore(db, spacesStore, permStore),
+		validator,
+	)
+
 	relationshipServer := relationship.NewServer(
-		relationshipStore,
-		fgaStore,
+		permStore,
+		spacesStore,
 		validator,
 	)
 
@@ -507,17 +511,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
-	mux.HandleFunc("/xrpc/network.habitat.space.createSpace", spacesServer.CreateSpace)
+	// Spaces
 	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
-	mux.HandleFunc("/xrpc/network.habitat.space.addMember", spacesServer.AddMember)
-	mux.HandleFunc("/xrpc/network.habitat.space.removeMember", spacesServer.RemoveMember)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
 	mux.HandleFunc("/xrpc/network.habitat.space.putRecord", spacesServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRecord", spacesServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.getBlob", spacesServer.GetBlob)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
-	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
 	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit", spacesServer.GetLatestCommit)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
@@ -527,22 +528,30 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
 		spacesServer.GetSpaceCredential)
 
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", spacesServer.CreateSpace)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.addMember", spacesServer.AddMember)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", spacesServer.RemoveMember)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", spacesServer.ListMembers)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.deleteSpace", spacesServer.DeleteSpace)
+	// Simplespaces
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", simplespaceServer.CreateSpace)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.addMember", simplespaceServer.AddMember)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", simplespaceServer.RemoveMember)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", simplespaceServer.ListMembers)
+	mux.HandleFunc("/xrpc/network.habitat.simplespace.deleteSpace", simplespaceServer.DeleteSpace)
 
-	mux.HandleFunc("/xrpc/network.habitat.relationship.writeUserRelation",
-		relationshipServer.WriteUserRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteTuple",
-		relationshipServer.DeleteTuple)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listTuples", relationshipServer.ListTuples)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.check", relationshipServer.Check)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listSubjects",
-		relationshipServer.ListSubjects)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listObjects",
-		relationshipServer.ListObjects)
+	// Relationships
+	mux.HandleFunc("/xrpc/network.habitat.relationship.setUserRelation",
+		relationshipServer.SetUserRelation)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.setSpaceRelation",
+		relationshipServer.SetSpaceRelation)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteRelation",
+		relationshipServer.DeleteRelation)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listRelations",
+		relationshipServer.ListRelations)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.checkUserRelation",
+		relationshipServer.CheckUserRelation)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.checkSpaceRelation",
+		relationshipServer.CheckSpaceRelation)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.resolveRelations",
+		relationshipServer.ResolveRelations)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listRelatedSpaces",
+		relationshipServer.ListRelatedSpaces)
 
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)

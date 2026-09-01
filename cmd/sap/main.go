@@ -7,11 +7,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/identity/apidir"
 	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/log"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
@@ -68,7 +71,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	domain := cmd.String(fDomain)
-	store, err := oauthclient.NewGormStore(db)
+	store, err := oauthclient.NewGormStore(db, oauthclient.WithSingleSessionPerUser())
 	if err != nil {
 		return fmt.Errorf("create oauth store: %w", err)
 	}
@@ -83,18 +86,37 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	oauthApp := oauth.NewClientApp(&config, store)
+	oauthApp.Resolver.Client = httpx.NewClient()
+
+	// When an identity resolver is configured, resolve identities through that
+	// service instead of the public network. It rewrites the #atproto_pds
+	// service entry of the DID documents it returns to point at itself, so
+	// every PDS request sap makes is routed through it.
+	if resolverURL := cmd.String(fIdentityResolver); resolverURL != "" {
+		dir := apidir.NewAPIDirectory(strings.TrimSuffix(resolverURL, "/"))
+		dir.Client = httpx.NewClient()
+		oauthApp.Dir = dir
+	}
+
+	endpoint := "https://" + domain
 
 	s, err := sap.New(sap.Config{
 		DB:          db,
 		OAuthClient: oauthApp,
-		Meter:       otel.Meter("sap"),
-		Tracer:      otel.Tracer("sap"),
+		Directory:   oauthApp.Dir,
+		// Endpoint is the base URL sap registers with each space host as
+		// its notifyWrite delivery address (see pkg/sap/register), so
+		// writes to tracked spaces reach sap's outbox live instead of only
+		// being discovered on the next crawl.
+		Endpoint: endpoint,
+		Meter:    otel.Meter("sap"),
+		Tracer:   otel.Tracer("sap"),
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	server := NewSapServer(s, oauthApp)
+	server := NewSapServer(s, oauthApp, endpoint)
 
 	// The OAuth endpoints (callback and client metadata) must be publicly
 	// reachable since the user's PDS redirects to them, so they are served on
@@ -103,18 +125,36 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	oauthMux := http.NewServeMux()
 	oauthMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
 	oauthMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+	oauthMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", server.handleNotifyWrite)
+
+	webhookURL := cmd.String(fWebhookURL)
 
 	internalMux := http.NewServeMux()
 	internalMux.HandleFunc("/health", server.handleHealth)
-	internalMux.HandleFunc("/org/add", server.handleAddOrg)
-	internalMux.HandleFunc("/org/list", server.handleListOrgs)
-	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
+	internalMux.HandleFunc("/session/add", server.handleAddSession)
+	internalMux.HandleFunc("/session/list", server.handleListSessions)
+	internalMux.HandleFunc("/space/track", server.handleTrackSpace)
+	internalMux.HandleFunc("/session/recrawl", server.handleRecrawl)
+	if webhookURL == "" {
+		// The outbox is single-consumer (see outbox.Outbox.Watch): once the
+		// webhook consumer is draining it, a /channel client polling the
+		// same outbox would race it for messages and acks.
+		internalMux.HandleFunc("/channel", server.handleOutboxChannel)
+	}
 	internalMux.HandleFunc("/proxy/", server.handleProxy)
+
+	var internalHandler http.Handler = internalMux
+	if internalAuthSecret := cmd.String(fInternalAuthSecret); internalAuthSecret != "" {
+		internalHandler = basicAuthMiddleware(internalAuthSecret, internalMux)
+	}
+
+	port := cmd.String(fPort)
+	internalPort := cmd.String(fInternalPort)
 
 	slog.InfoContext(
 		ctx, "listening",
-		"oauth_port", cmd.String(fPort),
-		"internal_port", cmd.String(fInternalPort),
+		"oauth_port", port,
+		"internal_port", internalPort,
 	)
 
 	eg, ctx := errgroup.WithContext(ctx)
@@ -123,12 +163,35 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		slog.ErrorContext(ctx, "stopped", "error", err)
 		return err
 	})
-	eg.Go(func() error {
-		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fPort)), oauthMux)
-	})
-	eg.Go(func() error {
-		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fInternalPort)), internalMux)
-	})
+
+	if webhookURL != "" {
+		consumer := newWebhookConsumer(s, webhookURL)
+		eg.Go(func() error {
+			consumer.run(ctx)
+			return nil
+		})
+	}
+
+	if port == internalPort {
+		// Same port configured for both: share a single listener, with the
+		// public OAuth routes taking precedence over the internal ones on
+		// any overlapping pattern.
+		combinedMux := http.NewServeMux()
+		combinedMux.Handle("/", internalHandler)
+		combinedMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
+		combinedMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+		combinedMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", server.handleNotifyWrite)
+		eg.Go(func() error {
+			return serve(ctx, fmt.Sprintf(":%s", port), combinedMux)
+		})
+	} else {
+		eg.Go(func() error {
+			return serve(ctx, fmt.Sprintf(":%s", port), oauthMux)
+		})
+		eg.Go(func() error {
+			return serve(ctx, fmt.Sprintf(":%s", internalPort), internalHandler)
+		})
+	}
 
 	err = eg.Wait()
 	return err

@@ -24,12 +24,12 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/spaces"
+	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
@@ -63,15 +63,21 @@ func TestSap(t *testing.T) {
 
 	createSpace := func(skey string) habitat_syntax.SpaceURI {
 		uri, err := pear.store.CreateSpace(
-			t.Context(), author, author, groupType, habitat_syntax.SpaceKey(skey),
+			t.Context(), author, groupType, habitat_syntax.SpaceKey(skey),
 		)
 		require.NoError(t, err)
 		return uri
 	}
 	putRecord := func(space habitat_syntax.SpaceURI, rkey string, data string) {
 		recURI, _, err := pear.store.PutRecord(
-			t.Context(), space, author, collection,
-			syntax.RecordKey(rkey), map[string]any{"data": data},
+			t.Context(),
+			space,
+			author,
+			collection,
+			syntax.RecordKey(
+				rkey,
+			),
+			spaces_testutil.MustMarshalRecord(t, map[string]any{"data": data}),
 		)
 		require.NoError(t, err)
 		createdURIs[recURI.String()] = true
@@ -197,7 +203,11 @@ func TestSap(t *testing.T) {
 	}
 
 	// 8. All 5 spaces are registered for notifications, and every tracked repo
-	// settled active with a verified hash.
+	// settled active with a verified hash. A repo can still bounce back to
+	// pending/syncing after its record is outboxed: a racing recrawl Check
+	// landing mid-flight marks it dirty unconditionally (engine.observeHead),
+	// forcing one more (usually no-op) pass before it resettles — so this
+	// polls rather than asserting once.
 	var regCount int64
 	require.NoError(t, db.Table("registrations").Count(&regCount).Error)
 	require.Equal(t, int64(5), regCount)
@@ -208,10 +218,21 @@ func TestSap(t *testing.T) {
 		Hash  []byte
 	}
 	var repos []repoRow
-	require.NoError(t, db.Table("repos").Find(&repos).Error)
-	require.Len(t, repos, 5)
+	require.Eventually(t, func() bool {
+		if err := db.Table("repos").Find(&repos).Error; err != nil {
+			return false
+		}
+		if len(repos) != 5 {
+			return false
+		}
+		for _, r := range repos {
+			if r.State != "active" {
+				return false
+			}
+		}
+		return true
+	}, 5*time.Second, 50*time.Millisecond, "not all repos settled active")
 	for _, r := range repos {
-		require.Equal(t, "active", r.State, "repo in space %s not active", r.Space)
 		require.NotEmpty(t, r.Hash)
 	}
 
@@ -264,12 +285,18 @@ func TestSapTrackSpace(t *testing.T) {
 	groupType := syntax.NSID("network.habitat.group")
 	collection := syntax.NSID("network.habitat.test")
 	space, err := pear.store.CreateSpace(
-		t.Context(), author, author, groupType, habitat_syntax.SpaceKey("tracked-space"),
+		t.Context(), author, groupType, habitat_syntax.SpaceKey("tracked-space"),
 	)
 	require.NoError(t, err)
 	recURI, _, err := pear.store.PutRecord(
-		t.Context(), space, author, collection,
-		syntax.RecordKey("rkey-0"), map[string]any{"data": "tracked"},
+		t.Context(),
+		space,
+		author,
+		collection,
+		syntax.RecordKey(
+			"rkey-0",
+		),
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "tracked"}),
 	)
 	require.NoError(t, err)
 
@@ -335,6 +362,110 @@ func TestSapTrackSpace(t *testing.T) {
 	require.Equal(t, int64(1), repoCount)
 }
 
+// TestSapRecrawl verifies that Recrawl re-crawls a session even when a prior
+// crawl for it is stuck errored with a stale cursor — the scenario Recrawl
+// exists for, distinguishing it from a crawl.Crawler.Run resume.
+func TestSapRecrawl(t *testing.T) {
+	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	pear := setupPear(t)
+	t.Cleanup(func() {
+		pear.server.CloseClientConnections()
+		pear.server.Close()
+	})
+	author := pear.author.DID
+
+	groupType := syntax.NSID("network.habitat.group")
+	collection := syntax.NSID("network.habitat.test")
+	space, err := pear.store.CreateSpace(
+		t.Context(), author, groupType, habitat_syntax.SpaceKey("recrawl-space"),
+	)
+	require.NoError(t, err)
+	recURI, _, err := pear.store.PutRecord(
+		t.Context(),
+		space,
+		author,
+		collection,
+		syntax.RecordKey(
+			"rkey-0",
+		),
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "recrawled"}),
+	)
+	require.NoError(t, err)
+
+	mux := http.NewServeMux()
+	sapServer := httptest.NewTLSServer(mux)
+	t.Cleanup(sapServer.Close)
+
+	db := db_testutil.NewDB(t)
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		sapServer.URL+"/client-metadata.json",
+		sapServer.URL+"/oauth-callback",
+		[]string{},
+	)
+	oauthApp := oauth.NewClientApp(&cfg, store)
+
+	s, err := New(Config{
+		DB:          db,
+		OAuthClient: oauthApp,
+		Directory:   pear.hive,
+		Endpoint:    sapServer.URL,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	go func() {
+		require.NoError(t, s.Start(ctx))
+	}()
+
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:              author,
+		SessionID:               "sess1",
+		HostURL:                 pear.server.URL,
+		AccessToken:             futureJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
+	}))
+
+	// Seed a crawl left stuck errored with a stale cursor, as if a previous
+	// crawl for this session failed partway through.
+	require.NoError(t, db.Exec(
+		`INSERT INTO crawls (did, session_id, state, cursor, error_msg, created_at, updated_at)
+		 VALUES (?, 'sess1', 'errored', 'stale-cursor', 'boom', ?, ?)`,
+		author, time.Now(), time.Now(),
+	).Error)
+
+	s.Recrawl(t.Context(), author, "sess1")
+
+	var got []outbox.Message
+	require.Eventually(t, func() bool {
+		var err error
+		got, err = s.Outbox().Poll(t.Context(), 10)
+		require.NoError(t, err)
+		return len(got) >= 1
+	}, 15*time.Second, 100*time.Millisecond)
+	for _, msg := range got {
+		require.Equal(t, recURI.String(), string(msg.URI))
+	}
+
+	type crawlRow struct {
+		State  string
+		Cursor string
+	}
+	var cr crawlRow
+	require.Eventually(t, func() bool {
+		if err := db.Table("crawls").Where("did = ?", author).First(&cr).Error; err != nil {
+			return false
+		}
+		return cr.State == "complete"
+	}, 5*time.Second, 50*time.Millisecond, "crawl never completed")
+	require.Empty(t, cr.Cursor)
+}
+
 // pearHost bundles the host-side pieces the test drives.
 type pearHost struct {
 	server *httptest.Server
@@ -357,9 +488,6 @@ func setupPear(t *testing.T) *pearHost {
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
 
-	fgaStore, err := fgastore.NewSQLite(t.Context(), t.TempDir()+"/pear.fga.db")
-	require.NoError(t, err)
-
 	orgHive, err := hive.NewHive("hive.domain", strings.TrimPrefix(server.URL, "https://"), db)
 	require.NoError(t, err)
 	author, err := orgHive.MintOrgIdentity(t.Context(), "author")
@@ -369,9 +497,7 @@ func setupPear(t *testing.T) *pearHost {
 	require.NoError(t, err)
 
 	// Managed authors sign with their own hive keys.
-	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.Config{
-		MemberSigner: orgHive,
-	})
+	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.WithMemberSigner(orgHive))
 
 	require.NoError(t, err)
 
@@ -379,11 +505,9 @@ func setupPear(t *testing.T) *pearHost {
 	validator := authn_testutil.NewSuccessValidator(
 		&authn.CredentialInfo{Subject: author.DID, Org: everyone},
 	)
-	spacesServer := spaces.NewServer(
+	spacesServer := spaces_server.NewServer(
 		spacesStore,
-		fgaStore,
 		validator,
-		nil, // org store: only used by the CreateSpace handler, not mounted
 		nil, // host key: managed authors sign with their own hive keys
 		orgHive,
 		nil, // blobs: no blob handlers mounted

@@ -1,0 +1,716 @@
+package spaces_server
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"strconv"
+
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/atdata"
+	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/gorilla/schema"
+	"github.com/ipfs/go-cid"
+
+	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/spaces"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
+)
+
+type Server struct {
+	store     spaces.Store
+	validator authn.RequestValidator
+	decoder   *schema.Decoder
+	hive      hive.Hive
+	blobs     spaces.BlobStore
+	hostKey   atcrypto.PrivateKey
+}
+
+// NewServer constructs the spaces server. hostPrivateKey signs delegation
+// tokens and space credentials for authors hive does not manage (the store
+// holds its own commit-signing authority for repo-head commits). blobs backs
+// the uploadBlob and getBlob endpoints.
+func NewServer(
+	store spaces.Store,
+	validator authn.RequestValidator,
+	hostPrivateKey atcrypto.PrivateKey,
+	hive hive.Hive,
+	blobs spaces.BlobStore,
+) *Server {
+	return &Server{
+		store:     store,
+		decoder:   schema.NewDecoder(),
+		hive:      hive,
+		blobs:     blobs,
+		hostKey:   hostPrivateKey,
+		validator: validator,
+	}
+}
+
+func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	var params habitat.NetworkHabitatSpaceListSpacesParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "decode query params", err)
+		return
+	}
+	var filterOwner *syntax.DID
+	if params.Did != "" {
+		ownerDid, ok := httpx.ParseDIDInput(ctx, w, params.Did, "did")
+		if !ok {
+			return
+		}
+		filterOwner = &ownerDid
+	}
+	var filterType *syntax.NSID
+	if params.Type != "" {
+		t, ok := httpx.ParseNSIDInput(ctx, w, params.Type, "type filter")
+		if !ok {
+			return
+		}
+		filterType = &t
+	}
+	spaces, err := s.store.ListSpaces(
+		ctx,
+		credInfo.Subject,
+		filterOwner,
+		filterType,
+	)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list spaces: %w", err))
+		return
+	}
+	views := make([]habitat.NetworkHabitatSpaceListSpacesSpaceView, len(spaces))
+	for i, uri := range spaces {
+		views[i] = habitat.NetworkHabitatSpaceListSpacesSpaceView{
+			Uri:     uri.String(),
+			IsOwner: uri.SpaceOwner() == credInfo.Subject,
+		}
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListSpacesOutput{
+		Spaces: views,
+	})
+}
+
+func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var params habitat.NetworkHabitatSpaceListReposParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	_, ok = s.validator.Request(
+		authn.WithMethods(
+			authn.ValidatorMethodOAuth,
+			authn.ValidatorMethodServiceAuth,
+			authn.ValidatorMethodSpaceCredential,
+		),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	repos, err := s.store.ListRepos(r.Context(), spaceURI)
+	if errors.Is(err, spaces.ErrSpaceNotFound) {
+		httpx.WriteSpaceNotFound(ctx, w, err)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list repos: %w", err))
+		return
+	}
+	repoViews := make([]habitat.NetworkHabitatSpaceListReposRepo, len(repos))
+	for i, r := range repos {
+		repoViews[i] = habitat.NetworkHabitatSpaceListReposRepo{
+			Did:  r.DID.String(),
+			Rev:  r.Rev,
+			Hash: r.Hash,
+		}
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListReposOutput{
+		Repos: repoViews,
+	})
+}
+
+func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var input habitat.NetworkHabitatSpacePutRecordInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
+		return
+	}
+	if input.Validate {
+		httpx.WriteNotSupported(ctx, w, "validate is not yet supported")
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	if !ok {
+		return
+	}
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(
+			authn.ValidatorMethodOAuth,
+			authn.ValidatorMethodServiceAuth,
+			authn.ValidatorMethodSpaceCredential,
+		),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleWriter),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
+	if !ok {
+		return
+	}
+	if credInfo.Subject != repo {
+		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", fmt.Errorf("wrong repo"))
+		return
+	}
+	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
+	if !ok {
+		return
+	}
+	if habitat_syntax.ReservedCollections.Contains(collection) {
+		httpx.WriteInvalidRequest(ctx, w,
+			"relationship tuples must be managed via network.habitat.relationship.* endpoints", nil)
+		return
+	}
+	var rkey syntax.RecordKey
+	if input.Rkey != "" {
+		parsedRkey, err := syntax.ParseRecordKey(input.Rkey)
+		if err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "invalid rkey", err)
+			return
+		}
+		rkey = parsedRkey
+	}
+	value, ok := input.Record.(map[string]any)
+	if !ok {
+		httpx.WriteInvalidRequest(ctx, w, "record must be a JSON object", nil)
+		return
+	}
+	recordBytes, err := spaces.MarshalRecord(value)
+	if errors.Is(err, spaces.ErrInvalidRecord) {
+		httpx.WriteInvalidRequest(ctx, w, fmt.Sprintf("invalid record: %v", err), err)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("marshal record: %w", err))
+		return
+	}
+	recordURI, cid, err := s.store.PutRecord(
+		ctx,
+		spaceURI,
+		repo,
+		collection,
+		rkey,
+		recordBytes,
+	)
+	if errors.Is(err, spaces.ErrSpaceNotFound) {
+		httpx.WriteSpaceNotFound(ctx, w, err)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("put record: %w", err))
+		return
+	}
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpacePutRecordOutput{
+		Uri: recordURI.String(),
+		Cid: cid.String(),
+	})
+}
+
+func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var params habitat.NetworkHabitatSpaceGetRecordParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	_, ok = s.validator.Request(
+		authn.WithMethods(
+			authn.ValidatorMethodOAuth,
+			authn.ValidatorMethodServiceAuth,
+			authn.ValidatorMethodSpaceCredential,
+		),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	collection, ok := httpx.ParseNSIDInput(ctx, w, params.Collection, "collection")
+	if !ok {
+		return
+	}
+	rkey, err := syntax.ParseRecordKey(params.Rkey)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid rkey", err)
+		return
+	}
+	repo, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+	rec, err := s.store.GetRecord(ctx, spaceURI, repo, collection, rkey)
+	if errors.Is(err, spaces.ErrRecordNotFound) {
+		httpx.WriteRecordNotFound(ctx, w, err)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get record: %w", err))
+		return
+	}
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceGetRecordOutput{
+		Uri: habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, collection, rec.Rkey).
+			String(),
+		Cid:   rec.Cid.String(),
+		Value: rec.Value,
+	})
+}
+
+// UploadBlob stores an uploaded blob content-addressed by its CID and returns
+// the blob reference. Implements network.habitat.repo.uploadBlob.
+func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	_, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	mimeType := r.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 500*1024))
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		httpx.WriteError(ctx, w, "BlobTooLarge", "max 500kb", http.StatusRequestEntityTooLarge)
+		return
+	} else if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to read request body", err)
+		return
+	}
+	c, size, err := s.blobs.PutBlob(ctx, mimeType, data)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("store blob: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRepoUploadBlobOutput{
+		Cid: c.String(),
+		Blob: atdata.Blob{
+			Ref:      atdata.CIDLink(c),
+			MimeType: mimeType,
+			Size:     size,
+		},
+	})
+}
+
+// GetBlob streams a blob stored within a space back to a caller with read
+// access. Implements network.habitat.space.getBlob.
+func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var params habitat.NetworkHabitatSpaceGetBlobParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	_, ok = s.validator.Request(
+		authn.WithMethods(
+			authn.ValidatorMethodOAuth,
+			authn.ValidatorMethodServiceAuth,
+			authn.ValidatorMethodSpaceCredential,
+		),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	c, err := cid.Parse(params.Cid)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse cid", err)
+		return
+	}
+	mimeType, data, err := s.blobs.GetBlob(ctx, c)
+	if errors.Is(err, spaces.ErrBlobNotFound) {
+		httpx.WriteError(ctx, w, "BlobNotFound", "blob not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get blob: %w", err))
+		return
+	}
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", mimeType)
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	if _, err := w.Write(data); err != nil {
+		slog.ErrorContext(ctx, "failed to write blob", "err", err)
+		return
+	}
+}
+
+func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var params habitat.NetworkHabitatSpaceListRecordsParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	_, ok = s.validator.Request(
+		authn.WithMethods(
+			authn.ValidatorMethodOAuth,
+			authn.ValidatorMethodServiceAuth,
+			authn.ValidatorMethodSpaceCredential,
+		),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	var filterCollection *syntax.NSID
+	if params.Collection != "" {
+		c, ok := httpx.ParseNSIDInput(ctx, w, params.Collection, "collection filter")
+		if !ok {
+			return
+		}
+		filterCollection = &c
+	}
+	repo, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+	records, err := s.store.ListRecords(r.Context(), spaceURI, repo, filterCollection)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list records: %w", err))
+		return
+	}
+	recViews := make([]habitat.NetworkHabitatSpaceListRecordsRecord, len(records))
+	for i, rec := range records {
+		recViews[i] = habitat.NetworkHabitatSpaceListRecordsRecord{
+			Collection: rec.Collection.String(),
+			Rkey:       rec.Rkey.String(),
+			Cid:        rec.Cid.String(),
+		}
+		if !params.ExcludeValues {
+			recViews[i].Value = rec.Value
+		}
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListRecordsOutput{Records: recViews})
+}
+
+func (s *Server) GetRepo(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var params habitat.NetworkHabitatSpaceGetRepoParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	_, ok = s.validator.Request(
+		authn.WithMethods(
+			authn.ValidatorMethodOAuth,
+			authn.ValidatorMethodServiceAuth,
+			authn.ValidatorMethodSpaceCredential,
+		),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+	// Read the repo's signed head commit and its record blocks as of the same
+	// point (see RepoSnapshot), so the commit always agrees with the blocks
+	// the CAR actually carries. An empty repo has no state to recover, so it
+	// reports as not found.
+	commit, blocks, err := s.store.RepoSnapshot(ctx, spaceURI, repoDID)
+	if errors.Is(err, spaces.ErrSpaceNotFound) {
+		httpx.WriteSpaceNotFound(ctx, w, err)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("repo snapshot: %w", err))
+		return
+	}
+	if commit == nil {
+		httpx.WriteRepoNotFound(ctx, w, spaces.ErrRepoNotFound)
+		return
+	}
+
+	// The signed commit is the CAR's first root.
+	carBytes, err := spaces.SerializeRepoCAR(*commit, blocks)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("serialize car: %w", err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.ipld.car")
+	if _, err := w.Write(carBytes); err != nil {
+		utils.LogAndHTTPError(ctx, w, err, "write car", http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var params habitat.NetworkHabitatSpaceListRepoOpsParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid query params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	_, ok = s.validator.Request(
+		authn.WithMethods(
+			authn.ValidatorMethodOAuth,
+			authn.ValidatorMethodServiceAuth,
+			authn.ValidatorMethodSpaceCredential,
+		),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+
+	limit := int(params.Limit)
+	if limit <= 0 {
+		limit = 100
+	}
+
+	records, commit, err := s.store.ListRepoOps(ctx, spaceURI, repoDID, params.Since, limit)
+	if errors.Is(err, spaces.ErrRevTooFar) {
+		httpx.WriteError(ctx, w, "RevNotFound",
+			"since revision is ahead of the repo head", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list repo ops: %w", err))
+		return
+	}
+
+	ops := make([]habitat.NetworkHabitatSpaceListRepoOpsOpEntry, len(records))
+	for i, rec := range records {
+		ops[i] = habitat.NetworkHabitatSpaceListRepoOpsOpEntry{
+			Rev:        rec.Rev,
+			Collection: rec.Collection.String(),
+			Rkey:       rec.Rkey.String(),
+			Prev:       rec.Prev,
+			Cid:        rec.Cid.String(),
+		}
+		if !params.ExcludeValues {
+			ops[i].Value = rec.Value
+		}
+	}
+
+	output := habitat.NetworkHabitatSpaceListRepoOpsOutput{Ops: ops}
+	if len(records) > 0 {
+		output.Cursor = records[len(records)-1].Rev
+	}
+
+	// commit is only ever non-nil when the page reached the head of the
+	// oplog: the store reads the head and these ops inside the same locked
+	// transaction, so a syncer folding the ops and comparing its hash against
+	// this commit always sees the exact same state on both sides.
+	if commit != nil {
+		signed := commit.ToXRPC()
+		output.Commit = &signed
+	}
+	httpx.WriteJSON(r.Context(), w, output)
+}
+
+// GetLatestCommit returns the current signed commit over a repo's head state
+// within a space. It is callable with OAuth (for the caller's own data) or a
+// space credential (for syncing services); either way the caller must be a
+// member of the space.
+func (s *Server) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var params habitat.NetworkHabitatSpaceGetLatestCommitParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid query params", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
+	if !ok {
+		return
+	}
+	_, ok = s.validator.Request(
+		authn.WithMethods(
+			authn.ValidatorMethodOAuth,
+			authn.ValidatorMethodServiceAuth,
+			authn.ValidatorMethodSpaceCredential,
+		),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
+	}
+
+	commit, err := s.store.RepoHeadCommit(ctx, spaceURI, repoDID)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("repo head commit: %w", err))
+		return
+	}
+	if commit == nil {
+		httpx.WriteRepoNotFound(ctx, w, spaces.ErrRepoNotFound)
+		return
+	}
+
+	signed := commit.ToXRPC()
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetLatestCommitOutput{
+		Commit: &signed,
+	})
+}
+
+func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	var input habitat.NetworkHabitatSpaceDeleteRecordInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
+	if !ok {
+		return
+	}
+	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
+	if !ok {
+		return
+	}
+	if credInfo.Subject != repo {
+		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", nil)
+		return
+	}
+	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
+	if !ok {
+		return
+	}
+	if habitat_syntax.ReservedCollections.Contains(collection) {
+		httpx.WriteInvalidRequest(
+			ctx,
+			w,
+			"relationship collections must be managed by network.habitat.relationship.* lexicons",
+			nil,
+		)
+		return
+	}
+	if err := s.store.DeleteRecord(ctx, spaceURI, repo, collection, input.Rkey); err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("delete record: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceDeleteRecordOutput{})
+}
+
+func (s *Server) GetDelegationToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+	space, ok := httpx.ParseSpaceURIInput(ctx, w, r.URL.Query().Get("space"), "space")
+	if !ok {
+		return
+	}
+	kid := "#atproto"
+	privKey, err := s.hive.PrivateKeyForDID(ctx, credInfo.Subject)
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		privKey = s.hostKey
+		kid = "#habitat"
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get private key: %w", err))
+		return
+	}
+	token, err := utils.DelegationToken(privKey, credInfo.Subject, kid, space)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("sign token: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetDelegationTokenOutput{
+		Token: token,
+	})
+}
+
+func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var input habitat.NetworkHabitatSpaceGetSpaceCredentialInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	if input.ClientAttestation != "" {
+		httpx.WriteNotSupported(ctx, w, "client attestation is not yet supported")
+		return
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
+	if !ok {
+		return
+	}
+	if _, ok = s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodDelegationToken),
+		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
+	).Validate(w, r); !ok {
+		return
+	}
+	kid := "#atproto"
+	privKey, err := s.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		privKey = s.hostKey
+		kid = "#atproto_space"
+	} else if err != nil {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
+		return
+	}
+	token, err := utils.SpaceCredential(privKey, kid, spaceURI)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign token: %w", err))
+		return
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: token})
+}

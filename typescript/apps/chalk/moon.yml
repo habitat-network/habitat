@@ -1,0 +1,10 @@
+layer: application
+language: typescript
+tasks:
+  dev:
+    env:
+      SERVER_PORT: "5177"
+    deps:
+      - pear:dev
+      - sap:dev
+      - root:caddy

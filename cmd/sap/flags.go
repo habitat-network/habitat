@@ -3,12 +3,16 @@ package main
 import "github.com/urfave/cli/v3"
 
 var (
-	fDB           = "db"
-	fPort         = "port"
-	fInternalPort = "internal-port"
-	fDomain       = "domain"
-	fLogLevel     = "log-level"
-	fSecret       = "secret"
+	fDB                 = "db"
+	fPort               = "port"
+	fInternalPort       = "internal-port"
+	fDomain             = "domain"
+	fLogLevel           = "log-level"
+	fSecret             = "secret"
+	fInternalAuthSecret = "internal-auth-secret"
+
+	fIdentityResolver = "identity-resolver"
+	fWebhookURL       = "webhook-url"
 )
 
 func getFlags() []cli.Flag {
@@ -27,9 +31,14 @@ func getFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:    fInternalPort,
-			Usage:   "Internal HTTP port serving the org and channel endpoints",
+			Usage:   "Internal HTTP port serving the org and channel endpoints. If set to the same value as -port, the internal routes are served on the same listener as the public ones.",
 			Value:   "2581",
 			Sources: cli.EnvVars("SAP_INTERNAL_PORT"),
+		},
+		&cli.StringFlag{
+			Name:    fInternalAuthSecret,
+			Usage:   "If set, require HTTP basic auth (any username, this value as the password) on the internal routes",
+			Sources: cli.EnvVars("SAP_INTERNAL_AUTH_SECRET"),
 		},
 		&cli.StringFlag{
 			Name:    fDomain,
@@ -44,10 +53,22 @@ func getFlags() []cli.Flag {
 			Sources: cli.EnvVars("SAP_LOG_LEVEL"),
 		},
 		&cli.StringFlag{
+			Name: fIdentityResolver,
+			Usage: "Base URL of an atproto identity service (e.g. a Habitat instance) to resolve " +
+				"identities through instead of the public network",
+			Sources: cli.EnvVars("SAP_IDENTITY_RESOLVER"),
+		},
+		&cli.StringFlag{
 			Name:    fSecret,
 			Usage:   "Secret used in OAuth flow",
 			Value:   "secret",
 			Sources: cli.EnvVars("SAP_SECRET"),
+		},
+		&cli.StringFlag{
+			Name: fWebhookURL,
+			Usage: "If set, POST each outbox message to this URL as it's synced, retrying " +
+				"a failed delivery with exponential backoff until it succeeds",
+			Sources: cli.EnvVars("SAP_WEBHOOK_URL"),
 		},
 	}
 }

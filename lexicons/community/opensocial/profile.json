@@ -1,0 +1,42 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.profile",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "A community's public profile. Lives in the community's `about` space, authored by the community DID.",
+            "key": "literal:self",
+            "record": {
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 256,
+                        "description": "The community's display name."
+                    },
+                    "description": {
+                        "type": "string",
+                        "maxLength": 2048,
+                        "description": "A short description of the community."
+                    },
+                    "avatar": {
+                        "type": "blob",
+                        "accept": [
+                            "image/png",
+                            "image/jpeg",
+                            "image/webp"
+                        ],
+                        "maxSize": 1000000
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        }
+    }
+}
