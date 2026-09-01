@@ -2,7 +2,6 @@ package spaces
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -109,13 +108,17 @@ type Store interface {
 	) ([]RepoInfo, error)
 
 	// Record operations
+	//
+	// PutRecord takes the record value as a [MarshaledRecord] — callers must
+	// validate and marshal user input via [MarshalRecord] before calling
+	// PutRecord.
 	PutRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
-		value any,
+		value MarshaledRecord,
 	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
 	GetRecord(
 		ctx context.Context,
@@ -441,7 +444,7 @@ func (s *store) PutRecord(
 	repo syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
-	value any,
+	value MarshaledRecord,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
 	ctx, span := tracer.Start(ctx, "PutRecord", trace.WithAttributes(
 		attribute.String("space", spaceURI.String()),
@@ -455,25 +458,9 @@ func (s *store) PutRecord(
 	} else if !ok {
 		return "", nil, ErrSpaceNotFound
 	}
-	jsonBytes, err := json.Marshal(value)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to marshal value: %w", err)
-	}
-	// validates against atproto data model
-	recordMap, err := atdata.UnmarshalJSON(jsonBytes)
-	if err != nil {
-		return "", nil, fmt.Errorf("%w: %w", ErrInvalidRecord, err)
-	}
-	bytes, err := atdata.MarshalCBOR(recordMap)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
-	}
-	span.SetAttributes(attribute.Int("cbor_bytes", len(bytes)))
-	if len(bytes) > atdata.MAX_CBOR_RECORD_SIZE {
-		return "", nil, ErrRecordTooLarge
-	}
+	span.SetAttributes(attribute.Int("cbor_bytes", len(value)))
 
-	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(bytes)
+	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(value)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
@@ -527,7 +514,7 @@ func (s *store) PutRecord(
 			Space:      spaceURI,
 			Collection: collection,
 			Rkey:       rkey,
-			Value:      bytes,
+			Value:      value,
 			Rev:        tid,
 			PrevCid:    existing.Cid,
 			Cid:        newCidStr,

@@ -125,14 +125,17 @@ func (s *store) SetUserRelation(
 ) (habitat_syntax.SpaceRecordURI, error) {
 	var uri habitat_syntax.SpaceRecordURI
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		var err error
+		recordBytes, err := spaces.MarshalRecord(habitat.NetworkHabitatRelationshipUserRelation{
+			Subject:   did.String(),
+			Relation:  string(role),
+			CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("err marshaling relationship record: %w", err)
+		}
 		uri, _, err = s.spaces.WithTx(tx).
 			PutRecord(ctx, space, space.SpaceOwner(), habitat_syntax.UserRelationCollection, userRelationRkey(did),
-				habitat.NetworkHabitatRelationshipUserRelation{
-					Subject:   did.String(),
-					Relation:  string(role),
-					CreatedAt: time.Now().UTC().Format(time.RFC3339),
-				})
+				recordBytes)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
 		}
@@ -190,15 +193,18 @@ func (s *store) SetSpaceRoleRelation(
 ) (habitat_syntax.SpaceRecordURI, error) {
 	var uri habitat_syntax.SpaceRecordURI
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		var err error
+		recordBytes, err := spaces.MarshalRecord(habitat.NetworkHabitatRelationshipSpaceRelation{
+			Subject:     subject.String(),
+			SubjectRole: string(subjectRole),
+			Relation:    string(objectRole),
+			CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("err marshaling relationship record: %w", err)
+		}
 		uri, _, err = s.spaces.WithTx(tx).
 			PutRecord(ctx, object, object.SpaceOwner(), habitat_syntax.SpaceRelationCollection, spaceRelationRkey(subject, subjectRole),
-				habitat.NetworkHabitatRelationshipSpaceRelation{
-					Subject:     subject.String(),
-					SubjectRole: string(subjectRole),
-					Relation:    string(objectRole),
-					CreatedAt:   time.Now().UTC().Format(time.RFC3339),
-				})
+				recordBytes)
 		if err != nil {
 			return fmt.Errorf("err putting relationship record: %w", err)
 		}

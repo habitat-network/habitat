@@ -159,7 +159,14 @@ func TestServer_ListSpaces(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -191,7 +198,14 @@ func TestServer_ListRepos(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -272,7 +286,7 @@ func TestServer_DeleteRecord(t *testing.T) {
 		owner,
 		syntax.NSID("network.habitat.note"),
 		"del-me",
-		map[string]any{"x": 1},
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
 	)
 	require.NoError(t, err)
 
@@ -308,9 +322,23 @@ func TestServer_ListRecords(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
 	require.NoError(t, err)
-	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k2",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 2}),
+	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -347,7 +375,14 @@ func TestServer_GetRepo(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -520,7 +555,7 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 		owner,
 		syntax.NSID("network.habitat.note"),
 		"test",
-		map[string]any{"x": 1},
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
 	)
 	require.NoError(t, err)
 
@@ -548,9 +583,23 @@ func TestServer_ListRepoOps(t *testing.T) {
 
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
 	require.NoError(t, err)
-	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k2",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 2}),
+	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -590,7 +639,14 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 
 	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
-	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		groupType,
+		"k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -638,7 +694,14 @@ func TestServer_GetLatestCommit(t *testing.T) {
 
 	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
-	_, _, err = store.PutRecord(t.Context(), uri, owner, groupType, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		groupType,
+		"k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -705,9 +768,23 @@ func TestServer_ListRepoOps_Since(t *testing.T) {
 
 	coll := syntax.NSID("network.habitat.note")
 
-	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
 	require.NoError(t, err)
-	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k2",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 2}),
+	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -754,7 +831,7 @@ func TestServer_ListRepoOps_IncludesValue(t *testing.T) {
 		owner,
 		coll,
 		"k1",
-		map[string]any{"text": "hello"},
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"text": "hello"}),
 	)
 	require.NoError(t, err)
 
@@ -795,7 +872,7 @@ func TestServer_ListRepoOps_ExcludeValues(t *testing.T) {
 		owner,
 		coll,
 		"k1",
-		map[string]any{"text": "hello"},
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"text": "hello"}),
 	)
 	require.NoError(t, err)
 
@@ -831,7 +908,14 @@ func TestServer_ListRepoOpsSinceAheadRejects(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	_, _, err = store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	_, _, err = store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"v": 1}),
+	)
 	require.NoError(t, err)
 
 	// A TID-like string that sorts after any real TID (base32 is a-z + 2-7).
