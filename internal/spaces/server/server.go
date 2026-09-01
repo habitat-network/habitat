@@ -217,6 +217,9 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
+	} else if errors.Is(err, spaces.ErrInvalidRecord) {
+		httpx.WriteInvalidRequest(ctx, w, fmt.Sprintf("invalid record: %v", err), err)
+		return
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("put record: %w", err))
 		return

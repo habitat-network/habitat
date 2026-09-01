@@ -123,3 +123,27 @@ it("flushes each member to their own repo separately", async () => {
     new Set(["did:web:bob.example", "did:web:carol.example"]),
   );
 });
+
+it("keeps the pending flush when the sap write fails", async () => {
+  const uri = URI + "-retry";
+  const stub = env.DOC.get(env.DOC.idFromName(uri));
+  await runInDurableObject(stub, (r: DocRoom) =>
+    r.applyEdit(
+      { spaceUri: uri },
+      "did:web:bob.example",
+      updateFrom((d) => d.getText("body").insert(0, "x")),
+    ),
+  );
+  // sap is down for this alarm. The entry must survive so the alarm retry
+  // Cloudflare schedules after a thrown handler actually has something left
+  // to flush — otherwise this edit is never written to the member's repo.
+  fetchMock.mockImplementation(async () => {
+    throw new Error("sap is down");
+  });
+  await new Promise((resolve) => setTimeout(resolve, 2100)); // see the note above
+  await runDurableObjectAlarm(stub).catch(() => {});
+  await runInDurableObject(stub, async (_r: DocRoom, state) => {
+    const pending = await state.storage.list({ prefix: "pending:" });
+    expect([...pending.keys()]).toContain("pending:member:did:web:bob.example");
+  });
+});

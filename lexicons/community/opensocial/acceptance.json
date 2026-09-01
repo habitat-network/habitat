@@ -1,0 +1,23 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.acceptance",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "A member's side of membership: written by the member (not the community) into the community's `members` space, alongside a matching community.opensocial.membership record. Its presence gates appearing in the member roster, not access itself.",
+            "key": "literal:self",
+            "record": {
+                "type": "object",
+                "required": [
+                    "updatedAt"
+                ],
+                "properties": {
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        }
+    }
+}

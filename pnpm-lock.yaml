@@ -7,8 +7,8 @@ settings:
 catalogs:
   default:
     '@atproto/api':
-      specifier: 0.20.41
-      version: 0.20.41
+      specifier: 0.20.42
+      version: 0.20.42
     '@atproto/identity':
       specifier: ^0.5.9
       version: 0.5.9
@@ -109,7 +109,7 @@ importers:
     devDependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.41
+        version: 0.20.42
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.11
@@ -194,7 +194,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.41
+        version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.9
@@ -294,7 +294,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.41
+        version: 0.20.42
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.7.11
@@ -434,7 +434,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.41
+        version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.9
@@ -479,7 +479,7 @@ importers:
         version: 12.5.1
       '@posthog/react':
         specifier: ^1.10.3
-        version: 1.10.4(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)
+        version: 1.10.5(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.12(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -679,7 +679,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.41
+        version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.9
@@ -739,7 +739,7 @@ importers:
         version: 1.4.0
       web-vitals:
         specifier: ^6.0.0
-        version: 6.1.1
+        version: 6.2.1
       zustand:
         specifier: ^5.0.14
         version: 5.0.15(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
@@ -912,8 +912,12 @@ packages:
     resolution: {integrity: sha512-vfvoDhu6ds6BT3Pqe+d2/LBU1WpDRtt69y6zltlfMCoucPm82m1j50/Wb6xTvv+oZ+2j0JyZVXsmXQ12SWYQJg==}
     engines: {node: '>=22'}
 
-  '@atproto/api@0.20.41':
-    resolution: {integrity: sha512-qNgnB8VE9z9DMQkP3twlwNeIlmosfcmGVAkACqDpArvlUmtlOiXVX1t6xhOC3AjznzJvXxdXJcPmlPIQiGMRRg==}
+  '@atproto/api@0.20.42':
+    resolution: {integrity: sha512-x86WgkHFcNqDIo8gf52npc1KvFXlIPDLAJdIhiH1uUAwiQxDw8/WU0iH3pTl1OXMKkB93kwxG0ihx0fTi5FPbw==}
+    engines: {node: '>=22'}
+
+  '@atproto/common-web@0.5.10':
+    resolution: {integrity: sha512-w4JUdsJ3VXt8ewkavYh5m/u0UbxDtFdCKhNZPEpJ0U1vcWIjDaSInIexteETDgD7fBJAhidIEi30MGz1kk49ug==}
     engines: {node: '>=22'}
 
   '@atproto/common-web@0.5.9':
@@ -961,6 +965,10 @@ packages:
     resolution: {integrity: sha512-ukCZMCWmiu7fAlssBbLs+IMaf2K2R9mADaTKz2jEeC/xeZ3jT77Ka0S2G+ELBB+Dc9ijBACU0iPMQLhquOkuzQ==}
     engines: {node: '>=22'}
 
+  '@atproto/lexicon@0.7.12':
+    resolution: {integrity: sha512-bXVWXc2+ctVVUc3CEuWV9mVXRMMQcWmdzmyRE7w2Rli0B36HADU49Vvi7PWTw26zFFqumYVl9b23bW3vrzAzbg==}
+    engines: {node: '>=22'}
+
   '@atproto/oauth-client-browser@0.5.3':
     resolution: {integrity: sha512-e9QH5FHJC+NOiDsLA9290TJ/nEMVgta8G8GKHcxtOgAHnXYM+KTy2rMTgRzG+k213Zf4e8eS4apk+NsBNW/Sqw==}
     engines: {node: '>=22'}
@@ -977,8 +985,16 @@ packages:
     resolution: {integrity: sha512-EHsEHtasH/DGPljBYecVDjweGMQ5eTu6Ns0GZ5z0qdqpOI8ipBvldWnMIxWkA+5HfZ9Dsu4V1MX0WP7wgL8cuA==}
     engines: {node: '>=22'}
 
+  '@atproto/syntax@0.7.5':
+    resolution: {integrity: sha512-6vnLQK8OAzg0dO6z/xnvuXn5zMV0UMI54zbxk7G7BXhGlIlLMb1yo+JVYtAlv8Nxzr+AaFdNZ8AJt+L/QhJMFQ==}
+    engines: {node: '>=22'}
+
   '@atproto/xrpc@0.8.10':
     resolution: {integrity: sha512-++FNpTVF61fF8+3Kk1RYtdTO7xyUTdIc/Cmfk2CMn29Qw9tZD8bmW+M5db1Z0okYWFWK8Wqu7bc9VmF8tUB8Jg==}
+    engines: {node: '>=22'}
+
+  '@atproto/xrpc@0.8.11':
+    resolution: {integrity: sha512-5M38m9REQouVIA4/Gh0wqo6Vncr3QbG7rb5oqlEbqB+f77pruCk4JLDipfrOrsXH+pdnVnU2IaPXvpsSAC7Mqw==}
     engines: {node: '>=22'}
 
   '@babel/code-frame@7.27.1':
@@ -3948,8 +3964,8 @@ packages:
   '@posthog/core@1.48.8':
     resolution: {integrity: sha512-LAOBOjMQrQmgcbZxnubl74l2GQd5OWqxCJJ8mzcWdZRWbfO6Y/A6E3fqWjDtm68hY4LxC/bbopG60cxZW8cfWw==}
 
-  '@posthog/react@1.10.4':
-    resolution: {integrity: sha512-vL06Scc6yGIMiL9EaeRfY9w5U1+N6jc8s/6wXb50MO/yLz0XOvkt21aWswbrDJsLdfplqd/U6BSl/mZumserlw==}
+  '@posthog/react@1.10.5':
+    resolution: {integrity: sha512-lehh9+mJwb6iEjRBkIvh8olnJ6RV+YgQgdgJ6fdTr+T7EMoml/G1k+q92Oil8vZPcA9Dzg+2n0xaLY5yZrY3YA==}
     peerDependencies:
       '@types/react': '>=16.8.0'
       posthog-js: '>=1.257.2'
@@ -11356,8 +11372,8 @@ packages:
   web-vitals@6.0.0:
     resolution: {integrity: sha512-Guaibvy/+uNtL6Bsu4jmMJGzuSl91oeRH5iO9pPRbYftnFUr3yqT1TUNX/OE4o9HexuEMU3Kb/Wg7iKhlffZUA==}
 
-  web-vitals@6.1.1:
-    resolution: {integrity: sha512-r93gKnR6ZC2O8F3JrS0AAGIQ0v0OhXuyg4DAj2oG7K+GPkwXfUSc3ZcWeu50AsV5yIc6xxnTjERipJ6EvSw2vg==}
+  web-vitals@6.2.1:
+    resolution: {integrity: sha512-rLcLXA2sx6+9dE88NHFubwTtGxpK4yYBLj6qHPdFoCaLr0cXGb4efOqtKLlm4loGA4OEKHIQKMKzZkKyOh5ctw==}
 
   webcrypto-core@1.9.2:
     resolution: {integrity: sha512-gsXecm82UQNlTBURJGuqOWy1Ww08S3kZUcr3aOJS02Pk0xLtkfeUAVC0u0xhgdonFme80edSJUIJyuvL/7250Q==}
@@ -11883,15 +11899,22 @@ snapshots:
 
   '@atproto-labs/simple-store@0.5.1': {}
 
-  '@atproto/api@0.20.41':
+  '@atproto/api@0.20.42':
     dependencies:
-      '@atproto/common-web': 0.5.9
-      '@atproto/lexicon': 0.7.11
-      '@atproto/syntax': 0.7.4
-      '@atproto/xrpc': 0.8.10
+      '@atproto/common-web': 0.5.10
+      '@atproto/lexicon': 0.7.12
+      '@atproto/syntax': 0.7.5
+      '@atproto/xrpc': 0.8.11
       await-lock: 3.0.0
       multiformats: 13.4.2
       tlds: 1.261.0
+      zod: 3.25.76
+
+  '@atproto/common-web@0.5.10':
+    dependencies:
+      '@atproto/lex-data': 0.1.7
+      '@atproto/lex-json': 0.1.6
+      '@atproto/syntax': 0.7.5
       zod: 3.25.76
 
   '@atproto/common-web@0.5.9':
@@ -11961,6 +11984,13 @@ snapshots:
       multiformats: 13.4.2
       zod: 3.25.76
 
+  '@atproto/lexicon@0.7.12':
+    dependencies:
+      '@atproto/common-web': 0.5.10
+      '@atproto/syntax': 0.7.5
+      multiformats: 13.4.2
+      zod: 3.25.76
+
   '@atproto/oauth-client-browser@0.5.3':
     dependencies:
       '@atproto-labs/did-resolver': 0.3.7
@@ -12000,9 +12030,19 @@ snapshots:
       iso-datestring-validator: 2.2.2
       tslib: 2.8.1
 
+  '@atproto/syntax@0.7.5':
+    dependencies:
+      iso-datestring-validator: 2.2.2
+      tslib: 2.8.1
+
   '@atproto/xrpc@0.8.10':
     dependencies:
       '@atproto/lexicon': 0.7.11
+      zod: 3.25.76
+
+  '@atproto/xrpc@0.8.11':
+    dependencies:
+      '@atproto/lexicon': 0.7.12
       zod: 3.25.76
 
   '@babel/code-frame@7.27.1':
@@ -15838,7 +15878,7 @@ snapshots:
     dependencies:
       '@posthog/types': 1.405.1
 
-  '@posthog/react@1.10.4(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)':
+  '@posthog/react@1.10.5(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)':
     dependencies:
       posthog-js: 1.418.10
       react: 19.2.8
@@ -24106,7 +24146,7 @@ snapshots:
 
   web-vitals@6.0.0: {}
 
-  web-vitals@6.1.1: {}
+  web-vitals@6.2.1: {}
 
   webcrypto-core@1.9.2:
     dependencies:
