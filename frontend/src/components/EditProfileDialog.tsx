@@ -139,7 +139,9 @@ function EditProfileForm({
             {isUploadingAvatar ? "Uploading…" : "Change avatar"}
           </Button>
         </div>
-        <FieldError errors={avatarError ? [{ message: avatarError.message }] : []} />
+        <FieldError
+          errors={avatarError ? [{ message: avatarError.message }] : []}
+        />
       </Field>
       <Field>
         <FieldLabel htmlFor="org-name">Name</FieldLabel>

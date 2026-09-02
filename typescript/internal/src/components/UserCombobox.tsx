@@ -22,14 +22,19 @@ interface UserComboboxProps {
   identityResolverUrl?: string;
 }
 
-const UserCombobox = ({ value, onValueChange, identityResolverUrl }: UserComboboxProps) => {
+const UserCombobox = ({
+  value,
+  onValueChange,
+  identityResolverUrl,
+}: UserComboboxProps) => {
   const [searchValue, setSearchValue] = useState("");
   const debouncedSearchValue = useDebounce(searchValue, 250);
   const anchor = useComboboxAnchor();
 
   const { data: suggestions = [] } = useQuery<Actor[]>({
     queryKey: ["actorSearch", debouncedSearchValue],
-    queryFn: () => searchActorsTypeahead(debouncedSearchValue, { identityResolverUrl }),
+    queryFn: () =>
+      searchActorsTypeahead(debouncedSearchValue, { identityResolverUrl }),
     enabled: !!debouncedSearchValue.trim(),
   });
 

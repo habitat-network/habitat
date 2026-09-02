@@ -4,7 +4,10 @@ const PUBLIC_BSKY_API = "https://public.api.bsky.app";
 
 export async function searchActorsTypeahead(
   q: string,
-  { identityResolverUrl, limit = 8 }: { limit?: number; identityResolverUrl?: string } = {},
+  {
+    identityResolverUrl,
+    limit = 8,
+  }: { limit?: number; identityResolverUrl?: string } = {},
 ): Promise<Actor[]> {
   const params = new URLSearchParams({ q, limit: String(limit) });
   const [searchResp, resolveResp] = await Promise.all([

@@ -17,11 +17,7 @@ import {
   Input,
 } from "internal/components/ui";
 
-export function CreateOrgDialog({
-  authManager,
-}: {
-  authManager: AuthManager;
-}) {
+export function CreateOrgDialog({ authManager }: { authManager: AuthManager }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const navigate = useNavigate();

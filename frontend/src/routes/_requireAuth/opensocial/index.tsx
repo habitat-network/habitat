@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { myOrgsQueryOptions, myInvitesQueryOptions } from "@/queries/opensocial";
+import {
+  myOrgsQueryOptions,
+  myInvitesQueryOptions,
+} from "@/queries/opensocial";
 import { OrgItem } from "@/components/OrgItem";
 import { PendingInvites } from "@/components/PendingInvites";
 import { CreateOrgDialog } from "@/components/CreateOrgDialog";
@@ -40,8 +43,8 @@ function OpensocialIndex() {
       {orgs.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            You aren&rsquo;t a member of any communities yet. Create one to
-            get started.
+            You aren&rsquo;t a member of any communities yet. Create one to get
+            started.
           </CardContent>
         </Card>
       ) : (

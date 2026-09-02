@@ -38,7 +38,9 @@ export function OrgItem({
       </ItemMedia>
       <ItemContent>
         <ItemTitle>
-          {profile?.name ?? <DidHoverCard did={org.did}>{org.did}</DidHoverCard>}
+          {profile?.name ?? (
+            <DidHoverCard did={org.did}>{org.did}</DidHoverCard>
+          )}
         </ItemTitle>
         {profile?.description && (
           <ItemDescription>{profile.description}</ItemDescription>

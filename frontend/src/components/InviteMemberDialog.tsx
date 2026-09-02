@@ -62,7 +62,13 @@ export function InviteMemberDialog({
         >
           <Field>
             <FieldLabel>People</FieldLabel>
-            <UserCombobox value={invitees} onValueChange={setInvitees} identityResolverUrl={"https://" + import.meta.env.VITE_HABITAT_DOMAIN} />
+            <UserCombobox
+              value={invitees}
+              onValueChange={setInvitees}
+              identityResolverUrl={
+                "https://" + import.meta.env.VITE_HABITAT_DOMAIN
+              }
+            />
             <FieldError errors={error ? [{ message: error.message }] : []} />
           </Field>
           <DialogFooter>

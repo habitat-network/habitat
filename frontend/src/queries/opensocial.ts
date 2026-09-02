@@ -80,7 +80,11 @@ export function orgPendingInvitesQueryOptions(
 // fetchWithBearer makes a JSON request against this pear instance using an
 // arbitrary bearer token (a delegation token or space credential) rather than
 // the caller's own OAuth session.
-async function fetchWithBearer(path: string, token: string, init?: RequestInit) {
+async function fetchWithBearer(
+  path: string,
+  token: string,
+  init?: RequestInit,
+) {
   const domain = import.meta.env.VITE_HABITAT_DOMAIN;
   const res = await fetch(`https://${domain}${path}`, {
     ...init,
@@ -88,7 +92,9 @@ async function fetchWithBearer(path: string, token: string, init?: RequestInit) 
   });
   const body = await res.json().catch(() => undefined);
   if (!res.ok) {
-    throw new Error(body?.message || body?.error || `request failed: ${res.status}`);
+    throw new Error(
+      body?.message || body?.error || `request failed: ${res.status}`,
+    );
   }
   return body;
 }
@@ -218,7 +224,10 @@ export function orgProfileQueryOptions(
           `/xrpc/network.habitat.space.getRecord?${params}`,
           credential,
         );
-        const profile: OrgProfile = { name: value.name, description: value.description };
+        const profile: OrgProfile = {
+          name: value.name,
+          description: value.description,
+        };
         const avatar = value.avatar as RawBlobRef | undefined;
         const cid = avatar?.ref?.$link;
         if (cid) {
@@ -278,7 +287,9 @@ export async function uploadOrgImage(
   }
   if (!res.ok) {
     const body = await res.json().catch(() => undefined);
-    throw new Error(body?.message || body?.error || `upload failed: ${res.status}`);
+    throw new Error(
+      body?.message || body?.error || `upload failed: ${res.status}`,
+    );
   }
   return res.json();
 }

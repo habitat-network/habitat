@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { orgMembersQueryOptions, orgProfileQueryOptions } from "@/queries/opensocial";
+import {
+  orgMembersQueryOptions,
+  orgProfileQueryOptions,
+} from "@/queries/opensocial";
 import { DidHoverCard } from "@/components/DidHoverCard";
 import { InviteMemberDialog } from "@/components/InviteMemberDialog";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
@@ -23,7 +26,11 @@ import {
 export const Route = createFileRoute("/_requireAuth/opensocial/$org")({
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(
-      orgMembersQueryOptions(params.org, context.authManager, context.queryClient),
+      orgMembersQueryOptions(
+        params.org,
+        context.authManager,
+        context.queryClient,
+      ),
     ),
   component: OrgDetail,
 });
@@ -40,7 +47,8 @@ function OrgDetail() {
   // The caller is an admin if their own membership record (already loaded
   // as part of the member list) carries the admin role.
   const isAdmin = members.some(
-    (m) => m.did === authManager.getAuthInfo()?.did && m.roles.includes("admin"),
+    (m) =>
+      m.did === authManager.getAuthInfo()?.did && m.roles.includes("admin"),
   );
 
   return (
