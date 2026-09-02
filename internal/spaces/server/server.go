@@ -692,10 +692,11 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok = s.validator.Request(
+	credInfo, ok := s.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodDelegationToken),
 		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
-	).Validate(w, r); !ok {
+	).Validate(w, r)
+	if !ok {
 		return
 	}
 	kid := "#atproto"
@@ -707,7 +708,7 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
 		return
 	}
-	token, err := utils.SpaceCredential(privKey, kid, spaceURI)
+	token, err := utils.SpaceCredential(privKey, kid, spaceURI, credInfo.DPoPJKT)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign token: %w", err))
 		return

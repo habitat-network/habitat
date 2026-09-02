@@ -18,6 +18,7 @@ type DelegationTokenAuthMethod struct {
 	dir     identity.Directory
 	hostKey atcrypto.PrivateKey
 	srv     SpaceRoleValidator
+	replay  *dpopReplayStore
 }
 
 var _ Method = (*DelegationTokenAuthMethod)(nil)
@@ -31,6 +32,7 @@ func NewDelegationTokenAuthMethod(
 		dir:     directory,
 		hostKey: hostKey,
 		srv:     srv,
+		replay:  newDPoPReplayStore(),
 	}
 }
 
@@ -84,7 +86,17 @@ func (d *DelegationTokenAuthMethod) Validate(
 		httpx.WriteError(ctx, w, "UserNotAuthorized", "", http.StatusBadRequest)
 		return nil, false
 	}
+	// The delegation token is exchanged for a space credential bound to the
+	// key proven here (no `ath`: the delegation token is a one-time grant,
+	// not the DPoP-bound access token itself). See the atproto
+	// permissioned-data proposal.
+	jkt, err := verifyDPoPProof(r, d.replay, "")
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid DPoP proof", err)
+		return nil, false
+	}
 	return &CredentialInfo{
-		Space: space,
+		Space:   space,
+		DPoPJKT: jkt,
 	}, true
 }

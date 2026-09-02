@@ -11,7 +11,8 @@ import (
 )
 
 type SpaceCredentialAuthMethod struct {
-	dir identity.Directory
+	dir    identity.Directory
+	replay *dpopReplayStore
 }
 
 var _ Method = (*SpaceCredentialAuthMethod)(nil)
@@ -19,7 +20,7 @@ var _ Method = (*SpaceCredentialAuthMethod)(nil)
 func NewSpaceCredentialAuthMethod(
 	directory identity.Directory,
 ) *SpaceCredentialAuthMethod {
-	return &SpaceCredentialAuthMethod{dir: directory}
+	return &SpaceCredentialAuthMethod{dir: directory, replay: newDPoPReplayStore()}
 }
 
 // CanHandle implements [Method].
@@ -59,6 +60,35 @@ func (s *SpaceCredentialAuthMethod) Validate(
 
 	if issuer != string(space.SpaceOwner()) {
 		httpx.WriteInvalidRequest(ctx, w, "token issuer does not match space", err)
+		return nil, false
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		httpx.WriteInvalidRequest(ctx, w, "invalid token claims", nil)
+		return nil, false
+	}
+	cnf, ok := claims["cnf"].(map[string]any)
+	if !ok {
+		httpx.WriteInvalidRequest(ctx, w, "token missing cnf claim", nil)
+		return nil, false
+	}
+	jkt, ok := cnf["jkt"].(string)
+	if !ok || jkt == "" {
+		httpx.WriteInvalidRequest(ctx, w, "token missing cnf.jkt claim", nil)
+		return nil, false
+	}
+
+	// The credential is presented as a DPoP-bound token (RFC 9449): the
+	// caller must prove, with each request, possession of the key the
+	// credential's `cnf.jkt` was minted against.
+	proofJKT, err := verifyDPoPProof(r, s.replay, getBearerToken(r))
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid DPoP proof", err)
+		return nil, false
+	}
+	if proofJKT != jkt {
+		httpx.WriteInvalidRequest(ctx, w, "DPoP proof key does not match credential", nil)
 		return nil, false
 	}
 

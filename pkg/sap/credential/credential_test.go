@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // stubDelegator hands out a fixed delegation token.
@@ -24,13 +25,36 @@ func (stubDelegator) DelegationToken(context.Context, habitat_syntax.SpaceURI) (
 	return "test-delegation", nil
 }
 
-// credToken extracts the bearer token a ClientForSpace client would send,
-// standing in for the removed Manager.Credential.
+// credToken mints (or reuses the cached) credential for space and returns
+// its token, standing in for the removed Manager.Credential.
 func credToken(t *testing.T, m *Manager, space habitat_syntax.SpaceURI) string {
 	t.Helper()
-	client, err := m.ClientForSpace(t.Context(), space)
+	_, err := m.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
-	return strings.TrimPrefix(client.Headers.Get("Authorization"), "Bearer ")
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.creds[space].token
+}
+
+// assertDPoPProof parses proof (without verifying its signature — that's
+// covered by internal/authn's DPoP tests) and checks its `htm` and `ath`
+// claims match method and accessToken (accessToken == "" means no `ath` is
+// expected).
+func assertDPoPProof(t *testing.T, proof string, method string, accessToken string) {
+	t.Helper()
+	require.NotEmpty(t, proof)
+	tok, err := josejwt.ParseSigned(proof)
+	require.NoError(t, err)
+	var claims utils.DPoPProofClaims
+	require.NoError(t, tok.UnsafeClaimsWithoutVerification(&claims))
+	require.Equal(t, method, claims.Method)
+	require.NotEmpty(t, claims.ID)
+	require.NotNil(t, claims.IssuedAt)
+	if accessToken == "" {
+		require.Empty(t, claims.AccessTokenHash)
+	} else {
+		require.Equal(t, utils.HashDPoPToken(accessToken), claims.AccessTokenHash)
+	}
 }
 
 // dirWithSpaceHost builds an identity.MockDirectory with a single identity
@@ -52,6 +76,7 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 		mu           sync.Mutex
 		credCalls    int
 		repoAuth     string
+		repoProof    string
 		repoRevCalls int
 	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -61,11 +86,13 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 			credCalls++
 			mu.Unlock()
 			require.Equal(t, "Bearer test-delegation", r.Header.Get("Authorization"))
+			assertDPoPProof(t, r.Header.Get("DPoP"), http.MethodPost, "")
 			_ = json.NewEncoder(w).Encode(
 				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "space-cred"})
 		case "/xrpc/network.habitat.space.listRepos":
 			mu.Lock()
 			repoAuth = r.Header.Get("Authorization")
+			repoProof = r.Header.Get("DPoP")
 			repoRevCalls++
 			mu.Unlock()
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{})
@@ -88,7 +115,9 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 	require.Equal(t, 1, credCalls)
 	mu.Unlock()
 
-	// A repo-host read through the manager's client carries the credential.
+	// A repo-host read through the manager's client carries the credential,
+	// DPoP-bound: the Authorization header uses the "DPoP" scheme and is
+	// accompanied by a matching proof whose `ath` binds it to that token.
 	client, err := m.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
 	var out habitat.NetworkHabitatSpaceListReposOutput
@@ -99,7 +128,8 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 		&out,
 	))
 	mu.Lock()
-	require.Equal(t, "Bearer space-cred", repoAuth)
+	require.Equal(t, "DPoP space-cred", repoAuth)
+	assertDPoPProof(t, repoProof, http.MethodGet, "space-cred")
 	require.Equal(t, 1, repoRevCalls)
 	mu.Unlock()
 

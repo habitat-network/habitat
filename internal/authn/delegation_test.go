@@ -1,6 +1,7 @@
 package authn_test
 
 import (
+	"crypto/ecdsa"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,6 +21,19 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 )
+
+// newDelegationRequest builds a GET "/" request presenting token as a
+// delegation token, with a DPoP proof (no `ath`: a delegation token is a
+// grant, not the DPoP-bound artifact) proving possession of key.
+func newDelegationRequest(t *testing.T, token string, key *ecdsa.PrivateKey) *http.Request {
+	t.Helper()
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+	r.Header.Set("Authorization", "Bearer "+token)
+	proof, err := utils.SignDPoPProof(key, http.MethodGet, "http://"+r.Host+r.URL.Path, "")
+	require.NoError(t, err)
+	r.Header.Set("DPoP", proof)
+	return r
+}
 
 // newTestPermsStore returns a perms.Store backed by an in-memory fga store,
 // along with the spaces.Store backing it, so tests grant/deny space roles
@@ -119,17 +133,23 @@ func TestDelegationAuthMethod(t *testing.T) {
 		require.NoError(t, err)
 		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
 		require.NoError(t, err)
-		r := newAuthenticatedRequest(token)
+		dpopKey, err := utils.GenerateDPoPKey()
+		require.NoError(t, err)
+		r := newDelegationRequest(t, token, dpopKey)
 		credInfo, ok := newTestDelegator(t, WithDirectory(dir), WithSpaceRoleValidator(store)).
 			Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
-		require.Equal(t, credInfo, &authn.CredentialInfo{Space: space})
+		require.Equal(
+			t, credInfo, &authn.CredentialInfo{Space: space, DPoPJKT: jwkThumbprint(t, dpopKey)},
+		)
 	})
 
 	t.Run("no permission", func(t *testing.T) {
 		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
 		require.NoError(t, err)
-		r := newAuthenticatedRequest(token)
+		dpopKey, err := utils.GenerateDPoPKey()
+		require.NoError(t, err)
+		r := newDelegationRequest(t, token, dpopKey)
 		_, ok := newTestDelegator(t, WithDirectory(dir)).Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
 	})
@@ -142,7 +162,9 @@ func TestDelegationAuthMethod(t *testing.T) {
 		require.NoError(t, err)
 		token, err := utils.DelegationToken(hostKey, user, "#habitat", space)
 		require.NoError(t, err)
-		r := newAuthenticatedRequest(token)
+		dpopKey, err := utils.GenerateDPoPKey()
+		require.NoError(t, err)
+		r := newDelegationRequest(t, token, dpopKey)
 		credInfo, ok := newTestDelegator(
 			t,
 			WithDirectory(dir),
@@ -150,14 +172,18 @@ func TestDelegationAuthMethod(t *testing.T) {
 			WithHostKey(hostKey),
 		).Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
-		require.Equal(t, credInfo, &authn.CredentialInfo{Space: space})
+		require.Equal(
+			t, credInfo, &authn.CredentialInfo{Space: space, DPoPJKT: jwkThumbprint(t, dpopKey)},
+		)
 	})
 
 	t.Run("host key no permission", func(t *testing.T) {
 		hostKey, _ := atcrypto.GeneratePrivateKeyK256()
 		token, err := utils.DelegationToken(hostKey, user, "#habitat", space)
 		require.NoError(t, err)
-		r := newAuthenticatedRequest(token)
+		dpopKey, err := utils.GenerateDPoPKey()
+		require.NoError(t, err)
+		r := newDelegationRequest(t, token, dpopKey)
 		_, ok := newTestDelegator(t, WithDirectory(dir), WithHostKey(hostKey)).
 			Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
@@ -178,6 +204,22 @@ func TestDelegationAuthMethod(t *testing.T) {
 		_, err := store.SetUserRelation(t.Context(), user, space, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		token, err := utils.DelegationToken(otherKey, user, "#atproto", space)
+		require.NoError(t, err)
+		dpopKey, err := utils.GenerateDPoPKey()
+		require.NoError(t, err)
+		r := newDelegationRequest(t, token, dpopKey)
+		credInfo, ok := newTestDelegator(t, WithDirectory(dir), WithSpaceRoleValidator(store)).
+			Validate(httptest.NewRecorder(), r)
+		require.False(t, ok)
+		require.Nil(t, credInfo)
+	})
+
+	t.Run("missing DPoP proof", func(t *testing.T) {
+		store, sp := newTestPermsStore(t)
+		newTestSpace(t, sp, space)
+		_, err := store.SetUserRelation(t.Context(), user, space, habitat_syntax.SpaceRoleReader)
+		require.NoError(t, err)
+		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
 		require.NoError(t, err)
 		r := newAuthenticatedRequest(token)
 		credInfo, ok := newTestDelegator(t, WithDirectory(dir), WithSpaceRoleValidator(store)).

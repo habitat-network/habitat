@@ -35,10 +35,18 @@ func ServiceAuthToken(
 	}).SignedString(privateKey)
 }
 
+// SpaceCredential mints a DPoP-bound space credential JWT for space,
+// per the atproto permissioned-data proposal
+// (https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md).
+// jkt is the RFC 7638 JWK thumbprint of the key the credential is bound to
+// (from the DPoP proof presented alongside the delegation token it was
+// exchanged for); a caller presenting the credential must prove possession
+// of that same key via a DPoP proof whose `jwk` header hashes to jkt.
 func SpaceCredential(
 	privateKey atcrypto.PrivateKey,
 	kid string,
 	space habitat_syntax.SpaceURI,
+	jkt string,
 ) (string, error) {
 	return new(jwt.Token{
 		Method: jwt.GetSigningMethod("ES256K"),
@@ -48,6 +56,7 @@ func SpaceCredential(
 			"iat": jwt.NewNumericDate(time.Now()),
 			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			"jti": RandomNonce(16),
+			"cnf": map[string]string{"jkt": jkt},
 		},
 		Header: map[string]any{
 			"typ": "atproto-space-credential+jwt",

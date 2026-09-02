@@ -64,16 +64,27 @@ func TestValidator(t *testing.T) {
 	)
 
 	t.Run("space credential", func(t *testing.T) {
+		dpopKey, err := utils.GenerateDPoPKey()
+		require.NoError(t, err)
 		token, err := utils.SpaceCredential(
 			hostKey,
 			"#atproto_space",
 			"at://did:web:alice/space/test.space.type/abc",
+			jwkThumbprint(t, dpopKey),
 		)
 		require.NoError(t, err)
+		newRequest := func(t *testing.T) *http.Request {
+			t.Helper()
+			r := httptest.NewRequest("GET", "/", http.NoBody)
+			r.Header.Set("Authorization", "DPoP "+token)
+			proof, err := utils.SignDPoPProof(dpopKey, http.MethodGet, "http://"+r.Host+r.URL.Path, token)
+			require.NoError(t, err)
+			r.Header.Set("DPoP", proof)
+			return r
+		}
 		t.Run("matching space", func(t *testing.T) {
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest("GET", "/", http.NoBody)
-			r.Header.Set("Authorization", "Bearer "+token)
+			r := newRequest(t)
 			cred, ok := v.Request(
 				authn.WithMethods(authn.ValidatorMethodSpaceCredential),
 				authn.WithSpace(
@@ -86,8 +97,7 @@ func TestValidator(t *testing.T) {
 		})
 		t.Run("other space", func(t *testing.T) {
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest("GET", "/", http.NoBody)
-			r.Header.Set("Authorization", "Bearer "+token)
+			r := newRequest(t)
 			cred, ok := v.Request(
 				authn.WithMethods(
 					authn.ValidatorMethodDelegationToken,
@@ -104,8 +114,7 @@ func TestValidator(t *testing.T) {
 		})
 		t.Run("not supported method", func(t *testing.T) {
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest("GET", "/", http.NoBody)
-			r.Header.Set("Authorization", "Bearer "+token)
+			r := newRequest(t)
 			cred, ok := v.Request(
 				authn.WithMethods(authn.ValidatorMethodOAuth),
 				authn.WithSpace(

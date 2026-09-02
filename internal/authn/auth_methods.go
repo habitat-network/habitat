@@ -13,6 +13,12 @@ type CredentialInfo struct {
 	Subject syntax.DID
 	Org     org.Org
 	Space   habitat_syntax.SpaceURI
+
+	// DPoPJKT is the RFC 7638 JWK thumbprint of the key a validated
+	// delegation token's DPoP proof was bound to. Only set by
+	// [DelegationTokenAuthMethod], for minting a space credential's
+	// `cnf.jkt` claim against that same key.
+	DPoPJKT string
 }
 
 type Validator interface {

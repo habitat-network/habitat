@@ -8,6 +8,7 @@ package credential
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"net/http"
 	"sync"
@@ -43,9 +44,10 @@ type Directory interface {
 }
 
 // spaceCred is a cached credential for one space, paired with the host it
-// was minted for and is only valid against.
+// was minted for and is only valid against, and the key it is DPoP-bound to.
 type spaceCred struct {
 	token  string
+	key    *ecdsa.PrivateKey
 	host   string
 	expire time.Time
 }
@@ -100,6 +102,13 @@ func (m *Manager) credential(
 // a space credential there, and caches the pair. The host mints credentials
 // with ~1h expiry; renewing just before expiry (see renewalLead) keeps them
 // from going stale.
+//
+// A fresh key is generated for each mint and proven via a DPoP proof on the
+// exchange request (no `ath`: the delegation token is a one-time grant, not
+// the DPoP-bound credential itself), so the host binds the resulting space
+// credential's `cnf.jkt` to that key. See the atproto permissioned-data
+// proposal:
+// https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md
 func (m *Manager) mint(ctx context.Context, space habitat_syntax.SpaceURI) (spaceCred, error) {
 	host, err := m.hostForSpace(ctx, space)
 	if err != nil {
@@ -109,10 +118,25 @@ func (m *Manager) mint(ctx context.Context, space habitat_syntax.SpaceURI) (spac
 	if err != nil {
 		return spaceCred{}, fmt.Errorf("get delegation token: %w", err)
 	}
+	key, err := utils.GenerateDPoPKey()
+	if err != nil {
+		return spaceCred{}, fmt.Errorf("generate dpop key: %w", err)
+	}
+	endpoint := host + "/xrpc/network.habitat.space.getSpaceCredential"
+	proof, err := utils.SignDPoPProof(key, http.MethodPost, endpoint, "")
+	if err != nil {
+		return spaceCred{}, fmt.Errorf("sign dpop proof: %w", err)
+	}
+	// Header keys must be set via Set (not a map literal) so http.Header's
+	// case-insensitive Get, used when atclient merges these into the
+	// outgoing request, can find them by their canonical form.
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+delegation)
+	headers.Set("DPoP", proof)
 	client := &atclient.APIClient{
 		Client:  m.httpc,
 		Host:    host,
-		Headers: http.Header{"Authorization": []string{"Bearer " + delegation}},
+		Headers: headers,
 	}
 	var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
 	if err := client.Post(
@@ -121,7 +145,7 @@ func (m *Manager) mint(ctx context.Context, space habitat_syntax.SpaceURI) (spac
 	); err != nil {
 		return spaceCred{}, fmt.Errorf("get space credential: %w", err)
 	}
-	c := spaceCred{token: out.Credential, host: host, expire: time.Now().Add(time.Hour)}
+	c := spaceCred{token: out.Credential, key: key, host: host, expire: time.Now().Add(time.Hour)}
 	m.mu.Lock()
 	m.creds[space] = c
 	m.mu.Unlock()
@@ -152,7 +176,9 @@ func (m *Manager) DropSpace(space habitat_syntax.SpaceURI) {
 }
 
 // ClientForSpace returns an atproto API client that reads space at its own
-// host, authenticated with a valid space credential.
+// host, authenticated with a valid, DPoP-bound space credential: each
+// request is signed with a fresh DPoP proof over that request's method and
+// URL, bound to the credential via the proof's `ath` claim.
 func (m *Manager) ClientForSpace(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
@@ -162,8 +188,30 @@ func (m *Manager) ClientForSpace(
 		return nil, err
 	}
 	return &atclient.APIClient{
-		Client:  m.httpc,
-		Host:    c.host,
-		Headers: http.Header{"Authorization": []string{"Bearer " + c.token}},
+		Client: m.httpc,
+		Host:   c.host,
+		Auth:   &dpopAuth{key: c.key, token: c.token},
 	}, nil
+}
+
+// dpopAuth attaches a space credential and a matching DPoP proof to each
+// request, per RFC 9449 and the atproto permissioned-data proposal.
+type dpopAuth struct {
+	key   *ecdsa.PrivateKey
+	token string
+}
+
+// DoWithAuth implements [atclient.AuthMethod].
+func (a *dpopAuth) DoWithAuth(
+	c *http.Client,
+	req *http.Request,
+	_ syntax.NSID,
+) (*http.Response, error) {
+	proof, err := utils.SignDPoPProof(a.key, req.Method, req.URL.String(), a.token)
+	if err != nil {
+		return nil, fmt.Errorf("sign dpop proof: %w", err)
+	}
+	req.Header.Set("Authorization", "DPoP "+a.token)
+	req.Header.Set("DPoP", proof)
+	return c.Do(req)
 }

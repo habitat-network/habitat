@@ -175,7 +175,7 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 	// bearer tokens minted by the (fake) space host.
 	require.NotEmpty(t, delegationAuth)
 	require.Equal(t, "Bearer deleg-tok", credentialAuth)
-	require.Equal(t, "Bearer space-cred", repoAuth)
+	require.Equal(t, "DPoP space-cred", repoAuth)
 }
 
 // TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost verifies the
@@ -242,5 +242,5 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 
 	require.NotEmpty(t, delegationAuth)
 	require.Equal(t, "Bearer deleg-tok", credentialAuth)
-	require.Equal(t, "Bearer space-cred", repoAuth)
+	require.Equal(t, "DPoP space-cred", repoAuth)
 }

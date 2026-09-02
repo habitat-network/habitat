@@ -19,8 +19,17 @@ func getBearerJwt(r *http.Request) (token *jwt.Token, err error) {
 	return token, err
 }
 
+// getBearerToken extracts the token from an Authorization header, whether
+// presented with the "Bearer" scheme or, per RFC 9449, the "DPoP" scheme
+// used for DPoP-bound tokens such as space credentials.
 func getBearerToken(r *http.Request) string {
-	return strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	auth := r.Header.Get("Authorization")
+	for _, prefix := range [...]string{"DPoP ", "Bearer "} {
+		if trimmed := strings.TrimPrefix(auth, prefix); trimmed != auth {
+			return trimmed
+		}
+	}
+	return auth
 }
 
 func fetchIssuerKeyFunc(
