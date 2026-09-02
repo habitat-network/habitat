@@ -24,12 +24,12 @@ import (
 )
 
 type Server struct {
-	store     Store
+	store     *Store
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
 }
 
-func NewServer(store Store, validator authn.RequestValidator) *Server {
+func NewServer(store *Store, validator authn.RequestValidator) *Server {
 	return &Server{
 		store:     store,
 		validator: validator,

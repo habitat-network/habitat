@@ -17,6 +17,8 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -42,7 +44,12 @@ func newTestServer(t *testing.T, caller syntax.DID) (*Server, perms.Store, space
 
 	db := db_testutil.NewDB(t)
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
-	ps := perms.NewStore(db, sp, fga)
+	hve, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	blobStore := spaces_testutil.NewTestBlobStore(t)
+	os, err := opensocial.NewStore(db, sp, blobStore, hve)
+	require.NoError(t, err)
+	ps := perms.NewStore(db, sp, fga, os)
 
 	return NewServer(
 		ps,

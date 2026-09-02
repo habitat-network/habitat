@@ -24,6 +24,14 @@ var fgaRelationFromRole = map[habitat_syntax.SpaceRole]string{
 	habitat_syntax.SpaceRoleReader:  fgastore.RelationSpaceReader,
 }
 
+type OpenSocialStore interface {
+	CheckPermission(
+		ctx context.Context,
+		did syntax.DID,
+		space habitat_syntax.SpaceURI,
+	) (bool, error)
+}
+
 type Store interface {
 	// Additions
 	// Adds a user relation (collection = network.habitat.relationship.userRelation) and returns
@@ -98,13 +106,19 @@ type Store interface {
 }
 
 type store struct {
-	db     *gorm.DB
-	fga    fgastore.Store
-	spaces spaces.Store
+	db         *gorm.DB
+	fga        fgastore.Store
+	spaces     spaces.Store
+	opensocial OpenSocialStore
 }
 
-func NewStore(db *gorm.DB, spaces spaces.Store, fga fgastore.Store) *store {
-	return &store{db: db, spaces: spaces, fga: fga}
+func NewStore(
+	db *gorm.DB,
+	spaces spaces.Store,
+	fga fgastore.Store,
+	opensocialStore OpenSocialStore,
+) *store {
+	return &store{db: db, spaces: spaces, fga: fga, opensocial: opensocialStore}
 }
 
 var ErrRelationNotFound = errors.New("relation not found")
@@ -113,7 +127,7 @@ var _ Store = &store{}
 
 // WithTx implements [Store], returning a store whose DB operations run on tx.
 func (s *store) WithTx(tx *gorm.DB) Store {
-	return &store{db: tx, spaces: s.spaces, fga: s.fga}
+	return &store{db: tx, spaces: s.spaces, fga: s.fga, opensocial: s.opensocial}
 }
 
 // AddUserRelation implements [Store].
@@ -387,12 +401,29 @@ func (s *store) UnsafeRevokeAllSpaceRoles(
 // CheckUserHashabitat_syntax.SpaceRole implements [Store]. The space's owner is treated as
 // an implicit habitat_syntax.SpaceRoleOwner, and members of belongsToOrg (the caller's own
 // org) as implicit habitat_syntax.SpaceRoleReaders, without either needing a stored tuple.
+//
+// For a reader or writer check, an opensocial community.opensocial.access
+// grant is also accepted: opensocial spaces are never given FGA tuples
+// (their access is governed entirely by their own access/role records), so
+// without this an opensocial member could never pass an FGA-backed check at
+// all — including writing their own community.opensocial.acceptance record
+// into the org's members space, which is a member's own responsibility
+// (see community.opensocial.acceptance's lexicon description).
 func (s *store) CheckUserHasSpaceRole(
 	ctx context.Context,
 	did syntax.DID,
 	space habitat_syntax.SpaceURI,
 	role habitat_syntax.SpaceRole,
 ) (bool, error) {
+	if role == habitat_syntax.SpaceRoleReader {
+		allowed, err := s.opensocial.CheckPermission(ctx, did, space)
+		if err != nil {
+			return false, fmt.Errorf("check opensocial permission: %w", err)
+		}
+		if allowed {
+			return true, nil
+		}
+	}
 	return s.fga.Check(
 		ctx,
 		fgastore.MemberUserString(did),

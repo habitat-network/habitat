@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/fgastore"
+	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 
@@ -35,7 +36,12 @@ func newTestStore(t *testing.T) *Store {
 		spaces_testutil.WithDB(db),
 		spaces_testutil.WithFGA(fga),
 	)
-	permsStore := perms.NewStore(db, spacesStore, fga)
+	os := opensocial_testutil.NewTestStore(
+		t,
+		opensocial_testutil.WithDB(db),
+		opensocial_testutil.WithSpaceStore(spacesStore),
+	)
+	permsStore := perms.NewStore(db, spacesStore, fga, os.Store)
 	return NewStore(db, spacesStore, permsStore)
 }
 
@@ -284,7 +290,12 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 		spaces_testutil.WithDB(db),
 		spaces_testutil.WithFGA(fga),
 	)
-	permsStore := perms.NewStore(db, spacesStore, fga)
+	os := opensocial_testutil.NewTestStore(
+		t,
+		opensocial_testutil.WithDB(db),
+		opensocial_testutil.WithSpaceStore(spacesStore),
+	)
+	permsStore := perms.NewStore(db, spacesStore, fga, os.Store)
 	s := NewStore(db, spacesStore, permsStore)
 
 	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "doomed")
