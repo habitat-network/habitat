@@ -41,7 +41,7 @@ func newTestStore(t *testing.T) *store {
 		opensocial_testutil.WithSpaceStore(sp),
 	)
 
-	return NewStore(db, sp, fga, os.Store)
+	return NewStore(db, sp, fga, os)
 }
 
 // newSpace creates a space owned by org in sp and returns its URI.

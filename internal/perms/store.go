@@ -415,7 +415,7 @@ func (s *store) CheckUserHasSpaceRole(
 	space habitat_syntax.SpaceURI,
 	role habitat_syntax.SpaceRole,
 ) (bool, error) {
-	if role == habitat_syntax.SpaceRoleReader {
+	if role == habitat_syntax.SpaceRoleReader || role == habitat_syntax.SpaceRoleWriter {
 		allowed, err := s.opensocial.CheckPermission(ctx, did, space)
 		if err != nil {
 			return false, fmt.Errorf("check opensocial permission: %w", err)

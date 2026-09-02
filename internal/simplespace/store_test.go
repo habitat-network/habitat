@@ -41,7 +41,7 @@ func newTestStore(t *testing.T) *Store {
 		opensocial_testutil.WithDB(db),
 		opensocial_testutil.WithSpaceStore(spacesStore),
 	)
-	permsStore := perms.NewStore(db, spacesStore, fga, os.Store)
+	permsStore := perms.NewStore(db, spacesStore, fga, os)
 	return NewStore(db, spacesStore, permsStore)
 }
 
@@ -295,7 +295,7 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 		opensocial_testutil.WithDB(db),
 		opensocial_testutil.WithSpaceStore(spacesStore),
 	)
-	permsStore := perms.NewStore(db, spacesStore, fga, os.Store)
+	permsStore := perms.NewStore(db, spacesStore, fga, os)
 	s := NewStore(db, spacesStore, permsStore)
 
 	uri, err := s.CreateSpace(t.Context(), orgID, owner, groupType, "doomed")

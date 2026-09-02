@@ -40,7 +40,7 @@ func newTestPermsStore(t *testing.T) (perms.Store, spaces.Store) {
 		opensocial_testutil.WithDB(db),
 		opensocial_testutil.WithSpaceStore(sp),
 	)
-	return perms.NewStore(db, sp, fga, os.Store), sp
+	return perms.NewStore(db, sp, fga, os), sp
 }
 
 // newTestSpace creates the space used throughout this test's subtests,

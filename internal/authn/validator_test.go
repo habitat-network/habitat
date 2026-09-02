@@ -53,7 +53,7 @@ func TestValidator(t *testing.T) {
 		opensocial_testutil.WithDB(db),
 		opensocial_testutil.WithSpaceStore(sp),
 	)
-	ps := perms.NewStore(db, sp, fga, os.Store)
+	ps := perms.NewStore(db, sp, fga, os)
 
 	v := authn.NewValidator(
 		oauth,
