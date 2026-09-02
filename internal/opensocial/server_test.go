@@ -1,10 +1,7 @@
 package opensocial_test
 
 import (
-	"bytes"
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -15,6 +12,7 @@ import (
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -24,6 +22,7 @@ var (
 	serverOrgDID = syntax.DID("did:plc:org")
 	serverAdmin  = syntax.DID("did:plc:admin")
 	serverAlice  = syntax.DID("did:plc:alice")
+	serverBob    = syntax.DID("did:plc:bob")
 )
 
 func successValidator(did syntax.DID) authn.RequestValidator {
@@ -32,7 +31,7 @@ func successValidator(did syntax.DID) authn.RequestValidator {
 
 // newServerStore bootstraps an org's members space with `serverAdmin` holding the
 // admin role.
-func newServerStore(t *testing.T) opensocial.Store {
+func newServerStore(t *testing.T) *opensocial_testutil.TestStore {
 	t.Helper()
 	ts := opensocial_testutil.NewTestStore(t)
 
@@ -50,197 +49,195 @@ func newServerStore(t *testing.T) opensocial.Store {
 	)
 	require.NoError(t, err)
 
-	return *ts.Store
-}
-
-func doJSON(
-	t *testing.T,
-	handler http.HandlerFunc,
-	method string,
-	path string,
-	body any,
-) *httptest.ResponseRecorder {
-	t.Helper()
-	b, err := json.Marshal(body)
-	require.NoError(t, err)
-	req := httptest.NewRequest(method, path, bytes.NewReader(b))
-	w := httptest.NewRecorder()
-	handler(w, req)
-	return w
-}
-
-func doGet(t *testing.T, handler http.HandlerFunc, path string) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, path, http.NoBody)
-	w := httptest.NewRecorder()
-	handler(w, req)
-	return w
+	return ts
 }
 
 func TestServer_CreateOrg(t *testing.T) {
 	ts := opensocial_testutil.NewTestStore(t)
-	s := opensocial.NewServer(*ts.Store, successValidator(serverAlice))
+	client := httpx_testutil.NewTestXRPCClient(t)
 
-	w := doJSON(t, s.CreateOrg, http.MethodPost, "/xrpc/network.habitat.opensocial.createOrg",
-		habitat.NetworkHabitatOpensocialCreateOrgInput{Handle: "acme"})
-	require.Equal(t, http.StatusOK, w.Code)
+	t.Run("creates org and makes caller admin", func(t *testing.T) {
+		s := opensocial.NewServer(ts.Store, successValidator(serverAlice))
 
-	var out habitat.NetworkHabitatOpensocialCreateOrgOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
-	require.NotEmpty(t, out.Org)
+		var out habitat.NetworkHabitatOpensocialCreateOrgOutput
+		code := client.Procedure(
+			http.HandlerFunc(s.CreateOrg),
+			habitat.NetworkHabitatOpensocialCreateOrgInput{Handle: "acme"},
+			&out,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.NotEmpty(t, out.Org)
 
-	// The caller was bootstrapped as the new org's admin.
-	roles, err := ts.GetUserRoles(t.Context(), syntax.DID(out.Org), serverAlice)
-	require.NoError(t, err)
-	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
-}
+		roles, err := ts.GetUserRoles(t.Context(), syntax.DID(out.Org), serverAlice)
+		require.NoError(t, err)
+		require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+	})
 
-func TestServer_CreateOrg_RequiresAuth(t *testing.T) {
-	ts := opensocial_testutil.NewTestStore(t)
-	s := opensocial.NewServer(*ts.Store, authntest.NewFailureValidator())
+	t.Run("requires auth", func(t *testing.T) {
+		s := opensocial.NewServer(ts.Store, authntest.NewFailureValidator())
 
-	w := doJSON(t, s.CreateOrg, http.MethodPost, "/xrpc/network.habitat.opensocial.createOrg",
-		habitat.NetworkHabitatOpensocialCreateOrgInput{Handle: "acme"})
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+		var out habitat.NetworkHabitatOpensocialCreateOrgOutput
+		code := client.Procedure(
+			http.HandlerFunc(s.CreateOrg),
+			habitat.NetworkHabitatOpensocialCreateOrgInput{Handle: "acme"},
+			&out,
+		)
+		require.Equal(t, http.StatusUnauthorized, code)
+	})
 }
 
 func TestServer_UpdateProfile(t *testing.T) {
 	ts := opensocial_testutil.NewTestStore(t)
-	orgDIDStr, err := ts.NewOrg(t.Context(), "acme", serverAdmin)
+	org, err := ts.NewOrg(t.Context(), "acme", serverAdmin)
 	require.NoError(t, err)
-	org := orgDIDStr
+	client := httpx_testutil.NewTestXRPCClient(t)
 
-	adminServer := opensocial.NewServer(*ts.Store, successValidator(serverAdmin))
-	aliceServer := opensocial.NewServer(*ts.Store, successValidator(serverAlice))
+	t.Run("requires admin", func(t *testing.T) {
+		aliceServer := opensocial.NewServer(ts.Store, successValidator(serverAlice))
 
-	// Requires the caller to be an admin.
-	forbiddenW := doJSON(
-		t, aliceServer.UpdateProfile, http.MethodPost, "/xrpc/community.opensocial.updateProfile",
-		opensocial_api.CommunityOpensocialUpdateProfileInput{
-			Org: org, Name: "Acme Corp",
-		},
-	)
-	require.Equal(t, http.StatusUnauthorized, forbiddenW.Code)
+		var out struct{}
+		code := client.Procedure(
+			http.HandlerFunc(aliceServer.UpdateProfile),
+			opensocial_api.CommunityOpensocialUpdateProfileInput{
+				Org: org, Name: "Acme Corp",
+			},
+			&out,
+		)
+		require.Equal(t, http.StatusUnauthorized, code)
+	})
 
-	w := doJSON(
-		t, adminServer.UpdateProfile, http.MethodPost, "/xrpc/community.opensocial.updateProfile",
-		opensocial_api.CommunityOpensocialUpdateProfileInput{
-			Org: org, Name: "Acme Corp", Description: "We make widgets",
-		},
-	)
-	require.Equal(t, http.StatusOK, w.Code)
+	t.Run("updates profile", func(t *testing.T) {
+		adminServer := opensocial.NewServer(ts.Store, successValidator(serverAdmin))
+
+		var out struct{}
+		code := client.Procedure(
+			http.HandlerFunc(adminServer.UpdateProfile),
+			opensocial_api.CommunityOpensocialUpdateProfileInput{
+				Org: org, Name: "Acme Corp", Description: "We make widgets",
+			},
+			&out,
+		)
+		require.Equal(t, http.StatusOK, code)
+	})
 }
 
-func TestServer_CreateInvite_RequiresAdmin(t *testing.T) {
-	s := opensocial.NewServer(newServerStore(t), successValidator(serverAlice))
-
-	w := doJSON(t, s.CreateInvite, http.MethodPost, "/xrpc/community.opensocial.createInvite",
-		opensocial_api.CommunityOpensocialCreateInviteInput{
-			Org: serverOrgDID.String(), Invitee: serverAlice.String(),
-		})
-
-	require.Equal(t, http.StatusUnauthorized, w.Code)
-}
-
-func TestServer_InviteFlow(t *testing.T) {
+func TestServer_Invites(t *testing.T) {
 	store := newServerStore(t)
-	adminServer := opensocial.NewServer(store, successValidator(serverAdmin))
-	aliceServer := opensocial.NewServer(store, successValidator(serverAlice))
+	adminServer := opensocial.NewServer(store.Store, successValidator(serverAdmin))
+	aliceServer := opensocial.NewServer(store.Store, successValidator(serverAlice))
+	client := httpx_testutil.NewTestXRPCClient(t)
 
-	// Admin invites alice.
-	createW := doJSON(
-		t, adminServer.CreateInvite, http.MethodPost, "/xrpc/community.opensocial.createInvite",
-		opensocial_api.CommunityOpensocialCreateInviteInput{
-			Org:     serverOrgDID.String(),
-			Invitee: serverAlice.String(),
-			Roles:   []string{opensocial.MemberRoleRkey},
-		},
-	)
-	require.Equal(t, http.StatusOK, createW.Code)
-	var createOut opensocial_api.CommunityOpensocialCreateInviteOutput
-	require.NoError(t, json.NewDecoder(createW.Body).Decode(&createOut))
-	require.Equal(t, serverAlice.String(), createOut.Invite.Invitee)
+	t.Run("create invite requires admin", func(t *testing.T) {
+		var out opensocial_api.CommunityOpensocialCreateInviteOutput
+		code := client.Procedure(
+			http.HandlerFunc(aliceServer.CreateInvite),
+			opensocial_api.CommunityOpensocialCreateInviteInput{
+				Org: serverOrgDID.String(), Invitee: serverAlice.String(),
+			},
+			&out,
+		)
+		require.Equal(t, http.StatusUnauthorized, code)
+	})
 
-	// Admin sees it in the pending list; alice, not being an admin, can't.
-	pendingPath := "/xrpc/community.opensocial.listPendingInvites?org=" +
-		url.QueryEscape(serverOrgDID.String())
-	pendingW := doGet(t, adminServer.ListPendingInvites, pendingPath)
-	require.Equal(t, http.StatusOK, pendingW.Code)
-	var pendingOut opensocial_api.CommunityOpensocialListPendingInvitesOutput
-	require.NoError(t, json.NewDecoder(pendingW.Body).Decode(&pendingOut))
-	require.Len(t, pendingOut.Invites, 1)
+	t.Run("invite flow", func(t *testing.T) {
+		// Admin invites alice.
+		var createOut opensocial_api.CommunityOpensocialCreateInviteOutput
+		createCode := client.Procedure(
+			http.HandlerFunc(adminServer.CreateInvite),
+			opensocial_api.CommunityOpensocialCreateInviteInput{
+				Org:     serverOrgDID.String(),
+				Invitee: serverAlice.String(),
+				Roles:   []string{opensocial.MemberRoleRkey},
+			},
+			&createOut,
+		)
+		require.Equal(t, http.StatusOK, createCode)
+		require.Equal(t, serverAlice.String(), createOut.Invite.Invitee)
 
-	forbiddenW := doGet(t, aliceServer.ListPendingInvites, pendingPath)
-	require.Equal(t, http.StatusUnauthorized, forbiddenW.Code)
+		// Admin sees it in the pending list; alice, not being an admin, can't.
+		pendingParams := url.Values{"org": []string{serverOrgDID.String()}}
+		var pendingOut opensocial_api.CommunityOpensocialListPendingInvitesOutput
+		pendingCode := client.Query(
+			http.HandlerFunc(adminServer.ListPendingInvites), pendingParams, &pendingOut,
+		)
+		require.Equal(t, http.StatusOK, pendingCode)
+		require.Len(t, pendingOut.Invites, 1)
 
-	// Alice sees the invite addressed to her.
-	listPath := "/xrpc/community.opensocial.listInvites?org=" + url.QueryEscape(
-		serverOrgDID.String(),
-	)
-	listW := doGet(t, aliceServer.ListInvites, listPath)
-	require.Equal(t, http.StatusOK, listW.Code)
-	var listOut opensocial_api.CommunityOpensocialListInvitesOutput
-	require.NoError(t, json.NewDecoder(listW.Body).Decode(&listOut))
-	require.Len(t, listOut.Invites, 1)
+		var forbiddenOut opensocial_api.CommunityOpensocialListPendingInvitesOutput
+		forbiddenCode := client.Query(
+			http.HandlerFunc(aliceServer.ListPendingInvites), pendingParams, &forbiddenOut,
+		)
+		require.Equal(t, http.StatusUnauthorized, forbiddenCode)
 
-	// It also shows up in her cross-org inbox, with the org attached.
-	myInvitesW := doGet(
-		t, aliceServer.ListInvites, "/xrpc/community.opensocial.listInvites",
-	)
-	require.Equal(t, http.StatusOK, myInvitesW.Code)
-	var myInvitesOut opensocial_api.CommunityOpensocialListInvitesOutput
-	require.NoError(t, json.NewDecoder(myInvitesW.Body).Decode(&myInvitesOut))
-	require.Len(t, myInvitesOut.Invites, 1)
-	require.Equal(t, serverOrgDID.String(), myInvitesOut.Invites[0].Org)
+		// Alice sees the invite addressed to her.
+		listParams := url.Values{"org": []string{serverOrgDID.String()}}
+		var listOut opensocial_api.CommunityOpensocialListInvitesOutput
+		listCode := client.Query(
+			http.HandlerFunc(aliceServer.ListInvites), listParams, &listOut,
+		)
+		require.Equal(t, http.StatusOK, listCode)
+		require.Len(t, listOut.Invites, 1)
 
-	// Alice accepts.
-	joinW := doJSON(
-		t, aliceServer.RequestJoin, http.MethodPost, "/xrpc/community.opensocial.requestJoin",
-		opensocial_api.CommunityOpensocialRequestJoinInput{Org: serverOrgDID.String()},
-	)
-	require.Equal(t, http.StatusOK, joinW.Code)
-	var joinOut opensocial_api.CommunityOpensocialRequestJoinOutput
-	require.NoError(t, json.NewDecoder(joinW.Body).Decode(&joinOut))
-	require.Equal(t, []string{opensocial.MemberRoleRkey}, joinOut.Roles)
+		// It also shows up in her cross-org inbox, with the org attached.
+		var myInvitesOut opensocial_api.CommunityOpensocialListInvitesOutput
+		myInvitesCode := client.Query(
+			http.HandlerFunc(aliceServer.ListInvites), url.Values{}, &myInvitesOut,
+		)
+		require.Equal(t, http.StatusOK, myInvitesCode)
+		require.Len(t, myInvitesOut.Invites, 1)
+		require.Equal(t, serverOrgDID.String(), myInvitesOut.Invites[0].Org)
 
-	// The invite is consumed, but alice is now a member, so requestJoin is
-	// idempotent: it confirms her existing membership rather than erroring.
-	rejoinW := doJSON(
-		t, aliceServer.RequestJoin, http.MethodPost, "/xrpc/community.opensocial.requestJoin",
-		opensocial_api.CommunityOpensocialRequestJoinInput{Org: serverOrgDID.String()},
-	)
-	require.Equal(t, http.StatusOK, rejoinW.Code)
-	var rejoinOut opensocial_api.CommunityOpensocialRequestJoinOutput
-	require.NoError(t, json.NewDecoder(rejoinW.Body).Decode(&rejoinOut))
-	require.Equal(t, []string{opensocial.MemberRoleRkey}, rejoinOut.Roles)
-}
+		// Alice accepts.
+		var joinOut opensocial_api.CommunityOpensocialRequestJoinOutput
+		joinCode := client.Procedure(
+			http.HandlerFunc(aliceServer.RequestJoin),
+			opensocial_api.CommunityOpensocialRequestJoinInput{Org: serverOrgDID.String()},
+			&joinOut,
+		)
+		require.Equal(t, http.StatusOK, joinCode)
+		require.Equal(t, []string{opensocial.MemberRoleRkey}, joinOut.Roles)
 
-func TestServer_RevokeInvite(t *testing.T) {
-	s := opensocial.NewServer(newServerStore(t), successValidator(serverAdmin))
+		// The invite is consumed, but alice is now a member, so requestJoin is
+		// idempotent: it confirms her existing membership rather than erroring.
+		var rejoinOut opensocial_api.CommunityOpensocialRequestJoinOutput
+		rejoinCode := client.Procedure(
+			http.HandlerFunc(aliceServer.RequestJoin),
+			opensocial_api.CommunityOpensocialRequestJoinInput{Org: serverOrgDID.String()},
+			&rejoinOut,
+		)
+		require.Equal(t, http.StatusOK, rejoinCode)
+		require.Equal(t, []string{opensocial.MemberRoleRkey}, rejoinOut.Roles)
+	})
 
-	createW := doJSON(
-		t, s.CreateInvite, http.MethodPost, "/xrpc/community.opensocial.createInvite",
-		opensocial_api.CommunityOpensocialCreateInviteInput{
-			Org: serverOrgDID.String(), Invitee: serverAlice.String(),
-		},
-	)
-	require.Equal(t, http.StatusOK, createW.Code)
-	var createOut opensocial_api.CommunityOpensocialCreateInviteOutput
-	require.NoError(t, json.NewDecoder(createW.Body).Decode(&createOut))
+	t.Run("revoke invite", func(t *testing.T) {
+		// Bob, not alice: alice is already a member from the "invite flow" subtest above.
+		var createOut opensocial_api.CommunityOpensocialCreateInviteOutput
+		client.Procedure(
+			http.HandlerFunc(adminServer.CreateInvite),
+			opensocial_api.CommunityOpensocialCreateInviteInput{
+				Org: serverOrgDID.String(), Invitee: serverBob.String(),
+			},
+			&createOut,
+		)
 
-	revokeW := doJSON(
-		t, s.RevokeInvite, http.MethodPost, "/xrpc/community.opensocial.revokeInvite",
-		opensocial_api.CommunityOpensocialRevokeInviteInput{
-			Org: serverOrgDID.String(), Id: createOut.Invite.Id,
-		},
-	)
-	require.Equal(t, http.StatusOK, revokeW.Code)
+		var revokeOut struct{}
+		revokeCode := client.Procedure(
+			http.HandlerFunc(adminServer.RevokeInvite),
+			opensocial_api.CommunityOpensocialRevokeInviteInput{
+				Org: serverOrgDID.String(), Id: createOut.Invite.Id,
+			},
+			&revokeOut,
+		)
+		require.Equal(t, http.StatusOK, revokeCode)
 
-	revokeAgainW := doJSON(
-		t, s.RevokeInvite, http.MethodPost, "/xrpc/community.opensocial.revokeInvite",
-		opensocial_api.CommunityOpensocialRevokeInviteInput{
-			Org: serverOrgDID.String(), Id: createOut.Invite.Id,
-		},
-	)
-	require.Equal(t, http.StatusNotFound, revokeAgainW.Code)
+		var revokeAgainOut struct{}
+		revokeAgainCode := client.Procedure(
+			http.HandlerFunc(adminServer.RevokeInvite),
+			opensocial_api.CommunityOpensocialRevokeInviteInput{
+				Org: serverOrgDID.String(), Id: createOut.Invite.Id,
+			},
+			&revokeAgainOut,
+		)
+		require.Equal(t, http.StatusNotFound, revokeAgainCode)
+	})
 }

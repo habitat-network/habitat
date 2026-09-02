@@ -12,6 +12,7 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -34,7 +35,12 @@ func newTestPermsStore(t *testing.T) (perms.Store, spaces.Store) {
 
 	db := db_testutil.NewDB(t)
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
-	return perms.NewStore(db, sp, fga), sp
+	os := opensocial_testutil.NewTestStore(
+		t,
+		opensocial_testutil.WithDB(db),
+		opensocial_testutil.WithSpaceStore(sp),
+	)
+	return perms.NewStore(db, sp, fga, os), sp
 }
 
 // newTestSpace creates the space used throughout this test's subtests,

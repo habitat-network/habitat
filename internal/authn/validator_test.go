@@ -13,6 +13,7 @@ import (
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/perms"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -47,7 +48,12 @@ func TestValidator(t *testing.T) {
 	t.Cleanup(func() { _ = fga.Close() })
 
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
-	ps := perms.NewStore(db, sp, fga)
+	os := opensocial_testutil.NewTestStore(
+		t,
+		opensocial_testutil.WithDB(db),
+		opensocial_testutil.WithSpaceStore(sp),
+	)
+	ps := perms.NewStore(db, sp, fga, os)
 
 	v := authn.NewValidator(
 		oauth,
