@@ -3,8 +3,7 @@ package simplespace
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"strings"
+	"net/url"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
@@ -15,6 +14,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -51,19 +51,15 @@ func newTestServer(t *testing.T, opts ...Option) *Server {
 
 func TestServer_CreateSpace(t *testing.T) {
 	s := newTestServer(t)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.createSpace",
-		strings.NewReader(`{"type": "network.habitat.group"}`),
-	)
-	w := httptest.NewRecorder()
-	s.CreateSpace(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
 
 	var output habitat.NetworkHabitatSimplespaceCreateSpaceOutput
-	err := json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.CreateSpace,
+		habitat.NetworkHabitatSimplespaceCreateSpaceInput{Type: "network.habitat.group"},
+		&output,
+	)
+
+	require.Equal(t, http.StatusOK, code)
 	require.Contains(
 		t,
 		output.Uri,
@@ -99,24 +95,20 @@ func TestServer_CreateSpaceWithDidInput(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			body, err := json.Marshal(habitat.NetworkHabitatSimplespaceCreateSpaceInput{
-				Did:  tt.did,
-				Type: "network.habitat.group",
-			})
-			require.NoError(t, err)
-			req := httptest.NewRequest(
-				http.MethodPost,
-				"/xrpc/network.habitat.simplespace.createSpace",
-				strings.NewReader(string(body)),
+			var out json.RawMessage
+			code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+				s.CreateSpace,
+				habitat.NetworkHabitatSimplespaceCreateSpaceInput{
+					Did:  tt.did,
+					Type: "network.habitat.group",
+				},
+				&out,
 			)
-			w := httptest.NewRecorder()
-			s.CreateSpace(w, req)
 
-			require.Equal(t, tt.want, w.Code)
+			require.Equal(t, tt.want, code)
 			if tt.wantErr != "" {
 				var apiErr atclient.ErrorBody
-				err := json.NewDecoder(w.Body).Decode(&apiErr)
-				require.NoError(t, err)
+				require.NoError(t, json.Unmarshal(out, &apiErr))
 				require.Equal(t, tt.wantErr, apiErr.Message)
 			}
 		})
@@ -134,17 +126,17 @@ func TestServer_CreateSpace_Duplicate(t *testing.T) {
 	_, err := s.store.CreateSpace(t.Context(), orgID, owner, groupType, "dup")
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.createSpace",
-		strings.NewReader(`{"type": "network.habitat.group", "skey": "dup"}`),
-	)
-	w := httptest.NewRecorder()
-	s.CreateSpace(w, req)
-
-	require.Equal(t, http.StatusBadRequest, w.Code)
 	var apiErr atclient.ErrorBody
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&apiErr))
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.CreateSpace,
+		habitat.NetworkHabitatSimplespaceCreateSpaceInput{
+			Type: "network.habitat.group",
+			Skey: "dup",
+		},
+		&apiErr,
+	)
+
+	require.Equal(t, http.StatusBadRequest, code)
 	require.Equal(t, "SpaceAlreadyExists", apiErr.Name)
 }
 
@@ -154,15 +146,13 @@ func TestServer_AddMember(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), orgID, owner, groupType, "shared")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.addMember",
-		strings.NewReader(body),
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.AddMember,
+		habitat.NetworkHabitatSimplespaceAddMemberInput{Space: uri.String(), Did: "did:plc:alice"},
+		&out,
 	)
-	w := httptest.NewRecorder()
-	s.AddMember(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusOK, code)
 
 	isMember, err := s.store.IsMember(t.Context(), orgID, uri, alice)
 	require.NoError(t, err)
@@ -173,18 +163,15 @@ func TestServer_AddMember_SpaceNotFound(t *testing.T) {
 	s := newTestServer(t)
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.addMember",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.AddMember(w, req)
 
-	require.Equal(t, http.StatusBadRequest, w.Code)
 	var apiErr atclient.ErrorBody
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&apiErr))
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.AddMember,
+		habitat.NetworkHabitatSimplespaceAddMemberInput{Space: uri.String(), Did: "did:plc:alice"},
+		&apiErr,
+	)
+
+	require.Equal(t, http.StatusBadRequest, code)
 	require.Equal(t, "SpaceNotFound", apiErr.Name)
 }
 
@@ -197,15 +184,16 @@ func TestServer_RemoveMember(t *testing.T) {
 	err = s.store.AddMember(t.Context(), uri, alice)
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.removeMember",
-		strings.NewReader(body),
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.RemoveMember,
+		habitat.NetworkHabitatSimplespaceRemoveMemberInput{
+			Space: uri.String(),
+			Did:   "did:plc:alice",
+		},
+		&out,
 	)
-	w := httptest.NewRecorder()
-	s.RemoveMember(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusOK, code)
 
 	isMember, err := s.store.IsMember(t.Context(), orgID, uri, alice)
 	require.NoError(t, err)
@@ -222,15 +210,16 @@ func TestServer_RemoveMember_CannotRemoveOrg(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), orgID, owner, groupType, "shared")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "did": "` + orgID.String() + `"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.removeMember",
-		strings.NewReader(body),
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.RemoveMember,
+		habitat.NetworkHabitatSimplespaceRemoveMemberInput{
+			Space: uri.String(),
+			Did:   orgID.String(),
+		},
+		&out,
 	)
-	w := httptest.NewRecorder()
-	s.RemoveMember(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusBadRequest, code)
 }
 
 func TestServer_ListMembers(t *testing.T) {
@@ -242,19 +231,13 @@ func TestServer_ListMembers(t *testing.T) {
 	err = s.store.AddMember(t.Context(), uri, alice)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.simplespace.listMembers?space="+uri.String(),
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListMembers(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var output habitat.NetworkHabitatSimplespaceListMembersOutput
-	err = json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ListMembers,
+		url.Values{"space": []string{uri.String()}},
+		&output,
+	)
+	require.Equal(t, http.StatusOK, code)
 
 	var dids []string
 	for _, m := range output.Members {
@@ -266,15 +249,13 @@ func TestServer_ListMembers(t *testing.T) {
 func TestServer_Unauthorized(t *testing.T) {
 	s := newTestServer(t, WithValidator(authntest.NewFailureValidator()))
 
-	body := `{"type": "network.habitat.group"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.createSpace",
-		strings.NewReader(body),
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.CreateSpace,
+		habitat.NetworkHabitatSimplespaceCreateSpaceInput{Type: "network.habitat.group"},
+		&out,
 	)
-	w := httptest.NewRecorder()
-	s.CreateSpace(w, req)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Equal(t, http.StatusUnauthorized, code)
 }
 
 // TestServer_SpaceLifecycle exercises the full member lifecycle end-to-end:
@@ -286,19 +267,18 @@ func TestServer_Unauthorized(t *testing.T) {
 func TestServer_SpaceLifecycle(t *testing.T) {
 	s := newTestServer(t)
 	coll := syntax.NSID("network.habitat.note")
+	client := httpx_testutil.NewTestXRPCClient(t)
 
 	// createSpace
-	createReq := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.createSpace",
-		strings.NewReader(`{"type": "network.habitat.group", "skey": "shared"}`),
-	)
-	createW := httptest.NewRecorder()
-	s.CreateSpace(createW, createReq)
-	require.Equal(t, http.StatusOK, createW.Code)
-
 	var createOutput habitat.NetworkHabitatSimplespaceCreateSpaceOutput
-	require.NoError(t, json.NewDecoder(createW.Body).Decode(&createOutput))
+	createCode := client.Procedure(
+		s.CreateSpace,
+		habitat.NetworkHabitatSimplespaceCreateSpaceInput{
+			Type: "network.habitat.group", Skey: "shared",
+		},
+		&createOutput,
+	)
+	require.Equal(t, http.StatusOK, createCode)
 	uri := habitat_syntax.SpaceURI(createOutput.Uri)
 
 	// PutRecord in the space, as the owner.
@@ -318,15 +298,13 @@ func TestServer_SpaceLifecycle(t *testing.T) {
 	require.Contains(t, spaceURIs, uri)
 
 	// Add someone to the space.
-	addBody := `{"space": "` + uri.String() + `", "did": "` + alice.String() + `"}`
-	addReq := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.addMember",
-		strings.NewReader(addBody),
+	var addOut struct{}
+	addCode := client.Procedure(
+		s.AddMember,
+		habitat.NetworkHabitatSimplespaceAddMemberInput{Space: uri.String(), Did: alice.String()},
+		&addOut,
 	)
-	addW := httptest.NewRecorder()
-	s.AddMember(addW, addReq)
-	require.Equal(t, http.StatusOK, addW.Code)
+	require.Equal(t, http.StatusOK, addCode)
 
 	// Alice writes into the space too, so she shows up as a repo.
 	_, _, err = s.store.spaces.PutRecord(
@@ -349,15 +327,16 @@ func TestServer_SpaceLifecycle(t *testing.T) {
 	require.ElementsMatch(t, []syntax.DID{owner, alice, orgID}, repoDIDs)
 
 	// Remove that member from the space.
-	removeBody := `{"space": "` + uri.String() + `", "did": "` + alice.String() + `"}`
-	removeReq := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.removeMember",
-		strings.NewReader(removeBody),
+	var removeOut struct{}
+	removeCode := client.Procedure(
+		s.RemoveMember,
+		habitat.NetworkHabitatSimplespaceRemoveMemberInput{
+			Space: uri.String(),
+			Did:   alice.String(),
+		},
+		&removeOut,
 	)
-	removeW := httptest.NewRecorder()
-	s.RemoveMember(removeW, removeReq)
-	require.Equal(t, http.StatusOK, removeW.Code)
+	require.Equal(t, http.StatusOK, removeCode)
 
 	isMember, err := s.store.IsMember(t.Context(), orgID, uri, alice)
 	require.NoError(t, err)
@@ -383,15 +362,13 @@ func TestServer_DeleteSpace(t *testing.T) {
 	err = s.store.AddMember(t.Context(), uri, alice)
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.deleteSpace",
-		strings.NewReader(body),
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.DeleteSpace,
+		habitat.NetworkHabitatSimplespaceDeleteSpaceInput{Space: uri.String()},
+		&out,
 	)
-	w := httptest.NewRecorder()
-	s.DeleteSpace(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusOK, code)
 
 	_, err = s.store.spaces.ListRepos(t.Context(), uri)
 	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
@@ -401,17 +378,14 @@ func TestServer_DeleteSpace_SpaceNotFound(t *testing.T) {
 	s := newTestServer(t)
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	body := `{"space": "` + uri.String() + `"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.simplespace.deleteSpace",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.DeleteSpace(w, req)
 
-	require.Equal(t, http.StatusBadRequest, w.Code)
 	var apiErr atclient.ErrorBody
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&apiErr))
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.DeleteSpace,
+		habitat.NetworkHabitatSimplespaceDeleteSpaceInput{Space: uri.String()},
+		&apiErr,
+	)
+
+	require.Equal(t, http.StatusBadRequest, code)
 	require.Equal(t, "SpaceNotFound", apiErr.Name)
 }

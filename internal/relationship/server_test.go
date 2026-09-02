@@ -1,8 +1,6 @@
 package relationship
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,6 +16,7 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -76,30 +75,20 @@ func newSpace(
 	return uri
 }
 
-func queryReq(path string, params url.Values) *http.Request {
-	return httptest.NewRequest(http.MethodGet, path+"?"+params.Encode(), http.NoBody)
-}
-
 func TestServer_SetUserRelation(t *testing.T) {
 	// caller is the org (space owner), so it has the manager role implicitly.
 	s, ps, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 
-	body := fmt.Sprintf(
-		`{"subject":%q,"relation":"reader","space":%q}`,
-		alice.String(), space.String(),
-	)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.relationship.setUserRelation",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.SetUserRelation(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var out habitat.NetworkHabitatRelationshipSetUserRelationOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.SetUserRelation,
+		habitat.NetworkHabitatRelationshipSetUserRelationInput{
+			Subject: alice.String(), Relation: "reader", Space: space.String(),
+		},
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
 	require.NotEmpty(t, out.Uri)
 
 	allowed, err := ps.CheckUserHasSpaceRole(
@@ -110,6 +99,8 @@ func TestServer_SetUserRelation(t *testing.T) {
 }
 
 func TestServer_SetUserRelation_BadBody(t *testing.T) {
+	// A malformed JSON body can't go through TestXRPCClient, which marshals
+	// its input and would fail before the request is ever sent.
 	s, _, _ := newTestServer(t, testOrg)
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -123,35 +114,31 @@ func TestServer_SetUserRelation_BadBody(t *testing.T) {
 
 func TestServer_SetUserRelation_BadSpace(t *testing.T) {
 	s, _, _ := newTestServer(t, testOrg)
-	body := fmt.Sprintf(
-		`{"subject":%q,"relation":"reader","space":"not-a-space"}`,
-		alice.String(),
+
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.SetUserRelation,
+		habitat.NetworkHabitatRelationshipSetUserRelationInput{
+			Subject: alice.String(), Relation: "reader", Space: "not-a-space",
+		},
+		&out,
 	)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.relationship.setUserRelation",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.SetUserRelation(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusBadRequest, code)
 }
 
 func TestServer_SetUserRelation_InvalidRelation(t *testing.T) {
 	s, _, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
-	body := fmt.Sprintf(
-		`{"subject":%q,"relation":"bogus","space":%q}`,
-		alice.String(), space.String(),
+
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.SetUserRelation,
+		habitat.NetworkHabitatRelationshipSetUserRelationInput{
+			Subject: alice.String(), Relation: "bogus", Space: space.String(),
+		},
+		&out,
 	)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.relationship.setUserRelation",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.SetUserRelation(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusBadRequest, code)
 }
 
 func TestServer_SetSpaceRelation(t *testing.T) {
@@ -159,21 +146,18 @@ func TestServer_SetSpaceRelation(t *testing.T) {
 	group := newSpace(t, sp, groupType, "team")
 	space := newSpace(t, sp, docsType, "doc")
 
-	body := fmt.Sprintf(
-		`{"subject":%q,"subjectRole":"reader","relation":"writer","space":%q}`,
-		group.String(), space.String(),
-	)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.relationship.setSpaceRelation",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.SetSpaceRelation(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var out habitat.NetworkHabitatRelationshipSetSpaceRelationOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.SetSpaceRelation,
+		habitat.NetworkHabitatRelationshipSetSpaceRelationInput{
+			Subject:     group.String(),
+			SubjectRole: "reader",
+			Relation:    "writer",
+			Space:       space.String(),
+		},
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
 	require.NotEmpty(t, out.Uri)
 
 	allowed, err := ps.CheckSpaceRelationHasSpaceRole(
@@ -189,30 +173,31 @@ func TestServer_SetSpaceRelation_InvalidSubjectRole(t *testing.T) {
 	s, _, sp := newTestServer(t, testOrg)
 	group := newSpace(t, sp, groupType, "team")
 	space := newSpace(t, sp, docsType, "doc")
-	body := fmt.Sprintf(
-		`{"subject":%q,"subjectRole":"bogus","relation":"writer","space":%q}`,
-		group.String(), space.String(),
+
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.SetSpaceRelation,
+		habitat.NetworkHabitatRelationshipSetSpaceRelationInput{
+			Subject:     group.String(),
+			SubjectRole: "bogus",
+			Relation:    "writer",
+			Space:       space.String(),
+		},
+		&out,
 	)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.relationship.setSpaceRelation",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.SetSpaceRelation(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusBadRequest, code)
 }
 
 func TestServer_DeleteRelation_BadURI(t *testing.T) {
 	s, _, _ := newTestServer(t, testOrg)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.relationship.deleteRelation",
-		strings.NewReader(`{"uri":"not-a-uri"}`),
+
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.DeleteRelation,
+		habitat.NetworkHabitatRelationshipDeleteRelationInput{Uri: "not-a-uri"},
+		&out,
 	)
-	w := httptest.NewRecorder()
-	s.DeleteRelation(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusBadRequest, code)
 }
 
 func TestServer_ListRelations(t *testing.T) {
@@ -230,50 +215,47 @@ func TestServer_ListRelations(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	w := httptest.NewRecorder()
-	s.ListRelations(w, queryReq(
-		"/xrpc/network.habitat.relationship.listRelations",
-		url.Values{"space": {space.String()}},
-	))
-	require.Equal(t, http.StatusOK, w.Code)
+	client := httpx_testutil.NewTestXRPCClient(t)
 
 	var out habitat.NetworkHabitatRelationshipListRelationsOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	code := client.Query(
+		s.ListRelations,
+		url.Values{"space": {space.String()}},
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
 	require.Len(t, out.Relations, 3)
 
 	t.Run("filters by subjectType", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		s.ListRelations(w, queryReq(
-			"/xrpc/network.habitat.relationship.listRelations",
-			url.Values{"space": {space.String()}, "subjectType": {"user"}},
-		))
-		require.Equal(t, http.StatusOK, w.Code)
 		var out habitat.NetworkHabitatRelationshipListRelationsOutput
-		require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+		code := client.Query(
+			s.ListRelations,
+			url.Values{"space": {space.String()}, "subjectType": {"user"}},
+			&out,
+		)
+		require.Equal(t, http.StatusOK, code)
 		require.Len(t, out.Relations, 2)
 	})
 
 	t.Run("filters by relation", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		s.ListRelations(w, queryReq(
-			"/xrpc/network.habitat.relationship.listRelations",
-			url.Values{"space": {space.String()}, "relation": {"writer"}},
-		))
-		require.Equal(t, http.StatusOK, w.Code)
 		var out habitat.NetworkHabitatRelationshipListRelationsOutput
-		require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+		code := client.Query(
+			s.ListRelations,
+			url.Values{"space": {space.String()}, "relation": {"writer"}},
+			&out,
+		)
+		require.Equal(t, http.StatusOK, code)
 		require.Len(t, out.Relations, 1)
 	})
 
 	t.Run("filters by subjectDid", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		s.ListRelations(w, queryReq(
-			"/xrpc/network.habitat.relationship.listRelations",
-			url.Values{"space": {space.String()}, "subjectDid": {alice.String()}},
-		))
-		require.Equal(t, http.StatusOK, w.Code)
 		var out habitat.NetworkHabitatRelationshipListRelationsOutput
-		require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+		code := client.Query(
+			s.ListRelations,
+			url.Values{"space": {space.String()}, "subjectDid": {alice.String()}},
+			&out,
+		)
+		require.Equal(t, http.StatusOK, code)
 		require.Len(t, out.Relations, 1)
 	})
 }
@@ -282,12 +264,13 @@ func TestServer_ListRelations_InvalidSubjectType(t *testing.T) {
 	s, _, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 
-	w := httptest.NewRecorder()
-	s.ListRelations(w, queryReq(
-		"/xrpc/network.habitat.relationship.listRelations",
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ListRelations,
 		url.Values{"space": {space.String()}, "subjectType": {"clique"}},
-	))
-	require.Equal(t, http.StatusBadRequest, w.Code)
+		&out,
+	)
+	require.Equal(t, http.StatusBadRequest, code)
 }
 
 func TestServer_CheckUserRelation(t *testing.T) {
@@ -296,15 +279,13 @@ func TestServer_CheckUserRelation(t *testing.T) {
 	_, err := ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 
-	w := httptest.NewRecorder()
-	s.CheckUserRelation(w, queryReq(
-		"/xrpc/network.habitat.relationship.checkUserRelation",
-		url.Values{"space": {space.String()}, "subject": {alice.String()}, "relation": {"reader"}},
-	))
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var out habitat.NetworkHabitatRelationshipCheckUserRelationOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.CheckUserRelation,
+		url.Values{"space": {space.String()}, "subject": {alice.String()}, "relation": {"reader"}},
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
 	require.True(t, out.Allowed)
 }
 
@@ -312,12 +293,13 @@ func TestServer_CheckUserRelation_InvalidRelation(t *testing.T) {
 	s, _, sp := newTestServer(t, testOrg)
 	space := newSpace(t, sp, docsType, "doc")
 
-	w := httptest.NewRecorder()
-	s.CheckUserRelation(w, queryReq(
-		"/xrpc/network.habitat.relationship.checkUserRelation",
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.CheckUserRelation,
 		url.Values{"space": {space.String()}, "subject": {alice.String()}, "relation": {"bogus"}},
-	))
-	require.Equal(t, http.StatusBadRequest, w.Code)
+		&out,
+	)
+	require.Equal(t, http.StatusBadRequest, code)
 }
 
 func TestServer_CheckSpaceRelation(t *testing.T) {
@@ -331,18 +313,16 @@ func TestServer_CheckSpaceRelation(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	w := httptest.NewRecorder()
-	s.CheckSpaceRelation(w, queryReq(
-		"/xrpc/network.habitat.relationship.checkSpaceRelation",
+	var out habitat.NetworkHabitatRelationshipCheckSpaceRelationOutput
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.CheckSpaceRelation,
 		url.Values{
 			"space": {space.String()}, "subject": {group.String()},
 			"subjectRole": {"reader"}, "relation": {"writer"},
 		},
-	))
-	require.Equal(t, http.StatusOK, w.Code)
-
-	var out habitat.NetworkHabitatRelationshipCheckSpaceRelationOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
 	require.True(t, out.Allowed)
 }
 
@@ -352,15 +332,13 @@ func TestServer_ResolveRelations(t *testing.T) {
 	_, err := ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 
-	w := httptest.NewRecorder()
-	s.ResolveRelations(w, queryReq(
-		"/xrpc/network.habitat.relationship.resolveRelations",
-		url.Values{"space": {space.String()}, "relation": {"reader"}},
-	))
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var out habitat.NetworkHabitatRelationshipResolveRelationsOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ResolveRelations,
+		url.Values{"space": {space.String()}, "relation": {"reader"}},
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
 	require.Contains(t, out.Dids, alice.String())
 }
 
@@ -370,15 +348,13 @@ func TestServer_ListRelatedSpaces(t *testing.T) {
 	_, err := ps.SetUserRelation(t.Context(), alice, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 
-	w := httptest.NewRecorder()
-	s.ListRelatedSpaces(w, queryReq(
-		"/xrpc/network.habitat.relationship.listRelatedSpaces",
-		url.Values{"did": {alice.String()}, "relation": {"reader"}},
-	))
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var out habitat.NetworkHabitatRelationshipListRelatedSpacesOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ListRelatedSpaces,
+		url.Values{"did": {alice.String()}, "relation": {"reader"}},
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
 	require.Contains(t, out.Spaces, space.String())
 }
 
@@ -390,15 +366,13 @@ func TestServer_ListRelatedSpaces_FiltersUnreadable(t *testing.T) {
 	_, err := ps.SetUserRelation(t.Context(), bob, space, habitat_syntax.SpaceRoleReader)
 	require.NoError(t, err)
 
-	w := httptest.NewRecorder()
-	s.ListRelatedSpaces(w, queryReq(
-		"/xrpc/network.habitat.relationship.listRelatedSpaces",
-		url.Values{"did": {bob.String()}, "relation": {"reader"}},
-	))
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var out habitat.NetworkHabitatRelationshipListRelatedSpacesOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ListRelatedSpaces,
+		url.Values{"did": {bob.String()}, "relation": {"reader"}},
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
 	require.Contains(t, out.Spaces, space.String())
 }
 
@@ -407,12 +381,13 @@ func TestServer_Unauthenticated(t *testing.T) {
 	space := newSpace(t, sp, docsType, "doc")
 	s := NewServer(ps, sp, authntest.NewFailureValidator())
 
-	w := httptest.NewRecorder()
-	s.CheckUserRelation(w, queryReq(
-		"/xrpc/network.habitat.relationship.checkUserRelation",
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.CheckUserRelation,
 		url.Values{"space": {space.String()}, "subject": {alice.String()}, "relation": {"reader"}},
-	))
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+		&out,
+	)
+	require.Equal(t, http.StatusUnauthorized, code)
 }
 
 func Test_authorizeCanWrite(t *testing.T) {
