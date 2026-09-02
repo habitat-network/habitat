@@ -173,9 +173,7 @@ function EditProfileForm({
           placeholder="What is this community about?"
         />
       </Field>
-      <FieldError
-        errors={error ? [{ message: error.message }] : []}
-      />
+      <FieldError errors={error ? [{ message: error.message }] : []} />
       <DialogFooter>
         <Button type="submit" disabled={isPending || !getValues("name").trim()}>
           {isPending ? "Saving…" : "Save"}
