@@ -1,10 +1,7 @@
 package notify
 
 import (
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +10,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -26,24 +24,18 @@ func newTestServer(t *testing.T, credSpace habitat_syntax.SpaceURI) *Server {
 	)
 }
 
-func registerNotifyReq(body string) *http.Request {
-	return httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.space.registerNotify",
-		strings.NewReader(body),
-	)
-}
-
 func TestServerRegisterNotify(t *testing.T) {
 	s := newTestServer(t, space)
 
-	body := `{"space": "` + space.String() + `", "endpoint": "https://sync.example/all"}`
-	w := httptest.NewRecorder()
-	s.RegisterNotify(w, registerNotifyReq(body))
-
-	require.Equal(t, http.StatusOK, w.Code)
 	var out habitat.NetworkHabitatSpaceRegisterNotifyOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.RegisterNotify,
+		habitat.NetworkHabitatSpaceRegisterNotifyInput{
+			Space: space.String(), Endpoint: "https://sync.example/all",
+		},
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
 	expiresAt, err := time.Parse(time.RFC3339, out.ExpiresAt)
 	require.NoError(t, err)
 	require.True(t, expiresAt.After(time.Now()))
@@ -58,12 +50,15 @@ func TestServerRegisterNotify(t *testing.T) {
 func TestServerRegisterNotifyRepoSpecific(t *testing.T) {
 	s := newTestServer(t, space)
 
-	body := `{"space": "` + space.String() + `", "repo": "` + repo.String() +
-		`", "endpoint": "https://sync.example/alice"}`
-	w := httptest.NewRecorder()
-	s.RegisterNotify(w, registerNotifyReq(body))
-
-	require.Equal(t, http.StatusOK, w.Code)
+	var out habitat.NetworkHabitatSpaceRegisterNotifyOutput
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.RegisterNotify,
+		habitat.NetworkHabitatSpaceRegisterNotifyInput{
+			Space: space.String(), Repo: repo.String(), Endpoint: "https://sync.example/alice",
+		},
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
 	regs, err := s.store.ListForRepo(t.Context(), space, repo)
 	require.NoError(t, err)
 	require.Len(t, regs, 1)

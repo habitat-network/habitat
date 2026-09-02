@@ -61,7 +61,7 @@ func TestServer_CreateOrg(t *testing.T) {
 
 		var out habitat.NetworkHabitatOpensocialCreateOrgOutput
 		code := client.Procedure(
-			http.HandlerFunc(s.CreateOrg),
+			s.CreateOrg,
 			habitat.NetworkHabitatOpensocialCreateOrgInput{Handle: "acme"},
 			&out,
 		)
@@ -78,7 +78,7 @@ func TestServer_CreateOrg(t *testing.T) {
 
 		var out habitat.NetworkHabitatOpensocialCreateOrgOutput
 		code := client.Procedure(
-			http.HandlerFunc(s.CreateOrg),
+			s.CreateOrg,
 			habitat.NetworkHabitatOpensocialCreateOrgInput{Handle: "acme"},
 			&out,
 		)
@@ -97,7 +97,7 @@ func TestServer_UpdateProfile(t *testing.T) {
 
 		var out struct{}
 		code := client.Procedure(
-			http.HandlerFunc(aliceServer.UpdateProfile),
+			aliceServer.UpdateProfile,
 			opensocial_api.CommunityOpensocialUpdateProfileInput{
 				Org: org, Name: "Acme Corp",
 			},
@@ -111,7 +111,7 @@ func TestServer_UpdateProfile(t *testing.T) {
 
 		var out struct{}
 		code := client.Procedure(
-			http.HandlerFunc(adminServer.UpdateProfile),
+			adminServer.UpdateProfile,
 			opensocial_api.CommunityOpensocialUpdateProfileInput{
 				Org: org, Name: "Acme Corp", Description: "We make widgets",
 			},
@@ -130,7 +130,7 @@ func TestServer_Invites(t *testing.T) {
 	t.Run("create invite requires admin", func(t *testing.T) {
 		var out opensocial_api.CommunityOpensocialCreateInviteOutput
 		code := client.Procedure(
-			http.HandlerFunc(aliceServer.CreateInvite),
+			aliceServer.CreateInvite,
 			opensocial_api.CommunityOpensocialCreateInviteInput{
 				Org: serverOrgDID.String(), Invitee: serverAlice.String(),
 			},
@@ -143,7 +143,7 @@ func TestServer_Invites(t *testing.T) {
 		// Admin invites alice.
 		var createOut opensocial_api.CommunityOpensocialCreateInviteOutput
 		createCode := client.Procedure(
-			http.HandlerFunc(adminServer.CreateInvite),
+			adminServer.CreateInvite,
 			opensocial_api.CommunityOpensocialCreateInviteInput{
 				Org:     serverOrgDID.String(),
 				Invitee: serverAlice.String(),
@@ -158,14 +158,14 @@ func TestServer_Invites(t *testing.T) {
 		pendingParams := url.Values{"org": []string{serverOrgDID.String()}}
 		var pendingOut opensocial_api.CommunityOpensocialListPendingInvitesOutput
 		pendingCode := client.Query(
-			http.HandlerFunc(adminServer.ListPendingInvites), pendingParams, &pendingOut,
+			adminServer.ListPendingInvites, pendingParams, &pendingOut,
 		)
 		require.Equal(t, http.StatusOK, pendingCode)
 		require.Len(t, pendingOut.Invites, 1)
 
 		var forbiddenOut opensocial_api.CommunityOpensocialListPendingInvitesOutput
 		forbiddenCode := client.Query(
-			http.HandlerFunc(aliceServer.ListPendingInvites), pendingParams, &forbiddenOut,
+			aliceServer.ListPendingInvites, pendingParams, &forbiddenOut,
 		)
 		require.Equal(t, http.StatusUnauthorized, forbiddenCode)
 
@@ -173,7 +173,7 @@ func TestServer_Invites(t *testing.T) {
 		listParams := url.Values{"org": []string{serverOrgDID.String()}}
 		var listOut opensocial_api.CommunityOpensocialListInvitesOutput
 		listCode := client.Query(
-			http.HandlerFunc(aliceServer.ListInvites), listParams, &listOut,
+			aliceServer.ListInvites, listParams, &listOut,
 		)
 		require.Equal(t, http.StatusOK, listCode)
 		require.Len(t, listOut.Invites, 1)
@@ -181,7 +181,7 @@ func TestServer_Invites(t *testing.T) {
 		// It also shows up in her cross-org inbox, with the org attached.
 		var myInvitesOut opensocial_api.CommunityOpensocialListInvitesOutput
 		myInvitesCode := client.Query(
-			http.HandlerFunc(aliceServer.ListInvites), url.Values{}, &myInvitesOut,
+			aliceServer.ListInvites, url.Values{}, &myInvitesOut,
 		)
 		require.Equal(t, http.StatusOK, myInvitesCode)
 		require.Len(t, myInvitesOut.Invites, 1)
@@ -190,7 +190,7 @@ func TestServer_Invites(t *testing.T) {
 		// Alice accepts.
 		var joinOut opensocial_api.CommunityOpensocialRequestJoinOutput
 		joinCode := client.Procedure(
-			http.HandlerFunc(aliceServer.RequestJoin),
+			aliceServer.RequestJoin,
 			opensocial_api.CommunityOpensocialRequestJoinInput{Org: serverOrgDID.String()},
 			&joinOut,
 		)
@@ -201,7 +201,7 @@ func TestServer_Invites(t *testing.T) {
 		// idempotent: it confirms her existing membership rather than erroring.
 		var rejoinOut opensocial_api.CommunityOpensocialRequestJoinOutput
 		rejoinCode := client.Procedure(
-			http.HandlerFunc(aliceServer.RequestJoin),
+			aliceServer.RequestJoin,
 			opensocial_api.CommunityOpensocialRequestJoinInput{Org: serverOrgDID.String()},
 			&rejoinOut,
 		)
@@ -213,7 +213,7 @@ func TestServer_Invites(t *testing.T) {
 		// Bob, not alice: alice is already a member from the "invite flow" subtest above.
 		var createOut opensocial_api.CommunityOpensocialCreateInviteOutput
 		client.Procedure(
-			http.HandlerFunc(adminServer.CreateInvite),
+			adminServer.CreateInvite,
 			opensocial_api.CommunityOpensocialCreateInviteInput{
 				Org: serverOrgDID.String(), Invitee: serverBob.String(),
 			},
@@ -222,7 +222,7 @@ func TestServer_Invites(t *testing.T) {
 
 		var revokeOut struct{}
 		revokeCode := client.Procedure(
-			http.HandlerFunc(adminServer.RevokeInvite),
+			adminServer.RevokeInvite,
 			opensocial_api.CommunityOpensocialRevokeInviteInput{
 				Org: serverOrgDID.String(), Id: createOut.Invite.Id,
 			},
@@ -232,7 +232,7 @@ func TestServer_Invites(t *testing.T) {
 
 		var revokeAgainOut struct{}
 		revokeAgainCode := client.Procedure(
-			http.HandlerFunc(adminServer.RevokeInvite),
+			adminServer.RevokeInvite,
 			opensocial_api.CommunityOpensocialRevokeInviteInput{
 				Org: serverOrgDID.String(), Id: createOut.Invite.Id,
 			},

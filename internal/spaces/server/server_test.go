@@ -23,6 +23,7 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
+	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
@@ -84,6 +85,8 @@ func newTestServerWithOpts(
 	)
 }
 
+// TestServer_UploadAndGetBlob exercises the raw-body upload/download endpoints,
+// which carry non-JSON payloads and thus can't go through TestXRPCClient.
 func TestServer_UploadAndGetBlob(t *testing.T) {
 	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
@@ -169,19 +172,10 @@ func TestServer_ListSpaces(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listSpaces",
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListSpaces(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var output habitat.NetworkHabitatSpaceListSpacesOutput
-	err = json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
+	code := httpx_testutil.NewTestXRPCClient(t).Query(s.ListSpaces, url.Values{}, &output)
+
+	require.Equal(t, http.StatusOK, code)
 	require.Len(t, output.Spaces, 1)
 	require.Equal(t, uri.String(), output.Spaces[0].Uri)
 }
@@ -208,18 +202,12 @@ func TestServer_ListRepos(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepos?space="+uri.String(),
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListRepos(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
 	var output habitat.NetworkHabitatSpaceListReposOutput
-	err = json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ListRepos, url.Values{"space": {uri.String()}}, &output,
+	)
+
+	require.Equal(t, http.StatusOK, code)
 	require.Len(t, output.Repos, 1)
 	require.Equal(t, "did:plc:owner", output.Repos[0].Did)
 	require.NotEmpty(t, output.Repos[0].Rev)
@@ -237,33 +225,32 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "my-note", "record": {"text": "hello"}}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.space.putRecord",
-		strings.NewReader(body),
-	)
-	w := httptest.NewRecorder()
-	s.PutRecord(w, req)
+	client := httpx_testutil.NewTestXRPCClient(t)
 
-	require.Equal(t, http.StatusOK, w.Code)
 	var putOutput habitat.NetworkHabitatSpacePutRecordOutput
-	err = json.NewDecoder(w.Body).Decode(&putOutput)
-	require.NoError(t, err)
+	putCode := client.Procedure(
+		s.PutRecord,
+		habitat.NetworkHabitatSpacePutRecordInput{
+			Space: uri.String(), Repo: "did:plc:owner",
+			Collection: "network.habitat.note", Rkey: "my-note",
+			Record: map[string]any{"text": "hello"},
+		},
+		&putOutput,
+	)
+	require.Equal(t, http.StatusOK, putCode)
 	require.Contains(t, putOutput.Uri, "/network.habitat.note/my-note")
 
-	getReq := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.getRecord?space="+uri.String()+"&collection=network.habitat.note&rkey=my-note&repo=did:plc:owner",
-		http.NoBody,
-	)
-	getW := httptest.NewRecorder()
-	s.GetRecord(getW, getReq)
-
-	require.Equal(t, http.StatusOK, getW.Code)
 	var getOutput habitat.NetworkHabitatSpaceGetRecordOutput
-	err = json.NewDecoder(getW.Body).Decode(&getOutput)
-	require.NoError(t, err)
+	getCode := client.Query(
+		s.GetRecord,
+		url.Values{
+			"space": {uri.String()}, "collection": {"network.habitat.note"},
+			"rkey": {"my-note"}, "repo": {"did:plc:owner"},
+		},
+		&getOutput,
+	)
+
+	require.Equal(t, http.StatusOK, getCode)
 	require.Equal(t, putOutput.Uri, getOutput.Uri)
 	val, ok := getOutput.Value.(map[string]any)
 	require.True(t, ok)
@@ -290,15 +277,16 @@ func TestServer_DeleteRecord(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "del-me"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.space.deleteRecord",
-		strings.NewReader(body),
+	var out habitat.NetworkHabitatSpaceDeleteRecordOutput
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.DeleteRecord,
+		habitat.NetworkHabitatSpaceDeleteRecordInput{
+			Space: uri.String(), Repo: "did:plc:owner",
+			Collection: "network.habitat.note", Rkey: "del-me",
+		},
+		&out,
 	)
-	w := httptest.NewRecorder()
-	s.DeleteRecord(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusOK, code)
 
 	_, err = store.GetRecord(
 		t.Context(),
@@ -341,25 +329,26 @@ func TestServer_ListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRecords?space="+uri.String()+"&collection=network.habitat.note&repo="+owner.String(),
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListRecords(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
 	var output habitat.NetworkHabitatSpaceListRecordsOutput
-	err = json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ListRecords,
+		url.Values{
+			"space": {
+				uri.String(),
+			}, "collection": {"network.habitat.note"}, "repo": {owner.String()},
+		},
+		&output,
+	)
+
+	require.Equal(t, http.StatusOK, code)
 	require.Len(t, output.Records, 2)
 	require.Equal(t, "k1", output.Records[0].Rkey)
 	require.Equal(t, "k2", output.Records[1].Rkey)
 }
 
 // TestServer_GetRepo verifies getRepo returns a CAR whose first root is a real
-// signed commit over the repo's LtHash, verifiable against the host key.
+// signed commit over the repo's LtHash, verifiable against the host key. It
+// carries a non-JSON (CAR) body, so it can't go through TestXRPCClient.
 func TestServer_GetRepo(t *testing.T) {
 	key, store := newTestStore(t)
 	s := newTestServerWithOpts(
@@ -449,16 +438,13 @@ func TestServer_GetRepo_RepoNotFound(t *testing.T) {
 	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+alice.String(),
-		http.NoBody,
+	var apiErr atclient.ErrorBody
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.GetRepo, url.Values{"space": {uri.String()}, "repo": {alice.String()}}, &apiErr,
 	)
-	w := httptest.NewRecorder()
-	s.GetRepo(w, req)
 
-	require.Equal(t, http.StatusNotFound, w.Code)
-	require.JSONEq(t, `{"error":"RepoNotFound"}`, w.Body.String())
+	require.Equal(t, http.StatusNotFound, code)
+	require.Equal(t, "RepoNotFound", apiErr.Name)
 }
 
 // TestServer_GetRepo_SpaceNotFound distinguishes an unknown space (400,
@@ -471,16 +457,14 @@ func TestServer_GetRepo_SpaceNotFound(t *testing.T) {
 		store,
 	)
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/com.atproto.space.getRepo?space="+uri.String()+"&repo="+owner.String(),
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.GetRepo(w, req)
 
-	require.Equal(t, http.StatusBadRequest, w.Code)
-	require.JSONEq(t, `{"error":"SpaceNotFound"}`, w.Body.String())
+	var apiErr atclient.ErrorBody
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.GetRepo, url.Values{"space": {uri.String()}, "repo": {owner.String()}}, &apiErr,
+	)
+
+	require.Equal(t, http.StatusBadRequest, code)
+	require.Equal(t, "SpaceNotFound", apiErr.Name)
 }
 
 func TestServer_PutRecord_Unauthorized(t *testing.T) {
@@ -493,15 +477,17 @@ func TestServer_PutRecord_Unauthorized(t *testing.T) {
 	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "repo": "did:plc:alice", "collection": "network.habitat.note", "rkey": "test", "record": {"x": 1}}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.space.putRecord",
-		strings.NewReader(body),
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.PutRecord,
+		habitat.NetworkHabitatSpacePutRecordInput{
+			Space: uri.String(), Repo: "did:plc:alice",
+			Collection: "network.habitat.note", Rkey: "test",
+			Record: map[string]any{"x": 1},
+		},
+		&out,
 	)
-	w := httptest.NewRecorder()
-	s.PutRecord(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusBadRequest, code)
 }
 
 // TestServer_PutRecord_InvalidRecord pins that a record violating the
@@ -517,16 +503,18 @@ func TestServer_PutRecord_InvalidRecord(t *testing.T) {
 	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "my-note", "record": {"x": 0.15}}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.space.putRecord",
-		strings.NewReader(body),
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.PutRecord,
+		habitat.NetworkHabitatSpacePutRecordInput{
+			Space: uri.String(), Repo: "did:plc:owner",
+			Collection: "network.habitat.note", Rkey: "my-note",
+			Record: map[string]any{"x": 0.15},
+		},
+		&out,
 	)
-	w := httptest.NewRecorder()
-	s.PutRecord(w, req)
 
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusBadRequest, code)
 
 	_, err = store.GetRecord(
 		t.Context(),
@@ -559,15 +547,16 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "repo": "did:plc:alice", "collection": "network.habitat.note", "rkey": "test"}`
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.space.deleteRecord",
-		strings.NewReader(body),
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
+		s.DeleteRecord,
+		habitat.NetworkHabitatSpaceDeleteRecordInput{
+			Space: uri.String(), Repo: "did:plc:alice",
+			Collection: "network.habitat.note", Rkey: "test",
+		},
+		&out,
 	)
-	w := httptest.NewRecorder()
-	s.DeleteRecord(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusBadRequest, code)
 }
 
 func TestServer_ListRepoOps(t *testing.T) {
@@ -602,18 +591,12 @@ func TestServer_ListRepoOps(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListRepoOps(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var output habitat.NetworkHabitatSpaceListRepoOpsOutput
-	err = json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ListRepoOps, url.Values{"space": {uri.String()}, "repo": {"did:plc:owner"}}, &output,
+	)
+	require.Equal(t, http.StatusOK, code)
+
 	require.Len(t, output.Ops, 2)
 	require.Equal(t, "k1", output.Ops[0].Rkey)
 	require.Equal(t, "k2", output.Ops[1].Rkey)
@@ -649,17 +632,12 @@ func TestServer_ListRepoOps_IncludesSignedCommit(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo="+owner.String(),
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListRepoOps(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var out habitat.NetworkHabitatSpaceListRepoOpsOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ListRepoOps, url.Values{"space": {uri.String()}, "repo": {owner.String()}}, &out,
+	)
+	require.Equal(t, http.StatusOK, code)
+
 	require.Len(t, out.Ops, 1)
 	require.Equal(t, int64(spacecommit.Version), out.Commit.Ver)
 	require.Equal(t, out.Ops[0].Rev, out.Commit.Rev)
@@ -704,17 +682,12 @@ func TestServer_GetLatestCommit(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.getLatestCommit?space="+uri.String()+"&repo="+owner.String(),
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.GetLatestCommit(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var out habitat.NetworkHabitatSpaceGetLatestCommitOutput
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.GetLatestCommit, url.Values{"space": {uri.String()}, "repo": {owner.String()}}, &out,
+	)
+	require.Equal(t, http.StatusOK, code)
+
 	require.Equal(t, int64(spacecommit.Version), out.Commit.Ver)
 
 	hash := []byte(out.Commit.Hash)
@@ -745,14 +718,11 @@ func TestServer_GetLatestCommit_EmptyRepo(t *testing.T) {
 	uri, err := store.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.getLatestCommit?space="+uri.String()+"&repo="+owner.String(),
-		http.NoBody,
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.GetLatestCommit, url.Values{"space": {uri.String()}, "repo": {owner.String()}}, &out,
 	)
-	w := httptest.NewRecorder()
-	s.GetLatestCommit(w, req)
-	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Equal(t, http.StatusNotFound, code)
 }
 
 func TestServer_ListRepoOps_Since(t *testing.T) {
@@ -787,28 +757,20 @@ func TestServer_ListRepoOps_Since(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListRepoOps(w, req)
+	client := httpx_testutil.NewTestXRPCClient(t)
+
 	var first habitat.NetworkHabitatSpaceListRepoOpsOutput
-	err = json.NewDecoder(w.Body).Decode(&first)
-	require.NoError(t, err)
+	client.Query(
+		s.ListRepoOps, url.Values{"space": {uri.String()}, "repo": {"did:plc:owner"}}, &first,
+	)
 	require.Len(t, first.Ops, 2)
 
-	req = httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner&since="+first.Cursor,
-		http.NoBody,
-	)
-	w = httptest.NewRecorder()
-	s.ListRepoOps(w, req)
 	var second habitat.NetworkHabitatSpaceListRepoOpsOutput
-	err = json.NewDecoder(w.Body).Decode(&second)
-	require.NoError(t, err)
+	client.Query(
+		s.ListRepoOps,
+		url.Values{"space": {uri.String()}, "repo": {"did:plc:owner"}, "since": {first.Cursor}},
+		&second,
+	)
 	require.Len(t, second.Ops, 0)
 }
 
@@ -835,18 +797,12 @@ func TestServer_ListRepoOps_IncludesValue(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner",
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListRepoOps(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var output habitat.NetworkHabitatSpaceListRepoOpsOutput
-	err = json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ListRepoOps, url.Values{"space": {uri.String()}, "repo": {"did:plc:owner"}}, &output,
+	)
+	require.Equal(t, http.StatusOK, code)
+
 	require.Len(t, output.Ops, 1)
 	val, ok := output.Ops[0].Value.(map[string]any)
 	require.True(t, ok)
@@ -876,18 +832,16 @@ func TestServer_ListRepoOps_ExcludeValues(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+"&repo=did:plc:owner&excludeValues=true",
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListRepoOps(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
 	var output habitat.NetworkHabitatSpaceListRepoOpsOutput
-	err = json.NewDecoder(w.Body).Decode(&output)
-	require.NoError(t, err)
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ListRepoOps,
+		url.Values{
+			"space": {uri.String()}, "repo": {"did:plc:owner"}, "excludeValues": {"true"},
+		},
+		&output,
+	)
+	require.Equal(t, http.StatusOK, code)
+
 	require.Len(t, output.Ops, 1)
 	require.Equal(t, "k1", output.Ops[0].Rkey)
 	require.Nil(t, output.Ops[0].Value)
@@ -920,17 +874,12 @@ func TestServer_ListRepoOpsSinceAheadRejects(t *testing.T) {
 
 	// A TID-like string that sorts after any real TID (base32 is a-z + 2-7).
 	ahead := strings.Repeat("z", 13)
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/network.habitat.space.listRepoOps?space="+uri.String()+
-			"&repo="+owner.String()+"&since="+ahead,
-		http.NoBody,
-	)
-	w := httptest.NewRecorder()
-	s.ListRepoOps(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
-
 	var body atclient.ErrorBody
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ListRepoOps,
+		url.Values{"space": {uri.String()}, "repo": {owner.String()}, "since": {ahead}},
+		&body,
+	)
+	require.Equal(t, http.StatusBadRequest, code)
 	require.Equal(t, "RevNotFound", body.Name)
 }
