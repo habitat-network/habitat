@@ -9,7 +9,6 @@ import {
   ItemMedia,
   ItemContent,
   ItemTitle,
-  ItemDescription,
 } from "internal/components/ui";
 
 export function OrgItem({
@@ -42,9 +41,7 @@ export function OrgItem({
             <DidHoverCard did={org.did}>{org.did}</DidHoverCard>
           )}
         </ItemTitle>
-        {profile?.description && (
-          <ItemDescription>{profile.description}</ItemDescription>
-        )}
+
         <span className="font-mono text-xs text-muted-foreground break-all">
           {org.did}
         </span>
