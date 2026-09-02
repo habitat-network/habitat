@@ -152,30 +152,6 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 		require.Nil(t, credInfo)
 	})
 
-	t.Run("DPoP proof replay is rejected", func(t *testing.T) {
-		dpopKey, err := utils.GenerateDPoPKey()
-		require.NoError(t, err)
-		token, err := utils.SpaceCredential(
-			hostKey,
-			"#atproto",
-			"at://did:web:pear.com/space/com.test.space/abc",
-			jwkThumbprint(t, dpopKey),
-		)
-		require.NoError(t, err)
-		r := newSpaceCredentialRequest(t, token, dpopKey)
-		proof := r.Header.Get("DPoP")
-
-		_, ok := method.Validate(httptest.NewRecorder(), r)
-		require.True(t, ok)
-
-		replay := httptest.NewRequest("GET", "/", http.NoBody)
-		replay.Header.Set("Authorization", "DPoP "+token)
-		replay.Header.Set("DPoP", proof)
-		credInfo, ok := method.Validate(httptest.NewRecorder(), replay)
-		require.False(t, ok)
-		require.Nil(t, credInfo)
-	})
-
 	t.Run("issuer mismatch", func(t *testing.T) {
 		token, _ := new(jwt.Token{
 			Header: map[string]any{

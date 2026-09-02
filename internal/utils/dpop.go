@@ -4,12 +4,11 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
 	"net/url"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	jose "github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 )
@@ -98,8 +97,10 @@ func SignDPoPProof(
 
 // HashDPoPToken computes the `ath` claim value for token: the base64url
 // (no padding) encoded SHA-256 hash of the token's ASCII encoding (RFC 9449
-// §4.2).
+// §4.2). This is the same S256 computation atproto OAuth uses for PKCE
+// challenges and its own host-DPoP `ath` claim (see
+// [oauth.ClientSession.NewHostDPoP]), so we reuse indigo's helper rather
+// than reimplementing it.
 func HashDPoPToken(token string) string {
-	hash := sha256.Sum256([]byte(token))
-	return base64.RawURLEncoding.EncodeToString(hash[:])
+	return oauth.S256CodeChallenge(token)
 }

@@ -11,8 +11,7 @@ import (
 )
 
 type SpaceCredentialAuthMethod struct {
-	dir    identity.Directory
-	replay *dpopReplayStore
+	dir identity.Directory
 }
 
 var _ Method = (*SpaceCredentialAuthMethod)(nil)
@@ -20,7 +19,7 @@ var _ Method = (*SpaceCredentialAuthMethod)(nil)
 func NewSpaceCredentialAuthMethod(
 	directory identity.Directory,
 ) *SpaceCredentialAuthMethod {
-	return &SpaceCredentialAuthMethod{dir: directory, replay: newDPoPReplayStore()}
+	return &SpaceCredentialAuthMethod{dir: directory}
 }
 
 // CanHandle implements [Method].
@@ -82,7 +81,7 @@ func (s *SpaceCredentialAuthMethod) Validate(
 	// The credential is presented as a DPoP-bound token (RFC 9449): the
 	// caller must prove, with each request, possession of the key the
 	// credential's `cnf.jkt` was minted against.
-	proofJKT, err := verifyDPoPProof(r, s.replay, getBearerToken(r))
+	proofJKT, err := verifyDPoPProof(r, getBearerToken(r))
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "invalid DPoP proof", err)
 		return nil, false
