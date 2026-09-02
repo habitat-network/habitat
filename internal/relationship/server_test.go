@@ -178,7 +178,10 @@ func TestServer_SetSpaceRelation_InvalidSubjectRole(t *testing.T) {
 	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
 		s.SetSpaceRelation,
 		habitat.NetworkHabitatRelationshipSetSpaceRelationInput{
-			Subject: group.String(), SubjectRole: "bogus", Relation: "writer", Space: space.String(),
+			Subject:     group.String(),
+			SubjectRole: "bogus",
+			Relation:    "writer",
+			Space:       space.String(),
 		},
 		&out,
 	)
