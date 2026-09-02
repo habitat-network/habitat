@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { OrgAvatar, type AuthManager } from "internal";
 import { updateProfile, uploadOrgImage } from "@/queries/opensocial";
@@ -56,6 +57,12 @@ export function EditProfileDialog({
   );
 }
 
+interface FormValues {
+  name: string;
+  description: string;
+  avatar: File | null;
+}
+
 function EditProfileForm({
   org,
   initialName,
@@ -72,40 +79,51 @@ function EditProfileForm({
   onSaved: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [name, setName] = useState(initialName);
-  const [description, setDescription] = useState(initialDescription);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { mutate, isPending, error } = useMutation({
-    mutationFn: () => updateProfile(authManager, org, name, description),
-    async onSuccess() {
-      await queryClient.invalidateQueries({
-        queryKey: ["opensocial", "profile", org],
-      });
-      onSaved();
-    },
-  });
+  const { register, handleSubmit, watch, setValue, reset, getValues } =
+    useForm<FormValues>({
+      defaultValues: {
+        name: initialName,
+        description: initialDescription,
+        avatar: null,
+      },
+    });
 
-  const {
-    mutate: uploadAvatar,
-    isPending: isUploadingAvatar,
-    error: avatarError,
-  } = useMutation({
-    mutationFn: (file: File) => uploadOrgImage(authManager, org, file),
+  const avatar = watch("avatar");
+  const watchedName = watch("name");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!avatar) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(avatar);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [avatar]);
+
+  const { mutate, isPending, error } = useMutation({
+    mutationFn: async (values: FormValues) => {
+      await updateProfile(authManager, org, values.name, values.description);
+      if (values.avatar) {
+        await uploadOrgImage(authManager, org, values.avatar);
+      }
+    },
     async onSuccess() {
       await queryClient.invalidateQueries({
         queryKey: ["opensocial", "profile", org],
       });
+      reset();
+      onSaved();
     },
   });
 
   return (
     <form
       className="flex flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (name.trim()) mutate();
-      }}
+      onSubmit={handleSubmit((values: FormValues) => mutate(values))}
     >
       <Field>
         <FieldLabel>Avatar</FieldLabel>
@@ -113,10 +131,14 @@ function EditProfileForm({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isUploadingAvatar}
-            className="rounded-full opacity-100 transition-opacity hover:opacity-80 disabled:opacity-50"
+            className="rounded-full opacity-100 transition-opacity hover:opacity-80"
           >
-            <OrgAvatar did={org} name={name} avatarUrl={avatarUrl} size="lg" />
+            <OrgAvatar
+              did={org}
+              name={watchedName}
+              avatarUrl={previewUrl ?? avatarUrl}
+              size="lg"
+            />
           </button>
           <input
             ref={fileInputRef}
@@ -126,44 +148,36 @@ function EditProfileForm({
             onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = "";
-              if (file) uploadAvatar(file);
+              if (file) setValue("avatar", file);
             }}
           />
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled={isUploadingAvatar}
             onClick={() => fileInputRef.current?.click()}
           >
-            {isUploadingAvatar ? "Uploading…" : "Change avatar"}
+            Change avatar
           </Button>
         </div>
-        <FieldError
-          errors={avatarError ? [{ message: avatarError.message }] : []}
-        />
       </Field>
       <Field>
         <FieldLabel htmlFor="org-name">Name</FieldLabel>
-        <Input
-          id="org-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoFocus
-        />
+        <Input id="org-name" {...register("name")} autoFocus />
       </Field>
       <Field>
         <FieldLabel htmlFor="org-description">Description</FieldLabel>
         <Textarea
           id="org-description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          {...register("description")}
           placeholder="What is this community about?"
         />
       </Field>
-      <FieldError errors={error ? [{ message: error.message }] : []} />
+      <FieldError
+        errors={error ? [{ message: error.message }] : []}
+      />
       <DialogFooter>
-        <Button type="submit" disabled={isPending || !name.trim()}>
+        <Button type="submit" disabled={isPending || !getValues("name").trim()}>
           {isPending ? "Saving…" : "Save"}
         </Button>
       </DialogFooter>
