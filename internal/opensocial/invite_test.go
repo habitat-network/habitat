@@ -21,7 +21,7 @@ var (
 	bob         = syntax.DID("did:plc:bob")
 )
 
-func newTestStore(t *testing.T) (*opensocial.Store, spaces.Store) {
+func newTestStore(t *testing.T) *opensocial_testutil.TestStore {
 	t.Helper()
 	return opensocial_testutil.NewTestStore(t)
 }
@@ -39,8 +39,8 @@ func bootstrapMembersSpace(
 }
 
 func TestCreateInvite_ListInvites_RequestJoin(t *testing.T) {
-	s, spacesStore := newTestStore(t)
-	bootstrapMembersSpace(t, spacesStore, orgDID)
+	s := newTestStore(t)
+	bootstrapMembersSpace(t, s.SpaceStore, orgDID)
 
 	invite, err := s.CreateInvite(
 		t.Context(), orgDID, alice, []string{opensocial.MemberRoleRkey},
@@ -72,11 +72,11 @@ func TestCreateInvite_ListInvites_RequestJoin(t *testing.T) {
 }
 
 func TestCreateInvite_AlreadyMember(t *testing.T) {
-	s, spacesStore := newTestStore(t)
-	bootstrapMembersSpace(t, spacesStore, orgDID)
+	s := newTestStore(t)
+	bootstrapMembersSpace(t, s.SpaceStore, orgDID)
 	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self")
 
-	_, _, err := spacesStore.PutRecord(
+	_, _, err := s.SpaceStore.PutRecord(
 		t.Context(),
 		membersSpace,
 		orgDID,
@@ -96,8 +96,8 @@ func TestCreateInvite_AlreadyMember(t *testing.T) {
 }
 
 func TestCreateInvite_Duplicate(t *testing.T) {
-	s, spacesStore := newTestStore(t)
-	bootstrapMembersSpace(t, spacesStore, orgDID)
+	s := newTestStore(t)
+	bootstrapMembersSpace(t, s.SpaceStore, orgDID)
 
 	_, err := s.CreateInvite(t.Context(), orgDID, alice, nil)
 	require.NoError(t, err)
@@ -107,8 +107,8 @@ func TestCreateInvite_Duplicate(t *testing.T) {
 }
 
 func TestRevokeInvite(t *testing.T) {
-	s, spacesStore := newTestStore(t)
-	bootstrapMembersSpace(t, spacesStore, orgDID)
+	s := newTestStore(t)
+	bootstrapMembersSpace(t, s.SpaceStore, orgDID)
 
 	invite, err := s.CreateInvite(t.Context(), orgDID, alice, nil)
 	require.NoError(t, err)
@@ -124,8 +124,8 @@ func TestRevokeInvite(t *testing.T) {
 }
 
 func TestRequestJoin_NotFound(t *testing.T) {
-	s, spacesStore := newTestStore(t)
-	bootstrapMembersSpace(t, spacesStore, orgDID)
+	s := newTestStore(t)
+	bootstrapMembersSpace(t, s.SpaceStore, orgDID)
 
 	_, err := s.RequestJoin(t.Context(), orgDID, alice)
 	require.ErrorIs(t, err, opensocial.ErrInviteNotFound)
@@ -136,11 +136,11 @@ func TestRequestJoin_NotFound(t *testing.T) {
 // since they were never invited. RequestJoin should confirm it — used by
 // requestJoin, called under the creator's own credentials — rather than error.
 func TestRequestJoin_AlreadyMemberNoInvite(t *testing.T) {
-	s, spacesStore := newTestStore(t)
-	bootstrapMembersSpace(t, spacesStore, orgDID)
+	s := newTestStore(t)
+	bootstrapMembersSpace(t, s.SpaceStore, orgDID)
 	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self")
 
-	_, _, err := spacesStore.PutRecord(
+	_, _, err := s.SpaceStore.PutRecord(
 		t.Context(),
 		membersSpace,
 		orgDID,
@@ -159,9 +159,9 @@ func TestRequestJoin_AlreadyMemberNoInvite(t *testing.T) {
 }
 
 func TestListPendingInvitesAndListInvites_ScopedByOrgAndInvitee(t *testing.T) {
-	s, spacesStore := newTestStore(t)
-	bootstrapMembersSpace(t, spacesStore, orgDID)
-	bootstrapMembersSpace(t, spacesStore, otherOrgDID)
+	s := newTestStore(t)
+	bootstrapMembersSpace(t, s.SpaceStore, orgDID)
+	bootstrapMembersSpace(t, s.SpaceStore, otherOrgDID)
 
 	_, err := s.CreateInvite(t.Context(), orgDID, alice, nil)
 	require.NoError(t, err)

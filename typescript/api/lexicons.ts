@@ -933,6 +933,308 @@ export const schemaDict = {
       },
     },
   },
+  CommunityOpensocialCreateInvite: {
+    lexicon: 1,
+    id: 'community.opensocial.createInvite',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Invite a user to join the community. Tracks the invite in the org's invite table; no repo records are written until the invitee accepts via requestJoin. Requires service-auth. Requires the `invite` action.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['org', 'invitee'],
+            properties: {
+              org: {
+                type: 'string',
+                format: 'did',
+                description: 'DID of the community to invite into.',
+              },
+              invitee: {
+                type: 'string',
+                format: 'did',
+                description: 'DID of the user to invite.',
+              },
+              roles: {
+                type: 'array',
+                description:
+                  'Record keys of the community.opensocial.role records to grant the invitee once they accept. Defaults to no roles.',
+                items: {
+                  type: 'string',
+                },
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['invite'],
+            properties: {
+              invite: {
+                type: 'ref',
+                ref: 'lex:community.opensocial.defs#inviteView',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'AlreadyMember',
+            description: 'The invitee is already a member of the community.',
+          },
+          {
+            name: 'InviteAlreadyExists',
+            description: 'The invitee already has a pending invite.',
+          },
+        ],
+      },
+    },
+  },
+  CommunityOpensocialCreateSpace: {
+    lexicon: 1,
+    id: 'community.opensocial.createSpace',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Create a modality-specific space under the community DID and index it with a community.opensocial.space record. Requires service-auth. Requires the `space.create` action.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['org', 'type'],
+            properties: {
+              org: {
+                type: 'string',
+                format: 'did',
+                description: 'DID of the community to create the space under.',
+              },
+              type: {
+                type: 'string',
+                format: 'nsid',
+                description:
+                  "The NSID of the space's type, describing its modality.",
+              },
+              skey: {
+                type: 'string',
+                maxLength: 512,
+                description:
+                  'The space key. If not provided, one will be auto-generated (TID).',
+              },
+              roles: {
+                type: 'array',
+                description:
+                  'Record keys of the community.opensocial.role records that may read the space, written into its community.opensocial.access record.',
+                items: {
+                  type: 'string',
+                },
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'URI of the created space.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceAlreadyExists',
+            description:
+              'A space with this type and skey already exists under the community DID.',
+          },
+          {
+            name: 'InvalidType',
+            description:
+              'The provided space type NSID is not a recognized or valid space type.',
+          },
+        ],
+      },
+    },
+  },
+  CommunityOpensocialDefs: {
+    lexicon: 1,
+    id: 'community.opensocial.defs',
+    defs: {
+      inviteView: {
+        type: 'object',
+        description:
+          "A pending invite to join the community, tracked in the org's invite table (not yet a repo record).",
+        required: ['id', 'org', 'invitee', 'roles', 'createdAt'],
+        properties: {
+          id: {
+            type: 'string',
+            description: 'Opaque id of the invite, used to revoke it.',
+          },
+          org: {
+            type: 'string',
+            format: 'did',
+            description: 'DID of the community the invite is for.',
+          },
+          invitee: {
+            type: 'string',
+            format: 'did',
+            description: 'DID of the invited user.',
+          },
+          roles: {
+            type: 'array',
+            description:
+              'Record keys of the community.opensocial.role records the invitee will hold once they accept.',
+            items: {
+              type: 'string',
+            },
+          },
+          createdAt: {
+            type: 'string',
+            format: 'datetime',
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialEjectMember: {
+    lexicon: 1,
+    id: 'community.opensocial.ejectMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Remove a member from the community, revoking their roles and access. Requires service-auth. Requires the `eject` action, bounded by the roles the caller may assign.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['org', 'member'],
+            properties: {
+              org: {
+                type: 'string',
+                format: 'did',
+                description: 'DID of the community to remove the member from.',
+              },
+              member: {
+                type: 'string',
+                format: 'did',
+                description: 'DID of the member to remove.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'MemberNotFound',
+            description: 'The given DID is not a member of the community.',
+          },
+        ],
+      },
+    },
+  },
+  CommunityOpensocialListInvites: {
+    lexicon: 1,
+    id: 'community.opensocial.listInvites',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the calling user's pending invites across every community on this instance.",
+        parameters: {
+          type: 'params',
+          properties: {
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 50,
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['invites'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              invites: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:community.opensocial.defs#inviteView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialListPendingInvites: {
+    lexicon: 1,
+    id: 'community.opensocial.listPendingInvites',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List all pending invites for the org, across all invitees. Requires service-auth. Requires the `invite` action.',
+        parameters: {
+          type: 'params',
+          required: ['org'],
+          properties: {
+            org: {
+              type: 'string',
+              format: 'did',
+              description: 'DID of the community to list pending invites for.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 50,
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['invites'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              invites: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:community.opensocial.defs#inviteView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   CommunityOpensocialMembership: {
     lexicon: 1,
     id: 'community.opensocial.membership',
@@ -1000,6 +1302,91 @@ export const schemaDict = {
       },
     },
   },
+  CommunityOpensocialRequestJoin: {
+    lexicon: 1,
+    id: 'community.opensocial.requestJoin',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Accept the calling user's pending invite to this community. Removes the invite from the org's invite table and writes a community.opensocial.membership record (in the org repo) and a community.opensocial.acceptance record (in the user's repo, members space). Requires service-auth.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['org'],
+            properties: {
+              org: {
+                type: 'string',
+                format: 'did',
+                description: 'DID of the community whose invite to accept.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['roles'],
+            properties: {
+              roles: {
+                type: 'array',
+                description:
+                  'Record keys of the community.opensocial.role records granted to the caller.',
+                items: {
+                  type: 'string',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'InviteNotFound',
+            description:
+              'The calling user has no pending invite to this community.',
+          },
+        ],
+      },
+    },
+  },
+  CommunityOpensocialRevokeInvite: {
+    lexicon: 1,
+    id: 'community.opensocial.revokeInvite',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Retract a pending invite before it is accepted. Requires service-auth. Requires the `invite` action.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['org', 'id'],
+            properties: {
+              org: {
+                type: 'string',
+                format: 'did',
+                description: 'DID of the community the invite belongs to.',
+              },
+              id: {
+                type: 'string',
+                description:
+                  'Id of the invite to revoke, from community.opensocial.defs#inviteView.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'InviteNotFound',
+            description: 'No pending invite exists with this id.',
+          },
+        ],
+      },
+    },
+  },
   CommunityOpensocialRole: {
     lexicon: 1,
     id: 'community.opensocial.role',
@@ -1053,6 +1440,84 @@ export const schemaDict = {
             updatedAt: {
               type: 'string',
               format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialUpdateProfile: {
+    lexicon: 1,
+    id: 'community.opensocial.updateProfile',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Replace the community's profile: name, description, and join policy. Avatar is set separately via uploadImage. Requires service-auth. Requires the `community.configure` action.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['org', 'name'],
+            properties: {
+              org: {
+                type: 'string',
+                format: 'did',
+                description: 'DID of the community whose profile to update.',
+              },
+              name: {
+                type: 'string',
+                maxLength: 256,
+              },
+              description: {
+                type: 'string',
+                maxLength: 2048,
+              },
+              joinPolicy: {
+                type: 'string',
+                knownValues: [
+                  'community.opensocial.profile#open',
+                  'community.opensocial.profile#invite',
+                  'community.opensocial.profile#request',
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  CommunityOpensocialUploadImage: {
+    lexicon: 1,
+    id: 'community.opensocial.uploadImage',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Upload an image and set it as the community's profile avatar. Requires service-auth. Requires the `community.configure` action.",
+        parameters: {
+          type: 'params',
+          required: ['org'],
+          properties: {
+            org: {
+              type: 'string',
+              format: 'did',
+              description: 'DID of the community whose avatar to set.',
+            },
+          },
+        },
+        input: {
+          encoding: '*/*',
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['blob'],
+            properties: {
+              blob: {
+                type: 'blob',
+              },
             },
           },
         },
@@ -2209,6 +2674,45 @@ export const schemaDict = {
           logoUri: {
             type: 'string',
             description: 'The logo URI of this app.',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOpensocialCreateOrg: {
+    lexicon: 1,
+    id: 'network.habitat.opensocial.createOrg',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Create a new opensocial-backed org: mints the org DID, bootstraps its about/members spaces (profile, admin and member roles), and grants the calling user the admin role. Requires service-auth.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['handle'],
+            properties: {
+              handle: {
+                type: 'string',
+                description:
+                  'Subdomain handle for the org (alphanumeric, 1-50 chars).',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['org'],
+            properties: {
+              org: {
+                type: 'string',
+                format: 'did',
+                description: 'DID of the created org.',
+              },
+            },
           },
         },
       },
@@ -5449,10 +5953,21 @@ export const ids = {
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
   CommunityOpensocialAcceptance: 'community.opensocial.acceptance',
   CommunityOpensocialAccess: 'community.opensocial.access',
+  CommunityOpensocialCreateInvite: 'community.opensocial.createInvite',
+  CommunityOpensocialCreateSpace: 'community.opensocial.createSpace',
+  CommunityOpensocialDefs: 'community.opensocial.defs',
+  CommunityOpensocialEjectMember: 'community.opensocial.ejectMember',
+  CommunityOpensocialListInvites: 'community.opensocial.listInvites',
+  CommunityOpensocialListPendingInvites:
+    'community.opensocial.listPendingInvites',
   CommunityOpensocialMembership: 'community.opensocial.membership',
   CommunityOpensocialProfile: 'community.opensocial.profile',
+  CommunityOpensocialRequestJoin: 'community.opensocial.requestJoin',
+  CommunityOpensocialRevokeInvite: 'community.opensocial.revokeInvite',
   CommunityOpensocialRole: 'community.opensocial.role',
   CommunityOpensocialSpace: 'community.opensocial.space',
+  CommunityOpensocialUpdateProfile: 'community.opensocial.updateProfile',
+  CommunityOpensocialUploadImage: 'community.opensocial.uploadImage',
   NetworkHabitatAdminGetSettings: 'network.habitat.admin.getSettings',
   NetworkHabitatAdminIssueInvite: 'network.habitat.admin.issueInvite',
   NetworkHabitatAdminUpdateSettings: 'network.habitat.admin.updateSettings',
@@ -5486,6 +6001,7 @@ export const ids = {
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
+  NetworkHabitatOpensocialCreateOrg: 'network.habitat.opensocial.createOrg',
   NetworkHabitatOrgAddAdmin: 'network.habitat.org.addAdmin',
   NetworkHabitatOrgAddMembers: 'network.habitat.org.addMembers',
   NetworkHabitatOrgCreate: 'network.habitat.org.create',

@@ -27,10 +27,20 @@ import * as CommunityLexiconLocationGeo from './types/community/lexicon/location
 import * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 import * as CommunityOpensocialAcceptance from './types/community/opensocial/acceptance.js'
 import * as CommunityOpensocialAccess from './types/community/opensocial/access.js'
+import * as CommunityOpensocialCreateInvite from './types/community/opensocial/createInvite.js'
+import * as CommunityOpensocialCreateSpace from './types/community/opensocial/createSpace.js'
+import * as CommunityOpensocialDefs from './types/community/opensocial/defs.js'
+import * as CommunityOpensocialEjectMember from './types/community/opensocial/ejectMember.js'
+import * as CommunityOpensocialListInvites from './types/community/opensocial/listInvites.js'
+import * as CommunityOpensocialListPendingInvites from './types/community/opensocial/listPendingInvites.js'
 import * as CommunityOpensocialMembership from './types/community/opensocial/membership.js'
 import * as CommunityOpensocialProfile from './types/community/opensocial/profile.js'
+import * as CommunityOpensocialRequestJoin from './types/community/opensocial/requestJoin.js'
+import * as CommunityOpensocialRevokeInvite from './types/community/opensocial/revokeInvite.js'
 import * as CommunityOpensocialRole from './types/community/opensocial/role.js'
 import * as CommunityOpensocialSpace from './types/community/opensocial/space.js'
+import * as CommunityOpensocialUpdateProfile from './types/community/opensocial/updateProfile.js'
+import * as CommunityOpensocialUploadImage from './types/community/opensocial/uploadImage.js'
 import * as NetworkHabitatAdminGetSettings from './types/network/habitat/admin/getSettings.js'
 import * as NetworkHabitatAdminIssueInvite from './types/network/habitat/admin/issueInvite.js'
 import * as NetworkHabitatAdminUpdateSettings from './types/network/habitat/admin/updateSettings.js'
@@ -60,6 +70,7 @@ import * as NetworkHabitatGroupsUpdateGroup from './types/network/habitat/groups
 import * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
+import * as NetworkHabitatOpensocialCreateOrg from './types/network/habitat/opensocial/createOrg.js'
 import * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
 import * as NetworkHabitatOrgAddMembers from './types/network/habitat/org/addMembers.js'
 import * as NetworkHabitatOrgCreate from './types/network/habitat/org/create.js'
@@ -137,10 +148,20 @@ export * as CommunityLexiconLocationGeo from './types/community/lexicon/location
 export * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 export * as CommunityOpensocialAcceptance from './types/community/opensocial/acceptance.js'
 export * as CommunityOpensocialAccess from './types/community/opensocial/access.js'
+export * as CommunityOpensocialCreateInvite from './types/community/opensocial/createInvite.js'
+export * as CommunityOpensocialCreateSpace from './types/community/opensocial/createSpace.js'
+export * as CommunityOpensocialDefs from './types/community/opensocial/defs.js'
+export * as CommunityOpensocialEjectMember from './types/community/opensocial/ejectMember.js'
+export * as CommunityOpensocialListInvites from './types/community/opensocial/listInvites.js'
+export * as CommunityOpensocialListPendingInvites from './types/community/opensocial/listPendingInvites.js'
 export * as CommunityOpensocialMembership from './types/community/opensocial/membership.js'
 export * as CommunityOpensocialProfile from './types/community/opensocial/profile.js'
+export * as CommunityOpensocialRequestJoin from './types/community/opensocial/requestJoin.js'
+export * as CommunityOpensocialRevokeInvite from './types/community/opensocial/revokeInvite.js'
 export * as CommunityOpensocialRole from './types/community/opensocial/role.js'
 export * as CommunityOpensocialSpace from './types/community/opensocial/space.js'
+export * as CommunityOpensocialUpdateProfile from './types/community/opensocial/updateProfile.js'
+export * as CommunityOpensocialUploadImage from './types/community/opensocial/uploadImage.js'
 export * as NetworkHabitatAdminGetSettings from './types/network/habitat/admin/getSettings.js'
 export * as NetworkHabitatAdminIssueInvite from './types/network/habitat/admin/issueInvite.js'
 export * as NetworkHabitatAdminUpdateSettings from './types/network/habitat/admin/updateSettings.js'
@@ -170,6 +191,7 @@ export * as NetworkHabitatGroupsUpdateGroup from './types/network/habitat/groups
 export * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
+export * as NetworkHabitatOpensocialCreateOrg from './types/network/habitat/opensocial/createOrg.js'
 export * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
 export * as NetworkHabitatOrgAddMembers from './types/network/habitat/org/addMembers.js'
 export * as NetworkHabitatOrgCreate from './types/network/habitat/org/create.js'
@@ -700,6 +722,109 @@ export class CommunityOpensocialNS {
     this.profile = new CommunityOpensocialProfileRecord(client)
     this.role = new CommunityOpensocialRoleRecord(client)
     this.space = new CommunityOpensocialSpaceRecord(client)
+  }
+
+  createInvite(
+    data?: CommunityOpensocialCreateInvite.InputSchema,
+    opts?: CommunityOpensocialCreateInvite.CallOptions,
+  ): Promise<CommunityOpensocialCreateInvite.Response> {
+    return this._client
+      .call('community.opensocial.createInvite', opts?.qp, data, opts)
+      .catch((e) => {
+        throw CommunityOpensocialCreateInvite.toKnownErr(e)
+      })
+  }
+
+  createSpace(
+    data?: CommunityOpensocialCreateSpace.InputSchema,
+    opts?: CommunityOpensocialCreateSpace.CallOptions,
+  ): Promise<CommunityOpensocialCreateSpace.Response> {
+    return this._client
+      .call('community.opensocial.createSpace', opts?.qp, data, opts)
+      .catch((e) => {
+        throw CommunityOpensocialCreateSpace.toKnownErr(e)
+      })
+  }
+
+  ejectMember(
+    data?: CommunityOpensocialEjectMember.InputSchema,
+    opts?: CommunityOpensocialEjectMember.CallOptions,
+  ): Promise<CommunityOpensocialEjectMember.Response> {
+    return this._client
+      .call('community.opensocial.ejectMember', opts?.qp, data, opts)
+      .catch((e) => {
+        throw CommunityOpensocialEjectMember.toKnownErr(e)
+      })
+  }
+
+  listInvites(
+    params?: CommunityOpensocialListInvites.QueryParams,
+    opts?: CommunityOpensocialListInvites.CallOptions,
+  ): Promise<CommunityOpensocialListInvites.Response> {
+    return this._client.call(
+      'community.opensocial.listInvites',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  listPendingInvites(
+    params?: CommunityOpensocialListPendingInvites.QueryParams,
+    opts?: CommunityOpensocialListPendingInvites.CallOptions,
+  ): Promise<CommunityOpensocialListPendingInvites.Response> {
+    return this._client.call(
+      'community.opensocial.listPendingInvites',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  requestJoin(
+    data?: CommunityOpensocialRequestJoin.InputSchema,
+    opts?: CommunityOpensocialRequestJoin.CallOptions,
+  ): Promise<CommunityOpensocialRequestJoin.Response> {
+    return this._client
+      .call('community.opensocial.requestJoin', opts?.qp, data, opts)
+      .catch((e) => {
+        throw CommunityOpensocialRequestJoin.toKnownErr(e)
+      })
+  }
+
+  revokeInvite(
+    data?: CommunityOpensocialRevokeInvite.InputSchema,
+    opts?: CommunityOpensocialRevokeInvite.CallOptions,
+  ): Promise<CommunityOpensocialRevokeInvite.Response> {
+    return this._client
+      .call('community.opensocial.revokeInvite', opts?.qp, data, opts)
+      .catch((e) => {
+        throw CommunityOpensocialRevokeInvite.toKnownErr(e)
+      })
+  }
+
+  updateProfile(
+    data?: CommunityOpensocialUpdateProfile.InputSchema,
+    opts?: CommunityOpensocialUpdateProfile.CallOptions,
+  ): Promise<CommunityOpensocialUpdateProfile.Response> {
+    return this._client.call(
+      'community.opensocial.updateProfile',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  uploadImage(
+    data?: CommunityOpensocialUploadImage.InputSchema,
+    opts?: CommunityOpensocialUploadImage.CallOptions,
+  ): Promise<CommunityOpensocialUploadImage.Response> {
+    return this._client.call(
+      'community.opensocial.uploadImage',
+      opts?.qp,
+      data,
+      opts,
+    )
   }
 }
 
@@ -1237,6 +1362,7 @@ export class NetworkHabitatNS {
   groups: NetworkHabitatGroupsNS
   instance: NetworkHabitatInstanceNS
   internal: NetworkHabitatInternalNS
+  opensocial: NetworkHabitatOpensocialNS
   org: NetworkHabitatOrgNS
   permissions: NetworkHabitatPermissionsNS
   relationship: NetworkHabitatRelationshipNS
@@ -1256,6 +1382,7 @@ export class NetworkHabitatNS {
     this.groups = new NetworkHabitatGroupsNS(client)
     this.instance = new NetworkHabitatInstanceNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
+    this.opensocial = new NetworkHabitatOpensocialNS(client)
     this.org = new NetworkHabitatOrgNS(client)
     this.permissions = new NetworkHabitatPermissionsNS(client)
     this.relationship = new NetworkHabitatRelationshipNS(client)
@@ -1855,6 +1982,26 @@ export class NetworkHabitatInternalNS {
   ): Promise<NetworkHabitatInternalNotifyOfUpdate.Response> {
     return this._client.call(
       'network.habitat.internal.notifyOfUpdate',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatOpensocialNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  createOrg(
+    data?: NetworkHabitatOpensocialCreateOrg.InputSchema,
+    opts?: NetworkHabitatOpensocialCreateOrg.CallOptions,
+  ): Promise<NetworkHabitatOpensocialCreateOrg.Response> {
+    return this._client.call(
+      'network.habitat.opensocial.createOrg',
       opts?.qp,
       data,
       opts,
