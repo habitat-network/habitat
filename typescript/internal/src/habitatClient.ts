@@ -60,6 +60,14 @@ import type {
   NetworkHabitatCollectionsListRecords,
   NetworkHabitatRelationshipSetUserRelation,
   NetworkHabitatRelationshipSetSpaceRelation,
+  NetworkHabitatOpensocialCreateOrg,
+  NetworkHabitatSpaceGetDelegationToken,
+  CommunityOpensocialListInvites,
+  CommunityOpensocialListPendingInvites,
+  CommunityOpensocialCreateInvite,
+  CommunityOpensocialRevokeInvite,
+  CommunityOpensocialRequestJoin,
+  CommunityOpensocialUpdateProfile,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -205,6 +213,18 @@ type QueryEndpoints = {
     NetworkHabitatInstanceDescribeInstance.QueryParams,
     NetworkHabitatInstanceDescribeInstance.OutputSchema
   >;
+  "community.opensocial.listInvites": Query<
+    CommunityOpensocialListInvites.QueryParams,
+    CommunityOpensocialListInvites.OutputSchema
+  >;
+  "community.opensocial.listPendingInvites": Query<
+    CommunityOpensocialListPendingInvites.QueryParams,
+    CommunityOpensocialListPendingInvites.OutputSchema
+  >;
+  "network.habitat.space.getDelegationToken": Query<
+    NetworkHabitatSpaceGetDelegationToken.QueryParams,
+    NetworkHabitatSpaceGetDelegationToken.OutputSchema
+  >;
 };
 
 type Procedure<Params, Output> = {
@@ -343,6 +363,26 @@ type ProcedureEndpoints = {
   "network.habitat.docs.updateDoc": Procedure<
     NetworkHabitatDocsUpdateDoc.InputSchema,
     NetworkHabitatDocsUpdateDoc.OutputSchema
+  >;
+  "network.habitat.opensocial.createOrg": Procedure<
+    NetworkHabitatOpensocialCreateOrg.InputSchema,
+    NetworkHabitatOpensocialCreateOrg.OutputSchema
+  >;
+  "community.opensocial.createInvite": Procedure<
+    CommunityOpensocialCreateInvite.InputSchema,
+    CommunityOpensocialCreateInvite.OutputSchema
+  >;
+  "community.opensocial.revokeInvite": Procedure<
+    CommunityOpensocialRevokeInvite.InputSchema,
+    void
+  >;
+  "community.opensocial.requestJoin": Procedure<
+    CommunityOpensocialRequestJoin.InputSchema,
+    CommunityOpensocialRequestJoin.OutputSchema
+  >;
+  "community.opensocial.updateProfile": Procedure<
+    CommunityOpensocialUpdateProfile.InputSchema,
+    void
   >;
 };
 
