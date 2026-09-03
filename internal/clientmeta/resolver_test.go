@@ -11,6 +11,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/stretchr/testify/require"
+
+	"github.com/habitat-network/habitat/internal/httpx"
 )
 
 func testJWK(t *testing.T, kid string) (atcrypto.JWK, atcrypto.PublicKey) {
@@ -25,113 +27,103 @@ func testJWK(t *testing.T, kid string) (atcrypto.JWK, atcrypto.PublicKey) {
 	return *jwk, pub
 }
 
-func TestResolverResolveAtprotoKeyInlineJWKS(t *testing.T) {
-	jwk, pub := testJWK(t, "key-1")
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(oauth.ClientMetadata{
-			ClientID: "http://" + r.Host + "/client-metadata.json",
-			JWKS:     &oauth.JWKS{Keys: []atcrypto.JWK{jwk}},
+func TestResolverResolveAtprotoKey(t *testing.T) {
+	t.Run("inline jwks", func(t *testing.T) {
+		jwk, pub := testJWK(t, "key-1")
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(oauth.ClientMetadata{
+				ClientID: "http://" + r.Host + "/client-metadata.json",
+				JWKS:     &oauth.JWKS{Keys: []atcrypto.JWK{jwk}},
+			}))
 		}))
-	}))
-	defer server.Close()
+		defer server.Close()
+		clientID := server.URL + "/client-metadata.json"
 
-	key, err := NewResolver().ResolveAtprotoKey(
-		context.Background(), server.URL+"/client-metadata.json", "key-1",
-	)
-	require.NoError(t, err)
-	require.True(t, key.Equal(pub))
-}
+		t.Run("resolves the key", func(t *testing.T) {
+			key, err := NewResolver().ResolveAtprotoKey(context.Background(), clientID, "key-1")
+			require.NoError(t, err)
+			require.True(t, key.Equal(pub))
+		})
 
-func TestResolverResolveAtprotoKeyJWKSURI(t *testing.T) {
-	jwk, pub := testJWK(t, "key-1")
-
-	var jwksURL string
-	mux := http.NewServeMux()
-	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(oauth.ClientMetadata{
-			ClientID: "http://" + r.Host + "/client-metadata.json",
-			JWKSURI:  &jwksURL,
-		}))
+		t.Run("unknown kid returns not found", func(t *testing.T) {
+			_, err := NewResolver().ResolveAtprotoKey(context.Background(), clientID, "wrong-kid")
+			require.ErrorIs(t, err, ErrKeyNotFound)
+		})
 	})
-	mux.HandleFunc("/jwks.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(oauth.JWKS{Keys: []atcrypto.JWK{jwk}}))
+
+	t.Run("jwks via jwks_uri resolves the key", func(t *testing.T) {
+		jwk, pub := testJWK(t, "key-1")
+
+		var jwksURL string
+		mux := http.NewServeMux()
+		mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(oauth.ClientMetadata{
+				ClientID: "http://" + r.Host + "/client-metadata.json",
+				JWKSURI:  &jwksURL,
+			}))
+		})
+		mux.HandleFunc("/jwks.json", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(oauth.JWKS{Keys: []atcrypto.JWK{jwk}}))
+		})
+		server := httptest.NewServer(mux)
+		defer server.Close()
+		jwksURL = server.URL + "/jwks.json"
+
+		key, err := NewResolver().ResolveAtprotoKey(
+			context.Background(), server.URL+"/client-metadata.json", "key-1",
+		)
+		require.NoError(t, err)
+		require.True(t, key.Equal(pub))
 	})
-	server := httptest.NewServer(mux)
-	defer server.Close()
-	jwksURL = server.URL + "/jwks.json"
 
-	key, err := NewResolver().ResolveAtprotoKey(
-		context.Background(), server.URL+"/client-metadata.json", "key-1",
-	)
-	require.NoError(t, err)
-	require.True(t, key.Equal(pub))
-}
-
-func TestResolverResolveAtprotoKeyNotFound(t *testing.T) {
-	jwk, _ := testJWK(t, "key-1")
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(oauth.ClientMetadata{
-			ClientID: "http://" + r.Host + "/client-metadata.json",
-			JWKS:     &oauth.JWKS{Keys: []atcrypto.JWK{jwk}},
+	t.Run("no jwks published returns not found", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(oauth.ClientMetadata{
+				ClientID: "http://" + r.Host + "/client-metadata.json",
+			}))
 		}))
-	}))
-	defer server.Close()
+		defer server.Close()
 
-	_, err := NewResolver().ResolveAtprotoKey(
-		context.Background(), server.URL+"/client-metadata.json", "wrong-kid",
-	)
-	require.ErrorIs(t, err, ErrKeyNotFound)
-}
+		_, err := NewResolver().ResolveAtprotoKey(
+			context.Background(), server.URL+"/client-metadata.json", "key-1",
+		)
+		require.ErrorIs(t, err, ErrKeyNotFound)
+	})
 
-// TestResolverResolveAtprotoKeyTimesOut covers the hot-path DoS/latency-coupling
-// finding: a slow or hanging metadata host must not stall ResolveAtprotoKey
-// indefinitely (bounded only by the inbound request's own context) — the
-// Resolver's own timeout must cut the fetch off. Uses a short timeout via
-// NewResolverWithTimeout rather than waiting out the real production default
-// (defaultFetchTimeout) in the test suite.
-func TestResolverResolveAtprotoKeyTimesOut(t *testing.T) {
-	blockUntil := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-blockUntil // never responds within the test's lifetime
-	}))
-	// server.Close() waits for the in-flight handler to return, so
-	// blockUntil must be closed (unblocking the handler) before Close is
-	// called: defers run LIFO, so registering Close first and the channel
-	// close second runs the channel close first.
-	defer server.Close()
-	defer close(blockUntil)
-
-	const testTimeout = 20 * time.Millisecond
-	start := time.Now()
-	_, err := NewResolverWithTimeout(testTimeout).ResolveAtprotoKey(
-		context.Background(), server.URL+"/client-metadata.json", "key-1",
-	)
-	elapsed := time.Since(start)
-
-	require.Error(t, err)
-	require.Less(
-		t, elapsed, 2*time.Second,
-		"ResolveAtprotoKey should be bounded by the resolver's own timeout, not hang",
-	)
-}
-
-func TestResolverResolveAtprotoKeyNoJWKS(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(oauth.ClientMetadata{
-			ClientID: "http://" + r.Host + "/client-metadata.json",
+	// Covers the hot-path DoS/latency-coupling finding: a slow or hanging
+	// metadata host must not stall ResolveAtprotoKey indefinitely (bounded
+	// only by the inbound request's own context) — the resolver's own client
+	// timeout must cut the fetch off. Uses a short timeout via WithClient
+	// rather than waiting out the real production default in the test suite.
+	t.Run("times out on a hanging host", func(t *testing.T) {
+		blockUntil := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			<-blockUntil // never responds within the test's lifetime
 		}))
-	}))
-	defer server.Close()
+		// server.Close() waits for the in-flight handler to return, so
+		// blockUntil must be closed (unblocking the handler) before Close is
+		// called: defers run LIFO, so registering Close first and the channel
+		// close second runs the channel close first.
+		defer server.Close()
+		defer close(blockUntil)
 
-	_, err := NewResolver().ResolveAtprotoKey(
-		context.Background(), server.URL+"/client-metadata.json", "key-1",
-	)
-	require.ErrorIs(t, err, ErrKeyNotFound)
+		cl := httpx.NewClient()
+		cl.Timeout = 20 * time.Millisecond
+
+		start := time.Now()
+		_, err := NewResolver(WithClient(cl)).ResolveAtprotoKey(
+			context.Background(), server.URL+"/client-metadata.json", "key-1",
+		)
+		elapsed := time.Since(start)
+
+		require.Error(t, err)
+		require.Less(
+			t, elapsed, 2*time.Second,
+			"ResolveAtprotoKey should be bounded by the resolver's own timeout, not hang",
+		)
+	})
 }

@@ -12,42 +12,32 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // ErrKeyNotFound is returned by ResolveKey when the client's published JWKS
 // (inline or via jwks_uri) has no key matching the requested kid.
 var ErrKeyNotFound = errors.New("no matching key in client jwks")
 
-// defaultFetchTimeout bounds each outbound client-metadata/JWKS fetch. These
-// requests now sit on the getSpaceCredential hot path (every credential mint
-// with an attestation makes 1-2 outbound GETs to a third-party host), so they
-// need their own bound rather than relying solely on the inbound request's
-// context.
-const defaultFetchTimeout = 5 * time.Second
-
 // Resolver fetches client metadata documents and JWKS over HTTP.
 type Resolver struct {
 	httpClient *http.Client
 }
 
-// NewResolver constructs a Resolver whose fetches are bounded by
-// defaultFetchTimeout.
-func NewResolver() *Resolver {
-	return NewResolverWithTimeout(defaultFetchTimeout)
+func WithClient(client *http.Client) utils.Opt[Resolver] {
+	return func(r *Resolver) {
+		r.httpClient = client
+	}
 }
 
-// NewResolverWithTimeout constructs a Resolver whose fetches are bounded by
-// the given timeout, primarily for tests that need a short bound rather than
-// waiting out defaultFetchTimeout.
-func NewResolverWithTimeout(timeout time.Duration) *Resolver {
-	cl := httpx.NewClient()
-	cl.Timeout = timeout
-	return &Resolver{httpClient: cl}
+// NewResolver constructs a Resolver whose fetches are bounded by
+// defaultFetchTimeout.
+func NewResolver(opts ...utils.Opt[Resolver]) *Resolver {
+	return new(utils.ResolveOptions(Resolver{httpClient: httpx.NewClient()}, opts))
 }
 
 // FetchMetadata fetches and decodes the client metadata document published
