@@ -106,7 +106,9 @@ func TestServer_ListRepoOps(t *testing.T) {
 
 		var first habitat.NetworkHabitatSpaceListRepoOpsOutput
 		client.Query(
-			ts.Server.ListRepoOps, url.Values{"space": {uri.String()}, "repo": {"did:plc:owner"}}, &first,
+			ts.Server.ListRepoOps,
+			url.Values{"space": {uri.String()}, "repo": {"did:plc:owner"}},
+			&first,
 		)
 		require.Len(t, first.Ops, 2)
 

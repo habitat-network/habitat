@@ -126,8 +126,6 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 }
 
 var (
-	org     = syntax.DID("did:plc:org")
-	owner   = syntax.DID("did:plc:owner")
-	alice   = syntax.DID("did:plc:alice")
-	groupTp = syntax.NSID("network.habitat.group")
+	org   = syntax.DID("did:plc:org")
+	owner = syntax.DID("did:plc:owner")
 )
