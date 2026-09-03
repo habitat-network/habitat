@@ -16,7 +16,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/httpx"
 )
 
@@ -147,19 +146,6 @@ func (r *Resolver) findJWK(ctx context.Context, clientID, kid string) (atcrypto.
 		return key, nil
 	}
 	return atcrypto.JWK{}, ErrKeyNotFound
-}
-
-// ResolveKey fetches clientID's metadata and returns the key identified by
-// kid from its published JWKS, converted to a go-jose key usable for
-// signature verification with the go-jose/v3 stack (internal/oauthserver's
-// RFC 7523 JWT-bearer client authentication). Returns ErrKeyNotFound if the
-// client has no matching key.
-func (r *Resolver) ResolveKey(ctx context.Context, clientID, kid string) (*jose.JSONWebKey, error) {
-	jwk, err := r.findJWK(ctx, clientID, kid)
-	if err != nil {
-		return nil, err
-	}
-	return ConvertJWK(jwk)
 }
 
 // ResolveAtprotoKey fetches clientID's metadata and returns the key

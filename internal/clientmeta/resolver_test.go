@@ -25,8 +25,8 @@ func testJWK(t *testing.T, kid string) (atcrypto.JWK, atcrypto.PublicKey) {
 	return *jwk, pub
 }
 
-func TestResolverResolveKeyInlineJWKS(t *testing.T) {
-	jwk, _ := testJWK(t, "key-1")
+func TestResolverResolveAtprotoKeyInlineJWKS(t *testing.T) {
+	jwk, pub := testJWK(t, "key-1")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -37,15 +37,15 @@ func TestResolverResolveKeyInlineJWKS(t *testing.T) {
 	}))
 	defer server.Close()
 
-	key, err := NewResolver().ResolveKey(
+	key, err := NewResolver().ResolveAtprotoKey(
 		context.Background(), server.URL+"/client-metadata.json", "key-1",
 	)
 	require.NoError(t, err)
-	require.Equal(t, "key-1", key.KeyID)
+	require.True(t, key.Equal(pub))
 }
 
-func TestResolverResolveKeyJWKSURI(t *testing.T) {
-	jwk, _ := testJWK(t, "key-1")
+func TestResolverResolveAtprotoKeyJWKSURI(t *testing.T) {
+	jwk, pub := testJWK(t, "key-1")
 
 	var jwksURL string
 	mux := http.NewServeMux()
@@ -64,14 +64,14 @@ func TestResolverResolveKeyJWKSURI(t *testing.T) {
 	defer server.Close()
 	jwksURL = server.URL + "/jwks.json"
 
-	key, err := NewResolver().ResolveKey(
+	key, err := NewResolver().ResolveAtprotoKey(
 		context.Background(), server.URL+"/client-metadata.json", "key-1",
 	)
 	require.NoError(t, err)
-	require.Equal(t, "key-1", key.KeyID)
+	require.True(t, key.Equal(pub))
 }
 
-func TestResolverResolveKeyNotFound(t *testing.T) {
+func TestResolverResolveAtprotoKeyNotFound(t *testing.T) {
 	jwk, _ := testJWK(t, "key-1")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -83,19 +83,19 @@ func TestResolverResolveKeyNotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := NewResolver().ResolveKey(
+	_, err := NewResolver().ResolveAtprotoKey(
 		context.Background(), server.URL+"/client-metadata.json", "wrong-kid",
 	)
 	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
-// TestResolverResolveKeyTimesOut covers the hot-path DoS/latency-coupling
-// finding: a slow or hanging metadata host must not stall ResolveKey
+// TestResolverResolveAtprotoKeyTimesOut covers the hot-path DoS/latency-coupling
+// finding: a slow or hanging metadata host must not stall ResolveAtprotoKey
 // indefinitely (bounded only by the inbound request's own context) — the
 // Resolver's own timeout must cut the fetch off. Uses a short timeout via
 // NewResolverWithTimeout rather than waiting out the real production default
 // (defaultFetchTimeout) in the test suite.
-func TestResolverResolveKeyTimesOut(t *testing.T) {
+func TestResolverResolveAtprotoKeyTimesOut(t *testing.T) {
 	blockUntil := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-blockUntil // never responds within the test's lifetime
@@ -109,7 +109,7 @@ func TestResolverResolveKeyTimesOut(t *testing.T) {
 
 	const testTimeout = 20 * time.Millisecond
 	start := time.Now()
-	_, err := NewResolverWithTimeout(testTimeout).ResolveKey(
+	_, err := NewResolverWithTimeout(testTimeout).ResolveAtprotoKey(
 		context.Background(), server.URL+"/client-metadata.json", "key-1",
 	)
 	elapsed := time.Since(start)
@@ -117,11 +117,11 @@ func TestResolverResolveKeyTimesOut(t *testing.T) {
 	require.Error(t, err)
 	require.Less(
 		t, elapsed, 2*time.Second,
-		"ResolveKey should be bounded by the resolver's own timeout, not hang",
+		"ResolveAtprotoKey should be bounded by the resolver's own timeout, not hang",
 	)
 }
 
-func TestResolverResolveKeyNoJWKS(t *testing.T) {
+func TestResolverResolveAtprotoKeyNoJWKS(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		require.NoError(t, json.NewEncoder(w).Encode(oauth.ClientMetadata{
@@ -130,7 +130,7 @@ func TestResolverResolveKeyNoJWKS(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := NewResolver().ResolveKey(
+	_, err := NewResolver().ResolveAtprotoKey(
 		context.Background(), server.URL+"/client-metadata.json", "key-1",
 	)
 	require.ErrorIs(t, err, ErrKeyNotFound)
