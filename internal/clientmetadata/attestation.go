@@ -78,8 +78,8 @@ func VerifyAttestation(
 	if claims.ID == "" {
 		return "", fmt.Errorf("%w: missing jti", ErrInvalidAttestation)
 	}
-	if claims.ExpiresAt == nil || claims.IssuedAt == nil {
-		return "", fmt.Errorf("%w: missing iat/exp", ErrInvalidAttestation)
+	if claims.IssuedAt == nil {
+		return "", fmt.Errorf("%w: missing iat", ErrInvalidAttestation)
 	}
 	if claims.ExpiresAt.Sub(claims.IssuedAt.Time) > maxAttestationTTL {
 		return "", fmt.Errorf("%w: exp too far from iat", ErrInvalidAttestation)
