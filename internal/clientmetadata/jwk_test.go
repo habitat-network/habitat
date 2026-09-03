@@ -1,4 +1,4 @@
-package oauthserver
+package clientmetadata
 
 import (
 	"crypto/ecdsa"
@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAtcryptoJWKtoJose(t *testing.T) {
+func TestConvertJWK(t *testing.T) {
 	t.Run("converts a P-256 public key", func(t *testing.T) {
 		priv, err := atcrypto.GeneratePrivateKeyP256()
 		require.NoError(t, err)
@@ -22,7 +22,7 @@ func TestAtcryptoJWKtoJose(t *testing.T) {
 		kid := "test-key"
 		jwk.KeyID = &kid
 
-		got, err := atcryptoJWKtoJose(*jwk)
+		got, err := ConvertJWK(*jwk)
 		require.NoError(t, err)
 		require.Equal(t, kid, got.KeyID)
 
@@ -51,7 +51,7 @@ func TestAtcryptoJWKtoJose(t *testing.T) {
 		jwk, err := pub.JWK()
 		require.NoError(t, err)
 
-		got, err := atcryptoJWKtoJose(*jwk)
+		got, err := ConvertJWK(*jwk)
 		require.NoError(t, err)
 		require.Empty(t, got.KeyID)
 	})
@@ -63,7 +63,7 @@ func TestAtcryptoJWKtoJose(t *testing.T) {
 			X:       base64.RawURLEncoding.EncodeToString([]byte{1}),
 			Y:       base64.RawURLEncoding.EncodeToString([]byte{2}),
 		}
-		_, err := atcryptoJWKtoJose(jwk)
+		_, err := ConvertJWK(jwk)
 		require.ErrorContains(t, err, "unsupported")
 	})
 
@@ -71,7 +71,7 @@ func TestAtcryptoJWKtoJose(t *testing.T) {
 		jwk := atcrypto.JWK{
 			KeyType: "RSA",
 		}
-		_, err := atcryptoJWKtoJose(jwk)
+		_, err := ConvertJWK(jwk)
 		require.ErrorContains(t, err, "unsupported")
 	})
 
@@ -82,7 +82,7 @@ func TestAtcryptoJWKtoJose(t *testing.T) {
 			X:       "!!!not-base64!!!",
 			Y:       "dGVzdA",
 		}
-		_, err := atcryptoJWKtoJose(jwk)
+		_, err := ConvertJWK(jwk)
 		require.Error(t, err)
 	})
 }

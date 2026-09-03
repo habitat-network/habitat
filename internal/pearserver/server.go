@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/schema"
 
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -33,6 +34,10 @@ type PearServer struct {
 	opensocialStore *opensocial.Store
 	permStore       perms.Store
 	simpleStore     *simplespace.Store
+
+	// clientMeta resolves OAuth client metadata/JWKS for verifying client
+	// attestations on getSpaceCredential.
+	clientMeta *clientmetadata.Resolver
 }
 
 // New creates a PearServer with the given dependencies and prepares
@@ -47,6 +52,7 @@ func New(
 	opensocialStore *opensocial.Store,
 	permStore perms.Store,
 	simpleStore *simplespace.Store,
+	clientMeta *clientmetadata.Resolver,
 ) *PearServer {
 	ps := &PearServer{
 		router:          mux.NewRouter(),
@@ -60,6 +66,7 @@ func New(
 		opensocialStore: opensocialStore,
 		permStore:       permStore,
 		simpleStore:     simpleStore,
+		clientMeta:      clientMeta,
 	}
 	ps.registerRoutes()
 	return ps

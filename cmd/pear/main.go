@@ -27,6 +27,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/did"
@@ -361,7 +362,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
 
-	// TODO: use this to validate the space credential in the spaces server
 	notifyServer := notify.NewServer(
 		notifyStore,
 		validator,
@@ -381,6 +381,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		opensocialStore,
 		permStore,
 		simpleStore,
+		clientmetadata.NewResolver(),
 	)
 
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))

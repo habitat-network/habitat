@@ -20,6 +20,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/ory/fosite"
@@ -117,7 +118,7 @@ func NewOAuthServer(
 	strategy := compose.NewOAuth2JWTStrategy(func(ctx context.Context) (any, error) {
 		return privateKey, nil
 	}, oauth2.NewHMACSHAStrategy(&hmac.HMACStrategy{Config: config}, config), config)
-	storage, err := newStore(db, approvedJwtBearerClients)
+	storage, err := newStore(db, approvedJwtBearerClients, clientmetadata.NewResolver())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}

@@ -504,7 +504,6 @@ func setupPear(t *testing.T) *pearHost {
 	validator := authn_testutil.NewSuccessValidator(
 		&authn.CredentialInfo{Subject: author.DID, Org: everyone},
 	)
-
 	// The pear host serves its spaces surface through the consolidated
 	// PearServer (via its test util), sharing the member-signer store and
 	// orgHive so managed authors sign with their own hive keys.

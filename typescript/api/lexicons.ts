@@ -4915,6 +4915,33 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceAppAccess: {
+    lexicon: 1,
+    id: 'network.habitat.space.appAccess',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          'Grants an OAuth client (identified by its client_id) access to a space that gates on app identity. Owned by the org repo within the space it governs. The record key is the base64url (no padding) encoding of the client_id; the client identity is recoverable from the key alone, so no fields are required. A space with at least one appAccess record is in allow-list mode: getSpaceCredential requires and verifies a client attestation, and the attested client_id must have a matching record. A space with none is open.',
+        key: 'any',
+        record: {
+          type: 'object',
+          properties: {
+            note: {
+              type: 'string',
+              description:
+                'Optional human-readable label for this grant, for admin display. Not used for enforcement.',
+              maxLength: 640,
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatSpaceDefs: {
     lexicon: 1,
     id: 'network.habitat.space.defs',
@@ -6061,6 +6088,7 @@ export const ids = {
     'network.habitat.simplespace.listMembers',
   NetworkHabitatSimplespaceRemoveMember:
     'network.habitat.simplespace.removeMember',
+  NetworkHabitatSpaceAppAccess: 'network.habitat.space.appAccess',
   NetworkHabitatSpaceDefs: 'network.habitat.space.defs',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceGetBlob: 'network.habitat.space.getBlob',

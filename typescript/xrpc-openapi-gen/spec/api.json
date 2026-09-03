@@ -9597,6 +9597,20 @@
           }
         }
       },
+      "network.habitat.space.appAccess": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "Optional human-readable label for this grant, for admin display. Not used for enforcement.",
+            "maxLength": 640
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.space.defs.signedCommit": {
         "type": "object",
         "description": "A signed commit over the current state of a permissioned repo.",
