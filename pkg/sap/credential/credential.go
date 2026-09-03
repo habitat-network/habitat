@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"golang.org/x/sync/singleflight"
@@ -54,10 +55,11 @@ type spaceCred struct {
 // that space's own host. Credentials are minted lazily on first use, shared
 // across callers via singleflight, and renewed just before they expire.
 type Manager struct {
-	dir   Directory    // resolves a space's own host
-	httpc *http.Client // for the credential exchange and repo-host reads
-	deleg Delegator    // mints delegation tokens
-	sf    singleflight.Group
+	dir      Directory           // resolves a space's own host
+	httpc    *http.Client        // for the credential exchange and repo-host reads
+	deleg    Delegator           // mints delegation tokens
+	attester *oauth.ClientConfig // signs client attestations; must be a confidential client
+	sf       singleflight.Group
 
 	mu    sync.Mutex
 	creds map[habitat_syntax.SpaceURI]spaceCred
@@ -65,13 +67,22 @@ type Manager struct {
 
 // NewManager builds a manager. httpc must not attach any auth of its own —
 // the manager sets each request's Authorization header itself, first to the
-// delegation token and then to the minted space credential.
-func NewManager(dir Directory, httpc *http.Client, deleg Delegator) *Manager {
+// delegation token and then to the minted space credential. attester signs
+// getSpaceCredential's client attestation with the same confidential-client
+// key it already publishes at its own client-metadata.json; it must be
+// confidential (a configured client secret) — sap always runs as one.
+func NewManager(
+	dir Directory,
+	httpc *http.Client,
+	deleg Delegator,
+	attester *oauth.ClientConfig,
+) *Manager {
 	return &Manager{
-		dir:   dir,
-		httpc: httpc,
-		deleg: deleg,
-		creds: make(map[habitat_syntax.SpaceURI]spaceCred),
+		dir:      dir,
+		httpc:    httpc,
+		deleg:    deleg,
+		attester: attester,
+		creds:    make(map[habitat_syntax.SpaceURI]spaceCred),
 	}
 }
 
@@ -109,6 +120,12 @@ func (m *Manager) mint(ctx context.Context, space habitat_syntax.SpaceURI) (spac
 	if err != nil {
 		return spaceCred{}, fmt.Errorf("get delegation token: %w", err)
 	}
+	attestation, err := m.attester.NewClientAssertion(
+		space.SpaceOwner().String() + "#atproto_space_host",
+	)
+	if err != nil {
+		return spaceCred{}, fmt.Errorf("sign client attestation: %w", err)
+	}
 	client := &atclient.APIClient{
 		Client:  m.httpc,
 		Host:    host,
@@ -117,7 +134,9 @@ func (m *Manager) mint(ctx context.Context, space habitat_syntax.SpaceURI) (spac
 	var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
 	if err := client.Post(
 		ctx, "network.habitat.space.getSpaceCredential",
-		habitat.NetworkHabitatSpaceGetSpaceCredentialInput{Space: space.String()}, &out,
+		habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
+			Space: space.String(), ClientAttestation: attestation,
+		}, &out,
 	); err != nil {
 		return spaceCred{}, fmt.Errorf("get space credential: %w", err)
 	}
