@@ -1,4 +1,4 @@
-package opensocial_test
+package pearserver_test
 
 import (
 	"net/http"
@@ -12,73 +12,107 @@ import (
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
-	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
+	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
+	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 )
 
-var (
-	serverOrgDID = syntax.DID("did:plc:org")
-	serverAdmin  = syntax.DID("did:plc:admin")
-	serverAlice  = syntax.DID("did:plc:alice")
-	serverBob    = syntax.DID("did:plc:bob")
-)
-
-func successValidator(did syntax.DID) authn.RequestValidator {
-	return authntest.NewSuccessValidator(&authn.CredentialInfo{Subject: did})
+func newOpenSocialServer(t *testing.T, did syntax.DID) *pearserver_testutil.TestServer {
+	t.Helper()
+	return pearserver_testutil.NewTestServer(
+		t,
+		pearserver_testutil.WithValidator(
+			authntest.NewSuccessValidator(&authn.CredentialInfo{Subject: did}),
+		),
+	)
 }
 
-// newServerStore bootstraps an org's members space with `serverAdmin` holding the
-// admin role.
-func newServerStore(t *testing.T) *opensocial_testutil.TestStore {
+// newSharedOpenSocialServers returns two TestServers (authenticated as admin
+// and alice) that share the same backing stores, so invites created by the
+// admin are visible to alice.
+func newSharedOpenSocialServers(
+	t *testing.T,
+) (*pearserver_testutil.TestServer, *pearserver_testutil.TestServer, spaces.Store) {
 	t.Helper()
-	ts := opensocial_testutil.NewTestStore(t)
+	db := db_testutil.NewDB(t)
+	fga, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = fga.Close() })
+	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
 
-	membersSpace, err := ts.SpaceStore.CreateSpace(
-		t.Context(), serverOrgDID, "community.opensocial.members", "self",
+	adminTS := pearserver_testutil.NewTestServer(
+		t,
+		pearserver_testutil.WithValidator(
+			authntest.NewSuccessValidator(&authn.CredentialInfo{Subject: admin}),
+		),
+		pearserver_testutil.WithDB(db),
+		pearserver_testutil.WithFGA(fga),
+		pearserver_testutil.WithSpaceStore(sp),
+	)
+	aliceTS := pearserver_testutil.NewTestServer(
+		t,
+		pearserver_testutil.WithValidator(
+			authntest.NewSuccessValidator(&authn.CredentialInfo{Subject: alice}),
+		),
+		pearserver_testutil.WithDB(db),
+		pearserver_testutil.WithFGA(fga),
+		pearserver_testutil.WithSpaceStore(sp),
+	)
+	return adminTS, aliceTS, sp
+}
+
+// bootstrapAdminMemberships creates the org's members space with `admin`
+// holding the admin role, mirroring the subset of NewOrg's setup the invite
+// flow depends on.
+func bootstrapAdminMemberships(t *testing.T, sp spaces.Store) {
+	t.Helper()
+	membersSpace, err := sp.CreateSpace(
+		t.Context(), org, "community.opensocial.members", "self",
 	)
 	require.NoError(t, err)
-	_, _, err = ts.SpaceStore.PutRecord(
-		t.Context(), membersSpace, serverOrgDID, "community.opensocial.membership",
-		syntax.RecordKey(serverAdmin),
+	_, _, err = sp.PutRecord(
+		t.Context(), membersSpace, org, "community.opensocial.membership",
+		syntax.RecordKey(admin),
 		spaces_testutil.MustMarshalRecord(
 			t,
 			opensocial_api.CommunityOpensocialMembership{Roles: []string{opensocial.AdminRoleRkey}},
 		),
 	)
 	require.NoError(t, err)
-
-	return ts
 }
 
 func TestServer_CreateOrg(t *testing.T) {
-	ts := opensocial_testutil.NewTestStore(t)
 	client := httpx_testutil.NewTestXRPCClient(t)
 
 	t.Run("creates org and makes caller admin", func(t *testing.T) {
-		s := opensocial.NewServer(ts.Store, successValidator(serverAlice))
+		ts := newOpenSocialServer(t, alice)
 
 		var out habitat.NetworkHabitatOpensocialCreateOrgOutput
 		code := client.Procedure(
-			s.CreateOrg,
+			ts.Server.CreateOrg,
 			habitat.NetworkHabitatOpensocialCreateOrgInput{Handle: "acme"},
 			&out,
 		)
 		require.Equal(t, http.StatusOK, code)
 		require.NotEmpty(t, out.Org)
 
-		roles, err := ts.GetUserRoles(t.Context(), syntax.DID(out.Org), serverAlice)
+		roles, err := ts.OpenSocialStore.GetUserRoles(t.Context(), syntax.DID(out.Org), alice)
 		require.NoError(t, err)
 		require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
 	})
 
 	t.Run("requires auth", func(t *testing.T) {
-		s := opensocial.NewServer(ts.Store, authntest.NewFailureValidator())
+		ts := pearserver_testutil.NewTestServer(t,
+			pearserver_testutil.WithValidator(authntest.NewFailureValidator()),
+		)
 
 		var out habitat.NetworkHabitatOpensocialCreateOrgOutput
 		code := client.Procedure(
-			s.CreateOrg,
+			ts.Server.CreateOrg,
 			habitat.NetworkHabitatOpensocialCreateOrgInput{Handle: "acme"},
 			&out,
 		)
@@ -87,19 +121,18 @@ func TestServer_CreateOrg(t *testing.T) {
 }
 
 func TestServer_UpdateProfile(t *testing.T) {
-	ts := opensocial_testutil.NewTestStore(t)
-	org, err := ts.NewOrg(t.Context(), "acme", serverAdmin)
-	require.NoError(t, err)
 	client := httpx_testutil.NewTestXRPCClient(t)
 
 	t.Run("requires admin", func(t *testing.T) {
-		aliceServer := opensocial.NewServer(ts.Store, successValidator(serverAlice))
+		ts := newOpenSocialServer(t, alice)
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
 
 		var out struct{}
 		code := client.Procedure(
-			aliceServer.UpdateProfile,
+			ts.Server.UpdateProfile,
 			opensocial_api.CommunityOpensocialUpdateProfileInput{
-				Org: org, Name: "Acme Corp",
+				Org: orgDID, Name: "Acme Corp",
 			},
 			&out,
 		)
@@ -107,13 +140,15 @@ func TestServer_UpdateProfile(t *testing.T) {
 	})
 
 	t.Run("updates profile", func(t *testing.T) {
-		adminServer := opensocial.NewServer(ts.Store, successValidator(serverAdmin))
+		ts := newOpenSocialServer(t, admin)
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
 
 		var out struct{}
 		code := client.Procedure(
-			adminServer.UpdateProfile,
+			ts.Server.UpdateProfile,
 			opensocial_api.CommunityOpensocialUpdateProfileInput{
-				Org: org, Name: "Acme Corp", Description: "We make widgets",
+				Org: orgDID, Name: "Acme Corp", Description: "We make widgets",
 			},
 			&out,
 		)
@@ -122,17 +157,16 @@ func TestServer_UpdateProfile(t *testing.T) {
 }
 
 func TestServer_Invites(t *testing.T) {
-	store := newServerStore(t)
-	adminServer := opensocial.NewServer(store.Store, successValidator(serverAdmin))
-	aliceServer := opensocial.NewServer(store.Store, successValidator(serverAlice))
+	adminTS, aliceTS, sp := newSharedOpenSocialServers(t)
+	bootstrapAdminMemberships(t, sp)
 	client := httpx_testutil.NewTestXRPCClient(t)
 
 	t.Run("create invite requires admin", func(t *testing.T) {
 		var out opensocial_api.CommunityOpensocialCreateInviteOutput
 		code := client.Procedure(
-			aliceServer.CreateInvite,
+			aliceTS.Server.CreateInvite,
 			opensocial_api.CommunityOpensocialCreateInviteInput{
-				Org: serverOrgDID.String(), Invitee: serverAlice.String(),
+				Org: org.String(), Invitee: alice.String(),
 			},
 			&out,
 		)
@@ -143,37 +177,37 @@ func TestServer_Invites(t *testing.T) {
 		// Admin invites alice.
 		var createOut opensocial_api.CommunityOpensocialCreateInviteOutput
 		createCode := client.Procedure(
-			adminServer.CreateInvite,
+			adminTS.Server.CreateInvite,
 			opensocial_api.CommunityOpensocialCreateInviteInput{
-				Org:     serverOrgDID.String(),
-				Invitee: serverAlice.String(),
+				Org:     org.String(),
+				Invitee: alice.String(),
 				Roles:   []string{opensocial.MemberRoleRkey},
 			},
 			&createOut,
 		)
 		require.Equal(t, http.StatusOK, createCode)
-		require.Equal(t, serverAlice.String(), createOut.Invite.Invitee)
+		require.Equal(t, alice.String(), createOut.Invite.Invitee)
 
 		// Admin sees it in the pending list; alice, not being an admin, can't.
-		pendingParams := url.Values{"org": []string{serverOrgDID.String()}}
+		pendingParams := url.Values{"org": []string{org.String()}}
 		var pendingOut opensocial_api.CommunityOpensocialListPendingInvitesOutput
 		pendingCode := client.Query(
-			adminServer.ListPendingInvites, pendingParams, &pendingOut,
+			adminTS.Server.ListPendingInvites, pendingParams, &pendingOut,
 		)
 		require.Equal(t, http.StatusOK, pendingCode)
 		require.Len(t, pendingOut.Invites, 1)
 
 		var forbiddenOut opensocial_api.CommunityOpensocialListPendingInvitesOutput
 		forbiddenCode := client.Query(
-			aliceServer.ListPendingInvites, pendingParams, &forbiddenOut,
+			aliceTS.Server.ListPendingInvites, pendingParams, &forbiddenOut,
 		)
 		require.Equal(t, http.StatusUnauthorized, forbiddenCode)
 
 		// Alice sees the invite addressed to her.
-		listParams := url.Values{"org": []string{serverOrgDID.String()}}
+		listParams := url.Values{"org": []string{org.String()}}
 		var listOut opensocial_api.CommunityOpensocialListInvitesOutput
 		listCode := client.Query(
-			aliceServer.ListInvites, listParams, &listOut,
+			aliceTS.Server.ListInvites, listParams, &listOut,
 		)
 		require.Equal(t, http.StatusOK, listCode)
 		require.Len(t, listOut.Invites, 1)
@@ -181,17 +215,17 @@ func TestServer_Invites(t *testing.T) {
 		// It also shows up in her cross-org inbox, with the org attached.
 		var myInvitesOut opensocial_api.CommunityOpensocialListInvitesOutput
 		myInvitesCode := client.Query(
-			aliceServer.ListInvites, url.Values{}, &myInvitesOut,
+			aliceTS.Server.ListInvites, url.Values{}, &myInvitesOut,
 		)
 		require.Equal(t, http.StatusOK, myInvitesCode)
 		require.Len(t, myInvitesOut.Invites, 1)
-		require.Equal(t, serverOrgDID.String(), myInvitesOut.Invites[0].Org)
+		require.Equal(t, org.String(), myInvitesOut.Invites[0].Org)
 
 		// Alice accepts.
 		var joinOut opensocial_api.CommunityOpensocialRequestJoinOutput
 		joinCode := client.Procedure(
-			aliceServer.RequestJoin,
-			opensocial_api.CommunityOpensocialRequestJoinInput{Org: serverOrgDID.String()},
+			aliceTS.Server.RequestJoin,
+			opensocial_api.CommunityOpensocialRequestJoinInput{Org: org.String()},
 			&joinOut,
 		)
 		require.Equal(t, http.StatusOK, joinCode)
@@ -201,8 +235,8 @@ func TestServer_Invites(t *testing.T) {
 		// idempotent: it confirms her existing membership rather than erroring.
 		var rejoinOut opensocial_api.CommunityOpensocialRequestJoinOutput
 		rejoinCode := client.Procedure(
-			aliceServer.RequestJoin,
-			opensocial_api.CommunityOpensocialRequestJoinInput{Org: serverOrgDID.String()},
+			aliceTS.Server.RequestJoin,
+			opensocial_api.CommunityOpensocialRequestJoinInput{Org: org.String()},
 			&rejoinOut,
 		)
 		require.Equal(t, http.StatusOK, rejoinCode)
@@ -213,18 +247,18 @@ func TestServer_Invites(t *testing.T) {
 		// Bob, not alice: alice is already a member from the "invite flow" subtest above.
 		var createOut opensocial_api.CommunityOpensocialCreateInviteOutput
 		client.Procedure(
-			adminServer.CreateInvite,
+			adminTS.Server.CreateInvite,
 			opensocial_api.CommunityOpensocialCreateInviteInput{
-				Org: serverOrgDID.String(), Invitee: serverBob.String(),
+				Org: org.String(), Invitee: bob.String(),
 			},
 			&createOut,
 		)
 
 		var revokeOut struct{}
 		revokeCode := client.Procedure(
-			adminServer.RevokeInvite,
+			adminTS.Server.RevokeInvite,
 			opensocial_api.CommunityOpensocialRevokeInviteInput{
-				Org: serverOrgDID.String(), Id: createOut.Invite.Id,
+				Org: org.String(), Id: createOut.Invite.Id,
 			},
 			&revokeOut,
 		)
@@ -232,9 +266,9 @@ func TestServer_Invites(t *testing.T) {
 
 		var revokeAgainOut struct{}
 		revokeAgainCode := client.Procedure(
-			adminServer.RevokeInvite,
+			adminTS.Server.RevokeInvite,
 			opensocial_api.CommunityOpensocialRevokeInviteInput{
-				Org: serverOrgDID.String(), Id: createOut.Invite.Id,
+				Org: org.String(), Id: createOut.Invite.Id,
 			},
 			&revokeAgainOut,
 		)

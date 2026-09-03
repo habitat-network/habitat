@@ -45,7 +45,6 @@ import (
 	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/simplespace"
-	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
@@ -53,8 +52,8 @@ import (
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
+	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/relationship"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -363,27 +362,25 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
 
 	// TODO: use this to validate the space credential in the spaces server
-	spacesServer := spaces_server.NewServer(
-		spacesStore,
-		validator,
-		hostKey,
-		hive,
-		blobStore,
-	)
 	notifyServer := notify.NewServer(
 		notifyStore,
 		validator,
 	)
 
-	simplespaceServer := simplespace.NewServer(
-		simplespace.NewStore(db, spacesStore, permStore),
-		validator,
-	)
+	simpleStore := simplespace.NewStore(db, spacesStore, permStore)
 
-	relationshipServer := relationship.NewServer(
-		permStore,
-		spacesStore,
+	// Consolidated server owning the opensocial, simplespace, relationship,
+	// and spaces handler routes.
+	pearApp := pearserver.New(
+		domain,
 		validator,
+		hive,
+		hostKey,
+		blobStore,
+		spacesStore,
+		opensocialStore,
+		permStore,
+		simpleStore,
 	)
 
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))
@@ -420,17 +417,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
 
 	// Server for opensocial community routes
-	opensocialServer := opensocial.NewServer(opensocialStore, validator)
-	mux.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", opensocialServer.CreateOrg)
-	mux.HandleFunc("/xrpc/community.opensocial.updateProfile", opensocialServer.UpdateProfile)
-	mux.HandleFunc("/xrpc/community.opensocial.uploadImage", opensocialServer.UploadImage)
-	mux.HandleFunc("/xrpc/community.opensocial.createInvite", opensocialServer.CreateInvite)
-	mux.HandleFunc("/xrpc/community.opensocial.listInvites", opensocialServer.ListInvites)
-	mux.HandleFunc(
-		"/xrpc/community.opensocial.listPendingInvites", opensocialServer.ListPendingInvites,
-	)
-	mux.HandleFunc("/xrpc/community.opensocial.revokeInvite", opensocialServer.RevokeInvite)
-	mux.HandleFunc("/xrpc/community.opensocial.requestJoin", opensocialServer.RequestJoin)
+	mux.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", pearApp.CreateOrg)
+	mux.PathPrefix("/xrpc/community.opensocial.").Handler(pearApp)
 
 	cliqueServer := clique.NewServer(cliqueStore, validator)
 	pearServer := pear.NewServer(
@@ -519,7 +507,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", spacesServer.UploadBlob)
+	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearApp.UploadBlob)
 
 	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
@@ -532,47 +520,15 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
-	// Spaces
-	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
-	mux.HandleFunc("/xrpc/network.habitat.space.putRecord", spacesServer.PutRecord)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRecord", spacesServer.GetRecord)
-	mux.HandleFunc("/xrpc/network.habitat.space.getBlob", spacesServer.GetBlob)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
-	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
-	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit", spacesServer.GetLatestCommit)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
+	// Spaces (registerNotify stays with notifyServer; the rest route to pearApp)
 	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
-	mux.HandleFunc("/xrpc/network.habitat.space.getDelegationToken",
-		spacesServer.GetDelegationToken)
-	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
-		spacesServer.GetSpaceCredential)
+	mux.PathPrefix("/xrpc/network.habitat.space.").Handler(pearApp)
 
-	// Simplespaces
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", simplespaceServer.CreateSpace)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.addMember", simplespaceServer.AddMember)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", simplespaceServer.RemoveMember)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", simplespaceServer.ListMembers)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.deleteSpace", simplespaceServer.DeleteSpace)
+	// Simplespace
+	mux.PathPrefix("/xrpc/network.habitat.simplespace.").Handler(pearApp)
 
 	// Relationships
-	mux.HandleFunc("/xrpc/network.habitat.relationship.setUserRelation",
-		relationshipServer.SetUserRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.setSpaceRelation",
-		relationshipServer.SetSpaceRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteRelation",
-		relationshipServer.DeleteRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listRelations",
-		relationshipServer.ListRelations)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.checkUserRelation",
-		relationshipServer.CheckUserRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.checkSpaceRelation",
-		relationshipServer.CheckSpaceRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.resolveRelations",
-		relationshipServer.ResolveRelations)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listRelatedSpaces",
-		relationshipServer.ListRelatedSpaces)
+	mux.PathPrefix("/xrpc/network.habitat.relationship.").Handler(pearApp)
 
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)

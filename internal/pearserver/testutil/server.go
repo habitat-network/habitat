@@ -27,13 +27,15 @@ import (
 type TestServer struct {
 	Server *pearserver.PearServer
 
-	Validator  authn.RequestValidator
-	PermStore  perms.Store
-	SpaceStore spaces.Store
-	Hive       hive.Hive
-	HostKey    atcrypto.PrivateKey
-	DB         *gorm.DB
-	FGA        fgastore.Store
+	Validator       authn.RequestValidator
+	PermStore       perms.Store
+	SpaceStore      spaces.Store
+	OpenSocialStore *opensocial.Store
+	SimpleStore     *simplespace.Store
+	Hive            hive.Hive
+	HostKey         atcrypto.PrivateKey
+	DB              *gorm.DB
+	FGA             fgastore.Store
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -45,6 +47,12 @@ func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
 func WithHostKey(key atcrypto.PrivateKey) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.HostKey = key
+	}
+}
+
+func WithHive(have hive.Hive) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.Hive = have
 	}
 }
 
@@ -92,9 +100,11 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	if ts.DB == nil {
 		ts.DB = db_testutil.NewDB(t)
 	}
-	hve, err := hive.NewHive("example.com", "pear.example.com", ts.DB)
-	require.NoError(t, err)
-	ts.Hive = hve
+	if ts.Hive == nil {
+		hiveRep, err := hive.NewHive("example.com", "pear.example.com", ts.DB)
+		require.NoError(t, err)
+		ts.Hive = hiveRep
+	}
 	if ts.SpaceStore == nil {
 		ts.SpaceStore = spaces_testutil.NewTestStore(
 			t,
@@ -109,6 +119,9 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	require.NoError(t, err)
 	ps := perms.NewStore(ts.DB, ts.SpaceStore, ts.FGA, os)
 	ss := simplespace.NewStore(ts.DB, ts.SpaceStore, ps)
+
+	ts.OpenSocialStore = os
+	ts.SimpleStore = ss
 
 	ts.Server = pearserver.New(
 		"pear.example.com",
