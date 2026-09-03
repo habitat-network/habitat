@@ -97,11 +97,15 @@ func TestResolverResolveKeyNotFound(t *testing.T) {
 // (defaultFetchTimeout) in the test suite.
 func TestResolverResolveKeyTimesOut(t *testing.T) {
 	blockUntil := make(chan struct{})
-	t.Cleanup(func() { close(blockUntil) })
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-blockUntil // never responds within the test's lifetime
 	}))
+	// server.Close() waits for the in-flight handler to return, so
+	// blockUntil must be closed (unblocking the handler) before Close is
+	// called: defers run LIFO, so registering Close first and the channel
+	// close second runs the channel close first.
 	defer server.Close()
+	defer close(blockUntil)
 
 	const testTimeout = 20 * time.Millisecond
 	start := time.Now()
@@ -111,7 +115,10 @@ func TestResolverResolveKeyTimesOut(t *testing.T) {
 	elapsed := time.Since(start)
 
 	require.Error(t, err)
-	require.Less(t, elapsed, 2*time.Second, "ResolveKey should be bounded by the resolver's own timeout, not hang")
+	require.Less(
+		t, elapsed, 2*time.Second,
+		"ResolveKey should be bounded by the resolver's own timeout, not hang",
+	)
 }
 
 func TestResolverResolveKeyNoJWKS(t *testing.T) {
