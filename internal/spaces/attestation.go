@@ -1,4 +1,4 @@
-package pearserver
+package spaces
 
 import (
 	"context"
@@ -14,9 +14,9 @@ import (
 	"github.com/habitat-network/habitat/internal/clientmeta"
 )
 
-// attestationTyp is the required "typ" header on a client attestation JWT.
+// AttestationTyp is the required "typ" header on a client attestation JWT.
 // See https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md#client-attestation.
-const attestationTyp = "atproto-client-attestation+jwt"
+const AttestationTyp = "atproto-client-attestation+jwt"
 
 // maxAttestationTTL bounds how long-lived an attestation's exp-iat window
 // may be. The proposal's example attestations are ~60s; this leaves headroom
@@ -35,10 +35,10 @@ const attestationClockSkew = 60 * time.Second
 // malformed, badly signed, or failing a claims check.
 var ErrInvalidAttestation = errors.New("invalid client attestation")
 
-// verifyAttestation verifies a client attestation JWT presented to
+// VerifyAttestation verifies a client attestation JWT presented to
 // getSpaceCredential and returns the verified client_id (the attestation's
 // iss) on success.
-func verifyAttestation(
+func VerifyAttestation(
 	ctx context.Context,
 	resolver *clientmeta.Resolver,
 	raw string,
@@ -56,7 +56,7 @@ func verifyAttestation(
 		return "", fmt.Errorf("%w: unsupported alg %q", ErrInvalidAttestation, header.Algorithm)
 	}
 	typ, _ := header.ExtraHeaders[jose.HeaderType].(string)
-	if typ != attestationTyp {
+	if typ != AttestationTyp {
 		return "", fmt.Errorf("%w: unexpected typ %q", ErrInvalidAttestation, typ)
 	}
 	if header.KeyID == "" {

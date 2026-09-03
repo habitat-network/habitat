@@ -51,10 +51,10 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	} else {
-		clientID, err := verifyAttestation(
+		clientID, err := spaces.VerifyAttestation(
 			ctx, p.clientMeta, input.ClientAttestation, spaceURI.SpaceOwner(),
 		)
-		if errors.Is(err, ErrInvalidAttestation) {
+		if errors.Is(err, spaces.ErrInvalidAttestation) {
 			httpx.WriteError(ctx, w, "InvalidClientAttestation", err.Error(), http.StatusBadRequest)
 			return
 		} else if err != nil {
