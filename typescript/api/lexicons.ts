@@ -4915,62 +4915,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatSpaceAddAppAccess: {
-    lexicon: 1,
-    id: 'network.habitat.space.addAppAccess',
-    defs: {
-      main: {
-        type: 'procedure',
-        description:
-          "Grant an OAuth client access to a space, creating the space's appAccess allow-list if this is its first grant. Caller must have the manager role on the space. The grant record is owned by the org repo within its governing space.",
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['space', 'clientId'],
-            properties: {
-              space: {
-                type: 'string',
-                format: 'at-uri',
-                description: 'Reference to the space.',
-              },
-              clientId: {
-                type: 'string',
-                format: 'uri',
-                description:
-                  'The OAuth client_id (client metadata document URL) to grant access to.',
-                maxLength: 384,
-              },
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['uri'],
-            properties: {
-              uri: {
-                type: 'string',
-                format: 'at-uri',
-                description: 'URI of the written appAccess record.',
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceNotFound',
-          },
-          {
-            name: 'InvalidClientId',
-            description:
-              'clientId is not a valid OAuth client_id URL, or is too long to address as a record key.',
-          },
-        ],
-      },
-    },
-  },
   NetworkHabitatSpaceAppAccess: {
     lexicon: 1,
     id: 'network.habitat.space.appAccess',
@@ -5985,54 +5929,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatSpaceRemoveAppAccess: {
-    lexicon: 1,
-    id: 'network.habitat.space.removeAppAccess',
-    defs: {
-      main: {
-        type: 'procedure',
-        description:
-          "Revoke an OAuth client's access to a space, or ensure it isn't granted. Caller must have the manager role on the space. If this removes the space's last appAccess grant, the space reverts to open access.",
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['space', 'clientId'],
-            properties: {
-              space: {
-                type: 'string',
-                format: 'at-uri',
-                description: 'Reference to the space.',
-              },
-              clientId: {
-                type: 'string',
-                format: 'uri',
-                description:
-                  'The OAuth client_id (client metadata document URL) to revoke access from.',
-                maxLength: 384,
-              },
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            properties: {},
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceNotFound',
-          },
-          {
-            name: 'InvalidClientId',
-            description: 'clientId is too long to address as a record key.',
-          },
-        ],
-      },
-    },
-  },
 } as const satisfies Record<string, LexiconDoc>
 export const schemas = Object.values(schemaDict) satisfies LexiconDoc[]
 export const lexicons: Lexicons = new Lexicons(schemas)
@@ -6192,7 +6088,6 @@ export const ids = {
     'network.habitat.simplespace.listMembers',
   NetworkHabitatSimplespaceRemoveMember:
     'network.habitat.simplespace.removeMember',
-  NetworkHabitatSpaceAddAppAccess: 'network.habitat.space.addAppAccess',
   NetworkHabitatSpaceAppAccess: 'network.habitat.space.appAccess',
   NetworkHabitatSpaceDefs: 'network.habitat.space.defs',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
@@ -6213,5 +6108,4 @@ export const ids = {
   NetworkHabitatSpaceNotifyWrite: 'network.habitat.space.notifyWrite',
   NetworkHabitatSpacePutRecord: 'network.habitat.space.putRecord',
   NetworkHabitatSpaceRegisterNotify: 'network.habitat.space.registerNotify',
-  NetworkHabitatSpaceRemoveAppAccess: 'network.habitat.space.removeAppAccess',
 } as const

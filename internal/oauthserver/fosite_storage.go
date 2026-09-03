@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/clientmeta"
@@ -222,21 +221,11 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 	ctx, span := tracer.Start(ctx, "GetClient")
 	defer span.End()
 	span.SetAttributes(attribute.String("client_id", id))
-	metadata, err := s.fetchClientMetadata(ctx, id)
+	metadata, err := s.clientMeta.FetchMetadata(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	return &client{metadata}, nil
-}
-
-// fetchClientMetadata fetches and decodes the client metadata document
-// published at id (the client's client_id URL). See
-// https://atproto.com/specs/oauth#client-id-metadata-document.
-//
-// Localhost client_ids are the exception: nothing is fetched, the metadata is
-// derived from the client_id itself.
-func (s *store) fetchClientMetadata(ctx context.Context, id string) (*oauth.ClientMetadata, error) {
-	return s.clientMeta.FetchMetadata(ctx, id)
 }
 
 // GetPublicKey implements rfc7523.RFC7523KeyStorage. issuer is the "iss"
@@ -269,7 +258,7 @@ func (s *store) GetPublicKeys(
 	if !s.approvedJwtBearerClients.IsApprovedClient(issuer) {
 		return nil, fosite.ErrNotFound
 	}
-	metadata, err := s.fetchClientMetadata(ctx, issuer)
+	metadata, err := s.clientMeta.FetchMetadata(ctx, issuer)
 	if err != nil {
 		return nil, err
 	}

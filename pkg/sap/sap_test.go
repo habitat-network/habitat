@@ -23,6 +23,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
+	"github.com/habitat-network/habitat/internal/clientmeta"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -511,6 +512,7 @@ func setupPear(t *testing.T) *pearHost {
 		nil, // host key: managed authors sign with their own hive keys
 		orgHive,
 		nil, // blobs: no blob handlers mounted
+		clientmeta.NewResolver(),
 	)
 	notifyServer := notify.NewServer(notifyStore, validator)
 

@@ -37,14 +37,7 @@ func TestServer_GetSpaceCredential_AllowListSpace(t *testing.T) {
 	// GetSpaceCredential verifies the attestation's aud against the space
 	// owner DID, which orgID's CreateSpace call above makes owner==orgID.
 	clientID, priv := spaces_server.AttestationTestClient(t, "key-1")
-
-	var addOut habitat.NetworkHabitatSpaceAddAppAccessOutput
-	code := httpx_testutil.NewTestXRPCClient(t).Procedure(
-		s.AddAppAccess,
-		habitat.NetworkHabitatSpaceAddAppAccessInput{Space: uri.String(), ClientId: clientID},
-		&addOut,
-	)
-	require.Equal(t, http.StatusOK, code)
+	spaces_server.GrantAppAccess(t, store, uri, clientID)
 
 	t.Run("no attestation is rejected", func(t *testing.T) {
 		var apiErr atclient.ErrorBody
