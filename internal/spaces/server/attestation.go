@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -22,6 +23,13 @@ const attestationTyp = "atproto-client-attestation+jwt"
 // for clock skew between the client and Habitat without accepting
 // anomalously long-lived tokens.
 const maxAttestationTTL = 5 * time.Minute
+
+// attestationClockSkew is the allowance for clock skew between the client
+// and Habitat when checking that an attestation's iat is not in the future.
+// 60s matches the default service-auth token TTL used elsewhere in this
+// codebase (see internal/utils/jwt.go) as a reasonable skew-tolerance
+// convention.
+const attestationClockSkew = 60 * time.Second
 
 // ErrInvalidAttestation wraps every reason an attestation JWT is rejected:
 // malformed, badly signed, or failing a claims check.
@@ -73,7 +81,14 @@ func verifyAttestation(
 	if errors.Is(err, clientmeta.ErrKeyNotFound) {
 		return "", fmt.Errorf("%w: key not found: %v", ErrInvalidAttestation, err)
 	} else if err != nil {
-		return "", fmt.Errorf("resolve attestation key: %w", err)
+		// Don't propagate the raw fetch error to the caller: iss is
+		// attacker-controlled, and distinguishing error text (connection
+		// refused vs. DNS failure vs. non-200 vs. malformed JSON) turns this
+		// into an SSRF oracle for arbitrary URLs. Log the real error
+		// server-side and return a generic, client-facing one.
+		slog.WarnContext(ctx, "failed to resolve client attestation key",
+			"err", err, "iss", unverified.Issuer)
+		return "", fmt.Errorf("%w: unable to resolve client key", ErrInvalidAttestation)
 	}
 
 	var claims jwt.Claims
@@ -103,6 +118,17 @@ func verifyAttestation(
 	}
 	if claims.Expiry.Time().Sub(claims.IssuedAt.Time()) > maxAttestationTTL {
 		return "", fmt.Errorf("%w: exp too far from iat", ErrInvalidAttestation)
+	}
+	// The exp-iat delta check above doesn't bound either from wall-clock now:
+	// an attestation with iat/exp both shifted far into the future (e.g.
+	// iat=now+24h, exp=now+24h+1m) would otherwise pass every check so far.
+	// Bound exp absolutely, and allow iat a small clock-skew allowance rather
+	// than requiring it to be exactly <= now.
+	if claims.IssuedAt.Time().After(now.Add(attestationClockSkew)) {
+		return "", fmt.Errorf("%w: iat too far in the future", ErrInvalidAttestation)
+	}
+	if claims.Expiry.Time().After(now.Add(maxAttestationTTL)) {
+		return "", fmt.Errorf("%w: exp too far in the future", ErrInvalidAttestation)
 	}
 
 	return claims.Issuer, nil

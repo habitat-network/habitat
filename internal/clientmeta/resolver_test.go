@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -86,6 +87,31 @@ func TestResolverResolveKeyNotFound(t *testing.T) {
 		context.Background(), server.URL+"/client-metadata.json", "wrong-kid",
 	)
 	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+// TestResolverResolveKeyTimesOut covers the hot-path DoS/latency-coupling
+// finding: a slow or hanging metadata host must not stall ResolveKey
+// indefinitely (bounded only by the inbound request's own context) — the
+// Resolver's own timeout must cut the fetch off. Uses a short timeout via
+// NewResolverWithTimeout rather than waiting out the real production default
+// (defaultFetchTimeout) in the test suite.
+func TestResolverResolveKeyTimesOut(t *testing.T) {
+	blockUntil := make(chan struct{})
+	t.Cleanup(func() { close(blockUntil) })
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-blockUntil // never responds within the test's lifetime
+	}))
+	defer server.Close()
+
+	const testTimeout = 20 * time.Millisecond
+	start := time.Now()
+	_, err := NewResolverWithTimeout(testTimeout).ResolveKey(
+		context.Background(), server.URL+"/client-metadata.json", "key-1",
+	)
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	require.Less(t, elapsed, 2*time.Second, "ResolveKey should be bounded by the resolver's own timeout, not hang")
 }
 
 func TestResolverResolveKeyNoJWKS(t *testing.T) {

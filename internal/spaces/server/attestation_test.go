@@ -124,6 +124,15 @@ func TestVerifyAttestationRejects(t *testing.T) {
 		"exp far beyond max ttl": func(c *josejwt.Claims, _ map[jose.HeaderKey]any) {
 			c.Expiry = josejwt.NewNumericDate(time.Now().Add(24 * time.Hour))
 		},
+		"iat and exp both shifted far into the future": func(c *josejwt.Claims, _ map[jose.HeaderKey]any) {
+			// A valid exp-iat delta (30s), but both shifted 24h into the
+			// future: this must be rejected on absolute time, not just the
+			// exp-iat delta, or an attacker can mint an attestation that's
+			// "fresh" by relative-delta standards but never actually expires
+			// close to now.
+			c.IssuedAt = josejwt.NewNumericDate(time.Now().Add(24 * time.Hour))
+			c.Expiry = josejwt.NewNumericDate(time.Now().Add(24*time.Hour + 30*time.Second))
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -150,6 +159,26 @@ func TestVerifyAttestationRejectsBadSignature(t *testing.T) {
 
 	_, err = verifyAttestation(context.Background(), clientmeta.NewResolver(), raw, testSpaceOwner)
 	require.ErrorIs(t, err, ErrInvalidAttestation)
+}
+
+// TestVerifyAttestationRejectsUnreachableIssuer covers the SSRF-oracle
+// finding: a resolver-fetch failure for an attacker-controlled iss must
+// become a generic InvalidClientAttestation rejection, not leak the raw
+// fetch error (which would let a caller distinguish connection-refused vs.
+// DNS failure vs. non-200 vs. malformed JSON for arbitrary URLs).
+func TestVerifyAttestationRejectsUnreachableIssuer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	unreachable := server.URL + "/client-metadata.json"
+	server.Close() // closed: any request now fails with connection refused
+
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	raw := SignAttestation(t, priv, "key-1", unreachable, testSpaceOwner, nil)
+
+	_, err = verifyAttestation(context.Background(), clientmeta.NewResolver(), raw, testSpaceOwner)
+	require.ErrorIs(t, err, ErrInvalidAttestation)
+	require.NotContains(t, err.Error(), "connection refused")
+	require.Contains(t, err.Error(), "unable to resolve client key")
 }
 
 func TestVerifyAttestationRejectsUnknownKid(t *testing.T) {

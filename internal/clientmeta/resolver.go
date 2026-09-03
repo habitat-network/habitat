@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	jose "github.com/go-jose/go-jose/v3"
@@ -22,13 +23,31 @@ import (
 // (inline or via jwks_uri) has no key matching the requested kid.
 var ErrKeyNotFound = errors.New("no matching key in client jwks")
 
-// Resolver fetches client metadata documents and JWKS over HTTP. The zero
-// value is ready to use.
-type Resolver struct{}
+// defaultFetchTimeout bounds each outbound client-metadata/JWKS fetch. These
+// requests now sit on the getSpaceCredential hot path (every credential mint
+// with an attestation makes 1-2 outbound GETs to a third-party host), so they
+// need their own bound rather than relying solely on the inbound request's
+// context.
+const defaultFetchTimeout = 5 * time.Second
 
-// NewResolver constructs a Resolver.
+// Resolver fetches client metadata documents and JWKS over HTTP.
+type Resolver struct {
+	httpClient *http.Client
+}
+
+// NewResolver constructs a Resolver whose fetches are bounded by
+// defaultFetchTimeout.
 func NewResolver() *Resolver {
-	return &Resolver{}
+	return NewResolverWithTimeout(defaultFetchTimeout)
+}
+
+// NewResolverWithTimeout constructs a Resolver whose fetches are bounded by
+// the given timeout, primarily for tests that need a short bound rather than
+// waiting out defaultFetchTimeout.
+func NewResolverWithTimeout(timeout time.Duration) *Resolver {
+	cl := httpx.NewClient()
+	cl.Timeout = timeout
+	return &Resolver{httpClient: cl}
 }
 
 // FetchMetadata fetches and decodes the client metadata document published
@@ -53,8 +72,7 @@ func (r *Resolver) FetchMetadata(
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	// TODO: consider caching
-	cl := httpx.NewClient()
-	resp, err := cl.Do(req)
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch client metadata: %w", err)
 	}
@@ -89,8 +107,7 @@ func (r *Resolver) fetchJWKS(
 	if err != nil {
 		return nil, fmt.Errorf("failed to make jwks_uri request: %w", err)
 	}
-	cl := httpx.NewClient()
-	resp, err := cl.Do(req)
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch jwks_uri: %w", err)
 	}
