@@ -55,10 +55,21 @@ func WriteNotSupported(ctx context.Context, w http.ResponseWriter, msg string) {
 
 func WriteServerError(ctx context.Context, w http.ResponseWriter, err error) {
 	slog.ErrorContext(ctx, "server error", "err", err)
-	WriteError(ctx, w, "ServerError",
+	WriteError(
+		ctx, w, "ServerError",
 		err.Error(), // probably fine to leak debug details for unexpected errors
 		http.StatusInternalServerError,
 	)
+}
+
+func WriteInvalidClientAttestation(
+	ctx context.Context,
+	w http.ResponseWriter,
+	msg string,
+	err error,
+) {
+	slog.WarnContext(ctx, "invalid client attestation", "err", err)
+	WriteError(ctx, w, "InvalidClientAttestation", msg, http.StatusBadRequest)
 }
 
 func WriteUnauthorized(ctx context.Context, w http.ResponseWriter, msg string) {

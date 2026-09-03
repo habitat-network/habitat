@@ -69,7 +69,7 @@ func (p *PearServer) verifyClientAttestation(
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list app access grants: %w", err))
 		return false
 	}
-	if len(grants) > 0 {
+	if len(grants) == 0 {
 		return true
 	}
 	if attestation == "" {
