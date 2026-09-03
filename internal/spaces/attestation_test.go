@@ -2,17 +2,14 @@ package spaces_test
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	jose "github.com/go-jose/go-jose/v3"
-	josejwt "github.com/go-jose/go-jose/v3/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/clientmeta"
@@ -37,34 +34,32 @@ func TestVerifyAttestationValid(t *testing.T) {
 }
 
 func TestVerifyAttestationRejects(t *testing.T) {
-	cases := map[string]func(*josejwt.Claims, map[jose.HeaderKey]any){
-		"wrong typ": func(_ *josejwt.Claims, extra map[jose.HeaderKey]any) {
-			extra[jose.HeaderType] = "jwt"
+	cases := map[string]func(*jwt.RegisteredClaims, map[string]any){
+		"wrong typ": func(_ *jwt.RegisteredClaims, header map[string]any) {
+			header["typ"] = "jwt"
 		},
-		"iss != sub": func(c *josejwt.Claims, _ map[jose.HeaderKey]any) {
+		"iss != sub": func(c *jwt.RegisteredClaims, _ map[string]any) {
 			c.Subject = "https://other.example.com/client-metadata.json"
 		},
-		"wrong aud": func(c *josejwt.Claims, _ map[jose.HeaderKey]any) {
-			c.Audience = josejwt.Audience{"did:plc:someone-else#atproto_space_host"}
+		"wrong aud": func(c *jwt.RegisteredClaims, _ map[string]any) {
+			c.Audience = jwt.ClaimStrings{"did:plc:someone-else#atproto_space_host"}
 		},
-		"expired": func(c *josejwt.Claims, _ map[jose.HeaderKey]any) {
-			c.IssuedAt = josejwt.NewNumericDate(time.Now().Add(-time.Hour))
-			c.Expiry = josejwt.NewNumericDate(time.Now().Add(-time.Minute))
+		"expired": func(c *jwt.RegisteredClaims, _ map[string]any) {
+			c.IssuedAt = jwt.NewNumericDate(time.Now().Add(-time.Hour))
+			c.ExpiresAt = jwt.NewNumericDate(time.Now().Add(-time.Minute))
 		},
-		"missing jti": func(c *josejwt.Claims, _ map[jose.HeaderKey]any) {
+		"missing jti": func(c *jwt.RegisteredClaims, _ map[string]any) {
 			c.ID = ""
 		},
-		"exp far beyond max ttl": func(c *josejwt.Claims, _ map[jose.HeaderKey]any) {
-			c.Expiry = josejwt.NewNumericDate(time.Now().Add(24 * time.Hour))
+		"exp far beyond max ttl": func(c *jwt.RegisteredClaims, _ map[string]any) {
+			c.ExpiresAt = jwt.NewNumericDate(time.Now().Add(24 * time.Hour))
 		},
-		"iat and exp both shifted far into the future": func(c *josejwt.Claims, _ map[jose.HeaderKey]any) {
+		"iat and exp both shifted far into the future": func(c *jwt.RegisteredClaims, _ map[string]any) {
 			// A valid exp-iat delta (30s), but both shifted 24h into the
-			// future: this must be rejected on absolute time, not just the
-			// exp-iat delta, or an attacker can mint an attestation that's
-			// "fresh" by relative-delta standards but never actually expires
-			// close to now.
-			c.IssuedAt = josejwt.NewNumericDate(time.Now().Add(24 * time.Hour))
-			c.Expiry = josejwt.NewNumericDate(time.Now().Add(24*time.Hour + 30*time.Second))
+			// future: jwt.WithIssuedAt (attestationLeeway) rejects the iat
+			// outright, so this never reaches the exp-iat delta check.
+			c.IssuedAt = jwt.NewNumericDate(time.Now().Add(24 * time.Hour))
+			c.ExpiresAt = jwt.NewNumericDate(time.Now().Add(24*time.Hour + 30*time.Second))
 		},
 	}
 	for name, mutate := range cases {
@@ -87,7 +82,7 @@ func TestVerifyAttestationRejects(t *testing.T) {
 
 func TestVerifyAttestationRejectsBadSignature(t *testing.T) {
 	clientID, _ := spaces_testutil.AttestationTestClient(t, "key-1")
-	otherPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	otherPriv, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
 	// Signed by a key that doesn't match the one published at clientID.
 	raw := spaces_testutil.SignAttestation(t, otherPriv, "key-1", clientID, testSpaceOwner, nil)
@@ -111,7 +106,7 @@ func TestVerifyAttestationRejectsUnreachableIssuer(t *testing.T) {
 	unreachable := server.URL + "/client-metadata.json"
 	server.Close() // closed: any request now fails with connection refused
 
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
 	raw := spaces_testutil.SignAttestation(t, priv, "key-1", unreachable, testSpaceOwner, nil)
 

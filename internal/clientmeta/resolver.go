@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -124,27 +125,55 @@ func (r *Resolver) fetchJWKS(
 	return &jwks, nil
 }
 
-// ResolveKey fetches clientID's metadata and returns the key identified by
-// kid from its published JWKS (inline jwks, or fetched from jwks_uri),
-// converted to a go-jose key usable for signature verification. Returns
-// ErrKeyNotFound if the client has no matching key.
-func (r *Resolver) ResolveKey(ctx context.Context, clientID, kid string) (*jose.JSONWebKey, error) {
+// findJWK fetches clientID's metadata and returns the raw atproto JWK
+// identified by kid from its published JWKS (inline jwks, or fetched from
+// jwks_uri). Returns ErrKeyNotFound if the client has no matching key.
+func (r *Resolver) findJWK(ctx context.Context, clientID, kid string) (atcrypto.JWK, error) {
 	metadata, err := r.FetchMetadata(ctx, clientID)
 	if err != nil {
-		return nil, err
+		return atcrypto.JWK{}, err
 	}
 	jwks, err := r.fetchJWKS(ctx, metadata)
 	if err != nil {
-		return nil, err
+		return atcrypto.JWK{}, err
 	}
 	if jwks == nil {
-		return nil, ErrKeyNotFound
+		return atcrypto.JWK{}, ErrKeyNotFound
 	}
 	for _, key := range jwks.Keys {
 		if key.KeyID == nil || *key.KeyID != kid {
 			continue
 		}
-		return ConvertJWK(key)
+		return key, nil
 	}
-	return nil, ErrKeyNotFound
+	return atcrypto.JWK{}, ErrKeyNotFound
+}
+
+// ResolveKey fetches clientID's metadata and returns the key identified by
+// kid from its published JWKS, converted to a go-jose key usable for
+// signature verification with the go-jose/v3 stack (internal/oauthserver's
+// RFC 7523 JWT-bearer client authentication). Returns ErrKeyNotFound if the
+// client has no matching key.
+func (r *Resolver) ResolveKey(ctx context.Context, clientID, kid string) (*jose.JSONWebKey, error) {
+	jwk, err := r.findJWK(ctx, clientID, kid)
+	if err != nil {
+		return nil, err
+	}
+	return ConvertJWK(jwk)
+}
+
+// ResolveAtprotoKey fetches clientID's metadata and returns the key
+// identified by kid from its published JWKS as an atcrypto.PublicKey, usable
+// for signature verification with golang-jwt/v5's atproto-registered ES256
+// signing method (see github.com/bluesky-social/indigo/atproto/auth).
+// Returns ErrKeyNotFound if the client has no matching key.
+func (r *Resolver) ResolveAtprotoKey(
+	ctx context.Context,
+	clientID, kid string,
+) (atcrypto.PublicKey, error) {
+	jwk, err := r.findJWK(ctx, clientID, kid)
+	if err != nil {
+		return nil, err
+	}
+	return atcrypto.ParsePublicJWK(jwk)
 }
