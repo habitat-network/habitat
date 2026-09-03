@@ -23,14 +23,12 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
-	"github.com/habitat-network/habitat/internal/clientmeta"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/org"
+	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
-	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
@@ -506,31 +504,24 @@ func setupPear(t *testing.T) *pearHost {
 	validator := authn_testutil.NewSuccessValidator(
 		&authn.CredentialInfo{Subject: author.DID, Org: everyone},
 	)
-	spacesServer := spaces_server.NewServer(
-		spacesStore,
-		validator,
-		nil, // host key: managed authors sign with their own hive keys
-		orgHive,
-		nil, // blobs: no blob handlers mounted
-		clientmeta.NewResolver(),
+	// The pear host serves its spaces surface through the consolidated
+	// PearServer (via its test util), sharing the member-signer store and
+	// orgHive so managed authors sign with their own hive keys.
+	ts := pearserver_testutil.NewTestServer(t,
+		pearserver_testutil.WithDB(db),
+		pearserver_testutil.WithSpaceStore(spacesStore),
+		pearserver_testutil.WithValidator(validator),
+		pearserver_testutil.WithHive(orgHive),
 	)
+	pearApp := ts.Server
 	notifyServer := notify.NewServer(notifyStore, validator)
 
-	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
 	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
-	mux.HandleFunc("/xrpc/network.habitat.space.getDelegationToken",
-		func(w http.ResponseWriter, r *http.Request) {
-			httpx.WriteJSON(r.Context(), w,
-				habitat.NetworkHabitatSpaceGetDelegationTokenOutput{Token: "test-delegation"})
-		})
-	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
-		func(w http.ResponseWriter, r *http.Request) {
-			httpx.WriteJSON(r.Context(), w,
-				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "test-credential"})
-		})
+	// pearApp serves the remaining spaces read/sync surface. Its gorilla router
+	// must be mounted at root — a ServeMux subtree prefix would hide the full
+	// path from it and 404 every route. The exact registerNotify pattern above
+	// still takes precedence for that single path.
+	mux.Handle("/", pearApp)
 
 	return &pearHost{server: server, store: spacesStore, hive: orgHive, author: author}
 }
