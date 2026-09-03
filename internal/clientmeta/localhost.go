@@ -1,4 +1,4 @@
-package oauthserver
+package clientmeta
 
 import (
 	"fmt"

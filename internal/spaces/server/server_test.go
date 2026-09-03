@@ -21,6 +21,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	"github.com/habitat-network/habitat/internal/clientmeta"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
@@ -82,6 +83,7 @@ func newTestServerWithOpts(
 		key,
 		h,
 		spaces.NewBlobStore(memblob.OpenBucket(nil)),
+		clientmeta.NewResolver(),
 	)
 }
 

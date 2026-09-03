@@ -27,6 +27,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clientmeta"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/did"
@@ -369,6 +370,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		hostKey,
 		hive,
 		blobStore,
+		clientmeta.NewResolver(),
 	)
 	notifyServer := notify.NewServer(
 		notifyStore,
@@ -548,6 +550,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		spacesServer.GetDelegationToken)
 	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
 		spacesServer.GetSpaceCredential)
+	mux.HandleFunc("/xrpc/network.habitat.space.addAppAccess", spacesServer.AddAppAccess)
+	mux.HandleFunc("/xrpc/network.habitat.space.removeAppAccess", spacesServer.RemoveAppAccess)
 
 	// Simplespaces
 	mux.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", simplespaceServer.CreateSpace)

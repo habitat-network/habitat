@@ -5,6 +5,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/go-jose/go-jose/v3"
+	"github.com/habitat-network/habitat/internal/clientmeta"
 	"github.com/ory/fosite"
 )
 
@@ -88,7 +89,7 @@ func (c *client) GetJSONWebKeys() *jose.JSONWebKeySet {
 		if key.KeyID == nil {
 			continue
 		}
-		converted, err := atcryptoJWKtoJose(key)
+		converted, err := clientmeta.ConvertJWK(key)
 		if err != nil {
 			continue
 		}

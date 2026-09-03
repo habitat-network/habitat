@@ -18,6 +18,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clientmeta"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -26,32 +27,36 @@ import (
 )
 
 type Server struct {
-	store     spaces.Store
-	validator authn.RequestValidator
-	decoder   *schema.Decoder
-	hive      hive.Hive
-	blobs     spaces.BlobStore
-	hostKey   atcrypto.PrivateKey
+	store      spaces.Store
+	validator  authn.RequestValidator
+	decoder    *schema.Decoder
+	hive       hive.Hive
+	blobs      spaces.BlobStore
+	hostKey    atcrypto.PrivateKey
+	clientMeta *clientmeta.Resolver
 }
 
 // NewServer constructs the spaces server. hostPrivateKey signs delegation
 // tokens and space credentials for authors hive does not manage (the store
 // holds its own commit-signing authority for repo-head commits). blobs backs
-// the uploadBlob and getBlob endpoints.
+// the uploadBlob and getBlob endpoints. clientMeta resolves OAuth client
+// metadata/JWKS for verifying client attestations on getSpaceCredential.
 func NewServer(
 	store spaces.Store,
 	validator authn.RequestValidator,
 	hostPrivateKey atcrypto.PrivateKey,
 	hive hive.Hive,
 	blobs spaces.BlobStore,
+	clientMeta *clientmeta.Resolver,
 ) *Server {
 	return &Server{
-		store:     store,
-		decoder:   schema.NewDecoder(),
-		hive:      hive,
-		blobs:     blobs,
-		hostKey:   hostPrivateKey,
-		validator: validator,
+		store:      store,
+		decoder:    schema.NewDecoder(),
+		hive:       hive,
+		blobs:      blobs,
+		hostKey:    hostPrivateKey,
+		validator:  validator,
+		clientMeta: clientMeta,
 	}
 }
 
@@ -684,10 +689,6 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
 		return
 	}
-	if input.ClientAttestation != "" {
-		httpx.WriteNotSupported(ctx, w, "client attestation is not yet supported")
-		return
-	}
 	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
 	if !ok {
 		return
@@ -698,6 +699,54 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 	).Validate(w, r); !ok {
 		return
 	}
+
+	collection := habitat_syntax.AppAccessCollection
+	grants, err := s.store.ListRecords(ctx, spaceURI, spaceURI.SpaceOwner(), &collection)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list app access grants: %w", err))
+		return
+	}
+	allowListed := len(grants) > 0
+
+	if input.ClientAttestation == "" {
+		if allowListed {
+			httpx.WriteError(
+				ctx, w, "InvalidClientAttestation",
+				"space requires a client attestation", http.StatusBadRequest,
+			)
+			return
+		}
+	} else {
+		clientID, err := verifyAttestation(
+			ctx, s.clientMeta, input.ClientAttestation, spaceURI.SpaceOwner(),
+		)
+		if errors.Is(err, ErrInvalidAttestation) {
+			httpx.WriteError(ctx, w, "InvalidClientAttestation", err.Error(), http.StatusBadRequest)
+			return
+		} else if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("verify attestation: %w", err))
+			return
+		}
+		if allowListed {
+			rkey, err := appAccessRkey(clientID)
+			if err != nil {
+				httpx.WriteError(
+					ctx, w, "InvalidClientAttestation", err.Error(), http.StatusBadRequest,
+				)
+				return
+			}
+			if _, err := s.store.GetRecord(
+				ctx, spaceURI, spaceURI.SpaceOwner(), habitat_syntax.AppAccessCollection, rkey,
+			); errors.Is(err, spaces.ErrRecordNotFound) {
+				httpx.WriteError(ctx, w, "AppNotAuthorized", "", http.StatusBadRequest)
+				return
+			} else if err != nil {
+				httpx.WriteServerError(ctx, w, fmt.Errorf("check app access grant: %w", err))
+				return
+			}
+		}
+	}
+
 	kid := "#atproto"
 	privKey, err := s.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
 	if errors.Is(err, identity.ErrDIDNotFound) {

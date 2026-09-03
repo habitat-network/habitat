@@ -113,6 +113,8 @@ import * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplesp
 import * as NetworkHabitatSimplespaceDeleteSpace from './types/network/habitat/simplespace/deleteSpace.js'
 import * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
 import * as NetworkHabitatSimplespaceRemoveMember from './types/network/habitat/simplespace/removeMember.js'
+import * as NetworkHabitatSpaceAddAppAccess from './types/network/habitat/space/addAppAccess.js'
+import * as NetworkHabitatSpaceAppAccess from './types/network/habitat/space/appAccess.js'
 import * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 import * as NetworkHabitatSpaceGetBlob from './types/network/habitat/space/getBlob.js'
@@ -129,6 +131,7 @@ import * as NetworkHabitatSpaceNotifySpaceDeleted from './types/network/habitat/
 import * as NetworkHabitatSpaceNotifyWrite from './types/network/habitat/space/notifyWrite.js'
 import * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
 import * as NetworkHabitatSpaceRegisterNotify from './types/network/habitat/space/registerNotify.js'
+import * as NetworkHabitatSpaceRemoveAppAccess from './types/network/habitat/space/removeAppAccess.js'
 
 export * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
 export * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
@@ -234,6 +237,8 @@ export * as NetworkHabitatSimplespaceDefs from './types/network/habitat/simplesp
 export * as NetworkHabitatSimplespaceDeleteSpace from './types/network/habitat/simplespace/deleteSpace.js'
 export * as NetworkHabitatSimplespaceListMembers from './types/network/habitat/simplespace/listMembers.js'
 export * as NetworkHabitatSimplespaceRemoveMember from './types/network/habitat/simplespace/removeMember.js'
+export * as NetworkHabitatSpaceAddAppAccess from './types/network/habitat/space/addAppAccess.js'
+export * as NetworkHabitatSpaceAppAccess from './types/network/habitat/space/appAccess.js'
 export * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 export * as NetworkHabitatSpaceGetBlob from './types/network/habitat/space/getBlob.js'
@@ -250,6 +255,7 @@ export * as NetworkHabitatSpaceNotifySpaceDeleted from './types/network/habitat/
 export * as NetworkHabitatSpaceNotifyWrite from './types/network/habitat/space/notifyWrite.js'
 export * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
 export * as NetworkHabitatSpaceRegisterNotify from './types/network/habitat/space/registerNotify.js'
+export * as NetworkHabitatSpaceRemoveAppAccess from './types/network/habitat/space/removeAppAccess.js'
 
 export const COMMUNITY_LEXICON_CALENDAR = {
   EventVirtual: 'community.lexicon.calendar.event#virtual',
@@ -2769,9 +2775,22 @@ export class NetworkHabitatSimplespaceNS {
 
 export class NetworkHabitatSpaceNS {
   _client: XrpcClient
+  appAccess: NetworkHabitatSpaceAppAccessRecord
 
   constructor(client: XrpcClient) {
     this._client = client
+    this.appAccess = new NetworkHabitatSpaceAppAccessRecord(client)
+  }
+
+  addAppAccess(
+    data?: NetworkHabitatSpaceAddAppAccess.InputSchema,
+    opts?: NetworkHabitatSpaceAddAppAccess.CallOptions,
+  ): Promise<NetworkHabitatSpaceAddAppAccess.Response> {
+    return this._client
+      .call('network.habitat.space.addAppAccess', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceAddAppAccess.toKnownErr(e)
+      })
   }
 
   deleteRecord(
@@ -2941,6 +2960,100 @@ export class NetworkHabitatSpaceNS {
       .catch((e) => {
         throw NetworkHabitatSpaceRegisterNotify.toKnownErr(e)
       })
+  }
+
+  removeAppAccess(
+    data?: NetworkHabitatSpaceRemoveAppAccess.InputSchema,
+    opts?: NetworkHabitatSpaceRemoveAppAccess.CallOptions,
+  ): Promise<NetworkHabitatSpaceRemoveAppAccess.Response> {
+    return this._client
+      .call('network.habitat.space.removeAppAccess', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceRemoveAppAccess.toKnownErr(e)
+      })
+  }
+}
+
+export class NetworkHabitatSpaceAppAccessRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: NetworkHabitatSpaceAppAccess.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'network.habitat.space.appAccess',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{
+    uri: string
+    cid: string
+    value: NetworkHabitatSpaceAppAccess.Record
+  }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'network.habitat.space.appAccess',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatSpaceAppAccess.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.space.appAccess'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatSpaceAppAccess.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.space.appAccess'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'network.habitat.space.appAccess', ...params },
+      { headers },
+    )
   }
 }
 

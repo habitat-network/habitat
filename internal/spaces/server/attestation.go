@@ -1,0 +1,109 @@
+package spaces_server
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	jose "github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
+
+	"github.com/habitat-network/habitat/internal/clientmeta"
+)
+
+// attestationTyp is the required "typ" header on a client attestation JWT.
+// See https://github.com/bluesky-social/proposals/blob/main/0016-permissioned-data/README.md#client-attestation.
+const attestationTyp = "atproto-client-attestation+jwt"
+
+// maxAttestationTTL bounds how long-lived an attestation's exp-iat window
+// may be. The proposal's example attestations are ~60s; this leaves headroom
+// for clock skew between the client and Habitat without accepting
+// anomalously long-lived tokens.
+const maxAttestationTTL = 5 * time.Minute
+
+// ErrInvalidAttestation wraps every reason an attestation JWT is rejected:
+// malformed, badly signed, or failing a claims check.
+var ErrInvalidAttestation = errors.New("invalid client attestation")
+
+// verifyAttestation verifies a client attestation JWT presented to
+// getSpaceCredential and returns the verified client_id (the attestation's
+// iss) on success.
+func verifyAttestation(
+	ctx context.Context,
+	resolver *clientmeta.Resolver,
+	raw string,
+	spaceOwner syntax.DID,
+) (string, error) {
+	parsed, err := jwt.ParseSigned(raw)
+	if err != nil {
+		return "", fmt.Errorf("%w: parse: %v", ErrInvalidAttestation, err)
+	}
+	if len(parsed.Headers) != 1 {
+		return "", fmt.Errorf("%w: expected exactly one signature", ErrInvalidAttestation)
+	}
+	header := parsed.Headers[0]
+	if header.Algorithm != string(jose.ES256) {
+		return "", fmt.Errorf("%w: unsupported alg %q", ErrInvalidAttestation, header.Algorithm)
+	}
+	typ, _ := header.ExtraHeaders[jose.HeaderType].(string)
+	if typ != attestationTyp {
+		return "", fmt.Errorf("%w: unexpected typ %q", ErrInvalidAttestation, typ)
+	}
+	if header.KeyID == "" {
+		return "", fmt.Errorf("%w: missing kid", ErrInvalidAttestation)
+	}
+
+	// The iss claim names the client_id to resolve *before* the signature is
+	// verified, which is inherent to this scheme (the verification key lives
+	// at a location the token itself names). This is safe: an attacker who
+	// doesn't hold the private key for a client_id's published JWKS cannot
+	// produce a signature the next step accepts, regardless of what claims
+	// they put in an unsigned-so-far token.
+	var unverified jwt.Claims
+	if err := parsed.UnsafeClaimsWithoutVerification(&unverified); err != nil {
+		return "", fmt.Errorf("%w: read claims: %v", ErrInvalidAttestation, err)
+	}
+	if unverified.Issuer == "" {
+		return "", fmt.Errorf("%w: missing iss", ErrInvalidAttestation)
+	}
+
+	key, err := resolver.ResolveKey(ctx, unverified.Issuer, header.KeyID)
+	if errors.Is(err, clientmeta.ErrKeyNotFound) {
+		return "", fmt.Errorf("%w: key not found: %v", ErrInvalidAttestation, err)
+	} else if err != nil {
+		return "", fmt.Errorf("resolve attestation key: %w", err)
+	}
+
+	var claims jwt.Claims
+	if err := parsed.Claims(key.Key, &claims); err != nil {
+		return "", fmt.Errorf("%w: bad signature: %v", ErrInvalidAttestation, err)
+	}
+
+	if claims.Issuer == "" || claims.Issuer != claims.Subject {
+		return "", fmt.Errorf("%w: iss must equal sub", ErrInvalidAttestation)
+	}
+	wantAud := spaceOwner.String() + "#atproto_space_host"
+	if !claims.Audience.Contains(wantAud) {
+		return "", fmt.Errorf("%w: aud does not match %q", ErrInvalidAttestation, wantAud)
+	}
+	if claims.ID == "" {
+		return "", fmt.Errorf("%w: missing jti", ErrInvalidAttestation)
+	}
+	if claims.Expiry == nil || claims.IssuedAt == nil {
+		return "", fmt.Errorf("%w: missing iat/exp", ErrInvalidAttestation)
+	}
+	now := time.Now()
+	if claims.Expiry.Time().Before(now) {
+		return "", fmt.Errorf("%w: expired", ErrInvalidAttestation)
+	}
+	if claims.Expiry.Time().Before(claims.IssuedAt.Time()) {
+		return "", fmt.Errorf("%w: exp before iat", ErrInvalidAttestation)
+	}
+	if claims.Expiry.Time().Sub(claims.IssuedAt.Time()) > maxAttestationTTL {
+		return "", fmt.Errorf("%w: exp too far from iat", ErrInvalidAttestation)
+	}
+
+	return claims.Issuer, nil
+}
