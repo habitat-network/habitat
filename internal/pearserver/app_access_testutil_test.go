@@ -13,8 +13,7 @@ import (
 // GrantAppAccess writes an appAccess record for clientID directly into
 // uri's owner repo, putting the space in allow-list mode for it — the way
 // the (not yet reintroduced) AddAppAccess handler would. Exported for
-// internal/pearserver_test, which needs appAccessRkey's exact derivation to
-// be visible from the package it's defined in.
+// internal/pearserver_test.
 func GrantAppAccess(
 	t *testing.T,
 	store spaces.Store,
@@ -22,7 +21,7 @@ func GrantAppAccess(
 	clientID string,
 ) {
 	t.Helper()
-	rkey, err := appAccessRkey(clientID)
+	rkey, err := habitat_syntax.AppAccessRkey(clientID)
 	require.NoError(t, err)
 	recordBytes, err := spaces.MarshalRecord(habitat.NetworkHabitatSpaceAppAccess{})
 	require.NoError(t, err)

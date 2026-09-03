@@ -1,6 +1,7 @@
 package pearserver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,51 +36,8 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	collection := habitat_syntax.AppAccessCollection
-	grants, err := p.spacesStore.ListRecords(ctx, spaceURI, spaceURI.SpaceOwner(), &collection)
-	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("list app access grants: %w", err))
+	if !p.verifyClientAttestation(ctx, w, spaceURI, input.ClientAttestation) {
 		return
-	}
-	allowListed := len(grants) > 0
-
-	if input.ClientAttestation == "" {
-		if allowListed {
-			httpx.WriteError(
-				ctx, w, "InvalidClientAttestation",
-				"space requires a client attestation", http.StatusBadRequest,
-			)
-			return
-		}
-	} else {
-		clientID, err := clientmetadata.VerifyAttestation(
-			ctx, p.clientMeta, input.ClientAttestation, spaceURI.SpaceOwner(),
-		)
-		if errors.Is(err, clientmetadata.ErrInvalidAttestation) {
-			httpx.WriteError(ctx, w, "InvalidClientAttestation", err.Error(), http.StatusBadRequest)
-			return
-		} else if err != nil {
-			httpx.WriteServerError(ctx, w, fmt.Errorf("verify attestation: %w", err))
-			return
-		}
-		if allowListed {
-			rkey, err := appAccessRkey(clientID)
-			if err != nil {
-				httpx.WriteError(
-					ctx, w, "InvalidClientAttestation", err.Error(), http.StatusBadRequest,
-				)
-				return
-			}
-			if _, err := p.spacesStore.GetRecord(
-				ctx, spaceURI, spaceURI.SpaceOwner(), habitat_syntax.AppAccessCollection, rkey,
-			); errors.Is(err, spaces.ErrRecordNotFound) {
-				httpx.WriteError(ctx, w, "AppNotAuthorized", "", http.StatusBadRequest)
-				return
-			} else if err != nil {
-				httpx.WriteServerError(ctx, w, fmt.Errorf("check app access grant: %w", err))
-				return
-			}
-		}
 	}
 
 	kid := "#atproto"
@@ -97,4 +55,51 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: token})
+}
+
+func (p *PearServer) verifyClientAttestation(
+	ctx context.Context,
+	w http.ResponseWriter,
+	spaceURI habitat_syntax.SpaceURI,
+	attestation string,
+) bool {
+	collection := habitat_syntax.AppAccessCollection
+	grants, err := p.spacesStore.ListRecords(ctx, spaceURI, spaceURI.SpaceOwner(), &collection)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list app access grants: %w", err))
+		return false
+	}
+	if len(grants) > 0 {
+		return true
+	}
+	if attestation == "" {
+		httpx.WriteInvalidClientAttestation(ctx, w, "space requires a client attestation", nil)
+		return false
+	}
+	clientID, err := clientmetadata.VerifyAttestation(
+		ctx, p.clientMeta, attestation, spaceURI.SpaceOwner(),
+	)
+	if errors.Is(err, clientmetadata.ErrInvalidAttestation) {
+		httpx.WriteInvalidClientAttestation(ctx, w, err.Error(), err)
+		return false
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("verify attestation: %w", err))
+		return false
+	}
+	rkey, err := habitat_syntax.AppAccessRkey(clientID)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get app access rkey: %w", err))
+		return false
+	}
+	if _, err := p.spacesStore.GetRecord(
+		ctx, spaceURI, spaceURI.SpaceOwner(), habitat_syntax.AppAccessCollection, rkey,
+	); errors.Is(err, spaces.ErrRecordNotFound) {
+		httpx.WriteError(ctx, w, "AppNotAuthorized", "", http.StatusBadRequest)
+		return false
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check app access grant: %w", err))
+		return false
+	}
+
+	return true
 }
