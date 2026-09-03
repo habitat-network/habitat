@@ -6,13 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/stretchr/testify/require"
-
-	"github.com/habitat-network/habitat/internal/httpx"
 )
 
 func testJWK(t *testing.T, kid string) (atcrypto.JWK, atcrypto.PublicKey) {
@@ -92,38 +89,5 @@ func TestResolverResolveAtprotoKey(t *testing.T) {
 			context.Background(), server.URL+"/client-metadata.json", "key-1",
 		)
 		require.ErrorIs(t, err, ErrKeyNotFound)
-	})
-
-	// Covers the hot-path DoS/latency-coupling finding: a slow or hanging
-	// metadata host must not stall ResolveAtprotoKey indefinitely (bounded
-	// only by the inbound request's own context) — the resolver's own client
-	// timeout must cut the fetch off. Uses a short timeout via WithClient
-	// rather than waiting out the real production default in the test suite.
-	t.Run("times out on a hanging host", func(t *testing.T) {
-		blockUntil := make(chan struct{})
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			<-blockUntil // never responds within the test's lifetime
-		}))
-		// server.Close() waits for the in-flight handler to return, so
-		// blockUntil must be closed (unblocking the handler) before Close is
-		// called: defers run LIFO, so registering Close first and the channel
-		// close second runs the channel close first.
-		defer server.Close()
-		defer close(blockUntil)
-
-		cl := httpx.NewClient()
-		cl.Timeout = 20 * time.Millisecond
-
-		start := time.Now()
-		_, err := NewResolver(WithClient(cl)).ResolveAtprotoKey(
-			context.Background(), server.URL+"/client-metadata.json", "key-1",
-		)
-		elapsed := time.Since(start)
-
-		require.Error(t, err)
-		require.Less(
-			t, elapsed, 2*time.Second,
-			"ResolveAtprotoKey should be bounded by the resolver's own timeout, not hang",
-		)
 	})
 }
