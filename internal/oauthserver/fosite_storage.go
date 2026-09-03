@@ -10,7 +10,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
-	"github.com/habitat-network/habitat/internal/clientmeta"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
@@ -25,7 +25,7 @@ var tracer = otel.Tracer("github.com/habitat-network/habitat/internal/oauthserve
 type store struct {
 	db                       *gorm.DB
 	approvedJwtBearerClients ApprovedClientStore
-	clientMeta               *clientmeta.Resolver
+	clientMeta               *clientmetadata.Resolver
 }
 
 // OAuthRequest is the single row type backing every short-lived piece of OAuth
@@ -131,7 +131,7 @@ type ConnectedApp struct {
 func newStore(
 	db *gorm.DB,
 	approvedJwtBearerClients ApprovedClientStore,
-	clientMeta *clientmeta.Resolver,
+	clientMeta *clientmetadata.Resolver,
 ) (*store, error) {
 	err := db.AutoMigrate(&OAuthRequest{}, &OAuthSession{}, &ConnectedApp{})
 	if err != nil {
@@ -270,7 +270,7 @@ func (s *store) GetPublicKeys(
 		if key.KeyID == nil {
 			continue
 		}
-		converted, err := clientmeta.ConvertJWK(key)
+		converted, err := clientmetadata.ConvertJWK(key)
 		if err != nil {
 			continue
 		}

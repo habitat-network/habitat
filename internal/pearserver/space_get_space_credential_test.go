@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	clientmetadata_testutil "github.com/habitat-network/habitat/internal/clientmetadata/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
-	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 )
 
 func TestServer_GetSpaceCredential_OpenSpaceNoAttestation(t *testing.T) {
@@ -36,7 +36,7 @@ func TestServer_GetSpaceCredential_AllowListSpace(t *testing.T) {
 
 	// GetSpaceCredential verifies the attestation's aud against the space
 	// owner DID, which org's CreateSpace call above makes owner==org.
-	clientID, priv := spaces_testutil.AttestationTestClient(t, "key-1")
+	clientID, priv := clientmetadata_testutil.AttestationTestClient(t, "key-1")
 	pearserver.GrantAppAccess(t, ts.SpaceStore, uri, clientID)
 
 	t.Run("no attestation is rejected", func(t *testing.T) {
@@ -51,7 +51,7 @@ func TestServer_GetSpaceCredential_AllowListSpace(t *testing.T) {
 	})
 
 	t.Run("granted client with valid attestation is accepted", func(t *testing.T) {
-		attestation := spaces_testutil.SignAttestation(t, priv, "key-1", clientID, org, nil)
+		attestation := clientmetadata_testutil.SignAttestation(t, priv, "key-1", clientID, org, nil)
 		var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
 		code := httpx_testutil.NewTestXRPCClient(t).Procedure(
 			ts.Server.GetSpaceCredential,
@@ -65,8 +65,8 @@ func TestServer_GetSpaceCredential_AllowListSpace(t *testing.T) {
 	})
 
 	t.Run("non-granted client is rejected", func(t *testing.T) {
-		otherClientID, otherPriv := spaces_testutil.AttestationTestClient(t, "key-1")
-		attestation := spaces_testutil.SignAttestation(
+		otherClientID, otherPriv := clientmetadata_testutil.AttestationTestClient(t, "key-1")
+		attestation := clientmetadata_testutil.SignAttestation(
 			t,
 			otherPriv,
 			"key-1",
@@ -105,8 +105,8 @@ func TestServer_GetSpaceCredential_OpenSpaceWithValidAttestation(t *testing.T) {
 	uri, err := ts.SpaceStore.CreateSpace(t.Context(), org, groupTp, "test")
 	require.NoError(t, err)
 
-	clientID, priv := spaces_testutil.AttestationTestClient(t, "key-1")
-	attestation := spaces_testutil.SignAttestation(t, priv, "key-1", clientID, org, nil)
+	clientID, priv := clientmetadata_testutil.AttestationTestClient(t, "key-1")
+	attestation := clientmetadata_testutil.SignAttestation(t, priv, "key-1", clientID, org, nil)
 
 	var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
 	code := httpx_testutil.NewTestXRPCClient(t).Procedure(

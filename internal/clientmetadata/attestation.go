@@ -1,4 +1,4 @@
-package spaces
+package clientmetadata
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	_ "github.com/bluesky-social/indigo/atproto/auth" // registers the ES256/ES256K signing methods jwt.GetSigningMethod resolves below
-	"github.com/habitat-network/habitat/internal/clientmeta"
 )
 
 // AttestationTyp is the required "typ" header on a client attestation JWT.
@@ -50,7 +49,7 @@ type attestationClaims struct {
 // iss) on success.
 func VerifyAttestation(
 	ctx context.Context,
-	resolver *clientmeta.Resolver,
+	resolver *Resolver,
 	raw string,
 	spaceOwner syntax.DID,
 ) (string, error) {
@@ -93,8 +92,8 @@ func VerifyAttestation(
 // attestation's (unverified, at this point) iss/kid, matching the
 // DID-directory keyfunc pattern in internal/authn/util.go's
 // fetchIssuerKeyFunc — except the key source here is a client's published
-// JWKS (internal/clientmeta) rather than an atproto identity directory.
-func attestationKeyFunc(ctx context.Context, resolver *clientmeta.Resolver) jwt.Keyfunc {
+// JWKS (this package's Resolver) rather than an atproto identity directory.
+func attestationKeyFunc(ctx context.Context, resolver *Resolver) jwt.Keyfunc {
 	return func(token *jwt.Token) (any, error) {
 		claims, ok := token.Claims.(*attestationClaims)
 		if !ok {
@@ -110,7 +109,7 @@ func attestationKeyFunc(ctx context.Context, resolver *clientmeta.Resolver) jwt.
 		}
 
 		key, err := resolver.ResolveAtprotoKey(ctx, iss, kid)
-		if errors.Is(err, clientmeta.ErrKeyNotFound) {
+		if errors.Is(err, ErrKeyNotFound) {
 			return nil, err
 		} else if err != nil {
 			// Don't propagate the raw fetch error: iss is attacker-controlled,

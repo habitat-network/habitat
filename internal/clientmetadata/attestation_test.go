@@ -1,4 +1,4 @@
-package spaces_test
+package clientmetadata_test
 
 import (
 	"context"
@@ -12,20 +12,19 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/habitat-network/habitat/internal/clientmeta"
-	"github.com/habitat-network/habitat/internal/spaces"
-	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
+	clientmetadata_testutil "github.com/habitat-network/habitat/internal/clientmetadata/testutil"
 )
 
 const testSpaceOwner = syntax.DID("did:plc:owner")
 
 func TestVerifyAttestationValid(t *testing.T) {
-	clientID, priv := spaces_testutil.AttestationTestClient(t, "key-1")
-	raw := spaces_testutil.SignAttestation(t, priv, "key-1", clientID, testSpaceOwner, nil)
+	clientID, priv := clientmetadata_testutil.AttestationTestClient(t, "key-1")
+	raw := clientmetadata_testutil.SignAttestation(t, priv, "key-1", clientID, testSpaceOwner, nil)
 
-	got, err := spaces.VerifyAttestation(
+	got, err := clientmetadata.VerifyAttestation(
 		context.Background(),
-		clientmeta.NewResolver(),
+		clientmetadata.NewResolver(),
 		raw,
 		testSpaceOwner,
 	)
@@ -64,36 +63,43 @@ func TestVerifyAttestationRejects(t *testing.T) {
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
-			clientID, priv := spaces_testutil.AttestationTestClient(t, "key-1")
-			raw := spaces_testutil.SignAttestation(
+			clientID, priv := clientmetadata_testutil.AttestationTestClient(t, "key-1")
+			raw := clientmetadata_testutil.SignAttestation(
 				t, priv, "key-1", clientID, testSpaceOwner, mutate,
 			)
 
-			_, err := spaces.VerifyAttestation(
+			_, err := clientmetadata.VerifyAttestation(
 				context.Background(),
-				clientmeta.NewResolver(),
+				clientmetadata.NewResolver(),
 				raw,
 				testSpaceOwner,
 			)
-			require.ErrorIs(t, err, spaces.ErrInvalidAttestation)
+			require.ErrorIs(t, err, clientmetadata.ErrInvalidAttestation)
 		})
 	}
 }
 
 func TestVerifyAttestationRejectsBadSignature(t *testing.T) {
-	clientID, _ := spaces_testutil.AttestationTestClient(t, "key-1")
+	clientID, _ := clientmetadata_testutil.AttestationTestClient(t, "key-1")
 	otherPriv, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
 	// Signed by a key that doesn't match the one published at clientID.
-	raw := spaces_testutil.SignAttestation(t, otherPriv, "key-1", clientID, testSpaceOwner, nil)
+	raw := clientmetadata_testutil.SignAttestation(
+		t,
+		otherPriv,
+		"key-1",
+		clientID,
+		testSpaceOwner,
+		nil,
+	)
 
-	_, err = spaces.VerifyAttestation(
+	_, err = clientmetadata.VerifyAttestation(
 		context.Background(),
-		clientmeta.NewResolver(),
+		clientmetadata.NewResolver(),
 		raw,
 		testSpaceOwner,
 	)
-	require.ErrorIs(t, err, spaces.ErrInvalidAttestation)
+	require.ErrorIs(t, err, clientmetadata.ErrInvalidAttestation)
 }
 
 // TestVerifyAttestationRejectsUnreachableIssuer covers the SSRF-oracle
@@ -108,28 +114,35 @@ func TestVerifyAttestationRejectsUnreachableIssuer(t *testing.T) {
 
 	priv, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
-	raw := spaces_testutil.SignAttestation(t, priv, "key-1", unreachable, testSpaceOwner, nil)
+	raw := clientmetadata_testutil.SignAttestation(
+		t,
+		priv,
+		"key-1",
+		unreachable,
+		testSpaceOwner,
+		nil,
+	)
 
-	_, err = spaces.VerifyAttestation(
+	_, err = clientmetadata.VerifyAttestation(
 		context.Background(),
-		clientmeta.NewResolver(),
+		clientmetadata.NewResolver(),
 		raw,
 		testSpaceOwner,
 	)
-	require.ErrorIs(t, err, spaces.ErrInvalidAttestation)
+	require.ErrorIs(t, err, clientmetadata.ErrInvalidAttestation)
 	require.NotContains(t, err.Error(), "connection refused")
 	require.Contains(t, err.Error(), "unable to resolve client key")
 }
 
 func TestVerifyAttestationRejectsUnknownKid(t *testing.T) {
-	clientID, priv := spaces_testutil.AttestationTestClient(t, "key-1")
-	raw := spaces_testutil.SignAttestation(t, priv, "key-2", clientID, testSpaceOwner, nil)
+	clientID, priv := clientmetadata_testutil.AttestationTestClient(t, "key-1")
+	raw := clientmetadata_testutil.SignAttestation(t, priv, "key-2", clientID, testSpaceOwner, nil)
 
-	_, err := spaces.VerifyAttestation(
+	_, err := clientmetadata.VerifyAttestation(
 		context.Background(),
-		clientmeta.NewResolver(),
+		clientmetadata.NewResolver(),
 		raw,
 		testSpaceOwner,
 	)
-	require.ErrorIs(t, err, spaces.ErrInvalidAttestation)
+	require.ErrorIs(t, err, clientmetadata.ErrInvalidAttestation)
 }

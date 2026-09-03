@@ -10,6 +10,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -51,10 +52,10 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	} else {
-		clientID, err := spaces.VerifyAttestation(
+		clientID, err := clientmetadata.VerifyAttestation(
 			ctx, p.clientMeta, input.ClientAttestation, spaceURI.SpaceOwner(),
 		)
-		if errors.Is(err, spaces.ErrInvalidAttestation) {
+		if errors.Is(err, clientmetadata.ErrInvalidAttestation) {
 			httpx.WriteError(ctx, w, "InvalidClientAttestation", err.Error(), http.StatusBadRequest)
 			return
 		} else if err != nil {

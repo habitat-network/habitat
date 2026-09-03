@@ -8,14 +8,14 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/habitat-network/habitat/internal/clientmeta"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/ory/fosite"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetClient(t *testing.T) {
-	store, err := newStore(testutil.NewDB(t), nil, clientmeta.NewResolver())
+	store, err := newStore(testutil.NewDB(t), nil, clientmetadata.NewResolver())
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,9 +43,9 @@ func TestGetClient(t *testing.T) {
 // §7.3 loopback redirect URI matching (fosite.MatchRedirectURIWithClientRedirectURIs)
 // against a localhost dev client whose redirect_uri carries no port. The
 // localhost-metadata-synthesis behavior itself is covered by
-// clientmeta.TestResolverFetchMetadataLocalhost.
+// clientmetadata.TestResolverFetchMetadataLocalhost.
 func TestGetClientRedirectUriPortNotMatched(t *testing.T) {
-	store, err := newStore(testutil.NewDB(t), nil, clientmeta.NewResolver())
+	store, err := newStore(testutil.NewDB(t), nil, clientmetadata.NewResolver())
 	require.NoError(t, err)
 
 	client, err := store.GetClient(

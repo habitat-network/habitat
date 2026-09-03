@@ -1,4 +1,4 @@
-package clientmeta
+package clientmetadata
 
 import (
 	"crypto/ecdsa"

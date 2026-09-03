@@ -27,7 +27,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/clientmeta"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/did"
@@ -381,7 +381,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		opensocialStore,
 		permStore,
 		simpleStore,
-		clientmeta.NewResolver(),
+		clientmetadata.NewResolver(),
 	)
 
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))

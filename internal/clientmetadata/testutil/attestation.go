@@ -14,7 +14,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 )
 
 // AttestationTestClient generates a P-256 keypair, serves a
@@ -65,7 +65,7 @@ func SignAttestation(
 		ID:        "test-nonce",
 	}
 	token := jwt.NewWithClaims(jwt.GetSigningMethod("ES256"), claims)
-	token.Header["typ"] = spaces.AttestationTyp
+	token.Header["typ"] = clientmetadata.AttestationTyp
 	token.Header["kid"] = kid
 	if mutate != nil {
 		mutate(claims, token.Header)

@@ -1,9 +1,9 @@
-// Package clientmeta resolves AT Proto OAuth client-id-metadata-documents
-// and their published JWKS, for verifying JWTs a client signs with its own
+// Package clientmetadata resolves AT Proto OAuth client-id-metadata-documents
+// and their published JWKS, and verifies the JWTs a client signs with its own
 // key: RFC 7523 JWT-bearer client authentication (internal/oauthserver) and
-// AT Proto client attestation (internal/spaces/server). See
+// AT Proto client attestation (internal/pearserver). See
 // https://atproto.com/specs/oauth#client-id-metadata-document.
-package clientmeta
+package clientmetadata
 
 import (
 	"context"
