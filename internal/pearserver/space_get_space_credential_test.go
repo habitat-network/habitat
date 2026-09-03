@@ -10,9 +10,30 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	clientmetadata_testutil "github.com/habitat-network/habitat/internal/clientmetadata/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
-	"github.com/habitat-network/habitat/internal/pearserver"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
+	"github.com/habitat-network/habitat/internal/spaces"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
+
+// grantAppAccess writes an appAccess record for clientID directly into
+// uri's owner repo, putting the space in allow-list mode for it — the way
+// the (not yet reintroduced) AddAppAccess handler would.
+func grantAppAccess(
+	t *testing.T,
+	store spaces.Store,
+	uri habitat_syntax.SpaceURI,
+	clientID string,
+) {
+	t.Helper()
+	rkey, err := habitat_syntax.AppAccessRkey(clientID)
+	require.NoError(t, err)
+	recordBytes, err := spaces.MarshalRecord(habitat.NetworkHabitatSpaceAppAccess{})
+	require.NoError(t, err)
+	_, _, err = store.PutRecord(
+		t.Context(), uri, uri.SpaceOwner(), habitat_syntax.AppAccessCollection, rkey, recordBytes,
+	)
+	require.NoError(t, err)
+}
 
 func TestServer_GetSpaceCredential(t *testing.T) {
 	t.Run("open space", func(t *testing.T) {
@@ -63,7 +84,7 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 		// GetSpaceCredential verifies the attestation's aud against the space
 		// owner DID, which org's CreateSpace call above makes owner==org.
 		clientID, priv := clientmetadata_testutil.AttestationTestClient(t, "key-1")
-		pearserver.GrantAppAccess(t, ts.SpaceStore, uri, clientID)
+		grantAppAccess(t, ts.SpaceStore, uri, clientID)
 
 		t.Run("no attestation is rejected", func(t *testing.T) {
 			var apiErr atclient.ErrorBody
