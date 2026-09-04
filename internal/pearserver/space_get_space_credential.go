@@ -13,7 +13,6 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -82,16 +81,16 @@ func (p *PearServer) verifyClientAttestation(
 		httpx.WriteServerError(ctx, w, fmt.Errorf("verify attestation: %w", err))
 		return false
 	}
-	if _, err := p.opensocialStore.CheckAppAccess(
-		ctx, orgDID, clientID,
-	); errors.Is(err, spaces.ErrRecordNotFound) {
+	granted, err := p.opensocialStore.CheckAppAccess(ctx, orgDID, clientID)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check app access grant: %w", err))
+		return false
+	}
+	if !granted {
 		httpx.WriteError(
 			ctx, w, "AppNotAuthorized", "org has not approved app",
 			http.StatusBadRequest,
 		)
-		return false
-	} else if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("check app access grant: %w", err))
 		return false
 	}
 	return true

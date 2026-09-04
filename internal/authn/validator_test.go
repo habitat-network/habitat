@@ -31,17 +31,6 @@ func TestValidator(t *testing.T) {
 	require.NoError(t, err)
 	dir.Insert(*did.Web("alice").ATProtoSpaceKey(hostPubKey.Multibase()).Build())
 	db := testutil.NewDB(t)
-	oauth, err := oauthserver.NewOAuthServer(
-		encrypt.TestKey,
-		&org.LoginRouter{},
-		nil,
-		db,
-		noop.Meter{},
-		nil,
-		"https://issuer.com",
-		nil,
-	)
-	require.NoError(t, err)
 
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
@@ -53,6 +42,20 @@ func TestValidator(t *testing.T) {
 		opensocial_testutil.WithDB(db),
 		opensocial_testutil.WithSpaceStore(sp),
 	)
+
+	oauth, err := oauthserver.NewOAuthServer(
+		encrypt.TestKey,
+		&org.LoginRouter{},
+		nil,
+		db,
+		noop.Meter{},
+		nil,
+		"https://issuer.com",
+		nil,
+		os.Store,
+	)
+	require.NoError(t, err)
+
 	ps := perms.NewStore(db, sp, fga, os)
 
 	v := authn.NewValidator(
