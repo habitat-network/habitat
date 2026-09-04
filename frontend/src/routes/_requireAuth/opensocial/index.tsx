@@ -43,8 +43,8 @@ function OpensocialIndex() {
       {orgs.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            You aren&rsquo;t a member of any organizations yet. Create one to get
-            started.
+            You aren&rsquo;t a member of any organizations yet. Create one to
+            get started.
           </CardContent>
         </Card>
       ) : (

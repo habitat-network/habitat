@@ -99,9 +99,7 @@ function OrgDetail() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         <div className="flex flex-col gap-6">
-          {isAdmin && (
-            <PendingOrgInvites org={org} authManager={authManager} />
-          )}
+          {isAdmin && <PendingOrgInvites org={org} authManager={authManager} />}
 
           <Card size="sm">
             <CardHeader>
@@ -138,10 +136,7 @@ function OrgDetail() {
                   ))}
                   {members.length === 0 && (
                     <TableRow>
-                      <TableCell
-                        colSpan={2}
-                        className="text-muted-foreground"
-                      >
+                      <TableCell colSpan={2} className="text-muted-foreground">
                         No members yet.
                       </TableCell>
                     </TableRow>
