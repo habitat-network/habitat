@@ -116,7 +116,18 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	server := NewSapServer(s, oauthApp, endpoint)
+	clientMetadata := ConfiguredClientMetadata{
+		Name: cmd.String(fClientName),
+		URI:  cmd.String(fClientURI),
+	}
+	if clientMetadata.URI == "" {
+		clientMetadata.URI = endpoint
+	}
+
+	server := NewSapServer(s, oauthApp, endpoint, ConfiguredClientMetadata{
+		Name: cmd.String(fClientName),
+		URI:  cmd.String(fClientURI),
+	})
 
 	// The OAuth endpoints (callback and client metadata) must be publicly
 	// reachable since the user's PDS redirects to them, so they are served on
@@ -205,4 +216,9 @@ func serve(ctx context.Context, addr string, handler http.Handler) error {
 	go func() { _ = srv.ListenAndServe() }()
 	<-ctx.Done()
 	return srv.Shutdown(ctx)
+}
+
+type ConfiguredClientMetadata struct {
+	Name string
+	URI  string
 }
