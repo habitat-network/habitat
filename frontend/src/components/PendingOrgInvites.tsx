@@ -36,9 +36,7 @@ export function PendingOrgInvites({
       queryClient,
     ),
   );
-  const profileByDid = new Map<string, Actor>(
-    profiles?.map((p) => [p.did, p]),
-  );
+  const profileByDid = new Map<string, Actor>(profiles?.map((p) => [p.did, p]));
 
   if (invites.length === 0) return null;
 

@@ -92,10 +92,10 @@ function PendingInviteRow({
             name={profile?.name}
             avatarUrl={profile?.avatarUrl}
           />
-          <DidHoverCard
-            did={invite.org}
-          >
-            {profile?.name || <span className="font-mono text-sm truncate">{invite.org}</span>}
+          <DidHoverCard did={invite.org}>
+            {profile?.name || (
+              <span className="font-mono text-sm truncate">{invite.org}</span>
+            )}
           </DidHoverCard>
         </div>
         {error && (
