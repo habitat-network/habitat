@@ -325,6 +325,9 @@ func (s *Store) CheckPermission(
 	user syntax.DID,
 	space habitat_syntax.SpaceURI,
 ) (bool, error) {
+	if space.SpaceType() == AboutSpaceType {
+		return true, nil
+	}
 	accessRecord, err := s.spacesStore.GetRecord(
 		ctx,
 		space,

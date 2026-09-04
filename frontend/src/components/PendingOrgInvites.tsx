@@ -1,6 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { UserAvatar, UserDisplayName, type Actor } from "internal";
 import type { AuthManager } from "internal";
 import { orgPendingInvitesQueryOptions } from "@/queries/opensocial";
+import { profilesQueryOptions } from "@/queries/profiles";
 import { DidHoverCard } from "@/components/DidHoverCard";
 import {
   Badge,
@@ -24,8 +26,18 @@ export function PendingOrgInvites({
   org: string;
   authManager: AuthManager;
 }) {
+  const queryClient = useQueryClient();
   const { data: invites = [] } = useQuery(
     orgPendingInvitesQueryOptions(org, authManager),
+  );
+  const { data: profiles } = useQuery(
+    profilesQueryOptions(
+      invites.map((invite) => invite.invitee),
+      queryClient,
+    ),
+  );
+  const profileByDid = new Map<string, Actor>(
+    profiles?.map((p) => [p.did, p]),
   );
 
   if (invites.length === 0) return null;
@@ -49,8 +61,24 @@ export function PendingOrgInvites({
             {invites.map((invite) => (
               <TableRow key={invite.id}>
                 <TableCell>
-                  <DidHoverCard did={invite.invitee} className="font-mono">
-                    {invite.invitee}
+                  <DidHoverCard did={invite.invitee}>
+                    <div className="flex items-center gap-2">
+                      <UserAvatar
+                        actor={
+                          profileByDid.get(invite.invitee) ?? {
+                            did: invite.invitee,
+                          }
+                        }
+                        size="sm"
+                      />
+                      <UserDisplayName
+                        actor={
+                          profileByDid.get(invite.invitee) ?? {
+                            did: invite.invitee,
+                          }
+                        }
+                      />
+                    </div>
                   </DidHoverCard>
                 </TableCell>
                 <TableCell>

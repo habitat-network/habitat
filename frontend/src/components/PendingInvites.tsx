@@ -1,7 +1,12 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import type { AuthManager } from "internal";
-import { acceptInvite, type InviteView } from "@/queries/opensocial";
+import { OrgAvatar } from "internal";
+import {
+  acceptInvite,
+  orgProfileQueryOptions,
+  type InviteView,
+} from "@/queries/opensocial";
 import { DidHoverCard } from "@/components/DidHoverCard";
 import {
   Badge,
@@ -66,6 +71,10 @@ function PendingInviteRow({
   const queryClient = useQueryClient();
   const router = useRouter();
 
+  const { data: profile } = useQuery(
+    orgProfileQueryOptions(invite.org, authManager, queryClient),
+  );
+
   const { mutate, isPending, error } = useMutation({
     mutationFn: () => acceptInvite(authManager, invite.org),
     async onSuccess() {
@@ -77,9 +86,18 @@ function PendingInviteRow({
   return (
     <TableRow>
       <TableCell>
-        <DidHoverCard did={invite.org} className="font-mono text-sm truncate">
-          {invite.org}
-        </DidHoverCard>
+        <div className="flex items-center gap-2">
+          <OrgAvatar
+            did={invite.org}
+            name={profile?.name}
+            avatarUrl={profile?.avatarUrl}
+          />
+          <DidHoverCard
+            did={invite.org}
+          >
+            {profile?.name || <span className="font-mono text-sm truncate">{invite.org}</span>}
+          </DidHoverCard>
+        </div>
         {error && (
           <p className="text-sm text-destructive mt-1">
             {(error as Error).message}
