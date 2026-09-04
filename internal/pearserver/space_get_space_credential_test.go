@@ -114,7 +114,7 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 				&apiErr,
 			)
 			require.Equal(t, http.StatusBadRequest, code)
-			require.Equal(t, "InvalidClientAttestation", apiErr.Name)
+			require.Equal(t, "AppNotAuthorized", apiErr.Name)
 		})
 
 		t.Run("granted client with valid attestation is accepted", func(t *testing.T) {

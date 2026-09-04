@@ -33,6 +33,7 @@ import (
 	"github.com/habitat-network/habitat/internal/org"
 	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 	"golang.org/x/oauth2"
@@ -1476,7 +1477,11 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 	)
 	require.NotEmpty(t, capturedToken, "OAuth flow should complete after opensocial admin sign-in")
 
-	hasAccess, err := opensocialStore.CheckAppAccess(t.Context(), orgDID, config.ClientID)
+	hasAccess, err := opensocialStore.CheckAppAccess(
+		t.Context(),
+		habitat_syntax.ConstructSpaceURI(orgDID, "some.space.type", "self"),
+		config.ClientID,
+	)
 	require.NoError(t, err)
 	require.True(t, hasAccess, "client should be granted app access after token issuance")
 }

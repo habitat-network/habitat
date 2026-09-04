@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
@@ -401,7 +402,8 @@ func (s *Store) CheckAppAccess(
 	}
 	rkey, err := habitat_syntax.AppAccessRkey(clientID)
 	if err != nil {
-		return false, err
+		slog.WarnContext(ctx, "failed to get app access rkey", "err", err)
+		return false, nil
 	}
 	_, err = s.spacesStore.GetRecord(
 		ctx,
