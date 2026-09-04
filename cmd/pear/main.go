@@ -24,6 +24,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -304,7 +305,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	serviceAuth := authn.NewServiceAuthMethod(
 		everyoneOrg,
 		defaultDir,
-		fmt.Sprintf("did:web:%s#habitat", domain),
+		syntax.DID("did:web:"+domain),
+		"https://"+domain,
 	)
 
 	// Habitat's single host signing key signs permissioned-repo commits for repo
