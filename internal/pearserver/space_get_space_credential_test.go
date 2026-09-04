@@ -30,7 +30,12 @@ func grantAppAccess(
 ) {
 	t.Helper()
 	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, opensocial.MembersSpaceType, "self")
-	if _, err := store.CreateSpace(t.Context(), orgDID, opensocial.MembersSpaceType, "self"); err != nil &&
+	if _, err := store.CreateSpace(
+		t.Context(),
+		orgDID,
+		opensocial.MembersSpaceType,
+		"self",
+	); err != nil &&
 		!errors.Is(err, spaces.ErrSpaceAlreadyExists) {
 		require.NoError(t, err)
 	}
