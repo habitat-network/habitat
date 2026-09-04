@@ -9,11 +9,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -42,6 +45,18 @@ func dirWithSpaceHost(did syntax.DID, host string) *identity.MockDirectory {
 		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: host}},
 	})
 	return dir
+}
+
+// testAttester builds a confidential *oauth.ClientConfig with a freshly
+// generated key, suitable for any Manager under test — every real caller
+// (sap always runs as a confidential OAuth client) supplies one of these.
+func testAttester(t *testing.T, clientID string) *oauth.ClientConfig {
+	t.Helper()
+	attester := &oauth.ClientConfig{ClientID: clientID}
+	key, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, attester.SetClientSecret(key, "test-kid"))
+	return attester
 }
 
 // TestManagerMintsCachesAndAuthenticates covers mint (against the space
@@ -78,7 +93,7 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 	owner := syntax.DID("did:web:org")
 	space := habitat_syntax.SpaceURI("at://did:web:org/space/network.habitat.group/s1")
 	dir := dirWithSpaceHost(owner, srv.URL)
-	m := NewManager(dir, srv.Client(), stubDelegator{})
+	m := NewManager(dir, srv.Client(), stubDelegator{}, testAttester(t, "https://sap.example.com"))
 
 	require.Equal(t, "space-cred", credToken(t, m, space))
 
@@ -142,8 +157,55 @@ func TestManagerResolvesHostPerSpace(t *testing.T) {
 		DID:      ownerB,
 		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: srvB.URL}},
 	})
-	m := NewManager(dir, http.DefaultClient, stubDelegator{})
+	m := NewManager(
+		dir,
+		http.DefaultClient,
+		stubDelegator{},
+		testAttester(t, "https://sap.example.com"),
+	)
 
 	require.Equal(t, "cred-a", credToken(t, m, spaceA))
 	require.Equal(t, "cred-b", credToken(t, m, spaceB))
+}
+
+// TestManagerAttachesClientAttestation verifies mint signs a
+// getSpaceCredential request's clientAttestation with a JWT that a real
+// space authority (clientmetadata's verifier) actually accepts.
+func TestManagerAttachesClientAttestation(t *testing.T) {
+	owner := syntax.DID("did:web:org")
+	space := habitat_syntax.SpaceURI("at://did:web:org/space/network.habitat.group/s1")
+
+	var clientAttestation string
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	clientID := srv.URL + "/client-metadata.json"
+	attester := testAttester(t, clientID)
+
+	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
+		jwks := attester.PublicJWKS()
+		_ = json.NewEncoder(w).Encode(oauth.ClientMetadata{ClientID: clientID, JWKS: &jwks})
+	})
+	mux.HandleFunc(
+		"/xrpc/network.habitat.space.getSpaceCredential",
+		func(w http.ResponseWriter, r *http.Request) {
+			var in habitat.NetworkHabitatSpaceGetSpaceCredentialInput
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&in))
+			clientAttestation = in.ClientAttestation
+			_ = json.NewEncoder(w).Encode(
+				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "space-cred"})
+		},
+	)
+
+	dir := dirWithSpaceHost(owner, srv.URL)
+	m := NewManager(dir, srv.Client(), stubDelegator{}, attester)
+	require.Equal(t, "space-cred", credToken(t, m, space))
+
+	require.NotEmpty(t, clientAttestation)
+	verifiedClientID, err := clientmetadata.VerifyAttestation(
+		t.Context(), clientmetadata.NewResolver(), clientAttestation, owner,
+	)
+	require.NoError(t, err)
+	require.Equal(t, clientID, verifiedClientID)
 }

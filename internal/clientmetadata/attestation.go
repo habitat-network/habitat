@@ -69,8 +69,8 @@ func VerifyAttestation(
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrInvalidAttestation, err)
 	}
-	if token.Header["typ"] != AttestationTyp {
-		return "", fmt.Errorf("%w: unexpected typ %v", ErrInvalidAttestation, token.Header["typ"])
+	if typ := token.Header["typ"]; typ != AttestationTyp && typ != "JWT" {
+		return "", fmt.Errorf("%w: unexpected typ %v", ErrInvalidAttestation, typ)
 	}
 	if claims.Issuer == "" || claims.Issuer != claims.Subject {
 		return "", fmt.Errorf("%w: iss must equal sub", ErrInvalidAttestation)
