@@ -15,6 +15,7 @@ import (
 	"github.com/habitat-network/habitat/internal/httpx"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -128,6 +129,7 @@ func setupJWTBearerTestServer(
 		jwtBearerTestOrgStore(t),
 		jwtBearerIssuer,
 		oauthserver.NewJWTBearerStore(approvedClientIDs...),
+		opensocial_testutil.NewTestStore(t).Store,
 	)
 	require.NoError(t, err)
 
