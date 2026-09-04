@@ -11,7 +11,7 @@ catalogs:
       version: 0.20.42
     '@atproto/identity':
       specifier: ^0.5.9
-      version: 0.5.9
+      version: 0.5.10
     '@atproto/lexicon':
       specifier: 0.7.11
       version: 0.7.11
@@ -197,7 +197,7 @@ importers:
         version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.9
+        version: 0.5.10
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)
@@ -313,7 +313,7 @@ importers:
     dependencies:
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.9
+        version: 0.5.10
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.12(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -437,7 +437,7 @@ importers:
         version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.9
+        version: 0.5.10
       '@chainsafe/libp2p-gossipsub':
         specifier: 14.1.2
         version: 14.1.2
@@ -685,7 +685,7 @@ importers:
         version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.9
+        version: 0.5.10
       '@atproto/oauth-client-browser':
         specifier: ^0.5.0
         version: 0.5.3
@@ -935,8 +935,8 @@ packages:
     resolution: {integrity: sha512-BlnwQ+obL+4ZA71KH/EzZ3TY+cpSxnLiUI85mjBJIQwvDF/oN2sQA18wIj9jpduviIt2b/cMtlJuzHjzBkfXvw==}
     engines: {node: '>=22'}
 
-  '@atproto/identity@0.5.9':
-    resolution: {integrity: sha512-jkgTJc4mDGEj6El4oJfkBtd2mT+q/+xYpQ6U1RJ6IHUSZw1Aqv+3m47cI1S4/vP0zlSOZnXHjexZiHPNFqqe7w==}
+  '@atproto/identity@0.5.10':
+    resolution: {integrity: sha512-aan/2rKWznpZ8MKuFPmakEVQs4f5K4+yTyVhV3CnJUR8zoXM7O51tw6KTpFKljbA/IgrepFEynZCKF6/BLva7Q==}
     engines: {node: '>=22'}
 
   '@atproto/jwk-jose@0.2.4':
@@ -11937,9 +11937,9 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
-  '@atproto/identity@0.5.9':
+  '@atproto/identity@0.5.10':
     dependencies:
-      '@atproto/common-web': 0.5.9
+      '@atproto/common-web': 0.5.10
       '@atproto/crypto': 0.5.4
 
   '@atproto/jwk-jose@0.2.4':
