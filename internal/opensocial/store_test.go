@@ -164,4 +164,51 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, roles)
 	})
+
+	t.Run("GetProfile", func(t *testing.T) {
+		// The bootstrap org carries a profile record (name may have been
+		// mutated by the earlier UpdateProfile/UploadImage subtests).
+		profile, err := s.GetProfile(t.Context(), org)
+		require.NoError(t, err)
+		require.NotEmpty(t, profile.Name)
+
+		// An org with no profile record returns a zero value rather than an
+		// error.
+		empty := syntax.DID("did:plc:no-profile")
+		profile, err = s.GetProfile(t.Context(), empty)
+		require.NoError(t, err)
+		require.Empty(t, profile.Name)
+	})
+
+	t.Run("IsOrg", func(t *testing.T) {
+		// The members space exists for a real org.
+		ok, err := s.IsOrg(t.Context(), org)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		// A DID with no members space is not an org.
+		ok, err = s.IsOrg(t.Context(), syntax.DID("did:plc:not-an-org"))
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("AppAccess", func(t *testing.T) {
+		const clientID = "https://app.example.com"
+
+		// Nothing is granted until GrantAppAccess is called.
+		ok, err := s.CheckAppAccess(t.Context(), org, clientID)
+		require.NoError(t, err)
+		require.False(t, ok)
+
+		require.NoError(t, s.GrantAppAccess(t.Context(), org, clientID))
+
+		// The grant is now visible, and only for that client_id.
+		ok, err = s.CheckAppAccess(t.Context(), org, clientID)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		ok, err = s.CheckAppAccess(t.Context(), org, "https://other.example.com")
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
 }
