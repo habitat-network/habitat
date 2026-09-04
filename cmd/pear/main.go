@@ -343,23 +343,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	serviceAuth := authn.NewServiceAuthMethod(
 		everyoneOrg,
 		defaultDir,
-		// pear hosts many DIDs (every opensocial org, every hive-served
-		// member), each with their own #habitat service entry — not one
-		// fixed instance identity — so a service-auth token's audience is
-		// valid whenever hive actually hosts the DID it names, whichever
-		// DID that is.
-		func(ctx context.Context, aud string) bool {
-			rawDID, serviceID, ok := strings.Cut(aud, "#")
-			if !ok || serviceID != "habitat" {
-				return false
-			}
-			did, err := syntax.ParseDID(rawDID)
-			if err != nil {
-				return false
-			}
-			_, err = hive.PrivateKeyForDID(ctx, did)
-			return err == nil
-		},
+		syntax.DID("did:web:"+domain),
+		"https://"+domain,
 	)
 
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))

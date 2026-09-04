@@ -17,6 +17,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
@@ -110,7 +111,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		authn.NewServiceAuthMethod(
 			org.NewEveryoneOrg(domain),
 			dir,
-			authn.FixedAudience("did:web:"+domain+"#"+serviceID),
+			syntax.DID("did:web:"+domain),
+			"https://"+domain,
 		),
 	)
 

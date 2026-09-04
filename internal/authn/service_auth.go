@@ -10,41 +10,29 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/utils"
 )
-
-// IsValidAudience reports whether aud (a "<did>#<serviceId>" string, as read
-// from an incoming service-auth token's own "aud" claim) names a service
-// this instance may legitimately validate tokens for. A single-identity
-// service can just compare against one fixed value; an instance hosting
-// many DIDs (pear, via hive) checks whether it actually hosts the named DID.
-type IsValidAudience func(ctx context.Context, aud string) bool
-
-// FixedAudience returns an IsValidAudience that accepts exactly one
-// audience string, for a service with a single, unchanging identity.
-func FixedAudience(audience string) IsValidAudience {
-	return func(ctx context.Context, aud string) bool {
-		return aud == audience
-	}
-}
 
 func NewServiceAuthMethod(
 	everyoneOrg org.Org,
 	directory identity.Directory,
-	isValidAudience IsValidAudience,
+	legacyDID syntax.DID,
+	serviceEndpoint string,
 ) *AtprotoServiceAuthMethod {
 	return &AtprotoServiceAuthMethod{
 		everyoneOrg:     everyoneOrg,
 		dir:             directory,
-		isValidAudience: isValidAudience,
+		serviceEndpoint: serviceEndpoint,
+		legacyDID:       legacyDID,
 	}
 }
 
 type AtprotoServiceAuthMethod struct {
 	dir             identity.Directory
-	isValidAudience IsValidAudience
+	serviceEndpoint string
 	everyoneOrg     org.Org
+	legacyDID       syntax.DID
 }
 
 var _ Validator = (*AtprotoServiceAuthMethod)(nil)
@@ -59,12 +47,6 @@ func (p *AtprotoServiceAuthMethod) CanHandle(r *http.Request) bool {
 	if err != nil {
 		return false
 	}
-	// "kid" isn't required: Validate resolves the signing key from "iss" via
-	// directory lookup, never from "kid" (see atproto/auth.ServiceAuthValidator),
-	// and a real PDS's own com.atproto.server.getServiceAuth response (used by
-	// internal/forwarding for a non-hive-hosted identity) may omit it entirely.
-	// "typ" alone already disambiguates from an OAuth JWT, whose typ is
-	// "oauth+JWT", not "JWT" (see OAuthServer.CanHandle).
 	return token.Headers[0].ExtraHeaders["typ"] == "JWT"
 }
 
@@ -74,16 +56,58 @@ func (p *AtprotoServiceAuthMethod) Validate(
 	r *http.Request,
 	scopes ...string,
 ) (*CredentialInfo, bool) {
+	ctx := r.Context()
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	_, nsidStr, _ := strings.Cut(r.URL.Path, "/xrpc/")
 	nsid, err := syntax.ParseNSID(nsidStr)
 	if err != nil {
-		utils.WriteHTTPError(w, err, http.StatusBadRequest)
+		httpx.WriteUnauthorized(ctx, w, "failed to parse nsid")
 		return nil, false
 	}
-	did, err := p.validate(r.Context(), token, &nsid)
+	jwtToken, err := jwt.ParseSigned(token)
 	if err != nil {
-		utils.WriteHTTPError(w, err, http.StatusBadRequest)
+		httpx.WriteUnauthorized(ctx, w, "failed to parse token")
+		return nil, false
+	}
+	claims := jwt.Claims{}
+	if err := jwtToken.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		httpx.WriteUnauthorized(ctx, w, fmt.Sprintf("failed to parse token: %v", err))
+		return nil, false
+	}
+	if len(claims.Audience) != 1 {
+		httpx.WriteUnauthorized(ctx, w, "invalid aud claim")
+		return nil, false
+	}
+	audienceDIDStr, audienceService, found := strings.Cut(claims.Audience[0], "#")
+	audienceDID, err := syntax.ParseDID(audienceDIDStr)
+	if err != nil {
+		httpx.WriteUnauthorized(ctx, w, "invalid aud did")
+		return nil, false
+	}
+	if !found {
+		if audienceDID != p.legacyDID {
+			httpx.WriteUnauthorized(ctx, w, "invalid aud claim")
+			return nil, false
+		}
+	} else {
+		audienceID, err := p.dir.LookupDID(ctx, audienceDID)
+		if err != nil {
+			httpx.WriteUnauthorized(ctx, w, "failed to lookup audience")
+			return nil, false
+		}
+		if p.serviceEndpoint != audienceID.GetServiceEndpoint(audienceService) {
+			httpx.WriteUnauthorized(ctx, w, "unexpected service endpoint")
+			return nil, false
+		}
+	}
+
+	// Audience is set to the token's own aud claim: we've already checked above
+	// that it's either the legacy DID or resolves to our serviceEndpoint, so this
+	// just satisfies the validator's own (non-optional) aud check.
+	validator := &auth.ServiceAuthValidator{Dir: p.dir, Audience: claims.Audience[0]}
+	did, err := validator.Validate(r.Context(), token, &nsid)
+	if err != nil {
+		httpx.WriteUnauthorized(ctx, w, "failed to validate token")
 		return nil, false
 	}
 	return &CredentialInfo{
@@ -97,38 +121,10 @@ func (p *AtprotoServiceAuthMethod) ValidateRaw(
 	token string,
 	scopes ...string,
 ) (*CredentialInfo, bool, error) {
-	did, err := p.validate(ctx, token, nil)
+	validator := &auth.ServiceAuthValidator{Dir: p.dir}
+	did, err := validator.Validate(ctx, token, nil)
 	if err != nil {
 		return nil, false, err
 	}
 	return &CredentialInfo{Subject: did, Org: p.everyoneOrg}, true, nil
-}
-
-// validate reads the token's own "aud" claim to learn which of this
-// instance's hosted services the caller means to act into (pear hosts many
-// DIDs — every org, every hive-served member — not one fixed identity), and
-// only proceeds once isValidAudience independently confirms that audience is
-// actually one this instance may act as. Signature and claims verification
-// (including a redundant, now-safe check that the token's aud matches what
-// we just confirmed) still happens via atproto/auth.ServiceAuthValidator.
-func (p *AtprotoServiceAuthMethod) validate(
-	ctx context.Context,
-	tokenStr string,
-	nsid *syntax.NSID,
-) (syntax.DID, error) {
-	unverified, err := jwt.ParseSigned(tokenStr)
-	if err != nil {
-		return "", fmt.Errorf("parse token: %w", err)
-	}
-	var claims struct {
-		Audience string `json:"aud"`
-	}
-	if err := unverified.UnsafeClaimsWithoutVerification(&claims); err != nil {
-		return "", fmt.Errorf("parse claims: %w", err)
-	}
-	if !p.isValidAudience(ctx, claims.Audience) {
-		return "", fmt.Errorf("audience %q is not valid for this instance", claims.Audience)
-	}
-	validator := &auth.ServiceAuthValidator{Dir: p.dir, Audience: claims.Audience}
-	return validator.Validate(ctx, tokenStr, nsid)
 }
