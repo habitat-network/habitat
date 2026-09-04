@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  orgAppAccessQueryOptions,
   orgMembersQueryOptions,
   orgProfileQueryOptions,
 } from "@/queries/opensocial";
@@ -42,6 +43,9 @@ function OrgDetail() {
   const members = Route.useLoaderData();
   const { data: profile } = useQuery(
     orgProfileQueryOptions(org, authManager, queryClient),
+  );
+  const { data: appAccess = [] } = useQuery(
+    orgAppAccessQueryOptions(org, authManager, queryClient),
   );
 
   // The caller is an admin if their own membership record (already loaded
@@ -93,52 +97,94 @@ function OrgDetail() {
         </p>
       </div>
 
-      {isAdmin && <PendingOrgInvites org={org} authManager={authManager} />}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        <div className="flex flex-col gap-6">
+          {isAdmin && (
+            <PendingOrgInvites org={org} authManager={authManager} />
+          )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Members ({members.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Member</TableHead>
-                <TableHead>Roles</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {members.map((member) => (
-                <TableRow key={member.did}>
-                  <TableCell>
-                    <DidHoverCard did={member.did} className="font-mono">
-                      {member.did}
-                    </DidHoverCard>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2 flex-wrap">
-                      {member.roles.map((role) => (
-                        <Badge key={role} variant="outline">
-                          {role}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {members.length === 0 && (
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Members ({members.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Member</TableHead>
+                    <TableHead>Roles</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {members.map((member) => (
+                    <TableRow key={member.did}>
+                      <TableCell>
+                        <DidHoverCard did={member.did} className="font-mono">
+                          {member.did}
+                        </DidHoverCard>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2 flex-wrap">
+                          {member.roles.map((role) => (
+                            <Badge key={role} variant="outline">
+                              {role}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {members.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={2}
+                        className="text-muted-foreground"
+                      >
+                        No members yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Approved apps ({appAccess.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={2} className="text-muted-foreground">
-                    No members yet.
-                  </TableCell>
+                  <TableHead>Client ID</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {appAccess.map((app) => (
+                  <TableRow key={app.clientId}>
+                    <TableCell className="font-mono text-xs break-all">
+                      {app.clientId}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {appAccess.length === 0 && (
+                  <TableRow>
+                    <TableCell className="text-muted-foreground">
+                      No approved apps yet.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

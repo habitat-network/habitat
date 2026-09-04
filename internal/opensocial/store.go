@@ -391,9 +391,14 @@ func decodeRecordValue(value map[string]any, out any) error {
 
 func (s *Store) CheckAppAccess(
 	ctx context.Context,
-	orgDID syntax.DID,
+	spaceURI habitat_syntax.SpaceURI,
 	clientID string,
 ) (bool, error) {
+	orgDID := spaceURI.SpaceOwner()
+	// any app can access the members and about spaces
+	if spaceURI.SpaceType() == MembersSpaceType || spaceURI.SpaceType() == AboutSpaceType {
+		return true, nil
+	}
 	rkey, err := habitat_syntax.AppAccessRkey(clientID)
 	if err != nil {
 		return false, err

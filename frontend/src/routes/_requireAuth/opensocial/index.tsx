@@ -28,9 +28,9 @@ function OpensocialIndex() {
     <div className="flex flex-col gap-6 py-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Communities</h1>
+          <h1 className="text-2xl font-semibold">Organizations</h1>
           <p className="text-muted-foreground text-sm">
-            Communities you belong to.
+            Organizations you belong to.
           </p>
         </div>
         <CreateOrgDialog authManager={authManager} />
@@ -43,7 +43,7 @@ function OpensocialIndex() {
       {orgs.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            You aren&rsquo;t a member of any communities yet. Create one to get
+            You aren&rsquo;t a member of any organizations yet. Create one to get
             started.
           </CardContent>
         </Card>

@@ -31,7 +31,7 @@ export function PendingOrgInvites({
   if (invites.length === 0) return null;
 
   return (
-    <Card>
+    <Card size="sm">
       <CardHeader>
         <CardTitle className="text-base">
           Pending invites ({invites.length})

@@ -31,6 +31,11 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
                   Spaces
                 </Button>
               </li>
+              <li>
+                <Button variant="link" render={<Link to="/opensocial" />}>
+                  Organizations
+                </Button>
+              </li>
               {import.meta.env.DEV && (
                 <>
                   <li>
@@ -41,11 +46,6 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
                   <li>
                     <Button variant="link" render={<Link to="/collections" />}>
                       Collections
-                    </Button>
-                  </li>
-                  <li>
-                    <Button variant="link" render={<Link to="/opensocial" />}>
-                      Communities
                     </Button>
                   </li>
                 </>
