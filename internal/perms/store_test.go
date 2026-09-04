@@ -239,11 +239,19 @@ func TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant(t *testing.T) {
 		require.True(t, ok)
 	})
 
-	t.Run("member with a matching access grant reads the members space without an FGA tuple", func(t *testing.T) {
-		ok, err := s.CheckUserHasSpaceRole(ctx, alice, membersSpace, habitat_syntax.SpaceRoleReader)
-		require.NoError(t, err)
-		require.True(t, ok)
-	})
+	t.Run(
+		"member with a matching access grant reads the members space without an FGA tuple",
+		func(t *testing.T) {
+			ok, err := s.CheckUserHasSpaceRole(
+				ctx,
+				alice,
+				membersSpace,
+				habitat_syntax.SpaceRoleReader,
+			)
+			require.NoError(t, err)
+			require.True(t, ok)
+		},
+	)
 
 	t.Run("non-member is not granted read access to the members space", func(t *testing.T) {
 		ok, err := s.CheckUserHasSpaceRole(ctx, bob, membersSpace, habitat_syntax.SpaceRoleReader)
