@@ -62,7 +62,7 @@ function OrgDetail() {
           to="/opensocial"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← All communities
+          ← All organizations
         </Link>
         <div className="flex items-center justify-between gap-3 mt-2">
           <div className="flex items-center gap-3">
