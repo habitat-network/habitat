@@ -1,4 +1,5 @@
 import { redirect } from "@tanstack/react-router";
+import { constructSpaceURI, parseSpaceURI } from "internal";
 import { useAppSession } from "./session";
 import type { SapClient } from "./sapClient";
 
@@ -18,14 +19,97 @@ import type { SapClient } from "./sapClient";
 export const DOCS_SPACE_TYPE = "network.habitat.docs";
 export const CRDT_COLLECTION = "network.habitat.docs.crdt";
 
+// createDocSpace creates the underlying space for a new doc, branching on
+// whether the member is in org mode (currentOrg set) or personal mode.
+// client is always scoped to the member's own DID in both cases — org mode
+// reaches the org's own createSpace endpoint via Atproto-Proxy rather than
+// resuming a separate org session (see the design doc's "Connecting an
+// org" section for why).
+export async function createDocSpace(
+  client: SapClient,
+  did: string,
+  currentOrg: string | undefined,
+): Promise<{ uri: string; ownerDid: string; isOrg: boolean }> {
+  if (currentOrg) {
+    const created = await client.call<{ uri: string }>(
+      "community.opensocial.createSpace",
+      "POST",
+      { org: currentOrg, type: DOCS_SPACE_TYPE, roles: ["admin", "member"] },
+      { atprotoProxy: `${currentOrg}#habitat` },
+    );
+    return { uri: created.uri, ownerDid: currentOrg, isOrg: true };
+  }
+  const created = await client.call<{ uri: string }>(
+    "network.habitat.simplespace.createSpace",
+    "POST",
+    { did, type: DOCS_SPACE_TYPE },
+  );
+  return { uri: created.uri, ownerDid: did, isOrg: false };
+}
+
+// fetchOrgName reads an org's display name off its
+// community.opensocial.profile record, via the member's own session — no
+// Atproto-Proxy needed: the about space's own community.opensocial.access
+// record already admits any member/admin role (set at org creation), so
+// pear's CheckUserHasSpaceRole grants the read directly (same mechanism
+// that makes org docs readable org-wide — see the design doc). Returns
+// null if the caller isn't a member of the org, or the read otherwise
+// fails, rather than throwing — callers show the raw DID as a fallback.
+export async function fetchOrgName(
+  client: SapClient,
+  orgDid: string,
+): Promise<string | null> {
+  const aboutSpace = constructSpaceURI({
+    spaceOwner: orgDid,
+    spaceType: "community.opensocial.about",
+    spaceKey: "self",
+  });
+  try {
+    const { value } = await client.call<{ value: { name: string } }>(
+      "network.habitat.space.getRecord",
+      "GET",
+      {
+        space: aboutSpace,
+        repo: orgDid,
+        collection: "community.opensocial.profile",
+        rkey: "self",
+      },
+    );
+    return value.name;
+  } catch {
+    return null;
+  }
+}
+
+// listMyOrgIds lists the DIDs of every opensocial org the member belongs
+// to — every community.opensocial.members space they hold a membership or
+// acceptance record in, same query frontend's Communities page uses
+// (frontend/src/queries/opensocial.ts's myOrgsQueryOptions).
+export async function listMyOrgIds(client: SapClient): Promise<string[]> {
+  const { spaces } = await client.call<{ spaces: { uri: string }[] }>(
+    "network.habitat.space.listSpaces",
+    "GET",
+    { type: "community.opensocial.members" },
+  );
+  const orgs: string[] = [];
+  for (const space of spaces) {
+    const parts = parseSpaceURI(space.uri);
+    if (parts) orgs.push(parts.spaceOwner);
+  }
+  return orgs;
+}
+
 // requireSession resolves the logged-in member's DID from the session
 // cookie, throwing a redirect to /login when there isn't one.
-export async function requireSession(): Promise<{ did: string }> {
+export async function requireSession(): Promise<{
+  did: string;
+  currentOrg?: string;
+}> {
   const session = await useAppSession();
   if (!session.data.did) {
     throw redirect({ to: "/login" });
   }
-  return { did: session.data.did };
+  return { did: session.data.did, currentOrg: session.data.currentOrg };
 }
 
 // clearSession drops the member DID from the session cookie, ending the
@@ -34,6 +118,16 @@ export async function requireSession(): Promise<{ did: string }> {
 export async function clearSession(): Promise<void> {
   const session = await useAppSession();
   await session.clear();
+}
+
+// setCurrentOrg updates which org (if any) the member is currently acting
+// as — undefined switches back to Personal mode. Mirrors the
+// setCurrentOrgFn session.org-callback.tsx sets right after a fresh OAuth
+// connect; this is the same session write for the already-connected case
+// (the /orgs picker) and for switching back to Personal.
+export async function setCurrentOrg(orgDid: string | undefined): Promise<void> {
+  const session = await useAppSession();
+  await session.update({ currentOrg: orgDid });
 }
 
 // sessionDid resolves the logged-in member's DID without redirecting —

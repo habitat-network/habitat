@@ -35,6 +35,23 @@ describe("startLogin", () => {
       return_to: "https://chalk.test/session/callback",
     });
   });
+
+  it("posts a custom return_to path when given one", async () => {
+    let body: unknown;
+    server.use(
+      http.post("http://sap-internal.test/session/add", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({
+          redirect_url: "https://pear.example/oauth/authorize",
+        });
+      }),
+    );
+    await startLogin(testEnv, "did:web:org.example", "/session/org-callback");
+    expect(body).toEqual({
+      handle: "did:web:org.example",
+      return_to: "https://chalk.test/session/org-callback",
+    });
+  });
 });
 
 describe("internal auth", () => {
@@ -175,6 +192,43 @@ describe("SapClient", () => {
       space: "at://did:plc:owner/space/network.habitat.docs/abc",
     });
     expect(headers?.get("Habitat-Did")).toBe("did:plc:member1");
+  });
+
+  it("sets Atproto-Proxy when given an atprotoProxy target", async () => {
+    let headers: Headers | undefined;
+    server.use(
+      http.post(
+        "http://sap-internal.test/proxy/community.opensocial.createSpace",
+        ({ request }) => {
+          headers = request.headers;
+          return HttpResponse.json({ uri: "at://did:web:org.example/x" });
+        },
+      ),
+    );
+    const client = new SapClient(testEnv, "did:plc:member1");
+    await client.call(
+      "community.opensocial.createSpace",
+      "POST",
+      { org: "did:web:org.example", type: "network.habitat.docs" },
+      { atprotoProxy: "did:web:org.example#habitat" },
+    );
+    expect(headers?.get("Atproto-Proxy")).toBe("did:web:org.example#habitat");
+  });
+
+  it("omits Atproto-Proxy when no atprotoProxy is given", async () => {
+    let headers: Headers | undefined;
+    server.use(
+      http.get(
+        "http://sap-internal.test/proxy/network.habitat.space.listRecords",
+        ({ request }) => {
+          headers = request.headers;
+          return HttpResponse.json({ records: [] });
+        },
+      ),
+    );
+    const client = new SapClient(testEnv, "did:plc:member1");
+    await client.call("network.habitat.space.listRecords", "GET", {});
+    expect(headers?.has("Atproto-Proxy")).toBe(false);
   });
 
   it("recrawl POSTs to /session/recrawl with the Habitat-Did header", async () => {

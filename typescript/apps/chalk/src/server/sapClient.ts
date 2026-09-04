@@ -19,7 +19,11 @@ export function sapAuthHeaders(env: Env): Record<string, string> {
 // to redirect the browser back to chalk's /session/callback (with the
 // resolved DID) once the PDS OAuth handshake completes. Returns the
 // PDS-authorize URL the browser should be sent to next.
-export async function startLogin(env: Env, handle: string): Promise<string> {
+export async function startLogin(
+  env: Env,
+  handle: string,
+  returnPath = "/session/callback",
+): Promise<string> {
   const base = env.CHALK_BASE_URL;
   if (!base) throw new Error("CHALK_BASE_URL is not set");
   if (!env.CHALK_SAP_INTERNAL_URL)
@@ -32,7 +36,7 @@ export async function startLogin(env: Env, handle: string): Promise<string> {
     },
     body: JSON.stringify({
       handle,
-      return_to: `${base}/session/callback`,
+      return_to: `${base}${returnPath}`,
     }),
   });
   if (!res.ok) {
@@ -67,6 +71,7 @@ export class SapClient {
     nsid: string,
     method: "GET" | "POST",
     payload: Record<string, unknown>,
+    opts?: { atprotoProxy?: string },
   ): Promise<T> {
     const base = `${this.base}/proxy/${nsid}`;
     let url = base;
@@ -75,6 +80,9 @@ export class SapClient {
       [habitatDIDHeader]: this.did,
       ...sapAuthHeaders(this.env),
     };
+    if (opts?.atprotoProxy) {
+      headers["Atproto-Proxy"] = opts.atprotoProxy;
+    }
     if (method === "GET") {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(payload)) {

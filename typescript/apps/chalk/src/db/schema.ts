@@ -14,6 +14,7 @@ export const docs = sqliteTable(
     ownerDid: text("owner_did").notNull(),
     title: text("title").notNull(),
     updatedAt: integer("updated_at").notNull(),
+    isOrg: integer("is_org", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [index("docs_owner_updated").on(t.ownerDid, t.updatedAt)],
 );
@@ -39,4 +40,19 @@ export const docAccess = sqliteTable(
     primaryKey({ columns: [t.subjectDid, t.spaceUri] }),
     index("doc_access_uri").on(t.uri),
   ],
+);
+
+// connectedOrgs records that a member has successfully connected an org
+// (see session.org-callback.tsx) — chalk's own audit trail, separate from
+// the live "orgs I'm a member of" list, which is always fetched fresh from
+// pear rather than cached here.
+export const connectedOrgs = sqliteTable(
+  "connected_orgs",
+  {
+    memberDid: text("member_did").notNull(),
+    orgDid: text("org_did").notNull(),
+    orgName: text("org_name").notNull(),
+    connectedAt: integer("connected_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.memberDid, t.orgDid] })],
 );

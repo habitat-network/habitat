@@ -20,6 +20,7 @@ import { toast } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
 import { useYDoc } from "@/hooks/useYDoc";
+import { Route as RequireAuthRoute } from "@/routes/_requireAuth";
 import {
   getDocInitialState,
   getDocRole,
@@ -55,6 +56,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { uri } = Route.useParams();
     const { did: currentUserDid } = Route.useRouteContext();
     const { role, initialState } = Route.useLoaderData();
+    const { currentOrg } = RequireAuthRoute.useLoaderData();
     const ydoc = useYDoc(uri, initialState);
     const queryClient = useQueryClient();
 
@@ -152,7 +154,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         </div>
         <PageHeader>
           <div className="flex gap-2">
-            {role === "editor" && (
+            {role === "editor" && !currentOrg && (
               <ShareDialog
                 grantees={grantees}
                 isAdding={isAddingPermission}

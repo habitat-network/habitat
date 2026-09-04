@@ -3,6 +3,7 @@ import {
   createFileRoute,
   Link,
   Outlet,
+  useLocation,
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
@@ -17,15 +18,21 @@ import {
   SidebarMenuButton,
 } from "internal";
 import { toast } from "internal/components/ui";
-import { HomeIcon, PlusIcon } from "lucide-react";
-import { createDoc, getCaller, listDocs, signOut } from "@/server/functions";
+import { HomeIcon, PlusIcon, ArrowLeftRight } from "lucide-react";
+import {
+  createDoc,
+  getCaller,
+  getCurrentOrg,
+  listDocs,
+  signOut,
+} from "@/server/functions";
 import { useRecentDocsStore } from "@/stores/recentDocs";
 import type { DocSummary } from "@/db";
 
 export const Route = createFileRoute("/_requireAuth")({
   beforeLoad: async () => await getCaller(),
   loader: async ({ context }) => {
-    const [, actor] = await Promise.all([
+    const [, actor, currentOrg] = await Promise.all([
       // Seed the ["docs"] query cache the sidebar/home page share, so the
       // component's useQuery below resolves from cache instead of
       // refetching, while still letting either surface invalidate it (e.g.
@@ -37,11 +44,12 @@ export const Route = createFileRoute("/_requireAuth")({
       // The AppLayout footer needs a resolved handle/avatar to show
       // anything besides "Unknown User" — getCaller only gives us the did.
       getProfile(context.did),
+      getCurrentOrg(),
     ]);
-    return { actor };
+    return { actor, currentOrg };
   },
   component() {
-    const { actor } = Route.useLoaderData();
+    const { actor, currentOrg } = Route.useLoaderData();
     const queryClient = useQueryClient();
     const { data: docs = [] } = useQuery({
       queryKey: ["docs"],
@@ -55,10 +63,7 @@ export const Route = createFileRoute("/_requireAuth")({
         state.matches.find((x) => x.routeId === "/_requireAuth/$uri")?.params
           .uri,
     });
-    const onHomePage = useRouterState({
-      select: (state) =>
-        state.matches.some((x) => x.routeId === "/_requireAuth/"),
-    });
+    const location = useLocation();
     const recentDocIds = useRecentDocsStore((state) => state.recentDocIds);
     const addRecentDoc = useRecentDocsStore((state) => state.addRecentDoc);
     // recentDocIds only remembers order of visits; docs (the full
@@ -75,7 +80,13 @@ export const Route = createFileRoute("/_requireAuth")({
         // just wrote server-side) rather than invalidating and refetching.
         queryClient.setQueryData<DocSummary[]>(["docs"], (old) => [
           ...(old ?? []),
-          { docId, uri, ownerDid: actor.did, title: "Untitled" },
+          {
+            docId,
+            uri,
+            ownerDid: currentOrg?.did ?? actor.did,
+            title: "Untitled",
+            isOrg: !!currentOrg,
+          },
         ]);
         addRecentDoc(docId);
         navigate({ to: "/$uri", params: { uri: docId } });
@@ -106,10 +117,31 @@ export const Route = createFileRoute("/_requireAuth")({
         actor={actor}
         title="Chalk"
         onSignOut={() => logOut()}
+        footerExtra={
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={location.pathname === "/orgs"}
+                tooltip="Switch organization"
+                render={<Link to="/orgs" />}
+              >
+                <ArrowLeftRight />
+                <span>
+                  {currentOrg
+                    ? (currentOrg.name ?? currentOrg.did)
+                    : "Personal"}
+                </span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        }
         sidebarHeader={
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton isActive={onHomePage} render={<Link to="/" />}>
+              <SidebarMenuButton
+                isActive={location.pathname === "/"}
+                render={<Link to="/" />}
+              >
                 <HomeIcon />
                 <span>Home</span>
               </SidebarMenuButton>
