@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
@@ -38,6 +40,7 @@ const (
 
 	disambiguationPath = "/ui/login/disambiguate"
 	consentPath        = "/ui/login/consent"
+	opensocialPath     = "/ui/login/opensocial"
 
 	// requestKeyCookie holds the opaque key of the in-flight authorization
 	// request row. It is what lets the callback find the request without
@@ -67,7 +70,8 @@ type OAuthServer struct {
 	sessionStore sessions.Store
 
 	// issuer origin (https URL, no path) the discovery metadata is built from.
-	issuer string
+	issuer          string
+	opensocialStore *opensocial.Store
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -98,6 +102,7 @@ func NewOAuthServer(
 	orgStore org.Store,
 	issuer string,
 	approvedJwtBearerClients ApprovedClientStore,
+	opensocialStore *opensocial.Store,
 ) (*OAuthServer, error) {
 	config := &fosite.Config{
 		GlobalSecret:               secret,
@@ -154,12 +159,13 @@ func NewOAuthServer(
 			compose.RFC7523AssertionGrantFactory,
 			compose.PushedAuthorizeHandlerFactory,
 		),
-		loginRouter:  loginRouter,
-		sessionStore: cookieStore,
-		directory:    directory,
-		storage:      storage,
-		orgStore:     orgStore,
-		issuer:       issuer,
+		loginRouter:     loginRouter,
+		sessionStore:    cookieStore,
+		directory:       directory,
+		storage:         storage,
+		orgStore:        orgStore,
+		issuer:          issuer,
+		opensocialStore: opensocialStore,
 	}, nil
 }
 
@@ -205,6 +211,21 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.Redirect(w, r, disambiguationPath, http.StatusSeeOther)
+		return
+	}
+	isOpensocialOrg, err := o.opensocialStore.IsOrg(ctx, did)
+	if err != nil {
+		o.metrics.authorizeErr(ctx, err, "check_opensocial_org")
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to check opensocial org: %w", err))
+		return
+	}
+	if isOpensocialOrg {
+		if err := session.Save(r, w); err != nil {
+			o.metrics.authorizeErr(ctx, err, "save_cookie")
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
+			return
+		}
+		http.Redirect(w, r, opensocialPath, http.StatusSeeOther)
 		return
 	}
 	redirect, providerState, err := o.loginRouter.Authorize(
@@ -375,7 +396,23 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	cookie.Values[providerStateCookie] = nil
 	did := syntax.DID(requester.GetSession().GetSubject())
 
-	if err := o.loginRouter.Exchange(ctx, did, r.URL.Query(), providerState); err != nil {
+	isOpensocialOrg, err := o.opensocialStore.IsOrg(ctx, did)
+	if err != nil {
+		o.metrics.callbackErr(ctx, err, "check_opensocial_org")
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to check opensocial org: %w", err))
+		return
+	}
+	if isOpensocialOrg {
+		// The org DID isn't tracked by org.Store, so loginRouter.Exchange's
+		// org/member branching doesn't apply here — the admin's membership
+		// was already verified by HandleOpensocial before this PDS login
+		// began, and the subject stays the org DID throughout.
+		if _, err := o.loginRouter.Pds.Exchange(ctx, r.URL.Query(), providerState); err != nil {
+			o.metrics.callbackErr(ctx, err, "complete_login")
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
+			return
+		}
+	} else if err := o.loginRouter.Exchange(ctx, did, r.URL.Query(), providerState); err != nil {
 		o.metrics.callbackErr(ctx, err, "complete_login")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
 		return
@@ -436,6 +473,23 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		logError(ctx, err)
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
+	}
+	if req.GetGrantTypes().ExactOne("authorization_code") {
+		subjectDID := syntax.DID(req.GetSession().GetSubject())
+		isOpensocialOrg, err := o.opensocialStore.IsOrg(ctx, subjectDID)
+		if err != nil {
+			logError(ctx, err)
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to check opensocial org: %w", err))
+			return
+		}
+		if isOpensocialOrg {
+			clientID := req.GetClient().GetID()
+			if err := o.opensocialStore.GrantAppAccess(ctx, subjectDID, clientID); err != nil {
+				logError(ctx, err)
+				httpx.WriteServerError(ctx, w, fmt.Errorf("failed to grant app access: %w", err))
+				return
+			}
+		}
 	}
 	resp.SetExtra("sub", req.GetSession().GetSubject())
 	// The atproto OAuth client requires DPoP-bound tokens and rejects any
@@ -694,4 +748,78 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	httpx.WriteJSON(ctx, w, output)
+}
+
+func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	session, err := o.sessionStore.Get(r, sessionName)
+	if err != nil {
+		o.metrics.callbackErr(ctx, err, "get_cookie")
+		httpx.WriteInvalidRequest(ctx, w, "failed to get cookie", err)
+		return
+	}
+	requester, _ := o.retrieveAuthorizeRequest(w, r, session)
+	if requester == nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to get authorize request", nil)
+		return
+	}
+	orgDID := syntax.DID(requester.GetSession().GetSubject())
+	if r.Method == http.MethodGet {
+		profile, err := o.opensocialStore.GetProfile(ctx, orgDID)
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get profile: %w", err))
+			return
+		}
+
+		c, _ := requester.GetClient().(*client)
+		var clientName, clientURI, logoURI string
+		if c.ClientName != nil {
+			clientName = *c.ClientName
+		}
+		if c.ClientURI != nil {
+			clientURI = *c.ClientURI
+		}
+		if c.LogoURI != nil {
+			logoURI = *c.LogoURI
+		}
+		httpx.WriteJSON(ctx, w, map[string]any{
+			"orgProfile": profile,
+			"clientName": clientName,
+			"clientUri":  clientURI,
+			"logoUri":    logoURI,
+		})
+		return
+	}
+	atID, err := syntax.ParseAtIdentifier(r.FormValue("handle"))
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid handle", err)
+		return
+	}
+	memberID, err := o.directory.Lookup(ctx, atID)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to resolve handle", err)
+		return
+	}
+	roles, err := o.opensocialStore.GetUserRoles(ctx, orgDID, memberID.DID)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get user roles: %w", err))
+		return
+	}
+	if !slices.Contains(roles, opensocial.AdminRoleRkey) {
+		httpx.WriteUnauthorized(ctx, w, "not an admin of this org")
+		return
+	}
+	redirectURL, providerState, err := o.loginRouter.Pds.Authorize(ctx, memberID.DID.String())
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get authorize url: %w", err))
+		return
+	}
+	session.Values[providerStateCookie] = providerState
+	if err := session.Save(r, w); err != nil {
+		o.metrics.callbackErr(ctx, err, "save_cookie")
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
+		return
+	}
+
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }

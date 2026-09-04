@@ -13,7 +13,6 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -35,11 +34,9 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 	).Validate(w, r); !ok {
 		return
 	}
-
 	if !p.verifyClientAttestation(ctx, w, spaceURI, input.ClientAttestation) {
 		return
 	}
-
 	kid := "#atproto"
 	privKey, err := p.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
 	if errors.Is(err, identity.ErrDIDNotFound) {
@@ -63,22 +60,20 @@ func (p *PearServer) verifyClientAttestation(
 	spaceURI habitat_syntax.SpaceURI,
 	attestation string,
 ) bool {
-	collection := habitat_syntax.AppAccessCollection
-	grants, err := p.spacesStore.ListRecords(ctx, spaceURI, spaceURI.SpaceOwner(), &collection)
+	orgDID := spaceURI.SpaceOwner()
+	isOrg, err := p.opensocialStore.IsOrg(ctx, orgDID)
 	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("list app access grants: %w", err))
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to check if org: %w", err))
 		return false
 	}
-	if len(grants) == 0 {
+	if !isOrg {
 		return true
 	}
 	if attestation == "" {
 		httpx.WriteInvalidClientAttestation(ctx, w, "space requires a client attestation", nil)
 		return false
 	}
-	clientID, err := clientmetadata.VerifyAttestation(
-		ctx, p.clientMeta, attestation, spaceURI.SpaceOwner(),
-	)
+	clientID, err := clientmetadata.VerifyAttestation(ctx, p.clientMeta, attestation, orgDID)
 	if errors.Is(err, clientmetadata.ErrInvalidAttestation) {
 		httpx.WriteInvalidClientAttestation(ctx, w, err.Error(), err)
 		return false
@@ -86,20 +81,17 @@ func (p *PearServer) verifyClientAttestation(
 		httpx.WriteServerError(ctx, w, fmt.Errorf("verify attestation: %w", err))
 		return false
 	}
-	rkey, err := habitat_syntax.AppAccessRkey(clientID)
+	granted, err := p.opensocialStore.CheckAppAccess(ctx, orgDID, clientID)
 	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("get app access rkey: %w", err))
-		return false
-	}
-	if _, err := p.spacesStore.GetRecord(
-		ctx, spaceURI, spaceURI.SpaceOwner(), habitat_syntax.AppAccessCollection, rkey,
-	); errors.Is(err, spaces.ErrRecordNotFound) {
-		httpx.WriteError(ctx, w, "AppNotAuthorized", "", http.StatusBadRequest)
-		return false
-	} else if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("check app access grant: %w", err))
 		return false
 	}
-
+	if !granted {
+		httpx.WriteError(
+			ctx, w, "AppNotAuthorized", "org has not approved app",
+			http.StatusBadRequest,
+		)
+		return false
+	}
 	return true
 }
