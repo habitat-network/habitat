@@ -49,6 +49,7 @@ type server struct {
 
 	mu              sync.Mutex
 	pendingReturnTo map[string]string // DID string -> return_to URL
+	clientMetadata  ConfiguredClientMetadata
 }
 
 // endpoint is sap's own public base URL (the same value passed as
@@ -59,6 +60,7 @@ func NewSapServer(
 	sapInstance *sap.Sap,
 	oauthClient *oauth.ClientApp,
 	endpoint string,
+	clientMetadata ConfiguredClientMetadata,
 ) *server {
 	return &server{
 		sap:         sapInstance,
@@ -71,6 +73,7 @@ func NewSapServer(
 		outboxPongWait:   defaultOutboxPongWait,
 		outboxWriteWait:  defaultOutboxWriteWait,
 		pendingReturnTo:  make(map[string]string),
+		clientMetadata:   clientMetadata,
 	}
 }
 
@@ -409,9 +412,13 @@ func basicAuthMiddleware(secret string, next http.Handler) http.Handler {
 
 func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
 	metadata := s.oauthClient.Config.ClientMetadata()
-	if s.oauthClient.Config.IsConfidential() {
-		jwks := s.oauthClient.Config.PublicJWKS()
-		metadata.JWKS = &jwks
+	jwks := s.oauthClient.Config.PublicJWKS()
+	metadata.JWKS = &jwks
+	if s.clientMetadata.Name != "" {
+		metadata.ClientName = &s.clientMetadata.Name
+	}
+	if s.clientMetadata.URI != "" {
+		metadata.ClientURI = &s.clientMetadata.URI
 	}
 	httpx.WriteJSON(r.Context(), w, metadata)
 }
