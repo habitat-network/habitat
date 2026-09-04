@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
+	"github.com/habitat-network/habitat/api/habitat"
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -20,6 +21,18 @@ import (
 const (
 	AdminRoleRkey  = "admin"
 	MemberRoleRkey = "member"
+)
+
+const (
+	MembersSpaceType = "community.opensocial.members"
+	AboutSpaceType   = "community.opensocial.about"
+)
+
+const (
+	AcceptanceCollection = "community.opensocial.acceptance"
+	InvitesCollection    = "community.opensocial.invites"
+	MembershipCollection = "community.opensocial.membership"
+	ProfileCollection    = "community.opensocial.profile"
 )
 
 // Store manages opensocial communities: their profile/role/membership repo
@@ -58,7 +71,7 @@ func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 		}
 		spacesStoreTx := s.spacesStore.WithTx(tx)
 		aboutSpace, err := spacesStoreTx.
-			CreateSpace(ctx, orgID.DID, "community.opensocial.about", "self")
+			CreateSpace(ctx, orgID.DID, AboutSpaceType, "self")
 		if err != nil {
 			return fmt.Errorf("create profile space: %w", err)
 		}
@@ -76,7 +89,7 @@ func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 			return fmt.Errorf("put profile record: %w", err)
 		}
 		membersSpace, err := spacesStoreTx.CreateSpace(
-			ctx, orgID.DID, "community.opensocial.members", "self",
+			ctx, orgID.DID, MembersSpaceType, "self",
 		)
 		if err != nil {
 			return fmt.Errorf("create members space: %w", err)
@@ -213,7 +226,7 @@ func (s *Store) UploadImage(
 	var blob atdata.Blob
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		spacesStoreTx := s.spacesStore.WithTx(tx)
-		aboutSpace := habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.about", "self")
+		aboutSpace := habitat_syntax.ConstructSpaceURI(orgDID, AboutSpaceType, "self")
 		existingRecord, err := spacesStoreTx.GetRecord(
 			ctx, aboutSpace, orgDID, "community.opensocial.profile", "self",
 		)
@@ -253,7 +266,7 @@ func (s *Store) UpdateProfile(
 	description string,
 	joinPolicy string,
 ) error {
-	aboutSpace := habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.about", "self")
+	aboutSpace := habitat_syntax.ConstructSpaceURI(orgDID, AboutSpaceType, "self")
 	existingRecord, err := s.spacesStore.GetRecord(
 		ctx, aboutSpace, orgDID, "community.opensocial.profile", "self",
 	)
@@ -297,7 +310,7 @@ func (s *Store) AssignRoles(
 	}
 	_, _, err = s.spacesStore.PutRecord(
 		ctx,
-		habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self"),
+		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
 		orgDID,
 		"community.opensocial.membership",
 		syntax.RecordKey(user),
@@ -345,7 +358,7 @@ func (s *Store) GetUserRoles(
 	user syntax.DID,
 ) ([]string, error) {
 	membershipRecord, err := s.spacesStore.GetRecord(
-		ctx, habitat_syntax.ConstructSpaceURI(orgDID, "community.opensocial.members", "self"),
+		ctx, habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
 		orgDID,
 		"community.opensocial.membership",
 		syntax.RecordKey(user),
@@ -374,4 +387,103 @@ func decodeRecordValue(value map[string]any, out any) error {
 		return fmt.Errorf("unmarshal record value: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) CheckAppAccess(
+	ctx context.Context,
+	orgDID syntax.DID,
+	clientID string,
+) (bool, error) {
+	rkey, err := habitat_syntax.AppAccessRkey(clientID)
+	if err != nil {
+		return false, err
+	}
+	_, err = s.spacesStore.GetRecord(
+		ctx,
+		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
+		orgDID,
+		habitat_syntax.AppAccessCollection,
+		rkey,
+	)
+	if errors.Is(err, spaces.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("get app access record: %w", err)
+	}
+	return true, nil
+}
+
+func (s *Store) IsOrg(ctx context.Context, orgDID syntax.DID) (bool, error) {
+	exists, err := s.spacesStore.CheckSpaceExists(
+		ctx,
+		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
+	)
+	if err != nil {
+		return false, fmt.Errorf("check org space exists: %w", err)
+	}
+	return exists, nil
+}
+
+func (s *Store) GrantAppAccess(
+	ctx context.Context,
+	orgDID syntax.DID,
+	clientID string,
+) error {
+	rkey, err := habitat_syntax.AppAccessRkey(clientID)
+	if err != nil {
+		return fmt.Errorf("construct app access rkey: %w", err)
+	}
+	recordBytes, err := spaces.MarshalRecord(habitat.NetworkHabitatSpaceAppAccess{
+		CreatedAt: time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal app access record: %w", err)
+	}
+	_, _, err = s.spacesStore.PutRecord(
+		ctx,
+		habitat_syntax.ConstructSpaceURI(
+			orgDID,
+			MembersSpaceType,
+			"self",
+		),
+		orgDID,
+		habitat_syntax.AppAccessCollection,
+		rkey,
+		recordBytes,
+	)
+	if err != nil {
+		return fmt.Errorf("put app access record: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) GetProfile(
+	ctx context.Context,
+	orgDID syntax.DID,
+) (opensocial_api.CommunityOpensocialProfile, error) {
+	profileRecord, err := s.spacesStore.GetRecord(
+		ctx,
+		habitat_syntax.ConstructSpaceURI(orgDID, AboutSpaceType, "self"),
+		orgDID,
+		ProfileCollection,
+		"self",
+	)
+	if errors.Is(err, spaces.ErrRecordNotFound) {
+		return opensocial_api.CommunityOpensocialProfile{}, nil
+	}
+	if err != nil {
+		return opensocial_api.CommunityOpensocialProfile{}, fmt.Errorf(
+			"get profile record: %w",
+			err,
+		)
+	}
+	var profile opensocial_api.CommunityOpensocialProfile
+	if err := decodeRecordValue(profileRecord.Value, &profile); err != nil {
+		return opensocial_api.CommunityOpensocialProfile{}, fmt.Errorf(
+			"decode profile record: %w",
+			err,
+		)
+	}
+	return profile, nil
 }

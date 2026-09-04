@@ -283,41 +283,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		slog.InfoContext(startupCtx, "google login provider enabled")
 	}
 
-	oauthServer, err := oauthserver.NewOAuthServer(
-		oauthSecret,
-		loginRouter,
-		// OAuth server needs privileged access to lookup hive-hosted identities
-		hiveDir,
-		db.WithContext(startupCtx),
-		meter,
-		orgStore,
-		"https://"+domain,
-		oauthserver.NewJWTBearerStore(
-			cmd.StringSlice(fBuiltinApps)...,
-		),
-	)
-	if err != nil {
-		return fmt.Errorf("setup oauth server: %w", err)
-	}
-	oauthGC := oauthserver.NewCollector(db.WithContext(startupCtx), 5*time.Minute)
-
-	serviceAuth := authn.NewServiceAuthMethod(
-		everyoneOrg,
-		defaultDir,
-		fmt.Sprintf("did:web:%s#habitat", domain),
-	)
-
 	// Habitat's single host signing key signs permissioned-repo commits for repo
 	// owners on external PDSes (habitat-managed owners sign with their own hive
 	// key instead). Optional: if unset, host-signed commits are omitted.
 	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
 	if err != nil {
 		return fmt.Errorf("parse space-host signing key: %w", err)
-	}
-
-	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup clique store: %w", err)
 	}
 
 	notifyStore, err := notify.NewStore(db.WithContext(startupCtx))
@@ -347,6 +318,36 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 	if err != nil {
 		return fmt.Errorf("setup opensocial store: %w", err)
+	}
+
+	oauthServer, err := oauthserver.NewOAuthServer(
+		oauthSecret,
+		loginRouter,
+		// OAuth server needs privileged access to lookup hive-hosted identities
+		hiveDir,
+		db.WithContext(startupCtx),
+		meter,
+		orgStore,
+		"https://"+domain,
+		oauthserver.NewJWTBearerStore(
+			cmd.StringSlice(fBuiltinApps)...,
+		),
+		opensocialStore,
+	)
+	if err != nil {
+		return fmt.Errorf("setup oauth server: %w", err)
+	}
+	oauthGC := oauthserver.NewCollector(db.WithContext(startupCtx), 5*time.Minute)
+
+	serviceAuth := authn.NewServiceAuthMethod(
+		everyoneOrg,
+		defaultDir,
+		fmt.Sprintf("did:web:%s#habitat", domain),
+	)
+
+	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
+	if err != nil {
+		return fmt.Errorf("setup clique store: %w", err)
 	}
 
 	permStore := perms.NewStore(db, spacesStore, fgaStore, opensocialStore)
@@ -498,6 +499,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/par", oauthServer.HandlePAR)
 	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsent)
+	mux.HandleFunc("/oauth/opensocial", oauthServer.HandleOpensocial)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
