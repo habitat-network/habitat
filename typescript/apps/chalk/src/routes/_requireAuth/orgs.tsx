@@ -99,7 +99,15 @@ export const Route = createFileRoute("/_requireAuth/orgs")({
 
         {orgs.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            You don't belong to any orgs yet.
+            You don't belong to any orgs yet.{" "}
+            <a
+              href="https://home.habitat.network/opensocial"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              Create one
+            </a>
           </p>
         )}
         {orgs.map((org) => {
