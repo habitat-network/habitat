@@ -1,10 +1,13 @@
 package pearserver
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -24,14 +27,23 @@ func (p *PearServer) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
 		return
 	}
-	if input.Handle == "" {
-		httpx.WriteInvalidRequest(ctx, w, "handle is required", nil)
-		return
-	}
 	org, err := p.opensocialStore.NewOrg(ctx, input.Handle, credInfo.Subject)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("new org: %w", err))
 		return
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatOpensocialCreateOrgOutput{Org: org})
+}
+
+func parseHandle(ctx context.Context, w http.ResponseWriter, handleStr string) bool {
+	_, err := syntax.ParseHandle(handleStr)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, fmt.Sprintf("invalid handle: %v", err), err)
+		return false
+	}
+	if strings.Contains(handleStr, ".") {
+		httpx.WriteInvalidRequest(ctx, w, "subdomain handles not supported", err)
+		return false
+	}
+	return true
 }
