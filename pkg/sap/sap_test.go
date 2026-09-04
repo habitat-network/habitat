@@ -104,6 +104,9 @@ func TestSap(t *testing.T) {
 		sapServer.URL+"/oauth-callback",
 		[]string{},
 	)
+	attestationKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
 
 	s, err := New(Config{
@@ -311,6 +314,9 @@ func TestSapTrackSpace(t *testing.T) {
 		sapServer.URL+"/oauth-callback",
 		[]string{},
 	)
+	attestationKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
 
 	s, err := New(Config{
@@ -406,6 +412,9 @@ func TestSapRecrawl(t *testing.T) {
 		sapServer.URL+"/oauth-callback",
 		[]string{},
 	)
+	attestationKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
 
 	s, err := New(Config{
