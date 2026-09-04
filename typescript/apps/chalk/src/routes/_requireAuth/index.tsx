@@ -1,6 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { getProfiles, HabitatLogo, UserAvatar, type Actor } from "internal";
+import {
+  getProfiles,
+  HabitatLogo,
+  UserAvatar,
+  UserDisplayName,
+  type Actor,
+} from "internal";
 import {
   Table,
   TableHeader,
@@ -12,10 +18,6 @@ import {
 import { PageHeader } from "@/components/PageHeader";
 import { listDocs } from "@/server/functions";
 
-function ownerLabel(owner: Actor | undefined, ownerDid: string): string {
-  return owner?.displayName || owner?.handle || ownerDid;
-}
-
 function OwnerCell({
   owner,
   ownerDid,
@@ -23,10 +25,11 @@ function OwnerCell({
   owner: Actor | undefined;
   ownerDid: string;
 }) {
+  const actor = owner ?? { did: ownerDid };
   return (
     <div className="flex items-center gap-2">
-      <UserAvatar size="sm" actor={owner ?? { did: ownerDid }} />
-      <span>{ownerLabel(owner, ownerDid)}</span>
+      <UserAvatar size="sm" actor={actor} />
+      <UserDisplayName actor={actor} />
     </div>
   );
 }

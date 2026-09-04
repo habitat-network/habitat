@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useDebounce } from "@uidotdev/usehooks";
 import { useQuery } from "@tanstack/react-query";
 import { UserAvatar } from "./UserAvatar";
+import { UserDisplayName } from "./UserDisplayName";
 import { Actor } from "@/types/Actor";
 import { searchActorsTypeahead } from "../bskyPublicApi";
 
@@ -70,7 +71,7 @@ const UserCombobox = ({
           {(item: Actor) => (
             <ComboboxItem key={item.handle} value={item}>
               <UserAvatar actor={item} size="sm" />
-              {item.displayName || item.handle}
+              <UserDisplayName actor={item} />
             </ComboboxItem>
           )}
         </ComboboxList>

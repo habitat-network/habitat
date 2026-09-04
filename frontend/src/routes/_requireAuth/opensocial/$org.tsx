@@ -9,7 +9,8 @@ import { DidHoverCard } from "@/components/DidHoverCard";
 import { InviteMemberDialog } from "@/components/InviteMemberDialog";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { PendingOrgInvites } from "@/components/PendingOrgInvites";
-import { OrgAvatar } from "internal";
+import { profilesQueryOptions } from "@/queries/profiles";
+import { OrgAvatar, UserAvatar, UserDisplayName, type Actor } from "internal";
 import {
   Badge,
   Card,
@@ -47,6 +48,13 @@ function OrgDetail() {
   const { data: appAccess = [] } = useQuery(
     orgAppAccessQueryOptions(org, authManager, queryClient),
   );
+  const { data: profiles } = useQuery(
+    profilesQueryOptions(
+      members.map((m) => m.did),
+      queryClient,
+    ),
+  );
+  const profileByDid = new Map<string, Actor>(profiles?.map((p) => [p.did, p]));
 
   // The caller is an admin if their own membership record (already loaded
   // as part of the member list) carries the admin role.
@@ -119,8 +127,24 @@ function OrgDetail() {
                   {members.map((member) => (
                     <TableRow key={member.did}>
                       <TableCell>
-                        <DidHoverCard did={member.did} className="font-mono">
-                          {member.did}
+                        <DidHoverCard did={member.did}>
+                          <div className="flex items-center gap-2">
+                            <UserAvatar
+                              actor={
+                                profileByDid.get(member.did) ?? {
+                                  did: member.did,
+                                }
+                              }
+                              size="sm"
+                            />
+                            <UserDisplayName
+                              actor={
+                                profileByDid.get(member.did) ?? {
+                                  did: member.did,
+                                }
+                              }
+                            />
+                          </div>
                         </DidHoverCard>
                       </TableCell>
                       <TableCell>

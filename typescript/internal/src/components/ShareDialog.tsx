@@ -5,6 +5,7 @@ import { Actor } from "@/types/Actor";
 import { Button } from "./ui/button";
 import { ButtonGroup } from "./ui/button-group";
 import { UserAvatar } from "./UserAvatar";
+import { UserDisplayName } from "./UserDisplayName";
 import {
   Table,
   TableBody,
@@ -105,8 +106,7 @@ const ShareDialog = ({
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <UserAvatar actor={g} size="sm" />
-                    {g.displayName ||
-                      (g.handle ? `@${g.handle}` : "Unknown User")}
+                    <UserDisplayName actor={g} />
                   </div>
                 </TableCell>
                 {roles && (
