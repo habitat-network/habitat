@@ -35,6 +35,18 @@ func dirWithSpaceHost(did syntax.DID, host string) *identity.MockDirectory {
 	return dir
 }
 
+// testAttester builds a confidential *oauth.ClientConfig with a freshly
+// generated key, suitable for any credential.Manager under test — every real
+// caller (sap always runs as a confidential OAuth client) supplies one.
+func testAttester(t *testing.T) *oauth.ClientConfig {
+	t.Helper()
+	attester := &oauth.ClientConfig{ClientID: "https://sap.example.com"}
+	key, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, attester.SetClientSecret(key, "test-kid"))
+	return attester
+}
+
 func testDPoPKey(t *testing.T) string {
 	t.Helper()
 	key, err := atcrypto.GeneratePrivateKeyP256()
@@ -103,7 +115,12 @@ func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	// when the space owner's DID can't be resolved (see
 	// TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost for the
 	// succeeding path).
-	mgr := credential.NewManager(identity.NewMockDirectory(), http.DefaultClient, s)
+	mgr := credential.NewManager(
+		identity.NewMockDirectory(),
+		http.DefaultClient,
+		s,
+		testAttester(t),
+	)
 	_, err = mgr.ClientForSpace(t.Context(), space)
 	require.Error(t, err)
 
@@ -157,7 +174,7 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 	dir := dirWithSpaceHost(did, srv.URL)
 	store, err := NewStore(db, app)
 	require.NoError(t, err)
-	mgr := credential.NewManager(dir, http.DefaultClient, store)
+	mgr := credential.NewManager(dir, http.DefaultClient, store, testAttester(t))
 
 	require.NoError(t, store.Add(t.Context(), did, "sess1"))
 
@@ -228,7 +245,7 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 	dir := dirWithSpaceHost(owner, ownerSrv.URL)
 	store, err := NewStore(db, app)
 	require.NoError(t, err)
-	mgr := credential.NewManager(dir, http.DefaultClient, store)
+	mgr := credential.NewManager(dir, http.DefaultClient, store, testAttester(t))
 
 	require.NoError(t, store.Add(t.Context(), member, "sess1"))
 	space := habitat_syntax.SpaceURI("at://" + owner.String() + "/space/network.habitat.group/s1")

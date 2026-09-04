@@ -97,8 +97,13 @@ func New(config Config) (*Sap, error) {
 	// credentials mints and caches space credentials, one per space regardless
 	// of which session was used to obtain it — a space credential authorizes
 	// the space, not the member who fetched it. It asks sessions (which
-	// implements credential.Delegator) for a delegation token on demand.
-	credentials := credential.NewManager(config.Directory, httpx.NewClient(), sessions)
+	// implements credential.Delegator) for a delegation token on demand, and
+	// attests its own identity with OAuthClient's own confidential-client
+	// config — the same key/client_id it already publishes at its
+	// client-metadata.json.
+	credentials := credential.NewManager(
+		config.Directory, httpx.NewClient(), sessions, config.OAuthClient.Config,
+	)
 	ob, err := outbox.NewStore(config.DB, utils.NewPollNotifier())
 	if err != nil {
 		return nil, fmt.Errorf("create outbox store: %w", err)
