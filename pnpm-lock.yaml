@@ -17,7 +17,7 @@ catalogs:
       version: 0.7.11
     '@atproto/xrpc':
       specifier: ^0.8.6
-      version: 0.8.10
+      version: 0.8.11
     '@tailwindcss/typography':
       specifier: ^0.5.20
       version: 0.5.20
@@ -115,7 +115,7 @@ importers:
         version: 0.7.11
       '@atproto/xrpc':
         specifier: 'catalog:'
-        version: 0.8.10
+        version: 0.8.11
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.1
@@ -300,7 +300,7 @@ importers:
         version: 0.7.11
       '@atproto/xrpc':
         specifier: 'catalog:'
-        version: 0.8.10
+        version: 0.8.11
       multiformats:
         specifier: 'catalog:'
         version: 14.0.5
@@ -990,10 +990,6 @@ packages:
 
   '@atproto/syntax@0.7.5':
     resolution: {integrity: sha512-6vnLQK8OAzg0dO6z/xnvuXn5zMV0UMI54zbxk7G7BXhGlIlLMb1yo+JVYtAlv8Nxzr+AaFdNZ8AJt+L/QhJMFQ==}
-    engines: {node: '>=22'}
-
-  '@atproto/xrpc@0.8.10':
-    resolution: {integrity: sha512-++FNpTVF61fF8+3Kk1RYtdTO7xyUTdIc/Cmfk2CMn29Qw9tZD8bmW+M5db1Z0okYWFWK8Wqu7bc9VmF8tUB8Jg==}
     engines: {node: '>=22'}
 
   '@atproto/xrpc@0.8.11':
@@ -12017,7 +12013,7 @@ snapshots:
       '@atproto/did': 0.5.4
       '@atproto/jwk': 0.7.4
       '@atproto/oauth-types': 0.7.5
-      '@atproto/xrpc': 0.8.10
+      '@atproto/xrpc': 0.8.11
       core-js: 3.50.0
       multiformats: 13.4.2
       zod: 3.25.76
@@ -12037,11 +12033,6 @@ snapshots:
     dependencies:
       iso-datestring-validator: 2.2.2
       tslib: 2.8.1
-
-  '@atproto/xrpc@0.8.10':
-    dependencies:
-      '@atproto/lexicon': 0.7.11
-      zod: 3.25.76
 
   '@atproto/xrpc@0.8.11':
     dependencies:
