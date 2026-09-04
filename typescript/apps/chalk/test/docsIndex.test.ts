@@ -160,7 +160,8 @@ it("docsForOrg excludes personal docs and other orgs' docs", async () => {
     ownerDid: ALICE,
     title: "Personal doc",
   });
-  const otherOrgDoc = "at://did:web:other.example/space/network.habitat.docs/xyz";
+  const otherOrgDoc =
+    "at://did:web:other.example/space/network.habitat.docs/xyz";
   await upsertDoc(db, {
     spaceUri: otherOrgDoc,
     docId: otherOrgDoc,

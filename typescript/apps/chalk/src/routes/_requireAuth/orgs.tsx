@@ -8,7 +8,6 @@ import {
   ItemTitle,
   toast,
 } from "internal/components/ui";
-import { CheckIcon } from "lucide-react";
 import {
   getCurrentOrg,
   listMyOrgs,
