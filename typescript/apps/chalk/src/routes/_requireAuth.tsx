@@ -18,14 +18,20 @@ import {
 } from "internal";
 import { toast } from "internal/components/ui";
 import { HomeIcon, PlusIcon } from "lucide-react";
-import { createDoc, getCaller, listDocs, signOut } from "@/server/functions";
+import {
+  createDoc,
+  getCaller,
+  getCurrentOrg,
+  listDocs,
+  signOut,
+} from "@/server/functions";
 import { useRecentDocsStore } from "@/stores/recentDocs";
 import type { DocSummary } from "@/db";
 
 export const Route = createFileRoute("/_requireAuth")({
   beforeLoad: async () => await getCaller(),
   loader: async ({ context }) => {
-    const [, actor] = await Promise.all([
+    const [, actor, currentOrg] = await Promise.all([
       // Seed the ["docs"] query cache the sidebar/home page share, so the
       // component's useQuery below resolves from cache instead of
       // refetching, while still letting either surface invalidate it (e.g.
@@ -37,11 +43,12 @@ export const Route = createFileRoute("/_requireAuth")({
       // The AppLayout footer needs a resolved handle/avatar to show
       // anything besides "Unknown User" — getCaller only gives us the did.
       getProfile(context.did),
+      getCurrentOrg(),
     ]);
-    return { actor };
+    return { actor, currentOrg };
   },
   component() {
-    const { actor } = Route.useLoaderData();
+    const { actor, currentOrg } = Route.useLoaderData();
     const queryClient = useQueryClient();
     const { data: docs = [] } = useQuery({
       queryKey: ["docs"],
@@ -75,7 +82,13 @@ export const Route = createFileRoute("/_requireAuth")({
         // just wrote server-side) rather than invalidating and refetching.
         queryClient.setQueryData<DocSummary[]>(["docs"], (old) => [
           ...(old ?? []),
-          { docId, uri, ownerDid: actor.did, title: "Untitled" },
+          {
+            docId,
+            uri,
+            ownerDid: currentOrg ?? actor.did,
+            title: "Untitled",
+            isOrg: !!currentOrg,
+          },
         ]);
         addRecentDoc(docId);
         navigate({ to: "/$uri", params: { uri: docId } });
@@ -122,6 +135,11 @@ export const Route = createFileRoute("/_requireAuth")({
               >
                 <PlusIcon />
                 <span>New Document</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton variant="outline" render={<Link to="/orgs" />}>
+                <span>{currentOrg ? `Org: ${currentOrg}` : "Personal"}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

@@ -2,19 +2,23 @@ import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import {
   deleteDocAccess,
+  docByUri,
   docsForAccessor,
+  docsForOrg,
   getDb,
   upsertDoc,
   upsertDocAccess,
   type DocSummary,
 } from "../db";
 import {
-  DOCS_SPACE_TYPE,
   clearSession,
+  createDocSpace,
   docRole,
+  fetchOrgName,
+  listMyOrgIds,
   requireSession,
 } from "./functions.server";
-import { SapClient } from "./sapClient";
+import { SapClient, startLogin } from "./sapClient";
 
 // Every export below is a createServerFn wrapper — safe to statically
 // import from any client-reachable file (route components included), per
@@ -37,19 +41,19 @@ export const signOut = createServerFn({ method: "POST" }).handler(async () => {
 
 export const createDoc = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ docId: string; uri: string }> => {
-    const { did } = await requireSession();
+    const { did, currentOrg } = await requireSession();
     const client = new SapClient(env, did);
 
-    const created = await client.call<{ uri: string }>(
-      "network.habitat.simplespace.createSpace",
-      "POST",
-      { did, type: DOCS_SPACE_TYPE },
+    const { uri, ownerDid, isOrg } = await createDocSpace(
+      client,
+      did,
+      currentOrg,
     );
 
     // sap has no way to discover this space on its own until the member's
     // next session crawl — tell it explicitly so DocSync's outbox consumer
     // actually receives events for edits to it.
-    await client.trackSpace(created.uri);
+    await client.trackSpace(uri);
 
     // docId is the doc's full space URI, not just its trailing skey: a
     // space's skey alone doesn't say which host/repo it lives under, so a
@@ -57,46 +61,105 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     // in this instance's DocStore — which breaks for a doc shared with a
     // member whose chalk instance never created or synced it. The full URI
     // is self-describing.
-    const docId = created.uri;
+    const docId = uri;
 
     const db = getDb(env);
     await upsertDoc(db, {
-      spaceUri: created.uri,
+      spaceUri: uri,
       docId,
-      ownerDid: did,
+      ownerDid,
       title: "Untitled",
+      isOrg,
     });
 
-    // Grant the owner local doc_access now rather than waiting on the
-    // outbox webhook to sync their own userRelation record back — without
-    // this, docsForAccessor's inner join hides the doc the owner just
-    // created until that async round-trip lands. The real userRelation
-    // record's grant overwrites this row (same subjectDid+spaceUri key)
-    // once the webhook delivers it.
-    await upsertDocAccess(db, {
-      uri: created.uri,
-      spaceUri: created.uri,
-      subjectDid: did,
-      relation: "owner",
-    });
+    // Personal docs grant the owner local doc_access now rather than
+    // waiting on the outbox webhook to sync their own userRelation record
+    // back — without this, docsForAccessor's inner join hides the doc the
+    // owner just created until that async round-trip lands. Org docs have
+    // no doc_access rows at all: access is org-wide via the space's own
+    // community.opensocial.access record (see createDocSpace), not a
+    // per-user grant.
+    if (!isOrg) {
+      await upsertDocAccess(db, {
+        uri,
+        spaceUri: uri,
+        subjectDid: did,
+        relation: "owner",
+      });
+    }
 
     // Record the room's identity now, so the owner-republish alarm knows the
     // owner before the webhook (src/server/webhook.ts) delivers it.
-    await env.DOC.get(env.DOC.idFromName(created.uri)).seedIdentity({
-      spaceUri: created.uri,
-      ownerDid: did,
+    await env.DOC.get(env.DOC.idFromName(uri)).seedIdentity({
+      spaceUri: uri,
+      ownerDid,
     });
 
-    return { docId, uri: created.uri };
+    return { docId, uri };
   },
 );
 
 export const listDocs = createServerFn({ method: "GET" }).handler(
   async (): Promise<DocSummary[]> => {
-    const { did } = await requireSession();
-    return docsForAccessor(getDb(env), did);
+    const { did, currentOrg } = await requireSession();
+    const db = getDb(env);
+    return currentOrg ? docsForOrg(db, currentOrg) : docsForAccessor(db, did);
   },
 );
+
+// getCurrentOrg resolves the member's currently-selected org, if any — used
+// by the sidebar to show which mode (Personal, or which org) is active.
+export const getCurrentOrg = createServerFn({ method: "GET" }).handler(
+  async (): Promise<string | undefined> => {
+    const { currentOrg } = await requireSession();
+    return currentOrg;
+  },
+);
+
+export interface OrgOption {
+  did: string;
+  name: string | null;
+}
+
+// listMyOrgs lists every org the member belongs to, with a best-effort
+// display name (null if the read failed — the org-picker falls back to
+// showing the raw DID).
+export const listMyOrgs = createServerFn({ method: "GET" }).handler(
+  async (): Promise<OrgOption[]> => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    const orgIds = await listMyOrgIds(client);
+    return Promise.all(
+      orgIds.map(async (orgDid) => ({
+        did: orgDid,
+        name: await fetchOrgName(client, orgDid),
+      })),
+    );
+  },
+);
+
+// startOrgConnect asks sap to begin the opensocial admin sign-in flow for
+// orgDid, telling it to redirect the browser back to chalk's
+// /session/org-callback (with the resolved DID — always orgDid itself,
+// since handleAddSession resolves whatever identifier it's given) once
+// that flow completes. Returns the URL the browser should be sent to next.
+// Mirrors startLogin (sapClient.ts) exactly, but with a DID instead of a
+// handle and a different return_to.
+export const startOrgConnect = createServerFn({ method: "POST" })
+  .validator((input: { orgDid: string }) => input)
+  .handler(async ({ data }): Promise<{ redirectUrl: string }> => {
+    await requireSession();
+    return {
+      redirectUrl: await startLogin(env, data.orgDid, "/session/org-callback"),
+    };
+  });
+
+export const getDoc = createServerFn({ method: "GET" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }): Promise<DocSummary | undefined> => {
+    await requireSession();
+    return docByUri(getDb(env), data.docId);
+  });
 
 // A userRelation record as network.habitat.relationship.listRelations
 // returns it — only the fields sharing.ts actually reads.

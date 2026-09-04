@@ -21,6 +21,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
 import { useYDoc } from "@/hooks/useYDoc";
 import {
+  getDoc,
   getDocInitialState,
   getDocRole,
   listDocAccess,
@@ -41,20 +42,27 @@ const docInitialStateQueryOptions = (docId: string) =>
     queryFn: () => getDocInitialState({ data: { docId } }),
   });
 
+const docQueryOptions = (docId: string) =>
+  queryOptions({
+    queryKey: ["doc", docId],
+    queryFn: () => getDoc({ data: { docId } }),
+  });
+
 export const Route = createFileRoute("/_requireAuth/$uri")({
   loader: async ({ context, params }) => {
-    const [role, initialState] = await Promise.all([
+    const [role, initialState, doc] = await Promise.all([
       context.queryClient.ensureQueryData(docRoleQueryOptions(params.uri)),
       context.queryClient.ensureQueryData(
         docInitialStateQueryOptions(params.uri),
       ),
+      context.queryClient.ensureQueryData(docQueryOptions(params.uri)),
     ]);
-    return { role, initialState };
+    return { role, initialState, doc };
   },
   component() {
     const { uri } = Route.useParams();
     const { did: currentUserDid } = Route.useRouteContext();
-    const { role, initialState } = Route.useLoaderData();
+    const { role, initialState, doc } = Route.useLoaderData();
     const ydoc = useYDoc(uri, initialState);
     const queryClient = useQueryClient();
 
@@ -152,7 +160,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         </div>
         <PageHeader>
           <div className="flex gap-2">
-            {role === "editor" && (
+            {role === "editor" && !doc?.isOrg && (
               <ShareDialog
                 grantees={grantees}
                 isAdding={isAddingPermission}
