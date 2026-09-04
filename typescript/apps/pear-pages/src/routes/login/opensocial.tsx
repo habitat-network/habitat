@@ -1,6 +1,7 @@
 import { Button, Field, FieldLabel, Input } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { Unplug } from "lucide-react";
+import { useState } from "react";
 
 type OrgProfile = {
   name: string;
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/login/opensocial")({
 
 function OpensocialLoginPage() {
   const { orgProfile, clientName, clientUri, logoUri } = Route.useLoaderData();
+  const [submitting, setSubmitting] = useState(false);
 
   const clientInfo = clientName || clientUri;
 
@@ -59,13 +61,19 @@ function OpensocialLoginPage() {
         </div>
       </div>
       <p>Sign in as an admin of {orgProfile.name} to continue.</p>
-      <form method="POST" action="/oauth/opensocial">
-        <fieldset className="flex flex-col gap-4">
+      <form
+        method="POST"
+        action="/oauth/opensocial"
+        onSubmit={() => setSubmitting(true)}
+      >
+        <fieldset disabled={submitting} className="flex flex-col gap-4">
           <Field>
             <FieldLabel>Handle</FieldLabel>
             <Input placeholder="handle" autoFocus name="handle" required />
           </Field>
-          <Button type="submit">Continue</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Continuing..." : "Continue"}
+          </Button>
         </fieldset>
       </form>
     </div>
