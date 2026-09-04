@@ -3,8 +3,8 @@ import {
   createFileRoute,
   Link,
   Outlet,
+  useLocation,
   useRouter,
-  useRouterState,
 } from "@tanstack/react-router";
 import {
   AppLayout,
@@ -16,8 +16,8 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "internal";
-import { DropdownMenuItem, toast } from "internal/components/ui";
-import { HomeIcon, PlusIcon, Building2 } from "lucide-react";
+import { toast } from "internal/components/ui";
+import { HomeIcon, PlusIcon, ArrowLeftRight } from "lucide-react";
 import {
   createDoc,
   getCaller,
@@ -57,15 +57,15 @@ export const Route = createFileRoute("/_requireAuth")({
     const router = useRouter();
     const navigate = Route.useNavigate();
 
-    const currentDocId = useRouterState({
-      select: (state) =>
-        state.matches.find((x) => x.routeId === "/_requireAuth/$uri")?.params
-          .uri,
-    });
-    const onHomePage = useRouterState({
-      select: (state) =>
-        state.matches.some((x) => x.routeId === "/_requireAuth/"),
-    });
+    // The doc URI is the single "$uri" path segment TanStack Router
+    // percent-encodes into the URL (see _requireAuth/$uri.tsx's route
+    // param), so it's decoded back here rather than compared raw.
+    const pathname = useLocation({ select: (loc) => loc.pathname });
+    const onHomePage = pathname === "/";
+    const onOrgsPage = pathname === "/orgs";
+    const currentDocId = onHomePage
+      ? undefined
+      : decodeURIComponent(pathname.slice(1));
     const recentDocIds = useRecentDocsStore((state) => state.recentDocIds);
     const addRecentDoc = useRecentDocsStore((state) => state.addRecentDoc);
     // recentDocIds only remembers order of visits; docs (the full
@@ -85,7 +85,7 @@ export const Route = createFileRoute("/_requireAuth")({
           {
             docId,
             uri,
-            ownerDid: currentOrg ?? actor.did,
+            ownerDid: currentOrg?.did ?? actor.did,
             title: "Untitled",
             isOrg: !!currentOrg,
           },
@@ -120,15 +120,22 @@ export const Route = createFileRoute("/_requireAuth")({
         title="Chalk"
         onSignOut={() => logOut()}
         footerExtra={
-          <p className="px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-            {currentOrg ? `Org: ${currentOrg}` : "Personal"}
-          </p>
-        }
-        dropdownMenuItems={
-          <DropdownMenuItem render={<Link to="/orgs" />}>
-            <Building2 />
-            Switch org
-          </DropdownMenuItem>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={onOrgsPage}
+                tooltip="Switch organization"
+                render={<Link to="/orgs" />}
+              >
+                <ArrowLeftRight />
+                <span>
+                  {currentOrg
+                    ? (currentOrg.name ?? currentOrg.did)
+                    : "Personal"}
+                </span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
         }
         sidebarHeader={
           <SidebarMenu>

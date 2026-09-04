@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import {
+  connectedOrgNames,
   deleteDocAccess,
   docByUri,
   docsForAccessor,
@@ -17,6 +18,7 @@ import {
   fetchOrgName,
   listMyOrgIds,
   requireSession,
+  setCurrentOrg,
 } from "./functions.server";
 import { SapClient, startLogin } from "./sapClient";
 
@@ -108,33 +110,69 @@ export const listDocs = createServerFn({ method: "GET" }).handler(
 );
 
 // getCurrentOrg resolves the member's currently-selected org, if any — used
-// by the sidebar to show which mode (Personal, or which org) is active.
+// by the sidebar to show which mode (Personal, or which org) is active. Name
+// is null if the caller isn't a member of the org (or the read fails) — the
+// sidebar falls back to showing the raw DID.
 export const getCurrentOrg = createServerFn({ method: "GET" }).handler(
-  async (): Promise<string | undefined> => {
-    const { currentOrg } = await requireSession();
-    return currentOrg;
+  async (): Promise<{ did: string; name: string | null } | undefined> => {
+    const { did, currentOrg } = await requireSession();
+    if (!currentOrg) return undefined;
+    const client = new SapClient(env, did);
+    return { did: currentOrg, name: await fetchOrgName(client, currentOrg) };
   },
 );
 
 export interface OrgOption {
   did: string;
   name: string | null;
+  // Whether any member has already completed the OAuth admin-approval flow
+  // for this org before (see upsertConnectedOrg) — org-wide, not
+  // per-member, so the /orgs picker distinguishes orgs that just need
+  // switching-to from ones that still need the full connect flow.
+  connected: boolean;
 }
 
 // listMyOrgs lists every org the member belongs to, with a best-effort
 // display name (null if the read failed — the org-picker falls back to
-// showing the raw DID).
+// showing the raw DID). Already-connected orgs reuse the name recorded at
+// connect time (see connectedOrgNames) instead of re-fetching it from the
+// org's PDS on every call; only orgs nobody has connected yet need that
+// fetch.
 export const listMyOrgs = createServerFn({ method: "GET" }).handler(
   async (): Promise<OrgOption[]> => {
     const { did } = await requireSession();
     const client = new SapClient(env, did);
     const orgIds = await listMyOrgIds(client);
+    const names = await connectedOrgNames(getDb(env), orgIds);
     return Promise.all(
-      orgIds.map(async (orgDid) => ({
-        did: orgDid,
-        name: await fetchOrgName(client, orgDid),
-      })),
+      orgIds.map(async (orgDid) => {
+        const connectedName = names.get(orgDid);
+        return {
+          did: orgDid,
+          name: connectedName ?? (await fetchOrgName(client, orgDid)),
+          connected: connectedName !== undefined,
+        };
+      }),
     );
+  },
+);
+
+// switchOrg sets an already-connected org as the member's active org,
+// without redoing the OAuth admin-approval round-trip startOrgConnect
+// requires for a first-time connection.
+export const switchOrg = createServerFn({ method: "POST" })
+  .validator((input: { orgDid: string }) => input)
+  .handler(async ({ data }) => {
+    await requireSession();
+    await setCurrentOrg(data.orgDid);
+  });
+
+// switchToPersonal takes the member out of org mode, back to acting on
+// their own personal docs.
+export const switchToPersonal = createServerFn({ method: "POST" }).handler(
+  async () => {
+    await requireSession();
+    await setCurrentOrg(undefined);
   },
 );
 

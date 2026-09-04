@@ -2,10 +2,13 @@ import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { fetchOrgName, requireSession } from "@/server/functions.server";
+import {
+  fetchOrgName,
+  requireSession,
+  setCurrentOrg,
+} from "@/server/functions.server";
 import { getDb, upsertConnectedOrg } from "@/db";
 import { SapClient } from "@/server/sapClient";
-import { useAppSession } from "@/server/session";
 import { Button } from "internal/components/ui";
 
 // connectOrgFn verifies the connection actually works (a member who wasn't
@@ -32,8 +35,8 @@ const connectOrgFn = createServerFn({ method: "POST" })
 const setCurrentOrgFn = createServerFn({ method: "POST" })
   .validator((input: { orgDid: string }) => input)
   .handler(async ({ data }) => {
-    const session = await useAppSession();
-    await session.update({ currentOrg: data.orgDid });
+    await requireSession();
+    await setCurrentOrg(data.orgDid);
   });
 
 export const Route = createFileRoute("/session/org-callback")({

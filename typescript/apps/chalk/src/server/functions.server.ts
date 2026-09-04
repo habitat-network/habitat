@@ -120,6 +120,16 @@ export async function clearSession(): Promise<void> {
   await session.clear();
 }
 
+// setCurrentOrg updates which org (if any) the member is currently acting
+// as — undefined switches back to Personal mode. Mirrors the
+// setCurrentOrgFn session.org-callback.tsx sets right after a fresh OAuth
+// connect; this is the same session write for the already-connected case
+// (the /orgs picker) and for switching back to Personal.
+export async function setCurrentOrg(orgDid: string | undefined): Promise<void> {
+  const session = await useAppSession();
+  await session.update({ currentOrg: orgDid });
+}
+
 // sessionDid resolves the logged-in member's DID without redirecting —
 // unlike requireSession, whose `throw redirect(...)` is meant for a
 // createServerFn/page-load context the router can turn into an HTTP

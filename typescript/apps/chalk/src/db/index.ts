@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/d1";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { docs, docAccess, connectedOrgs } from "./schema";
 
 export interface DocSummary {
@@ -147,8 +147,7 @@ export async function docByUri(
 }
 
 // upsertConnectedOrg records that memberDid successfully connected orgDid
-// (see session.org-callback.tsx) — an audit trail, not consulted by any
-// read path in this plan.
+// (see session.org-callback.tsx).
 export async function upsertConnectedOrg(
   db: Db,
   connection: { memberDid: string; orgDid: string; orgName: string },
@@ -161,4 +160,31 @@ export async function upsertConnectedOrg(
       target: [connectedOrgs.memberDid, connectedOrgs.orgDid],
       set: { orgName: row.orgName, connectedAt: row.connectedAt },
     });
+}
+
+// connectedOrgNames maps each already-connected orgDid (among orgIds) to
+// the name recorded for it — an org only needs the OAuth admin-approval
+// round-trip once (any admin's connection covers the whole org, since it's
+// org-wide sap state, not per-member), so the /orgs picker shows an org as
+// already added for every member once one of them has done it, and reuses
+// the name recorded then instead of re-fetching it from the org's PDS on
+// every listMyOrgs call. Callers pass the current member's own org
+// memberships (orgIds) so this only checks orgs relevant to them, rather
+// than scanning every org anyone has ever connected. An org connected by
+// more than one member takes the most recently recorded name.
+export async function connectedOrgNames(
+  db: Db,
+  orgIds: string[],
+): Promise<Map<string, string>> {
+  if (orgIds.length === 0) return new Map();
+  const rows = await db
+    .select({ orgDid: connectedOrgs.orgDid, orgName: connectedOrgs.orgName })
+    .from(connectedOrgs)
+    .where(inArray(connectedOrgs.orgDid, orgIds))
+    .orderBy(desc(connectedOrgs.connectedAt));
+  const names = new Map<string, string>();
+  for (const row of rows) {
+    if (!names.has(row.orgDid)) names.set(row.orgDid, row.orgName);
+  }
+  return names;
 }
