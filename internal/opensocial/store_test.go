@@ -194,21 +194,31 @@ func TestStore(t *testing.T) {
 
 	t.Run("AppAccess", func(t *testing.T) {
 		const clientID = "https://app.example.com"
+		spaceURI := habitat_syntax.ConstructSpaceURI(org, "some.space.type", "self")
 
 		// Nothing is granted until GrantAppAccess is called.
-		ok, err := s.CheckAppAccess(t.Context(), org, clientID)
+		ok, err := s.CheckAppAccess(t.Context(), spaceURI, clientID)
 		require.NoError(t, err)
 		require.False(t, ok)
 
 		require.NoError(t, s.GrantAppAccess(t.Context(), org, clientID))
 
 		// The grant is now visible, and only for that client_id.
-		ok, err = s.CheckAppAccess(t.Context(), org, clientID)
+		ok, err = s.CheckAppAccess(t.Context(), spaceURI, clientID)
 		require.NoError(t, err)
 		require.True(t, ok)
 
-		ok, err = s.CheckAppAccess(t.Context(), org, "https://other.example.com")
+		ok, err = s.CheckAppAccess(t.Context(), spaceURI, "https://other.example.com")
 		require.NoError(t, err)
 		require.False(t, ok)
+
+		// Any app can access the members space.
+		ok, err = s.CheckAppAccess(
+			t.Context(),
+			habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self"),
+			"",
+		)
+		require.NoError(t, err)
+		require.True(t, ok)
 	})
 }

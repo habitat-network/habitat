@@ -69,19 +69,18 @@ func (p *PearServer) verifyClientAttestation(
 	if !isOrg {
 		return true
 	}
-	if attestation == "" {
-		httpx.WriteInvalidClientAttestation(ctx, w, "space requires a client attestation", nil)
-		return false
+	clientID := ""
+	if attestation != "" {
+		clientID, err = clientmetadata.VerifyAttestation(ctx, p.clientMeta, attestation, orgDID)
+		if errors.Is(err, clientmetadata.ErrInvalidAttestation) {
+			httpx.WriteInvalidClientAttestation(ctx, w, err.Error(), err)
+			return false
+		} else if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("verify attestation: %w", err))
+			return false
+		}
 	}
-	clientID, err := clientmetadata.VerifyAttestation(ctx, p.clientMeta, attestation, orgDID)
-	if errors.Is(err, clientmetadata.ErrInvalidAttestation) {
-		httpx.WriteInvalidClientAttestation(ctx, w, err.Error(), err)
-		return false
-	} else if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("verify attestation: %w", err))
-		return false
-	}
-	granted, err := p.opensocialStore.CheckAppAccess(ctx, orgDID, clientID)
+	granted, err := p.opensocialStore.CheckAppAccess(ctx, spaceURI, clientID)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("check app access grant: %w", err))
 		return false

@@ -177,6 +177,53 @@ export function orgMembersQueryOptions(
   });
 }
 
+export interface AppAccessView {
+  clientId: string;
+}
+
+// decodeAppAccessRkey reverses AppAccessRkey (internal/syntax/app_access.go):
+// the record key is the base64url (no padding) encoding of the client_id.
+function decodeAppAccessRkey(rkey: string): string {
+  const base64 = rkey.replace(/-/g, "+").replace(/_/g, "/");
+  return atob(base64);
+}
+
+// orgAppAccessQueryOptions lists a community's approved apps, read directly
+// off the network.habitat.space.appAccess records the org repo owns in its
+// members space via a space credential (see spaceCredentialQueryOptions) —
+// there's no dedicated listAppAccess endpoint.
+export function orgAppAccessQueryOptions(
+  org: string,
+  authManager: AuthManager,
+  queryClient: QueryClient,
+) {
+  const membersSpace = constructSpaceURI({
+    spaceOwner: org,
+    spaceType: "community.opensocial.members",
+    spaceKey: "self",
+  });
+  return queryOptions({
+    queryKey: ["opensocial", "appAccess", org],
+    queryFn: async (): Promise<AppAccessView[]> => {
+      const credential = await queryClient.fetchQuery(
+        spaceCredentialQueryOptions(membersSpace, authManager),
+      );
+      const params = new URLSearchParams({
+        space: membersSpace,
+        repo: org,
+        collection: "network.habitat.space.appAccess",
+      });
+      const { records } = await fetchWithBearer(
+        `/xrpc/network.habitat.space.listRecords?${params}`,
+        credential,
+      );
+      return (records as RawRecord[]).map((record) => ({
+        clientId: decodeAppAccessRkey(record.rkey),
+      }));
+    },
+  });
+}
+
 export interface OrgProfile {
   name: string;
   description?: string;
