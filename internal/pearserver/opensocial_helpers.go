@@ -43,3 +43,23 @@ func (p *PearServer) requireAdmin(
 	}
 	return true
 }
+
+// requireMember validates that caller holds any role in the community,
+// writing an appropriate error response and returning false if not.
+func (p *PearServer) requireMember(
+	ctx context.Context,
+	w http.ResponseWriter,
+	org syntax.DID,
+	caller syntax.DID,
+) bool {
+	roles, err := p.opensocialStore.GetUserRoles(ctx, org, caller)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("get user roles: %w", err))
+		return false
+	}
+	if len(roles) == 0 {
+		httpx.WriteUnauthorized(ctx, w, "caller is not a member of this community")
+		return false
+	}
+	return true
+}
