@@ -26,18 +26,23 @@ export async function upsertDoc(
     isOrg?: boolean;
   },
 ): Promise<void> {
-  const row = { ...doc, isOrg: doc.isOrg ?? false, updatedAt: Date.now() };
+  const now = Date.now();
   await db
     .insert(docs)
-    .values(row)
+    .values({ ...doc, isOrg: doc.isOrg ?? false, updatedAt: now })
     .onConflictDoUpdate({
       target: docs.spaceUri,
+      // isOrg is deliberately omitted unless the caller passes it: a
+      // conflict only updates the columns listed here, so a caller that
+      // doesn't have (or care about) an opinion on isOrg — docRoom.ts's
+      // content-flush upsert, notably — leaves the existing row's value
+      // alone instead of silently resetting it to false.
       set: {
-        docId: row.docId,
-        ownerDid: row.ownerDid,
-        title: row.title,
-        isOrg: row.isOrg,
-        updatedAt: row.updatedAt,
+        docId: doc.docId,
+        ownerDid: doc.ownerDid,
+        title: doc.title,
+        updatedAt: now,
+        ...(doc.isOrg !== undefined ? { isOrg: doc.isOrg } : {}),
       },
     });
 }

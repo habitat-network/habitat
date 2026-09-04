@@ -26,6 +26,12 @@ interface AppLayoutProps {
   title?: string;
   sidebarHeader?: ReactNode;
   sidebarContent?: ReactNode;
+  // Rendered in the sidebar footer, above the user menu — e.g. an app's
+  // current context (chalk's Personal/org indicator).
+  footerExtra?: ReactNode;
+  // Extra items appended to the user dropdown menu, after "Habitat Portal"
+  // and before "Sign out" — e.g. chalk's "Switch org".
+  dropdownMenuItems?: ReactNode;
   onSignOut?: () => void;
   children: ReactNode;
 }
@@ -34,6 +40,8 @@ export const AppLayout = ({
   actor,
   sidebarContent,
   sidebarHeader,
+  footerExtra,
+  dropdownMenuItems,
   onSignOut,
   children,
 }: AppLayoutProps) => {
@@ -43,6 +51,7 @@ export const AppLayout = ({
         <SidebarHeader>{sidebarHeader}</SidebarHeader>
         <SidebarContent>{sidebarContent}</SidebarContent>
         <SidebarFooter>
+          {footerExtra}
           {actor && (
             <SidebarMenu>
               <SidebarMenuItem>
@@ -69,6 +78,7 @@ export const AppLayout = ({
                       <p>🌱</p>
                       Habitat Portal
                     </DropdownMenuItem>
+                    {dropdownMenuItems}
                     <DropdownMenuItem
                       onClick={onSignOut}
                       className="text-destructive"

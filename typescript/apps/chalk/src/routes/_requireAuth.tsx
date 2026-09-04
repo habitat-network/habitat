@@ -16,8 +16,8 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "internal";
-import { toast } from "internal/components/ui";
-import { HomeIcon, PlusIcon } from "lucide-react";
+import { DropdownMenuItem, toast } from "internal/components/ui";
+import { HomeIcon, PlusIcon, Building2 } from "lucide-react";
 import {
   createDoc,
   getCaller,
@@ -119,6 +119,17 @@ export const Route = createFileRoute("/_requireAuth")({
         actor={actor}
         title="Chalk"
         onSignOut={() => logOut()}
+        footerExtra={
+          <p className="px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+            {currentOrg ? `Org: ${currentOrg}` : "Personal"}
+          </p>
+        }
+        dropdownMenuItems={
+          <DropdownMenuItem render={<Link to="/orgs" />}>
+            <Building2 />
+            Switch org
+          </DropdownMenuItem>
+        }
         sidebarHeader={
           <SidebarMenu>
             <SidebarMenuItem>
@@ -135,11 +146,6 @@ export const Route = createFileRoute("/_requireAuth")({
               >
                 <PlusIcon />
                 <span>New Document</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton variant="outline" render={<Link to="/orgs" />}>
-                <span>{currentOrg ? `Org: ${currentOrg}` : "Personal"}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

@@ -119,7 +119,7 @@ describe("fetchOrgName", () => {
     server.close();
   });
 
-  it("reads the org's profile record via a proxied getRecord call", async () => {
+  it("reads the org's profile record via the member's own session (no proxy needed)", async () => {
     let params: URLSearchParams | undefined;
     let proxyHeader: string | null = null;
     server.use(
@@ -137,7 +137,10 @@ describe("fetchOrgName", () => {
     const client = new SapClient(testEnv, "did:plc:member1");
     const name = await fetchOrgName(client, "did:web:org.example");
     expect(name).toBe("Acme Corp");
-    expect(proxyHeader).toBe("did:web:org.example#habitat");
+    // No Atproto-Proxy: the about space's own community.opensocial.access
+    // record already admits any member/admin role, so pear's
+    // CheckUserHasSpaceRole grants the read directly — see functions.server.ts.
+    expect(proxyHeader).toBeNull();
     expect(params?.get("repo")).toBe("did:web:org.example");
     expect(params?.get("collection")).toBe("community.opensocial.profile");
     expect(params?.get("rkey")).toBe("self");

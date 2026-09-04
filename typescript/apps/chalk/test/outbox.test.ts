@@ -81,7 +81,7 @@ it("records a doc_access grant from a userRelation record", async () => {
   );
   const rows = await docsForAccessor(getDb(env), BOB);
   expect(rows).toEqual([
-    { docId: URI, uri: URI, ownerDid: OWNER, title: "Untitled" },
+    { docId: URI, uri: URI, ownerDid: OWNER, title: "Untitled", isOrg: false },
   ]);
 });
 

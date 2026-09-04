@@ -108,6 +108,26 @@ it("defaults isOrg to false when not given", async () => {
   expect((await docByUri(db, URI))?.isOrg).toBe(false);
 });
 
+it("leaves isOrg untouched on a re-upsert that doesn't specify it", async () => {
+  const db = getDb(env);
+  await upsertDoc(db, {
+    spaceUri: URI,
+    docId: URI,
+    ownerDid: "did:web:org.example",
+    title: "Untitled",
+    isOrg: true,
+  });
+  // Mirrors docRoom.ts's content-flush upsert: re-indexes title without an
+  // opinion on isOrg. This must not silently reset it to false.
+  await upsertDoc(db, {
+    spaceUri: URI,
+    docId: URI,
+    ownerDid: "did:web:org.example",
+    title: "Renamed",
+  });
+  expect((await docByUri(db, URI))?.isOrg).toBe(true);
+});
+
 it("docsForOrg returns every doc owned by the org regardless of doc_access", async () => {
   const db = getDb(env);
   const orgDoc = "at://did:web:org.example/space/network.habitat.docs/abc";
