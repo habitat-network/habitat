@@ -1,35 +1,48 @@
 import { drizzle } from "drizzle-orm/d1";
-import { desc, eq } from "drizzle-orm";
-import { docs, docAccess } from "./schema";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { docs, docAccess, connectedOrgs } from "./schema";
 
 export interface DocSummary {
   docId: string;
   uri: string;
   ownerDid: string;
   title: string;
+  isOrg: boolean;
 }
 
 export function getDb(env: { DB: D1Database }) {
-  return drizzle(env.DB, { schema: { docs, docAccess } });
+  return drizzle(env.DB, { schema: { docs, docAccess, connectedOrgs } });
 }
 
 export type Db = ReturnType<typeof getDb>;
 
 export async function upsertDoc(
   db: Db,
-  doc: { spaceUri: string; docId: string; ownerDid: string; title: string },
+  doc: {
+    spaceUri: string;
+    docId: string;
+    ownerDid: string;
+    title: string;
+    isOrg?: boolean;
+  },
 ): Promise<void> {
-  const row = { ...doc, updatedAt: Date.now() };
+  const now = Date.now();
   await db
     .insert(docs)
-    .values(row)
+    .values({ ...doc, isOrg: doc.isOrg ?? false, updatedAt: now })
     .onConflictDoUpdate({
       target: docs.spaceUri,
+      // isOrg is deliberately omitted unless the caller passes it: a
+      // conflict only updates the columns listed here, so a caller that
+      // doesn't have (or care about) an opinion on isOrg — docRoom.ts's
+      // content-flush upsert, notably — leaves the existing row's value
+      // alone instead of silently resetting it to false.
       set: {
-        docId: row.docId,
-        ownerDid: row.ownerDid,
-        title: row.title,
-        updatedAt: row.updatedAt,
+        docId: doc.docId,
+        ownerDid: doc.ownerDid,
+        title: doc.title,
+        updatedAt: now,
+        ...(doc.isOrg !== undefined ? { isOrg: doc.isOrg } : {}),
       },
     });
 }
@@ -40,6 +53,7 @@ function toSummary(r: typeof docs.$inferSelect): DocSummary {
     uri: r.spaceUri,
     ownerDid: r.ownerDid,
     title: r.title,
+    isOrg: r.isOrg,
   };
 }
 
@@ -58,10 +72,31 @@ export async function docsForAccessor(
       ownerDid: docs.ownerDid,
       title: docs.title,
       updatedAt: docs.updatedAt,
+      isOrg: docs.isOrg,
     })
     .from(docs)
     .innerJoin(docAccess, eq(docs.spaceUri, docAccess.spaceUri))
     .where(eq(docAccess.subjectDid, subjectDid))
+    .orderBy(desc(docs.updatedAt));
+  return rows.map(toSummary);
+}
+
+// docsForOrg returns every doc owned by org, regardless of who created it
+// or any doc_access grant — org docs have none (see createDoc's org-mode
+// branch), since access is org-wide by construction (the space's own
+// community.opensocial.access record, not a per-user relation).
+export async function docsForOrg(db: Db, org: string): Promise<DocSummary[]> {
+  const rows = await db
+    .select({
+      spaceUri: docs.spaceUri,
+      docId: docs.docId,
+      ownerDid: docs.ownerDid,
+      title: docs.title,
+      updatedAt: docs.updatedAt,
+      isOrg: docs.isOrg,
+    })
+    .from(docs)
+    .where(and(eq(docs.isOrg, true), eq(docs.ownerDid, org)))
     .orderBy(desc(docs.updatedAt));
   return rows.map(toSummary);
 }
@@ -109,4 +144,47 @@ export async function docByUri(
     .where(eq(docs.spaceUri, spaceUri))
     .limit(1);
   return row ? toSummary(row) : undefined;
+}
+
+// upsertConnectedOrg records that memberDid successfully connected orgDid
+// (see session.org-callback.tsx).
+export async function upsertConnectedOrg(
+  db: Db,
+  connection: { memberDid: string; orgDid: string; orgName: string },
+): Promise<void> {
+  const row = { ...connection, connectedAt: Date.now() };
+  await db
+    .insert(connectedOrgs)
+    .values(row)
+    .onConflictDoUpdate({
+      target: [connectedOrgs.memberDid, connectedOrgs.orgDid],
+      set: { orgName: row.orgName, connectedAt: row.connectedAt },
+    });
+}
+
+// connectedOrgNames maps each already-connected orgDid (among orgIds) to
+// the name recorded for it — an org only needs the OAuth admin-approval
+// round-trip once (any admin's connection covers the whole org, since it's
+// org-wide sap state, not per-member), so the /orgs picker shows an org as
+// already added for every member once one of them has done it, and reuses
+// the name recorded then instead of re-fetching it from the org's PDS on
+// every listMyOrgs call. Callers pass the current member's own org
+// memberships (orgIds) so this only checks orgs relevant to them, rather
+// than scanning every org anyone has ever connected. An org connected by
+// more than one member takes the most recently recorded name.
+export async function connectedOrgNames(
+  db: Db,
+  orgIds: string[],
+): Promise<Map<string, string>> {
+  if (orgIds.length === 0) return new Map();
+  const rows = await db
+    .select({ orgDid: connectedOrgs.orgDid, orgName: connectedOrgs.orgName })
+    .from(connectedOrgs)
+    .where(inArray(connectedOrgs.orgDid, orgIds))
+    .orderBy(desc(connectedOrgs.connectedAt));
+  const names = new Map<string, string>();
+  for (const row of rows) {
+    if (!names.has(row.orgDid)) names.set(row.orgDid, row.orgName);
+  }
+  return names;
 }

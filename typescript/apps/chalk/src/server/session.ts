@@ -2,6 +2,9 @@ import { useSession } from "@tanstack/react-start/server";
 
 export interface ChalkSessionData {
   did?: string;
+  // The org DID the member is currently acting as, if any. Unset means
+  // "Personal" mode — see docs/superpowers/specs/2026-09-03-chalk-org-support-design.md.
+  currentOrg?: string;
 }
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // ~30 days

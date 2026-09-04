@@ -498,6 +498,9 @@ export class DocRoom extends DurableObject<Env> {
       docId: existing?.docId ?? this.id.spaceUri,
       ownerDid,
       title: rendered.title,
+      // isOrg intentionally omitted: this upsert only re-indexes content,
+      // it has no opinion on isOrg, and upsertDoc leaves the existing
+      // row's value alone when it isn't given.
     });
   }
 
