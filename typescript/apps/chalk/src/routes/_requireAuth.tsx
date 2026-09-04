@@ -5,6 +5,7 @@ import {
   Outlet,
   useLocation,
   useRouter,
+  useRouterState,
 } from "@tanstack/react-router";
 import {
   AppLayout,
@@ -57,15 +58,12 @@ export const Route = createFileRoute("/_requireAuth")({
     const router = useRouter();
     const navigate = Route.useNavigate();
 
-    // The doc URI is the single "$uri" path segment TanStack Router
-    // percent-encodes into the URL (see _requireAuth/$uri.tsx's route
-    // param), so it's decoded back here rather than compared raw.
-    const pathname = useLocation({ select: (loc) => loc.pathname });
-    const onHomePage = pathname === "/";
-    const onOrgsPage = pathname === "/orgs";
-    const currentDocId = onHomePage
-      ? undefined
-      : decodeURIComponent(pathname.slice(1));
+    const currentDocId = useRouterState({
+      select: (state) =>
+        state.matches.find((x) => x.routeId === "/_requireAuth/$uri")?.params
+          .uri,
+    });
+    const location = useLocation()
     const recentDocIds = useRecentDocsStore((state) => state.recentDocIds);
     const addRecentDoc = useRecentDocsStore((state) => state.addRecentDoc);
     // recentDocIds only remembers order of visits; docs (the full
@@ -123,7 +121,7 @@ export const Route = createFileRoute("/_requireAuth")({
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
-                isActive={onOrgsPage}
+                isActive={location.pathname === "/orgs"}
                 tooltip="Switch organization"
                 render={<Link to="/orgs" />}
               >
@@ -140,7 +138,10 @@ export const Route = createFileRoute("/_requireAuth")({
         sidebarHeader={
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton isActive={onHomePage} render={<Link to="/" />}>
+              <SidebarMenuButton
+                isActive={location.pathname === "/"}
+                render={<Link to="/" />}
+              >
                 <HomeIcon />
                 <span>Home</span>
               </SidebarMenuButton>

@@ -3,7 +3,6 @@ import { env } from "cloudflare:workers";
 import {
   connectedOrgNames,
   deleteDocAccess,
-  docByUri,
   docsForAccessor,
   docsForOrg,
   getDb,
@@ -190,13 +189,6 @@ export const startOrgConnect = createServerFn({ method: "POST" })
     return {
       redirectUrl: await startLogin(env, data.orgDid, "/session/org-callback"),
     };
-  });
-
-export const getDoc = createServerFn({ method: "GET" })
-  .validator((input: { docId: string }) => input)
-  .handler(async ({ data }): Promise<DocSummary | undefined> => {
-    await requireSession();
-    return docByUri(getDb(env), data.docId);
   });
 
 // A userRelation record as network.habitat.relationship.listRelations
