@@ -63,7 +63,7 @@ export const Route = createFileRoute("/_requireAuth")({
         state.matches.find((x) => x.routeId === "/_requireAuth/$uri")?.params
           .uri,
     });
-    const location = useLocation()
+    const location = useLocation();
     const recentDocIds = useRecentDocsStore((state) => state.recentDocIds);
     const addRecentDoc = useRecentDocsStore((state) => state.addRecentDoc);
     // recentDocIds only remembers order of visits; docs (the full
