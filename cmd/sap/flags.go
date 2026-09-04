@@ -13,6 +13,9 @@ var (
 
 	fIdentityResolver = "identity-resolver"
 	fWebhookURL       = "webhook-url"
+
+	fClientName = "client-name"
+	fClientURI  = "client-uri"
 )
 
 func getFlags() []cli.Flag {
@@ -69,6 +72,17 @@ func getFlags() []cli.Flag {
 			Usage: "If set, POST each outbox message to this URL as it's synced, retrying " +
 				"a failed delivery with exponential backoff until it succeeds",
 			Sources: cli.EnvVars("SAP_WEBHOOK_URL"),
+		},
+		&cli.StringFlag{
+			Name:    fClientName,
+			Usage:   "OAuth client name",
+			Value:   "sap",
+			Sources: cli.EnvVars("SAP_CLIENT_NAME"),
+		},
+		&cli.StringFlag{
+			Name:    fClientURI,
+			Usage:   "OAuth client uri",
+			Sources: cli.EnvVars("SAP_CLIENT_URI"),
 		},
 	}
 }
