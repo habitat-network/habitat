@@ -15,6 +15,13 @@
       "when": 1787676331665,
       "tag": "0001_magical_hemingway",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788480000000,
+      "tag": "0002_org_support",
+      "breakpoints": true
     }
   ]
 }
