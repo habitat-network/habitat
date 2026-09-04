@@ -38,7 +38,7 @@ func newTestServer(t *testing.T) *server {
 	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp, Directory: oauthApp.Dir})
 	require.NoError(t, err)
 
-	return NewSapServer(s, oauthApp, "https://example.com")
+	return NewSapServer(s, oauthApp, "https://example.com", ConfiguredClientMetadata{})
 }
 
 func TestHandleAddSessionWithoutReturnToUnaffected(t *testing.T) {

@@ -414,7 +414,11 @@ func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
 	metadata := s.oauthClient.Config.ClientMetadata()
 	jwks := s.oauthClient.Config.PublicJWKS()
 	metadata.JWKS = &jwks
-	metadata.ClientName = &s.clientMetadata.Name
-	metadata.ClientURI = &s.clientMetadata.URI
+	if s.clientMetadata.Name != "" {
+		metadata.ClientName = &s.clientMetadata.Name
+	}
+	if s.clientMetadata.URI != "" {
+		metadata.ClientURI = &s.clientMetadata.URI
+	}
 	httpx.WriteJSON(r.Context(), w, metadata)
 }

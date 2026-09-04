@@ -45,7 +45,7 @@ func openOutboxTestServer(
 	})
 	require.NoError(t, err)
 
-	server := NewSapServer(s, oauthApp, "https://example.com")
+	server := NewSapServer(s, oauthApp, "https://example.com", ConfiguredClientMetadata{})
 	if configure != nil {
 		configure(server)
 	}
