@@ -110,7 +110,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		authn.NewServiceAuthMethod(
 			org.NewEveryoneOrg(domain),
 			dir,
-			"did:web:"+domain+"#"+serviceID,
+			authn.FixedAudience("did:web:"+domain+"#"+serviceID),
 		),
 	)
 

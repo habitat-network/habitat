@@ -40,6 +40,7 @@ func TestValidator(t *testing.T) {
 		nil,
 		"https://issuer.com",
 		nil,
+		nil,
 	)
 	require.NoError(t, err)
 

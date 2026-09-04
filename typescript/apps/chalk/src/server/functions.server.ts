@@ -48,9 +48,11 @@ export async function createDocSpace(
 }
 
 // fetchOrgName reads an org's display name off its
-// community.opensocial.profile record, via the member's own session
-// proxied into the org's #habitat service (see createDocSpace's comment —
-// same mechanism, same reason: no separate org session needed). Returns
+// community.opensocial.profile record, via the member's own session — no
+// Atproto-Proxy needed: the about space's own community.opensocial.access
+// record already admits any member/admin role (set at org creation), so
+// pear's CheckUserHasSpaceRole grants the read directly (same mechanism
+// that makes org docs readable org-wide — see the design doc). Returns
 // null if the caller isn't a member of the org, or the read otherwise
 // fails, rather than throwing — callers show the raw DID as a fallback.
 export async function fetchOrgName(
@@ -72,7 +74,6 @@ export async function fetchOrgName(
         collection: "community.opensocial.profile",
         rkey: "self",
       },
-      { atprotoProxy: `${orgDid}#habitat` },
     );
     return value.name;
   } catch {

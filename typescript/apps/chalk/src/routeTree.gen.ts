@@ -11,9 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as OrgsRouteImport } from './routes/orgs'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
 import { Route as RequireAuthUriRouteImport } from './routes/_requireAuth/$uri'
 import { Route as SessionCallbackRouteImport } from './routes/session.callback'
+import { Route as SessionOrgCallbackRouteImport } from './routes/session.org-callback'
 import { Route as WebhookSapRouteImport } from './routes/webhook.sap'
 import { Route as WsDocIdRouteImport } from './routes/ws.$docId'
 
@@ -24,6 +26,11 @@ const RequireAuthRoute = RequireAuthRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrgsRoute = OrgsRouteImport.update({
+  id: '/orgs',
+  path: '/orgs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RequireAuthIndexRoute = RequireAuthIndexRouteImport.update({
@@ -41,6 +48,11 @@ const SessionCallbackRoute = SessionCallbackRouteImport.update({
   path: '/session/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SessionOrgCallbackRoute = SessionOrgCallbackRouteImport.update({
+  id: '/session/org-callback',
+  path: '/session/org-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WebhookSapRoute = WebhookSapRouteImport.update({
   id: '/webhook/sap',
   path: '/webhook/sap',
@@ -55,15 +67,19 @@ const WsDocIdRoute = WsDocIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof RequireAuthIndexRoute
   '/login': typeof LoginRoute
+  '/orgs': typeof OrgsRoute
   '/$uri': typeof RequireAuthUriRoute
   '/session/callback': typeof SessionCallbackRoute
+  '/session/org-callback': typeof SessionOrgCallbackRoute
   '/webhook/sap': typeof WebhookSapRoute
   '/ws/$docId': typeof WsDocIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/orgs': typeof OrgsRoute
   '/$uri': typeof RequireAuthUriRoute
   '/session/callback': typeof SessionCallbackRoute
+  '/session/org-callback': typeof SessionOrgCallbackRoute
   '/webhook/sap': typeof WebhookSapRoute
   '/ws/$docId': typeof WsDocIdRoute
   '/': typeof RequireAuthIndexRoute
@@ -72,8 +88,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/login': typeof LoginRoute
+  '/orgs': typeof OrgsRoute
   '/_requireAuth/$uri': typeof RequireAuthUriRoute
   '/session/callback': typeof SessionCallbackRoute
+  '/session/org-callback': typeof SessionOrgCallbackRoute
   '/webhook/sap': typeof WebhookSapRoute
   '/ws/$docId': typeof WsDocIdRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
@@ -83,15 +101,19 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/orgs'
     | '/$uri'
     | '/session/callback'
+    | '/session/org-callback'
     | '/webhook/sap'
     | '/ws/$docId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/orgs'
     | '/$uri'
     | '/session/callback'
+    | '/session/org-callback'
     | '/webhook/sap'
     | '/ws/$docId'
     | '/'
@@ -99,8 +121,10 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_requireAuth'
     | '/login'
+    | '/orgs'
     | '/_requireAuth/$uri'
     | '/session/callback'
+    | '/session/org-callback'
     | '/webhook/sap'
     | '/ws/$docId'
     | '/_requireAuth/'
@@ -109,7 +133,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   RequireAuthRoute: typeof RequireAuthRouteWithChildren
   LoginRoute: typeof LoginRoute
+  OrgsRoute: typeof OrgsRoute
   SessionCallbackRoute: typeof SessionCallbackRoute
+  SessionOrgCallbackRoute: typeof SessionOrgCallbackRoute
   WebhookSapRoute: typeof WebhookSapRoute
   WsDocIdRoute: typeof WsDocIdRoute
 }
@@ -128,6 +154,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orgs': {
+      id: '/orgs'
+      path: '/orgs'
+      fullPath: '/orgs'
+      preLoaderRoute: typeof OrgsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_requireAuth/': {
@@ -149,6 +182,13 @@ declare module '@tanstack/react-router' {
       path: '/session/callback'
       fullPath: '/session/callback'
       preLoaderRoute: typeof SessionCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/session/org-callback': {
+      id: '/session/org-callback'
+      path: '/session/org-callback'
+      fullPath: '/session/org-callback'
+      preLoaderRoute: typeof SessionOrgCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/webhook/sap': {
@@ -185,7 +225,9 @@ const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   RequireAuthRoute: RequireAuthRouteWithChildren,
   LoginRoute: LoginRoute,
+  OrgsRoute: OrgsRoute,
   SessionCallbackRoute: SessionCallbackRoute,
+  SessionOrgCallbackRoute: SessionOrgCallbackRoute,
   WebhookSapRoute: WebhookSapRoute,
   WsDocIdRoute: WsDocIdRoute,
 }
