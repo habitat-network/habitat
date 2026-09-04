@@ -35,7 +35,8 @@ func TestServer_CreateOrg(t *testing.T) {
 	})
 
 	t.Run("requires auth", func(t *testing.T) {
-		ts := pearserver_testutil.NewTestServer(t,
+		ts := pearserver_testutil.NewTestServer(
+			t,
 			pearserver_testutil.WithValidator(authntest.NewFailureValidator()),
 		)
 
@@ -46,5 +47,30 @@ func TestServer_CreateOrg(t *testing.T) {
 			&out,
 		)
 		require.Equal(t, http.StatusUnauthorized, code)
+	})
+
+	t.Run("rejects invalid handles", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			handle string
+		}{
+			{"empty", ""},
+			{"subdomain", "sub.acme"},
+			{"invalid characters", "not a valid handle!"},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				ts := newOpenSocialServer(t, alice)
+
+				var out habitat.NetworkHabitatOpensocialCreateOrgOutput
+				code := client.Procedure(
+					ts.Server.CreateOrg,
+					habitat.NetworkHabitatOpensocialCreateOrgInput{Handle: tt.handle},
+					&out,
+				)
+				require.Equal(t, http.StatusBadRequest, code)
+			})
+		}
 	})
 }
