@@ -82,7 +82,7 @@ export function CreateOrgDialog({ authManager }: { authManager: AuthManager }) {
           </Field>
           <DialogFooter>
             <Button type="submit" disabled={isPending || !handle.trim()}>
-              {isPending ? "Creating…" : "Create community"}
+              {isPending ? "Creating…" : "Create organization"}
             </Button>
           </DialogFooter>
         </form>
