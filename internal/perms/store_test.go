@@ -209,6 +209,11 @@ func TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant(t *testing.T) {
 		spaces_testutil.MustMarshalRecord(t, map[string]any{"roles": []string{"member"}}),
 	)
 	require.NoError(t, err)
+	_, _, err = s.spaces.PutRecord(
+		ctx, membersSpace, org, "community.opensocial.access", "self",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"roles": []string{"member"}}),
+	)
+	require.NoError(t, err)
 
 	t.Run("member with a matching access grant reads without an FGA tuple", func(t *testing.T) {
 		ok, err := s.CheckUserHasSpaceRole(ctx, alice, aboutSpace, habitat_syntax.SpaceRoleReader)
@@ -216,10 +221,10 @@ func TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant(t *testing.T) {
 		require.True(t, ok)
 	})
 
-	t.Run("non-member is not granted read access", func(t *testing.T) {
+	t.Run("non-member is still granted read access to the profile space", func(t *testing.T) {
 		ok, err := s.CheckUserHasSpaceRole(ctx, bob, aboutSpace, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
-		require.False(t, ok)
+		require.True(t, ok)
 	})
 
 	t.Run("member with a matching access grant writes without an FGA tuple", func(t *testing.T) {
@@ -228,8 +233,28 @@ func TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant(t *testing.T) {
 		require.True(t, ok)
 	})
 
-	t.Run("non-member is not granted write access", func(t *testing.T) {
+	t.Run("non-member is still granted write access to the profile space", func(t *testing.T) {
 		ok, err := s.CheckUserHasSpaceRole(ctx, bob, aboutSpace, habitat_syntax.SpaceRoleWriter)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
+
+	t.Run(
+		"member with a matching access grant reads the members space without an FGA tuple",
+		func(t *testing.T) {
+			ok, err := s.CheckUserHasSpaceRole(
+				ctx,
+				alice,
+				membersSpace,
+				habitat_syntax.SpaceRoleReader,
+			)
+			require.NoError(t, err)
+			require.True(t, ok)
+		},
+	)
+
+	t.Run("non-member is not granted read access to the members space", func(t *testing.T) {
+		ok, err := s.CheckUserHasSpaceRole(ctx, bob, membersSpace, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.False(t, ok)
 	})

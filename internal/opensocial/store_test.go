@@ -148,8 +148,24 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 
-		// A stranger holds no roles, so permission is denied.
+		// The about space (profile) is always readable, even by a stranger
+		// holding no roles.
 		ok, err = s.CheckPermission(t.Context(), syntax.DID("did:plc:stranger"), aboutSpace)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
+
+	t.Run("CheckPermissionMembersSpace", func(t *testing.T) {
+		membersSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
+
+		// Unlike the about space, the members space is still gated by its
+		// own access record: a member with a matching role passes.
+		ok, err := s.CheckPermission(t.Context(), member, membersSpace)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		// A stranger holds no roles, so permission is denied.
+		ok, err = s.CheckPermission(t.Context(), syntax.DID("did:plc:stranger"), membersSpace)
 		require.NoError(t, err)
 		require.False(t, ok)
 	})

@@ -20,6 +20,7 @@ import {
 } from "./ui/sidebar";
 import { LogOut } from "lucide-react";
 import { UserAvatar } from "./UserAvatar";
+import { UserDisplayName } from "./UserDisplayName";
 
 interface AppLayoutProps {
   actor?: Actor;
@@ -61,7 +62,7 @@ export const AppLayout = ({
                       <SidebarMenuButton size="lg">
                         <UserAvatar actor={actor} size="default" />
                         <span>
-                          {actor.displayName || actor.handle || actor.did}
+                          <UserDisplayName actor={actor} />
                         </span>
                       </SidebarMenuButton>
                     }
