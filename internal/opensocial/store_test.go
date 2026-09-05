@@ -99,6 +99,24 @@ func TestStore(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Equal(t, []any{opensocial.MemberRoleRkey}, record.Value["roles"])
+
+		// The space record indexing the new space lives in the members space.
+		membersSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
+		spaceColl := syntax.NSID("community.opensocial.space")
+		spaceRecords, err := s.SpaceStore.ListRecords(t.Context(), membersSpace, org, &spaceColl)
+		require.NoError(t, err)
+		var indexedURIs []string
+		for _, rec := range spaceRecords {
+			uri, ok := rec.Value["uri"].(string)
+			require.True(t, ok)
+			indexedURIs = append(indexedURIs, uri)
+		}
+		require.Contains(t, indexedURIs, spaceURI.String())
+
+		// ... and is not written into the new space itself.
+		newSpaceRecords, err := s.SpaceStore.ListRecords(t.Context(), spaceURI, org, &spaceColl)
+		require.NoError(t, err)
+		require.Empty(t, newSpaceRecords)
 	})
 
 	t.Run("UploadImage", func(t *testing.T) {
