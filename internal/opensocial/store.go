@@ -206,7 +206,9 @@ func (s *Store) CreateSpace(
 			return fmt.Errorf("marshal space record: %w", err)
 		}
 		if _, _, err = spacesStoreTx.PutRecord(
-			ctx, spaceURI, orgDID, "community.opensocial.space", "",
+			ctx,
+			habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
+			orgDID, "community.opensocial.space", "",
 			recordBytes,
 		); err != nil {
 			return fmt.Errorf("put space record: %w", err)
