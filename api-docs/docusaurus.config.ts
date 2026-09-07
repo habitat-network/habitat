@@ -79,6 +79,12 @@ const config: Config = {
         },
         {
           type: "docSidebar",
+          sidebarId: "opensocial",
+          position: "left",
+          label: "Opensocial",
+        },
+        {
+          type: "docSidebar",
           sidebarId: "spaceProxy",
           position: "left",
           label: "Space Proxy",
