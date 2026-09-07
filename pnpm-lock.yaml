@@ -469,8 +469,8 @@ importers:
         specifier: ^5.1.9
         version: 5.1.9
       '@libp2p/ping':
-        specifier: 3.1.12
-        version: 3.1.12
+        specifier: 3.1.13
+        version: 3.1.13
       '@libp2p/webrtc':
         specifier: ^5.2.24
         version: 5.2.24(react-native@0.86.0(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2))(supports-color@10.2.2)
@@ -3400,8 +3400,8 @@ packages:
   '@libp2p/peer-store@11.2.7':
     resolution: {integrity: sha512-dwTM+0i7mAgAnZvMHghgGcFoWPGaTbKx2nBueMd2Yg38mCs9WeambmR6gQdjwvYpybvNgFDAA+XesCKCotuczg==}
 
-  '@libp2p/ping@3.1.12':
-    resolution: {integrity: sha512-yq2NJX8hkogkMqWMpF/GuWJFDAQ0E13/y+5szZCmTCPuMVzOn/zuhNXbgbfegbChUZUwurtbV2bQOtBdK3onyA==}
+  '@libp2p/ping@3.1.13':
+    resolution: {integrity: sha512-zB0TYbxWD73z3kqHrC2PDk7CAX0wQ0smz6mZ9okE4MoFgJv+XtMaIB2pB/4eT7xjWwdc2w3mYRmq+lMyXl3nXQ==}
 
   '@libp2p/pubsub@10.1.18':
     resolution: {integrity: sha512-Bxa0cwkaQvadyJNlJlzH0m1eo7m03G2nCpuKbcv+i0qNbyyTOydBcuoslG/UWFYhRBB9Js9R6zNIsaIgpo+iGw==}
@@ -15216,12 +15216,12 @@ snapshots:
       uint8arraylist: 2.4.9
       uint8arrays: 5.1.1
 
-  '@libp2p/ping@3.1.12':
+  '@libp2p/ping@3.1.13':
     dependencies:
       '@libp2p/interface': 3.3.0
-      '@libp2p/interface-internal': 3.1.12
+      '@libp2p/interface-internal': 3.1.13
       p-event: 7.1.0
-      race-signal: 2.0.0
+      race-signal: 2.0.2
       uint8arraylist: 3.0.2
       uint8arrays: 6.1.1
 
