@@ -279,7 +279,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/mattn/go-isatty v0.0.23 // indirect
-	github.com/mattn/go-sqlite3 v1.14.50
+	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
