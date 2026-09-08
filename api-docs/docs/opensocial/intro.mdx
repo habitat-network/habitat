@@ -1,0 +1,37 @@
+---
+id: intro
+slug: /opensocial/intro.mdx
+sidebar_label: Introduction
+sidebar_position: 0
+---
+
+# Introduction
+
+## Habitat organizations
+
+Habitat organizations manage a set of members with roles and host AT Protocol spaces for those members. The organization model is a partial implementation of the [opensocial proposal](https://github.com/bluesky-social/proposals). This way, the organization can remain in control of which members and apps have access to which parts of an organization's data. Even though a member's contributions to an organization are written to the member's own repo, the organization controls the ACL of that data.
+
+When an organization is created at [https://home.habitat.network/opensocial](https://home.habitat.network/opensocial), it mints a new AT Protocol identity for the organization. Habitat-compatible apps can use a member's credential to interact with the organization's data.
+
+## Membership and roles
+
+Organization accounts are seeded with 2 spaces and some records that encode details about the organization:
+
+- `community.opensocial.about/self` - publicly visible space
+  - `community.opensocial.profile/self` - record with name, description, and avatar.
+- `community.opensocial.members/self` - space only visible to members
+  - `community.opensocial.membership/<did>` - record that indicates that a user is part of the organization
+
+## Creating spaces
+
+Members of an org can create spaces by invoking `community.opensocial.createSpace` on the organization's PDS endpoint using service auth. Based on the `role` param included in the request, a `community.opensocial.access/self` record is seeded into the new space. That record lets the space host know which members can be granted a space credential for fetching contents of the space.
+
+Creating a space also writes a `community.opensocial.space` record into the `community.opensocial.members/self` space. This helps with discovery of the space.
+
+## Authorizing apps
+
+The spaces protocol uses client attestation to let space hosts authorize specific clients. Organizations require client apps to be authenticated by an org admin before they can fetch any space in the organization. An app must initiate an OAuth flow against the organization's identity where an admin will sign in and approve the app along with its requested scopes for the entire organization.
+
+Once this flow is complete, a `community.opensocial.appAccess/<base64-encoded-client-id>` record is written into the space. When a client app requests a space credential, it includes a client attestation and the space host verifies that the client ID has been granted access to those scopes in the organization.
+
+Completing the OAuth flow for the organization's identity also gives the client app an access token that it can use to write the organization's repo within a space. This is useful for managing shared organization data that doesn't fit in an individual member's repo.
