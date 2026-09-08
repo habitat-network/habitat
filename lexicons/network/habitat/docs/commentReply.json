@@ -1,0 +1,37 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.docs.commentReply",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "A reply within a document comment thread, referencing the thread's root network.habitat.docs.comment record by strongRef rather than repeating an anchor of its own — the anchor belongs to the thread, not to each reply. Lives in the same comments space as the comment it replies to, written into the replier's own repo.",
+            "key": "tid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "comment",
+                    "body",
+                    "createdAt"
+                ],
+                "properties": {
+                    "comment": {
+                        "type": "ref",
+                        "ref": "com.atproto.repo.strongRef",
+                        "description": "Reference to the thread's root network.habitat.docs.comment record."
+                    },
+                    "body": {
+                        "type": "string",
+                        "maxLength": 10000,
+                        "maxGraphemes": 1000,
+                        "description": "The reply text."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime",
+                        "description": "When the reply was written."
+                    }
+                }
+            }
+        }
+    }
+}

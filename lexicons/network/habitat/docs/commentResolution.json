@@ -1,0 +1,35 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.docs.commentResolution",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "Records a resolve/reopen action taken on a document's comment thread, written into the doc's comments space by the resolver's own repo (not the thread's root author's) — the person resolving a thread need not have written the comment it started from. A thread's current status is the most recent commentResolution record (by createdAt) across every repo in the space referencing the same root comment; this is an append-only log of resolve/reopen events, not a shared field on the comment record, since an AT Protocol record can only be rewritten by the repo that owns it.",
+            "key": "tid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "comment",
+                    "resolved",
+                    "createdAt"
+                ],
+                "properties": {
+                    "comment": {
+                        "type": "ref",
+                        "ref": "com.atproto.repo.strongRef",
+                        "description": "Reference to the thread's root network.habitat.docs.comment record."
+                    },
+                    "resolved": {
+                        "type": "boolean",
+                        "description": "Whether this action resolved (true) or reopened (false) the thread."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime",
+                        "description": "When the action was taken."
+                    }
+                }
+            }
+        }
+    }
+}

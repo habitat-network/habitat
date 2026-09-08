@@ -57,34 +57,74 @@ export const connectedOrgs = sqliteTable(
   (t) => [primaryKey({ columns: [t.memberDid, t.orgDid] })],
 );
 
-// comments holds a doc's comment threads. They live in their own table
-// rather than alongside docs because they're their own space's records:
-// each doc has a companion comments space (type
-// "network.habitat.docs.comments", same owner and space key as the doc —
-// see commentsSpaceUri in src/server/comments.ts), whose readers/writers
-// are inherited from the doc space via spaceRelation records, and whose
-// network.habitat.docs.comment records this table mirrors.
+// comments holds a doc's comment *threads* — one row per root
+// network.habitat.docs.comment record, which is the only record that
+// carries an anchor (a pair of base64 Yjs relative positions, per that
+// lexicon's comment) into the doc's CRDT state; replies don't repeat it,
+// they just point back at the root by strongRef (see commentReplies
+// below). Comments live in their own table rather than alongside docs
+// because they're their own space's records: each doc has a companion
+// comments space (type "network.habitat.docs.comments", same owner and
+// space key as the doc — see commentsSpaceUri in src/server/comments.ts),
+// whose readers/writers are inherited from the doc space via
+// spaceRelation records.
 //
 // Keyed by the record's own AT-URI, which is what the outbox delivers on
-// both a write and a delete tombstone — unlike doc_access, a subject can
-// hold any number of comments on the same space, so there's no natural
-// (subject, space) key to use instead. docSpaceUri (not the comments
-// space's URI) is stored so listing a doc's comments is a single indexed
-// lookup keyed by the same docId the rest of chalk passes around.
+// both a write and a delete tombstone. cid is stored alongside so a reply
+// or resolution action can build the com.atproto.repo.strongRef it needs
+// to reference this comment without an extra read. docSpaceUri (not the
+// comments space's URI) is stored so listing a doc's comments is a single
+// indexed lookup keyed by the same docId the rest of chalk passes around.
 export const comments = sqliteTable(
   "comments",
   {
     uri: text("uri").primaryKey(),
+    cid: text("cid").notNull(),
     docSpaceUri: text("doc_space_uri").notNull(),
-    threadId: text("thread_id").notNull(),
     authorDid: text("author_did").notNull(),
     body: text("body").notNull(),
+    anchorStart: text("anchor_start").notNull(),
+    anchorEnd: text("anchor_end").notNull(),
     quotedText: text("quoted_text"),
-    resolved: integer("resolved", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at").notNull(),
   },
-  (t) => [
-    index("comments_doc_created").on(t.docSpaceUri, t.createdAt),
-    index("comments_thread").on(t.docSpaceUri, t.threadId),
-  ],
+  (t) => [index("comments_doc_created").on(t.docSpaceUri, t.createdAt)],
+);
+
+// commentReplies mirrors network.habitat.docs.commentReply records — a
+// reply within a thread, referencing its root comment record by strongRef
+// (commentUri/commentCid) rather than carrying its own anchor. Keyed by
+// the reply's own URI, same reasoning as comments above.
+export const commentReplies = sqliteTable(
+  "comment_replies",
+  {
+    uri: text("uri").primaryKey(),
+    docSpaceUri: text("doc_space_uri").notNull(),
+    commentUri: text("comment_uri").notNull(),
+    authorDid: text("author_did").notNull(),
+    body: text("body").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("comment_replies_thread").on(t.docSpaceUri, t.commentUri)],
+);
+
+// commentResolutions holds, per (doc, root comment), the most recent
+// network.habitat.docs.commentResolution record seen — a resolve/reopen
+// *action*, written by whoever performed it, not a field on the comment
+// record (an AT Protocol record can only be rewritten by the repo that
+// owns it, and the resolver need not be the thread's root author). Only
+// the latest action per thread is kept, keyed by (docSpaceUri,
+// commentUri); see applyResolution in db/index.ts for the last-write-wins
+// merge.
+export const commentResolutions = sqliteTable(
+  "comment_resolutions",
+  {
+    docSpaceUri: text("doc_space_uri").notNull(),
+    commentUri: text("comment_uri").notNull(),
+    uri: text("uri").notNull(),
+    resolverDid: text("resolver_did").notNull(),
+    resolved: integer("resolved", { mode: "boolean" }).notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.docSpaceUri, t.commentUri] })],
 );

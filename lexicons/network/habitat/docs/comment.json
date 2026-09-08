@@ -4,35 +4,37 @@
     "defs": {
         "main": {
             "type": "record",
-            "description": "A comment on a collaborative document. Comments live in the doc's companion comments space (type 'network.habitat.docs.comments', same owner and space key as the doc itself), which inherits the doc space's readers as readers and its writers as writers via network.habitat.relationship.spaceRelation records — so anyone who can read the doc can read its comments, and anyone who can edit it can comment. Each record is written into the commenter's own repo within that space.",
+            "description": "The root of a comment thread on a collaborative document, anchored to a range of the document's CRDT (Yjs) state. Comments live in the doc's companion comments space (type 'network.habitat.docs.comments', same owner and space key as the doc itself), which inherits the doc space's readers as readers and its writers as writers via network.habitat.relationship.spaceRelation records — so anyone who can read the doc can read its comments, and anyone who can edit it can comment. Each record is written into the commenter's own repo within that space. Replies to this thread are separate network.habitat.docs.commentReply records referencing it by strongRef; this record itself carries no thread identifier beyond its own URI/CID, which is what a reply and a resolution action point back to.",
             "key": "tid",
             "record": {
                 "type": "object",
                 "required": [
-                    "threadId",
                     "body",
+                    "anchorStart",
+                    "anchorEnd",
                     "createdAt"
                 ],
                 "properties": {
-                    "threadId": {
-                        "type": "string",
-                        "maxLength": 512,
-                        "description": "Identifier of the comment thread this comment belongs to. The document's own text carries the same id as a 'comment' mark, which is how a thread is anchored to a range of the doc; replies in a thread share its threadId."
-                    },
                     "body": {
                         "type": "string",
                         "maxLength": 10000,
                         "maxGraphemes": 1000,
                         "description": "The comment text."
                     },
+                    "anchorStart": {
+                        "type": "string",
+                        "maxLength": 4096,
+                        "description": "Base64-encoded Yjs relative position (Y.encodeRelativePosition, applied to the doc's 'default' XML fragment) marking the start of the commented range. Together with anchorEnd and the document's current CRDT state, this is sufficient to resolve the exact range being commented on — an editor placing this comment needs no other context, and the position survives concurrent edits made anywhere else in the document the way a plain character offset would not."
+                    },
+                    "anchorEnd": {
+                        "type": "string",
+                        "maxLength": 4096,
+                        "description": "Base64-encoded Yjs relative position marking the end of the commented range. See anchorStart."
+                    },
                     "quotedText": {
                         "type": "string",
                         "maxLength": 2000,
-                        "description": "A snapshot of the document text the thread was anchored to when it was created, so a thread whose mark has since been edited away can still be shown with context. Only meaningful on the first comment of a thread."
-                    },
-                    "resolved": {
-                        "type": "boolean",
-                        "description": "Whether the thread this comment belongs to has been resolved. Set on the thread's first comment; replies leave it unset."
+                        "description": "A snapshot of the document text the anchor pointed to when the comment was created, shown as a fallback if the anchor no longer resolves to a valid range (e.g. the text was later deleted entirely)."
                     },
                     "createdAt": {
                         "type": "string",

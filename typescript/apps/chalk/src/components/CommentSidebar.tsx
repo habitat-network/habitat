@@ -1,81 +1,114 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Editor } from "@tiptap/react";
 import { UserAvatar, getProfiles, type Actor } from "internal";
 import { Button, Textarea, toast } from "internal/components/ui";
 import {
   createComment,
+  createReply,
   deleteCommentFn,
+  deleteReplyFn,
   listComments,
   resolveComment,
+  type CommentReplyView,
   type CommentView,
+  type StrongRef,
 } from "@/server/functions";
 
-// A thread is every comment sharing a threadId, oldest first — the mark's
-// own quotedText/anchor position lives in the doc (via the CommentMark
-// extension), not here; this just groups the records that discuss it.
+// A Thread groups a root network.habitat.docs.comment with its replies —
+// the root carries the thread's CRDT anchor into the doc (see the comment
+// lexicon), replies just reference it by strongRef. root is undefined for
+// an "orphaned" group: replies whose root comment no longer exists in the
+// current comment list (e.g. its author deleted it) — shown so a reply
+// isn't simply invisible, since deleting the root is not otherwise
+// coordinated with cleaning up its replies.
 interface Thread {
-  threadId: string;
-  comments: CommentView[];
+  commentUri: string;
+  root: CommentView | undefined;
+  replies: CommentReplyView[];
   resolved: boolean;
 }
 
-function groupThreads(comments: CommentView[]): Thread[] {
-  const byThread = new Map<string, CommentView[]>();
+function groupThreads(
+  comments: CommentView[],
+  replies: CommentReplyView[],
+  resolvedCommentUris: readonly string[],
+): Thread[] {
+  const resolved = new Set(resolvedCommentUris);
+  const byRoot = new Map<string, Thread>();
   for (const c of comments) {
-    const list = byThread.get(c.threadId) ?? [];
-    list.push(c);
-    byThread.set(c.threadId, list);
+    byRoot.set(c.uri, {
+      commentUri: c.uri,
+      root: c,
+      replies: [],
+      resolved: resolved.has(c.uri),
+    });
   }
-  return Array.from(byThread.entries()).map(([threadId, list]) => ({
-    threadId,
-    comments: list,
-    // resolved is stamped on every row of a thread (see
-    // setThreadResolved), so any one of them reflects the thread's state.
-    resolved: list.some((c) => c.resolved),
-  }));
+  for (const r of replies) {
+    let thread = byRoot.get(r.commentUri);
+    if (!thread) {
+      thread = {
+        commentUri: r.commentUri,
+        root: undefined,
+        replies: [],
+        resolved: resolved.has(r.commentUri),
+      };
+      byRoot.set(r.commentUri, thread);
+    }
+    thread.replies.push(r);
+  }
+  return Array.from(byRoot.values());
 }
 
-// A PendingThread is a comment mark the user just applied to a selection
-// (see $uri.tsx's startThread), before its first comment record exists —
-// the sidebar renders it like any other thread (with 0 comments) so the
-// compose box appears in the same place a reply box would.
-export interface PendingThread {
-  threadId: string;
+// A PendingAnchor is a CRDT range the user just selected and clicked
+// "Comment" on (see $uri.tsx's startThread), before its root comment
+// record exists — the sidebar renders it like any other thread (with no
+// root yet) so the compose box appears in the same place a reply box
+// would. anchorStart/anchorEnd ride along only to be handed back to
+// createComment on submit; the sidebar itself never decodes them.
+export interface PendingAnchor {
+  anchorStart: string;
+  anchorEnd: string;
   quotedText: string;
 }
 
 export interface CommentSidebarProps {
   docId: string;
-  editor: Editor | null;
-  // The thread a click on the doc's text just anchored to, if any — the
-  // sidebar highlights it and expands its reply box. Cleared by the caller
-  // once handled (see $uri.tsx's onThreadSelect).
-  activeThreadId: string | null;
-  pendingThread?: PendingThread | null;
-  onPendingThreadResolved?: () => void;
+  // The thread (by its root comment's URI) a click on a doc highlight just
+  // selected, if any — the sidebar highlights it and expands its reply
+  // box. Cleared by the caller once handled (see $uri.tsx).
+  activeCommentUri: string | null;
+  pendingAnchor?: PendingAnchor | null;
+  onPendingAnchorResolved?: () => void;
   onClose: () => void;
 }
 
 export function CommentSidebar({
   docId,
-  editor,
-  activeThreadId,
-  pendingThread,
-  onPendingThreadResolved,
+  activeCommentUri,
+  pendingAnchor,
+  onPendingAnchorResolved,
   onClose,
 }: CommentSidebarProps) {
   const queryClient = useQueryClient();
   const queryKey = ["comments", docId];
 
-  const { data: comments = [] } = useQuery({
+  const { data } = useQuery({
     queryKey,
     queryFn: () => listComments({ data: { docId } }),
   });
+  const comments = data?.comments ?? [];
+  const replies = data?.replies ?? [];
+  const resolvedCommentUris = data?.resolvedCommentUris ?? [];
 
   const authorDids = useMemo(
-    () => Array.from(new Set(comments.map((c) => c.authorDid))),
-    [comments],
+    () =>
+      Array.from(
+        new Set([
+          ...comments.map((c) => c.authorDid),
+          ...replies.map((r) => r.authorDid),
+        ]),
+      ),
+    [comments, replies],
   );
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles", authorDids],
@@ -87,46 +120,45 @@ export function CommentSidebar({
     [profiles],
   );
 
-  const threads = useMemo(() => {
-    const grouped = groupThreads(comments);
-    // A pending thread (mark just applied, no comment record yet) has no
-    // rows to group from — splice in an empty placeholder so it renders
-    // (with its compose box) exactly where a real thread would.
-    if (
-      pendingThread &&
-      !grouped.some((t) => t.threadId === pendingThread.threadId)
-    ) {
-      grouped.unshift({
-        threadId: pendingThread.threadId,
-        comments: [],
-        resolved: false,
-      });
-    }
-    return grouped;
-  }, [comments, pendingThread]);
+  const threads = useMemo(
+    () => groupThreads(comments, replies, resolvedCommentUris),
+    [comments, replies, resolvedCommentUris],
+  );
   const [reply, setReply] = useState("");
   const [posting, setPosting] = useState(false);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey });
 
-  async function postReply(threadId: string) {
-    if (!reply.trim()) return;
+  function actorFor(did: string): Actor {
+    return (
+      profileByDid.get(did) ?? {
+        did,
+        handle: undefined,
+        displayName: undefined,
+        avatar: undefined,
+      }
+    );
+  }
+
+  // startFirstComment writes the pending selection's root comment record —
+  // the thread doesn't exist upstream until this succeeds.
+  async function startFirstComment() {
+    if (!pendingAnchor || !reply.trim()) return;
     setPosting(true);
     try {
-      await createComment({
+      const created = await createComment({
         data: {
           docId,
-          threadId,
           body: reply,
-          quotedText:
-            pendingThread?.threadId === threadId
-              ? pendingThread.quotedText
-              : undefined,
+          anchorStart: pendingAnchor.anchorStart,
+          anchorEnd: pendingAnchor.anchorEnd,
+          quotedText: pendingAnchor.quotedText,
         },
       });
       setReply("");
-      if (pendingThread?.threadId === threadId) onPendingThreadResolved?.();
+      onPendingAnchorResolved?.();
       await invalidate();
+      return created;
     } catch (err) {
       toast.add({
         type: "error",
@@ -138,12 +170,32 @@ export function CommentSidebar({
     }
   }
 
+  async function postReply(root: CommentView) {
+    if (!reply.trim()) return;
+    setPosting(true);
+    try {
+      const comment: StrongRef = { uri: root.uri, cid: root.cid };
+      await createReply({ data: { docId, comment, body: reply } });
+      setReply("");
+      await invalidate();
+    } catch (err) {
+      toast.add({
+        type: "error",
+        title: "Couldn't post reply",
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setPosting(false);
+    }
+  }
+
   async function toggleResolved(thread: Thread) {
+    if (!thread.root) return; // nothing to resolve without a live root
     try {
       await resolveComment({
         data: {
           docId,
-          threadId: thread.threadId,
+          comment: { uri: thread.root.uri, cid: thread.root.cid },
           resolved: !thread.resolved,
         },
       });
@@ -157,18 +209,10 @@ export function CommentSidebar({
     }
   }
 
-  async function deleteOne(comment: CommentView) {
+  async function deleteRoot(comment: CommentView) {
     try {
       await deleteCommentFn({ data: { docId, uri: comment.uri } });
       await invalidate();
-      // A deleted first comment can leave an empty thread — also drop its
-      // anchor from the doc so the highlight doesn't point at nothing.
-      const stillHasComments = comments.some(
-        (c) => c.threadId === comment.threadId && c.uri !== comment.uri,
-      );
-      if (!stillHasComments) {
-        editor?.chain().focus().unsetComment(comment.threadId).run();
-      }
     } catch (err) {
       toast.add({
         type: "error",
@@ -178,7 +222,22 @@ export function CommentSidebar({
     }
   }
 
-  if (threads.length === 0) {
+  async function deleteReply(reply: CommentReplyView) {
+    try {
+      await deleteReplyFn({ data: { docId, uri: reply.uri } });
+      await invalidate();
+    } catch (err) {
+      toast.add({
+        type: "error",
+        title: "Couldn't delete reply",
+        description: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  const showPendingThread = pendingAnchor != null;
+
+  if (threads.length === 0 && !showPendingThread) {
     return (
       <aside className="w-80 shrink-0 border-l p-4 text-sm text-muted-foreground">
         No comments yet. Select some text and click "Comment" to start a
@@ -201,90 +260,128 @@ export function CommentSidebar({
         </Button>
       </div>
       <div className="flex-1 divide-y">
-        {threads.map((thread) => (
-          <div
-            key={thread.threadId}
-            id={`thread-${thread.threadId}`}
-            className={
-              "p-3 space-y-2 " +
-              (activeThreadId === thread.threadId ? "bg-muted/50" : "")
-            }
-          >
-            {thread.resolved && (
-              <div className="text-xs text-muted-foreground">Resolved</div>
-            )}
-            {(thread.comments[0]?.quotedText ??
-              (pendingThread?.threadId === thread.threadId
-                ? pendingThread.quotedText
-                : undefined)) && (
-              <blockquote className="text-xs text-muted-foreground border-l-2 pl-2 italic">
-                &ldquo;
-                {thread.comments[0]?.quotedText ?? pendingThread?.quotedText}
-                &rdquo;
-              </blockquote>
-            )}
-            {thread.comments.map((comment) => {
-              const profile = profileByDid.get(comment.authorDid);
-              const actor: Actor = profile ?? {
-                did: comment.authorDid,
-                handle: undefined,
-                displayName: undefined,
-                avatar: undefined,
-              };
-              return (
-                <div key={comment.uri} className="flex gap-2 group">
-                  <UserAvatar actor={actor} size="sm" />
+        {showPendingThread && (
+          <div className="p-3 space-y-2 bg-muted/50">
+            <blockquote className="text-xs text-muted-foreground border-l-2 pl-2 italic">
+              &ldquo;{pendingAnchor.quotedText}&rdquo;
+            </blockquote>
+            <div className="space-y-2 pt-1">
+              <Textarea
+                autoFocus
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                placeholder="Comment..."
+                className="text-sm min-h-12"
+              />
+              <Button
+                size="sm"
+                disabled={posting || !reply.trim()}
+                onClick={startFirstComment}
+              >
+                Comment
+              </Button>
+            </div>
+          </div>
+        )}
+        {threads.map((thread) => {
+          const isActive = activeCommentUri === thread.commentUri;
+          return (
+            <div
+              key={thread.commentUri}
+              id={`thread-${thread.commentUri}`}
+              className={"p-3 space-y-2 " + (isActive ? "bg-muted/50" : "")}
+            >
+              {thread.resolved && (
+                <div className="text-xs text-muted-foreground">Resolved</div>
+              )}
+              {!thread.root && (
+                <div className="text-xs text-muted-foreground italic">
+                  The comment this replied to was deleted.
+                </div>
+              )}
+              {thread.root?.quotedText && (
+                <blockquote className="text-xs text-muted-foreground border-l-2 pl-2 italic">
+                  &ldquo;{thread.root.quotedText}&rdquo;
+                </blockquote>
+              )}
+              {thread.root && (
+                <div className="flex gap-2 group">
+                  <UserAvatar actor={actorFor(thread.root.authorDid)} size="sm" />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium">
-                      {actor.displayName || actor.handle || actor.did}
+                      {actorFor(thread.root.authorDid).displayName ||
+                        actorFor(thread.root.authorDid).handle ||
+                        thread.root.authorDid}
                     </div>
                     <p className="text-sm whitespace-pre-wrap break-words">
-                      {comment.body}
+                      {thread.root.body}
                     </p>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon-xs"
                     className="opacity-0 group-hover:opacity-100"
-                    onClick={() => deleteOne(comment)}
+                    onClick={() => deleteRoot(thread.root!)}
                   >
                     ×
                   </Button>
                 </div>
-              );
-            })}
-            {thread.comments.length > 0 && (
-              <div className="flex items-center gap-2 pt-1">
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => toggleResolved(thread)}
-                >
-                  {thread.resolved ? "Reopen" : "Resolve"}
-                </Button>
-              </div>
-            )}
-            {(activeThreadId === thread.threadId ||
-              pendingThread?.threadId === thread.threadId) && (
-              <div className="space-y-2 pt-1">
-                <Textarea
-                  autoFocus
-                  value={reply}
-                  onChange={(e) => setReply(e.target.value)}
-                  placeholder="Reply..."
-                  className="text-sm min-h-12"
-                />
-                <Button
-                  size="sm"
-                  disabled={posting || !reply.trim()}
-                  onClick={() => postReply(thread.threadId)}
-                >
-                  Reply
-                </Button>
-              </div>
-            )}
-          </div>
-        ))}
+              )}
+              {thread.replies.map((r) => (
+                <div key={r.uri} className="flex gap-2 group pl-4">
+                  <UserAvatar actor={actorFor(r.authorDid)} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium">
+                      {actorFor(r.authorDid).displayName ||
+                        actorFor(r.authorDid).handle ||
+                        r.authorDid}
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap break-words">
+                      {r.body}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="opacity-0 group-hover:opacity-100"
+                    onClick={() => deleteReply(r)}
+                  >
+                    ×
+                  </Button>
+                </div>
+              ))}
+              {thread.root && (
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => toggleResolved(thread)}
+                  >
+                    {thread.resolved ? "Reopen" : "Resolve"}
+                  </Button>
+                </div>
+              )}
+              {isActive && thread.root && (
+                <div className="space-y-2 pt-1">
+                  <Textarea
+                    autoFocus
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    placeholder="Reply..."
+                    className="text-sm min-h-12"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={posting || !reply.trim()}
+                    onClick={() => postReply(thread.root!)}
+                  >
+                    Reply
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </aside>
   );

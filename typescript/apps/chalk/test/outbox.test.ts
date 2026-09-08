@@ -2,7 +2,14 @@ import { env } from "cloudflare:test";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import { processOutboxMessage } from "../src/server/outbox";
-import { commentsForDoc, docsForAccessor, getDb, upsertDoc } from "../src/db";
+import {
+  commentsForDoc,
+  docsForAccessor,
+  getDb,
+  repliesForDoc,
+  resolutionsForDoc,
+  upsertDoc,
+} from "../src/db";
 
 // A well-formed empty Yjs V2 update — `applyRemote` feeds getBlob's response
 // straight into `mergeUpdate`, which decodes it, so an arbitrary byte
@@ -21,6 +28,8 @@ beforeEach(async () => {
   await env.DB.exec("DELETE FROM docs");
   await env.DB.exec("DELETE FROM doc_access");
   await env.DB.exec("DELETE FROM comments");
+  await env.DB.exec("DELETE FROM comment_replies");
+  await env.DB.exec("DELETE FROM comment_resolutions");
   await upsertDoc(getDb(env), {
     spaceUri: URI,
     docId: URI,
@@ -122,12 +131,30 @@ function commentMsg(uri: string, value: unknown) {
   return { id: 1, uri, value };
 }
 
-it("mirrors a comment record into the comments table, keyed by its own uri and author", async () => {
+// handleComment backfills the comment's cid via a getRecord call
+// (authenticated as the doc's owner) since the outbox message itself
+// carries none — see outbox.ts's handleComment. mockGetRecord makes
+// fetchMock answer that call; other calls (there shouldn't be any in
+// these tests) fail loudly instead of hanging.
+function mockGetRecord(cid: string) {
+  fetchMock.mockImplementation(async (url: string) => {
+    if (String(url).includes("space.getRecord")) {
+      return new Response(JSON.stringify({ uri: COMMENT_RECORD, cid }), {
+        status: 200,
+      });
+    }
+    throw new Error(`unexpected fetch: ${url}`);
+  });
+}
+
+it("mirrors a comment record into the comments table, backfilling its cid via getRecord", async () => {
+  mockGetRecord("bafycid1");
   await processOutboxMessage(
     env,
     commentMsg(COMMENT_RECORD, {
-      threadId: "t1",
       body: "nice doc",
+      anchorStart: "start-rel-pos",
+      anchorEnd: "end-rel-pos",
       createdAt: "2024-01-01T00:00:00.000Z",
     }),
   );
@@ -135,19 +162,29 @@ it("mirrors a comment record into the comments table, keyed by its own uri and a
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
     uri: COMMENT_RECORD,
+    cid: "bafycid1",
     docSpaceUri: URI,
-    threadId: "t1",
     authorDid: BOB, // the repo holding the record, not a field on it
     body: "nice doc",
-    resolved: false,
+    anchorStart: "start-rel-pos",
+    anchorEnd: "end-rel-pos",
   });
 });
 
-it("removes the comment on a delete tombstone (null value)", async () => {
+it("removes the comment on a delete tombstone (null value), without calling getRecord", async () => {
+  mockGetRecord("bafycid1");
   await processOutboxMessage(
     env,
-    commentMsg(COMMENT_RECORD, { threadId: "t1", body: "nice doc" }),
+    commentMsg(COMMENT_RECORD, {
+      body: "nice doc",
+      anchorStart: "a",
+      anchorEnd: "b",
+    }),
   );
+  fetchMock.mockReset();
+  fetchMock.mockImplementation(async () => {
+    throw new Error("should not be called for a tombstone");
+  });
   await processOutboxMessage(env, commentMsg(COMMENT_RECORD, null));
   expect(await commentsForDoc(getDb(env), URI)).toEqual([]);
 });
@@ -157,8 +194,9 @@ it("ignores a comment on a doc this deployment doesn't know", async () => {
   const unknownRecord = `${unknownSpace}/${BOB}/network.habitat.docs.comment/1`;
   await processOutboxMessage(
     env,
-    commentMsg(unknownRecord, { threadId: "t1", body: "x" }),
+    commentMsg(unknownRecord, { body: "x", anchorStart: "a", anchorEnd: "b" }),
   );
+  expect(fetchMock).not.toHaveBeenCalled(); // never reaches the getRecord call
   expect(
     await commentsForDoc(
       getDb(env),
@@ -167,10 +205,133 @@ it("ignores a comment on a doc this deployment doesn't know", async () => {
   ).toEqual([]);
 });
 
-it("ignores a comment record missing threadId or body", async () => {
+it("ignores a comment record missing body or an anchor", async () => {
+  await processOutboxMessage(env, commentMsg(COMMENT_RECORD, { body: "x" }));
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(await commentsForDoc(getDb(env), URI)).toEqual([]);
+});
+
+it("drops a comment whose getRecord call fails (can't mirror without a cid)", async () => {
+  fetchMock.mockImplementation(
+    async () => new Response("nope", { status: 404 }),
+  );
   await processOutboxMessage(
     env,
-    commentMsg(COMMENT_RECORD, { threadId: "t1" }),
+    commentMsg(COMMENT_RECORD, { body: "x", anchorStart: "a", anchorEnd: "b" }),
   );
   expect(await commentsForDoc(getDb(env), URI)).toEqual([]);
+});
+
+const COMMENT_REPLY_RECORD = `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.commentReply/xyz`;
+const ROOT_COMMENT_URI = `${COMMENTS_SPACE}/${OWNER}/network.habitat.docs.comment/1`;
+
+function replyMsg(uri: string, value: unknown) {
+  return { id: 1, uri, value };
+}
+
+it("mirrors a commentReply record into comment_replies, without needing a cid (no getRecord call)", async () => {
+  fetchMock.mockImplementation(async () => {
+    throw new Error("replies should not need a getRecord call");
+  });
+  await processOutboxMessage(
+    env,
+    replyMsg(COMMENT_REPLY_RECORD, {
+      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
+      body: "I agree",
+      createdAt: "2024-01-01T00:00:00.000Z",
+    }),
+  );
+  const rows = await repliesForDoc(getDb(env), URI);
+  expect(rows).toEqual([
+    expect.objectContaining({
+      uri: COMMENT_REPLY_RECORD,
+      docSpaceUri: URI,
+      commentUri: ROOT_COMMENT_URI,
+      authorDid: BOB,
+      body: "I agree",
+    }),
+  ]);
+});
+
+it("removes the reply on a delete tombstone (null value)", async () => {
+  await processOutboxMessage(
+    env,
+    replyMsg(COMMENT_REPLY_RECORD, {
+      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
+      body: "I agree",
+    }),
+  );
+  await processOutboxMessage(env, replyMsg(COMMENT_REPLY_RECORD, null));
+  expect(await repliesForDoc(getDb(env), URI)).toEqual([]);
+});
+
+it("ignores a commentReply record missing its comment ref or body", async () => {
+  await processOutboxMessage(
+    env,
+    replyMsg(COMMENT_REPLY_RECORD, { body: "no ref" }),
+  );
+  expect(await repliesForDoc(getDb(env), URI)).toEqual([]);
+});
+
+const COMMENT_RESOLUTION_RECORD = `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.commentResolution/3jzfcijpj2z2a`;
+
+it("mirrors a commentResolution record into comment_resolutions, keyed by (doc, root comment)", async () => {
+  await processOutboxMessage(
+    env,
+    commentMsg(COMMENT_RESOLUTION_RECORD, {
+      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
+      resolved: true,
+      createdAt: "2024-01-01T00:00:00.000Z",
+    }),
+  );
+  const rows = await resolutionsForDoc(getDb(env), URI);
+  expect(rows).toEqual([
+    expect.objectContaining({
+      docSpaceUri: URI,
+      commentUri: ROOT_COMMENT_URI,
+      resolverDid: BOB, // the repo holding the record, not the root's author
+      resolved: true,
+    }),
+  ]);
+});
+
+it("a commentResolution written by someone other than the root's author still takes effect", async () => {
+  // Alice (the doc owner) wrote the root comment...
+  await processOutboxMessage(
+    env,
+    commentMsg(COMMENT_RESOLUTION_RECORD, {
+      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
+      resolved: true,
+    }),
+  );
+  // ...Bob, who never commented, resolves the thread.
+  const rows = await resolutionsForDoc(getDb(env), URI);
+  expect(rows).toEqual([
+    expect.objectContaining({ resolverDid: BOB, resolved: true }),
+  ]);
+});
+
+it("ignores a commentResolution delete tombstone (no undo)", async () => {
+  await processOutboxMessage(
+    env,
+    commentMsg(COMMENT_RESOLUTION_RECORD, {
+      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
+      resolved: true,
+    }),
+  );
+  await processOutboxMessage(env, commentMsg(COMMENT_RESOLUTION_RECORD, null));
+  const rows = await resolutionsForDoc(getDb(env), URI);
+  expect(rows).toEqual([
+    expect.objectContaining({ resolverDid: BOB, resolved: true }),
+  ]);
+});
+
+it("ignores a commentResolution record missing its comment ref or resolved", async () => {
+  await processOutboxMessage(
+    env,
+    commentMsg(COMMENT_RESOLUTION_RECORD, {
+      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
+    }),
+  );
+  expect(await resolutionsForDoc(getDb(env), URI)).toEqual([]);
 });

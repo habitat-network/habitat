@@ -1,14 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import {
+  commentByUri,
   commentsForDoc,
-  commentsInThread,
   connectedOrgNames,
   deleteDocAccess,
   docByUri,
   docsForAccessor,
   docsForOrg,
   getDb,
+  repliesForDoc,
+  resolutionsForDoc,
   upsertDoc,
   upsertDocAccess,
   type DocSummary,
@@ -24,10 +26,15 @@ import {
 } from "./functions.server";
 import {
   removeComment,
-  setResolved,
+  removeReply,
+  resolveThread,
+  toCommentReplyView,
   toCommentView,
   writeComment,
+  writeReply,
+  type CommentReplyView,
   type CommentView,
+  type StrongRef,
 } from "./comments.server";
 import { SapClient, startLogin } from "./sapClient";
 
@@ -333,13 +340,29 @@ export const revokeDocAccess = createServerFn({ method: "POST" })
     await deleteDocAccess(getDb(env), relation.uri);
   });
 
-export type { CommentView } from "./comments.server";
+export type { CommentReplyView, CommentView, StrongRef } from "./comments.server";
 
-// listComments returns a doc's comments from chalk's own D1 mirror rather
-// than reading the comments space on every call: the outbox already
-// delivers every comment record written anywhere in the space (see
-// outbox.ts), and the mirror is what makes a doc's comments one indexed
-// lookup instead of a listRecords fan-out across every commenter's repo.
+// A CommentsPayload bundles a doc's comment threads (roots + replies) with
+// the current resolve state of each — three separate tables/record kinds
+// (a root comment carries the thread's CRDT anchor; a reply just
+// references its root by strongRef; resolution is its own append-only
+// action log — see each lexicon's comment for why none of this is a
+// shared field on one record) but the client always wants all three
+// together, so this is the one round-trip it fetches.
+export interface CommentsPayload {
+  comments: CommentView[];
+  replies: CommentReplyView[];
+  // The root comment URIs currently resolved; any comment URI absent from
+  // this list is unresolved (its default, unactioned state).
+  resolvedCommentUris: string[];
+}
+
+// listComments returns a doc's comment threads and their resolution state
+// from chalk's own D1 mirror rather than reading the comments space on
+// every call: the outbox already delivers every comment/reply/resolution
+// record written anywhere in the space (see outbox.ts), and the mirror is
+// what makes this one indexed lookup instead of a listRecords fan-out
+// across every commenter's repo.
 //
 // The caller still has to hold reader on the *doc* for this to return
 // anything — the comments space inherits its readers from the doc space
@@ -348,17 +371,33 @@ export type { CommentView } from "./comments.server";
 // has a role check for.
 export const listComments = createServerFn({ method: "GET" })
   .validator((input: { docId: string }) => input)
-  .handler(async ({ data }): Promise<CommentView[]> => {
+  .handler(async ({ data }): Promise<CommentsPayload> => {
     const { did } = await requireSession();
     const client = new SapClient(env, did);
-    if (!(await docRole(client, did, data.docId))) return [];
-    const rows = await commentsForDoc(getDb(env), data.docId);
-    return rows.map(toCommentView);
+    if (!(await docRole(client, did, data.docId))) {
+      return { comments: [], replies: [], resolvedCommentUris: [] };
+    }
+    const db = getDb(env);
+    const [comments, replies, resolutions] = await Promise.all([
+      commentsForDoc(db, data.docId),
+      repliesForDoc(db, data.docId),
+      resolutionsForDoc(db, data.docId),
+    ]);
+    return {
+      comments: comments.map(toCommentView),
+      replies: replies.map(toCommentReplyView),
+      resolvedCommentUris: resolutions
+        .filter((r) => r.resolved)
+        .map((r) => r.commentUri),
+    };
   });
 
-// createComment writes a comment into the doc's comments space (see
-// writeComment in comments.server.ts), creating that space and its
-// inheritance from the doc space on first use.
+// createComment starts a new thread by writing a root comment into the
+// doc's comments space (see writeComment in comments.server.ts), creating
+// that space and its inheritance from the doc space on first use.
+// anchorStart/anchorEnd are Yjs relative positions the client computed
+// from its own live Y.Doc before calling this — the server has no editor
+// state of its own to derive them from.
 //
 // Requires editor (writer) on the doc: the comments space grants writer to
 // the doc space's writers, so a viewer's putRecord would be rejected by
@@ -368,8 +407,9 @@ export const createComment = createServerFn({ method: "POST" })
   .validator(
     (input: {
       docId: string;
-      threadId: string;
       body: string;
+      anchorStart: string;
+      anchorEnd: string;
       quotedText?: string;
     }) => input,
   )
@@ -381,19 +421,41 @@ export const createComment = createServerFn({ method: "POST" })
     }
     const doc = await docByUri(getDb(env), data.docId);
     return writeComment(client, getDb(env), did, data.docId, {
-      threadId: data.threadId,
       body: data.body,
+      anchorStart: data.anchorStart,
+      anchorEnd: data.anchorEnd,
       quotedText: data.quotedText,
       ownerDid: doc?.ownerDid ?? did,
       isOrg: doc?.isOrg ?? false,
     });
   });
 
-// resolveComment marks a whole thread resolved (or reopens it) — see
-// setResolved in comments.server.ts.
+// createReply adds a reply to an existing thread — see writeReply in
+// comments.server.ts. `comment` is the strongRef to the thread's root, as
+// returned by listComments/createComment.
+export const createReply = createServerFn({ method: "POST" })
+  .validator(
+    (input: { docId: string; comment: StrongRef; body: string }) => input,
+  )
+  .handler(async ({ data }): Promise<CommentReplyView> => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    if ((await docRole(client, did, data.docId)) !== "editor") {
+      throw new Error("forbidden");
+    }
+    return writeReply(client, getDb(env), did, data.docId, {
+      comment: data.comment,
+      body: data.body,
+    });
+  });
+
+// resolveComment marks a thread resolved (or reopens it) — see
+// resolveThread in comments.server.ts. `comment` is the strongRef to the
+// thread's root.
 export const resolveComment = createServerFn({ method: "POST" })
   .validator(
-    (input: { docId: string; threadId: string; resolved: boolean }) => input,
+    (input: { docId: string; comment: StrongRef; resolved: boolean }) =>
+      input,
   )
   .handler(async ({ data }) => {
     const { did } = await requireSession();
@@ -401,20 +463,17 @@ export const resolveComment = createServerFn({ method: "POST" })
     if ((await docRole(client, did, data.docId)) !== "editor") {
       throw new Error("forbidden");
     }
-    const db = getDb(env);
-    const thread = await commentsInThread(db, data.docId, data.threadId);
-    await setResolved(
+    await resolveThread(
       client,
-      db,
+      getDb(env),
       did,
       data.docId,
-      data.threadId,
+      data.comment,
       data.resolved,
-      thread,
     );
   });
 
-// deleteCommentFn removes one comment — see removeComment in
+// deleteCommentFn removes one root comment — see removeComment in
 // comments.server.ts, which also enforces that only the comment's own
 // author can delete it.
 export const deleteCommentFn = createServerFn({ method: "POST" })
@@ -423,4 +482,13 @@ export const deleteCommentFn = createServerFn({ method: "POST" })
     const { did } = await requireSession();
     const client = new SapClient(env, did);
     await removeComment(client, getDb(env), did, data.uri);
+  });
+
+// deleteReplyFn removes one reply — see removeReply in comments.server.ts.
+export const deleteReplyFn = createServerFn({ method: "POST" })
+  .validator((input: { docId: string; uri: string }) => input)
+  .handler(async ({ data }) => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    await removeReply(client, getDb(env), did, data.uri);
   });

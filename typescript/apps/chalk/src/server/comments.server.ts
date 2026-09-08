@@ -1,8 +1,11 @@
 import { constructSpaceURI, parseSpaceURI } from "internal";
 import {
+  applyResolution,
   deleteComment,
-  setThreadResolved,
+  deleteCommentReply,
   upsertComment,
+  upsertCommentReply,
+  type CommentReplyRow,
   type CommentRow,
   type Db,
 } from "../db";
@@ -23,6 +26,19 @@ import type { SapClient } from "./sapClient";
 // indistinguishable, to anything reading the space, from document state.
 export const COMMENTS_SPACE_TYPE = "network.habitat.docs.comments";
 export const COMMENT_COLLECTION = "network.habitat.docs.comment";
+export const COMMENT_REPLY_COLLECTION = "network.habitat.docs.commentReply";
+export const COMMENT_RESOLUTION_COLLECTION =
+  "network.habitat.docs.commentResolution";
+
+// A StrongRef is com.atproto.repo.strongRef's shape: a URI pinned to the
+// exact record version (by CID) it refers to. Replies and resolution
+// actions reference a thread's root comment this way rather than by a
+// client-chosen thread id, per the AT Protocol style guide's guidance on
+// referencing another record.
+export interface StrongRef {
+  uri: string;
+  cid: string;
+}
 
 // commentsSpaceUri derives the URI of a doc's comments space from the doc's
 // own space URI: same owner, same space key, comments space type. Deriving
@@ -132,16 +148,19 @@ export function docSpaceUriForComments(
   });
 }
 
-// parseCommentRecordUri splits a comment record's URI into the parts a
-// putRecord/deleteRecord on it needs (its space, the repo holding it, and
-// its rkey), rejecting anything that isn't a comment record in a comments
-// space — so a caller can't be tricked into rewriting an unrelated record
-// by passing its URI to a comment mutation. The rkey comes back this way
-// rather than being chosen by chalk: comment records are keyed "tid" and
-// pear mints that itself when putRecord is called without an rkey (see
-// internal/spaces/store.go's PutRecord), so the URI it returns is the only
-// place the key exists.
-export function parseCommentRecordUri(uri: string):
+// parseCommentsRecordUri splits a record URI living in a doc's comments
+// space into the parts a putRecord/deleteRecord on it needs (its space,
+// the repo holding it, and its rkey), rejecting anything that isn't a
+// record of the expected collection in a comments space — so a caller
+// can't be tricked into rewriting an unrelated record by passing its URI
+// to a comment mutation. The rkey comes back this way rather than being
+// chosen by chalk: these records are keyed "tid" and pear mints one itself
+// when putRecord is called without an rkey (see internal/spaces/store.go's
+// PutRecord), so the URI it returns is the only place the key exists.
+export function parseCommentsRecordUri(
+  uri: string,
+  collection: string,
+):
   | {
       spaceUri: string;
       docSpaceUri: string;
@@ -152,7 +171,7 @@ export function parseCommentRecordUri(uri: string):
   const parsed = parseSpaceRecordUri(uri);
   if (!parsed) return undefined;
   if (parsed.type !== COMMENTS_SPACE_TYPE) return undefined;
-  if (parsed.collection !== COMMENT_COLLECTION) return undefined;
+  if (parsed.collection !== collection) return undefined;
   const docSpaceUri = docSpaceUriForComments(parsed.spaceUri);
   if (!docSpaceUri) return undefined;
   return {
@@ -163,49 +182,80 @@ export function parseCommentRecordUri(uri: string):
   };
 }
 
+// parseCommentRecordUri is parseCommentsRecordUri fixed to the root
+// comment collection — kept as its own name since it's the common case
+// (deleting/referencing a root comment).
+export function parseCommentRecordUri(uri: string) {
+  return parseCommentsRecordUri(uri, COMMENT_COLLECTION);
+}
+
 // CommentView is the shape createComment/listComments hand back to the
 // client — a CommentRow (the D1 mirror's own shape) with authorDid
-// promoted from bookkeeping into what the UI actually renders.
+// promoted from bookkeeping into what the UI actually renders. cid rides
+// along so the client can build a StrongRef to this comment (for a reply
+// or a resolve action) without a second round-trip.
 export interface CommentView {
   uri: string;
-  threadId: string;
+  cid: string;
   authorDid: string;
   body: string;
+  anchorStart: string;
+  anchorEnd: string;
   quotedText: string | null;
-  resolved: boolean;
   createdAt: number;
 }
 
 export function toCommentView(row: CommentRow): CommentView {
   return {
     uri: row.uri,
-    threadId: row.threadId,
+    cid: row.cid,
     authorDid: row.authorDid,
     body: row.body,
+    anchorStart: row.anchorStart,
+    anchorEnd: row.anchorEnd,
     quotedText: row.quotedText,
-    resolved: row.resolved,
+    createdAt: row.createdAt,
+  };
+}
+
+export interface CommentReplyView {
+  uri: string;
+  commentUri: string;
+  authorDid: string;
+  body: string;
+  createdAt: number;
+}
+
+export function toCommentReplyView(row: CommentReplyRow): CommentReplyView {
+  return {
+    uri: row.uri,
+    commentUri: row.commentUri,
+    authorDid: row.authorDid,
+    body: row.body,
     createdAt: row.createdAt,
   };
 }
 
 // writeComment creates the doc's comments space on first use (see
-// ensureCommentsSpace), writes the comment record into it, and mirrors it
-// into D1 immediately rather than waiting on the outbox webhook to deliver
-// the same record back — without this, a commenter's own listComments
-// wouldn't show the comment they just wrote until that async round-trip
-// lands. The webhook's own upsertComment is a no-op once this has landed
-// (same uri). Caller is responsible for the role check (functions.ts's
-// createComment requires editor before calling this) — pear would reject
-// the putRecord anyway for a non-writer, but checking first turns that
-// into a clear "forbidden" instead of a proxied error.
+// ensureCommentsSpace), writes the root comment record — including its
+// CRDT anchor, computed client-side from the live Y.Doc before this is
+// ever called, since only a client holding that document can derive it —
+// and mirrors it into D1 immediately rather than waiting on the outbox
+// webhook to deliver the same record back. The webhook's own upsertComment
+// is a no-op once this has landed (same uri). Caller is responsible for
+// the role check (functions.ts's createComment requires editor before
+// calling this) — pear would reject the putRecord anyway for a
+// non-writer, but checking first turns that into a clear "forbidden"
+// instead of a proxied error.
 export async function writeComment(
   client: SapClient,
   db: Db,
   did: string,
   docId: string,
   opts: {
-    threadId: string;
     body: string;
+    anchorStart: string;
+    anchorEnd: string;
     quotedText?: string;
     ownerDid: string;
     isOrg: boolean;
@@ -218,7 +268,7 @@ export async function writeComment(
   if (!spaceUri) throw new Error("invalid docId");
 
   const createdAt = new Date();
-  const { uri } = await client.call<{ uri: string }>(
+  const { uri, cid } = await client.call<{ uri: string; cid: string }>(
     "network.habitat.space.putRecord",
     "POST",
     {
@@ -230,8 +280,9 @@ export async function writeComment(
       // PutRecord), so the returned URI carries the key.
       record: {
         $type: COMMENT_COLLECTION,
-        threadId: opts.threadId,
         body: opts.body,
+        anchorStart: opts.anchorStart,
+        anchorEnd: opts.anchorEnd,
         ...(opts.quotedText ? { quotedText: opts.quotedText } : {}),
         createdAt: createdAt.toISOString(),
       },
@@ -240,63 +291,111 @@ export async function writeComment(
 
   const row: CommentRow = {
     uri,
+    cid,
     docSpaceUri: docId,
-    threadId: opts.threadId,
     authorDid: did,
     body: opts.body,
+    anchorStart: opts.anchorStart,
+    anchorEnd: opts.anchorEnd,
     quotedText: opts.quotedText ?? null,
-    resolved: false,
     createdAt: createdAt.getTime(),
   };
   await upsertComment(db, row);
   return toCommentView(row);
 }
 
-// setResolved marks a whole thread resolved (or reopens it), rewriting each
-// of the caller's own comment records upstream — a resolve made on one
-// chalk instance has to be visible on every other one, which only the
-// records carry, not the D1 mirror alone.
-export async function setResolved(
+// writeReply writes a network.habitat.docs.commentReply record referencing
+// the thread's root comment by strongRef (see that lexicon's comment for
+// why replies don't carry their own anchor). Mirrors eagerly into D1 for
+// the same reason writeComment does.
+export async function writeReply(
   client: SapClient,
   db: Db,
   did: string,
   docId: string,
-  threadId: string,
-  resolved: boolean,
-  thread: CommentRow[],
-): Promise<void> {
-  for (const comment of thread) {
-    // Only the author's own repo holds their comment records, so a resolve
-    // can only rewrite this caller's own — the rest are updated in the
-    // local mirror below and converge when their authors' records next
-    // sync. Rewriting someone else's record isn't possible here (and
-    // shouldn't be).
-    if (comment.authorDid !== did) continue;
-    const parsed = parseCommentRecordUri(comment.uri);
-    if (!parsed) continue;
-    await client.call("network.habitat.space.putRecord", "POST", {
-      space: parsed.spaceUri,
+  opts: { comment: StrongRef; body: string },
+): Promise<CommentReplyView> {
+  const spaceUri = commentsSpaceUri(docId);
+  if (!spaceUri) throw new Error("invalid docId");
+
+  const createdAt = new Date();
+  const { uri } = await client.call<{ uri: string }>(
+    "network.habitat.space.putRecord",
+    "POST",
+    {
+      space: spaceUri,
       repo: did,
-      collection: COMMENT_COLLECTION,
-      rkey: parsed.rkey,
+      collection: COMMENT_REPLY_COLLECTION,
       record: {
-        $type: COMMENT_COLLECTION,
-        threadId: comment.threadId,
-        body: comment.body,
-        ...(comment.quotedText ? { quotedText: comment.quotedText } : {}),
-        resolved,
-        createdAt: new Date(comment.createdAt).toISOString(),
+        $type: COMMENT_REPLY_COLLECTION,
+        comment: opts.comment,
+        body: opts.body,
+        createdAt: createdAt.toISOString(),
       },
-    });
-  }
-  await setThreadResolved(db, docId, threadId, resolved);
+    },
+  );
+
+  const row: CommentReplyRow = {
+    uri,
+    docSpaceUri: docId,
+    commentUri: opts.comment.uri,
+    authorDid: did,
+    body: opts.body,
+    createdAt: createdAt.getTime(),
+  };
+  await upsertCommentReply(db, row);
+  return toCommentReplyView(row);
 }
 
-// removeComment deletes one comment record and its D1 mirror row. Only its
-// own author can: the record lives in their repo, and pear rejects a write
-// to anyone else's — checked here first (via the uri itself, which is
-// self-describing: see parseCommentRecordUri) so a mismatched caller gets
-// a clear "forbidden" rather than a proxied 403.
+// resolveThread records a resolve/reopen action on a thread as its own
+// network.habitat.docs.commentResolution record, referencing the thread's
+// root comment by strongRef and written into the resolver's own repo —
+// not a rewrite of the root comment or any reply, which the resolver may
+// not have authored (and couldn't write to even if they wanted; an AT
+// Protocol record can only be rewritten by the repo that owns it).
+export async function resolveThread(
+  client: SapClient,
+  db: Db,
+  did: string,
+  docId: string,
+  comment: StrongRef,
+  resolved: boolean,
+): Promise<void> {
+  const spaceUri = commentsSpaceUri(docId);
+  if (!spaceUri) throw new Error("invalid docId");
+
+  const createdAt = new Date();
+  const { uri } = await client.call<{ uri: string }>(
+    "network.habitat.space.putRecord",
+    "POST",
+    {
+      space: spaceUri,
+      repo: did,
+      collection: COMMENT_RESOLUTION_COLLECTION,
+      record: {
+        $type: COMMENT_RESOLUTION_COLLECTION,
+        comment,
+        resolved,
+        createdAt: createdAt.toISOString(),
+      },
+    },
+  );
+
+  await applyResolution(db, {
+    docSpaceUri: docId,
+    commentUri: comment.uri,
+    uri,
+    resolverDid: did,
+    resolved,
+    createdAt: createdAt.getTime(),
+  });
+}
+
+// removeComment deletes one root comment record and its D1 mirror row.
+// Only its own author can: the record lives in their repo, and pear
+// rejects a write to anyone else's — checked here first (via the uri
+// itself, which is self-describing: see parseCommentRecordUri) so a
+// mismatched caller gets a clear "forbidden" rather than a proxied 403.
 export async function removeComment(
   client: SapClient,
   db: Db,
@@ -314,4 +413,23 @@ export async function removeComment(
   // Drop it locally now rather than waiting on the outbox tombstone, for
   // the same reason writeComment mirrors eagerly.
   await deleteComment(db, uri);
+}
+
+// removeReply deletes one reply record and its D1 mirror row — same
+// author-only rule as removeComment.
+export async function removeReply(
+  client: SapClient,
+  db: Db,
+  did: string,
+  uri: string,
+): Promise<void> {
+  const parsed = parseCommentsRecordUri(uri, COMMENT_REPLY_COLLECTION);
+  if (!parsed || parsed.repo !== did) throw new Error("forbidden");
+  await client.call("network.habitat.space.deleteRecord", "POST", {
+    space: parsed.spaceUri,
+    repo: did,
+    collection: COMMENT_REPLY_COLLECTION,
+    rkey: parsed.rkey,
+  });
+  await deleteCommentReply(db, uri);
 }
