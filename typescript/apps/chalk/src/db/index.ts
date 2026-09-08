@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/d1";
-import { and, desc, eq, inArray } from "drizzle-orm";
-import { docs, docAccess, connectedOrgs } from "./schema";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { docs, docAccess, connectedOrgs, comments } from "./schema";
 
 export interface DocSummary {
   docId: string;
@@ -11,7 +11,9 @@ export interface DocSummary {
 }
 
 export function getDb(env: { DB: D1Database }) {
-  return drizzle(env.DB, { schema: { docs, docAccess, connectedOrgs } });
+  return drizzle(env.DB, {
+    schema: { docs, docAccess, connectedOrgs, comments },
+  });
 }
 
 export type Db = ReturnType<typeof getDb>;
@@ -187,4 +189,118 @@ export async function connectedOrgNames(
     if (!names.has(row.orgDid)) names.set(row.orgDid, row.orgName);
   }
   return names;
+}
+
+export interface CommentRow {
+  uri: string;
+  docSpaceUri: string;
+  threadId: string;
+  authorDid: string;
+  body: string;
+  quotedText: string | null;
+  resolved: boolean;
+  createdAt: number;
+}
+
+// upsertComment mirrors one network.habitat.docs.comment record into the
+// comments table. Keyed by the record's own URI, so re-delivery of the same
+// record from the outbox (which sap retries until chalk 200s — see
+// webhook.ts) updates in place rather than duplicating the comment.
+export async function upsertComment(
+  db: Db,
+  comment: {
+    uri: string;
+    docSpaceUri: string;
+    threadId: string;
+    authorDid: string;
+    body: string;
+    quotedText?: string | null;
+    resolved?: boolean;
+    createdAt?: number;
+  },
+): Promise<void> {
+  const row = {
+    ...comment,
+    quotedText: comment.quotedText ?? null,
+    resolved: comment.resolved ?? false,
+    createdAt: comment.createdAt ?? Date.now(),
+  };
+  await db
+    .insert(comments)
+    .values(row)
+    .onConflictDoUpdate({
+      target: comments.uri,
+      set: {
+        docSpaceUri: row.docSpaceUri,
+        threadId: row.threadId,
+        authorDid: row.authorDid,
+        body: row.body,
+        quotedText: row.quotedText,
+        resolved: row.resolved,
+        createdAt: row.createdAt,
+      },
+    });
+}
+
+// commentsForDoc returns every comment on a doc, oldest first — the order a
+// thread reads in, and the order the UI groups threads from. Ordered by
+// (createdAt, uri) rather than createdAt alone so two comments written in
+// the same millisecond still come back in a stable order across calls.
+export async function commentsForDoc(
+  db: Db,
+  docSpaceUri: string,
+): Promise<CommentRow[]> {
+  return db
+    .select()
+    .from(comments)
+    .where(eq(comments.docSpaceUri, docSpaceUri))
+    .orderBy(asc(comments.createdAt), asc(comments.uri));
+}
+
+// deleteComment removes a comment by its record URI, in response to either
+// an explicit delete or the JSON-null tombstone the outbox emits for a
+// deleted record.
+export async function deleteComment(db: Db, uri: string): Promise<void> {
+  await db.delete(comments).where(eq(comments.uri, uri));
+}
+
+// setThreadResolved marks every comment in a thread resolved (or not).
+// Resolution is a property of the thread, but a thread is just a set of
+// records sharing a threadId — there's no separate thread record to carry
+// it — so the flag is stamped across the thread's rows and read back off
+// any one of them.
+export async function setThreadResolved(
+  db: Db,
+  docSpaceUri: string,
+  threadId: string,
+  resolved: boolean,
+): Promise<void> {
+  await db
+    .update(comments)
+    .set({ resolved })
+    .where(
+      and(
+        eq(comments.docSpaceUri, docSpaceUri),
+        eq(comments.threadId, threadId),
+      ),
+    );
+}
+
+// commentsInThread returns one thread's comments, oldest first — used to
+// find the records a resolve/unresolve has to rewrite upstream.
+export async function commentsInThread(
+  db: Db,
+  docSpaceUri: string,
+  threadId: string,
+): Promise<CommentRow[]> {
+  return db
+    .select()
+    .from(comments)
+    .where(
+      and(
+        eq(comments.docSpaceUri, docSpaceUri),
+        eq(comments.threadId, threadId),
+      ),
+    )
+    .orderBy(asc(comments.createdAt), asc(comments.uri));
 }

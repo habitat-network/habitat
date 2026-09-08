@@ -14,6 +14,7 @@ describe("parseSpaceRecordUri", () => {
       skey: "abc",
       repo: "did:plc:member",
       collection: "network.habitat.docs.crdt",
+      rkey: "self",
     });
   });
 

@@ -14,6 +14,7 @@ export interface ParsedSpaceRecordUri {
   skey: string;
   repo: string;
   collection: string;
+  rkey: string;
 }
 
 // parseSpaceRecordUri splits a space-record URI
@@ -26,8 +27,9 @@ export function parseSpaceRecordUri(
   if (!uri.startsWith("at://")) return undefined;
   const parts = uri.slice("at://".length).split("/");
   if (parts.length !== 7 || parts[1] !== "space") return undefined;
-  const [owner, , type, skey, repo, collection] = parts;
-  if (!owner || !type || !skey || !repo || !collection) return undefined;
+  const [owner, , type, skey, repo, collection, rkey] = parts;
+  if (!owner || !type || !skey || !repo || !collection || !rkey)
+    return undefined;
   return {
     spaceUri: `at://${owner}/space/${type}/${skey}`,
     owner,
@@ -35,5 +37,6 @@ export function parseSpaceRecordUri(
     skey,
     repo,
     collection,
+    rkey,
   };
 }

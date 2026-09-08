@@ -1,8 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import {
+  commentsForDoc,
+  commentsInThread,
   connectedOrgNames,
   deleteDocAccess,
+  docByUri,
   docsForAccessor,
   docsForOrg,
   getDb,
@@ -19,6 +22,13 @@ import {
   requireSession,
   setCurrentOrg,
 } from "./functions.server";
+import {
+  removeComment,
+  setResolved,
+  toCommentView,
+  writeComment,
+  type CommentView,
+} from "./comments.server";
 import { SapClient, startLogin } from "./sapClient";
 
 // Every export below is a createServerFn wrapper — safe to statically
@@ -321,4 +331,96 @@ export const revokeDocAccess = createServerFn({ method: "POST" })
     // revoked user keeps seeing the doc in their own listDocs until that
     // async round-trip lands.
     await deleteDocAccess(getDb(env), relation.uri);
+  });
+
+export type { CommentView } from "./comments.server";
+
+// listComments returns a doc's comments from chalk's own D1 mirror rather
+// than reading the comments space on every call: the outbox already
+// delivers every comment record written anywhere in the space (see
+// outbox.ts), and the mirror is what makes a doc's comments one indexed
+// lookup instead of a listRecords fan-out across every commenter's repo.
+//
+// The caller still has to hold reader on the *doc* for this to return
+// anything — the comments space inherits its readers from the doc space
+// (see ensureCommentsSpace), so that check is the same question as "may
+// this caller read the comments", asked against the space chalk already
+// has a role check for.
+export const listComments = createServerFn({ method: "GET" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }): Promise<CommentView[]> => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    if (!(await docRole(client, did, data.docId))) return [];
+    const rows = await commentsForDoc(getDb(env), data.docId);
+    return rows.map(toCommentView);
+  });
+
+// createComment writes a comment into the doc's comments space (see
+// writeComment in comments.server.ts), creating that space and its
+// inheritance from the doc space on first use.
+//
+// Requires editor (writer) on the doc: the comments space grants writer to
+// the doc space's writers, so a viewer's putRecord would be rejected by
+// pear anyway — checking here just turns that into a clear error instead
+// of a proxied 403.
+export const createComment = createServerFn({ method: "POST" })
+  .validator(
+    (input: {
+      docId: string;
+      threadId: string;
+      body: string;
+      quotedText?: string;
+    }) => input,
+  )
+  .handler(async ({ data }): Promise<CommentView> => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    if ((await docRole(client, did, data.docId)) !== "editor") {
+      throw new Error("forbidden");
+    }
+    const doc = await docByUri(getDb(env), data.docId);
+    return writeComment(client, getDb(env), did, data.docId, {
+      threadId: data.threadId,
+      body: data.body,
+      quotedText: data.quotedText,
+      ownerDid: doc?.ownerDid ?? did,
+      isOrg: doc?.isOrg ?? false,
+    });
+  });
+
+// resolveComment marks a whole thread resolved (or reopens it) — see
+// setResolved in comments.server.ts.
+export const resolveComment = createServerFn({ method: "POST" })
+  .validator(
+    (input: { docId: string; threadId: string; resolved: boolean }) => input,
+  )
+  .handler(async ({ data }) => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    if ((await docRole(client, did, data.docId)) !== "editor") {
+      throw new Error("forbidden");
+    }
+    const db = getDb(env);
+    const thread = await commentsInThread(db, data.docId, data.threadId);
+    await setResolved(
+      client,
+      db,
+      did,
+      data.docId,
+      data.threadId,
+      data.resolved,
+      thread,
+    );
+  });
+
+// deleteCommentFn removes one comment — see removeComment in
+// comments.server.ts, which also enforces that only the comment's own
+// author can delete it.
+export const deleteCommentFn = createServerFn({ method: "POST" })
+  .validator((input: { docId: string; uri: string }) => input)
+  .handler(async ({ data }) => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    await removeComment(client, getDb(env), did, data.uri);
   });

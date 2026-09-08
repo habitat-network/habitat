@@ -1,4 +1,15 @@
-import { deleteDocAccess, docByUri, getDb, upsertDocAccess } from "../db";
+import {
+  deleteComment,
+  deleteDocAccess,
+  docByUri,
+  getDb,
+  upsertComment,
+  upsertDocAccess,
+} from "../db";
+import {
+  COMMENT_COLLECTION,
+  docSpaceUriForComments,
+} from "./comments.server";
 import { parseSpaceRecordUri, type OutboxMessage } from "./spaceUri";
 
 const CRDT_COLLECTION = "network.habitat.docs.crdt";
@@ -18,6 +29,10 @@ export async function processOutboxMessage(
   if (!parsed) return;
   if (parsed.collection === USER_RELATION_COLLECTION) {
     await handleUserRelation(env, msg.uri, parsed.spaceUri, msg.value);
+    return;
+  }
+  if (parsed.collection === COMMENT_COLLECTION) {
+    await handleComment(env, msg.uri, parsed.spaceUri, parsed.repo, msg.value);
     return;
   }
   if (parsed.collection !== CRDT_COLLECTION) return;
@@ -57,5 +72,58 @@ async function handleUserRelation(
     spaceUri,
     subjectDid: record.subject,
     relation: record.relation,
+  });
+}
+
+// handleComment mirrors a network.habitat.docs.comment record into the
+// comments table, the same way handleUserRelation does for access grants:
+// a live record is an upsert, a JSON-null value is the delete tombstone.
+// Comments live in the doc's companion comments space, so the doc they
+// belong to is derived from that space's URI rather than read off the
+// record — the record itself doesn't name its doc, and doesn't need to.
+//
+// The author is the repo the record lives in, not a field on the record:
+// a comment record can only be written into its own author's repo, so the
+// URI is the authoritative claim about who wrote it. A `author` field in
+// the record body would be a self-asserted one.
+async function handleComment(
+  env: Env,
+  uri: string,
+  spaceUri: string,
+  repo: string,
+  value: unknown,
+): Promise<void> {
+  const db = getDb(env);
+  if (value === null) {
+    await deleteComment(db, uri);
+    return;
+  }
+  const docSpaceUri = docSpaceUriForComments(spaceUri);
+  if (!docSpaceUri) return;
+  const doc = await docByUri(db, docSpaceUri);
+  if (!doc) return; // this deployment does not know this doc
+
+  const record = value as {
+    threadId?: string;
+    body?: string;
+    quotedText?: string;
+    resolved?: boolean;
+    createdAt?: string;
+  };
+  if (!record.threadId || typeof record.body !== "string") return;
+
+  // createdAt is the record's own claim about when it was written; it
+  // orders a thread, so an unparseable one falls back to now rather than
+  // NaN (which would sort unpredictably).
+  const createdAt = Date.parse(record.createdAt ?? "");
+  await upsertComment(db, {
+    uri,
+    docSpaceUri,
+    threadId: record.threadId,
+    authorDid: repo,
+    body: record.body,
+    quotedText: record.quotedText ?? null,
+    resolved: record.resolved ?? false,
+    createdAt: Number.isNaN(createdAt) ? Date.now() : createdAt,
   });
 }

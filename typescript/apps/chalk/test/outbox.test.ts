@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import { processOutboxMessage } from "../src/server/outbox";
-import { getDb, upsertDoc, docsForAccessor } from "../src/db";
+import { commentsForDoc, docsForAccessor, getDb, upsertDoc } from "../src/db";
 
 // A well-formed empty Yjs V2 update — `applyRemote` feeds getBlob's response
 // straight into `mergeUpdate`, which decodes it, so an arbitrary byte
@@ -20,6 +20,7 @@ beforeEach(async () => {
   vi.stubGlobal("fetch", fetchMock);
   await env.DB.exec("DELETE FROM docs");
   await env.DB.exec("DELETE FROM doc_access");
+  await env.DB.exec("DELETE FROM comments");
   await upsertDoc(getDb(env), {
     spaceUri: URI,
     docId: URI,
@@ -112,4 +113,64 @@ it("ignores a userRelation record missing subject or relation", async () => {
     relationMsg(RELATION_RECORD, { subject: BOB }),
   );
   expect(await docsForAccessor(getDb(env), BOB)).toEqual([]);
+});
+
+const COMMENTS_SPACE = `at://${OWNER}/space/network.habitat.docs.comments/abc`;
+const COMMENT_RECORD = `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.comment/3jzfcijpj2z2a`;
+
+function commentMsg(uri: string, value: unknown) {
+  return { id: 1, uri, value };
+}
+
+it("mirrors a comment record into the comments table, keyed by its own uri and author", async () => {
+  await processOutboxMessage(
+    env,
+    commentMsg(COMMENT_RECORD, {
+      threadId: "t1",
+      body: "nice doc",
+      createdAt: "2024-01-01T00:00:00.000Z",
+    }),
+  );
+  const rows = await commentsForDoc(getDb(env), URI);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    uri: COMMENT_RECORD,
+    docSpaceUri: URI,
+    threadId: "t1",
+    authorDid: BOB, // the repo holding the record, not a field on it
+    body: "nice doc",
+    resolved: false,
+  });
+});
+
+it("removes the comment on a delete tombstone (null value)", async () => {
+  await processOutboxMessage(
+    env,
+    commentMsg(COMMENT_RECORD, { threadId: "t1", body: "nice doc" }),
+  );
+  await processOutboxMessage(env, commentMsg(COMMENT_RECORD, null));
+  expect(await commentsForDoc(getDb(env), URI)).toEqual([]);
+});
+
+it("ignores a comment on a doc this deployment doesn't know", async () => {
+  const unknownSpace = `at://${OWNER}/space/network.habitat.docs.comments/zzz`;
+  const unknownRecord = `${unknownSpace}/${BOB}/network.habitat.docs.comment/1`;
+  await processOutboxMessage(
+    env,
+    commentMsg(unknownRecord, { threadId: "t1", body: "x" }),
+  );
+  expect(
+    await commentsForDoc(
+      getDb(env),
+      `at://${OWNER}/space/network.habitat.docs/zzz`,
+    ),
+  ).toEqual([]);
+});
+
+it("ignores a comment record missing threadId or body", async () => {
+  await processOutboxMessage(
+    env,
+    commentMsg(COMMENT_RECORD, { threadId: "t1" }),
+  );
+  expect(await commentsForDoc(getDb(env), URI)).toEqual([]);
 });

@@ -155,3 +155,9 @@
   white-space: nowrap;
   letter-spacing: 0.01em;
 }
+
+.comment-mark {
+  background-color: rgba(250, 204, 21, 0.35);
+  border-bottom: 2px solid rgba(202, 138, 4, 0.6);
+  cursor: pointer;
+}

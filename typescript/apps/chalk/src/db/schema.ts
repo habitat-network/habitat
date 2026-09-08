@@ -56,3 +56,35 @@ export const connectedOrgs = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.memberDid, t.orgDid] })],
 );
+
+// comments holds a doc's comment threads. They live in their own table
+// rather than alongside docs because they're their own space's records:
+// each doc has a companion comments space (type
+// "network.habitat.docs.comments", same owner and space key as the doc —
+// see commentsSpaceUri in src/server/comments.ts), whose readers/writers
+// are inherited from the doc space via spaceRelation records, and whose
+// network.habitat.docs.comment records this table mirrors.
+//
+// Keyed by the record's own AT-URI, which is what the outbox delivers on
+// both a write and a delete tombstone — unlike doc_access, a subject can
+// hold any number of comments on the same space, so there's no natural
+// (subject, space) key to use instead. docSpaceUri (not the comments
+// space's URI) is stored so listing a doc's comments is a single indexed
+// lookup keyed by the same docId the rest of chalk passes around.
+export const comments = sqliteTable(
+  "comments",
+  {
+    uri: text("uri").primaryKey(),
+    docSpaceUri: text("doc_space_uri").notNull(),
+    threadId: text("thread_id").notNull(),
+    authorDid: text("author_did").notNull(),
+    body: text("body").notNull(),
+    quotedText: text("quoted_text"),
+    resolved: integer("resolved", { mode: "boolean" }).notNull().default(false),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [
+    index("comments_doc_created").on(t.docSpaceUri, t.createdAt),
+    index("comments_thread").on(t.docSpaceUri, t.threadId),
+  ],
+);
