@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@atproto/identity": "catalog:",
+    "@atproto/syntax": "catalog:",
     "@tanstack/react-devtools": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",

@@ -15,6 +15,9 @@ catalogs:
     '@atproto/lexicon':
       specifier: 0.7.12
       version: 0.7.12
+    '@atproto/syntax':
+      specifier: 0.0.0-spaces-alpha-20260818163953
+      version: 0.0.0-spaces-alpha-20260818163953
     '@atproto/xrpc':
       specifier: ^0.8.6
       version: 0.8.11
@@ -201,6 +204,9 @@ importers:
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.10
+      '@atproto/syntax':
+        specifier: 'catalog:'
+        version: 0.0.0-spaces-alpha-20260818163953
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)
@@ -320,6 +326,9 @@ importers:
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.10
+      '@atproto/syntax':
+        specifier: 'catalog:'
+        version: 0.0.0-spaces-alpha-20260818163953
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.12(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -695,6 +704,9 @@ importers:
       '@atproto/oauth-client-browser':
         specifier: ^0.5.0
         version: 0.5.4
+      '@atproto/syntax':
+        specifier: 'catalog:'
+        version: 0.0.0-spaces-alpha-20260818163953
       '@base-ui/react':
         specifier: ^1.6.0
         version: 1.7.0(@date-fns/tz@1.5.0)(@types/react@19.2.18)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -980,6 +992,10 @@ packages:
 
   '@atproto/oauth-types@0.7.5':
     resolution: {integrity: sha512-x75O0HsKB1IGfBikAQrrTX6EL8Rt4Q0+wMcwhZQRGPk/N/WqbYbsW3Powj4R8ZJKSfWCpVfaw32Piu1pTi891Q==}
+    engines: {node: '>=22'}
+
+  '@atproto/syntax@0.0.0-spaces-alpha-20260818163953':
+    resolution: {integrity: sha512-Xl2fpD/NcfVOWpHR86HKym2XNDYHmgiqThZXoYMwh9XUo+/LgVZYGVpSecfKRBcQ5tNGiRivE1Fvio5YDfJ3lA==}
     engines: {node: '>=22'}
 
   '@atproto/syntax@0.7.5':
@@ -12003,6 +12019,11 @@ snapshots:
       '@atproto/did': 0.5.4
       '@atproto/jwk': 0.7.4
       zod: 3.25.76
+
+  '@atproto/syntax@0.0.0-spaces-alpha-20260818163953':
+    dependencies:
+      iso-datestring-validator: 2.2.2
+      tslib: 2.8.1
 
   '@atproto/syntax@0.7.5':
     dependencies:

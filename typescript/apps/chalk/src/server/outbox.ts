@@ -1,5 +1,14 @@
+import { AtUri } from "@atproto/syntax";
 import { deleteDocAccess, docByUri, getDb, upsertDocAccess } from "../db";
-import { parseSpaceRecordUri, type OutboxMessage } from "./spaceUri";
+
+// OutboxMessage is sap's wire format for a single outbox event, delivered as
+// a webhook POST body (see cmd/sap/webhook.go webhookPayload). A JSON-null
+// value is a delete tombstone: the record at uri was removed.
+export interface OutboxMessage {
+  id: number;
+  uri: string;
+  value: unknown;
+}
 
 const CRDT_COLLECTION = "network.habitat.docs.crdt";
 const USER_RELATION_COLLECTION = "network.habitat.relationship.userRelation";
@@ -9,28 +18,29 @@ const USER_RELATION_COLLECTION = "network.habitat.relationship.userRelation";
 // collection, unknown doc, missing blob ref) return normally, which the
 // caller (webhook.ts's handleSapWebhook) turns into a 200 so sap acks them
 // immediately — one uninteresting message must not be able to wedge the
-// outbox.
+// outbox. A malformed uri (not a space-record uri at all) throws instead,
+// which handleSapWebhook turns into a 500 so sap retries it.
 export async function processOutboxMessage(
   env: Env,
   msg: OutboxMessage,
 ): Promise<void> {
-  const parsed = parseSpaceRecordUri(msg.uri);
-  if (!parsed) return;
-  if (parsed.collection === USER_RELATION_COLLECTION) {
-    await handleUserRelation(env, msg.uri, parsed.spaceUri, msg.value);
+  const atUri = new AtUri(msg.uri);
+  const spaceRef = atUri.spaceRef();
+  if (!spaceRef || !atUri.authorDid || !atUri.collection || !atUri.rkey) return;
+  const spaceUri = spaceRef.toString();
+
+  if (atUri.collection === USER_RELATION_COLLECTION) {
+    await handleUserRelation(env, msg.uri, spaceUri, msg.value);
     return;
   }
-  if (parsed.collection !== CRDT_COLLECTION) return;
+  if (atUri.collection !== CRDT_COLLECTION) return;
   const value = (msg.value ?? {}) as { blob?: { ref?: { $link?: string } } };
   const cid = value.blob?.ref?.$link;
   if (!cid) return;
-  const doc = await docByUri(getDb(env), parsed.spaceUri);
+  const doc = await docByUri(getDb(env), spaceUri);
   if (!doc) return; // this deployment does not know this doc
-  const stub = env.DOC.get(env.DOC.idFromName(parsed.spaceUri));
-  await stub.applyRemote(
-    { spaceUri: parsed.spaceUri, ownerDid: doc.ownerDid },
-    cid,
-  );
+  const stub = env.DOC.get(env.DOC.idFromName(spaceUri));
+  await stub.applyRemote({ spaceUri, ownerDid: doc.ownerDid }, cid);
 }
 
 // handleUserRelation mirrors a network.habitat.relationship.userRelation

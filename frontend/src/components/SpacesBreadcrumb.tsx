@@ -1,5 +1,6 @@
 import { Fragment, type ReactElement, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
+import { ensureValidDid, ensureValidNsid } from "@atproto/syntax";
 import { DidHoverCard } from "@/components/DidHoverCard";
 import {
   Breadcrumb,
@@ -82,6 +83,8 @@ export function SpacesBreadcrumb({
   }
 
   if (spaceOwner && spaceType && spaceKey) {
+    ensureValidDid(spaceOwner);
+    ensureValidNsid(spaceType);
     crumbs.push({
       key: "space",
       label: spaceKey,
