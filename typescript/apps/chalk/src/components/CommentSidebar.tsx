@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserAvatar, getProfiles, type Actor } from "internal";
+import { UserAvatar, type Actor } from "internal";
 import { Button, Textarea, toast } from "internal/components/ui";
+import { useActors } from "@/hooks/useActors";
 import {
   createComment,
   createReply,
@@ -101,24 +102,13 @@ export function CommentSidebar({
   const resolvedCommentUris = data?.resolvedCommentUris ?? [];
 
   const authorDids = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...comments.map((c) => c.authorDid),
-          ...replies.map((r) => r.authorDid),
-        ]),
-      ),
+    () => [
+      ...comments.map((c) => c.authorDid),
+      ...replies.map((r) => r.authorDid),
+    ],
     [comments, replies],
   );
-  const { data: profiles = [] } = useQuery({
-    queryKey: ["profiles", authorDids],
-    queryFn: () => getProfiles(authorDids),
-    enabled: authorDids.length > 0,
-  });
-  const profileByDid = useMemo(
-    () => new Map(profiles.map((p) => [p.did, p] as const)),
-    [profiles],
-  );
+  const profileByDid = useActors(authorDids);
 
   const threads = useMemo(
     () => groupThreads(comments, replies, resolvedCommentUris),
@@ -368,7 +358,7 @@ export function CommentSidebar({
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
                     placeholder="Reply..."
-                    className="text-sm min-h-12"
+                    className="text-sm"
                   />
                   <Button
                     size="sm"

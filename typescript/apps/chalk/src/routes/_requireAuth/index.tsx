@@ -1,12 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  getProfiles,
-  HabitatLogo,
-  UserAvatar,
-  UserDisplayName,
-  type Actor,
-} from "internal";
+import { HabitatLogo, UserAvatar, UserDisplayName, type Actor } from "internal";
 import {
   Table,
   TableHeader,
@@ -16,6 +10,7 @@ import {
   TableCell,
 } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
+import { useActors } from "@/hooks/useActors";
 import { listDocs } from "@/server/functions";
 
 function OwnerCell({
@@ -41,13 +36,7 @@ export const Route = createFileRoute("/_requireAuth/")({
       queryFn: () => listDocs(),
     });
 
-    const ownerDids = [...new Set(docs.map((doc) => doc.ownerDid))];
-    const { data: owners = [] } = useQuery({
-      queryKey: ["profiles", ownerDids],
-      queryFn: () => getProfiles(ownerDids),
-      enabled: ownerDids.length > 0,
-    });
-    const ownersByDid = new Map(owners.map((owner) => [owner.did, owner]));
+    const ownersByDid = useActors(docs.map((doc) => doc.ownerDid));
 
     return (
       <div className="flex flex-col h-full">

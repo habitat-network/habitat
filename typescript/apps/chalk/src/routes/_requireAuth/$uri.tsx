@@ -8,10 +8,9 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
   ShareDialog,
-  getProfiles,
   type Actor,
   type ShareDialogGrantee,
   type ShareDialogRole,
@@ -25,6 +24,7 @@ import {
   encodeAnchor,
   type CommentAnchor,
 } from "@/extensions/commentAnchor";
+import { useActors } from "@/hooks/useActors";
 import { useYDoc } from "@/hooks/useYDoc";
 import { Route as RequireAuthRoute } from "@/routes/_requireAuth";
 import {
@@ -71,24 +71,22 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     useEffect(() => addRecentDoc(uri), [uri, addRecentDoc]);
 
     const accessQueryKey = ["docAccess", uri];
-    const { data: grantees = [] } = useQuery({
+    // listDocAccess only returns DIDs and relations (what
+    // network.habitat.relationship actually stores); resolving DIDs to
+    // handles/avatars for display is useActors's job.
+    const { data: access = [] } = useQuery({
       queryKey: accessQueryKey,
-      // listDocAccess only returns DIDs and relations (what
-      // network.habitat.relationship actually stores); resolving DIDs to
-      // handles/avatars for display is a separate, client-side lookup
-      // against the public directory.
-      queryFn: async (): Promise<ShareDialogGrantee[]> => {
-        const access = await listDocAccess({ data: { docId: uri } });
-        const profiles = await getProfiles(access.map((a) => a.did));
-        const relationByDid = new Map(
-          access.map((a) => [a.did, a.relation] as const),
-        );
-        return profiles.map((profile) => ({
-          ...profile,
-          relation: relationByDid.get(profile.did),
-        }));
-      },
+      queryFn: () => listDocAccess({ data: { docId: uri } }),
     });
+    const actorByDid = useActors(access.map((a) => a.did));
+    const grantees: ShareDialogGrantee[] = useMemo(
+      () =>
+        access.map((a) => ({
+          ...(actorByDid.get(a.did) ?? { did: a.did }),
+          relation: a.relation,
+        })),
+      [access, actorByDid],
+    );
     const invalidateAccess = () =>
       queryClient.invalidateQueries({ queryKey: accessQueryKey });
 
