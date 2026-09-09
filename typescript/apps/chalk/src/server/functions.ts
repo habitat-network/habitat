@@ -16,6 +16,7 @@ import {
   docRole,
   fetchOrgName,
   listMyOrgIds,
+  orgMembersSpaceUri,
   requireSession,
   setCurrentOrg,
 } from "./functions.server";
@@ -77,9 +78,11 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     // waiting on the outbox webhook to sync their own userRelation record
     // back — without this, docsForAccessor's inner join hides the doc the
     // owner just created until that async round-trip lands. Org docs have
-    // no doc_access rows at all: access is org-wide via the space's own
-    // community.opensocial.access record (see createDocSpace), not a
-    // per-user grant.
+    // no doc_access rows at all: listDocs shows every org member the org's
+    // full doc list (docsForOrg), regardless of per-user grants — actual
+    // read/write access is still gated by network.habitat.relationship (see
+    // hasDocAccess/docRole), which the creator grants explicitly afterward
+    // via the share dialog, including an "entire org" option.
     if (!isOrg) {
       await upsertDocAccess(db, {
         uri,
@@ -194,6 +197,14 @@ export const startOrgConnect = createServerFn({ method: "POST" })
 // A userRelation record as network.habitat.relationship.listRelations
 // returns it — only the fields sharing.ts actually reads.
 interface UserRelationView {
+  uri: string;
+  subject: string;
+  relation: string;
+}
+
+// A spaceRelation record as network.habitat.relationship.listRelations
+// returns it — only the fields the org-sharing functions below read.
+interface SpaceRelationView {
   uri: string;
   subject: string;
   relation: string;
@@ -321,4 +332,81 @@ export const revokeDocAccess = createServerFn({ method: "POST" })
     // revoked user keeps seeing the doc in their own listDocs until that
     // async round-trip lands.
     await deleteDocAccess(getDb(env), relation.uri);
+  });
+
+// The org-wide grant maps to "reader"/"writer" (not "manager", used for a
+// per-person editor) — every member reshaing the doc org-wide would be too
+// permissive for a grant this broad.
+const ORG_ROLE_TO_RELATION: Record<"editor" | "viewer", "writer" | "reader"> =
+  {
+    editor: "writer",
+    viewer: "reader",
+  };
+
+// getOrgSpaceRelation looks up the doc's spaceRelation naming the caller's
+// org's members space as its subject, if any — the single record that
+// backs the "share with everyone at <org>" option.
+async function getOrgSpaceRelation(
+  client: SapClient,
+  docId: string,
+  currentOrg: string,
+): Promise<SpaceRelationView | undefined> {
+  const { relations } = await client.call<{ relations: SpaceRelationView[] }>(
+    "network.habitat.relationship.listRelations",
+    "GET",
+    { space: docId, subjectType: "space" },
+  );
+  const membersSpace = orgMembersSpaceUri(currentOrg);
+  return relations.find((r) => r.subject === membersSpace);
+}
+
+// getDocOrgAccess resolves whether (and how) a doc is currently shared with
+// every member of the caller's org, for the org-sharing control to show its
+// current state. Returns null outside org mode, or when nothing is shared.
+export const getDocOrgAccess = createServerFn({ method: "GET" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }): Promise<"editor" | "viewer" | null> => {
+    const { did, currentOrg } = await requireSession();
+    if (!currentOrg) return null;
+    const client = new SapClient(env, did);
+    const relation = await getOrgSpaceRelation(client, data.docId, currentOrg);
+    if (!relation) return null;
+    return relation.relation === "writer" ? "editor" : "viewer";
+  });
+
+// shareDocWithOrg grants every member of the caller's current org access to
+// a doc, via a single spaceRelation naming the org's own
+// community.opensocial.members space as its subject (see
+// orgMembersSpaceUri) — this is what the share dialog's "entire org" option
+// calls. Requires the caller to already hold manager on the doc, same as
+// shareDoc.
+export const shareDocWithOrg = createServerFn({ method: "POST" })
+  .validator(
+    (input: { docId: string; role: "editor" | "viewer" }) => input,
+  )
+  .handler(async ({ data }) => {
+    const { did, currentOrg } = await requireSession();
+    if (!currentOrg) throw new Error("not acting as an org");
+    const client = new SapClient(env, did);
+    await client.call("network.habitat.relationship.setSpaceRelation", "POST", {
+      subject: orgMembersSpaceUri(currentOrg),
+      subjectRole: "reader",
+      relation: ORG_ROLE_TO_RELATION[data.role],
+      space: data.docId,
+    });
+  });
+
+// revokeDocOrgAccess removes the doc's org-wide grant, if any — the share
+// dialog's "not shared with org" option.
+export const revokeDocOrgAccess = createServerFn({ method: "POST" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }) => {
+    const { did, currentOrg } = await requireSession();
+    if (!currentOrg) return;
+    const client = new SapClient(env, did);
+    const relation = await getOrgSpaceRelation(client, data.docId, currentOrg);
+    if (!relation) return;
+    await client.call("network.habitat.relationship.deleteRelation", "POST", {
+      uri: relation.uri,
+    });
   });

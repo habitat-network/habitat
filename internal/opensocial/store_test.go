@@ -10,6 +10,7 @@ import (
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
+	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -197,6 +198,32 @@ func TestStore(t *testing.T) {
 		roles, err = s.GetUserRoles(t.Context(), org, syntax.DID("did:plc:stranger"))
 		require.NoError(t, err)
 		require.Nil(t, roles)
+	})
+
+	t.Run("ListMemberSpaces", func(t *testing.T) {
+		// member only shows up once they've written their own record into
+		// the members space (e.g. accepting the invite) — AssignRoles alone
+		// writes under the org's own repo, not the member's.
+		membersSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
+		recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAcceptance{
+			UpdatedAt: "2024-01-01T00:00:00Z",
+		})
+		require.NoError(t, err)
+		_, _, err = s.SpaceStore.PutRecord(
+			t.Context(), membersSpace, member, "community.opensocial.acceptance", "self",
+			recordBytes,
+		)
+		require.NoError(t, err)
+
+		memberSpaces, err := s.ListMemberSpaces(t.Context(), member)
+		require.NoError(t, err)
+		require.Equal(t, []habitat_syntax.SpaceURI{membersSpace}, memberSpaces)
+
+		// A DID that never wrote its own record into any members space
+		// belongs to none.
+		memberSpaces, err = s.ListMemberSpaces(t.Context(), syntax.DID("did:plc:stranger"))
+		require.NoError(t, err)
+		require.Empty(t, memberSpaces)
 	})
 
 	t.Run("GetProfile", func(t *testing.T) {

@@ -31,10 +31,15 @@ export async function createDocSpace(
   currentOrg: string | undefined,
 ): Promise<{ uri: string; ownerDid: string; isOrg: boolean }> {
   if (currentOrg) {
+    // Access is granted via explicit spaceRelation/userRelation records
+    // (the share dialog), not baked in at creation time like
+    // community.opensocial.createSpace's roles param used to — sharing
+    // with "the whole org" now means a spaceRelation naming the org's own
+    // community.opensocial.members space as its subject (see ShareDialog).
     const created = await client.call<{ uri: string }>(
-      "community.opensocial.createSpace",
+      "network.habitat.simplespace.createSpace",
       "POST",
-      { org: currentOrg, type: DOCS_SPACE_TYPE, roles: ["admin", "member"] },
+      { did: currentOrg, type: DOCS_SPACE_TYPE },
       { atprotoProxy: `${currentOrg}#habitat` },
     );
     return { uri: created.uri, ownerDid: currentOrg, isOrg: true };
@@ -79,6 +84,19 @@ export async function fetchOrgName(
   } catch {
     return null;
   }
+}
+
+// orgMembersSpaceUri returns the URI of orgDid's own
+// community.opensocial.members space — naming this as a spaceRelation's
+// subject, with subjectRole "reader", grants the relation to every member
+// of the org (pear's CheckUserHasSpaceRole treats holding any opensocial
+// membership as holding "reader" on this space; see internal/perms/store.go).
+export function orgMembersSpaceUri(orgDid: string): string {
+  return new SpaceRef(
+    orgDid as DidString,
+    "community.opensocial.members",
+    "self",
+  ).toString();
 }
 
 // listMyOrgIds lists the DIDs of every opensocial org the member belongs
