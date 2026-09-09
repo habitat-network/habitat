@@ -37,6 +37,7 @@
     "@atproto/api": "catalog:",
     "@atproto/identity": "catalog:",
     "@atproto/oauth-client-browser": "^0.5.0",
+    "@atproto/syntax": "catalog:",
     "@base-ui/react": "^1.6.0",
     "@uidotdev/usehooks": "^2.4.1",
     "api": "workspace:*",

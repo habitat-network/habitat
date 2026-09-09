@@ -21,6 +21,7 @@ catalog:
   '@atproto/api': 0.20.42
   '@atproto/identity': ^0.5.9
   '@atproto/lexicon': 0.7.12
+  '@atproto/syntax': 0.0.0-spaces-alpha-20260818163953
   '@atproto/xrpc': ^0.8.6
   '@tailwindcss/typography': ^0.5.20
   '@tailwindcss/vite': ^4.3.3

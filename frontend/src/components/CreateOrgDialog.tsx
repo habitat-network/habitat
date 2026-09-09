@@ -16,6 +16,7 @@ import {
   FieldLabel,
   Input,
 } from "internal/components/ui";
+import { ensureValidDid } from "@atproto/syntax";
 
 export function CreateOrgDialog({ authManager }: { authManager: AuthManager }) {
   const queryClient = useQueryClient();
@@ -27,6 +28,7 @@ export function CreateOrgDialog({ authManager }: { authManager: AuthManager }) {
   const { mutate, isPending, error } = useMutation({
     mutationFn: async () => {
       const { org } = await createOrg(authManager, handle);
+      ensureValidDid(org);
       // NewOrg grants the creator the admin role but, since that happens
       // under the org's own authority, doesn't write anything under the
       // creator's own repo. Confirm membership under the creator's own

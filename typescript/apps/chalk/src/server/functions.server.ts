@@ -1,5 +1,5 @@
 import { redirect } from "@tanstack/react-router";
-import { constructSpaceURI, parseSpaceURI } from "internal";
+import { SpaceRef, type DidString } from "@atproto/syntax";
 import { useAppSession } from "./session";
 import type { SapClient } from "./sapClient";
 
@@ -57,13 +57,13 @@ export async function createDocSpace(
 // fails, rather than throwing — callers show the raw DID as a fallback.
 export async function fetchOrgName(
   client: SapClient,
-  orgDid: string,
+  orgDid: DidString,
 ): Promise<string | null> {
-  const aboutSpace = constructSpaceURI({
-    spaceOwner: orgDid,
-    spaceType: "community.opensocial.about",
-    spaceKey: "self",
-  });
+  const aboutSpace = new SpaceRef(
+    orgDid,
+    "community.opensocial.about",
+    "self",
+  ).toString();
   try {
     const { value } = await client.call<{ value: { name: string } }>(
       "network.habitat.space.getRecord",
@@ -85,16 +85,15 @@ export async function fetchOrgName(
 // to — every community.opensocial.members space they hold a membership or
 // acceptance record in, same query frontend's Communities page uses
 // (frontend/src/queries/opensocial.ts's myOrgsQueryOptions).
-export async function listMyOrgIds(client: SapClient): Promise<string[]> {
+export async function listMyOrgIds(client: SapClient): Promise<DidString[]> {
   const { spaces } = await client.call<{ spaces: { uri: string }[] }>(
     "network.habitat.space.listSpaces",
     "GET",
     { type: "community.opensocial.members" },
   );
-  const orgs: string[] = [];
+  const orgs: DidString[] = [];
   for (const space of spaces) {
-    const parts = parseSpaceURI(space.uri);
-    if (parts) orgs.push(parts.spaceOwner);
+    orgs.push(SpaceRef.parse(space.uri).spaceDid);
   }
   return orgs;
 }
