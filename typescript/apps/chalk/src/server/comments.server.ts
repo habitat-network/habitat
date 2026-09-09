@@ -1,4 +1,6 @@
 import { constructSpaceURI, parseSpaceURI } from "internal";
+import { fromBase64, toBase64 } from "@atproto/lex-data";
+import { encodeLexBytes, parseLexBytes } from "@atproto/lex-json";
 import {
   applyResolution,
   deleteComment,
@@ -38,6 +40,29 @@ export const COMMENT_RESOLUTION_COLLECTION =
 export interface StrongRef {
   uri: string;
   cid: string;
+}
+
+// encodeAnchorBytes wraps a base64 anchor string (see commentAnchor.ts's
+// encodeAnchor) into the lexicon "bytes" type's wire shape
+// (https://atproto.com/specs/lexicon#bytes) — a {"$bytes": "<base64>"}
+// wrapper, not a plain string (indigo's atdata.Bytes on the Go side, which
+// this record type is validated against) — using @atproto/lex-json's own
+// encoder rather than hand-rolling the wrapper. The comment record's
+// anchorStart/anchorEnd fields are declared as bytes rather than string
+// precisely so a client can't sneak arbitrary non-anchor data into them
+// under the guise of "just text".
+export function encodeAnchorBytes(base64: string) {
+  return encodeLexBytes(fromBase64(base64));
+}
+
+// decodeAnchorBytes unwraps a bytes-typed field back to its base64 anchor
+// string, or undefined if the value isn't actually in that shape (a
+// malformed/absent field — treated as "no anchor" the same way a missing
+// string field would be).
+export function decodeAnchorBytes(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const bytes = parseLexBytes(value as Record<string, unknown>);
+  return bytes ? toBase64(bytes) : undefined;
 }
 
 // commentsSpaceUri derives the URI of a doc's comments space from the doc's
@@ -203,35 +228,6 @@ export function parseCommentRecordUri(uri: string) {
   return parseCommentsRecordUri(uri, COMMENT_COLLECTION);
 }
 
-// CommentView is the shape createComment/listComments hand back to the
-// client — a CommentRow (the D1 mirror's own shape) with authorDid
-// promoted from bookkeeping into what the UI actually renders. cid rides
-// along so the client can build a StrongRef to this comment (for a reply
-// or a resolve action) without a second round-trip.
-export interface CommentView {
-  uri: string;
-  cid: string;
-  authorDid: string;
-  body: string;
-  anchorStart: string;
-  anchorEnd: string;
-  quotedText: string | null;
-  createdAt: number;
-}
-
-export function toCommentView(row: CommentRow): CommentView {
-  return {
-    uri: row.uri,
-    cid: row.cid,
-    authorDid: row.authorDid,
-    body: row.body,
-    anchorStart: row.anchorStart,
-    anchorEnd: row.anchorEnd,
-    quotedText: row.quotedText,
-    createdAt: row.createdAt,
-  };
-}
-
 export interface CommentReplyView {
   uri: string;
   commentUri: string;
@@ -247,6 +243,50 @@ export function toCommentReplyView(row: CommentReplyRow): CommentReplyView {
     authorDid: row.authorDid,
     body: row.body,
     createdAt: row.createdAt,
+  };
+}
+
+// CommentView is the shape createComment/listComments hand back to the
+// client — a CommentRow (the D1 mirror's own shape) with authorDid
+// promoted from bookkeeping into what the UI actually renders, plus its
+// replies and resolve state nested in rather than three parallel lists the
+// client would otherwise have to re-join itself. cid rides along so the
+// client can build a StrongRef to this comment (for a reply or a resolve
+// action) without a second round-trip.
+export interface CommentView {
+  uri: string;
+  cid: string;
+  authorDid: string;
+  body: string;
+  anchorStart: string;
+  anchorEnd: string;
+  quotedText: string | null;
+  createdAt: number;
+  resolved: boolean;
+  replies: CommentReplyView[];
+}
+
+// toCommentView needs resolved/replies passed in rather than deriving them
+// itself: a single CommentRow has no way to know either — both come from
+// joining the comment_resolutions/comment_replies tables in
+// functions.ts's listComments, which is the only caller with all three in
+// hand. A freshly-written comment (writeComment) naturally has neither
+// yet.
+export function toCommentView(
+  row: CommentRow,
+  opts: { resolved: boolean; replies: CommentReplyView[] },
+): CommentView {
+  return {
+    uri: row.uri,
+    cid: row.cid,
+    authorDid: row.authorDid,
+    body: row.body,
+    anchorStart: row.anchorStart,
+    anchorEnd: row.anchorEnd,
+    quotedText: row.quotedText,
+    createdAt: row.createdAt,
+    resolved: opts.resolved,
+    replies: opts.replies,
   };
 }
 
@@ -295,8 +335,8 @@ export async function writeComment(
       record: {
         $type: COMMENT_COLLECTION,
         body: opts.body,
-        anchorStart: opts.anchorStart,
-        anchorEnd: opts.anchorEnd,
+        anchorStart: encodeAnchorBytes(opts.anchorStart),
+        anchorEnd: encodeAnchorBytes(opts.anchorEnd),
         ...(opts.quotedText ? { quotedText: opts.quotedText } : {}),
         createdAt: createdAt.toISOString(),
       },
@@ -315,7 +355,7 @@ export async function writeComment(
     createdAt: createdAt.getTime(),
   };
   await upsertComment(db, row);
-  return toCommentView(row);
+  return toCommentView(row, { resolved: false, replies: [] });
 }
 
 // writeReply writes a network.habitat.docs.commentReply record referencing

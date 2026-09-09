@@ -22,14 +22,14 @@
                         "description": "The comment text."
                     },
                     "anchorStart": {
-                        "type": "string",
-                        "maxLength": 4096,
-                        "description": "Base64-encoded Yjs relative position (Y.encodeRelativePosition, applied to the doc's 'default' XML fragment) marking the start of the commented range. Together with anchorEnd and the document's current CRDT state, this is sufficient to resolve the exact range being commented on — an editor placing this comment needs no other context, and the position survives concurrent edits made anywhere else in the document the way a plain character offset would not."
+                        "type": "bytes",
+                        "maxLength": 512,
+                        "description": "Yjs relative position (Y.encodeRelativePosition, applied to the doc's 'default' XML fragment) marking the start of the commented range. Together with anchorEnd and the document's current CRDT state, this is sufficient to resolve the exact range being commented on — an editor placing this comment needs no other context, and the position survives concurrent edits made anywhere else in the document the way a plain character offset would not."
                     },
                     "anchorEnd": {
-                        "type": "string",
-                        "maxLength": 4096,
-                        "description": "Base64-encoded Yjs relative position marking the end of the commented range. See anchorStart."
+                        "type": "bytes",
+                        "maxLength": 512,
+                        "description": "Yjs relative position marking the end of the commented range. See anchorStart."
                     },
                     "quotedText": {
                         "type": "string",

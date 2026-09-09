@@ -1,29 +1,13 @@
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { fromBase64, toBase64 } from "@atproto/lex-data";
 import * as Y from "yjs";
 import {
   absolutePositionToRelativePosition,
   relativePositionToAbsolutePosition,
   ySyncPluginKey,
 } from "@tiptap/y-tiptap";
-
-// bytesToBase64/base64ToBytes convert a Yjs relative position's encoded
-// bytes to/from a JSON-safe string for the comment record's
-// anchorStart/anchorEnd fields. btoa/atob (not Node's Buffer) since this
-// runs in the browser.
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary);
-}
-
-function base64ToBytes(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
 
 // getBinding reaches into the Collaboration extension's own ProseMirror
 // plugin state for the live Yjs binding (its Y.XmlFragment + the
@@ -36,9 +20,15 @@ function getBinding(state: EditorState) {
 
 // encodeAnchor converts a ProseMirror selection range into the pair of
 // base64 Yjs relative positions a network.habitat.docs.comment record's
-// anchorStart/anchorEnd fields store — CRDT positions that survive
-// concurrent edits made anywhere else in the document, unlike a plain
-// character offset. Returns undefined if Collaboration hasn't synced yet.
+// anchorStart/anchorEnd fields store (as the lexicon "bytes" type —
+// https://atproto.com/specs/lexicon#bytes — see comments.server.ts's
+// wrapping of these into {$bytes} for the actual record) — CRDT positions
+// that survive concurrent edits made anywhere else in the document, unlike
+// a plain character offset. toBase64 is @atproto/lex-data's own codec, the
+// same one the record's eventual {$bytes} wrapper decodes with server-side
+// (indigo's atdata.Bytes), so there's no risk of a mismatched base64
+// variant between this and the server. Returns undefined if Collaboration
+// hasn't synced yet.
 export function encodeAnchor(
   state: EditorState,
   from: number,
@@ -57,8 +47,8 @@ export function encodeAnchor(
     binding.mapping,
   );
   return {
-    anchorStart: bytesToBase64(Y.encodeRelativePosition(start)),
-    anchorEnd: bytesToBase64(Y.encodeRelativePosition(end)),
+    anchorStart: toBase64(Y.encodeRelativePosition(start)),
+    anchorEnd: toBase64(Y.encodeRelativePosition(end)),
   };
 }
 
@@ -79,8 +69,8 @@ export function decodeAnchor(
   const ydoc = binding.type.doc as Y.Doc | null;
   if (!ydoc) return undefined;
   try {
-    const startRel = Y.decodeRelativePosition(base64ToBytes(anchorStart));
-    const endRel = Y.decodeRelativePosition(base64ToBytes(anchorEnd));
+    const startRel = Y.decodeRelativePosition(fromBase64(anchorStart));
+    const endRel = Y.decodeRelativePosition(fromBase64(anchorEnd));
     const from = relativePositionToAbsolutePosition(
       ydoc,
       binding.type,

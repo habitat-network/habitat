@@ -320,6 +320,12 @@ importers:
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.10
+      '@atproto/lex-data':
+        specifier: ^0.1.7
+        version: 0.1.7
+      '@atproto/lex-json':
+        specifier: ^0.1.6
+        version: 0.1.6
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.12(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)

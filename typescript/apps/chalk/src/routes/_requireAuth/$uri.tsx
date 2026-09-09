@@ -78,14 +78,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       queryKey: accessQueryKey,
       queryFn: () => listDocAccess({ data: { docId: uri } }),
     });
-    const actorByDid = useActors(access.map((a) => a.did));
+    const getActor = useActors(access.map((a) => a.did));
     const grantees: ShareDialogGrantee[] = useMemo(
       () =>
-        access.map((a) => ({
-          ...(actorByDid.get(a.did) ?? { did: a.did }),
-          relation: a.relation,
-        })),
-      [access, actorByDid],
+        access.map((a) => ({ ...getActor(a.did), relation: a.relation })),
+      [access, getActor],
     );
     const invalidateAccess = () =>
       queryClient.invalidateQueries({ queryKey: accessQueryKey });

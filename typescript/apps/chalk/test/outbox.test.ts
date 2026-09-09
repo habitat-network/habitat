@@ -153,8 +153,8 @@ it("mirrors a comment record into the comments table, backfilling its cid via ge
     env,
     commentMsg(COMMENT_RECORD, {
       body: "nice doc",
-      anchorStart: "start-rel-pos",
-      anchorEnd: "end-rel-pos",
+      anchorStart: { $bytes: "c3RhcnQtcmVsLXBvcw" },
+      anchorEnd: { $bytes: "ZW5kLXJlbC1wb3M" },
       createdAt: "2024-01-01T00:00:00.000Z",
     }),
   );
@@ -166,8 +166,8 @@ it("mirrors a comment record into the comments table, backfilling its cid via ge
     docSpaceUri: URI,
     authorDid: BOB, // the repo holding the record, not a field on it
     body: "nice doc",
-    anchorStart: "start-rel-pos",
-    anchorEnd: "end-rel-pos",
+    anchorStart: "c3RhcnQtcmVsLXBvcw",
+    anchorEnd: "ZW5kLXJlbC1wb3M",
   });
 });
 
@@ -177,8 +177,8 @@ it("removes the comment on a delete tombstone (null value), without calling getR
     env,
     commentMsg(COMMENT_RECORD, {
       body: "nice doc",
-      anchorStart: "a",
-      anchorEnd: "b",
+      anchorStart: { $bytes: "YQ" },
+      anchorEnd: { $bytes: "Yg" },
     }),
   );
   fetchMock.mockReset();
@@ -194,7 +194,11 @@ it("ignores a comment on a doc this deployment doesn't know", async () => {
   const unknownRecord = `${unknownSpace}/${BOB}/network.habitat.docs.comment/1`;
   await processOutboxMessage(
     env,
-    commentMsg(unknownRecord, { body: "x", anchorStart: "a", anchorEnd: "b" }),
+    commentMsg(unknownRecord, {
+      body: "x",
+      anchorStart: { $bytes: "YQ" },
+      anchorEnd: { $bytes: "Yg" },
+    }),
   );
   expect(fetchMock).not.toHaveBeenCalled(); // never reaches the getRecord call
   expect(
@@ -217,7 +221,11 @@ it("drops a comment whose getRecord call fails (can't mirror without a cid)", as
   );
   await processOutboxMessage(
     env,
-    commentMsg(COMMENT_RECORD, { body: "x", anchorStart: "a", anchorEnd: "b" }),
+    commentMsg(COMMENT_RECORD, {
+      body: "x",
+      anchorStart: { $bytes: "YQ" },
+      anchorEnd: { $bytes: "Yg" },
+    }),
   );
   expect(await commentsForDoc(getDb(env), URI)).toEqual([]);
 });

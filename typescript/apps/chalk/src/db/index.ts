@@ -275,6 +275,45 @@ export async function commentsForDoc(
     .orderBy(asc(comments.createdAt), asc(comments.uri));
 }
 
+export interface CommentWithResolution extends CommentRow {
+  resolved: boolean;
+}
+
+// commentsForDocWithResolution is commentsForDoc plus each thread's
+// current resolve state, left-joined in from comment_resolutions in one
+// query rather than fetched separately and matched up in application code.
+// A comment with no resolution action at all (the common case) comes back
+// with resolved: false, its default unactioned state.
+export async function commentsForDocWithResolution(
+  db: Db,
+  docSpaceUri: string,
+): Promise<CommentWithResolution[]> {
+  const rows = await db
+    .select({
+      uri: comments.uri,
+      cid: comments.cid,
+      docSpaceUri: comments.docSpaceUri,
+      authorDid: comments.authorDid,
+      body: comments.body,
+      anchorStart: comments.anchorStart,
+      anchorEnd: comments.anchorEnd,
+      quotedText: comments.quotedText,
+      createdAt: comments.createdAt,
+      resolved: commentResolutions.resolved,
+    })
+    .from(comments)
+    .leftJoin(
+      commentResolutions,
+      and(
+        eq(comments.uri, commentResolutions.commentUri),
+        eq(comments.docSpaceUri, commentResolutions.docSpaceUri),
+      ),
+    )
+    .where(eq(comments.docSpaceUri, docSpaceUri))
+    .orderBy(asc(comments.createdAt), asc(comments.uri));
+  return rows.map((r) => ({ ...r, resolved: r.resolved ?? false }));
+}
+
 // commentByUri looks up a single root comment by its own URI — used to
 // resolve the strongRef a reply or resolution action needs to reference it
 // (uri + cid) when the caller only has the URI in hand.

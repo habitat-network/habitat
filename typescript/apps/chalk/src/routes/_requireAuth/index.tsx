@@ -13,18 +13,11 @@ import { PageHeader } from "@/components/PageHeader";
 import { useActors } from "@/hooks/useActors";
 import { listDocs } from "@/server/functions";
 
-function OwnerCell({
-  owner,
-  ownerDid,
-}: {
-  owner: Actor | undefined;
-  ownerDid: string;
-}) {
-  const actor = owner ?? { did: ownerDid };
+function OwnerCell({ owner }: { owner: Actor }) {
   return (
     <div className="flex items-center gap-2">
-      <UserAvatar size="sm" actor={actor} />
-      <UserDisplayName actor={actor} />
+      <UserAvatar size="sm" actor={owner} />
+      <UserDisplayName actor={owner} />
     </div>
   );
 }
@@ -36,7 +29,7 @@ export const Route = createFileRoute("/_requireAuth/")({
       queryFn: () => listDocs(),
     });
 
-    const ownersByDid = useActors(docs.map((doc) => doc.ownerDid));
+    const getOwner = useActors(docs.map((doc) => doc.ownerDid));
 
     return (
       <div className="flex flex-col h-full">
@@ -76,10 +69,7 @@ export const Route = createFileRoute("/_requireAuth/")({
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <OwnerCell
-                      owner={ownersByDid.get(doc.ownerDid)}
-                      ownerDid={doc.ownerDid}
-                    />
+                    <OwnerCell owner={getOwner(doc.ownerDid)} />
                   </TableCell>
                 </TableRow>
               ))}

@@ -14,6 +14,7 @@ import {
   COMMENT_COLLECTION,
   COMMENT_REPLY_COLLECTION,
   COMMENT_RESOLUTION_COLLECTION,
+  decodeAnchorBytes,
   docSpaceUriForComments,
 } from "./comments.server";
 import { SapClient } from "./sapClient";
@@ -151,16 +152,17 @@ async function handleComment(
 
   const record = value as {
     body?: string;
-    anchorStart?: string;
-    anchorEnd?: string;
+    anchorStart?: unknown;
+    anchorEnd?: unknown;
     quotedText?: string;
     createdAt?: string;
   };
-  if (
-    typeof record.body !== "string" ||
-    typeof record.anchorStart !== "string" ||
-    typeof record.anchorEnd !== "string"
-  ) {
+  // anchorStart/anchorEnd are the lexicon "bytes" type, which marshals
+  // over JSON as {"$bytes": "<base64>"} — see comments.server.ts's
+  // decodeAnchorBytes — not a plain string.
+  const anchorStart = decodeAnchorBytes(record.anchorStart);
+  const anchorEnd = decodeAnchorBytes(record.anchorEnd);
+  if (typeof record.body !== "string" || !anchorStart || !anchorEnd) {
     return;
   }
 
@@ -187,8 +189,8 @@ async function handleComment(
     docSpaceUri,
     authorDid: repo,
     body: record.body,
-    anchorStart: record.anchorStart,
-    anchorEnd: record.anchorEnd,
+    anchorStart,
+    anchorEnd,
     quotedText: record.quotedText ?? null,
     createdAt: Number.isNaN(createdAt) ? Date.now() : createdAt,
   });

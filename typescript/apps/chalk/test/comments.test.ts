@@ -4,6 +4,7 @@ import {
   applyResolution,
   commentByUri,
   commentsForDoc,
+  commentsForDocWithResolution,
   deleteComment,
   deleteCommentReply,
   getDb,
@@ -338,4 +339,118 @@ it("a thread with no resolution action is simply absent from the result", async 
     anchorEnd: "b",
   });
   expect(await resolutionsForDoc(db, DOC)).toEqual([]);
+});
+
+// commentsForDocWithResolution left-joins comment_resolutions in at the SQL
+// level rather than the caller fetching resolutions separately and
+// matching them up itself.
+it("commentsForDocWithResolution reports resolved: false for a thread with no resolution action", async () => {
+  const db = getDb(env);
+  const uri = commentUri(ALICE);
+  await upsertComment(db, {
+    uri,
+    cid: "cid1",
+    docSpaceUri: DOC,
+    authorDid: ALICE,
+    body: "hello",
+    anchorStart: "a",
+    anchorEnd: "b",
+  });
+  const [row] = await commentsForDocWithResolution(db, DOC);
+  expect(row).toMatchObject({ uri, body: "hello", resolved: false });
+});
+
+it("commentsForDocWithResolution reflects a resolve action taken by someone other than the author", async () => {
+  const db = getDb(env);
+  const uri = commentUri(ALICE);
+  await upsertComment(db, {
+    uri,
+    cid: "cid1",
+    docSpaceUri: DOC,
+    authorDid: ALICE,
+    body: "hello",
+    anchorStart: "a",
+    anchorEnd: "b",
+  });
+  await applyResolution(db, {
+    docSpaceUri: DOC,
+    commentUri: uri,
+    uri: `${uri}-resolution/1`,
+    resolverDid: BOB,
+    resolved: true,
+    createdAt: 1000,
+  });
+  const [row] = await commentsForDocWithResolution(db, DOC);
+  expect(row.resolved).toBe(true);
+});
+
+it("commentsForDocWithResolution tracks a reopen (the latest action wins)", async () => {
+  const db = getDb(env);
+  const uri = commentUri(ALICE);
+  await upsertComment(db, {
+    uri,
+    cid: "cid1",
+    docSpaceUri: DOC,
+    authorDid: ALICE,
+    body: "hello",
+    anchorStart: "a",
+    anchorEnd: "b",
+  });
+  await applyResolution(db, {
+    docSpaceUri: DOC,
+    commentUri: uri,
+    uri: `${uri}-resolution/1`,
+    resolverDid: BOB,
+    resolved: true,
+    createdAt: 1000,
+  });
+  await applyResolution(db, {
+    docSpaceUri: DOC,
+    commentUri: uri,
+    uri: `${uri}-resolution/2`,
+    resolverDid: BOB,
+    resolved: false,
+    createdAt: 2000,
+  });
+  const [row] = await commentsForDocWithResolution(db, DOC);
+  expect(row.resolved).toBe(false);
+});
+
+it("commentsForDocWithResolution keeps each thread's own resolution separate", async () => {
+  const db = getDb(env);
+  const resolvedUri = commentUri(ALICE, "1");
+  const unresolvedUri = commentUri(ALICE, "2");
+  await upsertComment(db, {
+    uri: resolvedUri,
+    cid: "cid1",
+    docSpaceUri: DOC,
+    authorDid: ALICE,
+    body: "resolved thread",
+    anchorStart: "a",
+    anchorEnd: "b",
+    createdAt: 1000,
+  });
+  await upsertComment(db, {
+    uri: unresolvedUri,
+    cid: "cid2",
+    docSpaceUri: DOC,
+    authorDid: ALICE,
+    body: "unresolved thread",
+    anchorStart: "a",
+    anchorEnd: "b",
+    createdAt: 2000,
+  });
+  await applyResolution(db, {
+    docSpaceUri: DOC,
+    commentUri: resolvedUri,
+    uri: `${resolvedUri}-resolution/1`,
+    resolverDid: BOB,
+    resolved: true,
+    createdAt: 1500,
+  });
+  const rows = await commentsForDocWithResolution(db, DOC);
+  expect(rows).toEqual([
+    expect.objectContaining({ uri: resolvedUri, resolved: true }),
+    expect.objectContaining({ uri: unresolvedUri, resolved: false }),
+  ]);
 });

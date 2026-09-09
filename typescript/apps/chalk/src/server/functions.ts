@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import {
-  commentByUri,
-  commentsForDoc,
+  commentsForDocWithResolution,
   connectedOrgNames,
   deleteDocAccess,
   docByUri,
@@ -10,7 +9,6 @@ import {
   docsForOrg,
   getDb,
   repliesForDoc,
-  resolutionsForDoc,
   upsertDoc,
   upsertDocAccess,
   type DocSummary,
@@ -342,19 +340,21 @@ export const revokeDocAccess = createServerFn({ method: "POST" })
 
 export type { CommentReplyView, CommentView, StrongRef } from "./comments.server";
 
-// A CommentsPayload bundles a doc's comment threads (roots + replies) with
-// the current resolve state of each — three separate tables/record kinds
-// (a root comment carries the thread's CRDT anchor; a reply just
-// references its root by strongRef; resolution is its own append-only
-// action log — see each lexicon's comment for why none of this is a
-// shared field on one record) but the client always wants all three
-// together, so this is the one round-trip it fetches.
+// A CommentsPayload bundles a doc's comment threads — each root comment
+// with its replies and resolve state nested directly on it (see
+// CommentView in comments.server.ts) rather than three parallel lists the
+// client would have to re-join itself. The underlying data still comes
+// from three separate tables/record kinds (a root comment carries the
+// thread's CRDT anchor; a reply just references its root by strongRef;
+// resolution is its own append-only action log — see each lexicon's
+// comment for why none of this is a shared field on one record); this is
+// the one round-trip and one join that produces the client's view of it.
+//
+// A reply whose root comment has been deleted (deleting a thread's root
+// doesn't cascade-delete its replies) has nowhere to nest and is simply
+// omitted — without a root there's no anchor to show it against anyway.
 export interface CommentsPayload {
   comments: CommentView[];
-  replies: CommentReplyView[];
-  // The root comment URIs currently resolved; any comment URI absent from
-  // this list is unresolved (its default, unactioned state).
-  resolvedCommentUris: string[];
 }
 
 // listComments returns a doc's comment threads and their resolution state
@@ -375,20 +375,32 @@ export const listComments = createServerFn({ method: "GET" })
     const { did } = await requireSession();
     const client = new SapClient(env, did);
     if (!(await docRole(client, did, data.docId))) {
-      return { comments: [], replies: [], resolvedCommentUris: [] };
+      return { comments: [] };
     }
     const db = getDb(env);
-    const [comments, replies, resolutions] = await Promise.all([
-      commentsForDoc(db, data.docId),
+    // commentsForDocWithResolution already left-joins each thread's current
+    // resolved state in at the SQL level; only replies still need their
+    // own query and an in-memory group-by (a real one-to-many, unlike
+    // resolution's one-to-one-or-none).
+    const [comments, replies] = await Promise.all([
+      commentsForDocWithResolution(db, data.docId),
       repliesForDoc(db, data.docId),
-      resolutionsForDoc(db, data.docId),
     ]);
+
+    const repliesByRoot = new Map<string, CommentReplyView[]>();
+    for (const reply of replies) {
+      const forRoot = repliesByRoot.get(reply.commentUri) ?? [];
+      forRoot.push(toCommentReplyView(reply));
+      repliesByRoot.set(reply.commentUri, forRoot);
+    }
+
     return {
-      comments: comments.map(toCommentView),
-      replies: replies.map(toCommentReplyView),
-      resolvedCommentUris: resolutions
-        .filter((r) => r.resolved)
-        .map((r) => r.commentUri),
+      comments: comments.map((c) =>
+        toCommentView(c, {
+          resolved: c.resolved,
+          replies: repliesByRoot.get(c.uri) ?? [],
+        }),
+      ),
     };
   });
 

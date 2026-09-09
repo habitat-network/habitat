@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@atproto/identity": "catalog:",
+    "@atproto/lex-data": "^0.1.7",
+    "@atproto/lex-json": "^0.1.6",
     "@tanstack/react-devtools": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",

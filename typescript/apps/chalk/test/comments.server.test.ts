@@ -282,8 +282,8 @@ describe("writeComment / writeReply / resolveThread / removeComment / removeRepl
         async ({ request }) => {
           const body = (await request.json()) as { record: unknown };
           expect(body.record).toMatchObject({
-            anchorStart: "start-rel-pos",
-            anchorEnd: "end-rel-pos",
+            anchorStart: { $bytes: "c3RhcnQtcmVsLXBvcw" },
+            anchorEnd: { $bytes: "ZW5kLXJlbC1wb3M" },
           });
           return HttpResponse.json({
             uri: `${COMMENTS_SPACE}/${ALICE}/network.habitat.docs.comment/1`,
@@ -299,16 +299,16 @@ describe("writeComment / writeReply / resolveThread / removeComment / removeRepl
     const client = new SapClient(testEnv, ALICE);
     const view = await writeComment(client, db(), ALICE, DOC, {
       body: "great point",
-      anchorStart: "start-rel-pos",
-      anchorEnd: "end-rel-pos",
+      anchorStart: "c3RhcnQtcmVsLXBvcw",
+      anchorEnd: "ZW5kLXJlbC1wb3M",
       ownerDid: ALICE,
       isOrg: false,
     });
     expect(view).toMatchObject({
       authorDid: ALICE,
       body: "great point",
-      anchorStart: "start-rel-pos",
-      anchorEnd: "end-rel-pos",
+      anchorStart: "c3RhcnQtcmVsLXBvcw",
+      anchorEnd: "ZW5kLXJlbC1wb3M",
       cid: "bafycomment1",
     });
     const rows = await commentsForDoc(db(), DOC);
