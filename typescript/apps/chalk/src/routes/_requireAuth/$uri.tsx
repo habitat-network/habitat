@@ -180,7 +180,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     // of the shared doc — see commentAnchor.ts's CommentHighlight — so
     // this is purely a read, safe to rerun on every render of new data.
     useEffect(() => {
-      if (!editor) return;
+      // isDestroyed, not just truthiness: React's dev-mode double-invoke
+      // (mount, cleanup/destroy, remount) can leave this closure holding a
+      // stale `editor` whose internal commandManager tiptap's destroy()
+      // has already nulled out — `editor.commands` throws in that case
+      // rather than just being falsy.
+      if (!editor || editor.isDestroyed) return;
       const anchors: CommentAnchor[] = (commentsData?.comments ?? []).map(
         (c) => ({ uri: c.uri, anchorStart: c.anchorStart, anchorEnd: c.anchorEnd }),
       );
