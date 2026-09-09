@@ -18,7 +18,10 @@ import {
 import { Button, toast } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
-import { CommentSidebar, type PendingAnchor } from "@/components/CommentSidebar";
+import {
+  CommentSidebar,
+  type PendingAnchor,
+} from "@/components/CommentSidebar";
 import {
   CommentHighlight,
   encodeAnchor,
@@ -80,8 +83,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     });
     const getActor = useActors(access.map((a) => a.did));
     const grantees: ShareDialogGrantee[] = useMemo(
-      () =>
-        access.map((a) => ({ ...getActor(a.did), relation: a.relation })),
+      () => access.map((a) => ({ ...getActor(a.did), relation: a.relation })),
       [access, getActor],
     );
     const invalidateAccess = () =>
@@ -189,7 +191,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       // rather than just being falsy.
       if (!editor || editor.isDestroyed) return;
       const anchors: CommentAnchor[] = (commentsData?.comments ?? []).map(
-        (c) => ({ uri: c.uri, anchorStart: c.anchorStart, anchorEnd: c.anchorEnd }),
+        (c) => ({
+          uri: c.uri,
+          anchorStart: c.anchorStart,
+          anchorEnd: c.anchorEnd,
+        }),
       );
       if (pendingAnchor) {
         anchors.push({
@@ -246,6 +252,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           {sidebarOpen && (
             <CommentSidebar
               docId={uri}
+              currentUserDid={currentUserDid}
               activeCommentUri={activeCommentUri}
               pendingAnchor={pendingAnchor}
               onPendingAnchorResolved={() => setPendingAnchor(null)}
@@ -265,7 +272,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             {role === "editor" && (
               <Button
                 variant="ghost"
-                onClick={hasSelection ? startThread : () => setSidebarOpen(true)}
+                onClick={
+                  hasSelection ? startThread : () => setSidebarOpen(true)
+                }
               >
                 {hasSelection ? "Add comment" : "Comments"}
               </Button>

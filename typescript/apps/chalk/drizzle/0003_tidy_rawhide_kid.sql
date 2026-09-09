@@ -8,16 +8,6 @@ CREATE TABLE `comment_replies` (
 );
 --> statement-breakpoint
 CREATE INDEX `comment_replies_thread` ON `comment_replies` (`doc_space_uri`,`comment_uri`);--> statement-breakpoint
-CREATE TABLE `comment_resolutions` (
-	`doc_space_uri` text NOT NULL,
-	`comment_uri` text NOT NULL,
-	`uri` text NOT NULL,
-	`resolver_did` text NOT NULL,
-	`resolved` integer NOT NULL,
-	`created_at` integer NOT NULL,
-	PRIMARY KEY(`doc_space_uri`, `comment_uri`)
-);
---> statement-breakpoint
 CREATE TABLE `comments` (
 	`uri` text PRIMARY KEY NOT NULL,
 	`cid` text NOT NULL,

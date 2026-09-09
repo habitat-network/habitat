@@ -1947,7 +1947,7 @@ export const schemaDict = {
       main: {
         type: 'record',
         description:
-          "The root of a comment thread on a collaborative document, anchored to a range of the document's CRDT (Yjs) state. Comments live in the doc's companion comments space (type 'network.habitat.docs.comments', same owner and space key as the doc itself), which inherits the doc space's readers as readers and its writers as writers via network.habitat.relationship.spaceRelation records — so anyone who can read the doc can read its comments, and anyone who can edit it can comment. Each record is written into the commenter's own repo within that space. Replies to this thread are separate network.habitat.docs.commentReply records referencing it by strongRef; this record itself carries no thread identifier beyond its own URI/CID, which is what a reply and a resolution action point back to.",
+          "The root of a comment thread on a collaborative document, anchored to a range of the document's CRDT (Yjs) state. Comments live in the doc's companion comments space (type 'network.habitat.docs.comments', same owner and space key as the doc itself), which inherits the doc space's readers as readers and its writers as writers via network.habitat.relationship.spaceRelation records — so anyone who can read the doc can read its comments, and anyone who can edit it can comment. Each record is written into the commenter's own repo within that space. Replies to this thread are separate network.habitat.docs.commentReply records referencing it by strongRef; this record itself carries no thread identifier beyond its own URI/CID, which is what a reply points back to.",
         key: 'tid',
         record: {
           type: 'object',
@@ -2016,40 +2016,6 @@ export const schemaDict = {
               type: 'string',
               format: 'datetime',
               description: 'When the reply was written.',
-            },
-          },
-        },
-      },
-    },
-  },
-  NetworkHabitatDocsCommentResolution: {
-    lexicon: 1,
-    id: 'network.habitat.docs.commentResolution',
-    defs: {
-      main: {
-        type: 'record',
-        description:
-          "Records a resolve/reopen action taken on a document's comment thread, written into the doc's comments space by the resolver's own repo (not the thread's root author's) — the person resolving a thread need not have written the comment it started from. A thread's current status is the most recent commentResolution record (by createdAt) across every repo in the space referencing the same root comment; this is an append-only log of resolve/reopen events, not a shared field on the comment record, since an AT Protocol record can only be rewritten by the repo that owns it.",
-        key: 'tid',
-        record: {
-          type: 'object',
-          required: ['comment', 'resolved', 'createdAt'],
-          properties: {
-            comment: {
-              type: 'ref',
-              ref: 'lex:com.atproto.repo.strongRef',
-              description:
-                "Reference to the thread's root network.habitat.docs.comment record.",
-            },
-            resolved: {
-              type: 'boolean',
-              description:
-                'Whether this action resolved (true) or reopened (false) the thread.',
-            },
-            createdAt: {
-              type: 'string',
-              format: 'datetime',
-              description: 'When the action was taken.',
             },
           },
         },
@@ -6127,7 +6093,6 @@ export const ids = {
     'network.habitat.collections.listRecords',
   NetworkHabitatDocsComment: 'network.habitat.docs.comment',
   NetworkHabitatDocsCommentReply: 'network.habitat.docs.commentReply',
-  NetworkHabitatDocsCommentResolution: 'network.habitat.docs.commentResolution',
   NetworkHabitatDocsCrdt: 'network.habitat.docs.crdt',
   NetworkHabitatDocsCreateDoc: 'network.habitat.docs.createDoc',
   NetworkHabitatDocsListDocs: 'network.habitat.docs.listDocs',

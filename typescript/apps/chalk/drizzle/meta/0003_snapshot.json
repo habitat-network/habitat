@@ -65,66 +65,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "comment_resolutions": {
-      "name": "comment_resolutions",
-      "columns": {
-        "doc_space_uri": {
-          "name": "doc_space_uri",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "comment_uri": {
-          "name": "comment_uri",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "uri": {
-          "name": "uri",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "resolver_did": {
-          "name": "resolver_did",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "resolved": {
-          "name": "resolved",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "comment_resolutions_doc_space_uri_comment_uri_pk": {
-          "columns": [
-            "doc_space_uri",
-            "comment_uri"
-          ],
-          "name": "comment_resolutions_doc_space_uri_comment_uri_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "comments": {
       "name": "comments",
       "columns": {

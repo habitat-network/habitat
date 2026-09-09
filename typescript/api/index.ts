@@ -55,7 +55,6 @@ import * as NetworkHabitatCollectionsListCollections from './types/network/habit
 import * as NetworkHabitatCollectionsListRecords from './types/network/habitat/collections/listRecords.js'
 import * as NetworkHabitatDocsComment from './types/network/habitat/docs/comment.js'
 import * as NetworkHabitatDocsCommentReply from './types/network/habitat/docs/commentReply.js'
-import * as NetworkHabitatDocsCommentResolution from './types/network/habitat/docs/commentResolution.js'
 import * as NetworkHabitatDocsCrdt from './types/network/habitat/docs/crdt.js'
 import * as NetworkHabitatDocsCreateDoc from './types/network/habitat/docs/createDoc.js'
 import * as NetworkHabitatDocsListDocs from './types/network/habitat/docs/listDocs.js'
@@ -180,7 +179,6 @@ export * as NetworkHabitatCollectionsListCollections from './types/network/habit
 export * as NetworkHabitatCollectionsListRecords from './types/network/habitat/collections/listRecords.js'
 export * as NetworkHabitatDocsComment from './types/network/habitat/docs/comment.js'
 export * as NetworkHabitatDocsCommentReply from './types/network/habitat/docs/commentReply.js'
-export * as NetworkHabitatDocsCommentResolution from './types/network/habitat/docs/commentResolution.js'
 export * as NetworkHabitatDocsCrdt from './types/network/habitat/docs/crdt.js'
 export * as NetworkHabitatDocsCreateDoc from './types/network/habitat/docs/createDoc.js'
 export * as NetworkHabitatDocsListDocs from './types/network/habitat/docs/listDocs.js'
@@ -1563,7 +1561,6 @@ export class NetworkHabitatDocsNS {
   _client: XrpcClient
   comment: NetworkHabitatDocsCommentRecord
   commentReply: NetworkHabitatDocsCommentReplyRecord
-  commentResolution: NetworkHabitatDocsCommentResolutionRecord
   crdt: NetworkHabitatDocsCrdtRecord
   markdown: NetworkHabitatDocsMarkdownRecord
 
@@ -1571,9 +1568,6 @@ export class NetworkHabitatDocsNS {
     this._client = client
     this.comment = new NetworkHabitatDocsCommentRecord(client)
     this.commentReply = new NetworkHabitatDocsCommentReplyRecord(client)
-    this.commentResolution = new NetworkHabitatDocsCommentResolutionRecord(
-      client,
-    )
     this.crdt = new NetworkHabitatDocsCrdtRecord(client)
     this.markdown = new NetworkHabitatDocsMarkdownRecord(client)
   }
@@ -1776,92 +1770,6 @@ export class NetworkHabitatDocsCommentReplyRecord {
       'com.atproto.repo.deleteRecord',
       undefined,
       { collection: 'network.habitat.docs.commentReply', ...params },
-      { headers },
-    )
-  }
-}
-
-export class NetworkHabitatDocsCommentResolutionRecord {
-  _client: XrpcClient
-
-  constructor(client: XrpcClient) {
-    this._client = client
-  }
-
-  async list(
-    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
-  ): Promise<{
-    cursor?: string
-    records: {
-      uri: string
-      value: NetworkHabitatDocsCommentResolution.Record
-    }[]
-  }> {
-    const res = await this._client.call('com.atproto.repo.listRecords', {
-      collection: 'network.habitat.docs.commentResolution',
-      ...params,
-    })
-    return res.data
-  }
-
-  async get(
-    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
-  ): Promise<{
-    uri: string
-    cid: string
-    value: NetworkHabitatDocsCommentResolution.Record
-  }> {
-    const res = await this._client.call('com.atproto.repo.getRecord', {
-      collection: 'network.habitat.docs.commentResolution',
-      ...params,
-    })
-    return res.data
-  }
-
-  async create(
-    params: OmitKey<
-      ComAtprotoRepoCreateRecord.InputSchema,
-      'collection' | 'record'
-    >,
-    record: Un$Typed<NetworkHabitatDocsCommentResolution.Record>,
-    headers?: Record<string, string>,
-  ): Promise<{ uri: string; cid: string }> {
-    const collection = 'network.habitat.docs.commentResolution'
-    const res = await this._client.call(
-      'com.atproto.repo.createRecord',
-      undefined,
-      { collection, ...params, record: { ...record, $type: collection } },
-      { encoding: 'application/json', headers },
-    )
-    return res.data
-  }
-
-  async put(
-    params: OmitKey<
-      ComAtprotoRepoPutRecord.InputSchema,
-      'collection' | 'record'
-    >,
-    record: Un$Typed<NetworkHabitatDocsCommentResolution.Record>,
-    headers?: Record<string, string>,
-  ): Promise<{ uri: string; cid: string }> {
-    const collection = 'network.habitat.docs.commentResolution'
-    const res = await this._client.call(
-      'com.atproto.repo.putRecord',
-      undefined,
-      { collection, ...params, record: { ...record, $type: collection } },
-      { encoding: 'application/json', headers },
-    )
-    return res.data
-  }
-
-  async delete(
-    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
-    headers?: Record<string, string>,
-  ): Promise<void> {
-    await this._client.call(
-      'com.atproto.repo.deleteRecord',
-      undefined,
-      { collection: 'network.habitat.docs.commentResolution', ...params },
       { headers },
     )
   }

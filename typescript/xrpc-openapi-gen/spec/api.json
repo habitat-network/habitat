@@ -10154,28 +10154,6 @@
           }
         }
       },
-      "network.habitat.docs.commentResolution": {
-        "type": "object",
-        "required": [
-          "comment",
-          "resolved",
-          "createdAt"
-        ],
-        "properties": {
-          "comment": {
-            "$ref": "#/components/schemas/com.atproto.repo.strongRef"
-          },
-          "resolved": {
-            "type": "boolean",
-            "description": "Whether this action resolved (true) or reopened (false) the thread."
-          },
-          "createdAt": {
-            "type": "string",
-            "description": "When the action was taken.",
-            "format": "date-time"
-          }
-        }
-      },
       "network.habitat.docs.crdt": {
         "type": "object",
         "required": [

@@ -6,7 +6,6 @@ import {
   connectedOrgs,
   comments,
   commentReplies,
-  commentResolutions,
 } from "./schema";
 
 export interface DocSummary {
@@ -25,7 +24,6 @@ export function getDb(env: { DB: D1Database }) {
       connectedOrgs,
       comments,
       commentReplies,
-      commentResolutions,
     },
   });
 }
@@ -221,7 +219,7 @@ export interface CommentRow {
 // of a thread — into the comments table. Keyed by the record's own URI, so
 // re-delivery of the same record from the outbox (which sap retries until
 // chalk 200s — see webhook.ts) updates in place rather than duplicating
-// the comment. cid is stored so a reply or resolution action can build the
+// the comment. cid is stored so a reply can build the
 // com.atproto.repo.strongRef it needs without a separate read.
 export async function upsertComment(
   db: Db,
@@ -275,48 +273,9 @@ export async function commentsForDoc(
     .orderBy(asc(comments.createdAt), asc(comments.uri));
 }
 
-export interface CommentWithResolution extends CommentRow {
-  resolved: boolean;
-}
-
-// commentsForDocWithResolution is commentsForDoc plus each thread's
-// current resolve state, left-joined in from comment_resolutions in one
-// query rather than fetched separately and matched up in application code.
-// A comment with no resolution action at all (the common case) comes back
-// with resolved: false, its default unactioned state.
-export async function commentsForDocWithResolution(
-  db: Db,
-  docSpaceUri: string,
-): Promise<CommentWithResolution[]> {
-  const rows = await db
-    .select({
-      uri: comments.uri,
-      cid: comments.cid,
-      docSpaceUri: comments.docSpaceUri,
-      authorDid: comments.authorDid,
-      body: comments.body,
-      anchorStart: comments.anchorStart,
-      anchorEnd: comments.anchorEnd,
-      quotedText: comments.quotedText,
-      createdAt: comments.createdAt,
-      resolved: commentResolutions.resolved,
-    })
-    .from(comments)
-    .leftJoin(
-      commentResolutions,
-      and(
-        eq(comments.uri, commentResolutions.commentUri),
-        eq(comments.docSpaceUri, commentResolutions.docSpaceUri),
-      ),
-    )
-    .where(eq(comments.docSpaceUri, docSpaceUri))
-    .orderBy(asc(comments.createdAt), asc(comments.uri));
-  return rows.map((r) => ({ ...r, resolved: r.resolved ?? false }));
-}
-
 // commentByUri looks up a single root comment by its own URI — used to
-// resolve the strongRef a reply or resolution action needs to reference it
-// (uri + cid) when the caller only has the URI in hand.
+// resolve the strongRef a reply needs to reference it (uri + cid) when the
+// caller only has the URI in hand.
 export async function commentByUri(
   db: Db,
   uri: string,
@@ -331,10 +290,10 @@ export async function commentByUri(
 
 // deleteComment removes a comment by its record URI, in response to either
 // an explicit delete or the JSON-null tombstone the outbox emits for a
-// deleted record. Its replies and resolution actions are left as-is (they
-// reference the URI, which still identifies the thread even once the root
-// record is gone) — cleaning those up isn't implemented; deleting a
-// thread's root is not itself a supported operation yet.
+// deleted record. Its replies are left as-is (they reference the URI,
+// which still identifies the thread even once the root record is gone) —
+// cleaning those up isn't implemented; deleting a thread's root is not
+// itself a supported operation yet.
 export async function deleteComment(db: Db, uri: string): Promise<void> {
   await db.delete(comments).where(eq(comments.uri, uri));
 }
@@ -394,64 +353,4 @@ export async function repliesForDoc(
 // deleteCommentReply removes a reply by its record URI.
 export async function deleteCommentReply(db: Db, uri: string): Promise<void> {
   await db.delete(commentReplies).where(eq(commentReplies.uri, uri));
-}
-
-export interface CommentResolutionRow {
-  docSpaceUri: string;
-  commentUri: string;
-  uri: string;
-  resolverDid: string;
-  resolved: boolean;
-  createdAt: number;
-}
-
-// applyResolution records a network.habitat.docs.commentResolution action —
-// a resolve or reopen, written by whoever performed it (see that lexicon's
-// comment on why this isn't a field on the comment record itself). Only
-// the most recent action per (docSpaceUri, commentUri) is kept: a stale
-// action arriving after a newer one (e.g. the outbox redelivering an old
-// message, or two resolves racing) is a no-op rather than clobbering the
-// newer state — last-write-wins by createdAt, not by delivery order.
-export async function applyResolution(
-  db: Db,
-  resolution: CommentResolutionRow,
-): Promise<void> {
-  const [existing] = await db
-    .select({ createdAt: commentResolutions.createdAt })
-    .from(commentResolutions)
-    .where(
-      and(
-        eq(commentResolutions.docSpaceUri, resolution.docSpaceUri),
-        eq(commentResolutions.commentUri, resolution.commentUri),
-      ),
-    )
-    .limit(1);
-  if (existing && existing.createdAt > resolution.createdAt) return;
-
-  await db
-    .insert(commentResolutions)
-    .values(resolution)
-    .onConflictDoUpdate({
-      target: [commentResolutions.docSpaceUri, commentResolutions.commentUri],
-      set: {
-        uri: resolution.uri,
-        resolverDid: resolution.resolverDid,
-        resolved: resolution.resolved,
-        createdAt: resolution.createdAt,
-      },
-    });
-}
-
-// resolutionsForDoc returns the current resolve/reopen status of every
-// thread on a doc that has ever had a commentResolution action taken on
-// it — a thread absent from the result is simply unresolved (its default,
-// unactioned state).
-export async function resolutionsForDoc(
-  db: Db,
-  docSpaceUri: string,
-): Promise<CommentResolutionRow[]> {
-  return db
-    .select()
-    .from(commentResolutions)
-    .where(eq(commentResolutions.docSpaceUri, docSpaceUri));
 }

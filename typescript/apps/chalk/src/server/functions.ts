@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { DidString } from "@atproto/syntax";
 import { env } from "cloudflare:workers";
 import {
-  commentsForDocWithResolution,
+  commentsForDoc,
   connectedOrgNames,
   deleteDocAccess,
   docByUri,
@@ -26,7 +26,6 @@ import {
 import {
   removeComment,
   removeReply,
-  resolveThread,
   toCommentReplyView,
   toCommentView,
   writeComment,
@@ -342,17 +341,20 @@ export const revokeDocAccess = createServerFn({ method: "POST" })
     await deleteDocAccess(getDb(env), relation.uri);
   });
 
-export type { CommentReplyView, CommentView, StrongRef } from "./comments.server";
+export type {
+  CommentReplyView,
+  CommentView,
+  StrongRef,
+} from "./comments.server";
 
 // A CommentsPayload bundles a doc's comment threads — each root comment
-// with its replies and resolve state nested directly on it (see
-// CommentView in comments.server.ts) rather than three parallel lists the
-// client would have to re-join itself. The underlying data still comes
-// from three separate tables/record kinds (a root comment carries the
-// thread's CRDT anchor; a reply just references its root by strongRef;
-// resolution is its own append-only action log — see each lexicon's
-// comment for why none of this is a shared field on one record); this is
-// the one round-trip and one join that produces the client's view of it.
+// with its replies nested directly on it (see CommentView in
+// comments.server.ts) rather than two parallel lists the client would have
+// to re-join itself. The underlying data still comes from two separate
+// tables/record kinds (a root comment carries the thread's CRDT anchor; a
+// reply just references its root by strongRef — see each lexicon's comment
+// for why the anchor isn't repeated on both); this is the one round-trip
+// and one join that produces the client's view of it.
 //
 // A reply whose root comment has been deleted (deleting a thread's root
 // doesn't cascade-delete its replies) has nowhere to nest and is simply
@@ -361,12 +363,11 @@ export interface CommentsPayload {
   comments: CommentView[];
 }
 
-// listComments returns a doc's comment threads and their resolution state
-// from chalk's own D1 mirror rather than reading the comments space on
-// every call: the outbox already delivers every comment/reply/resolution
-// record written anywhere in the space (see outbox.ts), and the mirror is
-// what makes this one indexed lookup instead of a listRecords fan-out
-// across every commenter's repo.
+// listComments returns a doc's comment threads from chalk's own D1 mirror
+// rather than reading the comments space on every call: the outbox already
+// delivers every comment/reply record written anywhere in the space (see
+// outbox.ts), and the mirror is what makes this one indexed lookup instead
+// of a listRecords fan-out across every commenter's repo.
 //
 // The caller still has to hold reader on the *doc* for this to return
 // anything — the comments space inherits its readers from the doc space
@@ -382,12 +383,8 @@ export const listComments = createServerFn({ method: "GET" })
       return { comments: [] };
     }
     const db = getDb(env);
-    // commentsForDocWithResolution already left-joins each thread's current
-    // resolved state in at the SQL level; only replies still need their
-    // own query and an in-memory group-by (a real one-to-many, unlike
-    // resolution's one-to-one-or-none).
     const [comments, replies] = await Promise.all([
-      commentsForDocWithResolution(db, data.docId),
+      commentsForDoc(db, data.docId),
       repliesForDoc(db, data.docId),
     ]);
 
@@ -400,10 +397,7 @@ export const listComments = createServerFn({ method: "GET" })
 
     return {
       comments: comments.map((c) =>
-        toCommentView(c, {
-          resolved: c.resolved,
-          replies: repliesByRoot.get(c.uri) ?? [],
-        }),
+        toCommentView(c, { replies: repliesByRoot.get(c.uri) ?? [] }),
       ),
     };
   });
@@ -463,30 +457,6 @@ export const createReply = createServerFn({ method: "POST" })
       comment: data.comment,
       body: data.body,
     });
-  });
-
-// resolveComment marks a thread resolved (or reopens it) — see
-// resolveThread in comments.server.ts. `comment` is the strongRef to the
-// thread's root.
-export const resolveComment = createServerFn({ method: "POST" })
-  .validator(
-    (input: { docId: string; comment: StrongRef; resolved: boolean }) =>
-      input,
-  )
-  .handler(async ({ data }) => {
-    const { did } = await requireSession();
-    const client = new SapClient(env, did);
-    if ((await docRole(client, did, data.docId)) !== "editor") {
-      throw new Error("forbidden");
-    }
-    await resolveThread(
-      client,
-      getDb(env),
-      did,
-      data.docId,
-      data.comment,
-      data.resolved,
-    );
   });
 
 // deleteCommentFn removes one root comment — see removeComment in

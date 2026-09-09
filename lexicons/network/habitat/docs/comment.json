@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "record",
-            "description": "The root of a comment thread on a collaborative document, anchored to a range of the document's CRDT (Yjs) state. Comments live in the doc's companion comments space (type 'network.habitat.docs.comments', same owner and space key as the doc itself), which inherits the doc space's readers as readers and its writers as writers via network.habitat.relationship.spaceRelation records — so anyone who can read the doc can read its comments, and anyone who can edit it can comment. Each record is written into the commenter's own repo within that space. Replies to this thread are separate network.habitat.docs.commentReply records referencing it by strongRef; this record itself carries no thread identifier beyond its own URI/CID, which is what a reply and a resolution action point back to.",
+            "description": "The root of a comment thread on a collaborative document, anchored to a range of the document's CRDT (Yjs) state. Comments live in the doc's companion comments space (type 'network.habitat.docs.comments', same owner and space key as the doc itself), which inherits the doc space's readers as readers and its writers as writers via network.habitat.relationship.spaceRelation records — so anyone who can read the doc can read its comments, and anyone who can edit it can comment. Each record is written into the commenter's own repo within that space. Replies to this thread are separate network.habitat.docs.commentReply records referencing it by strongRef; this record itself carries no thread identifier beyond its own URI/CID, which is what a reply points back to.",
             "key": "tid",
             "record": {
                 "type": "object",

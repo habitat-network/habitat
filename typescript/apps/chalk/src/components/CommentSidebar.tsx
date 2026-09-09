@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserAvatar } from "internal";
 import { Button, Textarea, toast } from "internal/components/ui";
+import { X } from "lucide-react";
 import { useActors } from "@/hooks/useActors";
 import {
   createComment,
@@ -9,7 +10,6 @@ import {
   deleteCommentFn,
   deleteReplyFn,
   listComments,
-  resolveComment,
   type StrongRef,
 } from "@/server/functions";
 
@@ -27,6 +27,13 @@ export interface PendingAnchor {
 
 export interface CommentSidebarProps {
   docId: string;
+  // The viewer's own DID. Comment and reply records live in their author's
+  // repo and only that author may delete one (see comments.server.ts's
+  // removeComment/removeReply, and pear's own repo-scoped deleteRecord
+  // underneath it), so this is what decides whether a delete affordance is
+  // shown at all — without it the sidebar would offer everyone a button
+  // that reliably fails.
+  currentUserDid: string;
   // The thread (by its root comment's URI) a click on a doc highlight just
   // selected, if any — the sidebar highlights it and expands its reply
   // box. Cleared by the caller once handled (see $uri.tsx).
@@ -38,6 +45,7 @@ export interface CommentSidebarProps {
 
 export function CommentSidebar({
   docId,
+  currentUserDid,
   activeCommentUri,
   pendingAnchor,
   onPendingAnchorResolved,
@@ -103,13 +111,6 @@ export function CommentSidebar({
     onError: onMutationError("Couldn't post reply"),
   });
 
-  const resolveMutation = useMutation({
-    mutationFn: (vars: { comment: StrongRef; resolved: boolean }) =>
-      resolveComment({ data: { docId, ...vars } }),
-    onSuccess: invalidate,
-    onError: onMutationError("Couldn't update thread"),
-  });
-
   const deleteCommentMutation = useMutation({
     mutationFn: (uri: string) => deleteCommentFn({ data: { docId, uri } }),
     onSuccess: invalidate,
@@ -127,8 +128,7 @@ export function CommentSidebar({
   if (comments.length === 0 && !showPendingThread) {
     return (
       <aside className="w-80 shrink-0 border-l p-4 text-sm text-muted-foreground">
-        No comments yet. Select some text and click "Comment" to start a
-        thread.
+        No comments yet. Select some text and click "Comment" to start a thread.
         <div className="mt-4">
           <Button variant="ghost" size="sm" onClick={onClose}>
             Close
@@ -163,7 +163,9 @@ export function CommentSidebar({
               <Button
                 size="sm"
                 disabled={createCommentMutation.isPending || !reply.trim()}
-                onClick={() => pendingAnchor && createCommentMutation.mutate(pendingAnchor)}
+                onClick={() =>
+                  pendingAnchor && createCommentMutation.mutate(pendingAnchor)
+                }
               >
                 Comment
               </Button>
@@ -178,9 +180,6 @@ export function CommentSidebar({
               id={`thread-${comment.uri}`}
               className={"p-3 space-y-2 " + (isActive ? "bg-muted/50" : "")}
             >
-              {comment.resolved && (
-                <div className="text-xs text-muted-foreground">Resolved</div>
-              )}
               {comment.quotedText && (
                 <blockquote className="text-xs text-muted-foreground border-l-2 pl-2 italic">
                   &ldquo;{comment.quotedText}&rdquo;
@@ -198,14 +197,18 @@ export function CommentSidebar({
                     {comment.body}
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  className="opacity-0 group-hover:opacity-100"
-                  onClick={() => deleteCommentMutation.mutate(comment.uri)}
-                >
-                  ×
-                </Button>
+                {comment.authorDid === currentUserDid && (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="opacity-0 group-hover:opacity-100"
+                    aria-label="Delete comment"
+                    title="Delete comment"
+                    onClick={() => deleteCommentMutation.mutate(comment.uri)}
+                  >
+                    <X />
+                  </Button>
+                )}
               </div>
               {comment.replies.map((r) => (
                 <div key={r.uri} className="flex gap-2 group pl-4">
@@ -220,30 +223,20 @@ export function CommentSidebar({
                       {r.body}
                     </p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    className="opacity-0 group-hover:opacity-100"
-                    onClick={() => deleteReplyMutation.mutate(r.uri)}
-                  >
-                    ×
-                  </Button>
+                  {r.authorDid === currentUserDid && (
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="opacity-0 group-hover:opacity-100"
+                      aria-label="Delete reply"
+                      title="Delete reply"
+                      onClick={() => deleteReplyMutation.mutate(r.uri)}
+                    >
+                      <X />
+                    </Button>
+                  )}
                 </div>
               ))}
-              <div className="flex items-center gap-2 pt-1">
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() =>
-                    resolveMutation.mutate({
-                      comment: { uri: comment.uri, cid: comment.cid },
-                      resolved: !comment.resolved,
-                    })
-                  }
-                >
-                  {comment.resolved ? "Reopen" : "Resolve"}
-                </Button>
-              </div>
               {isActive && (
                 <div className="space-y-2 pt-1">
                   <Textarea

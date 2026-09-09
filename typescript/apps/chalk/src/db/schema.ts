@@ -71,8 +71,8 @@ export const connectedOrgs = sqliteTable(
 //
 // Keyed by the record's own AT-URI, which is what the outbox delivers on
 // both a write and a delete tombstone. cid is stored alongside so a reply
-// or resolution action can build the com.atproto.repo.strongRef it needs
-// to reference this comment without an extra read. docSpaceUri (not the
+// can build the com.atproto.repo.strongRef it needs to reference this
+// comment without an extra read. docSpaceUri (not the
 // comments space's URI) is stored so listing a doc's comments is a single
 // indexed lookup keyed by the same docId the rest of chalk passes around.
 export const comments = sqliteTable(
@@ -106,25 +106,4 @@ export const commentReplies = sqliteTable(
     createdAt: integer("created_at").notNull(),
   },
   (t) => [index("comment_replies_thread").on(t.docSpaceUri, t.commentUri)],
-);
-
-// commentResolutions holds, per (doc, root comment), the most recent
-// network.habitat.docs.commentResolution record seen — a resolve/reopen
-// *action*, written by whoever performed it, not a field on the comment
-// record (an AT Protocol record can only be rewritten by the repo that
-// owns it, and the resolver need not be the thread's root author). Only
-// the latest action per thread is kept, keyed by (docSpaceUri,
-// commentUri); see applyResolution in db/index.ts for the last-write-wins
-// merge.
-export const commentResolutions = sqliteTable(
-  "comment_resolutions",
-  {
-    docSpaceUri: text("doc_space_uri").notNull(),
-    commentUri: text("comment_uri").notNull(),
-    uri: text("uri").notNull(),
-    resolverDid: text("resolver_did").notNull(),
-    resolved: integer("resolved", { mode: "boolean" }).notNull(),
-    createdAt: integer("created_at").notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.docSpaceUri, t.commentUri] })],
 );

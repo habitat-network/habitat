@@ -7,7 +7,6 @@ import {
   docsForAccessor,
   getDb,
   repliesForDoc,
-  resolutionsForDoc,
   upsertDoc,
 } from "../src/db";
 
@@ -29,7 +28,6 @@ beforeEach(async () => {
   await env.DB.exec("DELETE FROM doc_access");
   await env.DB.exec("DELETE FROM comments");
   await env.DB.exec("DELETE FROM comment_replies");
-  await env.DB.exec("DELETE FROM comment_resolutions");
   await upsertDoc(getDb(env), {
     spaceUri: URI,
     docId: URI,
@@ -286,67 +284,4 @@ it("ignores a commentReply record missing its comment ref or body", async () => 
     replyMsg(COMMENT_REPLY_RECORD, { body: "no ref" }),
   );
   expect(await repliesForDoc(getDb(env), URI)).toEqual([]);
-});
-
-const COMMENT_RESOLUTION_RECORD = `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.commentResolution/3jzfcijpj2z2a`;
-
-it("mirrors a commentResolution record into comment_resolutions, keyed by (doc, root comment)", async () => {
-  await processOutboxMessage(
-    env,
-    commentMsg(COMMENT_RESOLUTION_RECORD, {
-      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
-      resolved: true,
-      createdAt: "2024-01-01T00:00:00.000Z",
-    }),
-  );
-  const rows = await resolutionsForDoc(getDb(env), URI);
-  expect(rows).toEqual([
-    expect.objectContaining({
-      docSpaceUri: URI,
-      commentUri: ROOT_COMMENT_URI,
-      resolverDid: BOB, // the repo holding the record, not the root's author
-      resolved: true,
-    }),
-  ]);
-});
-
-it("a commentResolution written by someone other than the root's author still takes effect", async () => {
-  // Alice (the doc owner) wrote the root comment...
-  await processOutboxMessage(
-    env,
-    commentMsg(COMMENT_RESOLUTION_RECORD, {
-      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
-      resolved: true,
-    }),
-  );
-  // ...Bob, who never commented, resolves the thread.
-  const rows = await resolutionsForDoc(getDb(env), URI);
-  expect(rows).toEqual([
-    expect.objectContaining({ resolverDid: BOB, resolved: true }),
-  ]);
-});
-
-it("ignores a commentResolution delete tombstone (no undo)", async () => {
-  await processOutboxMessage(
-    env,
-    commentMsg(COMMENT_RESOLUTION_RECORD, {
-      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
-      resolved: true,
-    }),
-  );
-  await processOutboxMessage(env, commentMsg(COMMENT_RESOLUTION_RECORD, null));
-  const rows = await resolutionsForDoc(getDb(env), URI);
-  expect(rows).toEqual([
-    expect.objectContaining({ resolverDid: BOB, resolved: true }),
-  ]);
-});
-
-it("ignores a commentResolution record missing its comment ref or resolved", async () => {
-  await processOutboxMessage(
-    env,
-    commentMsg(COMMENT_RESOLUTION_RECORD, {
-      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
-    }),
-  );
-  expect(await resolutionsForDoc(getDb(env), URI)).toEqual([]);
 });

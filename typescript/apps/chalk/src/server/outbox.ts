@@ -1,5 +1,4 @@
 import {
-  applyResolution,
   deleteComment,
   deleteCommentReply,
   deleteDocAccess,
@@ -13,7 +12,6 @@ import {
 import {
   COMMENT_COLLECTION,
   COMMENT_REPLY_COLLECTION,
-  COMMENT_RESOLUTION_COLLECTION,
   decodeAnchorBytes,
   docSpaceUriForComments,
 } from "./comments.server";
@@ -61,10 +59,6 @@ export async function processOutboxMessage(
     await handleCommentReply(env, msg.uri, spaceUri, authorDid, msg.value);
     return;
   }
-  if (collection === COMMENT_RESOLUTION_COLLECTION) {
-    await handleCommentResolution(env, msg.uri, spaceUri, authorDid, msg.value);
-    return;
-  }
   if (collection !== CRDT_COLLECTION) return;
   const value = (msg.value ?? {}) as { blob?: { ref?: { $link?: string } } };
   const cid = value.blob?.ref?.$link;
@@ -103,7 +97,7 @@ async function handleUserRelation(
 }
 
 // docForComments resolves the doc a comments-space record belongs to,
-// shared by all three comment-record handlers below.
+// shared by both comment-record handlers below.
 async function docForComments(db: Db, spaceUri: string) {
   const docSpaceUri = docSpaceUriForComments(spaceUri);
   if (!docSpaceUri) return undefined;
@@ -119,8 +113,8 @@ async function docForComments(db: Db, spaceUri: string) {
 //
 // The outbox message itself carries no CID (see cmd/sap/webhook.go's
 // webhookPayload), but the comments table's cid column is what lets a
-// reply or resolution action build the com.atproto.repo.strongRef it
-// needs to reference this comment — so this fetches the record directly
+// reply build the com.atproto.repo.strongRef it needs to reference this
+// comment — so this fetches the record directly
 // (network.habitat.space.getRecord, which does return a cid) rather than
 // trusting the outbox's own value for this one field. Authenticated as the
 // doc's owner, the same way DocRoom.applyRemote reads content for records
@@ -227,45 +221,6 @@ async function handleCommentReply(
     commentUri: record.comment.uri,
     authorDid: repo,
     body: record.body,
-    createdAt: Number.isNaN(createdAt) ? Date.now() : createdAt,
-  });
-}
-
-// handleCommentResolution mirrors a network.habitat.docs.commentResolution
-// record — a resolve/reopen action, not a comment — into the
-// comment_resolutions table via applyResolution's last-write-wins merge.
-// Unlike handleComment/handleUserRelation, a delete tombstone here is
-// simply ignored: retracting a past resolve/reopen action isn't a
-// supported operation (there's no "undo", only taking a new action), and
-// the mirror holds only the current status, not a history of actions, so
-// there'd be nothing meaningful to fall back to.
-async function handleCommentResolution(
-  env: Env,
-  uri: string,
-  spaceUri: string,
-  repo: string,
-  value: unknown,
-): Promise<void> {
-  if (value === null) return;
-  const db = getDb(env);
-  const resolved = await docForComments(db, spaceUri);
-  if (!resolved) return;
-  const { docSpaceUri } = resolved;
-
-  const record = value as {
-    comment?: { uri?: string };
-    resolved?: boolean;
-    createdAt?: string;
-  };
-  if (!record.comment?.uri || typeof record.resolved !== "boolean") return;
-
-  const createdAt = Date.parse(record.createdAt ?? "");
-  await applyResolution(db, {
-    docSpaceUri,
-    commentUri: record.comment.uri,
-    uri,
-    resolverDid: repo,
-    resolved: record.resolved,
     createdAt: Number.isNaN(createdAt) ? Date.now() : createdAt,
   });
 }

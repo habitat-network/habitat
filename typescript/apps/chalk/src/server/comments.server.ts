@@ -2,7 +2,6 @@ import { AtUri, SpaceRef } from "@atproto/syntax";
 import { fromBase64, toBase64 } from "@atproto/lex-data";
 import { encodeLexBytes, parseLexBytes } from "@atproto/lex-json";
 import {
-  applyResolution,
   deleteComment,
   deleteCommentReply,
   upsertComment,
@@ -28,14 +27,11 @@ import type { SapClient } from "./sapClient";
 export const COMMENTS_SPACE_TYPE = "network.habitat.docs.comments";
 export const COMMENT_COLLECTION = "network.habitat.docs.comment";
 export const COMMENT_REPLY_COLLECTION = "network.habitat.docs.commentReply";
-export const COMMENT_RESOLUTION_COLLECTION =
-  "network.habitat.docs.commentResolution";
 
 // A StrongRef is com.atproto.repo.strongRef's shape: a URI pinned to the
-// exact record version (by CID) it refers to. Replies and resolution
-// actions reference a thread's root comment this way rather than by a
-// client-chosen thread id, per the AT Protocol style guide's guidance on
-// referencing another record.
+// exact record version (by CID) it refers to. Replies reference a thread's
+// root comment this way rather than by a client-chosen thread id, per the
+// AT Protocol style guide's guidance on referencing another record.
 export interface StrongRef {
   uri: string;
   cid: string;
@@ -201,9 +197,9 @@ export async function ensureCommentsSpace(
 
   // sap has no way to discover this space on its own until some member's
   // next session crawl — same reason createDoc tracks the doc space right
-  // after creating it. Without this, a comment/reply/resolution written by
-  // anyone other than whichever chalk instance happens to eagerly mirror
-  // its own writes locally (writeComment/writeReply/resolveThread) stays
+  // after creating it. Without this, a comment/reply written by anyone
+  // other than whichever chalk instance happens to eagerly mirror its own
+  // writes locally (writeComment/writeReply) stays
   // invisible to every other chalk instance's D1 mirror until that crawl
   // catches up.
   try {
@@ -293,10 +289,10 @@ export function toCommentReplyView(row: CommentReplyRow): CommentReplyView {
 // CommentView is the shape createComment/listComments hand back to the
 // client — a CommentRow (the D1 mirror's own shape) with authorDid
 // promoted from bookkeeping into what the UI actually renders, plus its
-// replies and resolve state nested in rather than three parallel lists the
-// client would otherwise have to re-join itself. cid rides along so the
-// client can build a StrongRef to this comment (for a reply or a resolve
-// action) without a second round-trip.
+// replies nested in rather than two parallel lists the client would
+// otherwise have to re-join itself. cid rides along so the client can
+// build a StrongRef to this comment (to reply to it) without a second
+// round-trip.
 export interface CommentView {
   uri: string;
   cid: string;
@@ -306,19 +302,17 @@ export interface CommentView {
   anchorEnd: string;
   quotedText: string | null;
   createdAt: number;
-  resolved: boolean;
   replies: CommentReplyView[];
 }
 
-// toCommentView needs resolved/replies passed in rather than deriving them
-// itself: a single CommentRow has no way to know either — both come from
-// joining the comment_resolutions/comment_replies tables in
-// functions.ts's listComments, which is the only caller with all three in
-// hand. A freshly-written comment (writeComment) naturally has neither
-// yet.
+// toCommentView needs replies passed in rather than deriving them itself:
+// a single CommentRow has no way to know them — they come from the
+// comment_replies table, joined up in functions.ts's listComments, which
+// is the only caller with both in hand. A freshly-written comment
+// (writeComment) naturally has none yet.
 export function toCommentView(
   row: CommentRow,
-  opts: { resolved: boolean; replies: CommentReplyView[] },
+  opts: { replies: CommentReplyView[] },
 ): CommentView {
   return {
     uri: row.uri,
@@ -329,7 +323,6 @@ export function toCommentView(
     anchorEnd: row.anchorEnd,
     quotedText: row.quotedText,
     createdAt: row.createdAt,
-    resolved: opts.resolved,
     replies: opts.replies,
   };
 }
@@ -399,7 +392,7 @@ export async function writeComment(
     createdAt: createdAt.getTime(),
   };
   await upsertComment(db, row);
-  return toCommentView(row, { resolved: false, replies: [] });
+  return toCommentView(row, { replies: [] });
 }
 
 // writeReply writes a network.habitat.docs.commentReply record referencing
@@ -443,50 +436,6 @@ export async function writeReply(
   };
   await upsertCommentReply(db, row);
   return toCommentReplyView(row);
-}
-
-// resolveThread records a resolve/reopen action on a thread as its own
-// network.habitat.docs.commentResolution record, referencing the thread's
-// root comment by strongRef and written into the resolver's own repo —
-// not a rewrite of the root comment or any reply, which the resolver may
-// not have authored (and couldn't write to even if they wanted; an AT
-// Protocol record can only be rewritten by the repo that owns it).
-export async function resolveThread(
-  client: SapClient,
-  db: Db,
-  did: string,
-  docId: string,
-  comment: StrongRef,
-  resolved: boolean,
-): Promise<void> {
-  const spaceUri = commentsSpaceUri(docId);
-  if (!spaceUri) throw new Error("invalid docId");
-
-  const createdAt = new Date();
-  const { uri } = await client.call<{ uri: string }>(
-    "network.habitat.space.putRecord",
-    "POST",
-    {
-      space: spaceUri,
-      repo: did,
-      collection: COMMENT_RESOLUTION_COLLECTION,
-      record: {
-        $type: COMMENT_RESOLUTION_COLLECTION,
-        comment,
-        resolved,
-        createdAt: createdAt.toISOString(),
-      },
-    },
-  );
-
-  await applyResolution(db, {
-    docSpaceUri: docId,
-    commentUri: comment.uri,
-    uri,
-    resolverDid: did,
-    resolved,
-    createdAt: createdAt.getTime(),
-  });
 }
 
 // removeComment deletes one root comment record and its D1 mirror row.

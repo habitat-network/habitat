@@ -9,20 +9,13 @@ import {
   parseCommentsRecordUri,
   removeComment,
   removeReply,
-  resolveThread,
   writeComment,
   writeReply,
   COMMENT_REPLY_COLLECTION,
 } from "../src/server/comments.server";
 import { SapClient } from "../src/server/sapClient";
 import { env as cfEnv } from "cloudflare:test";
-import {
-  commentsForDoc,
-  getDb,
-  repliesForDoc,
-  resolutionsForDoc,
-  upsertComment,
-} from "../src/db";
+import { commentsForDoc, getDb, repliesForDoc, upsertComment } from "../src/db";
 
 const DOC = "at://did:web:alice.example/space/network.habitat.docs/abc";
 const COMMENTS_SPACE =
@@ -137,13 +130,10 @@ describe("ensureCommentsSpace", () => {
           return HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` });
         },
       ),
-      http.post(
-        "http://sap-internal.test/space/track",
-        async ({ request }) => {
-          trackedSpace = await request.json();
-          return new HttpResponse(null, { status: 200 });
-        },
-      ),
+      http.post("http://sap-internal.test/space/track", async ({ request }) => {
+        trackedSpace = await request.json();
+        return new HttpResponse(null, { status: 200 });
+      }),
     );
     const client = new SapClient(testEnv, ALICE);
     const result = await ensureCommentsSpace(client, DOC, {
@@ -215,7 +205,8 @@ describe("ensureCommentsSpace", () => {
     server.use(
       http.post(
         "http://sap-internal.test/proxy/network.habitat.simplespace.createSpace",
-        () => HttpResponse.json({ error: "SpaceAlreadyExists" }, { status: 400 }),
+        () =>
+          HttpResponse.json({ error: "SpaceAlreadyExists" }, { status: 400 }),
       ),
       http.post(
         "http://sap-internal.test/proxy/network.habitat.relationship.setSpaceRelation",
@@ -250,13 +241,12 @@ describe("ensureCommentsSpace", () => {
   });
 });
 
-describe("writeComment / writeReply / resolveThread / removeComment / removeReply", () => {
+describe("writeComment / writeReply / removeComment / removeReply", () => {
   const server = setupServer();
   beforeEach(async () => {
     server.listen({ onUnhandledRequest: "error" });
     await cfEnv.DB.exec("DELETE FROM comments");
     await cfEnv.DB.exec("DELETE FROM comment_replies");
-    await cfEnv.DB.exec("DELETE FROM comment_resolutions");
   });
   afterEach(() => {
     server.resetHandlers();
@@ -351,72 +341,6 @@ describe("writeComment / writeReply / resolveThread / removeComment / removeRepl
     const rows = await repliesForDoc(db(), DOC);
     expect(rows).toHaveLength(1);
     expect(rows[0].commentUri).toBe(root.uri);
-  });
-
-  it("resolveThread writes a commentResolution record referencing the root by strongRef, into the resolver's own repo — not the root author's", async () => {
-    const root = {
-      uri: `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.comment/1`,
-      cid: "bafycomment1",
-    };
-    // Bob wrote the thread's root comment...
-    await upsertComment(db(), {
-      uri: root.uri,
-      cid: root.cid,
-      docSpaceUri: DOC,
-      authorDid: BOB,
-      body: "first",
-      anchorStart: "a",
-      anchorEnd: "b",
-      createdAt: 1000,
-    });
-
-    let putBody: unknown;
-    server.use(
-      http.post(
-        "http://sap-internal.test/proxy/network.habitat.space.putRecord",
-        async ({ request }) => {
-          putBody = await request.json();
-          return HttpResponse.json({
-            uri: `${COMMENTS_SPACE}/${ALICE}/network.habitat.docs.commentResolution/1`,
-          });
-        },
-      ),
-    );
-
-    // ...but Alice, who never commented, is the one resolving it.
-    const client = new SapClient(testEnv, ALICE);
-    await resolveThread(client, db(), ALICE, DOC, root, true);
-
-    expect(putBody).toMatchObject({
-      space: COMMENTS_SPACE,
-      repo: ALICE,
-      collection: "network.habitat.docs.commentResolution",
-      record: expect.objectContaining({ comment: root, resolved: true }),
-    });
-
-    const rows = await resolutionsForDoc(db(), DOC);
-    expect(rows).toEqual([
-      expect.objectContaining({
-        docSpaceUri: DOC,
-        commentUri: root.uri,
-        resolverDid: ALICE,
-        resolved: true,
-      }),
-    ]);
-
-    // The root comment record itself is untouched — resolving never
-    // rewrites it (it can't; Alice doesn't own Bob's repo).
-    const comments = await commentsForDoc(db(), DOC);
-    expect(comments).toHaveLength(1);
-    expect(comments[0].body).toBe("first");
-  });
-
-  it("resolveThread rejects a docId that isn't a well-formed space URI", async () => {
-    const client = new SapClient(testEnv, ALICE);
-    const root = { uri: `${COMMENTS_SPACE}/${ALICE}/x/1`, cid: "c" };
-    await expect(
-      resolveThread(client, db(), ALICE, "not-a-uri", root, true),
-    ).rejects.toThrow("invalid docId");
   });
 
   it("removeComment deletes the caller's own record and its local mirror row", async () => {
