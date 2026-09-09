@@ -16,8 +16,8 @@ import (
 )
 
 // Verifier authenticates a repo's signed commit against a locally recomputed
-// LtHash, resolving signer keys by the author's identity type: habitat-managed
-// (did:web) authors sign their own commits per the proposal spec, while
+// LtHash, resolving the signer key from the commit's HabitatSigned flag:
+// habitat-managed authors sign their own commits per the proposal spec, while
 // external authors' commits are signed by the space host's key, published in
 // the host's DID document under the "habitat" verification method.
 type Verifier struct {
@@ -48,30 +48,30 @@ func (v *Verifier) Verify(
 		}
 		return nil
 	}
-	pub, err := v.signer(ctx, space, author)
+	pub, err := v.signer(ctx, space, author, c.HabitatSigned)
 	if err != nil {
 		return fmt.Errorf("resolve signer for %s: %w", author, err)
 	}
 	return spacecommit.Verify(c, space, author, lt.Sum(), pub)
 }
 
-// signer resolves the public key that authenticated the commit, mirroring the
-// host's signing choice in spacecommit.Authority.
+// signer resolves the public key that authenticated the commit, per the
+// commit's own HabitatSigned flag.
 func (v *Verifier) signer(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 	author syntax.DID,
+	habitatSigned bool,
 ) (atcrypto.PublicKey, error) {
-	// Habitat-managed identities are did:web accounts whose signing keys the
-	// hive holds; the host signs their commits with their own key. Most
-	// hive-minted identities publish that key under "#atproto" (see
-	// internal/hive's idTemplateBuilder), but the pear host's own identity —
-	// which authors commits for the "everyone" org (see
+	// Habitat-managed authors sign their own commits with the key the hive
+	// holds. Most hive-minted identities publish that key under "#atproto"
+	// (see internal/hive's idTemplateBuilder), but the pear host's own
+	// identity — which authors commits for the "everyone" org (see
 	// [EveryoneOrg] Use pear did (#709)) — is built by cmd/pear/main.go with
 	// ATProtoSpaceKey/HabitatKey instead, so it only ever declares
 	// "#atproto_space"/"#habitat". Fall back to "#atproto_space" so both
 	// shapes of habitat-managed identity resolve.
-	if author.Method() == "web" {
+	if !habitatSigned {
 		ident, err := v.dir.LookupDID(ctx, author)
 		if err != nil {
 			return nil, fmt.Errorf("lookup author: %w", err)
@@ -86,7 +86,7 @@ func (v *Verifier) signer(
 		return pub, nil
 	}
 
-	// External authors: the space host signed with its own key. Per the
+	// Host-signed: the space host signed with its own key. Per the
 	// proposal's space-authority resolution, discover the host through the
 	// space owner's DID doc "#atproto_space_host" service, then read the
 	// signing key from the host DID doc's "#atproto_space" verification
