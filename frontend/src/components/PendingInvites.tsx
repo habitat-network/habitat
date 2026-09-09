@@ -22,7 +22,6 @@ import {
   TableHeader,
   TableRow,
 } from "internal/components/ui";
-import { DidString, ensureValidDid } from "@atproto/syntax";
 
 export function PendingInvites({
   invites,
