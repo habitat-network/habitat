@@ -57,6 +57,15 @@ export class SapClient {
     private did: string,
   ) {}
 
+  // asDid returns a client for the same environment authenticated as
+  // another DID's sap session. Used where a call has to be made as
+  // somebody other than the signed-in member — creating a doc's comments
+  // space and its inheritance, which only the doc owner is a manager of
+  // (see ensureCommentsSpace).
+  asDid(did: string): SapClient {
+    return new SapClient(this.env, did);
+  }
+
   // base is a getter, not a constructor-time value: `process.env` does not
   // exist on workerd, and Cloudflare's canonical way to read bindings
   // (including from module scope) is `env` from `cloudflare:workers`, read

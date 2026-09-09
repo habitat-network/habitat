@@ -73,7 +73,11 @@ export function decodeAnchorBytes(value: unknown): string | undefined {
 export function commentsSpaceUri(docId: string): string | undefined {
   const parts = parseSpaceRef(docId);
   if (!parts) return undefined;
-  return new SpaceRef(parts.spaceDid, COMMENTS_SPACE_TYPE, parts.skey).toString();
+  return new SpaceRef(
+    parts.spaceDid,
+    COMMENTS_SPACE_TYPE,
+    parts.skey,
+  ).toString();
 }
 
 // parseSpaceRef parses a space URI, returning undefined (rather than
@@ -97,17 +101,37 @@ const SPACE_RELATIONS: { subjectRole: "reader" | "writer" }[] = [
   { subjectRole: "writer" },
 ];
 
+// isSpaceAlreadyExists reports whether err is createSpace's expected
+// "the space is already there" error rather than a real failure. SapClient
+// surfaces a proxied error as an Error carrying the response body, which
+// for this case is pear's {"error": "SpaceAlreadyExists"} (see
+// internal/pearserver/simplespace_create_space.go).
+function isSpaceAlreadyExists(err: unknown): boolean {
+  return err instanceof Error && err.message.includes("SpaceAlreadyExists");
+}
+
 // ensureCommentsSpace creates a doc's comments space and its inheritance
 // from the doc space, and is safe to call repeatedly: creating a space that
 // already exists fails with SpaceAlreadyExists, and re-setting a relation
 // that already exists is a no-op write (setSpaceRelation is an upsert on
-// the same subject/role pair). Both are swallowed rather than surfaced,
+// the same subject/role pair). Those expected outcomes are swallowed,
 // because every caller's real question is "is the space there now", not
-// "did this call create it" — a genuine failure resurfaces on the
-// putRecord/listRecords that follows.
+// "did this call create it". Anything else is logged: it doesn't stop the
+// caller (the putRecord/listRecords that follows is the real gate) but it
+// is the only place the reason is visible, and a comments space that was
+// never created surfaces downstream as an opaque SpaceNotFound.
 //
-// Org docs pass the org's DID as owner and reach createSpace through
-// Atproto-Proxy, exactly as createDocSpace does for the doc space itself.
+// Both calls are made as the *doc owner*, not as the signed-in member.
+// createSpace only accepts the caller's own DID (or their org's), and
+// setSpaceRelation requires manager on the comments space, which only its
+// owner has — so a non-owner being the first to comment on a doc shared
+// with them would otherwise fail both steps and leave them unable to
+// comment at all.
+//
+// Org docs are the exception: the owner is the org DID, which has no sap
+// session to authenticate as. They pass the org's DID as owner and reach
+// createSpace through Atproto-Proxy as the member, exactly as
+// createDocSpace does for the doc space itself.
 export async function ensureCommentsSpace(
   client: SapClient,
   docId: string,
@@ -117,9 +141,11 @@ export async function ensureCommentsSpace(
   const spaceUri = commentsSpaceUri(docId);
   if (!parts || !spaceUri) return undefined;
 
+  const ownerClient = opts.isOrg ? client : client.asDid(opts.ownerDid);
+
   try {
     if (opts.isOrg) {
-      await client.call(
+      await ownerClient.call(
         "community.opensocial.createSpace",
         "POST",
         {
@@ -131,19 +157,26 @@ export async function ensureCommentsSpace(
         { atprotoProxy: `${opts.ownerDid}#habitat` },
       );
     } else {
-      await client.call("network.habitat.simplespace.createSpace", "POST", {
-        did: opts.ownerDid,
-        type: COMMENTS_SPACE_TYPE,
-        skey: parts.skey,
-      });
+      await ownerClient.call(
+        "network.habitat.simplespace.createSpace",
+        "POST",
+        {
+          did: opts.ownerDid,
+          type: COMMENTS_SPACE_TYPE,
+          skey: parts.skey,
+        },
+      );
     }
-  } catch {
-    // Already exists (the common case on every call after the first).
+  } catch (err) {
+    // Already exists is the common case on every call after the first.
+    if (!isSpaceAlreadyExists(err)) {
+      console.error("[comments] create comments space", spaceUri, err);
+    }
   }
 
   for (const { subjectRole } of SPACE_RELATIONS) {
     try {
-      await client.call(
+      await ownerClient.call(
         "network.habitat.relationship.setSpaceRelation",
         "POST",
         {
@@ -153,9 +186,16 @@ export async function ensureCommentsSpace(
           space: spaceUri,
         },
       );
-    } catch {
-      // Already set, or the caller isn't a manager of the comments space —
-      // either way the read/write that follows is the real gate.
+    } catch (err) {
+      // A no-op re-set doesn't throw, so anything here is a real failure:
+      // the space wasn't created above, or (org docs) the member isn't a
+      // manager of it. The read/write that follows is still the real gate.
+      console.error(
+        "[comments] set comments space relation",
+        spaceUri,
+        subjectRole,
+        err,
+      );
     }
   }
 
@@ -168,9 +208,10 @@ export async function ensureCommentsSpace(
   // catches up.
   try {
     await client.trackSpace(spaceUri);
-  } catch {
+  } catch (err) {
     // Best-effort, same as the steps above — a transient failure here
     // just means this call falls back to relying on the next crawl.
+    console.error("[comments] track comments space", spaceUri, err);
   }
 
   return spaceUri;
