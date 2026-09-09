@@ -1940,6 +1940,122 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatDocsComment: {
+    lexicon: 1,
+    id: 'network.habitat.docs.comment',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "The root of a comment thread on a collaborative document, anchored to a range of the document's CRDT (Yjs) state. Comments live in the doc's companion comments space (type 'network.habitat.docs.comments', same owner and space key as the doc itself), which inherits the doc space's readers as readers and its writers as writers via network.habitat.relationship.spaceRelation records — so anyone who can read the doc can read its comments, and anyone who can edit it can comment. Each record is written into the commenter's own repo within that space. Replies to this thread are separate network.habitat.docs.commentReply records referencing it by strongRef; this record itself carries no thread identifier beyond its own URI/CID, which is what a reply and a resolution action point back to.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['body', 'anchorStart', 'anchorEnd', 'createdAt'],
+          properties: {
+            body: {
+              type: 'string',
+              maxLength: 10000,
+              maxGraphemes: 1000,
+              description: 'The comment text.',
+            },
+            anchorStart: {
+              type: 'bytes',
+              maxLength: 512,
+              description:
+                "Yjs relative position (Y.encodeRelativePosition, applied to the doc's 'default' XML fragment) marking the start of the commented range. Together with anchorEnd and the document's current CRDT state, this is sufficient to resolve the exact range being commented on — an editor placing this comment needs no other context, and the position survives concurrent edits made anywhere else in the document the way a plain character offset would not.",
+            },
+            anchorEnd: {
+              type: 'bytes',
+              maxLength: 512,
+              description:
+                'Yjs relative position marking the end of the commented range. See anchorStart.',
+            },
+            quotedText: {
+              type: 'string',
+              maxLength: 2000,
+              description:
+                'A snapshot of the document text the anchor pointed to when the comment was created, shown as a fallback if the anchor no longer resolves to a valid range (e.g. the text was later deleted entirely).',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+              description: 'When the comment was written.',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsCommentReply: {
+    lexicon: 1,
+    id: 'network.habitat.docs.commentReply',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "A reply within a document comment thread, referencing the thread's root network.habitat.docs.comment record by strongRef rather than repeating an anchor of its own — the anchor belongs to the thread, not to each reply. Lives in the same comments space as the comment it replies to, written into the replier's own repo.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['comment', 'body', 'createdAt'],
+          properties: {
+            comment: {
+              type: 'ref',
+              ref: 'lex:com.atproto.repo.strongRef',
+              description:
+                "Reference to the thread's root network.habitat.docs.comment record.",
+            },
+            body: {
+              type: 'string',
+              maxLength: 10000,
+              maxGraphemes: 1000,
+              description: 'The reply text.',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+              description: 'When the reply was written.',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsCommentResolution: {
+    lexicon: 1,
+    id: 'network.habitat.docs.commentResolution',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "Records a resolve/reopen action taken on a document's comment thread, written into the doc's comments space by the resolver's own repo (not the thread's root author's) — the person resolving a thread need not have written the comment it started from. A thread's current status is the most recent commentResolution record (by createdAt) across every repo in the space referencing the same root comment; this is an append-only log of resolve/reopen events, not a shared field on the comment record, since an AT Protocol record can only be rewritten by the repo that owns it.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['comment', 'resolved', 'createdAt'],
+          properties: {
+            comment: {
+              type: 'ref',
+              ref: 'lex:com.atproto.repo.strongRef',
+              description:
+                "Reference to the thread's root network.habitat.docs.comment record.",
+            },
+            resolved: {
+              type: 'boolean',
+              description:
+                'Whether this action resolved (true) or reopened (false) the thread.',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+              description: 'When the action was taken.',
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatDocsCrdt: {
     lexicon: 1,
     id: 'network.habitat.docs.crdt',
@@ -6009,6 +6125,9 @@ export const ids = {
     'network.habitat.collections.listCollections',
   NetworkHabitatCollectionsListRecords:
     'network.habitat.collections.listRecords',
+  NetworkHabitatDocsComment: 'network.habitat.docs.comment',
+  NetworkHabitatDocsCommentReply: 'network.habitat.docs.commentReply',
+  NetworkHabitatDocsCommentResolution: 'network.habitat.docs.commentResolution',
   NetworkHabitatDocsCrdt: 'network.habitat.docs.crdt',
   NetworkHabitatDocsCreateDoc: 'network.habitat.docs.createDoc',
   NetworkHabitatDocsListDocs: 'network.habitat.docs.listDocs',

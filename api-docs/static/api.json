@@ -10093,6 +10093,89 @@
           }
         }
       },
+      "network.habitat.docs.comment": {
+        "type": "object",
+        "required": [
+          "body",
+          "anchorStart",
+          "anchorEnd",
+          "createdAt"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "The comment text.",
+            "maxLength": 10000
+          },
+          "anchorStart": {
+            "type": "string",
+            "format": "byte",
+            "description": "Yjs relative position (Y.encodeRelativePosition, applied to the doc's 'default' XML fragment) marking the start of the commented range. Together with anchorEnd and the document's current CRDT state, this is sufficient to resolve the exact range being commented on — an editor placing this comment needs no other context, and the position survives concurrent edits made anywhere else in the document the way a plain character offset would not.",
+            "maxLength": 512
+          },
+          "anchorEnd": {
+            "type": "string",
+            "format": "byte",
+            "description": "Yjs relative position marking the end of the commented range. See anchorStart.",
+            "maxLength": 512
+          },
+          "quotedText": {
+            "type": "string",
+            "description": "A snapshot of the document text the anchor pointed to when the comment was created, shown as a fallback if the anchor no longer resolves to a valid range (e.g. the text was later deleted entirely).",
+            "maxLength": 2000
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the comment was written.",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.docs.commentReply": {
+        "type": "object",
+        "required": [
+          "comment",
+          "body",
+          "createdAt"
+        ],
+        "properties": {
+          "comment": {
+            "$ref": "#/components/schemas/com.atproto.repo.strongRef"
+          },
+          "body": {
+            "type": "string",
+            "description": "The reply text.",
+            "maxLength": 10000
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the reply was written.",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.docs.commentResolution": {
+        "type": "object",
+        "required": [
+          "comment",
+          "resolved",
+          "createdAt"
+        ],
+        "properties": {
+          "comment": {
+            "$ref": "#/components/schemas/com.atproto.repo.strongRef"
+          },
+          "resolved": {
+            "type": "boolean",
+            "description": "Whether this action resolved (true) or reopened (false) the thread."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the action was taken.",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.docs.crdt": {
         "type": "object",
         "required": [
