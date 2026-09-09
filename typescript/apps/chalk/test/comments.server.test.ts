@@ -111,7 +111,7 @@ describe("ensureCommentsSpace", () => {
     server.close();
   });
 
-  it("creates a personal comments space and grants doc readers/writers as its readers/writers", async () => {
+  it("creates a personal comments space and wires up the inheritance both ways", async () => {
     const setRelationBodies: unknown[] = [];
     let createBody: unknown;
     let trackedSpace: unknown;
@@ -147,6 +147,7 @@ describe("ensureCommentsSpace", () => {
       skey: "abc",
     });
     expect(setRelationBodies).toEqual([
+      // The doc's readers and writers can read and write its comments...
       {
         subject: DOC,
         subjectRole: "reader",
@@ -157,6 +158,22 @@ describe("ensureCommentsSpace", () => {
         subject: DOC,
         subjectRole: "writer",
         relation: "writer",
+        space: COMMENTS_SPACE,
+      },
+      // ...and, the other way round, a writer of the comments space (a
+      // commenter) can read the doc, without a second grant on it.
+      {
+        subject: COMMENTS_SPACE,
+        subjectRole: "writer",
+        relation: "reader",
+        space: DOC,
+      },
+      // Doc managers manage the comments space, so any editor — not only
+      // the owner who created it — can add a commenter.
+      {
+        subject: DOC,
+        subjectRole: "manager",
+        relation: "manager",
         space: COMMENTS_SPACE,
       },
     ]);

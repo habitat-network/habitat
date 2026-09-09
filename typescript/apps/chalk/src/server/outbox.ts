@@ -75,6 +75,30 @@ export async function processOutboxMessage(
 // see pkg/sap/syncer/sync.go). The tombstone carries no subject, only the
 // record's own URI, which is why doc_access keeps that URI as a lookup
 // column even though it isn't the primary key.
+//
+// A *writer* grant on a doc's comments space is what a commenter is (see
+// functions.ts's ROLE_TO_GRANT), so it's filed under the doc space rather
+// than the space the record names: doc_access exists to answer "which docs
+// can this subject see", and docsForAccessor joins it against the doc — a
+// row keyed by the comments space would match no doc at all, and a
+// commenter would never see the doc in their own list.
+//
+// Only writer, though. Creating the comments space also writes its creator
+// an owner relation on it, and that subject already holds one on the doc
+// space; mapping both onto the same (subject, doc space) row would have
+// the second to arrive overwrite the first's record URI, after which the
+// wrong tombstone deletes the row and the right one matches nothing. No
+// other relation on the comments space adds access the doc space's own
+// grants don't already carry, so ignoring them loses nothing.
+function docAccessSpace(
+  spaceUri: string,
+  relation: string,
+): string | undefined {
+  const docSpaceUri = docSpaceUriForComments(spaceUri);
+  if (!docSpaceUri) return spaceUri; // an ordinary doc-space grant
+  return relation === "writer" ? docSpaceUri : undefined;
+}
+
 async function handleUserRelation(
   env: Env,
   uri: string,
@@ -88,9 +112,11 @@ async function handleUserRelation(
   }
   const record = value as { subject?: string; relation?: string };
   if (!record.subject || !record.relation) return;
+  const space = docAccessSpace(spaceUri, record.relation);
+  if (!space) return;
   await upsertDocAccess(db, {
     uri,
-    spaceUri,
+    spaceUri: space,
     subjectDid: record.subject,
     relation: record.relation,
   });

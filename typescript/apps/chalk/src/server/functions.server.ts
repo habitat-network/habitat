@@ -2,6 +2,7 @@ import { redirect } from "@tanstack/react-router";
 import { SpaceRef, type DidString } from "@atproto/syntax";
 import { useAppSession } from "./session";
 import type { SapClient } from "./sapClient";
+import { commentsSpaceUri } from "./comments.server";
 
 // Server-only helpers, kept out of functions.ts so that file can stay
 // "pure" (only createServerFn-wrapped exports) per TanStack Start's
@@ -163,22 +164,20 @@ export async function hasDocAccess(
   }
 }
 
-// docRole resolves the caller's own role on a doc — "editor" if they hold
-// at least writer (also true for the owner/a manager), "viewer" if they
-// only hold reader, null otherwise. Used to keep the client-side editor
-// read-only for viewers; it is not itself an access check (hasDocAccess/
-// the WS route's forbidden response is what actually gates the doc).
+// checkRelation asks pear whether did holds relation on space. A failure
+// (including the check endpoint itself rejecting the caller) is "no" —
+// see hasDocAccess for why both outcomes mean the same thing here.
 async function checkRelation(
   client: SapClient,
   did: string,
-  docId: string,
+  space: string,
   relation: "writer" | "reader",
 ): Promise<boolean> {
   try {
     const res = await client.call<{ allowed: boolean }>(
       "network.habitat.relationship.checkUserRelation",
       "GET",
-      { subject: did, relation, space: docId },
+      { subject: did, relation, space },
     );
     return res.allowed;
   } catch {
@@ -186,12 +185,88 @@ async function checkRelation(
   }
 }
 
+// DocRole is the caller's tier on a doc: an editor can change the
+// document itself, a commenter can only add comments to it, a viewer can
+// only read. null is no access at all.
+export type DocRole = "editor" | "commenter" | "viewer";
+
+// docRole resolves the caller's own tier on a doc, from three live
+// relation checks:
+//
+//   writer on the doc space      -> editor    (also true of the owner/a manager)
+//   writer on the comments space -> commenter (what a commenter grant writes)
+//   reader on the doc space      -> viewer
+//
+// The order is load-bearing, because the two spaces inherit from each
+// other (see SPACE_RELATIONS): an editor is a comments-space writer too,
+// and a commenter is a doc-space reader too, so a lower tier's check
+// passes for everyone above it. The highest one that matches wins.
+//
+// The three checks are issued together rather than in sequence — one
+// round-trip's latency instead of up to three, and the answer is the same
+// either way.
+//
+// Used to decide what the client offers (an editable editor, a comment
+// box, neither); it is not itself the access gate — hasDocAccess and the
+// WS route's forbidden response are what actually gate the doc, and pear
+// rejects a write from someone who only holds a lower role regardless of
+// what the client renders.
 export async function docRole(
   client: SapClient,
   did: string,
   docId: string,
-): Promise<"editor" | "viewer" | null> {
-  if (await checkRelation(client, did, docId, "writer")) return "editor";
-  if (await checkRelation(client, did, docId, "reader")) return "viewer";
+): Promise<DocRole | null> {
+  const commentsSpace = commentsSpaceUri(docId);
+  const [isDocWriter, isCommentsWriter, isDocReader] = await Promise.all([
+    checkRelation(client, did, docId, "writer"),
+    commentsSpace
+      ? checkRelation(client, did, commentsSpace, "writer")
+      : Promise.resolve(false),
+    checkRelation(client, did, docId, "reader"),
+  ]);
+  if (isDocWriter) return "editor";
+  if (isCommentsWriter) return "commenter";
+  if (isDocReader) return "viewer";
   return null;
+}
+
+// A userRelation record as network.habitat.relationship.listRelations
+// returns it — only the fields the sharing paths actually read.
+interface UserRelationView {
+  uri: string;
+  subject: string;
+  relation: string;
+}
+
+// deleteUserGrant removes subjectDid's own grant record on space, if they
+// hold one, returning the deleted record's URI so the caller can drop the
+// matching doc_access row without waiting on the outbox tombstone.
+//
+// deleteRelation takes the relation record's own URI rather than a
+// (did, space) pair, so the URI has to be looked up first — no separate
+// index of grant URIs is kept anywhere.
+//
+// Used both to revoke access outright and, when re-sharing, to clear the
+// grant a subject holds on the *other* of a doc's two spaces: a role
+// change within one space overwrites in place (pear's SetUserRelation
+// keys the record by subject DID and drops the other role's tuples), but
+// commenter lives on the comments space while editor and viewer live on
+// the doc space, so changing across that line would otherwise leave the
+// old grant standing alongside the new one.
+export async function deleteUserGrant(
+  client: SapClient,
+  space: string,
+  subjectDid: string,
+): Promise<string | undefined> {
+  const { relations } = await client.call<{ relations: UserRelationView[] }>(
+    "network.habitat.relationship.listRelations",
+    "GET",
+    { space, subjectType: "user", subjectDid },
+  );
+  const relation = relations[0];
+  if (!relation) return undefined;
+  await client.call("network.habitat.relationship.deleteRelation", "POST", {
+    uri: relation.uri,
+  });
+  return relation.uri;
 }

@@ -129,6 +129,54 @@ it("ignores a userRelation record missing subject or relation", async () => {
   expect(await docsForAccessor(getDb(env), BOB)).toEqual([]);
 });
 
+// A commenter's grant is a userRelation on the doc's *comments* space (see
+// functions.ts's ROLE_TO_GRANT). doc_access answers "which docs can this
+// subject see", and docsForAccessor joins it against the doc — so the row
+// has to be filed under the doc space, not the space the record names, or
+// the commenter never sees the doc in their own list.
+const COMMENTS_RELATION_RECORD = `at://${OWNER}/space/network.habitat.docs.comments/abc/${OWNER}/network.habitat.relationship.userRelation/rkey2`;
+
+it("files a comments-space grant under the doc space", async () => {
+  await processOutboxMessage(
+    env,
+    relationMsg(COMMENTS_RELATION_RECORD, { subject: BOB, relation: "writer" }),
+  );
+  expect(await docsForAccessor(getDb(env), BOB)).toEqual([
+    { docId: URI, uri: URI, ownerDid: OWNER, title: "Untitled", isOrg: false },
+  ]);
+});
+
+it("a non-writer relation on the comments space leaves the doc-space row alone", async () => {
+  // Creating the comments space writes its creator an *owner* userRelation
+  // on it, alongside the one they already hold on the doc space. Both
+  // would map to the same (subject, doc space) row, and the second to
+  // arrive would overwrite the first's record URI — after which the wrong
+  // tombstone deletes the row and the right one matches nothing. Only a
+  // writer grant on the comments space means anything to doc_access.
+  await processOutboxMessage(
+    env,
+    relationMsg(RELATION_RECORD, { subject: BOB, relation: "owner" }),
+  );
+  await processOutboxMessage(
+    env,
+    relationMsg(COMMENTS_RELATION_RECORD, { subject: BOB, relation: "owner" }),
+  );
+  // The doc-space record's own tombstone must still find the row.
+  await processOutboxMessage(env, relationMsg(RELATION_RECORD, null));
+  expect(await docsForAccessor(getDb(env), BOB)).toEqual([]);
+});
+
+it("removes a comments-space grant on its delete tombstone", async () => {
+  await processOutboxMessage(
+    env,
+    relationMsg(COMMENTS_RELATION_RECORD, { subject: BOB, relation: "writer" }),
+  );
+  // The tombstone carries only the record's own URI — on the comments
+  // space — which still has to find the row filed under the doc space.
+  await processOutboxMessage(env, relationMsg(COMMENTS_RELATION_RECORD, null));
+  expect(await docsForAccessor(getDb(env), BOB)).toEqual([]);
+});
+
 const COMMENTS_SPACE = `at://${OWNER}/space/network.habitat.docs.comments/abc`;
 const COMMENT_RECORD = `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.comment/3jzfcijpj2z2a`;
 

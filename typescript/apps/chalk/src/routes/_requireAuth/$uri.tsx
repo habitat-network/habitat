@@ -68,22 +68,26 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { role, initialState } = Route.useLoaderData();
     const { currentOrg } = RequireAuthRoute.useLoaderData();
     const ydoc = useYDoc(uri, initialState);
+    // Editors and commenters may write comments; a viewer may only read
+    // them. Mirrors canComment in functions.ts, which is what actually
+    // rejects a viewer's createComment — this only decides what the UI
+    // offers.
+    const canComment = role === "editor" || role === "commenter";
     const queryClient = useQueryClient();
 
     const addRecentDoc = useRecentDocsStore((state) => state.addRecentDoc);
     useEffect(() => addRecentDoc(uri), [uri, addRecentDoc]);
 
     const accessQueryKey = ["docAccess", uri];
-    // listDocAccess only returns DIDs and relations (what
-    // network.habitat.relationship actually stores); resolving DIDs to
-    // handles/avatars for display is useActors's job.
+    // listDocAccess only returns DIDs and the tier each one holds;
+    // resolving DIDs to handles/avatars for display is useActors's job.
     const { data: access = [] } = useQuery({
       queryKey: accessQueryKey,
       queryFn: () => listDocAccess({ data: { docId: uri } }),
     });
     const getActor = useActors(access.map((a) => a.did));
     const grantees: ShareDialogGrantee[] = useMemo(
-      () => access.map((a) => ({ ...getActor(a.did), relation: a.relation })),
+      () => access.map((a) => ({ ...getActor(a.did), role: a.role })),
       [access, getActor],
     );
     const invalidateAccess = () =>
@@ -156,9 +160,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         // `document`, which doesn't exist there, and would just be thrown
         // away on hydration anyway.
         immediatelyRender: false,
-        // Client-side only: keeps a viewer's editor read-only. The actual
-        // access gate is the WS route's reader check (ws.$docId.ts) — this
-        // doesn't stop write attempts made outside the UI.
+        // Client-side only: keeps the editor read-only for anyone below
+        // editor — a commenter can add comments but not change the
+        // document itself. The actual access gate is the WS route's reader
+        // check (ws.$docId.ts) — this doesn't stop write attempts made
+        // outside the UI.
         editable: role === "editor",
         extensions: [
           StarterKit.configure({ undoRedo: false }),
@@ -253,6 +259,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             <CommentSidebar
               docId={uri}
               currentUserDid={currentUserDid}
+              canComment={canComment}
               activeCommentUri={activeCommentUri}
               pendingAnchor={pendingAnchor}
               onPendingAnchorResolved={() => setPendingAnchor(null)}
@@ -269,7 +276,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         </div>
         <PageHeader>
           <div className="flex gap-2">
-            {role === "editor" && (
+            {canComment ? (
               <Button
                 variant="ghost"
                 onClick={
@@ -277,6 +284,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
                 }
               >
                 {hasSelection ? "Add comment" : "Comments"}
+              </Button>
+            ) : (
+              // A viewer can read the thread list but not start one, so
+              // the button never offers "Add comment" to them.
+              <Button variant="ghost" onClick={() => setSidebarOpen(true)}>
+                Comments
               </Button>
             )}
             {role === "editor" && !currentOrg && (

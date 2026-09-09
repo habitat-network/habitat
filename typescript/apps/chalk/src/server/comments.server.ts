@@ -86,15 +86,40 @@ function parseSpaceRef(uri: string): SpaceRef | undefined {
   }
 }
 
-// SPACE_RELATIONS is the inheritance the comments space is created with:
-// the doc space's readers become the comments space's readers, and its
-// writers become its writers. So sharing the doc shares its comments, and
-// revoking access to the doc revokes access to its comments, with no
-// second grant to keep in sync — a spaceRelation is a live userset, not a
-// snapshot of who held the role when it was written.
-const SPACE_RELATIONS: { subjectRole: "reader" | "writer" }[] = [
-  { subjectRole: "reader" },
-  { subjectRole: "writer" },
+// SpaceRole is the vocabulary network.habitat.relationship uses for the
+// roles a spaceRelation can grant or draw from.
+type SpaceRole = "reader" | "writer" | "manager";
+
+// SPACE_RELATIONS is the inheritance a doc and its comments space are
+// wired together with. Each entry reads "everyone holding subjectRole on
+// the subject space holds relation on the target space", and `reversed`
+// says which of the two spaces is the subject: false is doc → comments,
+// true is comments → doc. A spaceRelation is a live userset, not a
+// snapshot of who held the role when it was written, so none of this
+// needs re-syncing as people are added and removed.
+//
+// The first two make sharing the doc share its comments: its readers can
+// read them, its writers can write them, and revoking doc access revokes
+// comment access with it.
+//
+// The third is what a commenter *is* — someone granted writer on the
+// comments space directly, who thereby reads the doc without a second
+// grant on the doc space to keep in sync (see shareDoc). It runs the
+// other way round, which is why the subject/target can't be implied.
+//
+// The fourth lets any doc editor add commenters: setUserRelation requires
+// manager on the space being granted on, and without this only the
+// comments space's creator (the doc owner) would hold that — even though
+// the same editor can already add editors and viewers to the doc itself.
+const SPACE_RELATIONS: {
+  subjectRole: SpaceRole;
+  relation: SpaceRole;
+  reversed?: boolean;
+}[] = [
+  { subjectRole: "reader", relation: "reader" },
+  { subjectRole: "writer", relation: "writer" },
+  { subjectRole: "writer", relation: "reader", reversed: true },
+  { subjectRole: "manager", relation: "manager" },
 ];
 
 // isSpaceAlreadyExists reports whether err is createSpace's expected
@@ -170,17 +195,14 @@ export async function ensureCommentsSpace(
     }
   }
 
-  for (const { subjectRole } of SPACE_RELATIONS) {
+  for (const { subjectRole, relation, reversed } of SPACE_RELATIONS) {
+    const subject = reversed ? spaceUri : docId;
+    const space = reversed ? docId : spaceUri;
     try {
       await ownerClient.call(
         "network.habitat.relationship.setSpaceRelation",
         "POST",
-        {
-          subject: docId,
-          subjectRole,
-          relation: subjectRole,
-          space: spaceUri,
-        },
+        { subject, subjectRole, relation, space },
       );
     } catch (err) {
       // A no-op re-set doesn't throw, so anything here is a real failure:
@@ -188,8 +210,10 @@ export async function ensureCommentsSpace(
       // manager of it. The read/write that follows is still the real gate.
       console.error(
         "[comments] set comments space relation",
-        spaceUri,
+        subject,
         subjectRole,
+        space,
+        relation,
         err,
       );
     }

@@ -20,10 +20,14 @@ import {
   docRole,
   fetchOrgName,
   listMyOrgIds,
+  deleteUserGrant,
   requireSession,
   setCurrentOrg,
+  type DocRole,
 } from "./functions.server";
 import {
+  commentsSpaceUri,
+  ensureCommentsSpace,
   removeComment,
   removeReply,
   toCommentReplyView,
@@ -70,6 +74,13 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     // next session crawl — tell it explicitly so DocSync's outbox consumer
     // actually receives events for edits to it.
     await client.trackSpace(uri);
+
+    // Create the companion comments space up front rather than on the
+    // first comment: a commenter is someone granted writer on it (see
+    // shareDoc), and you can't grant a role on a space that doesn't exist
+    // yet — so a doc has to be shareable-as-commenter from the moment it
+    // is created, not from the moment someone happens to comment.
+    await ensureCommentsSpace(client, uri, { ownerDid, isOrg });
 
     // docId is the doc's full space URI, not just its trailing skey: a
     // space's skey alone doesn't say which host/repo it lives under, so a
@@ -217,82 +228,156 @@ interface UserRelationView {
   relation: string;
 }
 
-// listDocAccess returns every user with a direct grant on the doc, and
-// their relation — the "people with access" list a share dialog shows.
-// Only user grants (subjectType "user"), not space/group usersets:
-// chalk's sharing is user-to-user for now.
-export const listDocAccess = createServerFn({ method: "GET" })
-  .validator((input: { docId: string }) => input)
-  .handler(
-    async ({
-      data,
-    }): Promise<{ did: string; relation: "manager" | "reader" }[]> => {
-      const { did } = await requireSession();
-      const client = new SapClient(env, did);
-      const { relations } = await client.call<{
-        relations: UserRelationView[];
-      }>("network.habitat.relationship.listRelations", "GET", {
-        space: data.docId,
-        subjectType: "user",
-      });
-      return relations.map((r) => ({
-        did: r.subject,
-        relation: r.relation as "manager" | "reader",
-      }));
-    },
-  );
-
-// A doc grantee is either an editor (can edit the doc) or a viewer
-// (read-only), which map to the "manager"/"reader" relations
-// network.habitat.relationship actually stores. Editors get "manager"
-// (not just "writer") so they can share the doc themselves — pear's
-// setUserRelation requires manager — and manager implies writer, so this
-// doesn't change what an editor can do to the doc's content.
-const ROLE_TO_RELATION: Record<"editor" | "viewer", "manager" | "reader"> = {
-  editor: "manager",
-  viewer: "reader",
+// A doc grantee holds one of three tiers, which map onto the relations
+// network.habitat.relationship actually stores — and, for a commenter,
+// onto a different space entirely:
+//
+//   editor    -> manager on the doc space
+//   commenter -> writer  on the comments space
+//   viewer    -> reader  on the doc space
+//
+// Editors get "manager" (not just "writer") so they can share the doc
+// themselves — pear's setUserRelation requires manager — and manager
+// implies writer, so this doesn't change what an editor can do to the
+// doc's content.
+//
+// A commenter is granted on the comments space alone. They still get to
+// read the doc, because the comments space's writers are readers of the
+// doc space (see SPACE_RELATIONS) — one grant, not two to keep in sync,
+// and one record to delete when access is revoked.
+const ROLE_TO_GRANT: Record<
+  DocRole,
+  { relation: "manager" | "writer" | "reader"; onComments: boolean }
+> = {
+  editor: { relation: "manager", onComments: false },
+  commenter: { relation: "writer", onComments: true },
+  viewer: { relation: "reader", onComments: false },
 };
 
-// shareDoc grants a user access to a doc as either an editor or a viewer.
-// Requires the caller to already hold manager (pear enforces this; a
-// non-manager's setUserRelation call fails there, not here).
+// grantSpaces returns the two spaces a doc's grants can live on — its own
+// and its comments space — as the pair every sharing call has to consider.
+// The comments space entry is undefined only for a malformed docId, which
+// commentsSpaceUri rejects.
+function grantSpaces(docId: string): { space: string; onComments: boolean }[] {
+  const commentsSpace = commentsSpaceUri(docId);
+  return [
+    { space: docId, onComments: false },
+    ...(commentsSpace ? [{ space: commentsSpace, onComments: true }] : []),
+  ];
+}
+
+// relationToRole maps a stored relation back to the tier it represents.
+// The same relation means different things on the two spaces — "writer"
+// on the comments space is a commenter, while on the doc space it would
+// be an editor — so the space it was found on is part of the answer.
+function relationToRole(
+  relation: string,
+  onComments: boolean,
+): DocRole | undefined {
+  if (onComments) return relation === "writer" ? "commenter" : undefined;
+  if (relation === "manager" || relation === "writer") return "editor";
+  if (relation === "reader") return "viewer";
+  return undefined;
+}
+
+// listDocAccess returns every user with a direct grant on the doc and the
+// tier it gives them — the "people with access" list a share dialog shows.
+// Both spaces are queried, since a commenter's grant is a record on the
+// comments space rather than the doc's own (see ROLE_TO_GRANT).
+//
+// Only user grants (subjectType "user"), not space/group usersets:
+// chalk's sharing is user-to-user for now. That also keeps the spaces'
+// own inheritance relations out of the list — they're space usersets, not
+// user grants, so a doc editor never shows up here twice.
+export const listDocAccess = createServerFn({ method: "GET" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }): Promise<{ did: string; role: DocRole }[]> => {
+    const { did } = await requireSession();
+    const client = new SapClient(env, did);
+    const perSpace = await Promise.all(
+      grantSpaces(data.docId).map(async ({ space, onComments }) => {
+        const { relations } = await client.call<{
+          relations: UserRelationView[];
+        }>("network.habitat.relationship.listRelations", "GET", {
+          space,
+          subjectType: "user",
+        });
+        return relations.flatMap((r) => {
+          const role = relationToRole(r.relation, onComments);
+          return role ? [{ did: r.subject, role }] : [];
+        });
+      }),
+    );
+    return perSpace.flat();
+  });
+
+// shareDoc grants a user access to a doc as an editor, a commenter or a
+// viewer. Requires the caller to already hold manager on the space being
+// granted on (pear enforces this; a non-manager's setUserRelation call
+// fails there, not here) — which for a commenter is the comments space,
+// where doc-space managers hold manager through the inheritance
+// SPACE_RELATIONS sets up, so any editor can add one.
 export const shareDoc = createServerFn({ method: "POST" })
   .validator(
-    (input: { docId: string; subjectDid: string; role: "editor" | "viewer" }) =>
-      input,
+    (input: { docId: string; subjectDid: string; role: DocRole }) => input,
   )
   .handler(async ({ data }) => {
     const { did } = await requireSession();
     const client = new SapClient(env, did);
+    const { relation, onComments } = ROLE_TO_GRANT[data.role];
+    const space = onComments ? commentsSpaceUri(data.docId) : data.docId;
+    if (!space) throw new Error("invalid docId");
+
     const { uri } = await client.call<{ uri: string }>(
       "network.habitat.relationship.setUserRelation",
       "POST",
-      {
-        subject: data.subjectDid,
-        relation: ROLE_TO_RELATION[data.role],
-        space: data.docId,
-      },
+      { subject: data.subjectDid, relation, space },
     );
 
-    // Grant local doc_access immediately rather than waiting on the outbox
-    // webhook to sync this same userRelation record back — without this,
-    // the newly-shared user's own docsForAccessor query won't show the doc
-    // until that async round-trip lands. The webhook's own upsertDocAccess
-    // call is a no-op once this has already landed (same uri).
-    await upsertDocAccess(getDb(env), {
+    // Re-sharing replaces whatever the subject held before. Within one
+    // space that's automatic — pear's SetUserRelation keys the record by
+    // subject DID and drops the other roles' tuples — but commenter lives
+    // on the comments space while editor and viewer live on the doc
+    // space, so a change across that line has to clear the old grant
+    // explicitly. Left alone it would keep granting the old role: a
+    // commenter demoted to viewer would still hold writer on the comments
+    // space, which is the whole of what makes someone a commenter.
+    //
+    // The new grant is written first so the subject is never briefly
+    // without access, and a failure here surfaces rather than being
+    // swallowed — a half-applied role change is worth an error.
+    const staleSpace = grantSpaces(data.docId).find((s) => s.space !== space);
+    const staleUri = staleSpace
+      ? await deleteUserGrant(client, staleSpace.space, data.subjectDid)
+      : undefined;
+
+    // Update local doc_access immediately rather than waiting on the
+    // outbox webhook to sync these same records back — without this, the
+    // newly-shared user's own docsForAccessor query won't show the doc
+    // until that async round-trip lands. The webhook's own upsert/delete
+    // is a no-op once this has already landed (same uri).
+    //
+    // Keyed by the *doc* space even for a commenter, whose grant record
+    // lives on the comments space: doc_access exists to answer "which docs
+    // can this subject see", and docsForAccessor joins it against the doc.
+    // The outbox handler maps the same record the same way.
+    const db = getDb(env);
+    if (staleUri) await deleteDocAccess(db, staleUri);
+    await upsertDocAccess(db, {
       uri,
       spaceUri: data.docId,
       subjectDid: data.subjectDid,
-      relation: ROLE_TO_RELATION[data.role],
+      relation,
     });
   });
 
-// getDocRole resolves the caller's own role on the doc, so the client can
-// keep the editor read-only for a viewer. See docRole's comment: this is
-// a UX signal, not the access gate itself.
+// getDocRole resolves the caller's own tier on the doc, so the client can
+// keep the editor read-only for a commenter or viewer and hide the
+// comment box from a viewer. See docRole's comment: this is a UX signal,
+// not the access gate itself.
 export const getDocRole = createServerFn({ method: "GET" })
   .validator((input: { docId: string }) => input)
-  .handler(async ({ data }): Promise<"editor" | "viewer" | null> => {
+  .handler(async ({ data }): Promise<DocRole | null> => {
     const { did } = await requireSession();
     const client = new SapClient(env, did);
     return docRole(client, did, data.docId);
@@ -314,31 +399,29 @@ export const getDocInitialState = createServerFn({ method: "GET" })
     return env.DOC.get(env.DOC.idFromName(data.docId)).snapshot();
   });
 
-// revokeDocAccess removes a user's grant. deleteRelation takes the relation
-// record's own URI, not a (did, space) pair, so this looks that URI up via
-// the same listRelations query listDocAccess uses, filtered to the one
-// subject — no separate index of grant URIs needs to be kept anywhere.
+// revokeDocAccess removes a user's grant (see deleteUserGrant, which does
+// the record lookup the delete needs).
+//
+// Both spaces are swept, since a commenter's grant record lives on the
+// comments space rather than the doc's own (see ROLE_TO_GRANT). A user
+// holds a grant on one or the other, never both, but revoking deletes
+// whatever it finds rather than stopping at the first: leaving a stale
+// grant behind on the other space would silently keep access alive.
 export const revokeDocAccess = createServerFn({ method: "POST" })
   .validator((input: { docId: string; subjectDid: string }) => input)
   .handler(async ({ data }) => {
     const { did } = await requireSession();
     const client = new SapClient(env, did);
-    const { relations } = await client.call<{ relations: UserRelationView[] }>(
-      "network.habitat.relationship.listRelations",
-      "GET",
-      { space: data.docId, subjectType: "user", subjectDid: data.subjectDid },
-    );
-    const relation = relations[0];
-    if (!relation) return;
-    await client.call("network.habitat.relationship.deleteRelation", "POST", {
-      uri: relation.uri,
-    });
+    for (const { space } of grantSpaces(data.docId)) {
+      const uri = await deleteUserGrant(client, space, data.subjectDid);
+      if (!uri) continue;
 
-    // Remove local doc_access immediately rather than waiting on the
-    // outbox webhook to sync this same tombstone back — without this, the
-    // revoked user keeps seeing the doc in their own listDocs until that
-    // async round-trip lands.
-    await deleteDocAccess(getDb(env), relation.uri);
+      // Remove local doc_access immediately rather than waiting on the
+      // outbox webhook to sync this same tombstone back — without this,
+      // the revoked user keeps seeing the doc in their own listDocs until
+      // that async round-trip lands.
+      await deleteDocAccess(getDb(env), uri);
+    }
   });
 
 export type {
@@ -409,9 +492,10 @@ export const listComments = createServerFn({ method: "GET" })
 // from its own live Y.Doc before calling this — the server has no editor
 // state of its own to derive them from.
 //
-// Requires editor (writer) on the doc: the comments space grants writer to
-// the doc space's writers, so a viewer's putRecord would be rejected by
-// pear anyway — checking here just turns that into a clear error instead
+// Requires editor or commenter — the two tiers that hold writer on the
+// comments space (an editor through the doc space's inheritance, a
+// commenter by direct grant). A viewer's putRecord would be rejected by
+// pear anyway; checking here just turns that into a clear error instead
 // of a proxied 403.
 export const createComment = createServerFn({ method: "POST" })
   .validator(
@@ -426,7 +510,7 @@ export const createComment = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<CommentView> => {
     const { did } = await requireSession();
     const client = new SapClient(env, did);
-    if ((await docRole(client, did, data.docId)) !== "editor") {
+    if (!canComment(await docRole(client, did, data.docId))) {
       throw new Error("forbidden");
     }
     const doc = await docByUri(getDb(env), data.docId);
@@ -440,9 +524,18 @@ export const createComment = createServerFn({ method: "POST" })
     });
   });
 
+// canComment reports whether a role may write comments — editors and
+// commenters, but not viewers (and not a null role: no access at all).
+// The single place createComment/createReply agree on what "may comment"
+// means.
+function canComment(role: DocRole | null): boolean {
+  return role === "editor" || role === "commenter";
+}
+
 // createReply adds a reply to an existing thread — see writeReply in
 // comments.server.ts. `comment` is the strongRef to the thread's root, as
-// returned by listComments/createComment.
+// returned by listComments/createComment. Same tier requirement as
+// createComment.
 export const createReply = createServerFn({ method: "POST" })
   .validator(
     (input: { docId: string; comment: StrongRef; body: string }) => input,
@@ -450,7 +543,7 @@ export const createReply = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<CommentReplyView> => {
     const { did } = await requireSession();
     const client = new SapClient(env, did);
-    if ((await docRole(client, did, data.docId)) !== "editor") {
+    if (!canComment(await docRole(client, did, data.docId))) {
       throw new Error("forbidden");
     }
     return writeReply(client, getDb(env), did, data.docId, {

@@ -34,6 +34,14 @@ export interface CommentSidebarProps {
   // shown at all — without it the sidebar would offer everyone a button
   // that reliably fails.
   currentUserDid: string;
+  // Whether the viewer may write comments at all — true for editors and
+  // commenters, false for a viewer, who sees every thread but gets no
+  // compose or reply box. It also gates the delete buttons: someone
+  // demoted to viewer still authored their old comments, but no longer
+  // holds writer on the comments space, so pear would reject the delete.
+  // The server enforces the same rule (see canComment in functions.ts);
+  // this only decides what is rendered.
+  canComment: boolean;
   // The thread (by its root comment's URI) a click on a doc highlight just
   // selected, if any — the sidebar highlights it and expands its reply
   // box. Cleared by the caller once handled (see $uri.tsx).
@@ -46,6 +54,7 @@ export interface CommentSidebarProps {
 export function CommentSidebar({
   docId,
   currentUserDid,
+  canComment,
   activeCommentUri,
   pendingAnchor,
   onPendingAnchorResolved,
@@ -58,7 +67,10 @@ export function CommentSidebar({
     queryKey,
     queryFn: () => listComments({ data: { docId } }),
   });
-  const comments = data?.comments ?? [];
+  // Memoized on `data`, not on a freshly-built `?? []`: a new array
+  // identity every render would make the useMemo below (and useActors'
+  // query key through it) churn on every render.
+  const comments = useMemo(() => data?.comments ?? [], [data]);
 
   const authorDids = useMemo(
     () =>
@@ -123,12 +135,17 @@ export function CommentSidebar({
     onError: onMutationError("Couldn't delete reply"),
   });
 
-  const showPendingThread = pendingAnchor != null;
+  // A viewer can't start a thread, so a pending selection can't reach the
+  // sidebar for them — but guard here too rather than trusting the caller
+  // to never pass one.
+  const showPendingThread = pendingAnchor != null && canComment;
 
   if (comments.length === 0 && !showPendingThread) {
     return (
       <aside className="w-80 shrink-0 border-l p-4 text-sm text-muted-foreground">
-        No comments yet. Select some text and click "Comment" to start a thread.
+        {canComment
+          ? 'No comments yet. Select some text and click "Comment" to start a thread.'
+          : "No comments yet."}
         <div className="mt-4">
           <Button variant="ghost" size="sm" onClick={onClose}>
             Close
@@ -197,7 +214,7 @@ export function CommentSidebar({
                     {comment.body}
                   </p>
                 </div>
-                {comment.authorDid === currentUserDid && (
+                {canComment && comment.authorDid === currentUserDid && (
                   <Button
                     variant="ghost"
                     size="icon-xs"
@@ -223,7 +240,7 @@ export function CommentSidebar({
                       {r.body}
                     </p>
                   </div>
-                  {r.authorDid === currentUserDid && (
+                  {canComment && r.authorDid === currentUserDid && (
                     <Button
                       variant="ghost"
                       size="icon-xs"
@@ -237,7 +254,7 @@ export function CommentSidebar({
                   )}
                 </div>
               ))}
-              {isActive && (
+              {isActive && canComment && (
                 <div className="space-y-2 pt-1">
                   <Textarea
                     autoFocus
