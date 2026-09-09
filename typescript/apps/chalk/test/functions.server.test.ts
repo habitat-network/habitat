@@ -100,7 +100,7 @@ describe("createDocSpace", () => {
     expect(body).toEqual({
       org: "did:web:org.example",
       type: "network.habitat.docs",
-      roles: ["admin", "member"],
+      roles: [],
     });
     expect(proxyHeader).toBe("did:web:org.example#habitat");
     expect(result).toEqual({

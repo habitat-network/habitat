@@ -53,7 +53,7 @@ func TestServer_Simplespace(t *testing.T) {
 			)
 		})
 
-		t.Run("accepts caller did, caller org, or an opensocial org the caller belongs to", func(t *testing.T) {
+		t.Run("accepts only caller did or org as the did param", func(t *testing.T) {
 			tests := []struct {
 				name    string
 				did     string
@@ -63,10 +63,10 @@ func TestServer_Simplespace(t *testing.T) {
 				{name: "caller did", did: owner.String(), want: http.StatusOK},
 				{name: "caller org", did: org.String(), want: http.StatusOK},
 				{
-					name:    "unrelated did",
+					name:    "other did",
 					did:     alice.String(),
-					want:    http.StatusUnauthorized,
-					wantErr: "caller is not a member of this community",
+					want:    http.StatusBadRequest,
+					wantErr: "only caller did or caller org are allowed",
 				},
 			}
 			for _, tt := range tests {
@@ -88,31 +88,6 @@ func TestServer_Simplespace(t *testing.T) {
 					}
 				})
 			}
-		})
-
-		// CreateOrgSpace pins that a member of an opensocial org (verified via
-		// the same opensocial membership check community.opensocial.createSpace
-		// itself uses) can create a simplespace owned by that org's DID — this
-		// is how chalk creates an org-mode doc space, instead of going through
-		// community.opensocial.createSpace.
-		t.Run("creates a space owned by an opensocial org the caller belongs to", func(t *testing.T) {
-			orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", alice)
-			require.NoError(t, err)
-			require.NoError(t, ts.OpenSocialStore.AssignRoles(
-				t.Context(), syntax.DID(orgDID), owner, []string{"member"},
-			))
-
-			var out habitat.NetworkHabitatSimplespaceCreateSpaceOutput
-			code := client.Procedure(
-				ts.Server.CreateSpace,
-				habitat.NetworkHabitatSimplespaceCreateSpaceInput{
-					Did:  orgDID,
-					Type: "network.habitat.docs",
-				},
-				&out,
-			)
-			require.Equal(t, http.StatusOK, code)
-			require.Contains(t, out.Uri, "at://"+orgDID+"/space/network.habitat.docs/")
 		})
 
 		// Duplicate pins the createSpace endpoint's duplicate handling: it must

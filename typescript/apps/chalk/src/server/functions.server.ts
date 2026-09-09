@@ -31,15 +31,15 @@ export async function createDocSpace(
   currentOrg: string | undefined,
 ): Promise<{ uri: string; ownerDid: string; isOrg: boolean }> {
   if (currentOrg) {
-    // Access is granted via explicit spaceRelation/userRelation records
-    // (the share dialog), not baked in at creation time like
-    // community.opensocial.createSpace's roles param used to — sharing
-    // with "the whole org" now means a spaceRelation naming the org's own
-    // community.opensocial.members space as its subject (see ShareDialog).
+    // roles is empty: access is granted via explicit spaceRelation/
+    // userRelation records (the share dialog) instead of being baked in at
+    // creation time — sharing with "the whole org" means a spaceRelation
+    // naming the org's own community.opensocial.members space as its
+    // subject (see orgMembersSpaceUri/OrgShareControl).
     const created = await client.call<{ uri: string }>(
-      "network.habitat.simplespace.createSpace",
+      "community.opensocial.createSpace",
       "POST",
-      { did: currentOrg, type: DOCS_SPACE_TYPE },
+      { org: currentOrg, type: DOCS_SPACE_TYPE, roles: [] },
       { atprotoProxy: `${currentOrg}#habitat` },
     );
     return { uri: created.uri, ownerDid: currentOrg, isOrg: true };

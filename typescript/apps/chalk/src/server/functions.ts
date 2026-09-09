@@ -210,6 +210,24 @@ interface SpaceRelationView {
   relation: string;
 }
 
+// managementClient returns the SapClient to use for calls that manage a
+// doc's sharing (list/grant/revoke access): in org mode this is the org's
+// own OAuth session (sap already tracks one, established when the org was
+// connected — see startOrgConnect), not the calling member's. The org owns
+// its doc spaces outright, so it always passes pear's manager check
+// (CheckUserHasSpaceRole's implicit-owner rule) — unlike an individual
+// member, who may hold no relation on the doc at all until someone with
+// manager access grants them one. This sidesteps that bootstrapping problem
+// entirely: sharing an org doc never depends on the acting member's own
+// grant. In personal mode there's no org session, so this is just the
+// member's own client, same as everywhere else.
+function managementClient(
+  did: string,
+  currentOrg: string | undefined,
+): SapClient {
+  return new SapClient(env, currentOrg ?? did);
+}
+
 // listDocAccess returns every user with a direct grant on the doc, and
 // their relation — the "people with access" list a share dialog shows.
 // Only user grants (subjectType "user"), not space/group usersets:
@@ -220,8 +238,8 @@ export const listDocAccess = createServerFn({ method: "GET" })
     async ({
       data,
     }): Promise<{ did: string; relation: "manager" | "reader" }[]> => {
-      const { did } = await requireSession();
-      const client = new SapClient(env, did);
+      const { did, currentOrg } = await requireSession();
+      const client = managementClient(did, currentOrg);
       const { relations } = await client.call<{
         relations: UserRelationView[];
       }>("network.habitat.relationship.listRelations", "GET", {
@@ -247,16 +265,18 @@ const ROLE_TO_RELATION: Record<"editor" | "viewer", "manager" | "reader"> = {
 };
 
 // shareDoc grants a user access to a doc as either an editor or a viewer.
-// Requires the caller to already hold manager (pear enforces this; a
-// non-manager's setUserRelation call fails there, not here).
+// In personal mode the caller must already hold manager themselves (pear
+// enforces this; a non-manager's setUserRelation call fails there, not
+// here). In org mode this goes through managementClient's org session
+// instead, which always qualifies.
 export const shareDoc = createServerFn({ method: "POST" })
   .validator(
     (input: { docId: string; subjectDid: string; role: "editor" | "viewer" }) =>
       input,
   )
   .handler(async ({ data }) => {
-    const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const { did, currentOrg } = await requireSession();
+    const client = managementClient(did, currentOrg);
     const { uri } = await client.call<{ uri: string }>(
       "network.habitat.relationship.setUserRelation",
       "POST",
@@ -314,8 +334,8 @@ export const getDocInitialState = createServerFn({ method: "GET" })
 export const revokeDocAccess = createServerFn({ method: "POST" })
   .validator((input: { docId: string; subjectDid: string }) => input)
   .handler(async ({ data }) => {
-    const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const { did, currentOrg } = await requireSession();
+    const client = managementClient(did, currentOrg);
     const { relations } = await client.call<{ relations: UserRelationView[] }>(
       "network.habitat.relationship.listRelations",
       "GET",
@@ -366,9 +386,9 @@ async function getOrgSpaceRelation(
 export const getDocOrgAccess = createServerFn({ method: "GET" })
   .validator((input: { docId: string }) => input)
   .handler(async ({ data }): Promise<"editor" | "viewer" | null> => {
-    const { did, currentOrg } = await requireSession();
+    const { currentOrg } = await requireSession();
     if (!currentOrg) return null;
-    const client = new SapClient(env, did);
+    const client = new SapClient(env, currentOrg);
     const relation = await getOrgSpaceRelation(client, data.docId, currentOrg);
     if (!relation) return null;
     return relation.relation === "writer" ? "editor" : "viewer";
@@ -378,16 +398,20 @@ export const getDocOrgAccess = createServerFn({ method: "GET" })
 // a doc, via a single spaceRelation naming the org's own
 // community.opensocial.members space as its subject (see
 // orgMembersSpaceUri) — this is what the share dialog's "entire org" option
-// calls. Requires the caller to already hold manager on the doc, same as
-// shareDoc.
+// calls. Always org-mode only; see managementClient's comment for why this
+// uses the org's own session rather than the calling member's.
 export const shareDocWithOrg = createServerFn({ method: "POST" })
   .validator(
     (input: { docId: string; role: "editor" | "viewer" }) => input,
   )
   .handler(async ({ data }) => {
-    const { did, currentOrg } = await requireSession();
+    const { currentOrg } = await requireSession();
     if (!currentOrg) throw new Error("not acting as an org");
-    const client = new SapClient(env, did);
+    // Called with the org's own OAuth session (not the member's): the org
+    // owns the doc space outright, so this always passes pear's manager
+    // check regardless of what the acting member personally holds — see
+    // managementClient's comment above for why that matters.
+    const client = new SapClient(env, currentOrg);
     await client.call("network.habitat.relationship.setSpaceRelation", "POST", {
       subject: orgMembersSpaceUri(currentOrg),
       subjectRole: "reader",
@@ -401,9 +425,9 @@ export const shareDocWithOrg = createServerFn({ method: "POST" })
 export const revokeDocOrgAccess = createServerFn({ method: "POST" })
   .validator((input: { docId: string }) => input)
   .handler(async ({ data }) => {
-    const { did, currentOrg } = await requireSession();
+    const { currentOrg } = await requireSession();
     if (!currentOrg) return;
-    const client = new SapClient(env, did);
+    const client = new SapClient(env, currentOrg);
     const relation = await getOrgSpaceRelation(client, data.docId, currentOrg);
     if (!relation) return;
     await client.call("network.habitat.relationship.deleteRelation", "POST", {

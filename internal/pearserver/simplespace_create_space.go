@@ -17,7 +17,7 @@ import (
 func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
-		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -41,35 +41,19 @@ func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		skey = parsedKey
 	}
 
-	// Defaults to the caller's own OAuth-session org (internal/org
-	// membership) when there is one, exactly as before this handler also
-	// accepted an explicit opensocial org below — a bare createSpace call
-	// with no did param still means "create in my org's namespace".
-	authority := credInfo.Subject
-	if credInfo.Org != nil {
-		authority = credInfo.Org.DID()
-	}
+	callerOrg := credInfo.Org.DID()
 	if input.Did != "" {
 		parsedDID, ok := httpx.ParseDIDInput(ctx, w, input.Did, "did")
 		if !ok {
 			return
 		}
-		callerOrg := credInfo.Org != nil && parsedDID == credInfo.Org.DID()
-		if parsedDID != credInfo.Subject && !callerOrg {
-			// Not the caller's own DID or their own OAuth-session org — the
-			// remaining legitimate case is acting on behalf of an opensocial
-			// org the caller genuinely belongs to, the same authorization
-			// community.opensocial.createSpace itself uses (also reached via
-			// Atproto-Proxy + service-auth). This is how chalk creates an
-			// org-mode doc space.
-			if !p.requireMember(ctx, w, parsedDID, credInfo.Subject) {
-				return
-			}
+		if parsedDID != credInfo.Subject && parsedDID != callerOrg {
+			httpx.WriteInvalidRequest(ctx, w, "only caller did or caller org are allowed", nil)
+			return
 		}
-		authority = parsedDID
 	}
 
-	uri, err := p.simpleStore.CreateSpace(ctx, authority, credInfo.Subject, spaceType, skey)
+	uri, err := p.simpleStore.CreateSpace(ctx, callerOrg, credInfo.Subject, spaceType, skey)
 	if errors.Is(err, simplespace.ErrSpaceAlreadyExists) {
 		httpx.WriteError(ctx, w, "SpaceAlreadyExists", "" /* msg */, http.StatusBadRequest)
 		return
