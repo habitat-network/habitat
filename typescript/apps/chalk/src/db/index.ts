@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/d1";
-import { and, desc, eq, inArray } from "drizzle-orm";
-import { docs, docAccess, connectedOrgs } from "./schema";
+import { and, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { docs, docAccess, docOrgAccess, connectedOrgs } from "./schema";
 
 export interface DocSummary {
   docId: string;
@@ -11,7 +11,9 @@ export interface DocSummary {
 }
 
 export function getDb(env: { DB: D1Database }) {
-  return drizzle(env.DB, { schema: { docs, docAccess, connectedOrgs } });
+  return drizzle(env.DB, {
+    schema: { docs, docAccess, docOrgAccess, connectedOrgs },
+  });
 }
 
 export type Db = ReturnType<typeof getDb>;
@@ -81,11 +83,20 @@ export async function docsForAccessor(
   return rows.map(toSummary);
 }
 
-// docsForOrg returns every doc owned by org, regardless of who created it
-// or any doc_access grant — org docs have none (see createDoc's org-mode
-// branch), since access is org-wide by construction (the space's own
-// community.opensocial.access record, not a per-user relation).
-export async function docsForOrg(db: Db, org: string): Promise<DocSummary[]> {
+// docsForOrg returns the org's docs that subjectDid can actually open: the
+// ones shared with the whole org (a doc_org_access row for org), plus the
+// ones they hold a personal grant on (a doc_access row) — which covers a
+// doc they created but haven't shared yet, since createDoc grants its
+// creator manager. Org docs are no longer readable org-wide by
+// construction: they're created with no community.opensocial.access roles,
+// so listing every doc the org owns would show docs the member can't open.
+// Both joins match at most one row (each is keyed by its table's primary
+// key), so a doc reachable both ways still appears once.
+export async function docsForOrg(
+  db: Db,
+  org: string,
+  subjectDid: string,
+): Promise<DocSummary[]> {
   const rows = await db
     .select({
       spaceUri: docs.spaceUri,
@@ -96,7 +107,27 @@ export async function docsForOrg(db: Db, org: string): Promise<DocSummary[]> {
       isOrg: docs.isOrg,
     })
     .from(docs)
-    .where(and(eq(docs.isOrg, true), eq(docs.ownerDid, org)))
+    .leftJoin(
+      docOrgAccess,
+      and(
+        eq(docs.spaceUri, docOrgAccess.spaceUri),
+        eq(docOrgAccess.orgDid, org),
+      ),
+    )
+    .leftJoin(
+      docAccess,
+      and(
+        eq(docs.spaceUri, docAccess.spaceUri),
+        eq(docAccess.subjectDid, subjectDid),
+      ),
+    )
+    .where(
+      and(
+        eq(docs.isOrg, true),
+        eq(docs.ownerDid, org),
+        or(isNotNull(docOrgAccess.spaceUri), isNotNull(docAccess.spaceUri)),
+      ),
+    )
     .orderBy(desc(docs.updatedAt));
   return rows.map(toSummary);
 }
@@ -132,6 +163,37 @@ export async function upsertDocAccess(
 // to the JSON-null tombstone the outbox emits for a deleted record.
 export async function deleteDocAccess(db: Db, uri: string): Promise<void> {
   await db.delete(docAccess).where(eq(docAccess.uri, uri));
+}
+
+// upsertDocOrgAccess records or updates a doc's org-wide grant, keyed by
+// (orgDid, spaceUri) — an org holds at most one relation on a given doc.
+export async function upsertDocOrgAccess(
+  db: Db,
+  access: {
+    uri: string;
+    spaceUri: string;
+    orgDid: string;
+    relation: string;
+  },
+): Promise<void> {
+  const row = { ...access, updatedAt: Date.now() };
+  await db
+    .insert(docOrgAccess)
+    .values(row)
+    .onConflictDoUpdate({
+      target: [docOrgAccess.orgDid, docOrgAccess.spaceUri],
+      set: {
+        uri: row.uri,
+        relation: row.relation,
+        updatedAt: row.updatedAt,
+      },
+    });
+}
+
+// deleteDocOrgAccess removes a doc's org-wide grant by the spaceRelation
+// record's own URI, mirroring deleteDocAccess.
+export async function deleteDocOrgAccess(db: Db, uri: string): Promise<void> {
+  await db.delete(docOrgAccess).where(eq(docOrgAccess.uri, uri));
 }
 
 export async function docByUri(

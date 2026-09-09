@@ -3,11 +3,13 @@ import { env } from "cloudflare:workers";
 import {
   connectedOrgNames,
   deleteDocAccess,
+  deleteDocOrgAccess,
   docsForAccessor,
   docsForOrg,
   getDb,
   upsertDoc,
   upsertDocAccess,
+  upsertDocOrgAccess,
   type DocSummary,
 } from "../db";
 import {
@@ -52,6 +54,20 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
       currentOrg,
     );
 
+    // An org doc space is created with no opensocial access roles (see
+    // createDocSpace), so the member who just created it holds nothing on
+    // it — not even enough for the trackSpace call below, which fails its
+    // space-credential check as UserNotAuthorized. Grant them manager with
+    // the org's own credentials (the org owns the space, so it always
+    // qualifies — see managementClient) before anything else touches it.
+    if (currentOrg) {
+      await managementClient(did, currentOrg).call(
+        "network.habitat.relationship.setUserRelation",
+        "POST",
+        { subject: did, relation: "manager", space: uri },
+      );
+    }
+
     // sap has no way to discover this space on its own until the member's
     // next session crawl — tell it explicitly so DocSync's outbox consumer
     // actually receives events for edits to it.
@@ -74,23 +90,19 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
       isOrg,
     });
 
-    // Personal docs grant the owner local doc_access now rather than
-    // waiting on the outbox webhook to sync their own userRelation record
-    // back — without this, docsForAccessor's inner join hides the doc the
-    // owner just created until that async round-trip lands. Org docs have
-    // no doc_access rows at all: listDocs shows every org member the org's
-    // full doc list (docsForOrg), regardless of per-user grants — actual
-    // read/write access is still gated by network.habitat.relationship (see
-    // hasDocAccess/docRole), which the creator grants explicitly afterward
-    // via the share dialog, including an "entire org" option.
-    if (!isOrg) {
-      await upsertDocAccess(db, {
-        uri,
-        spaceUri: uri,
-        subjectDid: did,
-        relation: "owner",
-      });
-    }
+    // Record the creator's own grant locally now rather than waiting on the
+    // outbox webhook to sync the matching userRelation record back —
+    // without this, the doc the creator just made is hidden from their own
+    // listing until that async round-trip lands. Personal docs get owner
+    // (simplespace.createSpace grants it); org docs get the manager grant
+    // made just above, and stay invisible to the rest of the org until
+    // they're shared with it (docsForOrg lists from doc_org_access).
+    await upsertDocAccess(db, {
+      uri,
+      spaceUri: uri,
+      subjectDid: did,
+      relation: isOrg ? "manager" : "owner",
+    });
 
     // Record the room's identity now, so the owner-republish alarm knows the
     // owner before the webhook (src/server/webhook.ts) delivers it.
@@ -107,7 +119,9 @@ export const listDocs = createServerFn({ method: "GET" }).handler(
   async (): Promise<DocSummary[]> => {
     const { did, currentOrg } = await requireSession();
     const db = getDb(env);
-    return currentOrg ? docsForOrg(db, currentOrg) : docsForAccessor(db, did);
+    return currentOrg
+      ? docsForOrg(db, currentOrg, did)
+      : docsForAccessor(db, did);
   },
 );
 
@@ -357,11 +371,10 @@ export const revokeDocAccess = createServerFn({ method: "POST" })
 // The org-wide grant maps to "reader"/"writer" (not "manager", used for a
 // per-person editor) — every member reshaing the doc org-wide would be too
 // permissive for a grant this broad.
-const ORG_ROLE_TO_RELATION: Record<"editor" | "viewer", "writer" | "reader"> =
-  {
-    editor: "writer",
-    viewer: "reader",
-  };
+const ORG_ROLE_TO_RELATION: Record<"editor" | "viewer", "writer" | "reader"> = {
+  editor: "writer",
+  viewer: "reader",
+};
 
 // getOrgSpaceRelation looks up the doc's spaceRelation naming the caller's
 // org's members space as its subject, if any — the single record that
@@ -401,9 +414,7 @@ export const getDocOrgAccess = createServerFn({ method: "GET" })
 // calls. Always org-mode only; see managementClient's comment for why this
 // uses the org's own session rather than the calling member's.
 export const shareDocWithOrg = createServerFn({ method: "POST" })
-  .validator(
-    (input: { docId: string; role: "editor" | "viewer" }) => input,
-  )
+  .validator((input: { docId: string; role: "editor" | "viewer" }) => input)
   .handler(async ({ data }) => {
     const { currentOrg } = await requireSession();
     if (!currentOrg) throw new Error("not acting as an org");
@@ -412,11 +423,27 @@ export const shareDocWithOrg = createServerFn({ method: "POST" })
     // check regardless of what the acting member personally holds — see
     // managementClient's comment above for why that matters.
     const client = new SapClient(env, currentOrg);
-    await client.call("network.habitat.relationship.setSpaceRelation", "POST", {
-      subject: orgMembersSpaceUri(currentOrg),
-      subjectRole: "reader",
+    const { uri } = await client.call<{ uri: string }>(
+      "network.habitat.relationship.setSpaceRelation",
+      "POST",
+      {
+        subject: orgMembersSpaceUri(currentOrg),
+        subjectRole: "reader",
+        relation: ORG_ROLE_TO_RELATION[data.role],
+        space: data.docId,
+      },
+    );
+
+    // Record the org-wide grant locally now rather than waiting on the
+    // outbox webhook to sync this same spaceRelation back — without this,
+    // the doc doesn't appear in other members' listDocs until that async
+    // round-trip lands. outbox.ts's handleSpaceRelation is a no-op once
+    // this has already landed (same uri).
+    await upsertDocOrgAccess(getDb(env), {
+      uri,
+      spaceUri: data.docId,
+      orgDid: currentOrg,
       relation: ORG_ROLE_TO_RELATION[data.role],
-      space: data.docId,
     });
   });
 
@@ -433,4 +460,9 @@ export const revokeDocOrgAccess = createServerFn({ method: "POST" })
     await client.call("network.habitat.relationship.deleteRelation", "POST", {
       uri: relation.uri,
     });
+
+    // Drop the local row immediately, for the same reason shareDocWithOrg
+    // writes it immediately: otherwise the doc keeps showing up in every
+    // org member's listDocs until the outbox tombstone lands.
+    await deleteDocOrgAccess(getDb(env), relation.uri);
   });

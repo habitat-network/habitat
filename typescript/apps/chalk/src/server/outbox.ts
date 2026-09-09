@@ -1,5 +1,12 @@
-import { AtUri } from "@atproto/syntax";
-import { deleteDocAccess, docByUri, getDb, upsertDocAccess } from "../db";
+import { AtUri, SpaceRef } from "@atproto/syntax";
+import {
+  deleteDocAccess,
+  deleteDocOrgAccess,
+  docByUri,
+  getDb,
+  upsertDocAccess,
+  upsertDocOrgAccess,
+} from "../db";
 
 // OutboxMessage is sap's wire format for a single outbox event, delivered as
 // a webhook POST body (see cmd/sap/webhook.go webhookPayload). A JSON-null
@@ -12,6 +19,10 @@ export interface OutboxMessage {
 
 const CRDT_COLLECTION = "network.habitat.docs.crdt";
 const USER_RELATION_COLLECTION = "network.habitat.relationship.userRelation";
+const SPACE_RELATION_COLLECTION = "network.habitat.relationship.spaceRelation";
+// The space type whose role-holders are "everyone in the org" — a
+// spaceRelation naming one of these as its subject is an org-wide grant.
+const MEMBERS_SPACE_TYPE = "community.opensocial.members";
 
 // processOutboxMessage routes one outbox event delivered by sap's webhook
 // (cmd/sap/webhook.go). Messages this deliberately ignores (wrong
@@ -31,6 +42,10 @@ export async function processOutboxMessage(
 
   if (atUri.collection === USER_RELATION_COLLECTION) {
     await handleUserRelation(env, msg.uri, spaceUri, msg.value);
+    return;
+  }
+  if (atUri.collection === SPACE_RELATION_COLLECTION) {
+    await handleSpaceRelation(env, msg.uri, spaceUri, msg.value);
     return;
   }
   if (atUri.collection !== CRDT_COLLECTION) return;
@@ -66,6 +81,41 @@ async function handleUserRelation(
     uri,
     spaceUri,
     subjectDid: record.subject,
+    relation: record.relation,
+  });
+}
+
+// handleSpaceRelation mirrors the org-wide half of the same picture: a
+// network.habitat.relationship.spaceRelation whose subject is an org's
+// members space grants the doc to that whole org, so it becomes a
+// doc_org_access row (what docsForOrg lists from). A spaceRelation naming
+// any other space — a group, say — is somebody else's userset and is
+// ignored here. As with userRelation, a JSON-null value is sap's delete
+// tombstone and carries only the record's own URI.
+async function handleSpaceRelation(
+  env: Env,
+  uri: string,
+  spaceUri: string,
+  value: unknown,
+): Promise<void> {
+  const db = getDb(env);
+  if (value === null) {
+    await deleteDocOrgAccess(db, uri);
+    return;
+  }
+  const record = value as { subject?: string; relation?: string };
+  if (!record.subject || !record.relation) return;
+  let subject: SpaceRef;
+  try {
+    subject = SpaceRef.parse(record.subject);
+  } catch {
+    return; // subject isn't a space ref at all
+  }
+  if (subject.spaceType !== MEMBERS_SPACE_TYPE) return;
+  await upsertDocOrgAccess(db, {
+    uri,
+    spaceUri,
+    orgDid: subject.spaceDid,
     relation: record.relation,
   });
 }

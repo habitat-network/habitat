@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import { processOutboxMessage } from "../src/server/outbox";
-import { getDb, upsertDoc, docsForAccessor } from "../src/db";
+import { getDb, upsertDoc, docsForAccessor, docsForOrg } from "../src/db";
 
 // A well-formed empty Yjs V2 update — `applyRemote` feeds getBlob's response
 // straight into `mergeUpdate`, which decodes it, so an arbitrary byte
@@ -20,6 +20,7 @@ beforeEach(async () => {
   vi.stubGlobal("fetch", fetchMock);
   await env.DB.exec("DELETE FROM docs");
   await env.DB.exec("DELETE FROM doc_access");
+  await env.DB.exec("DELETE FROM doc_org_access");
   await upsertDoc(getDb(env), {
     spaceUri: URI,
     docId: URI,
@@ -112,4 +113,67 @@ it("ignores a userRelation record missing subject or relation", async () => {
     relationMsg(RELATION_RECORD, { subject: BOB }),
   );
   expect(await docsForAccessor(getDb(env), BOB)).toEqual([]);
+});
+
+const ORG = "did:web:org.example";
+const ORG_DOC = `at://${ORG}/space/network.habitat.docs/org1`;
+const MEMBERS_SPACE = `at://${ORG}/space/community.opensocial.members/self`;
+const SPACE_RELATION_RECORD = `${ORG_DOC}/${ORG}/network.habitat.relationship.spaceRelation/rkey1`;
+const ORG_DOC_SUMMARY = {
+  docId: ORG_DOC,
+  uri: ORG_DOC,
+  ownerDid: ORG,
+  title: "Org doc",
+  isOrg: true,
+};
+
+async function seedOrgDoc() {
+  await upsertDoc(getDb(env), {
+    spaceUri: ORG_DOC,
+    docId: ORG_DOC,
+    ownerDid: ORG,
+    title: "Org doc",
+    isOrg: true,
+  });
+}
+
+it("records an org-wide grant from a members-space spaceRelation", async () => {
+  await seedOrgDoc();
+  await processOutboxMessage(
+    env,
+    relationMsg(SPACE_RELATION_RECORD, {
+      subject: MEMBERS_SPACE,
+      subjectRole: "reader",
+      relation: "reader",
+    }),
+  );
+  // BOB holds no personal grant — the org-wide row is what surfaces it.
+  expect(await docsForOrg(getDb(env), ORG, BOB)).toEqual([ORG_DOC_SUMMARY]);
+});
+
+it("removes the org-wide grant on a delete tombstone", async () => {
+  await seedOrgDoc();
+  await processOutboxMessage(
+    env,
+    relationMsg(SPACE_RELATION_RECORD, {
+      subject: MEMBERS_SPACE,
+      subjectRole: "reader",
+      relation: "reader",
+    }),
+  );
+  await processOutboxMessage(env, relationMsg(SPACE_RELATION_RECORD, null));
+  expect(await docsForOrg(getDb(env), ORG, BOB)).toEqual([]);
+});
+
+it("ignores a spaceRelation whose subject is not a members space", async () => {
+  await seedOrgDoc();
+  await processOutboxMessage(
+    env,
+    relationMsg(SPACE_RELATION_RECORD, {
+      subject: `at://${ORG}/space/network.habitat.group/some-group`,
+      subjectRole: "writer",
+      relation: "reader",
+    }),
+  );
+  expect(await docsForOrg(getDb(env), ORG, BOB)).toEqual([]);
 });

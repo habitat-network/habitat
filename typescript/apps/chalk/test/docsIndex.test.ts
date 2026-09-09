@@ -4,6 +4,8 @@ import {
   getDb,
   upsertDoc,
   upsertDocAccess,
+  upsertDocOrgAccess,
+  deleteDocOrgAccess,
   docsForAccessor,
   docsForOrg,
   docByUri,
@@ -16,6 +18,7 @@ const BOB = "did:web:bob.example";
 beforeEach(async () => {
   await env.DB.exec("DELETE FROM docs");
   await env.DB.exec("DELETE FROM doc_access");
+  await env.DB.exec("DELETE FROM doc_org_access");
 });
 
 it("returns a subject's docs newest first", async () => {
@@ -128,28 +131,91 @@ it("leaves isOrg untouched on a re-upsert that doesn't specify it", async () => 
   expect((await docByUri(db, URI))?.isOrg).toBe(true);
 });
 
-it("docsForOrg returns every doc owned by the org regardless of doc_access", async () => {
-  const db = getDb(env);
-  const orgDoc = "at://did:web:org.example/space/network.habitat.docs/abc";
+const ORG = "did:web:org.example";
+const ORG_DOC = "at://did:web:org.example/space/network.habitat.docs/abc";
+
+async function seedOrgDoc(db: ReturnType<typeof getDb>) {
   await upsertDoc(db, {
-    spaceUri: orgDoc,
-    docId: orgDoc,
-    ownerDid: "did:web:org.example",
+    spaceUri: ORG_DOC,
+    docId: ORG_DOC,
+    ownerDid: ORG,
     title: "Org doc",
     isOrg: true,
   });
-  // No doc_access row for this doc at all — org-mode listing must not
-  // require one.
-  const rows = await docsForOrg(db, "did:web:org.example");
-  expect(rows).toEqual([
-    {
-      docId: orgDoc,
-      uri: orgDoc,
-      ownerDid: "did:web:org.example",
-      title: "Org doc",
-      isOrg: true,
-    },
-  ]);
+}
+
+const orgDocSummary = {
+  docId: ORG_DOC,
+  uri: ORG_DOC,
+  ownerDid: ORG,
+  title: "Org doc",
+  isOrg: true,
+};
+
+it("docsForOrg hides an org doc nobody has been granted", async () => {
+  const db = getDb(env);
+  await seedOrgDoc(db);
+  // Org docs are created with no access roles, so owning the doc is not by
+  // itself permission to see it — without a grant it must stay hidden.
+  expect(await docsForOrg(db, ORG, BOB)).toEqual([]);
+});
+
+it("docsForOrg includes a doc shared with the whole org", async () => {
+  const db = getDb(env);
+  await seedOrgDoc(db);
+  await upsertDocOrgAccess(db, {
+    uri: `${ORG_DOC}/${ORG}/network.habitat.relationship.spaceRelation/self`,
+    spaceUri: ORG_DOC,
+    orgDid: ORG,
+    relation: "reader",
+  });
+  expect(await docsForOrg(db, ORG, BOB)).toEqual([orgDocSummary]);
+});
+
+it("docsForOrg includes a doc the subject holds a personal grant on", async () => {
+  const db = getDb(env);
+  await seedOrgDoc(db);
+  // What the doc's creator gets: a manager grant, no org-wide share.
+  await upsertDocAccess(db, {
+    uri: `${ORG_DOC}/${ALICE}/network.habitat.relationship.userRelation/self`,
+    spaceUri: ORG_DOC,
+    subjectDid: ALICE,
+    relation: "manager",
+  });
+  expect(await docsForOrg(db, ORG, ALICE)).toEqual([orgDocSummary]);
+  expect(await docsForOrg(db, ORG, BOB)).toEqual([]);
+});
+
+it("docsForOrg lists a doc once when granted both ways", async () => {
+  const db = getDb(env);
+  await seedOrgDoc(db);
+  await upsertDocOrgAccess(db, {
+    uri: `${ORG_DOC}/${ORG}/network.habitat.relationship.spaceRelation/self`,
+    spaceUri: ORG_DOC,
+    orgDid: ORG,
+    relation: "reader",
+  });
+  await upsertDocAccess(db, {
+    uri: `${ORG_DOC}/${ALICE}/network.habitat.relationship.userRelation/self`,
+    spaceUri: ORG_DOC,
+    subjectDid: ALICE,
+    relation: "manager",
+  });
+  expect(await docsForOrg(db, ORG, ALICE)).toEqual([orgDocSummary]);
+});
+
+it("docsForOrg drops a doc once its org-wide grant is revoked", async () => {
+  const db = getDb(env);
+  await seedOrgDoc(db);
+  const relationUri = `${ORG_DOC}/${ORG}/network.habitat.relationship.spaceRelation/self`;
+  await upsertDocOrgAccess(db, {
+    uri: relationUri,
+    spaceUri: ORG_DOC,
+    orgDid: ORG,
+    relation: "reader",
+  });
+  await deleteDocOrgAccess(db, relationUri);
+  expect(await docsForOrg(db, ORG, BOB)).toEqual([]);
 });
 
 it("docsForOrg excludes personal docs and other orgs' docs", async () => {
@@ -160,6 +226,12 @@ it("docsForOrg excludes personal docs and other orgs' docs", async () => {
     ownerDid: ALICE,
     title: "Personal doc",
   });
+  await upsertDocAccess(db, {
+    uri: `${URI}/${ALICE}/network.habitat.relationship.userRelation/self`,
+    spaceUri: URI,
+    subjectDid: ALICE,
+    relation: "owner",
+  });
   const otherOrgDoc =
     "at://did:web:other.example/space/network.habitat.docs/xyz";
   await upsertDoc(db, {
@@ -169,5 +241,11 @@ it("docsForOrg excludes personal docs and other orgs' docs", async () => {
     title: "Other org's doc",
     isOrg: true,
   });
-  expect(await docsForOrg(db, "did:web:org.example")).toEqual([]);
+  await upsertDocOrgAccess(db, {
+    uri: `${otherOrgDoc}/did:web:other.example/network.habitat.relationship.spaceRelation/self`,
+    spaceUri: otherOrgDoc,
+    orgDid: "did:web:other.example",
+    relation: "reader",
+  });
+  expect(await docsForOrg(db, ORG, ALICE)).toEqual([]);
 });
