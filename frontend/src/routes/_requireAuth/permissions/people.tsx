@@ -1,7 +1,6 @@
 import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { agentFor } from "internal";
 import { network } from "api";
 import { useState } from "react";
 import {
@@ -101,13 +100,16 @@ function PersonDetail({
     }) {
       const body: PermissionInput = {
         grantees: [
-          { $type: "network.habitat.grantee#didGrantee", did: person as DidString },
+          {
+            $type: "network.habitat.grantee#didGrantee",
+            did: person as DidString,
+          },
         ],
         collection: collection as NsidString,
         ...(rkey ? { rkey: rkey as RecordKeyString } : {}),
       };
       await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.permissions.removePermission.main,
         {
           body,

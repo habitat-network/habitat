@@ -2,7 +2,6 @@ import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
-import { agentFor } from "internal";
 import {
   xrpc,
   type DidString,
@@ -45,14 +44,21 @@ export const Route = createFileRoute(
       async mutationFn(data: FormData) {
         const body: PermissionInput = {
           grantees: [
-            { $type: "network.habitat.grantee#didGrantee", did: data.grantee as DidString },
+            {
+              $type: "network.habitat.grantee#didGrantee",
+              did: data.grantee as DidString,
+            },
           ],
           collection: data.collection as NsidString,
           ...(data.rkey ? { rkey: data.rkey as RecordKeyString } : {}),
         };
-        await xrpc(agentFor(authManager), network.habitat.permissions.addPermission.main, {
-          body,
-        });
+        await xrpc(
+          authManager,
+          network.habitat.permissions.addPermission.main,
+          {
+            body,
+          },
+        );
         form.reset({ collection: params.collection, rkey: "" });
         await queryClient.invalidateQueries({ queryKey: ["permissions"] });
         router.invalidate();
@@ -72,13 +78,16 @@ export const Route = createFileRoute(
       }) {
         const body: PermissionInput = {
           grantees: [
-            { $type: "network.habitat.grantee#didGrantee", did: grantee as DidString },
+            {
+              $type: "network.habitat.grantee#didGrantee",
+              did: grantee as DidString,
+            },
           ],
           collection: params.collection as NsidString,
           ...(rkey ? { rkey: rkey as RecordKeyString } : {}),
         };
         await xrpc(
-          agentFor(authManager),
+          authManager,
           network.habitat.permissions.removePermission.main,
           {
             body,

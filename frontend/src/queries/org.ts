@@ -1,5 +1,4 @@
 import type { AuthManager } from "internal";
-import { agentFor } from "internal";
 import { xrpc, type DidString } from "@atproto/lex";
 import { queryOptions } from "@tanstack/react-query";
 import { network } from "api";
@@ -13,7 +12,7 @@ export function getConfigQueryOptions(authManager: AuthManager) {
     queryKey: ["config"],
     queryFn: async () => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.org.getMetadata.main,
         { params: {} },
       );
@@ -28,7 +27,7 @@ export function getAdminsQueryOptions(authManager: AuthManager) {
     queryKey: ["org", "admins"],
     queryFn: async () => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.org.getAdmins.main,
         { params: {} },
       );
@@ -42,7 +41,7 @@ export function getMembersQueryOptions(authManager: AuthManager) {
     queryKey: ["org", "members"],
     queryFn: async () => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.org.getMembers.main,
         { params: {} },
       );
@@ -52,17 +51,15 @@ export function getMembersQueryOptions(authManager: AuthManager) {
 }
 
 export async function addAdmin(authManager: AuthManager, admin: string) {
-  const response = await xrpc(
-    agentFor(authManager),
-    network.habitat.org.addAdmin.main,
-    { body: { admin: admin as DidString } },
-  );
+  const response = await xrpc(authManager, network.habitat.org.addAdmin.main, {
+    body: { admin: admin as DidString },
+  });
   return response.body;
 }
 
 export async function addMembers(authManager: AuthManager, members: string[]) {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     network.habitat.org.addMembers.main,
     { body: { members: members as DidString[] } },
   );
@@ -71,7 +68,7 @@ export async function addMembers(authManager: AuthManager, members: string[]) {
 
 export async function removeAdmin(authManager: AuthManager, admin: string) {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     network.habitat.org.removeAdmin.main,
     { body: { admin: admin as DidString } },
   );
@@ -83,7 +80,7 @@ export async function removeMembers(
   members: string[],
 ) {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     network.habitat.org.removeMembers.main,
     { body: { members: members as DidString[] } },
   );
@@ -92,7 +89,7 @@ export async function removeMembers(
 
 export async function downgradeAdmin(authManager: AuthManager, admin: string) {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     network.habitat.org.downgradeAdmin.main,
     { body: { admin: admin as DidString } },
   );
@@ -101,7 +98,7 @@ export async function downgradeAdmin(authManager: AuthManager, admin: string) {
 
 export async function issueInviteToken(authManager: AuthManager) {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     network.habitat.org.issueInviteToken.main,
     { body: { reusable: true } },
   );

@@ -1,5 +1,4 @@
 import type { AuthManager } from "internal";
-import { agentFor } from "internal";
 import { xrpc } from "@atproto/lex";
 import { queryOptions } from "@tanstack/react-query";
 import { network } from "api";
@@ -9,7 +8,7 @@ export function listPermissions(authManager: AuthManager) {
     queryKey: ["permissions"],
     queryFn: async () => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.permissions.listPermissions.main,
         { params: {} },
       );

@@ -1,5 +1,4 @@
 import type { AuthManager } from "internal";
-import { agentFor } from "internal";
 import { xrpc, type DidString, type UriString } from "@atproto/lex";
 import { queryOptions } from "@tanstack/react-query";
 import { network } from "api";
@@ -27,7 +26,7 @@ export function groupsListQueryOptions(authManager: AuthManager) {
     queryKey: ["groups"],
     queryFn: async (): Promise<GroupView[]> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.groups.listGroups.main,
         { params: {}, headers: homeProxyHeaders() },
       );
@@ -43,7 +42,7 @@ export function groupQueryOptions(group: string, authManager: AuthManager) {
     queryKey: ["group", group],
     queryFn: async (): Promise<GroupView> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.groups.getGroup.main,
         {
           params: { group: group as UriString },
@@ -61,7 +60,7 @@ export async function createGroup(
   description: string,
 ) {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     network.habitat.groups.createGroup.main,
     { body: { name, description }, headers: homeProxyHeaders() },
   );
@@ -76,7 +75,7 @@ export async function addMember(
   subject: { subjectDid: string } | { subjectGroup: string },
 ) {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     network.habitat.groups.addMember.main,
     {
       body: {

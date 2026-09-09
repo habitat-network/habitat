@@ -1,5 +1,4 @@
 import type { AuthManager } from "internal";
-import { agentFor } from "internal";
 import {
   xrpc,
   type AtUriString,
@@ -24,7 +23,7 @@ export function collectionsListQueryOptions(authManager: AuthManager) {
     queryKey: ["collections"],
     queryFn: async (): Promise<CollectionView[]> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.collections.listCollections.main,
         { params: {}, headers: homeProxyHeaders() },
       );
@@ -44,7 +43,7 @@ export function collectionRecordsQueryOptions(
     queryKey: ["collection", collection],
     queryFn: async (): Promise<RecordView[]> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.collections.listRecords.main,
         {
           params: { collection: collection as NsidString },
@@ -66,7 +65,7 @@ export function recordBodyQueryOptions(
     queryKey: ["record-body", record.uri],
     queryFn: async (): Promise<unknown> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.space.getRecord.main,
         {
           params: {

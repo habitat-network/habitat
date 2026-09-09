@@ -1,6 +1,7 @@
 import clientMetadata from "./clientMetadata";
 import * as client from "openid-client";
 import { decodeJwt } from "jose";
+import { type Agent, type DidString, type FetchHandler } from "@atproto/lex";
 import { create, StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -13,7 +14,7 @@ interface AuthInfo {
   expiresAt: number; // epoch seconds
 }
 
-export class AuthManager {
+export class AuthManager implements Agent {
   private serverDomain: string;
   private store: StoreApi<{ authInfo: AuthInfo | undefined }> & {
     persist: { rehydrate: () => void | Promise<void> };
@@ -21,6 +22,26 @@ export class AuthManager {
   private config: client.Configuration;
   private onUnauthenticated: () => void;
   private refreshPromise: Promise<void> | undefined;
+
+  get did(): DidString | undefined {
+    return this.getAuthInfo()?.did as DidString | undefined;
+  }
+
+  // Implements @atproto/lex's Agent.fetchHandler so AuthManager can be passed
+  // straight to `xrpc()`. The handler receives a path with no origin, which
+  // `fetch` resolves against the configured server domain.
+  fetchHandler: FetchHandler = async (path, init): Promise<Response> => {
+    // authManager.fetch only accepts FetchBody (no Blob/FormData); the lex
+    // client may pass a Blob for binary procedures, so the cast is required.
+    const body = init.body as unknown as client.FetchBody | undefined;
+    return this.fetch(
+      path,
+      init.method,
+      body,
+      new Headers(init.headers),
+      undefined,
+    );
+  };
 
   constructor(
     appName: string,

@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { agentFor } from "internal";
 import { xrpc } from "@atproto/lex";
 import { network } from "api";
 import {
@@ -23,7 +22,7 @@ export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
     const { authManager } = context;
     const appData = await xrpc(
-      agentFor(authManager),
+      authManager,
       network.habitat.listConnectedApps.main,
       { params: {} },
     );
@@ -35,7 +34,7 @@ export const Route = createFileRoute("/_requireAuth/")({
     let orgName: string | undefined;
     try {
       const meta = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.org.getMetadata.main,
         { params: {} },
       );

@@ -6,11 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  agentFor,
-  parseSpaceURI,
-  type SpaceURIParts,
-} from "internal";
+import { parseSpaceURI, type SpaceURIParts } from "internal";
 import { xrpc, type DidString, type NsidString } from "@atproto/lex";
 import { network } from "api";
 import {
@@ -116,7 +112,7 @@ function CreateSpaceForm() {
   const { mutate: createSpace, isPending } = useMutation({
     async mutationFn(type: string) {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.simplespace.createSpace.main,
         {
           body: {

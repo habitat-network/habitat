@@ -2,34 +2,10 @@ import {
   xrpc,
   type Agent,
   type AtIdentifierString,
-  type DidString,
   type NsidString,
 } from "@atproto/lex";
-import type { FetchBody } from "openid-client";
 import { network } from "api";
 import { AuthManager } from "./authManager";
-
-/**
- * Adapts an `AuthManager` session to @atproto/lex's `Agent` interface so
- * `xrpc()` can drive authenticated requests through the manager's OAuth/DPoP
- * machinery. `fetchHandler` receives a path with no origin, which the manager
- * resolves against its configured server domain.
- */
-export const agentFor = (authManager: AuthManager): Agent => ({
-  did: authManager.getAuthInfo()?.did as DidString | undefined,
-  fetchHandler: async (path, init) => {
-    // authManager.fetch only accepts FetchBody (no Blob/FormData); the lex client
-    // may pass a Blob for binary procedures, so the cast is required.
-    const body = init.body as unknown as FetchBody | undefined;
-    return authManager.fetch(
-      path,
-      init.method,
-      body,
-      new Headers(init.headers),
-      undefined,
-    );
-  },
-});
 
 /**
  * Constructs an unauthenticated `Agent` that resolves request paths against an
@@ -46,8 +22,10 @@ export const castRecord = <T extends Record<string, unknown>>(record: {
   return record.value as T;
 };
 
-export interface TypedRecord<T extends Record<string, unknown>>
-  extends Omit<network.habitat.repo.getRecord.$OutputBody, "value"> {
+export interface TypedRecord<T extends Record<string, unknown>> extends Omit<
+  network.habitat.repo.getRecord.$OutputBody,
+  "value"
+> {
   value: T;
 }
 
@@ -61,7 +39,7 @@ export const getPrivateRecord = async <
   includePermissions?: boolean,
 ): Promise<TypedRecord<T>> => {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     network.habitat.repo.getRecord.main,
     {
       params: {
@@ -75,14 +53,13 @@ export const getPrivateRecord = async <
   return response.body as unknown as TypedRecord<T>;
 };
 
-export interface ListRecordsResponse<T extends Record<string, unknown>>
-  extends Omit<network.habitat.repo.listRecords.$OutputBody, "records"> {
+export interface ListRecordsResponse<
+  T extends Record<string, unknown>,
+> extends Omit<network.habitat.repo.listRecords.$OutputBody, "records"> {
   records: TypedRecord<T>[];
 }
 
-export const listPrivateRecords = async <
-  T extends Record<string, unknown>,
->(
+export const listPrivateRecords = async <T extends Record<string, unknown>>(
   authManager: AuthManager,
   collection: string,
   limit?: number,
@@ -91,7 +68,7 @@ export const listPrivateRecords = async <
   includePermissions?: boolean,
 ): Promise<ListRecordsResponse<T>> => {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     network.habitat.repo.listRecords.main,
     {
       params: {

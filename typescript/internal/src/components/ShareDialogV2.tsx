@@ -16,7 +16,6 @@ import {
 import { UserAvatar } from "./UserAvatar";
 import { GroupCombobox, type GroupView } from "./GroupCombobox";
 import { AuthManager } from "../authManager";
-import { agentFor } from "../rpc";
 import { resolveDidToHandle, resolveHandleToDid } from "../atprotoDirectory";
 import { network } from "api";
 import {
@@ -101,7 +100,7 @@ async function loadShareState(
       [...groupSpaces].map(async (uri): Promise<SharedGroup | null> => {
         try {
           const rsp = await xrpc(
-            agentFor(authManager),
+            authManager,
             network.habitat.space.getRecord.main,
             {
               params: {
@@ -132,17 +131,13 @@ async function xrpcSpaceListRecords(
   authManager: AuthManager,
   collection: string,
 ): Promise<network.habitat.space.listRecords.$OutputBody["records"]> {
-  const rsp = await xrpc(
-    agentFor(authManager),
-    network.habitat.space.listRecords.main,
-    {
-      params: {
-        space: spaceUri as AtUriString,
-        repo: ownerDid(spaceUri) as DidString,
-        collection: collection as NsidString,
-      },
+  const rsp = await xrpc(authManager, network.habitat.space.listRecords.main, {
+    params: {
+      space: spaceUri as AtUriString,
+      repo: ownerDid(spaceUri) as DidString,
+      collection: collection as NsidString,
     },
-  );
+  });
   return rsp.body.records;
 }
 
@@ -181,9 +176,15 @@ export const ShareDialogV2 = ({
     mutationFn: async (handle: string) => {
       const did = await resolveHandleToDid(handle);
       await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.relationship.setUserRelation.main,
-        { body: { subject: did as DidString, relation, space: spaceUri as UriString } },
+        {
+          body: {
+            subject: did as DidString,
+            relation,
+            space: spaceUri as UriString,
+          },
+        },
       );
     },
     onSuccess: () => {
@@ -195,7 +196,7 @@ export const ShareDialogV2 = ({
   const addGroup = useMutation({
     mutationFn: async (group: GroupView) => {
       await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.relationship.setSpaceRelation.main,
         {
           body: {

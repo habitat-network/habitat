@@ -5,10 +5,16 @@ import {
   getPrivateRecord,
   getProfiles,
   listPrivateRecords,
-  procedure,
-  query,
   TypedRecord,
 } from "internal";
+import {
+  xrpc,
+  type AtIdentifierString,
+  type DidString,
+  type NsidString,
+  type RecordKeyString,
+} from "@atproto/lex";
+import { network } from "api";
 
 export const docsListQueryOptions = (authManager: AuthManager) =>
   queryOptions({
@@ -40,14 +46,14 @@ export const docEditorsQueryOptions = (
   queryOptions({
     queryKey: ["editors", editorCliqueUri],
     queryFn: async () => {
-      const { members } = await query(
-        "network.habitat.clique.getMembers",
+      const response = await xrpc(
+        authManager,
+        network.habitat.clique.getMembers.main,
         {
-          clique: editorCliqueUri,
+          params: { clique: editorCliqueUri },
         },
-        { authManager },
       );
-      return members ?? [];
+      return response.body.members ?? [];
     },
   });
 
@@ -114,15 +120,13 @@ export const deleteDocMutationOptions = (authManager: AuthManager) =>
   mutationOptions({
     mutationFn: async ({ uri }: { uri: string }) => {
       const [, , repo, , rkey] = uri.split("/");
-      await procedure(
-        "network.habitat.repo.deleteRecord",
-        {
-          repo,
-          collection: "network.habitat.docs",
-          rkey,
+      await xrpc(authManager, network.habitat.repo.deleteRecord.main, {
+        body: {
+          repo: repo as AtIdentifierString,
+          collection: "network.habitat.docs" as NsidString,
+          rkey: rkey as RecordKeyString,
         },
-        { authManager },
-      );
+      });
     },
   });
 
@@ -139,17 +143,15 @@ export const addPermissionMutationOptions = (authManager: AuthManager) =>
       { client },
     ) => {
       if (!editorCliqueUri) return;
-      await procedure(
-        "network.habitat.clique.addMembers",
-        {
+      await xrpc(authManager, network.habitat.clique.addMembers.main, {
+        body: {
           clique: {
-            $type: "network.habitat.grantee#clique",
+            $type: "network.habitat.grantee#clique" as const,
             clique: editorCliqueUri,
           },
-          members: grantees,
+          members: grantees as DidString[],
         },
-        { authManager },
-      );
+      });
       await client.invalidateQueries(
         docEditorsQueryOptions(editorCliqueUri, authManager),
       );
@@ -169,17 +171,15 @@ export const removePermissionMutationOptions = (authManager: AuthManager) =>
       { client },
     ) => {
       if (!editorCliqueUri) return;
-      await procedure(
-        "network.habitat.clique.removeMembers",
-        {
+      await xrpc(authManager, network.habitat.clique.removeMembers.main, {
+        body: {
           clique: {
-            $type: "network.habitat.grantee#clique",
+            $type: "network.habitat.grantee#clique" as const,
             clique: editorCliqueUri,
           },
-          members: [grantee],
+          members: [grantee] as DidString[],
         },
-        { authManager },
-      );
+      });
       await client.invalidateQueries(
         docEditorsQueryOptions(editorCliqueUri, authManager),
       );

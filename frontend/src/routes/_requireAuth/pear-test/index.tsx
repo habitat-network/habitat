@@ -2,7 +2,6 @@ import React from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useFieldArray, useForm } from "react-hook-form";
-import { agentFor } from "internal";
 import {
   xrpc,
   type AtIdentifierString,
@@ -71,19 +70,15 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
                   clique: g.value,
                 },
           );
-        await xrpc(
-          agentFor(authManager),
-          network.habitat.repo.putRecord.main,
-          {
-            body: {
-              collection: data.collection as NsidString,
-              record: recordObj,
-              repo: data.repo as AtIdentifierString,
-              rkey: data.rkey as RecordKeyString,
-              ...(grantees.length > 0 ? { grantees } : {}),
-            },
+        await xrpc(authManager, network.habitat.repo.putRecord.main, {
+          body: {
+            collection: data.collection as NsidString,
+            record: recordObj,
+            repo: data.repo as AtIdentifierString,
+            rkey: data.rkey as RecordKeyString,
+            ...(grantees.length > 0 ? { grantees } : {}),
           },
-        );
+        });
       },
     });
 
@@ -96,7 +91,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
     } = useMutation({
       async mutationFn(data: getData) {
         const json = await xrpc(
-          agentFor(authManager),
+          authManager,
           network.habitat.repo.getRecord.main,
           {
             params: {

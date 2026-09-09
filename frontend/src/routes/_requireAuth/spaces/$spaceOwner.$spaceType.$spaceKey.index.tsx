@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { agentFor, constructSpaceURI, type AuthManager } from "internal";
+import { constructSpaceURI, type AuthManager } from "internal";
 import {
   xrpc,
   type AtUriString,
@@ -79,13 +79,9 @@ function SpaceMembers() {
 
   const { mutate: removeMember } = useMutation({
     async mutationFn(did: string) {
-      await xrpc(
-        agentFor(authManager),
-        network.habitat.simplespace.removeMember.main,
-        {
-          body: { space: space as AtUriString, did: did as DidString },
-        },
-      );
+      await xrpc(authManager, network.habitat.simplespace.removeMember.main, {
+        body: { space: space as AtUriString, did: did as DidString },
+      });
     },
     onSuccess: invalidateMembers,
     onError(error) {
@@ -236,13 +232,9 @@ function AddMemberDialog({
     reset: resetMutation,
   } = useMutation({
     async mutationFn({ did }: AddMemberForm) {
-      await xrpc(
-        agentFor(authManager),
-        network.habitat.simplespace.addMember.main,
-        {
-          body: { space: space as AtUriString, did: did as DidString },
-        },
-      );
+      await xrpc(authManager, network.habitat.simplespace.addMember.main, {
+        body: { space: space as AtUriString, did: did as DidString },
+      });
     },
     onSuccess() {
       form.reset();
@@ -329,18 +321,14 @@ function CreateRecordDialog({
       } catch {
         throw new Error("Record must be valid JSON");
       }
-      await xrpc(
-        agentFor(authManager),
-        network.habitat.space.putRecord.main,
-        {
-          body: {
-            space: space as AtUriString,
-            collection: collection as NsidString,
-            record,
-            repo: authManager.getAuthInfo()!.did as DidString,
-          },
+      await xrpc(authManager, network.habitat.space.putRecord.main, {
+        body: {
+          space: space as AtUriString,
+          collection: collection as NsidString,
+          record,
+          repo: authManager.getAuthInfo()!.did as DidString,
         },
-      );
+      });
     },
     async onSuccess() {
       form.reset();

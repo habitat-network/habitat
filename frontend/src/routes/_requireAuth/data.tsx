@@ -3,7 +3,7 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { agentFor, listPrivateRecords } from "internal";
+import { listPrivateRecords } from "internal";
 import { useMemo } from "react";
 import { z } from "zod";
 import {
@@ -76,7 +76,7 @@ export const Route = createFileRoute("/_requireAuth/data")({
             )
           ).records
         : (
-            await xrpc(agentFor(context.authManager), com.atproto.repo.listRecords.main, {
+            await xrpc(context.authManager, com.atproto.repo.listRecords.main, {
               params: {
                 collection: lexicon as NsidString,
                 repo: (repo ?? "") as AtIdentifierString,

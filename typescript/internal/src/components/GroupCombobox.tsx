@@ -12,7 +12,6 @@ import { useQuery } from "@tanstack/react-query";
 import { network } from "api";
 import { xrpc } from "@atproto/lex";
 import { AuthManager } from "../authManager";
-import { agentFor } from "../rpc";
 
 export type GroupView = network.habitat.groups.defs.GroupView;
 
@@ -52,7 +51,7 @@ export const GroupCombobox = ({
     queryKey: ["groups", "listGroups"],
     queryFn: async () => {
       const rsp = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.groups.listGroups.main,
         { headers: homeProxyHeader() },
       );

@@ -48,7 +48,6 @@ export {
   UnauthenticatedError,
 } from "./authManager";
 export {
-  agentFor,
   anonymousAgentFor,
   castRecord,
   listPrivateRecords,

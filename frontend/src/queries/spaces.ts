@@ -1,5 +1,4 @@
 import type { AuthManager } from "internal";
-import { agentFor } from "internal";
 import {
   xrpc,
   XrpcResponseError,
@@ -49,7 +48,7 @@ export function spacesListQueryOptions(
     queryKey: ["listSpaces", filter.did ?? null, filter.type ?? null],
     queryFn: async (): Promise<SpaceView[]> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.space.listSpaces.main,
         {
           params: {
@@ -73,7 +72,7 @@ export function spaceReposQueryOptions(
     queryKey: ["listRepos", space],
     queryFn: async (): Promise<Repo[]> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.space.listRepos.main,
         { params: { space: space as AtUriString } },
       );
@@ -108,7 +107,7 @@ export function spaceLatestCommitQueryOptions(
     queryFn: async (): Promise<SpaceCommit | null> => {
       try {
         const response = await xrpc(
-          agentFor(authManager),
+          authManager,
           network.habitat.space.getLatestCommit.main,
           { params: { space: space as AtUriString, repo: repo as DidString } },
         );
@@ -134,7 +133,7 @@ export function spaceMembersQueryOptions(
     queryKey: ["listMembers", space],
     queryFn: async (): Promise<Member[]> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.simplespace.listMembers.main,
         { params: { space: space as AtUriString } },
       );
@@ -155,7 +154,7 @@ export function spaceRecordsQueryOptions(
     queryKey: ["listRecords", space, repo],
     queryFn: async (): Promise<SpaceRecord[]> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.space.listRecords.main,
         {
           params: {
@@ -184,7 +183,7 @@ export function spaceRecordQueryOptions(
     queryKey: ["getRecord", space, repo, collection, rkey],
     queryFn: async (): Promise<{ value: unknown; cid?: string }> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.space.getRecord.main,
         {
           params: {

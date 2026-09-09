@@ -3,7 +3,6 @@ import { network } from "api";
 import { xrpc, type DidString } from "@atproto/lex";
 import { AvatarGroup, AvatarGroupCount, Spinner } from "./ui";
 import { UserAvatar } from "./UserAvatar";
-import { agentFor } from "../rpc";
 import { getProfiles } from "../bskyPublicApi";
 import { AuthManager } from "../authManager";
 import { Actor } from "@/types/Actor";
@@ -36,7 +35,7 @@ const GranteeAvatars = ({
           ?.filter((g) => "clique" in g)
           .map(async (g) => {
             const rsp = await xrpc(
-              agentFor(authManager),
+              authManager,
               network.habitat.clique.getMembers.main,
               { params: { clique: g.clique } },
             );

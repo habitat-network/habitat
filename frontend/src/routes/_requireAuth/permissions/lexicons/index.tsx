@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
-import { agentFor } from "internal";
 import {
   xrpc,
   type DidString,
@@ -64,11 +63,9 @@ function LexiconPermissions() {
           },
         ],
         collection: formData.collection as NsidString,
-        ...(formData.rkey
-          ? { rkey: formData.rkey as RecordKeyString }
-          : {}),
+        ...(formData.rkey ? { rkey: formData.rkey as RecordKeyString } : {}),
       };
-      await xrpc(agentFor(authManager), network.habitat.permissions.addPermission.main, {
+      await xrpc(authManager, network.habitat.permissions.addPermission.main, {
         body,
       });
       addForm.reset({ rkey: "" });
@@ -159,14 +156,21 @@ function CollectionDetail({
     }) {
       const body: PermissionInput = {
         grantees: [
-          { $type: "network.habitat.grantee#didGrantee", did: grantee as DidString },
+          {
+            $type: "network.habitat.grantee#didGrantee",
+            did: grantee as DidString,
+          },
         ],
         collection: collection as NsidString,
         ...(rkey ? { rkey: rkey as RecordKeyString } : {}),
       };
-      await xrpc(agentFor(authManager), network.habitat.permissions.removePermission.main, {
-        body,
-      });
+      await xrpc(
+        authManager,
+        network.habitat.permissions.removePermission.main,
+        {
+          body,
+        },
+      );
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();
     },

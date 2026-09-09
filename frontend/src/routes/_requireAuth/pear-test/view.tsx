@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { agentFor } from "internal";
 import { z } from "zod";
 import {
   xrpc,
@@ -17,7 +16,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/view")({
   loaderDeps: ({ search }) => search,
   async loader({ deps: { did, rkey }, context }) {
     const json = await xrpc(
-      agentFor(context.authManager),
+      context.authManager,
       network.habitat.repo.getRecord.main,
       {
         params: {

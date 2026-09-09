@@ -1,5 +1,5 @@
 import type { AuthManager } from "internal";
-import { agentFor, parseSpaceURI, constructSpaceURI } from "internal";
+import { parseSpaceURI, constructSpaceURI } from "internal";
 import {
   xrpc,
   type AtUriString,
@@ -33,7 +33,7 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
     queryKey: ["opensocial", "myOrgs"],
     queryFn: async (): Promise<OrgSummary[]> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.space.listSpaces.main,
         { params: { type: MEMBERS_SPACE_TYPE as NsidString } },
       );
@@ -54,7 +54,7 @@ export function myInvitesQueryOptions(authManager: AuthManager) {
     queryKey: ["opensocial", "myInvites"],
     queryFn: async (): Promise<InviteView[]> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         community.opensocial.listInvites.main,
         { params: {} },
       );
@@ -74,7 +74,7 @@ export function orgPendingInvitesQueryOptions(
     queryKey: ["opensocial", "pendingInvites", org],
     queryFn: async (): Promise<InviteView[]> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         community.opensocial.listPendingInvites.main,
         { params: { org: org as DidString } },
       );
@@ -119,7 +119,7 @@ export function spaceCredentialQueryOptions(
     queryKey: ["opensocial", "spaceCredential", space],
     queryFn: async (): Promise<string> => {
       const response = await xrpc(
-        agentFor(authManager),
+        authManager,
         network.habitat.space.getDelegationToken.main,
         { params: { space: space as AtUriString } },
       );
@@ -312,7 +312,7 @@ export async function updateProfile(
   description: string,
 ) {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     community.opensocial.updateProfile.main,
     {
       body: {
@@ -358,7 +358,7 @@ export async function uploadOrgImage(
 // createOrg mints a new community and makes the caller its admin.
 export async function createOrg(authManager: AuthManager, handle: string) {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     network.habitat.opensocial.createOrg.main,
     { body: { handle } },
   );
@@ -372,7 +372,7 @@ export async function createOrg(authManager: AuthManager, handle: string) {
 // backend on their behalf.
 export async function acceptInvite(authManager: AuthManager, org: string) {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     community.opensocial.requestJoin.main,
     { body: { org: org as DidString } },
   );
@@ -382,7 +382,7 @@ export async function acceptInvite(authManager: AuthManager, org: string) {
     spaceType: "community.opensocial.members",
     spaceKey: "self",
   });
-  await xrpc(agentFor(authManager), network.habitat.space.putRecord.main, {
+  await xrpc(authManager, network.habitat.space.putRecord.main, {
     body: {
       space: membersSpace as AtUriString,
       repo: authManager.getAuthInfo()!.did as DidString,
@@ -406,7 +406,7 @@ export async function createInvite(
   roles: string[] = ["member"],
 ) {
   const response = await xrpc(
-    agentFor(authManager),
+    authManager,
     community.opensocial.createInvite.main,
     {
       body: {

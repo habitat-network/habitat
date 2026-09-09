@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { agentFor, constructSpaceURI, type AuthManager } from "internal";
+import { constructSpaceURI, type AuthManager } from "internal";
 import {
   xrpc,
   type AtUriString,
@@ -202,18 +202,14 @@ function CollectionSection({
 
   const { mutate: deleteRecord } = useMutation({
     async mutationFn(rkey: string) {
-      await xrpc(
-        agentFor(authManager),
-        network.habitat.space.deleteRecord.main,
-        {
-          body: {
-            space: space as AtUriString,
-            collection: collection as NsidString,
-            rkey: rkey as RecordKeyString,
-            repo: params.recordOwner as DidString,
-          },
+      await xrpc(authManager, network.habitat.space.deleteRecord.main, {
+        body: {
+          space: space as AtUriString,
+          collection: collection as NsidString,
+          rkey: rkey as RecordKeyString,
+          repo: params.recordOwner as DidString,
         },
-      );
+      });
     },
     async onSuccess() {
       // Deleting a record moves the repo's head, so the signed commit shown
