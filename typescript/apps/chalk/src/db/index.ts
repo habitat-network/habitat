@@ -7,7 +7,6 @@ export interface DocSummary {
   uri: string;
   ownerDid: string;
   title: string;
-  isOrg: boolean;
 }
 
 export function getDb(env: { DB: D1Database }) {
@@ -25,26 +24,19 @@ export async function upsertDoc(
     docId: string;
     ownerDid: string;
     title: string;
-    isOrg?: boolean;
   },
 ): Promise<void> {
   const now = Date.now();
   await db
     .insert(docs)
-    .values({ ...doc, isOrg: doc.isOrg ?? false, updatedAt: now })
+    .values({ ...doc, updatedAt: now })
     .onConflictDoUpdate({
       target: docs.spaceUri,
-      // isOrg is deliberately omitted unless the caller passes it: a
-      // conflict only updates the columns listed here, so a caller that
-      // doesn't have (or care about) an opinion on isOrg — docRoom.ts's
-      // content-flush upsert, notably — leaves the existing row's value
-      // alone instead of silently resetting it to false.
       set: {
         docId: doc.docId,
         ownerDid: doc.ownerDid,
         title: doc.title,
         updatedAt: now,
-        ...(doc.isOrg !== undefined ? { isOrg: doc.isOrg } : {}),
       },
     });
 }
@@ -55,17 +47,29 @@ function toSummary(r: typeof docs.$inferSelect): DocSummary {
     uri: r.spaceUri,
     ownerDid: r.ownerDid,
     title: r.title,
-    isOrg: r.isOrg,
   };
 }
 
-// docsForAccessor returns the docs a subject holds any role on, per the
+// docsFor returns the docs a subject can open, per the
 // doc_access rows synced from network.habitat.relationship.userRelation
-// (see sapChannel.ts). The (subjectDid, spaceUri) primary key on doc_access
-// means each doc joins in at most once here.
-export async function docsForAccessor(
+// (see outbox.ts), and — in org mode — the doc_org_access rows that share a
+// doc with a whole org.
+//
+// Both modes are the same query. In org mode (orgDid set) it lists that
+// org's docs the member can reach: shared with the whole org, or granted to
+// them personally, which covers a doc they created but haven't shared yet.
+// In personal mode there is no org to match, so the org join never finds a
+// row (no doc_org_access row has an empty org DID) and the result is just
+// the docs they hold a personal grant on.
+//
+// Which docs belong to the org is `ownerDid`, not a flag on the row: an org
+// DID owns only that org's docs. Each join matches at most one row (both
+// are keyed by their table's primary key), so a doc reachable both ways
+// still appears once.
+export async function docsFor(
   db: Db,
   subjectDid: string,
+  orgDid?: string,
 ): Promise<DocSummary[]> {
   const rows = await db
     .select({
@@ -74,46 +78,8 @@ export async function docsForAccessor(
       ownerDid: docs.ownerDid,
       title: docs.title,
       updatedAt: docs.updatedAt,
-      isOrg: docs.isOrg,
     })
     .from(docs)
-    .innerJoin(docAccess, eq(docs.spaceUri, docAccess.spaceUri))
-    .where(eq(docAccess.subjectDid, subjectDid))
-    .orderBy(desc(docs.updatedAt));
-  return rows.map(toSummary);
-}
-
-// docsForOrg returns the org's docs that subjectDid can actually open: the
-// ones shared with the whole org (a doc_org_access row for org), plus the
-// ones they hold a personal grant on (a doc_access row) — which covers a
-// doc they created but haven't shared yet, since createDoc grants its
-// creator manager. Org docs are no longer readable org-wide by
-// construction: they're created with no community.opensocial.access roles,
-// so listing every doc the org owns would show docs the member can't open.
-// Both joins match at most one row (each is keyed by its table's primary
-// key), so a doc reachable both ways still appears once.
-export async function docsForOrg(
-  db: Db,
-  org: string,
-  subjectDid: string,
-): Promise<DocSummary[]> {
-  const rows = await db
-    .select({
-      spaceUri: docs.spaceUri,
-      docId: docs.docId,
-      ownerDid: docs.ownerDid,
-      title: docs.title,
-      updatedAt: docs.updatedAt,
-      isOrg: docs.isOrg,
-    })
-    .from(docs)
-    .leftJoin(
-      docOrgAccess,
-      and(
-        eq(docs.spaceUri, docOrgAccess.spaceUri),
-        eq(docOrgAccess.orgDid, org),
-      ),
-    )
     .leftJoin(
       docAccess,
       and(
@@ -121,11 +87,17 @@ export async function docsForOrg(
         eq(docAccess.subjectDid, subjectDid),
       ),
     )
+    .leftJoin(
+      docOrgAccess,
+      and(
+        eq(docs.spaceUri, docOrgAccess.spaceUri),
+        eq(docOrgAccess.orgDid, orgDid ?? ""),
+      ),
+    )
     .where(
       and(
-        eq(docs.isOrg, true),
-        eq(docs.ownerDid, org),
-        or(isNotNull(docOrgAccess.spaceUri), isNotNull(docAccess.spaceUri)),
+        orgDid ? eq(docs.ownerDid, orgDid) : undefined,
+        or(isNotNull(docAccess.spaceUri), isNotNull(docOrgAccess.spaceUri)),
       ),
     )
     .orderBy(desc(docs.updatedAt));

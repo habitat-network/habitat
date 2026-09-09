@@ -88,8 +88,8 @@ async function handleUserRelation(
 // handleSpaceRelation mirrors the org-wide half of the same picture: a
 // network.habitat.relationship.spaceRelation whose subject is an org's
 // members space grants the doc to that whole org, so it becomes a
-// doc_org_access row (what docsForOrg lists from). A spaceRelation naming
-// any other space — a group, say — is somebody else's userset and is
+// doc_org_access row (what docsFor lists from in org mode). A spaceRelation
+// naming any other space — a group, say — is somebody else's userset and is
 // ignored here. As with userRelation, a JSON-null value is sap's delete
 // tombstone and carries only the record's own URI.
 async function handleSpaceRelation(

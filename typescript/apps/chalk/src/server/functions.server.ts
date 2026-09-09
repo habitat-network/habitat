@@ -29,7 +29,7 @@ export async function createDocSpace(
   client: SapClient,
   did: string,
   currentOrg: string | undefined,
-): Promise<{ uri: string; ownerDid: string; isOrg: boolean }> {
+): Promise<{ uri: string; ownerDid: string }> {
   if (currentOrg) {
     // roles is empty: access is granted via explicit spaceRelation/
     // userRelation records (the share dialog) instead of being baked in at
@@ -42,14 +42,14 @@ export async function createDocSpace(
       { org: currentOrg, type: DOCS_SPACE_TYPE, roles: [] },
       { atprotoProxy: `${currentOrg}#habitat` },
     );
-    return { uri: created.uri, ownerDid: currentOrg, isOrg: true };
+    return { uri: created.uri, ownerDid: currentOrg };
   }
   const created = await client.call<{ uri: string }>(
     "network.habitat.simplespace.createSpace",
     "POST",
     { did, type: DOCS_SPACE_TYPE },
   );
-  return { uri: created.uri, ownerDid: did, isOrg: false };
+  return { uri: created.uri, ownerDid: did };
 }
 
 // fetchOrgName reads an org's display name off its

@@ -4,8 +4,7 @@ import {
   connectedOrgNames,
   deleteDocAccess,
   deleteDocOrgAccess,
-  docsForAccessor,
-  docsForOrg,
+  docsFor,
   getDb,
   upsertDoc,
   upsertDocAccess,
@@ -48,11 +47,7 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     const { did, currentOrg } = await requireSession();
     const client = new SapClient(env, did);
 
-    const { uri, ownerDid, isOrg } = await createDocSpace(
-      client,
-      did,
-      currentOrg,
-    );
+    const { uri, ownerDid } = await createDocSpace(client, did, currentOrg);
 
     // An org doc space is created with no opensocial access roles (see
     // createDocSpace), so the member who just created it holds nothing on
@@ -82,13 +77,7 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     const docId = uri;
 
     const db = getDb(env);
-    await upsertDoc(db, {
-      spaceUri: uri,
-      docId,
-      ownerDid,
-      title: "Untitled",
-      isOrg,
-    });
+    await upsertDoc(db, { spaceUri: uri, docId, ownerDid, title: "Untitled" });
 
     // Record the creator's own grant locally now rather than waiting on the
     // outbox webhook to sync the matching userRelation record back —
@@ -96,12 +85,12 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     // listing until that async round-trip lands. Personal docs get owner
     // (simplespace.createSpace grants it); org docs get the manager grant
     // made just above, and stay invisible to the rest of the org until
-    // they're shared with it (docsForOrg lists from doc_org_access).
+    // they're shared with it (docsFor lists those from doc_org_access).
     await upsertDocAccess(db, {
       uri,
       spaceUri: uri,
       subjectDid: did,
-      relation: isOrg ? "manager" : "owner",
+      relation: currentOrg ? "manager" : "owner",
     });
 
     // Record the room's identity now, so the owner-republish alarm knows the
@@ -118,10 +107,7 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
 export const listDocs = createServerFn({ method: "GET" }).handler(
   async (): Promise<DocSummary[]> => {
     const { did, currentOrg } = await requireSession();
-    const db = getDb(env);
-    return currentOrg
-      ? docsForOrg(db, currentOrg, did)
-      : docsForAccessor(db, did);
+    return docsFor(getDb(env), did, currentOrg);
   },
 );
 
@@ -303,7 +289,7 @@ export const shareDoc = createServerFn({ method: "POST" })
 
     // Grant local doc_access immediately rather than waiting on the outbox
     // webhook to sync this same userRelation record back — without this,
-    // the newly-shared user's own docsForAccessor query won't show the doc
+    // the newly-shared user's own docsFor query won't show the doc
     // until that async round-trip lands. The webhook's own upsertDocAccess
     // call is a no-op once this has already landed (same uri).
     await upsertDocAccess(getDb(env), {

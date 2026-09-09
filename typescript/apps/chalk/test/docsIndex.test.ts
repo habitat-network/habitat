@@ -6,8 +6,7 @@ import {
   upsertDocAccess,
   upsertDocOrgAccess,
   deleteDocOrgAccess,
-  docsForAccessor,
-  docsForOrg,
+  docsFor,
   docByUri,
 } from "../src/db";
 
@@ -35,14 +34,13 @@ it("returns a subject's docs newest first", async () => {
     subjectDid: ALICE,
     relation: "owner",
   });
-  const rows = await docsForAccessor(db, ALICE);
+  const rows = await docsFor(db, ALICE);
   expect(rows).toEqual([
     {
       docId: URI,
       uri: URI,
       ownerDid: ALICE,
       title: "Untitled",
-      isOrg: false,
     },
   ]);
 });
@@ -61,7 +59,7 @@ it("excludes docs the subject has no grant on", async () => {
     subjectDid: ALICE,
     relation: "owner",
   });
-  expect(await docsForAccessor(db, BOB)).toEqual([]);
+  expect(await docsFor(db, BOB)).toEqual([]);
 });
 
 it("upserts on conflict rather than duplicating", async () => {
@@ -80,55 +78,12 @@ it("upserts on conflict rather than duplicating", async () => {
     subjectDid: ALICE,
     relation: "owner",
   });
-  expect(await docsForAccessor(db, ALICE)).toHaveLength(1);
+  expect(await docsFor(db, ALICE)).toHaveLength(1);
   expect((await docByUri(db, URI))?.title).toBe("Renamed");
 });
 
 it("returns undefined for an unknown uri", async () => {
   expect(await docByUri(getDb(env), "at://nope/space/x/y")).toBeUndefined();
-});
-
-it("stamps isOrg on the row and reflects it back", async () => {
-  const db = getDb(env);
-  await upsertDoc(db, {
-    spaceUri: URI,
-    docId: URI,
-    ownerDid: "did:web:org.example",
-    title: "Untitled",
-    isOrg: true,
-  });
-  expect((await docByUri(db, URI))?.isOrg).toBe(true);
-});
-
-it("defaults isOrg to false when not given", async () => {
-  const db = getDb(env);
-  await upsertDoc(db, {
-    spaceUri: URI,
-    docId: URI,
-    ownerDid: ALICE,
-    title: "Untitled",
-  });
-  expect((await docByUri(db, URI))?.isOrg).toBe(false);
-});
-
-it("leaves isOrg untouched on a re-upsert that doesn't specify it", async () => {
-  const db = getDb(env);
-  await upsertDoc(db, {
-    spaceUri: URI,
-    docId: URI,
-    ownerDid: "did:web:org.example",
-    title: "Untitled",
-    isOrg: true,
-  });
-  // Mirrors docRoom.ts's content-flush upsert: re-indexes title without an
-  // opinion on isOrg. This must not silently reset it to false.
-  await upsertDoc(db, {
-    spaceUri: URI,
-    docId: URI,
-    ownerDid: "did:web:org.example",
-    title: "Renamed",
-  });
-  expect((await docByUri(db, URI))?.isOrg).toBe(true);
 });
 
 const ORG = "did:web:org.example";
@@ -140,7 +95,6 @@ async function seedOrgDoc(db: ReturnType<typeof getDb>) {
     docId: ORG_DOC,
     ownerDid: ORG,
     title: "Org doc",
-    isOrg: true,
   });
 }
 
@@ -149,18 +103,17 @@ const orgDocSummary = {
   uri: ORG_DOC,
   ownerDid: ORG,
   title: "Org doc",
-  isOrg: true,
 };
 
-it("docsForOrg hides an org doc nobody has been granted", async () => {
+it("org mode hides an org doc nobody has been granted", async () => {
   const db = getDb(env);
   await seedOrgDoc(db);
   // Org docs are created with no access roles, so owning the doc is not by
   // itself permission to see it — without a grant it must stay hidden.
-  expect(await docsForOrg(db, ORG, BOB)).toEqual([]);
+  expect(await docsFor(db, BOB, ORG)).toEqual([]);
 });
 
-it("docsForOrg includes a doc shared with the whole org", async () => {
+it("org mode includes a doc shared with the whole org", async () => {
   const db = getDb(env);
   await seedOrgDoc(db);
   await upsertDocOrgAccess(db, {
@@ -169,10 +122,10 @@ it("docsForOrg includes a doc shared with the whole org", async () => {
     orgDid: ORG,
     relation: "reader",
   });
-  expect(await docsForOrg(db, ORG, BOB)).toEqual([orgDocSummary]);
+  expect(await docsFor(db, BOB, ORG)).toEqual([orgDocSummary]);
 });
 
-it("docsForOrg includes a doc the subject holds a personal grant on", async () => {
+it("org mode includes a doc the subject holds a personal grant on", async () => {
   const db = getDb(env);
   await seedOrgDoc(db);
   // What the doc's creator gets: a manager grant, no org-wide share.
@@ -182,11 +135,11 @@ it("docsForOrg includes a doc the subject holds a personal grant on", async () =
     subjectDid: ALICE,
     relation: "manager",
   });
-  expect(await docsForOrg(db, ORG, ALICE)).toEqual([orgDocSummary]);
-  expect(await docsForOrg(db, ORG, BOB)).toEqual([]);
+  expect(await docsFor(db, ALICE, ORG)).toEqual([orgDocSummary]);
+  expect(await docsFor(db, BOB, ORG)).toEqual([]);
 });
 
-it("docsForOrg lists a doc once when granted both ways", async () => {
+it("org mode lists a doc once when granted both ways", async () => {
   const db = getDb(env);
   await seedOrgDoc(db);
   await upsertDocOrgAccess(db, {
@@ -201,10 +154,10 @@ it("docsForOrg lists a doc once when granted both ways", async () => {
     subjectDid: ALICE,
     relation: "manager",
   });
-  expect(await docsForOrg(db, ORG, ALICE)).toEqual([orgDocSummary]);
+  expect(await docsFor(db, ALICE, ORG)).toEqual([orgDocSummary]);
 });
 
-it("docsForOrg drops a doc once its org-wide grant is revoked", async () => {
+it("org mode drops a doc once its org-wide grant is revoked", async () => {
   const db = getDb(env);
   await seedOrgDoc(db);
   const relationUri = `${ORG_DOC}/${ORG}/network.habitat.relationship.spaceRelation/self`;
@@ -215,10 +168,10 @@ it("docsForOrg drops a doc once its org-wide grant is revoked", async () => {
     relation: "reader",
   });
   await deleteDocOrgAccess(db, relationUri);
-  expect(await docsForOrg(db, ORG, BOB)).toEqual([]);
+  expect(await docsFor(db, BOB, ORG)).toEqual([]);
 });
 
-it("docsForOrg excludes personal docs and other orgs' docs", async () => {
+it("org mode excludes personal docs and other orgs' docs", async () => {
   const db = getDb(env);
   await upsertDoc(db, {
     spaceUri: URI,
@@ -239,7 +192,6 @@ it("docsForOrg excludes personal docs and other orgs' docs", async () => {
     docId: otherOrgDoc,
     ownerDid: "did:web:other.example",
     title: "Other org's doc",
-    isOrg: true,
   });
   await upsertDocOrgAccess(db, {
     uri: `${otherOrgDoc}/did:web:other.example/network.habitat.relationship.spaceRelation/self`,
@@ -247,5 +199,5 @@ it("docsForOrg excludes personal docs and other orgs' docs", async () => {
     orgDid: "did:web:other.example",
     relation: "reader",
   });
-  expect(await docsForOrg(db, ORG, ALICE)).toEqual([]);
+  expect(await docsFor(db, ALICE, ORG)).toEqual([]);
 });

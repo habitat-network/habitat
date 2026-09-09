@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import { processOutboxMessage } from "../src/server/outbox";
-import { getDb, upsertDoc, docsForAccessor, docsForOrg } from "../src/db";
+import { getDb, upsertDoc, docsFor } from "../src/db";
 
 // A well-formed empty Yjs V2 update — `applyRemote` feeds getBlob's response
 // straight into `mergeUpdate`, which decodes it, so an arbitrary byte
@@ -80,9 +80,9 @@ it("records a doc_access grant from a userRelation record", async () => {
     env,
     relationMsg(RELATION_RECORD, { subject: BOB, relation: "writer" }),
   );
-  const rows = await docsForAccessor(getDb(env), BOB);
+  const rows = await docsFor(getDb(env), BOB);
   expect(rows).toEqual([
-    { docId: URI, uri: URI, ownerDid: OWNER, title: "Untitled", isOrg: false },
+    { docId: URI, uri: URI, ownerDid: OWNER, title: "Untitled" },
   ]);
 });
 
@@ -92,7 +92,7 @@ it("removes the grant on a delete tombstone (null value)", async () => {
     relationMsg(RELATION_RECORD, { subject: BOB, relation: "writer" }),
   );
   await processOutboxMessage(env, relationMsg(RELATION_RECORD, null));
-  expect(await docsForAccessor(getDb(env), BOB)).toEqual([]);
+  expect(await docsFor(getDb(env), BOB)).toEqual([]);
 });
 
 it("re-granting the same record uri updates rather than duplicates", async () => {
@@ -104,7 +104,7 @@ it("re-granting the same record uri updates rather than duplicates", async () =>
     env,
     relationMsg(RELATION_RECORD, { subject: BOB, relation: "reader" }),
   );
-  expect(await docsForAccessor(getDb(env), BOB)).toHaveLength(1);
+  expect(await docsFor(getDb(env), BOB)).toHaveLength(1);
 });
 
 it("ignores a userRelation record missing subject or relation", async () => {
@@ -112,7 +112,7 @@ it("ignores a userRelation record missing subject or relation", async () => {
     env,
     relationMsg(RELATION_RECORD, { subject: BOB }),
   );
-  expect(await docsForAccessor(getDb(env), BOB)).toEqual([]);
+  expect(await docsFor(getDb(env), BOB)).toEqual([]);
 });
 
 const ORG = "did:web:org.example";
@@ -124,7 +124,6 @@ const ORG_DOC_SUMMARY = {
   uri: ORG_DOC,
   ownerDid: ORG,
   title: "Org doc",
-  isOrg: true,
 };
 
 async function seedOrgDoc() {
@@ -133,7 +132,6 @@ async function seedOrgDoc() {
     docId: ORG_DOC,
     ownerDid: ORG,
     title: "Org doc",
-    isOrg: true,
   });
 }
 
@@ -148,7 +146,7 @@ it("records an org-wide grant from a members-space spaceRelation", async () => {
     }),
   );
   // BOB holds no personal grant — the org-wide row is what surfaces it.
-  expect(await docsForOrg(getDb(env), ORG, BOB)).toEqual([ORG_DOC_SUMMARY]);
+  expect(await docsFor(getDb(env), BOB, ORG)).toEqual([ORG_DOC_SUMMARY]);
 });
 
 it("removes the org-wide grant on a delete tombstone", async () => {
@@ -162,7 +160,7 @@ it("removes the org-wide grant on a delete tombstone", async () => {
     }),
   );
   await processOutboxMessage(env, relationMsg(SPACE_RELATION_RECORD, null));
-  expect(await docsForOrg(getDb(env), ORG, BOB)).toEqual([]);
+  expect(await docsFor(getDb(env), BOB, ORG)).toEqual([]);
 });
 
 it("ignores a spaceRelation whose subject is not a members space", async () => {
@@ -175,5 +173,5 @@ it("ignores a spaceRelation whose subject is not a members space", async () => {
       relation: "reader",
     }),
   );
-  expect(await docsForOrg(getDb(env), ORG, BOB)).toEqual([]);
+  expect(await docsFor(getDb(env), BOB, ORG)).toEqual([]);
 });

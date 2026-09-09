@@ -14,7 +14,6 @@ export const docs = sqliteTable(
     ownerDid: text("owner_did").notNull(),
     title: text("title").notNull(),
     updatedAt: integer("updated_at").notNull(),
-    isOrg: integer("is_org", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [index("docs_owner_updated").on(t.ownerDid, t.updatedAt)],
 );
