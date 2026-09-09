@@ -98,8 +98,7 @@ function RouteComponent() {
         throw new Error("Get blob failed: no response");
       } else if (!res.ok) {
         const data = (await res.json().catch(() => undefined)) as
-          | { error?: string; message?: string }
-          | undefined;
+          { error?: string; message?: string } | undefined;
         throw new Error(
           `Get blob failed: ${res.status} ${data?.message ?? data?.error ?? ""}`,
         );
