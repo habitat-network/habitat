@@ -20,14 +20,18 @@ tasks:
     options:
       mergeDeps: replace
   generate:
-    command: pnpx 
+    command: pnpx
     args:
-    - "@atproto/lex-cli"
-    - gen-api
-    - $projectRoot
-    - "@files(lexicons)"
+    - "@atproto/lex"
+    - build
+    - --lexicons
+    - ../../lexicons
+    - --out
+    - ./src/generated
+    - --index-file
+    - --defs-export
     outputs:
-    - types/
+    - src/generated/
     options:
       interactive: true
     preset: server
