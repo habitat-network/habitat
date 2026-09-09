@@ -23,12 +23,12 @@ require (
 	github.com/ory/fosite v0.49.0
 	github.com/pressly/goose/v3 v3.27.3
 	github.com/stretchr/testify v1.12.1
-	go.opentelemetry.io/contrib/bridges/otelslog v0.19.0
-	go.opentelemetry.io/contrib/instrumentation/runtime v0.69.0
+	go.opentelemetry.io/contrib/bridges/otelslog v0.20.1
+	go.opentelemetry.io/contrib/instrumentation/runtime v0.71.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0
-	go.opentelemetry.io/otel/log v0.20.0
-	go.opentelemetry.io/otel/sdk/metric v1.44.0
+	go.opentelemetry.io/otel/log v0.22.0
+	go.opentelemetry.io/otel/sdk/metric v1.46.0
 	gocloud.dev v0.46.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.22.0
@@ -288,14 +288,14 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
-	go.opentelemetry.io/otel v1.44.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
+	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.20.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.44.0
-	go.opentelemetry.io/otel/metric v1.44.0
-	go.opentelemetry.io/otel/sdk v1.44.0
+	go.opentelemetry.io/otel/metric v1.46.0
+	go.opentelemetry.io/otel/sdk v1.46.0
 	go.opentelemetry.io/otel/sdk/log v0.20.0
-	go.opentelemetry.io/otel/trace v1.44.0
+	go.opentelemetry.io/otel/trace v1.46.0
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.55.0
 	golang.org/x/exp v0.0.0-20260718201538-764159d718ef // indirect
