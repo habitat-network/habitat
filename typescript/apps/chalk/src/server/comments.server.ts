@@ -1,4 +1,4 @@
-import { constructSpaceURI, parseSpaceURI } from "internal";
+import { AtUri, SpaceRef } from "@atproto/syntax";
 import { fromBase64, toBase64 } from "@atproto/lex-data";
 import { encodeLexBytes, parseLexBytes } from "@atproto/lex-json";
 import {
@@ -12,7 +12,6 @@ import {
   type Db,
 } from "../db";
 import { DOCS_SPACE_TYPE } from "./functions.server";
-import { parseSpaceRecordUri } from "./spaceUri";
 import type { SapClient } from "./sapClient";
 
 // Server-only comment helpers, kept out of functions.ts for the same reason
@@ -72,13 +71,19 @@ export function decodeAnchorBytes(value: unknown): string | undefined {
 // doc's full space URI in the first place (see createDoc). Returns
 // undefined if docId isn't a well-formed space URI.
 export function commentsSpaceUri(docId: string): string | undefined {
-  const parts = parseSpaceURI(docId);
+  const parts = parseSpaceRef(docId);
   if (!parts) return undefined;
-  return constructSpaceURI({
-    spaceOwner: parts.spaceOwner,
-    spaceType: COMMENTS_SPACE_TYPE,
-    spaceKey: parts.spaceKey,
-  });
+  return new SpaceRef(parts.spaceDid, COMMENTS_SPACE_TYPE, parts.skey).toString();
+}
+
+// parseSpaceRef parses a space URI, returning undefined (rather than
+// throwing, like SpaceRef.parse) if it's malformed.
+function parseSpaceRef(uri: string): SpaceRef | undefined {
+  try {
+    return SpaceRef.parse(uri);
+  } catch {
+    return undefined;
+  }
 }
 
 // SPACE_RELATIONS is the inheritance the comments space is created with:
@@ -108,7 +113,7 @@ export async function ensureCommentsSpace(
   docId: string,
   opts: { ownerDid: string; isOrg: boolean },
 ): Promise<string | undefined> {
-  const parts = parseSpaceURI(docId);
+  const parts = parseSpaceRef(docId);
   const spaceUri = commentsSpaceUri(docId);
   if (!parts || !spaceUri) return undefined;
 
@@ -120,7 +125,7 @@ export async function ensureCommentsSpace(
         {
           org: opts.ownerDid,
           type: COMMENTS_SPACE_TYPE,
-          skey: parts.spaceKey,
+          skey: parts.skey,
           roles: ["admin", "member"],
         },
         { atprotoProxy: `${opts.ownerDid}#habitat` },
@@ -129,7 +134,7 @@ export async function ensureCommentsSpace(
       await client.call("network.habitat.simplespace.createSpace", "POST", {
         did: opts.ownerDid,
         type: COMMENTS_SPACE_TYPE,
-        skey: parts.spaceKey,
+        skey: parts.skey,
       });
     }
   } catch {
@@ -178,13 +183,9 @@ export async function ensureCommentsSpace(
 export function docSpaceUriForComments(
   commentsSpace: string,
 ): string | undefined {
-  const parts = parseSpaceURI(commentsSpace);
+  const parts = parseSpaceRef(commentsSpace);
   if (!parts || parts.spaceType !== COMMENTS_SPACE_TYPE) return undefined;
-  return constructSpaceURI({
-    spaceOwner: parts.spaceOwner,
-    spaceType: DOCS_SPACE_TYPE,
-    spaceKey: parts.spaceKey,
-  });
+  return new SpaceRef(parts.spaceDid, DOCS_SPACE_TYPE, parts.skey).toString();
 }
 
 // parseCommentsRecordUri splits a record URI living in a doc's comments
@@ -207,18 +208,20 @@ export function parseCommentsRecordUri(
       rkey: string;
     }
   | undefined {
-  const parsed = parseSpaceRecordUri(uri);
-  if (!parsed) return undefined;
-  if (parsed.type !== COMMENTS_SPACE_TYPE) return undefined;
-  if (parsed.collection !== collection) return undefined;
-  const docSpaceUri = docSpaceUriForComments(parsed.spaceUri);
+  let atUri: AtUri;
+  try {
+    atUri = new AtUri(uri);
+  } catch {
+    return undefined;
+  }
+  const spaceRef = atUri.spaceRef();
+  const { authorDid, rkey } = atUri;
+  if (!spaceRef || spaceRef.spaceType !== COMMENTS_SPACE_TYPE) return undefined;
+  if (atUri.collection !== collection || !authorDid || !rkey) return undefined;
+  const spaceUri = spaceRef.toString();
+  const docSpaceUri = docSpaceUriForComments(spaceUri);
   if (!docSpaceUri) return undefined;
-  return {
-    spaceUri: parsed.spaceUri,
-    docSpaceUri,
-    repo: parsed.repo,
-    rkey: parsed.rkey,
-  };
+  return { spaceUri, docSpaceUri, repo: authorDid, rkey };
 }
 
 // parseCommentRecordUri is parseCommentsRecordUri fixed to the root

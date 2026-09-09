@@ -20,6 +20,7 @@ import {
 } from "./ui/table";
 import { UserAvatar } from "./UserAvatar";
 import { GroupCombobox, type GroupView } from "./GroupCombobox";
+import { SpaceRef } from "@atproto/syntax";
 import { AuthManager } from "../authManager";
 import { procedure, query } from "../habitatClient";
 import { resolveDidToHandle, resolveHandleToDid } from "../atprotoDirectory";
@@ -48,10 +49,10 @@ interface ShareState {
   groups: SharedGroup[];
 }
 
-// The space URI's second path segment is the owning org DID, whose repo holds
-// the tuple and group-profile records (at://<orgDid>/<collection>/<rkey>).
+// The space's owning org DID, whose repo holds the tuple and group-profile
+// records (at://<orgDid>/<collection>/<rkey>).
 function ownerDid(spaceUri: string): string {
-  return spaceUri.split("/")[2];
+  return SpaceRef.parse(spaceUri).spaceDid;
 }
 
 // loadShareState reads the space's relationship records and resolves them into

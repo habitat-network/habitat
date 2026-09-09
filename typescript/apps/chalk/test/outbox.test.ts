@@ -72,8 +72,15 @@ it("ignores a record with no blob reference", async () => {
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
-it("ignores a malformed uri", async () => {
-  await processOutboxMessage(env, msg("not-a-uri", "cid1"));
+it("throws on a malformed uri", async () => {
+  // Unlike the "ignores" cases above (a well-formed uri this deliberately
+  // doesn't care about), a uri that isn't a uri at all can't be
+  // distinguished from a bug — this throws so handleSapWebhook (webhook.ts)
+  // turns it into a 500 and sap retries, instead of silently acking a
+  // message that was never actually processed.
+  await expect(
+    processOutboxMessage(env, msg("not-a-uri", "cid1")),
+  ).rejects.toThrow();
   expect(fetchMock).not.toHaveBeenCalled();
 });
 

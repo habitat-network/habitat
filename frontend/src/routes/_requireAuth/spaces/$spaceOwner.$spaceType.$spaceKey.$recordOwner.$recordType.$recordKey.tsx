@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import JsonView from "@uiw/react-json-view";
-import { constructSpaceURI } from "internal";
+import { SpaceRef, ensureValidDid, ensureValidNsid } from "@atproto/syntax";
 import { Card, CardContent } from "internal/components/ui";
 import { spaceRecordQueryOptions } from "@/queries/spaces";
 import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
@@ -9,12 +9,19 @@ import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 export const Route = createFileRoute(
   "/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey",
 )({
+  params: {
+    parse: ({ spaceOwner, spaceType, ...rest }) => {
+      ensureValidDid(spaceOwner);
+      ensureValidNsid(spaceType);
+      return { ...rest, spaceOwner, spaceType };
+    },
+  },
   loader({ context, params }) {
     const { spaceOwner, spaceType, spaceKey, recordOwner } = params;
     return context.queryClient.fetchQuery(
       spaceRecordQueryOptions(
         {
-          space: constructSpaceURI({ spaceOwner, spaceType, spaceKey }),
+          space: new SpaceRef(spaceOwner, spaceType, spaceKey).toString(),
           repo: recordOwner,
           collection: params.recordType,
           rkey: params.recordKey,

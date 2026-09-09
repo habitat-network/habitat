@@ -10,6 +10,7 @@ import {
 import { getDb, upsertConnectedOrg } from "@/db";
 import { SapClient } from "@/server/sapClient";
 import { Button } from "internal/components/ui";
+import { ensureValidDid } from "@atproto/syntax";
 
 // connectOrgFn verifies the connection actually works (a member who wasn't
 // really an admin never reaches here — pear's HandleOpensocial already
@@ -18,7 +19,10 @@ import { Button } from "internal/components/ui";
 // null on failure instead of throwing, so the route can render a plain
 // error state.
 const connectOrgFn = createServerFn({ method: "POST" })
-  .validator((input: { orgDid: string }) => input)
+  .validator(({ orgDid }: { orgDid: string }) => {
+    ensureValidDid(orgDid);
+    return { orgDid };
+  })
   .handler(async ({ data }): Promise<{ orgName: string } | null> => {
     const { did } = await requireSession();
     const client = new SapClient(env, did);

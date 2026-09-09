@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { DidString } from "@atproto/syntax";
 import { env } from "cloudflare:workers";
 import {
   commentsForDocWithResolution,
@@ -132,7 +133,10 @@ export const getCurrentOrg = createServerFn({ method: "GET" }).handler(
     const { did, currentOrg } = await requireSession();
     if (!currentOrg) return undefined;
     const client = new SapClient(env, did);
-    return { did: currentOrg, name: await fetchOrgName(client, currentOrg) };
+    return {
+      did: currentOrg,
+      name: await fetchOrgName(client, currentOrg as DidString),
+    };
   },
 );
 
