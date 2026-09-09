@@ -7,8 +7,10 @@ import {
 } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
-import { procedure } from "internal";
+import { anonymousAgentFor } from "internal";
 import { z } from "zod";
+import { xrpc } from "@atproto/lex";
+import { network } from "api";
 
 export const Route = createFileRoute("/login/habitat")({
   validateSearch: z.object({
@@ -31,12 +33,12 @@ function HabitatLoginPage() {
 
   const onSubmit = async ({ password }: FormValues) => {
     try {
-      const { callbackURL } = await procedure(
-        "network.habitat.org.loginMember",
-        { handle, password },
-        { unauthenticated: true, domain: import.meta.env.VITE_HABITAT_DOMAIN },
+      const response = await xrpc(
+        anonymousAgentFor(import.meta.env.VITE_HABITAT_DOMAIN),
+        network.habitat.org.loginMember.main,
+        { body: { handle, password } },
       );
-      window.location.href = callbackURL;
+      window.location.href = response.body.callbackURL;
     } catch (err) {
       setError("root", {
         message: err instanceof Error ? err.message : "Unknown error",

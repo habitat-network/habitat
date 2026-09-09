@@ -2,7 +2,16 @@ import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { constructSpaceURI, procedure, type AuthManager } from "internal";
+import { agentFor, constructSpaceURI, type AuthManager } from "internal";
+import {
+  xrpc,
+  type AtUriString,
+  type DidString,
+  type LexMap,
+  type NsidString,
+  type RecordKeyString,
+} from "@atproto/lex";
+import { network } from "api";
 import {
   Button,
   Card,
@@ -70,10 +79,12 @@ function SpaceMembers() {
 
   const { mutate: removeMember } = useMutation({
     async mutationFn(did: string) {
-      await procedure(
-        "network.habitat.simplespace.removeMember",
-        { space, did },
-        { authManager },
+      await xrpc(
+        agentFor(authManager),
+        network.habitat.simplespace.removeMember.main,
+        {
+          body: { space: space as AtUriString, did: did as DidString },
+        },
       );
     },
     onSuccess: invalidateMembers,
@@ -225,10 +236,12 @@ function AddMemberDialog({
     reset: resetMutation,
   } = useMutation({
     async mutationFn({ did }: AddMemberForm) {
-      await procedure(
-        "network.habitat.simplespace.addMember",
-        { space, did },
-        { authManager },
+      await xrpc(
+        agentFor(authManager),
+        network.habitat.simplespace.addMember.main,
+        {
+          body: { space: space as AtUriString, did: did as DidString },
+        },
       );
     },
     onSuccess() {
@@ -310,16 +323,23 @@ function CreateRecordDialog({
     reset: resetMutation,
   } = useMutation({
     async mutationFn({ collection, recordJson }: CreateRecordForm) {
-      let record: { [x: string]: unknown };
+      let record: LexMap;
       try {
         record = JSON.parse(recordJson);
       } catch {
         throw new Error("Record must be valid JSON");
       }
-      await procedure(
-        "network.habitat.space.putRecord",
-        { space, collection, record, repo: authManager.getAuthInfo()!.did },
-        { authManager },
+      await xrpc(
+        agentFor(authManager),
+        network.habitat.space.putRecord.main,
+        {
+          body: {
+            space: space as AtUriString,
+            collection: collection as NsidString,
+            record,
+            repo: authManager.getAuthInfo()!.did as DidString,
+          },
+        },
       );
     },
     async onSuccess() {

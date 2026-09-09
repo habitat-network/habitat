@@ -1,7 +1,8 @@
 import type { AuthManager } from "internal";
-import { query, procedure } from "internal";
+import { agentFor } from "internal";
+import { xrpc, type DidString, type UriString } from "@atproto/lex";
 import { queryOptions } from "@tanstack/react-query";
-import type { GroupView } from "api/types/network/habitat/groups/defs";
+import { network } from "api";
 
 // homeServerDid is the home server's DID, injected at build time via the
 // __HOME_SERVER_DID__ Vite define. It falls back to the local-dev domain when
@@ -17,7 +18,7 @@ export function homeProxyHeaders(): Headers {
   return new Headers({ "Atproto-Proxy": `${homeServerDid}#groups` });
 }
 
-export type { GroupView };
+export type GroupView = network.habitat.groups.defs.GroupView;
 
 // groupsListQueryOptions lists the groups the calling user belongs to (directly
 // or through inherited groups), as resolved by the home server's index.
@@ -25,12 +26,12 @@ export function groupsListQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["groups"],
     queryFn: async (): Promise<GroupView[]> => {
-      const { groups } = await query(
-        "network.habitat.groups.listGroups",
-        {},
-        { authManager, headers: homeProxyHeaders() },
+      const response = await xrpc(
+        agentFor(authManager),
+        network.habitat.groups.listGroups.main,
+        { params: {}, headers: homeProxyHeaders() },
       );
-      return groups;
+      return response.body.groups;
     },
   });
 }
@@ -40,37 +41,57 @@ export function groupsListQueryOptions(authManager: AuthManager) {
 export function groupQueryOptions(group: string, authManager: AuthManager) {
   return queryOptions({
     queryKey: ["group", group],
-    queryFn: (): Promise<GroupView> =>
-      query(
-        "network.habitat.groups.getGroup",
-        { group },
-        { authManager, headers: homeProxyHeaders() },
-      ),
+    queryFn: async (): Promise<GroupView> => {
+      const response = await xrpc(
+        agentFor(authManager),
+        network.habitat.groups.getGroup.main,
+        {
+          params: { group: group as UriString },
+          headers: homeProxyHeaders(),
+        },
+      );
+      return response.body;
+    },
   });
 }
 
-export function createGroup(
+export async function createGroup(
   authManager: AuthManager,
   name: string,
   description: string,
 ) {
-  return procedure(
-    "network.habitat.groups.createGroup",
-    { name, description },
-    { authManager, headers: homeProxyHeaders() },
+  const response = await xrpc(
+    agentFor(authManager),
+    network.habitat.groups.createGroup.main,
+    { body: { name, description }, headers: homeProxyHeaders() },
   );
+  return response.body;
 }
 
 // addMember adds either a user (subjectDid) or another group whose members are
 // inherited (subjectGroup).
-export function addMember(
+export async function addMember(
   authManager: AuthManager,
   group: string,
   subject: { subjectDid: string } | { subjectGroup: string },
 ) {
-  return procedure(
-    "network.habitat.groups.addMember",
-    { group, ...subject },
-    { authManager, headers: homeProxyHeaders() },
+  const response = await xrpc(
+    agentFor(authManager),
+    network.habitat.groups.addMember.main,
+    {
+      body: {
+        group: group as UriString,
+        subjectDid:
+          "subjectDid" in subject
+            ? (subject.subjectDid as DidString)
+            : undefined,
+        subjectGroup:
+          "subjectGroup" in subject
+            ? (subject.subjectGroup as UriString)
+            : undefined,
+      },
+      headers: homeProxyHeaders(),
+    },
   );
+  return response.body;
 }

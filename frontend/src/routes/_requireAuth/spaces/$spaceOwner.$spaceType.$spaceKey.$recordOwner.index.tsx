@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { constructSpaceURI, procedure, type AuthManager } from "internal";
+import { agentFor, constructSpaceURI, type AuthManager } from "internal";
+import {
+  xrpc,
+  type AtUriString,
+  type DidString,
+  type NsidString,
+  type RecordKeyString,
+} from "@atproto/lex";
+import { network } from "api";
 import {
   Button,
   Card,
@@ -194,10 +202,17 @@ function CollectionSection({
 
   const { mutate: deleteRecord } = useMutation({
     async mutationFn(rkey: string) {
-      await procedure(
-        "network.habitat.space.deleteRecord",
-        { space, collection, rkey, repo: params.recordOwner },
-        { authManager },
+      await xrpc(
+        agentFor(authManager),
+        network.habitat.space.deleteRecord.main,
+        {
+          body: {
+            space: space as AtUriString,
+            collection: collection as NsidString,
+            rkey: rkey as RecordKeyString,
+            repo: params.recordOwner as DidString,
+          },
+        },
       );
     },
     async onSuccess() {

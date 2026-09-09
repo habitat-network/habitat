@@ -1,11 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { NetworkHabitatOrgGetMetadata } from "api";
+import { network } from "api";
 import { Actor, UserAvatar } from "internal";
 import { Button } from "internal/components/ui";
 
 interface HeaderProps {
   profile?: Actor;
-  org?: NetworkHabitatOrgGetMetadata.OutputSchema;
+  org?: network.habitat.org.getMetadata.$OutputBody;
   onLogout: () => void;
 }
 

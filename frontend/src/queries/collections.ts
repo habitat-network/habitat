@@ -1,13 +1,20 @@
 import type { AuthManager } from "internal";
-import { query } from "internal";
+import { agentFor } from "internal";
+import {
+  xrpc,
+  type AtUriString,
+  type DidString,
+  type NsidString,
+} from "@atproto/lex";
 import { queryOptions } from "@tanstack/react-query";
-import type {
-  CollectionView,
-  RecordView,
-} from "api/types/network/habitat/collections/defs";
+import { network } from "api";
 import { homeProxyHeaders } from "./groups";
 
-export type { CollectionView, RecordView };
+export type CollectionView =
+  network.habitat.collections.listCollections.$OutputBody["collections"][number];
+
+export type RecordView =
+  network.habitat.collections.listRecords.$OutputBody["records"][number];
 
 // collectionsListQueryOptions lists the collections present in the org's synced
 // data with a count of the records the calling user can see in each, as
@@ -16,12 +23,12 @@ export function collectionsListQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["collections"],
     queryFn: async (): Promise<CollectionView[]> => {
-      const { collections } = await query(
-        "network.habitat.collections.listCollections",
-        {},
-        { authManager, headers: homeProxyHeaders() },
+      const response = await xrpc(
+        agentFor(authManager),
+        network.habitat.collections.listCollections.main,
+        { params: {}, headers: homeProxyHeaders() },
       );
-      return collections;
+      return response.body.collections;
     },
   });
 }
@@ -36,12 +43,15 @@ export function collectionRecordsQueryOptions(
   return queryOptions({
     queryKey: ["collection", collection],
     queryFn: async (): Promise<RecordView[]> => {
-      const { records } = await query(
-        "network.habitat.collections.listRecords",
-        { collection },
-        { authManager, headers: homeProxyHeaders() },
+      const response = await xrpc(
+        agentFor(authManager),
+        network.habitat.collections.listRecords.main,
+        {
+          params: { collection: collection as NsidString },
+          headers: homeProxyHeaders(),
+        },
       );
-      return records;
+      return response.body.records;
     },
   });
 }
@@ -55,17 +65,19 @@ export function recordBodyQueryOptions(
   return queryOptions({
     queryKey: ["record-body", record.uri],
     queryFn: async (): Promise<unknown> => {
-      const { value } = await query(
-        "network.habitat.space.getRecord",
+      const response = await xrpc(
+        agentFor(authManager),
+        network.habitat.space.getRecord.main,
         {
-          space: record.space,
-          repo: record.repo,
-          collection: record.collection,
-          rkey: record.rkey,
+          params: {
+            space: record.space as AtUriString,
+            repo: record.repo as DidString,
+            collection: record.collection as NsidString,
+            rkey: record.rkey,
+          },
         },
-        { authManager },
       );
-      return value;
+      return response.body.value as unknown;
     },
   });
 }

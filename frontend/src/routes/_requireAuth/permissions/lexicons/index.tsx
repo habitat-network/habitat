@@ -3,20 +3,17 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
-import { procedure } from "internal";
-import { Permission } from "api/types/network/habitat/permissions/listPermissions";
+import { agentFor } from "internal";
+import {
+  xrpc,
+  type DidString,
+  type NsidString,
+  type RecordKeyString,
+} from "@atproto/lex";
+import { network } from "api";
 
-// Concrete wire types matching what the server's parseGrantees expects
-interface DidGranteeObj {
-  $type: "network.habitat.grantee#didGrantee";
-  did: string;
-}
-
-interface PermissionInput {
-  grantees: DidGranteeObj[];
-  collection: string;
-  rkey?: string;
-}
+// Matches addPermission/removePermission input bodies from the generated API.
+type PermissionInput = network.habitat.permissions.addPermission.$InputBody;
 
 export const Route = createFileRoute("/_requireAuth/permissions/lexicons/")({
   async loader({ context }) {
@@ -42,7 +39,7 @@ function LexiconPermissions() {
   };
 
   const byCollection = (data.permissions ?? []).reduce<
-    Record<string, Permission[]>
+    Record<string, network.habitat.permissions.listPermissions.Permission[]>
   >((acc, perm) => {
     (acc[perm.collection] ??= []).push(perm);
     return acc;
@@ -63,14 +60,16 @@ function LexiconPermissions() {
         grantees: [
           {
             $type: "network.habitat.grantee#didGrantee",
-            did: formData.grantee,
+            did: formData.grantee as DidString,
           },
         ],
-        collection: formData.collection,
-        ...(formData.rkey ? { rkey: formData.rkey } : {}),
+        collection: formData.collection as NsidString,
+        ...(formData.rkey
+          ? { rkey: formData.rkey as RecordKeyString }
+          : {}),
       };
-      await procedure("network.habitat.permissions.addPermission", body, {
-        authManager,
+      await xrpc(agentFor(authManager), network.habitat.permissions.addPermission.main, {
+        body,
       });
       addForm.reset({ rkey: "" });
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
@@ -144,7 +143,7 @@ function CollectionDetail({
   authManager,
 }: {
   collection: string;
-  permissions: Permission[];
+  permissions: network.habitat.permissions.listPermissions.Permission[];
   authManager: any;
 }) {
   const queryClient = useQueryClient();
@@ -160,13 +159,13 @@ function CollectionDetail({
     }) {
       const body: PermissionInput = {
         grantees: [
-          { $type: "network.habitat.grantee#didGrantee", did: grantee },
+          { $type: "network.habitat.grantee#didGrantee", did: grantee as DidString },
         ],
-        collection,
-        ...(rkey ? { rkey } : {}),
+        collection: collection as NsidString,
+        ...(rkey ? { rkey: rkey as RecordKeyString } : {}),
       };
-      await procedure("network.habitat.permissions.removePermission", body, {
-        authManager,
+      await xrpc(agentFor(authManager), network.habitat.permissions.removePermission.main, {
+        body,
       });
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();

@@ -2,20 +2,17 @@ import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
-import { procedure } from "internal";
+import { agentFor } from "internal";
+import {
+  xrpc,
+  type DidString,
+  type NsidString,
+  type RecordKeyString,
+} from "@atproto/lex";
+import { network } from "api";
 
-// Concrete wire types for the grantee union variants the server parses
-interface DidGranteeObj {
-  $type: "network.habitat.grantee#didGrantee";
-  did: string;
-}
-
-// Matches InputSchema from typescript/api/types/network/habitat/permissions/{add,remove}Permission.ts
-interface PermissionInput {
-  grantees: DidGranteeObj[];
-  collection: string;
-  rkey?: string;
-}
+// Matches addPermission/removePermission input bodies from the generated API.
+type PermissionInput = network.habitat.permissions.addPermission.$InputBody;
 
 interface FormData {
   grantee: string;
@@ -48,13 +45,13 @@ export const Route = createFileRoute(
       async mutationFn(data: FormData) {
         const body: PermissionInput = {
           grantees: [
-            { $type: "network.habitat.grantee#didGrantee", did: data.grantee },
+            { $type: "network.habitat.grantee#didGrantee", did: data.grantee as DidString },
           ],
-          collection: data.collection,
-          ...(data.rkey ? { rkey: data.rkey } : {}),
+          collection: data.collection as NsidString,
+          ...(data.rkey ? { rkey: data.rkey as RecordKeyString } : {}),
         };
-        await procedure("network.habitat.permissions.addPermission", body, {
-          authManager,
+        await xrpc(agentFor(authManager), network.habitat.permissions.addPermission.main, {
+          body,
         });
         form.reset({ collection: params.collection, rkey: "" });
         await queryClient.invalidateQueries({ queryKey: ["permissions"] });
@@ -75,14 +72,18 @@ export const Route = createFileRoute(
       }) {
         const body: PermissionInput = {
           grantees: [
-            { $type: "network.habitat.grantee#didGrantee", did: grantee },
+            { $type: "network.habitat.grantee#didGrantee", did: grantee as DidString },
           ],
-          collection: params.collection,
-          ...(rkey ? { rkey } : {}),
+          collection: params.collection as NsidString,
+          ...(rkey ? { rkey: rkey as RecordKeyString } : {}),
         };
-        await procedure("network.habitat.permissions.removePermission", body, {
-          authManager,
-        });
+        await xrpc(
+          agentFor(authManager),
+          network.habitat.permissions.removePermission.main,
+          {
+            body,
+          },
+        );
         await queryClient.invalidateQueries({ queryKey: ["permissions"] });
         router.invalidate();
       },

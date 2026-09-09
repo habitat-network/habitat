@@ -1,7 +1,14 @@
 import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { procedure } from "internal";
+import { agentFor } from "internal";
+import {
+  xrpc,
+  type DidString,
+  type NsidString,
+  type RecordKeyString,
+} from "@atproto/lex";
+import { network } from "api";
 
 export const Route = createFileRoute("/_requireAuth/permissions/people/$did")({
   async loader({ context, params }) {
@@ -31,14 +38,21 @@ function PersonDetail() {
       collection: string;
       rkey?: string;
     }) {
-      await procedure(
-        "network.habitat.permissions.removePermission",
+      await xrpc(
+        agentFor(authManager),
+        network.habitat.permissions.removePermission.main,
         {
-          grantees: [{ $type: "network.habitat.grantee#didGrantee", did }],
-          collection,
-          ...(rkey ? { rkey } : {}),
+          body: {
+            grantees: [
+              {
+                $type: "network.habitat.grantee#didGrantee",
+                did: did as DidString,
+              },
+            ],
+            collection: collection as NsidString,
+            ...(rkey ? { rkey: rkey as RecordKeyString } : {}),
+          },
         },
-        { authManager },
       );
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();

@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { query } from "internal";
+import { agentFor } from "internal";
+import { xrpc } from "@atproto/lex";
+import { network } from "api";
 import {
   Card,
   CardContent,
@@ -13,7 +15,6 @@ import {
   ItemHeader,
   ItemTitle,
 } from "internal/components/ui";
-import { App } from "api/types/network/habitat/listConnectedApps";
 import Avatar from "boring-avatars";
 
 import { Search } from "lucide-react";
@@ -21,24 +22,24 @@ import { Search } from "lucide-react";
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
     const { authManager } = context;
-    const appData = await query(
-      "network.habitat.listConnectedApps",
-      {},
-      { authManager },
+    const appData = await xrpc(
+      agentFor(authManager),
+      network.habitat.listConnectedApps.main,
+      { params: {} },
     );
 
-    const apps = appData.apps.filter(
+    const apps = appData.body.apps.filter(
       (app) => app.clientUri !== import.meta.env.VITE_BASE_URL,
     );
 
     let orgName: string | undefined;
     try {
-      const meta = await query(
-        "network.habitat.org.getMetadata",
-        {},
-        { authManager },
+      const meta = await xrpc(
+        agentFor(authManager),
+        network.habitat.org.getMetadata.main,
+        { params: {} },
       );
-      orgName = meta.name;
+      orgName = meta.body.name;
     } catch {
       // Not a member of an org
     }
@@ -54,7 +55,7 @@ export const Route = createFileRoute("/_requireAuth/")({
 });
 
 interface RecentlyUsedProps {
-  apps: App[];
+  apps: network.habitat.listConnectedApps.App[];
 }
 
 function RecentlyUsed({ apps }: RecentlyUsedProps) {

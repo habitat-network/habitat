@@ -10,7 +10,6 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
-import { XRPCError } from "internal";
 
 export const Route = createFileRoute("/_requireAuth/blob-test/")({
   component: RouteComponent,
@@ -98,8 +97,12 @@ function RouteComponent() {
       if (!res) {
         throw new Error("Get blob failed: no response");
       } else if (!res.ok) {
-        const data = await res.json().catch(() => undefined);
-        throw new XRPCError(res.status, data ?? { error: "UnknownError" });
+        const data = (await res.json().catch(() => undefined)) as
+          | { error?: string; message?: string }
+          | undefined;
+        throw new Error(
+          `Get blob failed: ${res.status} ${data?.message ?? data?.error ?? ""}`,
+        );
       }
 
       const contentType = res.headers.get("content-type");

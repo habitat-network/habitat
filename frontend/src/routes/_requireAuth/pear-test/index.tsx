@@ -2,7 +2,16 @@ import React from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useFieldArray, useForm } from "react-hook-form";
-import { procedure, query } from "internal";
+import { agentFor } from "internal";
+import {
+  xrpc,
+  type AtIdentifierString,
+  type DidString,
+  type LexMap,
+  type NsidString,
+  type RecordKeyString,
+} from "@atproto/lex";
+import { network } from "api";
 
 interface Grantee {
   type: "did" | "clique";
@@ -42,7 +51,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
       error: putError,
     } = useMutation({
       async mutationFn(data: putData) {
-        let recordObj;
+        let recordObj: LexMap;
         try {
           recordObj = JSON.parse(data.record);
         } catch {
@@ -53,19 +62,27 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
           .filter((g) => g.value.trim() !== "")
           .map((g) =>
             g.type === "did"
-              ? { $type: "network.habitat.grantee#didGrantee", did: g.value }
-              : { $type: "network.habitat.grantee#cliqueRef", uri: g.value },
+              ? {
+                  $type: "network.habitat.grantee#didGrantee" as const,
+                  did: g.value as DidString,
+                }
+              : {
+                  $type: "network.habitat.grantee#clique" as const,
+                  clique: g.value,
+                },
           );
-        await procedure(
-          "network.habitat.repo.putRecord",
+        await xrpc(
+          agentFor(authManager),
+          network.habitat.repo.putRecord.main,
           {
-            collection: data.collection,
-            record: recordObj,
-            repo: data.repo,
-            rkey: data.rkey,
-            ...(grantees.length > 0 ? { grantees } : {}),
+            body: {
+              collection: data.collection as NsidString,
+              record: recordObj,
+              repo: data.repo as AtIdentifierString,
+              rkey: data.rkey as RecordKeyString,
+              ...(grantees.length > 0 ? { grantees } : {}),
+            },
           },
-          { authManager },
         );
       },
     });
@@ -78,12 +95,18 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
       error: getError,
     } = useMutation({
       async mutationFn(data: getData) {
-        const json = await query(
-          "network.habitat.repo.getRecord",
-          { collection: data.collection, repo: data.repo, rkey: data.rkey },
-          { authManager },
+        const json = await xrpc(
+          agentFor(authManager),
+          network.habitat.repo.getRecord.main,
+          {
+            params: {
+              collection: data.collection as NsidString,
+              repo: data.repo as AtIdentifierString,
+              rkey: data.rkey as RecordKeyString,
+            },
+          },
         );
-        setFetchedRecord(JSON.stringify(json.value));
+        setFetchedRecord(JSON.stringify(json.body.value));
       },
     });
 
