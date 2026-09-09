@@ -24,8 +24,15 @@ import {
   TableHeader,
   TableRow,
 } from "internal/components/ui";
+import { ensureValidDid } from "@atproto/syntax";
 
 export const Route = createFileRoute("/_requireAuth/opensocial/$org")({
+  params: {
+    parse: ({ org }) => {
+      ensureValidDid(org);
+      return { org };
+    },
+  },
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(
       orgMembersQueryOptions(

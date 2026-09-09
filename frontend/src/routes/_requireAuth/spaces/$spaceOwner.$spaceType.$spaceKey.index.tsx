@@ -2,16 +2,16 @@ import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { constructSpaceURI, type AuthManager } from "internal";
+import { type AuthManager } from "internal";
 import {
   xrpc,
   type AtUriString,
   type DidString,
   type LexMap,
   type NsidString,
-  type RecordKeyString,
 } from "@atproto/lex";
 import { network } from "api";
+import { SpaceRef, ensureValidDid, ensureValidNsid } from "@atproto/syntax";
 import {
   Button,
   Card,
@@ -47,8 +47,19 @@ import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 export const Route = createFileRoute(
   "/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/",
 )({
+  params: {
+    parse: ({ spaceOwner, spaceType, ...rest }) => {
+      ensureValidDid(spaceOwner);
+      ensureValidNsid(spaceType);
+      return { ...rest, spaceOwner, spaceType };
+    },
+  },
   async loader({ context, params }) {
-    const space = constructSpaceURI(params);
+    const space = new SpaceRef(
+      params.spaceOwner,
+      params.spaceType,
+      params.spaceKey,
+    ).toString();
     const [members, repos] = await Promise.all([
       context.queryClient.fetchQuery(
         spaceMembersQueryOptions(space, context.authManager),
@@ -67,7 +78,11 @@ function SpaceMembers() {
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const space = constructSpaceURI(params);
+  const space = new SpaceRef(
+    params.spaceOwner,
+    params.spaceType,
+    params.spaceKey,
+  ).toString();
   const { members, repos } = Route.useLoaderData();
 
   const invalidateMembers = async () => {

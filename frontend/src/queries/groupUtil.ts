@@ -1,4 +1,4 @@
-import { constructSpaceURI } from "internal";
+import { SpaceRef, type DidString } from "@atproto/syntax";
 
 // skeyOf extracts a space's skey (its last path segment) from a space URI like
 // at://<orgDid>/space/network.habitat.group/<skey>. Used as the clean route
@@ -10,11 +10,11 @@ export function skeyOf(uri: string): string {
 
 // groupUri reconstructs a group-space URI from the org DID and skey.
 export function groupUri(orgDid: string, skey: string): string {
-  return constructSpaceURI({
-    spaceOwner: orgDid,
-    spaceType: "network.habitat.group",
-    spaceKey: skey,
-  });
+  return new SpaceRef(
+    orgDid as DidString,
+    "network.habitat.group",
+    skey,
+  ).toString();
 }
 
 // displayDid renders a DID as a friendly handle: it prefers a known handle, then

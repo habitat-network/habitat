@@ -1,11 +1,11 @@
 import type { AuthManager } from "internal";
-import { parseSpaceURI, constructSpaceURI } from "internal";
 import {
   xrpc,
   type AtUriString,
   type DidString,
   type NsidString,
 } from "@atproto/lex";
+import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { community, network } from "api";
 
@@ -21,7 +21,7 @@ const MEMBERS_SPACE_TYPE = "community.opensocial.members";
 // OrgSummary is a community the calling user belongs to, resolved from the
 // community.opensocial.members space they hold a repo in.
 export interface OrgSummary {
-  did: string;
+  did: DidString;
   spaceUri: string;
 }
 
@@ -39,8 +39,10 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
       );
       const orgs: OrgSummary[] = [];
       for (const space of response.body.spaces) {
-        const parts = parseSpaceURI(space.uri);
-        if (parts) orgs.push({ did: parts.spaceOwner, spaceUri: space.uri });
+        orgs.push({
+          did: SpaceRef.parse(space.uri).spaceDid,
+          spaceUri: space.uri,
+        });
       }
       return orgs;
     },
@@ -152,15 +154,15 @@ interface RawRecord {
 // space via a space credential (see spaceCredentialQueryOptions) — there's no
 // dedicated listMembers endpoint.
 export function orgMembersQueryOptions(
-  org: string,
+  org: DidString,
   authManager: AuthManager,
   queryClient: QueryClient,
 ) {
-  const membersSpace = constructSpaceURI({
-    spaceOwner: org,
-    spaceType: "community.opensocial.members",
-    spaceKey: "self",
-  });
+  const membersSpace = new SpaceRef(
+    org,
+    "community.opensocial.members",
+    "self",
+  ).toString();
   return queryOptions({
     queryKey: ["opensocial", "members", org],
     queryFn: async (): Promise<MemberView[]> => {
@@ -200,15 +202,15 @@ function decodeAppAccessRkey(rkey: string): string {
 // members space via a space credential (see spaceCredentialQueryOptions) —
 // there's no dedicated listAppAccess endpoint.
 export function orgAppAccessQueryOptions(
-  org: string,
+  org: DidString,
   authManager: AuthManager,
   queryClient: QueryClient,
 ) {
-  const membersSpace = constructSpaceURI({
-    spaceOwner: org,
-    spaceType: "community.opensocial.members",
-    spaceKey: "self",
-  });
+  const membersSpace = new SpaceRef(
+    org,
+    "community.opensocial.members",
+    "self",
+  ).toString();
   return queryOptions({
     queryKey: ["opensocial", "appAccess", org],
     queryFn: async (): Promise<AppAccessView[]> => {
@@ -256,11 +258,12 @@ export function orgProfileQueryOptions(
   authManager: AuthManager,
   queryClient: QueryClient,
 ) {
-  const aboutSpace = constructSpaceURI({
-    spaceOwner: org,
-    spaceType: "community.opensocial.about",
-    spaceKey: "self",
-  });
+  ensureValidDid(org);
+  const aboutSpace = new SpaceRef(
+    org,
+    "community.opensocial.about",
+    "self",
+  ).toString();
   return queryOptions({
     queryKey: ["opensocial", "profile", org],
     queryFn: async (): Promise<OrgProfile | null> => {
@@ -377,11 +380,12 @@ export async function acceptInvite(authManager: AuthManager, org: string) {
     { body: { org: org as DidString } },
   );
   const { roles } = response.body;
-  const membersSpace = constructSpaceURI({
-    spaceOwner: org,
-    spaceType: "community.opensocial.members",
-    spaceKey: "self",
-  });
+  ensureValidDid(org);
+  const membersSpace = new SpaceRef(
+    org,
+    "community.opensocial.members",
+    "self",
+  ).toString();
   await xrpc(authManager, network.habitat.space.putRecord.main, {
     body: {
       space: membersSpace as AtUriString,

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { constructSpaceURI, type AuthManager } from "internal";
+import { type AuthManager } from "internal";
 import {
   xrpc,
   type AtUriString,
@@ -10,6 +10,7 @@ import {
   type RecordKeyString,
 } from "@atproto/lex";
 import { network } from "api";
+import { SpaceRef, ensureValidDid, ensureValidNsid } from "@atproto/syntax";
 import {
   Button,
   Card,
@@ -42,9 +43,16 @@ import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 export const Route = createFileRoute(
   "/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/",
 )({
+  params: {
+    parse: ({ spaceOwner, spaceType, ...rest }) => {
+      ensureValidDid(spaceOwner);
+      ensureValidNsid(spaceType);
+      return { ...rest, spaceOwner, spaceType };
+    },
+  },
   async loader({ context, params }) {
     const { spaceOwner, spaceType, spaceKey, recordOwner } = params;
-    const space = constructSpaceURI({ spaceOwner, spaceType, spaceKey });
+    const space = new SpaceRef(spaceOwner, spaceType, spaceKey).toString();
     const [records, commit] = await Promise.all([
       context.queryClient.fetchQuery(
         spaceRecordsQueryOptions(space, recordOwner, context.authManager),
@@ -72,7 +80,7 @@ function groupByCollection(records: SpaceRecord[]): [string, SpaceRecord[]][] {
 
 function MemberRecords() {
   const { spaceOwner, spaceType, spaceKey, recordOwner } = Route.useParams();
-  const space = constructSpaceURI({ spaceOwner, spaceType, spaceKey });
+  const space = new SpaceRef(spaceOwner, spaceType, spaceKey).toString();
   const { authManager } = Route.useRouteContext();
 
   const { records, commit } = Route.useLoaderData();

@@ -12,6 +12,7 @@
     "@atproto/api": "catalog:",
     "@atproto/identity": "catalog:",
     "@atproto/lex": "catalog:",
+    "@atproto/syntax": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-devtools": "catalog:",
