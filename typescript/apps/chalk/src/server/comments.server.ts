@@ -129,6 +129,20 @@ export async function ensureCommentsSpace(
     }
   }
 
+  // sap has no way to discover this space on its own until some member's
+  // next session crawl — same reason createDoc tracks the doc space right
+  // after creating it. Without this, a comment/reply/resolution written by
+  // anyone other than whichever chalk instance happens to eagerly mirror
+  // its own writes locally (writeComment/writeReply/resolveThread) stays
+  // invisible to every other chalk instance's D1 mirror until that crawl
+  // catches up.
+  try {
+    await client.trackSpace(spaceUri);
+  } catch {
+    // Best-effort, same as the steps above — a transient failure here
+    // just means this call falls back to relying on the next crawl.
+  }
+
   return spaceUri;
 }
 

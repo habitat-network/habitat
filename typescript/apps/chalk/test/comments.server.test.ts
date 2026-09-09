@@ -121,6 +121,7 @@ describe("ensureCommentsSpace", () => {
   it("creates a personal comments space and grants doc readers/writers as its readers/writers", async () => {
     const setRelationBodies: unknown[] = [];
     let createBody: unknown;
+    let trackedSpace: unknown;
     server.use(
       http.post(
         "http://sap-internal.test/proxy/network.habitat.simplespace.createSpace",
@@ -134,6 +135,13 @@ describe("ensureCommentsSpace", () => {
         async ({ request }) => {
           setRelationBodies.push(await request.json());
           return HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` });
+        },
+      ),
+      http.post(
+        "http://sap-internal.test/space/track",
+        async ({ request }) => {
+          trackedSpace = await request.json();
+          return new HttpResponse(null, { status: 200 });
         },
       ),
     );
@@ -162,6 +170,9 @@ describe("ensureCommentsSpace", () => {
         space: COMMENTS_SPACE,
       },
     ]);
+    // sap otherwise has no way to discover the comments space until some
+    // member's next session crawl — see ensureCommentsSpace's comment.
+    expect(trackedSpace).toEqual({ space: COMMENTS_SPACE });
   });
 
   it("creates an org comments space via community.opensocial.createSpace, proxied to the org", async () => {
@@ -179,6 +190,10 @@ describe("ensureCommentsSpace", () => {
       http.post(
         "http://sap-internal.test/proxy/network.habitat.relationship.setSpaceRelation",
         () => HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` }),
+      ),
+      http.post(
+        "http://sap-internal.test/space/track",
+        () => new HttpResponse(null, { status: 200 }),
       ),
     );
     const client = new SapClient(testEnv, ALICE);
@@ -205,6 +220,10 @@ describe("ensureCommentsSpace", () => {
       http.post(
         "http://sap-internal.test/proxy/network.habitat.relationship.setSpaceRelation",
         () => HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` }),
+      ),
+      http.post(
+        "http://sap-internal.test/space/track",
+        () => new HttpResponse(null, { status: 200 }),
       ),
     );
     const client = new SapClient(testEnv, ALICE);
@@ -271,6 +290,10 @@ describe("writeComment / writeReply / resolveThread / removeComment / removeRepl
             cid: "bafycomment1",
           });
         },
+      ),
+      http.post(
+        "http://sap-internal.test/space/track",
+        () => new HttpResponse(null, { status: 200 }),
       ),
     );
     const client = new SapClient(testEnv, ALICE);
