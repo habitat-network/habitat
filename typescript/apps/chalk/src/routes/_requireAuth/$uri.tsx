@@ -139,6 +139,10 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const [pendingAnchor, setPendingAnchor] = useState<PendingAnchor | null>(
       null,
     );
+    // hasSelection drives the toolbar button's label/behavior: with text
+    // selected it starts a new thread ("Add comment"), otherwise it just
+    // opens the sidebar on whatever's already there ("Comments").
+    const [hasSelection, setHasSelection] = useState(false);
 
     // Shared with CommentSidebar via the same react-query cache entry
     // (identical queryKey) rather than prop-drilled — only the anchor
@@ -169,6 +173,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             class:
               "prose max-w-none min-h-full px-[max(2rem,calc(50%-22.5rem))] py-10 outline-none",
           },
+        },
+        onSelectionUpdate({ editor }) {
+          setHasSelection(!editor.state.selection.empty);
         },
       },
       [ydoc, role],
@@ -247,15 +254,25 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
               activeCommentUri={activeCommentUri}
               pendingAnchor={pendingAnchor}
               onPendingAnchorResolved={() => setPendingAnchor(null)}
-              onClose={() => setSidebarOpen(false)}
+              onClose={() => {
+                setSidebarOpen(false);
+                // Closing without submitting abandons the pending
+                // selection — otherwise its highlight (and the sidebar's
+                // "no comments yet" fallback) would linger after the user
+                // clearly walked away from it.
+                setPendingAnchor(null);
+              }}
             />
           )}
         </div>
         <PageHeader>
           <div className="flex gap-2">
             {role === "editor" && (
-              <Button variant="ghost" size="sm" onClick={startThread}>
-                Comment
+              <Button
+                variant="ghost"
+                onClick={hasSelection ? startThread : () => setSidebarOpen(true)}
+              >
+                {hasSelection ? "Add comment" : "Comments"}
               </Button>
             )}
             {role === "editor" && !currentOrg && (
