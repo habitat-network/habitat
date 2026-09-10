@@ -332,9 +332,6 @@ importers:
       '@atproto/syntax':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260818163953
-      '@tanstack/pacer':
-        specifier: 'catalog:'
-        version: 0.22.0
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.12(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
@@ -716,6 +713,9 @@ importers:
       '@base-ui/react':
         specifier: ^1.6.0
         version: 1.7.0(@date-fns/tz@1.5.0)(@types/react@19.2.18)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@tanstack/pacer':
+        specifier: 'catalog:'
+        version: 0.22.0
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)

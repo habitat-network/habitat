@@ -1,16 +1,16 @@
 import { useCallback, useMemo } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { AsyncBatcher } from "@tanstack/pacer/async-batcher";
-import { getProfiles, type Actor } from "internal";
+import { getProfiles } from "../bskyPublicApi";
+import type { Actor } from "../types/Actor";
 
 // useActors resolves a list of DIDs to their public bsky profiles and
 // returns a lookup function — the "who is this" display need shared by
-// every place chalk shows an avatar/name for a DID it only has as a bare
-// string (comment/reply authors, doc owners, doc-access grantees). A did
-// whose profile lookup didn't resolve (or hasn't finished yet) gets back a
-// bare `{ did }` Actor rather than undefined, so callers can pass the
-// result straight to UserAvatar/UserDisplayName without their own
-// fallback.
+// every place an app shows an avatar/name for a DID it only has as a bare
+// string (doc owners, comment authors, permission grantees). A did whose
+// profile lookup didn't resolve (or hasn't finished yet) gets back a bare
+// `{ did }` Actor rather than undefined, so callers can pass the result
+// straight to UserAvatar/UserDisplayName without their own fallback.
 //
 // Unlike a single ["profiles", dids] query keyed on the whole list, each
 // did gets its own ["actor", did] cache entry. That way the cache is
@@ -81,14 +81,22 @@ function loadActor(did: string): Promise<Actor> {
 }
 
 export function useActors(dids: string[]): (did: string) => Actor {
+  const queryClient = useQueryClient();
   // Deduped before becoming query keys so callers don't need to memoize
   // the list themselves — the common case is deriving it fresh from other
   // query data on every render (e.g. `comments.map(c => c.authorDid)`).
   const key = useMemo(() => Array.from(new Set(dids)), [dids]);
 
-  // One query per did. A profile is read-mostly data, so keep entries warm
-  // across mounts rather than refetching them on every visit.
-  const results = useQueries({
+  // The queries' own `data` isn't read here — subscribing is enough to get
+  // this component re-rendered when a profile resolves, and getActor reads
+  // the same ["actor", did] cache entry directly. That also means the
+  // lookup resolves any did's profile, whether it was in this component's
+  // list or is cached here by another useActors caller.
+  //
+  // One query per did, kept warm across mounts: a profile is read-mostly
+  // data, and the per-did keys let the cache be shared by every component
+  // that shows profiles.
+  useQueries({
     queries: key.map((did) => ({
       queryKey: ["actor", did],
       queryFn: () => loadActor(did),
@@ -96,16 +104,9 @@ export function useActors(dids: string[]): (did: string) => Actor {
     })),
   });
 
-  const actorsByDid = useMemo(() => {
-    const map = new Map<string, Actor>();
-    key.forEach((did, i) => {
-      map.set(did, results[i]?.data ?? { did });
-    });
-    return map;
-  }, [key, results]);
-
   return useCallback(
-    (did: string): Actor => actorsByDid.get(did) ?? { did },
-    [actorsByDid],
+    (did: string): Actor =>
+      queryClient.getQueryData<Actor>(["actor", did]) ?? { did },
+    [queryClient],
   );
 }

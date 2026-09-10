@@ -39,6 +39,7 @@
     "@atproto/oauth-client-browser": "^0.5.0",
     "@atproto/syntax": "catalog:",
     "@base-ui/react": "^1.6.0",
+    "@tanstack/pacer": "catalog:",
     "@uidotdev/usehooks": "^2.4.1",
     "api": "workspace:*",
     "boring-avatars": "catalog:",

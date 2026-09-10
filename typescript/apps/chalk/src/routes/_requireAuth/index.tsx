@@ -1,12 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  getProfiles,
-  HabitatLogo,
-  UserAvatar,
-  UserDisplayName,
-  type Actor,
-} from "internal";
+import { HabitatLogo, UserAvatar, UserDisplayName, type Actor } from "internal";
 import {
   Table,
   TableHeader,
@@ -18,19 +12,13 @@ import {
 import { PageHeader } from "@/components/PageHeader";
 import { Route as RequireAuthRoute } from "@/routes/_requireAuth";
 import { listDocs } from "@/server/functions";
+import { useActors } from "internal/hooks";
 
-function OwnerCell({
-  owner,
-  ownerDid,
-}: {
-  owner: Actor | undefined;
-  ownerDid: string;
-}) {
-  const actor = owner ?? { did: ownerDid };
+function OwnerCell({ owner }: { owner: Actor }) {
   return (
     <div className="flex items-center gap-2">
-      <UserAvatar size="sm" actor={actor} />
-      <UserDisplayName actor={actor} />
+      <UserAvatar size="sm" actor={owner} />
+      <UserDisplayName actor={owner} />
     </div>
   );
 }
@@ -46,13 +34,9 @@ export const Route = createFileRoute("/_requireAuth/")({
     const { currentOrg } = RequireAuthRoute.useLoaderData();
     const showOwner = !currentOrg;
 
-    const ownerDids = [...new Set(docs.map((doc) => doc.ownerDid))];
-    const { data: owners = [] } = useQuery({
-      queryKey: ["profiles", ownerDids],
-      queryFn: () => getProfiles(ownerDids),
-      enabled: showOwner && ownerDids.length > 0,
-    });
-    const ownersByDid = new Map(owners.map((owner) => [owner.did, owner]));
+    const getOwner = useActors(
+      showOwner ? docs.map((doc) => doc.ownerDid) : [],
+    );
 
     return (
       <div className="flex flex-col h-full">
@@ -93,10 +77,7 @@ export const Route = createFileRoute("/_requireAuth/")({
                   </TableCell>
                   {showOwner && (
                     <TableCell>
-                      <OwnerCell
-                        owner={ownersByDid.get(doc.ownerDid)}
-                        ownerDid={doc.ownerDid}
-                      />
+                      <OwnerCell owner={getOwner(doc.ownerDid)} />
                     </TableCell>
                   )}
                 </TableRow>
