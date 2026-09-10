@@ -25,17 +25,23 @@ const SPACE_RELATION_COLLECTION = "network.habitat.relationship.spaceRelation";
 const MEMBERS_SPACE_TYPE = "community.opensocial.members";
 
 // processOutboxMessage routes one outbox event delivered by sap's webhook
-// (cmd/sap/webhook.go). Messages this deliberately ignores (wrong
-// collection, unknown doc, missing blob ref) return normally, which the
-// caller (webhook.ts's handleSapWebhook) turns into a 200 so sap acks them
-// immediately — one uninteresting message must not be able to wedge the
-// outbox. A malformed uri (not a space-record uri at all) throws instead,
-// which handleSapWebhook turns into a 500 so sap retries it.
+// (cmd/sap/webhook.go). Messages this deliberately ignores (malformed uri,
+// wrong collection, unknown doc, missing blob ref) return normally, which
+// the caller (webhook.ts's handleSapWebhook) turns into a 200 so sap acks
+// them immediately — one uninteresting message must not be able to wedge
+// the outbox. A uri that doesn't parse at all is treated the same way: it
+// can never become valid on retry, so retrying it with 500s would wedge the
+// outbox forever.
 export async function processOutboxMessage(
   env: Env,
   msg: OutboxMessage,
 ): Promise<void> {
-  const atUri = new AtUri(msg.uri);
+  let atUri: AtUri;
+  try {
+    atUri = new AtUri(msg.uri);
+  } catch {
+    return; // not a uri at all
+  }
   const spaceRef = atUri.spaceRef();
   if (!spaceRef || !atUri.authorDid || !atUri.collection || !atUri.rkey) return;
   const spaceUri = spaceRef.toString();
