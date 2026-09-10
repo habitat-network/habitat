@@ -6,6 +6,7 @@ import {
   upsertDocAccess,
   upsertDocOrgAccess,
   deleteDocOrgAccess,
+  upsertConnectedOrg,
   docsFor,
   docByUri,
 } from "../src/db";
@@ -18,6 +19,7 @@ beforeEach(async () => {
   await env.DB.exec("DELETE FROM docs");
   await env.DB.exec("DELETE FROM doc_access");
   await env.DB.exec("DELETE FROM doc_org_access");
+  await env.DB.exec("DELETE FROM connected_orgs");
 });
 
 it("returns a subject's docs newest first", async () => {
@@ -104,6 +106,50 @@ const orgDocSummary = {
   ownerDid: ORG,
   title: "Org doc",
 };
+
+it("personal mode excludes an org's docs even with a personal grant", async () => {
+  const db = getDb(env);
+  await seedOrgDoc(db);
+  // The grant a doc's creator gets in org mode. It must not drag the org
+  // doc into their personal list.
+  await upsertDocAccess(db, {
+    uri: `${ORG_DOC}/${ALICE}/network.habitat.relationship.userRelation/self`,
+    spaceUri: ORG_DOC,
+    subjectDid: ALICE,
+    relation: "manager",
+  });
+  await upsertConnectedOrg(db, {
+    memberDid: ALICE,
+    orgDid: ORG,
+    orgName: "Org",
+  });
+  expect(await docsFor(db, ALICE)).toEqual([]);
+});
+
+it("personal mode keeps another person's doc shared with the subject", async () => {
+  const db = getDb(env);
+  await upsertDoc(db, {
+    spaceUri: URI,
+    docId: URI,
+    ownerDid: ALICE,
+    title: "Untitled",
+  });
+  await upsertDocAccess(db, {
+    uri: `${URI}/${BOB}/network.habitat.relationship.userRelation/self`,
+    spaceUri: URI,
+    subjectDid: BOB,
+    relation: "reader",
+  });
+  // ALICE is a person, not a connected org, so her doc stays listed.
+  await upsertConnectedOrg(db, {
+    memberDid: BOB,
+    orgDid: ORG,
+    orgName: "Org",
+  });
+  expect(await docsFor(db, BOB)).toEqual([
+    { docId: URI, uri: URI, ownerDid: ALICE, title: "Untitled" },
+  ]);
+});
 
 it("org mode hides an org doc nobody has been granted", async () => {
   const db = getDb(env);

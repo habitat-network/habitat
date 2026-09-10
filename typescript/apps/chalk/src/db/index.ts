@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/d1";
-import { and, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, notInArray, or } from "drizzle-orm";
 import { docs, docAccess, docOrgAccess, connectedOrgs } from "./schema";
 
 export interface DocSummary {
@@ -55,17 +55,23 @@ function toSummary(r: typeof docs.$inferSelect): DocSummary {
 // (see outbox.ts), and — in org mode — the doc_org_access rows that share a
 // doc with a whole org.
 //
-// Both modes are the same query. In org mode (orgDid set) it lists that
-// org's docs the member can reach: shared with the whole org, or granted to
-// them personally, which covers a doc they created but haven't shared yet.
-// In personal mode there is no org to match, so the org join never finds a
-// row (no doc_org_access row has an empty org DID) and the result is just
-// the docs they hold a personal grant on.
+// Both modes are the same query, differing only in which docs are in scope.
+// A doc's ownerDid is its space authority (the <did> in
+// at://<did>/space/<type>/<skey>), so it says which identity the doc
+// belongs to: in org mode that's the org itself, and org mode lists the
+// org's docs the member can reach — shared with the whole org, or granted
+// to them personally, which covers a doc they created but haven't shared.
 //
-// Which docs belong to the org is `ownerDid`, not a flag on the row: an org
-// DID owns only that org's docs. Each join matches at most one row (both
-// are keyed by their table's primary key), so a doc reachable both ways
-// still appears once.
+// Personal mode is the complement: docs belonging to a person rather than
+// an org, which is why it excludes any doc whose authority is an org this
+// deployment knows (connected_orgs — an org's docs only reach this DB once
+// somebody connects it). Without that an org doc would show up in its
+// creator's personal list, since they hold a personal grant on it. There's
+// no org to match either, so the org join finds nothing (no doc_org_access
+// row has an empty org DID) and only personal grants remain.
+//
+// Each join matches at most one row (both are keyed by their table's
+// primary key), so a doc reachable both ways still appears once.
 export async function docsFor(
   db: Db,
   subjectDid: string,
@@ -96,7 +102,12 @@ export async function docsFor(
     )
     .where(
       and(
-        orgDid ? eq(docs.ownerDid, orgDid) : undefined,
+        orgDid
+          ? eq(docs.ownerDid, orgDid)
+          : notInArray(
+              docs.ownerDid,
+              db.select({ orgDid: connectedOrgs.orgDid }).from(connectedOrgs),
+            ),
         or(isNotNull(docAccess.spaceUri), isNotNull(docOrgAccess.spaceUri)),
       ),
     )
