@@ -30,22 +30,27 @@ export async function createDocSpace(
   client: SapClient,
   did: string,
   currentOrg: string | undefined,
-): Promise<{ uri: string; ownerDid: string; isOrg: boolean }> {
+): Promise<{ uri: string; ownerDid: string }> {
   if (currentOrg) {
+    // roles is empty: access is granted via explicit spaceRelation/
+    // userRelation records (the share dialog) instead of being baked in at
+    // creation time — sharing with "the whole org" means a spaceRelation
+    // naming the org's own community.opensocial.members space as its
+    // subject (see orgMembersSpaceUri/OrgShareControl).
     const created = await client.call<{ uri: string }>(
       "community.opensocial.createSpace",
       "POST",
-      { org: currentOrg, type: DOCS_SPACE_TYPE, roles: ["admin", "member"] },
+      { org: currentOrg, type: DOCS_SPACE_TYPE, roles: [] },
       { atprotoProxy: `${currentOrg}#habitat` },
     );
-    return { uri: created.uri, ownerDid: currentOrg, isOrg: true };
+    return { uri: created.uri, ownerDid: currentOrg };
   }
   const created = await client.call<{ uri: string }>(
     "network.habitat.simplespace.createSpace",
     "POST",
     { did, type: DOCS_SPACE_TYPE },
   );
-  return { uri: created.uri, ownerDid: did, isOrg: false };
+  return { uri: created.uri, ownerDid: did };
 }
 
 // fetchOrgName reads an org's display name off its
@@ -80,6 +85,19 @@ export async function fetchOrgName(
   } catch {
     return null;
   }
+}
+
+// orgMembersSpaceUri returns the URI of orgDid's own
+// community.opensocial.members space — naming this as a spaceRelation's
+// subject, with subjectRole "reader", grants the relation to every member
+// of the org (pear's CheckUserHasSpaceRole treats holding any opensocial
+// membership as holding "reader" on this space; see internal/perms/store.go).
+export function orgMembersSpaceUri(orgDid: string): string {
+  return new SpaceRef(
+    orgDid as DidString,
+    "community.opensocial.members",
+    "self",
+  ).toString();
 }
 
 // listMyOrgIds lists the DIDs of every opensocial org the member belongs

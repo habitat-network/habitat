@@ -1487,6 +1487,46 @@ export const schemaDict = {
       },
     },
   },
+  CommunityOpensocialUpdateSpace: {
+    lexicon: 1,
+    id: 'community.opensocial.updateSpace',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Replace the roles that may read a space, written into its community.opensocial.access record. Requires service-auth. Requires the `space.configure` action.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'roles'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'URI of the space to update.',
+              },
+              roles: {
+                type: 'array',
+                description:
+                  'Record keys of the community.opensocial.role records that may read the space, written into its community.opensocial.access record.',
+                items: {
+                  type: 'string',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'InvalidSpace',
+            description:
+              'The provided space URI is not a valid open social space.',
+          },
+        ],
+      },
+    },
+  },
   CommunityOpensocialUploadImage: {
     lexicon: 1,
     id: 'community.opensocial.uploadImage',
@@ -6076,6 +6116,7 @@ export const ids = {
   CommunityOpensocialRole: 'community.opensocial.role',
   CommunityOpensocialSpace: 'community.opensocial.space',
   CommunityOpensocialUpdateProfile: 'community.opensocial.updateProfile',
+  CommunityOpensocialUpdateSpace: 'community.opensocial.updateSpace',
   CommunityOpensocialUploadImage: 'community.opensocial.uploadImage',
   NetworkHabitatAdminGetSettings: 'network.habitat.admin.getSettings',
   NetworkHabitatAdminIssueInvite: 'network.habitat.admin.issueInvite',

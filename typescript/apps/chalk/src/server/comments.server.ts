@@ -149,10 +149,13 @@ function isSpaceAlreadyExists(err: unknown): boolean {
 // with them would otherwise fail both steps and leave them unable to
 // comment at all.
 //
-// Org docs are the exception: the owner is the org DID, which has no sap
-// session to authenticate as. They pass the org's DID as owner and reach
-// createSpace through Atproto-Proxy as the member, exactly as
-// createDocSpace does for the doc space itself.
+// Org docs differ only in how the space is created: they reach
+// community.opensocial.createSpace through Atproto-Proxy as the member,
+// exactly as createDocSpace does for the doc space itself, with no roles —
+// access comes from the doc space's relations, not org membership. The
+// relations are still set as the owner, which for an org doc is the org's
+// own sap session (see functions.ts's managementClient): the member who
+// created the space holds nothing on it.
 export async function ensureCommentsSpace(
   client: SapClient,
   docId: string,
@@ -162,18 +165,18 @@ export async function ensureCommentsSpace(
   const spaceUri = commentsSpaceUri(docId);
   if (!parts || !spaceUri) return undefined;
 
-  const ownerClient = opts.isOrg ? client : client.asDid(opts.ownerDid);
+  const ownerClient = client.asDid(opts.ownerDid);
 
   try {
     if (opts.isOrg) {
-      await ownerClient.call(
+      await client.call(
         "community.opensocial.createSpace",
         "POST",
         {
           org: opts.ownerDid,
           type: COMMENTS_SPACE_TYPE,
           skey: parts.skey,
-          roles: ["admin", "member"],
+          roles: [],
         },
         { atprotoProxy: `${opts.ownerDid}#habitat` },
       );
@@ -206,8 +209,8 @@ export async function ensureCommentsSpace(
       );
     } catch (err) {
       // A no-op re-set doesn't throw, so anything here is a real failure:
-      // the space wasn't created above, or (org docs) the member isn't a
-      // manager of it. The read/write that follows is still the real gate.
+      // the space wasn't created above, or the owner session is missing.
+      // The read/write that follows is still the real gate.
       console.error(
         "[comments] set comments space relation",
         subject,

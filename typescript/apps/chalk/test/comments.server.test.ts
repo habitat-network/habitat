@@ -184,6 +184,8 @@ describe("ensureCommentsSpace", () => {
 
   it("creates an org comments space via community.opensocial.createSpace, proxied to the org", async () => {
     let proxyHeader: string | null = null;
+    let createCaller: string | null = null;
+    const relationCallers: (string | null)[] = [];
     let createBody: unknown;
     server.use(
       http.post(
@@ -191,12 +193,16 @@ describe("ensureCommentsSpace", () => {
         async ({ request }) => {
           createBody = await request.json();
           proxyHeader = request.headers.get("Atproto-Proxy");
+          createCaller = request.headers.get("Habitat-Did");
           return HttpResponse.json({ uri: COMMENTS_SPACE });
         },
       ),
       http.post(
         "http://sap-internal.test/proxy/network.habitat.relationship.setSpaceRelation",
-        () => HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` }),
+        ({ request }) => {
+          relationCallers.push(request.headers.get("Habitat-Did"));
+          return HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` });
+        },
       ),
       http.post(
         "http://sap-internal.test/space/track",
@@ -213,9 +219,12 @@ describe("ensureCommentsSpace", () => {
       org: "did:web:org.example",
       type: "network.habitat.docs.comments",
       skey: "abc",
-      roles: ["admin", "member"],
+      roles: [],
     });
     expect(proxyHeader).toBe("did:web:org.example#habitat");
+    // Created as the member, but wired up as the org, which owns the space.
+    expect(createCaller).toBe(ALICE);
+    expect(relationCallers).toEqual(Array(4).fill("did:web:org.example"));
   });
 
   it("is safe to call again once the space and relations already exist", async () => {

@@ -40,6 +40,7 @@ import * as CommunityOpensocialRevokeInvite from './types/community/opensocial/r
 import * as CommunityOpensocialRole from './types/community/opensocial/role.js'
 import * as CommunityOpensocialSpace from './types/community/opensocial/space.js'
 import * as CommunityOpensocialUpdateProfile from './types/community/opensocial/updateProfile.js'
+import * as CommunityOpensocialUpdateSpace from './types/community/opensocial/updateSpace.js'
 import * as CommunityOpensocialUploadImage from './types/community/opensocial/uploadImage.js'
 import * as NetworkHabitatAdminGetSettings from './types/network/habitat/admin/getSettings.js'
 import * as NetworkHabitatAdminIssueInvite from './types/network/habitat/admin/issueInvite.js'
@@ -164,6 +165,7 @@ export * as CommunityOpensocialRevokeInvite from './types/community/opensocial/r
 export * as CommunityOpensocialRole from './types/community/opensocial/role.js'
 export * as CommunityOpensocialSpace from './types/community/opensocial/space.js'
 export * as CommunityOpensocialUpdateProfile from './types/community/opensocial/updateProfile.js'
+export * as CommunityOpensocialUpdateSpace from './types/community/opensocial/updateSpace.js'
 export * as CommunityOpensocialUploadImage from './types/community/opensocial/uploadImage.js'
 export * as NetworkHabitatAdminGetSettings from './types/network/habitat/admin/getSettings.js'
 export * as NetworkHabitatAdminIssueInvite from './types/network/habitat/admin/issueInvite.js'
@@ -819,6 +821,17 @@ export class CommunityOpensocialNS {
       data,
       opts,
     )
+  }
+
+  updateSpace(
+    data?: CommunityOpensocialUpdateSpace.InputSchema,
+    opts?: CommunityOpensocialUpdateSpace.CallOptions,
+  ): Promise<CommunityOpensocialUpdateSpace.Response> {
+    return this._client
+      .call('community.opensocial.updateSpace', opts?.qp, data, opts)
+      .catch((e) => {
+        throw CommunityOpensocialUpdateSpace.toKnownErr(e)
+      })
   }
 
   uploadImage(

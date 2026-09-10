@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "./ui/dialog";
 import UserCombobox from "./UserCombobox";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Actor } from "@/types/Actor";
 import { Button } from "./ui/button";
 import { ButtonGroup } from "./ui/button-group";
@@ -53,6 +53,9 @@ interface ShareDialogProps {
   // button is hidden — a user shouldn't be able to revoke their own access
   // from the share modal.
   currentUserDid?: string;
+  // Extra access controls rendered below the grantee list, for access that
+  // isn't a per-person grant — chalk passes its org-wide share control here.
+  children?: ReactNode;
 }
 
 const ShareDialog = ({
@@ -62,6 +65,7 @@ const ShareDialog = ({
   onRemovePermission,
   roles = false,
   currentUserDid,
+  children,
 }: ShareDialogProps) => {
   const [newGrantees, setNewGrantees] = useState<Actor[]>([]);
   const [role, setRole] = useState<Role>("editor");
@@ -132,6 +136,7 @@ const ShareDialog = ({
             ))}
           </TableBody>
         </Table>
+        {children}
       </DialogContent>
     </Dialog>
   );

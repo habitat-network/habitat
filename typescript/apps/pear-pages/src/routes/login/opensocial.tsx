@@ -66,10 +66,16 @@ function OpensocialLoginPage() {
         action="/oauth/opensocial"
         onSubmit={() => setSubmitting(true)}
       >
-        <fieldset disabled={submitting} className="flex flex-col gap-4">
+        <fieldset className="flex flex-col gap-4">
           <Field>
             <FieldLabel>Handle</FieldLabel>
-            <Input placeholder="handle" autoFocus name="handle" required />
+            <Input
+              placeholder="handle"
+              autoFocus
+              name="handle"
+              required
+              readOnly={submitting}
+            />
           </Field>
           <Button type="submit" disabled={submitting}>
             {submitting ? "Continuing..." : "Continue"}

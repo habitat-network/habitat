@@ -28,6 +28,7 @@ import {
   type CommentAnchor,
 } from "@/extensions/commentAnchor";
 import { useActors } from "@/hooks/useActors";
+import { OrgShareControl } from "@/components/OrgShareControl";
 import { useYDoc } from "@/hooks/useYDoc";
 import { Route as RequireAuthRoute } from "@/routes/_requireAuth";
 import {
@@ -292,7 +293,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
                 Comments
               </Button>
             )}
-            {role === "editor" && !currentOrg && (
+            {role === "editor" && (
               <ShareDialog
                 grantees={grantees}
                 isAdding={isAddingPermission}
@@ -302,7 +303,14 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
                   addPermission({ actors, role })
                 }
                 onRemovePermission={(actor) => removePermission(actor)}
-              />
+              >
+                {currentOrg && (
+                  <OrgShareControl
+                    docId={uri}
+                    orgName={currentOrg.name ?? currentOrg.did}
+                  />
+                )}
+              </ShareDialog>
             )}
             <HelpDialog />
           </div>

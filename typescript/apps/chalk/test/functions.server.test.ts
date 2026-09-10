@@ -72,7 +72,6 @@ describe("createDocSpace", () => {
     expect(result).toEqual({
       uri: "at://did:plc:member1/space/x",
       ownerDid: "did:plc:member1",
-      isOrg: false,
     });
   });
 
@@ -100,13 +99,12 @@ describe("createDocSpace", () => {
     expect(body).toEqual({
       org: "did:web:org.example",
       type: "network.habitat.docs",
-      roles: ["admin", "member"],
+      roles: [],
     });
     expect(proxyHeader).toBe("did:web:org.example#habitat");
     expect(result).toEqual({
       uri: "at://did:web:org.example/space/x",
       ownerDid: "did:web:org.example",
-      isOrg: true,
     });
   });
 });
