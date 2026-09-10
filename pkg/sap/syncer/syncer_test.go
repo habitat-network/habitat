@@ -500,7 +500,7 @@ func TestVerifierSignerWebAuthor(t *testing.T) {
 		Rev:  "3kzl6abcde02k",
 	}
 
-	got, err := v.signer(t.Context(), space, authorDID)
+	got, err := v.signer(t.Context(), space, authorDID, false)
 	require.NoError(t, err)
 	require.Equal(t, pub.Multibase(), got.Multibase())
 }
@@ -525,7 +525,7 @@ func TestVerifierSignerWebAuthorFallsBackToAtprotoSpace(t *testing.T) {
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
-	got, err := v.signer(t.Context(), space, authorDID)
+	got, err := v.signer(t.Context(), space, authorDID, false)
 	require.NoError(t, err)
 	require.Equal(t, pub.Multibase(), got.Multibase())
 }
@@ -551,7 +551,7 @@ func TestVerifierSignerExternalAuthor(t *testing.T) {
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
-	got, err := v.signer(t.Context(), space, "did:plc:external")
+	got, err := v.signer(t.Context(), space, "did:plc:external", true)
 	require.NoError(t, err)
 	require.Equal(t, pub.Multibase(), got.Multibase())
 }
@@ -578,7 +578,7 @@ func TestVerifierSignerExternalAuthorFallsBackToAtproto(t *testing.T) {
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
-	got, err := v.signer(t.Context(), space, "did:plc:external")
+	got, err := v.signer(t.Context(), space, "did:plc:external", true)
 	require.NoError(t, err)
 	require.Equal(t, pub.Multibase(), got.Multibase())
 }
@@ -592,7 +592,7 @@ func TestVerifierSignerAuthorLookupError(t *testing.T) {
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
-	_, err := v.signer(t.Context(), space, "did:web:missing.example.com")
+	_, err := v.signer(t.Context(), space, "did:web:missing.example.com", false)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "lookup author")
 }
@@ -610,7 +610,7 @@ func TestVerifierSignerAuthorNoKey(t *testing.T) {
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
-	_, err := v.signer(t.Context(), space, authorDID)
+	_, err := v.signer(t.Context(), space, authorDID, false)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "author signing key")
 }
@@ -624,7 +624,7 @@ func TestVerifierSignerExternalOwnerLookupError(t *testing.T) {
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
-	_, err := v.signer(t.Context(), space, "did:plc:external")
+	_, err := v.signer(t.Context(), space, "did:plc:external", true)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "lookup space owner")
 }
@@ -642,7 +642,7 @@ func TestVerifierSignerExternalNoHabitatService(t *testing.T) {
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
-	_, err := v.signer(t.Context(), space, "did:plc:external")
+	_, err := v.signer(t.Context(), space, "did:plc:external", true)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no atproto_space_host service")
 }
@@ -660,7 +660,7 @@ func TestVerifierSignerExternalHostLookupError(t *testing.T) {
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
-	_, err := v.signer(t.Context(), space, "did:plc:external")
+	_, err := v.signer(t.Context(), space, "did:plc:external", true)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "lookup host")
 }
@@ -681,7 +681,7 @@ func TestVerifierSignerExternalHostNoKey(t *testing.T) {
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
-	_, err := v.signer(t.Context(), space, "did:plc:external")
+	_, err := v.signer(t.Context(), space, "did:plc:external", true)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "host signing key")
 }

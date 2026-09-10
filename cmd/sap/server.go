@@ -171,6 +171,27 @@ func (s *server) handleTrackSpace(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleSpaceCredential returns a space credential for the space query param,
+// and the space host it is valid against, via Sap.SpaceCredential — minted
+// through whichever tracked session has recorded access to the space, so a
+// caller with no session of its own for the space (e.g. chalk reading a doc's
+// blob while handling an outbox webhook) can read the space's host directly.
+func (s *server) handleSpaceCredential(w http.ResponseWriter, r *http.Request) {
+	space, ok := httpx.ParseSpaceURIInput(r.Context(), w, r.URL.Query().Get("space"), "space")
+	if !ok {
+		return
+	}
+	cred, err := s.sap.SpaceCredential(r.Context(), space)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("space credential: %s", err), http.StatusBadGateway)
+		return
+	}
+	httpx.WriteJSON(r.Context(), w, map[string]string{
+		"credential": cred.Token,
+		"host":       cred.Host,
+	})
+}
+
 // handleRecrawl retriggers a crawl for a session via Sap.Recrawl, discarding
 // any progress from a previous crawl and re-running discovery from the top.
 // Internal endpoint, for operators to unstick a session whose crawl is stuck

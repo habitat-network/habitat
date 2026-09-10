@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserAvatar } from "internal";
 import { Button, Textarea, toast } from "internal/components/ui";
 import { X } from "lucide-react";
-import { useActors } from "@/hooks/useActors";
+import { useActors } from "internal/hooks";
 import {
   createComment,
   createReply,

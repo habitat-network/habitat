@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
-import { SapClient, startLogin } from "../src/server/sapClient";
+import { SapClient, getSpaceBlob, startLogin } from "../src/server/sapClient";
 
 const testEnv = {
   CHALK_SAP_INTERNAL_URL: "http://sap-internal.test",
@@ -108,6 +108,53 @@ describe("internal auth", () => {
       client.call("network.habitat.space.listRecords", "GET", {}),
     );
     expect(headers.get("Authorization")).toBeNull();
+  });
+});
+
+describe("getSpaceBlob", () => {
+  const SPACE = "at://did:web:org.example/space/network.habitat.docs/abc";
+
+  it("reads the blob from the space host with a credential minted by sap", async () => {
+    let credentialSpace: string | null = null;
+    let blobAuth: string | null = null;
+    let blobParams: URLSearchParams | undefined;
+    server.use(
+      http.get("http://sap-internal.test/space/credential", ({ request }) => {
+        credentialSpace = new URL(request.url).searchParams.get("space");
+        return HttpResponse.json({
+          credential: "space-cred",
+          host: "https://space-host.test",
+        });
+      }),
+      http.get(
+        "https://space-host.test/xrpc/network.habitat.space.getBlob",
+        ({ request }) => {
+          blobAuth = request.headers.get("Authorization");
+          blobParams = new URL(request.url).searchParams;
+          return new HttpResponse(new Uint8Array([1, 2, 3]));
+        },
+      ),
+    );
+
+    const bytes = await getSpaceBlob(testEnv, SPACE, "bafyblob");
+
+    expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
+    expect(credentialSpace).toBe(SPACE);
+    expect(blobAuth).toBe("Bearer space-cred");
+    expect(blobParams?.get("space")).toBe(SPACE);
+    expect(blobParams?.get("cid")).toBe("bafyblob");
+  });
+
+  it("throws when sap can't mint a credential for the space", async () => {
+    server.use(
+      http.get(
+        "http://sap-internal.test/space/credential",
+        () => new HttpResponse("no session", { status: 502 }),
+      ),
+    );
+    await expect(getSpaceBlob(testEnv, SPACE, "bafyblob")).rejects.toThrow(
+      /space credential failed \(502\)/,
+    );
   });
 });
 

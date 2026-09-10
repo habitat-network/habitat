@@ -30,3 +30,4 @@ workspace:
     exclude:
       - format
       - format-check
+      - test

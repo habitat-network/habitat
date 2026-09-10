@@ -10,9 +10,9 @@ import {
   TableCell,
 } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
-import { useActors } from "@/hooks/useActors";
 import { Route as RequireAuthRoute } from "@/routes/_requireAuth";
 import { listDocs } from "@/server/functions";
+import { useActors } from "internal/hooks";
 
 function OwnerCell({ owner }: { owner: Actor }) {
   return (

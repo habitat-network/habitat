@@ -16,6 +16,7 @@ import {
   type ShareDialogRole,
 } from "internal";
 import { Button, toast } from "internal/components/ui";
+import { useActors } from "internal/hooks";
 import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
 import {
@@ -27,7 +28,6 @@ import {
   encodeAnchor,
   type CommentAnchor,
 } from "@/extensions/commentAnchor";
-import { useActors } from "@/hooks/useActors";
 import { OrgShareControl } from "@/components/OrgShareControl";
 import { useYDoc } from "@/hooks/useYDoc";
 import { Route as RequireAuthRoute } from "@/routes/_requireAuth";

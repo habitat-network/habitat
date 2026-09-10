@@ -4,12 +4,14 @@ package habitat
 
 import (
 	"encoding/json"
+
 	"github.com/bluesky-social/indigo/atproto/atdata"
 )
 
 // NetworkHabitatSpaceDefsSignedCommit represents a signedCommit object
 type NetworkHabitatSpaceDefsSignedCommit struct {
 	LexiconTypeID string       `json:"$type"`
+	HabitatSigned bool         `json:"habitatSigned,omitempty"`
 	Hash          atdata.Bytes `json:"hash"`
 	Ikm           atdata.Bytes `json:"ikm"`
 	Mac           atdata.Bytes `json:"mac"`

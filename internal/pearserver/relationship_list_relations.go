@@ -22,8 +22,15 @@ func (p *PearServer) ListRelations(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// A space credential is accepted alongside a user's own auth so a service
+	// syncing the space (e.g. chalk resolving a doc's owner off an outbox
+	// event, with no user session) can read its permission structure.
 	if _, ok = p.validator.Request(
-		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+		authn.WithMethods(
+			authn.ValidatorMethodOAuth,
+			authn.ValidatorMethodServiceAuth,
+			authn.ValidatorMethodSpaceCredential,
+		),
 		authn.WithSpace(space, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r); !ok {
 		return

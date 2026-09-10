@@ -31,7 +31,8 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "test": "vitest run"
   },
   "dependencies": {
     "@atproto/api": "catalog:",
@@ -39,6 +40,7 @@
     "@atproto/oauth-client-browser": "0.0.0-spaces-alpha-20260818163953",
     "@atproto/syntax": "catalog:",
     "@base-ui/react": "^1.6.0",
+    "@tanstack/pacer": "catalog:",
     "@uidotdev/usehooks": "^2.4.1",
     "api": "workspace:*",
     "boring-avatars": "catalog:",
@@ -64,10 +66,15 @@
     "@tailwindcss/typography": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "jsdom": "catalog:",
+    "msw": "^2.15.0",
     "tailwindcss": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

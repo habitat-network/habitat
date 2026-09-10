@@ -48,6 +48,62 @@ export async function startLogin(
   return redirect_url;
 }
 
+// querySpace runs an XRPC query against a space's own host without acting as
+// any particular member: sap mints a space credential (GET /space/credential)
+// through whichever of its sessions has access to the space, and the query is
+// sent with it straight to the host sap says the credential is valid against.
+// Only endpoints that accept a space credential work this way (e.g.
+// network.habitat.space.getBlob, network.habitat.relationship.listRelations).
+// It's for reads made while handling an outbox webhook, where no member is
+// signed in and the doc's owner or a record's author may have no sap session.
+// Throws on a non-2xx response from either sap or the space host.
+export async function querySpace(
+  env: Env,
+  space: string,
+  nsid: string,
+  params: Record<string, string>,
+): Promise<Response> {
+  const base = env.CHALK_SAP_INTERNAL_URL;
+  if (!base) throw new Error("CHALK_SAP_INTERNAL_URL is not set");
+  const credRes = await fetch(
+    `${base}/space/credential?${new URLSearchParams({ space }).toString()}`,
+    { headers: sapAuthHeaders(env) },
+  );
+  if (!credRes.ok) {
+    throw new Error(
+      `space credential failed (${credRes.status}): ${await credRes.text()}`,
+    );
+  }
+  const { credential, host } = (await credRes.json()) as {
+    credential: string;
+    host: string;
+  };
+  const res = await fetch(
+    `${host}/xrpc/${nsid}?${new URLSearchParams(params).toString()}`,
+    { headers: { Authorization: `Bearer ${credential}` } },
+  );
+  if (!res.ok) {
+    throw new Error(`${nsid} failed (${res.status}): ${await res.text()}`);
+  }
+  return res;
+}
+
+// getSpaceBlob fetches a blob's raw bytes from a space, addressed by its CID,
+// via querySpace. A putRecord'd record only carries a blob *reference* (a
+// $type: "blob" object with the CID under ref.$link), so reading a member's
+// Yjs update back out means dereferencing it here.
+export async function getSpaceBlob(
+  env: Env,
+  space: string,
+  cid: string,
+): Promise<Uint8Array> {
+  const res = await querySpace(env, space, "network.habitat.space.getBlob", {
+    space,
+    cid,
+  });
+  return new Uint8Array(await res.arrayBuffer());
+}
+
 // SapClient makes authenticated pear calls as a specific member, via sap's
 // /proxy/<nsid>, which resumes the (single) OAuth session sap tracks for did
 // and attaches the access token.
@@ -139,29 +195,6 @@ export class SapClient {
       throw new Error(`uploadBlob failed (${res.status}): ${await res.text()}`);
     }
     return (await res.json()) as { blob: unknown; cid: string };
-  }
-
-  // getBlob fetches a blob's raw bytes from a space, addressed by its CID
-  // (network.habitat.space.getBlob — requires read access to the space).
-  // A putRecord'd record only carries a blob *reference* (a $type: "blob"
-  // object with the CID under ref.$link), not the bytes themselves, so
-  // reading a member's Yjs update back out means dereferencing it here.
-  async getBlob(space: string, cid: string): Promise<Uint8Array> {
-    const qs = new URLSearchParams({ space, cid });
-    const res = await fetch(
-      `${this.base}/proxy/network.habitat.space.getBlob?${qs.toString()}`,
-      {
-        method: "GET",
-        headers: {
-          [habitatDIDHeader]: this.did,
-          ...sapAuthHeaders(this.env),
-        },
-      },
-    );
-    if (!res.ok) {
-      throw new Error(`getBlob failed (${res.status}): ${await res.text()}`);
-    }
-    return new Uint8Array(await res.arrayBuffer());
   }
 
   // trackSpace asks sap to start tracking spaceUri immediately (sap's

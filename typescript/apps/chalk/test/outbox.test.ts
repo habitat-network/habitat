@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import { processOutboxMessage } from "../src/server/outbox";
 import {
   commentsForDoc,
+  docByUri,
   docsFor,
   getDb,
   repliesForDoc,
@@ -37,33 +38,146 @@ beforeEach(async () => {
   });
 });
 
+const SPACE_HOST = "https://space-host.test";
+
+// fakeSap answers the calls applyRemote and indexUnknownDoc make: sap's
+// /space/credential with a credential for SPACE_HOST, listRelations via the
+// given callback, and anything else (getBlob) with an empty Yjs update. A
+// fresh Response per call, not a shared instance: a Response's body ends up
+// read inside DocRoom (via applyRemote -> getSpaceBlob), a different Durable
+// Object than this test's own execution context — reusing an instance
+// created here hits a real Workers I/O-ownership restriction ("Cannot perform
+// I/O on behalf of a different Durable Object").
+function fakeSap(
+  listRelations: () => Response = () => Response.json({ relations: [] }),
+) {
+  return async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/space/credential")) {
+      return Response.json({ credential: "space-cred", host: SPACE_HOST });
+    }
+    if (url.includes("relationship.listRelations")) return listRelations();
+    return new Response(EMPTY_UPDATE);
+  };
+}
+
 function msg(uri: string, cid: string | undefined) {
   return { id: 1, uri, value: cid ? { blob: { ref: { $link: cid } } } : {} };
 }
 
-it("routes a crdt record to its doc room", async () => {
-  // A fresh Response per call, not a shared instance: this Response's body
-  // ends up read inside DocRoom (via applyRemote -> getBlob), a different
-  // Durable Object than this test's own execution context — reusing an
-  // instance created here hits a real Workers I/O-ownership restriction
-  // ("Cannot perform I/O on behalf of a different Durable Object").
-  fetchMock.mockImplementation(async () => new Response(EMPTY_UPDATE));
+it("routes a crdt record to its doc room, reading the blob with a space credential", async () => {
+  fetchMock.mockImplementation(fakeSap());
   await processOutboxMessage(env, msg(RECORD, "cid1"));
+  const blobCall = fetchMock.mock.calls.find((c) =>
+    String(c[0]).startsWith(`${SPACE_HOST}/xrpc/network.habitat.space.getBlob`),
+  );
+  expect(blobCall).toBeDefined();
+  expect(
+    new Headers((blobCall?.[1] as RequestInit | undefined)?.headers).get(
+      "Authorization",
+    ),
+  ).toBe("Bearer space-cred");
+});
+
+it("ignores a record in a different collection", async () => {
+  const other = `${URI}/did:web:bob.example/network.habitat.docs.comment/c1`;
+  await processOutboxMessage(env, msg(other, "cid1"));
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+const UNKNOWN_URI = `at://${OWNER}/space/network.habitat.docs/zzz`;
+const UNKNOWN_RECORD = `${UNKNOWN_URI}/did:web:bob.example/network.habitat.docs.crdt/self`;
+const CAROL = "did:web:carol.example";
+
+it("indexes a doc absent from the index under its owner relation", async () => {
+  fetchMock.mockImplementation(
+    fakeSap(() =>
+      Response.json({
+        relations: [
+          {
+            uri: `${UNKNOWN_URI}/${OWNER}/network.habitat.relationship.userRelation/r1`,
+            subject: CAROL,
+            relation: "owner",
+            object: UNKNOWN_URI,
+          },
+        ],
+      }),
+    ),
+  );
+  await processOutboxMessage(env, msg(UNKNOWN_RECORD, "cid1"));
+
+  expect(await docByUri(getDb(env), UNKNOWN_URI)).toEqual({
+    docId: UNKNOWN_URI,
+    uri: UNKNOWN_URI,
+    ownerDid: CAROL,
+    title: "Untitled",
+  });
+  const listCall = fetchMock.mock.calls.find((c) =>
+    String(c[0]).includes("relationship.listRelations"),
+  );
+  const params = new URL(String(listCall?.[0])).searchParams;
+  expect(params.get("space")).toBe(UNKNOWN_URI);
+  expect(params.get("relation")).toBe("owner");
+  expect(params.get("subjectType")).toBe("user");
   expect(
     fetchMock.mock.calls.some((c) => String(c[0]).includes("space.getBlob")),
   ).toBe(true);
 });
 
-it("ignores a record in a different collection", async () => {
-  const other = `${URI}/did:web:bob.example/network.habitat.docs.markdown/self`;
-  await processOutboxMessage(env, msg(other, "cid1"));
-  expect(fetchMock).not.toHaveBeenCalled();
+it("falls back to the space authority when a doc has no owner relation", async () => {
+  fetchMock.mockImplementation(fakeSap(() => Response.json({ relations: [] })));
+  await processOutboxMessage(env, msg(UNKNOWN_RECORD, "cid1"));
+  expect((await docByUri(getDb(env), UNKNOWN_URI))?.ownerDid).toBe(OWNER);
+  expect(
+    fetchMock.mock.calls.some((c) => String(c[0]).includes("space.getBlob")),
+  ).toBe(true);
 });
 
-it("ignores a doc absent from the index", async () => {
-  const unknown = `at://${OWNER}/space/network.habitat.docs/zzz/did:web:bob.example/network.habitat.docs.crdt/self`;
-  await processOutboxMessage(env, msg(unknown, "cid1"));
-  expect(fetchMock).not.toHaveBeenCalled();
+it("falls back to the space authority when the owner lookup fails", async () => {
+  fetchMock.mockImplementation(
+    fakeSap(() => new Response("no tracked session", { status: 502 })),
+  );
+  await processOutboxMessage(env, msg(UNKNOWN_RECORD, "cid1"));
+  expect((await docByUri(getDb(env), UNKNOWN_URI))?.ownerDid).toBe(OWNER);
+});
+
+const MARKDOWN_RECORD = `${URI}/${OWNER}/network.habitat.docs.markdown/self`;
+
+it("sets a doc's title from its markdown record", async () => {
+  await processOutboxMessage(env, {
+    id: 1,
+    uri: MARKDOWN_RECORD,
+    value: { title: "Quarterly plan", content: "Quarterly plan\n\nDetails" },
+  });
+  expect((await docByUri(getDb(env), URI))?.title).toBe("Quarterly plan");
+});
+
+it("indexes a doc absent from the index under its markdown record's title", async () => {
+  fetchMock.mockImplementation(
+    fakeSap(() =>
+      Response.json({
+        relations: [
+          { uri: "r1", subject: CAROL, relation: "owner", object: UNKNOWN_URI },
+        ],
+      }),
+    ),
+  );
+  await processOutboxMessage(env, {
+    id: 1,
+    uri: `${UNKNOWN_URI}/${CAROL}/network.habitat.docs.markdown/self`,
+    value: { title: "Launch notes", content: "Launch notes" },
+  });
+  expect(await docByUri(getDb(env), UNKNOWN_URI)).toEqual({
+    docId: UNKNOWN_URI,
+    uri: UNKNOWN_URI,
+    ownerDid: CAROL,
+    title: "Launch notes",
+  });
+});
+
+it("ignores a markdown delete tombstone", async () => {
+  await processOutboxMessage(env, { id: 1, uri: MARKDOWN_RECORD, value: null });
+  expect((await docByUri(getDb(env), URI))?.title).toBe("Untitled");
 });
 
 it("ignores a record with no blob reference", async () => {
@@ -71,15 +185,8 @@ it("ignores a record with no blob reference", async () => {
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
-it("throws on a malformed uri", async () => {
-  // Unlike the "ignores" cases above (a well-formed uri this deliberately
-  // doesn't care about), a uri that isn't a uri at all can't be
-  // distinguished from a bug — this throws so handleSapWebhook (webhook.ts)
-  // turns it into a 500 and sap retries, instead of silently acking a
-  // message that was never actually processed.
-  await expect(
-    processOutboxMessage(env, msg("not-a-uri", "cid1")),
-  ).rejects.toThrow();
+it("ignores a malformed uri", async () => {
+  await processOutboxMessage(env, msg("not-a-uri", "cid1"));
   expect(fetchMock).not.toHaveBeenCalled();
 });
 

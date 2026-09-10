@@ -269,6 +269,37 @@ func TestHandleRecrawlSchedulesAndReturnsAccepted(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, w.Code)
 }
 
+// TestHandleSpaceCredential covers /space/credential's error paths: a missing
+// or unparsable space is a bad request, and a space no tracked session can
+// access fails to mint. The success path is TestSapSpaceCredential.
+func TestHandleSpaceCredential(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		query    string
+		wantCode int
+	}{
+		{"missing space", "", http.StatusBadRequest},
+		{"unparsable space", "?space=not-a-space", http.StatusBadRequest},
+		{
+			"no session can access the space",
+			"?space=at://did:plc:owner/space/network.habitat.docs/abc",
+			http.StatusBadGateway,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			srv := newTestServer(t)
+			req := httptest.NewRequest(http.MethodGet, "/space/credential"+tt.query, http.NoBody)
+			w := httptest.NewRecorder()
+			srv.handleSpaceCredential(w, req)
+			require.Equal(t, tt.wantCode, w.Code, w.Body.String())
+		})
+	}
+}
+
 func TestHandleNotifyWriteRejectsMissingOrInvalidAuth(t *testing.T) {
 	t.Parallel()
 
