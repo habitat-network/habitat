@@ -5,27 +5,27 @@ tasks:
     args:
       - prettier
       - --ignore-path
-      - '@in(0)'
+      - "@in(0)"
       - --ignore-path
-      - '@in(1)'
+      - "@in(1)"
     inputs:
-    - /.prettierignore
-    - .gitignore
-    - '**/*'
+      - /.prettierignore
+      - .gitignore
+      - "**/*"
     options:
       internal: true
   format-check:
     extends: format-internal
     args:
-    - --check
-    - .
+      - --check
+      - .
     options:
       internal: false
   format:
     extends: format-internal
     args:
-    - --write
-    - .
+      - --write
+      - .
     options:
       internal: false
     preset: server
@@ -43,8 +43,8 @@ tasks:
       - typescript/internal:build
     inputs:
       - /pnpm-lock.yaml
-      - '**/*'
-    command: pnpm 
+      - "**/*"
+    command: pnpm
     args: build
   test:
     command: pnpm
@@ -64,9 +64,8 @@ tasks:
     command: pnpm dev
     options:
       envFile:
-      - /dev.env
+        - /dev.env
 inheritedBy:
-  toolchains: 
+  toolchains:
     or: [typescript]
     not: [go]
-
