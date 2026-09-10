@@ -14,7 +14,6 @@ export const docs = sqliteTable(
     ownerDid: text("owner_did").notNull(),
     title: text("title").notNull(),
     updatedAt: integer("updated_at").notNull(),
-    isOrg: integer("is_org", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [index("docs_owner_updated").on(t.ownerDid, t.updatedAt)],
 );
@@ -39,6 +38,29 @@ export const docAccess = sqliteTable(
   (t) => [
     primaryKey({ columns: [t.subjectDid, t.spaceUri] }),
     index("doc_access_uri").on(t.uri),
+  ],
+);
+
+// docOrgAccess mirrors the network.habitat.relationship.spaceRelation
+// records that grant a whole org access to a doc — the ones whose subject is
+// that org's own community.opensocial.members space (see orgMembersSpaceUri),
+// which is how "share with everyone at <org>" is expressed. One row per
+// (orgDid, spaceUri): an org holds at most one relation on a given doc.
+// Like doc_access, the relation record's own URI is kept as an indexed
+// column rather than the key, so a delete tombstone — which carries only
+// that URI, not the subject — can still find the row to remove.
+export const docOrgAccess = sqliteTable(
+  "doc_org_access",
+  {
+    orgDid: text("org_did").notNull(),
+    spaceUri: text("space_uri").notNull(),
+    uri: text("uri").notNull(),
+    relation: text("relation").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orgDid, t.spaceUri] }),
+    index("doc_org_access_uri").on(t.uri),
   ],
 );
 

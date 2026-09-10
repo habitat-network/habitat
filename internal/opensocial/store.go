@@ -381,6 +381,18 @@ func (s *Store) CheckPermission(
 	return len(intersection) > 0, nil
 }
 
+// ListMemberSpaces returns the community.opensocial.members spaces `user`
+// belongs to — every org whose members space it holds a permissioned repo
+// in (i.e. has written its own record into, such as a
+// community.opensocial.acceptance record when joining).
+func (s *Store) ListMemberSpaces(
+	ctx context.Context,
+	user syntax.DID,
+) ([]habitat_syntax.SpaceURI, error) {
+	membersType := syntax.NSID(MembersSpaceType)
+	return s.spacesStore.ListSpaces(ctx, user, nil, &membersType)
+}
+
 func (s *Store) GetUserRoles(
 	ctx context.Context,
 	orgDID syntax.DID,
