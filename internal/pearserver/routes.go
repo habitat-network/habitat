@@ -27,6 +27,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/community.opensocial.revokeInvite", p.RevokeInvite)
 	p.router.HandleFunc("/xrpc/community.opensocial.requestJoin", p.RequestJoin)
 	p.router.HandleFunc("/xrpc/community.opensocial.createSpace", p.CreateOpensocialSpace)
+	p.router.HandleFunc("/xrpc/community.opensocial.updateSpace", p.UpdateOpensocialSpace)
 
 	// Simplespace
 	p.router.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", p.CreateSpace)

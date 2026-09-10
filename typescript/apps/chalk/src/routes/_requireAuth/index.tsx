@@ -16,6 +16,7 @@ import {
   TableCell,
 } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
+import { Route as RequireAuthRoute } from "@/routes/_requireAuth";
 import { listDocs } from "@/server/functions";
 
 function OwnerCell({
@@ -40,12 +41,16 @@ export const Route = createFileRoute("/_requireAuth/")({
       queryKey: ["docs"],
       queryFn: () => listDocs(),
     });
+    // In org mode every doc listed belongs to the org, so an owner column
+    // would repeat the same org on every row.
+    const { currentOrg } = RequireAuthRoute.useLoaderData();
+    const showOwner = !currentOrg;
 
     const ownerDids = [...new Set(docs.map((doc) => doc.ownerDid))];
     const { data: owners = [] } = useQuery({
       queryKey: ["profiles", ownerDids],
       queryFn: () => getProfiles(ownerDids),
-      enabled: ownerDids.length > 0,
+      enabled: showOwner && ownerDids.length > 0,
     });
     const ownersByDid = new Map(owners.map((owner) => [owner.did, owner]));
 
@@ -71,7 +76,7 @@ export const Route = createFileRoute("/_requireAuth/")({
             <TableHeader>
               <TableRow>
                 <TableHead>Document</TableHead>
-                <TableHead>Owner</TableHead>
+                {showOwner && <TableHead>Owner</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -86,12 +91,14 @@ export const Route = createFileRoute("/_requireAuth/")({
                       {doc.title}
                     </Link>
                   </TableCell>
-                  <TableCell>
-                    <OwnerCell
-                      owner={ownersByDid.get(doc.ownerDid)}
-                      ownerDid={doc.ownerDid}
-                    />
-                  </TableCell>
+                  {showOwner && (
+                    <TableCell>
+                      <OwnerCell
+                        owner={ownersByDid.get(doc.ownerDid)}
+                        ownerDid={doc.ownerDid}
+                      />
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

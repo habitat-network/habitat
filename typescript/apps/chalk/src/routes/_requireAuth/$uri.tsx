@@ -19,6 +19,7 @@ import {
 import { toast } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
+import { OrgShareControl } from "@/components/OrgShareControl";
 import { useYDoc } from "@/hooks/useYDoc";
 import { Route as RequireAuthRoute } from "@/routes/_requireAuth";
 import {
@@ -154,7 +155,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         </div>
         <PageHeader>
           <div className="flex gap-2">
-            {role === "editor" && !currentOrg && (
+            {role === "editor" && (
               <ShareDialog
                 grantees={grantees}
                 isAdding={isAddingPermission}
@@ -164,7 +165,14 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
                   addPermission({ actors, role })
                 }
                 onRemovePermission={(actor) => removePermission(actor)}
-              />
+              >
+                {currentOrg && (
+                  <OrgShareControl
+                    docId={uri}
+                    orgName={currentOrg.name ?? currentOrg.did}
+                  />
+                )}
+              </ShareDialog>
             )}
             <HelpDialog />
           </div>
