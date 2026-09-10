@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SelectGroup,
   toast,
 } from "internal/components/ui";
 import { UsersIcon } from "lucide-react";
@@ -18,16 +18,22 @@ import {
 type OrgAccess = "editor" | "viewer" | "none";
 
 const LABEL: Record<OrgAccess, string> = {
-  none: "Not shared with org",
-  viewer: "Org can view",
-  editor: "Org can edit",
+  none: "No access",
+  viewer: "Can view",
+  editor: "Can edit",
 };
 
 // OrgShareControl lets a doc's editor grant (or revoke) access to every
 // member of the current org at once, via a single spaceRelation naming the
-// org's own members space as its subject — the org-mode counterpart to
-// ShareDialog's per-person sharing.
-export function OrgShareControl({ docId }: { docId: string }) {
+// org's own members space as its subject. Rendered inside ShareDialog (as
+// its children) alongside the per-person grants it complements.
+export function OrgShareControl({
+  docId,
+  orgName,
+}: {
+  docId: string;
+  orgName: string;
+}) {
   const queryClient = useQueryClient();
   const queryKey = ["docOrgAccess", docId];
 
@@ -53,31 +59,30 @@ export function OrgShareControl({ docId }: { docId: string }) {
   });
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button variant="outline" disabled={isPending}>
-            <UsersIcon className="size-4" />
-            {LABEL[access]}
-          </Button>
-        }
-      />
-      <DropdownMenuContent>
-        <DropdownMenuRadioGroup
-          value={access}
-          onValueChange={(value) => setAccess(value as OrgAccess)}
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2 text-sm">
+        <UsersIcon className="size-4 text-muted-foreground" />
+        <span>Everyone at {orgName}</span>
+      </div>
+      <Select
+        value={access}
+        onValueChange={(next) => setAccess(next as OrgAccess)}
+        disabled={isPending}
+      >
+        <SelectTrigger
+          size="sm"
+          aria-label={`Access for everyone at ${orgName}`}
         >
-          <DropdownMenuRadioItem value="none">
-            {LABEL.none}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="viewer">
-            {LABEL.viewer}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="editor">
-            {LABEL.editor}
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <SelectValue>{(value) => LABEL[value as OrgAccess]}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value="none">{LABEL.none}</SelectItem>
+            <SelectItem value="viewer">{LABEL.viewer}</SelectItem>
+            <SelectItem value="editor">{LABEL.editor}</SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
