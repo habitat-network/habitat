@@ -18,7 +18,7 @@ require (
 	github.com/lmittmann/tint v1.2.0
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/multiformats/go-multihash v0.2.3
-	github.com/openfga/api/proto v0.0.0-20260723150800-6981fff8d33b
+	github.com/openfga/api/proto v0.0.0-20260908144156-7a79d2abab5b
 	github.com/openfga/openfga v1.18.3
 	github.com/ory/fosite v0.49.0
 	github.com/pressly/goose/v3 v3.27.3
