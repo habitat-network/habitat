@@ -119,6 +119,40 @@ func TestStore(t *testing.T) {
 		require.Empty(t, newSpaceRecords)
 	})
 
+	t.Run("UpdateSpace", func(t *testing.T) {
+		spaceURI, err := s.CreateSpace(
+			t.Context(),
+			org,
+			[]string{opensocial.MemberRoleRkey},
+			syntax.NSID("community.opensocial.channel"),
+			"announcements",
+		)
+		require.NoError(t, err)
+
+		require.NoError(t, s.UpdateSpace(t.Context(), spaceURI, []string{opensocial.AdminRoleRkey}))
+
+		// The access record now grants only the admin role.
+		record, err := s.SpaceStore.GetRecord(
+			t.Context(), spaceURI, org, "community.opensocial.access", "self",
+		)
+		require.NoError(t, err)
+		require.Equal(t, []any{opensocial.AdminRoleRkey}, record.Value["roles"])
+
+		// A member who previously held the member role can no longer read.
+		ok, err := s.CheckPermission(t.Context(), member, spaceURI)
+		require.NoError(t, err)
+		require.False(t, ok)
+
+		// An admin can.
+		require.NoError(
+			t,
+			s.AssignRoles(t.Context(), org, creator, []string{opensocial.AdminRoleRkey}),
+		)
+		ok, err = s.CheckPermission(t.Context(), creator, spaceURI)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
+
 	t.Run("UploadImage", func(t *testing.T) {
 		png := []byte("fake-png-bytes")
 		require.NoError(t, s.UpdateProfile(t.Context(), org, "Brand New", "", ""))
