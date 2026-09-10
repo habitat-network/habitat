@@ -13,6 +13,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // Verifier authenticates a repo's signed commit against a locally recomputed
@@ -97,11 +98,11 @@ func (v *Verifier) signer(
 	if err != nil {
 		return nil, fmt.Errorf("lookup space owner: %w", err)
 	}
-	svc, ok := ownerIdent.Services["atproto_space_host"]
-	if !ok || svc.URL == "" {
+	endpoint := utils.SpaceHostEndpoint(ownerIdent)
+	if endpoint == "" {
 		return nil, fmt.Errorf("space owner %s has no atproto_space_host service", owner)
 	}
-	u, err := url.Parse(svc.URL)
+	u, err := url.Parse(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("parse atproto_space_host service url: %w", err)
 	}
