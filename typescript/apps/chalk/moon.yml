@@ -4,6 +4,11 @@ tasks:
   dev:
     env:
       SERVER_PORT: "5177"
+      # workerd's outbound fetch only trusts public CAs plus this bundle, not
+      # the macOS keychain, so without it every request to a Caddy-served
+      # *.local.habitat.network host (e.g. getBlob on the space host) fails
+      # TLS with an opaque "internal error".
+      NODE_EXTRA_CA_CERTS: "$HOME/Library/Application Support/Caddy/pki/authorities/local/root.crt"
     deps:
       - pear:dev
       - sap:dev

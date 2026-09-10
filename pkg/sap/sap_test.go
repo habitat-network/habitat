@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -365,6 +366,87 @@ func TestSapTrackSpace(t *testing.T) {
 	var repoCount int64
 	require.NoError(t, db.Table("repos").Count(&repoCount).Error)
 	require.Equal(t, int64(1), repoCount)
+}
+
+// TestSapSpaceCredential verifies SpaceCredential mints, through a session
+// with recorded access to the space, a credential the space's host accepts for
+// a read — here a caller other than the session itself (no DID of its own)
+// reading a record with it.
+func TestSapSpaceCredential(t *testing.T) {
+	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	pear := setupPear(t)
+	t.Cleanup(func() {
+		pear.server.CloseClientConnections()
+		pear.server.Close()
+	})
+	author := pear.author.DID
+
+	space, err := pear.store.CreateSpace(
+		t.Context(), author, "network.habitat.group", habitat_syntax.SpaceKey("cred-space"),
+	)
+	require.NoError(t, err)
+	_, _, err = pear.store.PutRecord(
+		t.Context(),
+		space,
+		author,
+		"network.habitat.test",
+		"rkey-0",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "credentialed"}),
+	)
+	require.NoError(t, err)
+
+	sapServer := httptest.NewTLSServer(http.NewServeMux())
+	t.Cleanup(sapServer.Close)
+
+	db := db_testutil.NewDB(t)
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		sapServer.URL+"/client-metadata.json",
+		sapServer.URL+"/oauth-callback",
+		[]string{},
+	)
+	attestationKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
+	oauthApp := oauth.NewClientApp(&cfg, store)
+
+	s, err := New(Config{
+		DB:          db,
+		OAuthClient: oauthApp,
+		Directory:   pear.hive,
+		Endpoint:    sapServer.URL,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:              author,
+		SessionID:               "sess1",
+		HostURL:                 pear.server.URL,
+		AccessToken:             futureJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
+	}))
+	require.NoError(t, s.TrackSpace(t.Context(), space.URI(), author, "sess1"))
+
+	cred, err := s.SpaceCredential(t.Context(), space)
+	require.NoError(t, err)
+	require.Equal(t, pear.server.URL, cred.Host)
+
+	client := &atclient.APIClient{
+		Client:  http.DefaultClient,
+		Host:    cred.Host,
+		Headers: http.Header{"Authorization": []string{"Bearer " + cred.Token}},
+	}
+	var out habitat.NetworkHabitatSpaceGetRecordOutput
+	require.NoError(t, client.Get(t.Context(), "network.habitat.space.getRecord", map[string]any{
+		"space":      space.URI().String(),
+		"repo":       author.String(),
+		"collection": "network.habitat.test",
+		"rkey":       "rkey-0",
+	}, &out))
 }
 
 // TestSapRecrawl verifies that Recrawl re-crawls a session even when a prior

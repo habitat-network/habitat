@@ -168,6 +168,31 @@ func TestManagerResolvesHostPerSpace(t *testing.T) {
 	require.Equal(t, "cred-b", credToken(t, m, spaceB))
 }
 
+// TestManagerCredential verifies Credential hands back the minted token along
+// with the space owner's host it was minted for, so a caller can read the space
+// there directly.
+func TestManagerCredential(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/xrpc/network.habitat.space.getSpaceCredential", r.URL.Path)
+		_ = json.NewEncoder(w).Encode(
+			habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "space-cred"})
+	}))
+	t.Cleanup(srv.Close)
+
+	owner := syntax.DID("did:web:org")
+	space := habitat_syntax.SpaceURI("at://did:web:org/space/network.habitat.group/s1")
+	m := NewManager(
+		dirWithSpaceHost(owner, srv.URL),
+		http.DefaultClient,
+		stubDelegator{},
+		testAttester(t, "https://sap.example.com"),
+	)
+
+	cred, err := m.Credential(t.Context(), space)
+	require.NoError(t, err)
+	require.Equal(t, Credential{Token: "space-cred", Host: srv.URL}, cred)
+}
+
 // TestManagerAttachesClientAttestation verifies mint signs a
 // getSpaceCredential request's clientAttestation with a JWT that a real
 // space authority (clientmetadata's verifier) actually accepts.
