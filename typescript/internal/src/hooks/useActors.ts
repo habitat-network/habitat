@@ -23,24 +23,8 @@ import type { Actor } from "../types/Actor";
 // AsyncBatcher, which coalesces every query that fires in the same tick
 // into a single getProfiles request (this is the pattern from TanStack's
 // react/batching example).
-type Deferred<T> = {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-  reject: (reason?: unknown) => void;
-};
-
-function deferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
 type ActorRequest = {
-  deferred: Deferred<Actor>;
+  deferred: PromiseWithResolvers<Actor>;
   did: string;
 };
 
@@ -75,9 +59,9 @@ const actorBatcher = new AsyncBatcher<ActorRequest>(
 // on the shared batcher and resolves with that did's profile (or a bare
 // `{ did }` when bsky returned no profile for it).
 function loadActor(did: string): Promise<Actor> {
-  const d = deferred<Actor>();
-  actorBatcher.addItem({ deferred: d, did });
-  return d.promise;
+  const deferred = Promise.withResolvers<Actor>();
+  actorBatcher.addItem({ deferred, did });
+  return deferred.promise;
 }
 
 export function useActors(dids: string[]): (did: string) => Actor {
