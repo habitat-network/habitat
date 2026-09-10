@@ -267,6 +267,7 @@ it("mirrors a comment record into the comments table, backfilling its cid via ge
   await processOutboxMessage(
     env,
     commentMsg(COMMENT_RECORD, {
+      $type: "network.habitat.docs.comment",
       body: "nice doc",
       anchorStart: { $bytes: "c3RhcnQtcmVsLXBvcw" },
       anchorEnd: { $bytes: "ZW5kLXJlbC1wb3M" },
@@ -281,8 +282,9 @@ it("mirrors a comment record into the comments table, backfilling its cid via ge
     docSpaceUri: URI,
     authorDid: BOB, // the repo holding the record, not a field on it
     body: "nice doc",
-    anchorStart: "c3RhcnQtcmVsLXBvcw",
-    anchorEnd: "ZW5kLXJlbC1wb3M",
+    anchorStart: new TextEncoder().encode("start-rel-pos"),
+    anchorEnd: new TextEncoder().encode("end-rel-pos"),
+    createdAt: Date.parse("2024-01-01T00:00:00.000Z"),
   });
 });
 
@@ -291,9 +293,11 @@ it("removes the comment on a delete tombstone (null value), without calling getR
   await processOutboxMessage(
     env,
     commentMsg(COMMENT_RECORD, {
+      $type: "network.habitat.docs.comment",
       body: "nice doc",
       anchorStart: { $bytes: "YQ" },
       anchorEnd: { $bytes: "Yg" },
+      createdAt: "2024-01-01T00:00:00.000Z",
     }),
   );
   fetchMock.mockReset();
@@ -310,9 +314,11 @@ it("ignores a comment on a doc this deployment doesn't know", async () => {
   await processOutboxMessage(
     env,
     commentMsg(unknownRecord, {
+      $type: "network.habitat.docs.comment",
       body: "x",
       anchorStart: { $bytes: "YQ" },
       anchorEnd: { $bytes: "Yg" },
+      createdAt: "2024-01-01T00:00:00.000Z",
     }),
   );
   expect(fetchMock).not.toHaveBeenCalled(); // never reaches the getRecord call
@@ -324,8 +330,21 @@ it("ignores a comment on a doc this deployment doesn't know", async () => {
   ).toEqual([]);
 });
 
-it("ignores a comment record missing body or an anchor", async () => {
-  await processOutboxMessage(env, commentMsg(COMMENT_RECORD, { body: "x" }));
+it("ignores a comment record that fails lexicon validation", async () => {
+  const valid = {
+    $type: "network.habitat.docs.comment",
+    body: "x",
+    anchorStart: { $bytes: "YQ" },
+    anchorEnd: { $bytes: "Yg" },
+    createdAt: "2024-01-01T00:00:00.000Z",
+  };
+  for (const invalid of [
+    { ...valid, anchorEnd: undefined }, // missing an anchor
+    { ...valid, anchorStart: "YQ" }, // anchor as a string, not bytes
+    { ...valid, $type: undefined }, // not typed as a comment
+  ]) {
+    await processOutboxMessage(env, commentMsg(COMMENT_RECORD, invalid));
+  }
   expect(fetchMock).not.toHaveBeenCalled();
   expect(await commentsForDoc(getDb(env), URI)).toEqual([]);
 });
@@ -337,9 +356,11 @@ it("drops a comment whose getRecord call fails (can't mirror without a cid)", as
   await processOutboxMessage(
     env,
     commentMsg(COMMENT_RECORD, {
+      $type: "network.habitat.docs.comment",
       body: "x",
       anchorStart: { $bytes: "YQ" },
       anchorEnd: { $bytes: "Yg" },
+      createdAt: "2024-01-01T00:00:00.000Z",
     }),
   );
   expect(await commentsForDoc(getDb(env), URI)).toEqual([]);
@@ -347,6 +368,18 @@ it("drops a comment whose getRecord call fails (can't mirror without a cid)", as
 
 const COMMENT_REPLY_RECORD = `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.commentReply/xyz`;
 const ROOT_COMMENT_URI = `${COMMENTS_SPACE}/${OWNER}/network.habitat.docs.comment/1`;
+// A well-formed reply record. Its strongRef names a space record URI, which
+// lexicon validation has to accept, and the strongRef's cid is format
+// "cid", so this has to be a real one.
+const REPLY_VALUE = {
+  $type: "network.habitat.docs.commentReply",
+  comment: {
+    uri: ROOT_COMMENT_URI,
+    cid: "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm",
+  },
+  body: "I agree",
+  createdAt: "2024-01-01T00:00:00.000Z",
+};
 
 function replyMsg(uri: string, value: unknown) {
   return { id: 1, uri, value };
@@ -356,14 +389,7 @@ it("mirrors a commentReply record into comment_replies, without needing a cid (n
   fetchMock.mockImplementation(async () => {
     throw new Error("replies should not need a getRecord call");
   });
-  await processOutboxMessage(
-    env,
-    replyMsg(COMMENT_REPLY_RECORD, {
-      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
-      body: "I agree",
-      createdAt: "2024-01-01T00:00:00.000Z",
-    }),
-  );
+  await processOutboxMessage(env, replyMsg(COMMENT_REPLY_RECORD, REPLY_VALUE));
   const rows = await repliesForDoc(getDb(env), URI);
   expect(rows).toEqual([
     expect.objectContaining({
@@ -372,26 +398,26 @@ it("mirrors a commentReply record into comment_replies, without needing a cid (n
       commentUri: ROOT_COMMENT_URI,
       authorDid: BOB,
       body: "I agree",
+      createdAt: Date.parse("2024-01-01T00:00:00.000Z"),
     }),
   ]);
 });
 
 it("removes the reply on a delete tombstone (null value)", async () => {
-  await processOutboxMessage(
-    env,
-    replyMsg(COMMENT_REPLY_RECORD, {
-      comment: { uri: ROOT_COMMENT_URI, cid: "bafyroot" },
-      body: "I agree",
-    }),
-  );
+  await processOutboxMessage(env, replyMsg(COMMENT_REPLY_RECORD, REPLY_VALUE));
+  expect(await repliesForDoc(getDb(env), URI)).toHaveLength(1);
   await processOutboxMessage(env, replyMsg(COMMENT_REPLY_RECORD, null));
   expect(await repliesForDoc(getDb(env), URI)).toEqual([]);
 });
 
-it("ignores a commentReply record missing its comment ref or body", async () => {
-  await processOutboxMessage(
-    env,
-    replyMsg(COMMENT_REPLY_RECORD, { body: "no ref" }),
-  );
+it("ignores a commentReply record that fails lexicon validation", async () => {
+  for (const invalid of [
+    { ...REPLY_VALUE, comment: undefined }, // missing its comment ref
+    { ...REPLY_VALUE, body: undefined }, // missing its body
+    { ...REPLY_VALUE, comment: { uri: "not-a-uri", cid: "x" } }, // bad ref
+    { ...REPLY_VALUE, $type: undefined }, // not typed as a reply
+  ]) {
+    await processOutboxMessage(env, replyMsg(COMMENT_REPLY_RECORD, invalid));
+  }
   expect(await repliesForDoc(getDb(env), URI)).toEqual([]);
 });

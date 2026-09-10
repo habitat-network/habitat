@@ -7,20 +7,20 @@ settings:
 catalogs:
   default:
     '@atproto/api':
-      specifier: 0.20.42
-      version: 0.20.42
+      specifier: 0.0.0-spaces-alpha-20260818163953
+      version: 0.0.0-spaces-alpha-20260818163953
     '@atproto/identity':
       specifier: ^0.5.9
       version: 0.5.10
     '@atproto/lexicon':
-      specifier: 0.7.12
-      version: 0.7.12
+      specifier: 0.0.0-spaces-alpha-20260818163953
+      version: 0.0.0-spaces-alpha-20260818163953
     '@atproto/syntax':
       specifier: 0.0.0-spaces-alpha-20260818163953
       version: 0.0.0-spaces-alpha-20260818163953
     '@atproto/xrpc':
-      specifier: ^0.8.6
-      version: 0.8.11
+      specifier: 0.0.0-spaces-alpha-20260818163953
+      version: 0.0.0-spaces-alpha-20260818163953
     '@tailwindcss/typography':
       specifier: ^0.5.20
       version: 0.5.20
@@ -112,13 +112,13 @@ importers:
     devDependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.42
+        version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/lexicon':
         specifier: 'catalog:'
-        version: 0.7.12
+        version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/xrpc':
         specifier: 'catalog:'
-        version: 0.8.11
+        version: 0.0.0-spaces-alpha-20260818163953
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.1
@@ -200,7 +200,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.42
+        version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.10
@@ -306,13 +306,13 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.42
+        version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/lexicon':
         specifier: 'catalog:'
-        version: 0.7.12
+        version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/xrpc':
         specifier: 'catalog:'
-        version: 0.8.11
+        version: 0.0.0-spaces-alpha-20260818163953
       multiformats:
         specifier: 'catalog:'
         version: 14.0.5
@@ -326,9 +326,6 @@ importers:
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.10
-      '@atproto/lex-data':
-        specifier: ^0.1.7
-        version: 0.1.7
       '@atproto/lex-json':
         specifier: ^0.1.6
         version: 0.1.6
@@ -368,6 +365,9 @@ importers:
       '@tiptap/y-tiptap':
         specifier: ^3.0.7
         version: 3.0.9(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
+      api:
+        specifier: workspace:*
+        version: link:../../api
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(@cloudflare/workers-types@5.20260825.1)
@@ -461,7 +461,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.42
+        version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.10
@@ -709,7 +709,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.20.42
+        version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.5.10
@@ -806,7 +806,7 @@ importers:
     dependencies:
       '@atproto/lexicon':
         specifier: 'catalog:'
-        version: 0.7.12
+        version: 0.0.0-spaces-alpha-20260818163953
       fast-glob:
         specifier: ^3.3.3
         version: 3.3.3
@@ -945,8 +945,12 @@ packages:
     resolution: {integrity: sha512-vfvoDhu6ds6BT3Pqe+d2/LBU1WpDRtt69y6zltlfMCoucPm82m1j50/Wb6xTvv+oZ+2j0JyZVXsmXQ12SWYQJg==}
     engines: {node: '>=22'}
 
-  '@atproto/api@0.20.42':
-    resolution: {integrity: sha512-x86WgkHFcNqDIo8gf52npc1KvFXlIPDLAJdIhiH1uUAwiQxDw8/WU0iH3pTl1OXMKkB93kwxG0ihx0fTi5FPbw==}
+  '@atproto/api@0.0.0-spaces-alpha-20260818163953':
+    resolution: {integrity: sha512-5TZ3rHXTLGRQRxw/H17pwOvcuaAKXZFy24w//LCcfFcSuCdWIBxV9MDvBU47xCxotNOATw2/TENhmkaVWu2QJQ==}
+    engines: {node: '>=22'}
+
+  '@atproto/common-web@0.0.0-spaces-alpha-20260818163953':
+    resolution: {integrity: sha512-9D7IJ5HAsQxFWibfL1+F26envBEoDR24e1q8diXrA8LfzVoRLP3zUlPWDG02zaumxgAPIIO5Yr5yuhzHYusEUg==}
     engines: {node: '>=22'}
 
   '@atproto/common-web@0.5.10':
@@ -990,6 +994,10 @@ packages:
     resolution: {integrity: sha512-mvrAd0lbyuecIHjyld8QN6MN6CBf4j0GCxLzegsvLh0SvDf+GbYWklkcQqmITL44yFQOwmA/QNIQj0Uvh7+R/g==}
     engines: {node: '>=22'}
 
+  '@atproto/lexicon@0.0.0-spaces-alpha-20260818163953':
+    resolution: {integrity: sha512-ncg3KVMl4aLj+fEJp1vu3Og6ZkKo/tBzz+5XClsk8zYAwRe6qNsJ+cYW5GrECxPvxuCvUra7ko9wMCwz3VJFmg==}
+    engines: {node: '>=22'}
+
   '@atproto/lexicon@0.7.12':
     resolution: {integrity: sha512-bXVWXc2+ctVVUc3CEuWV9mVXRMMQcWmdzmyRE7w2Rli0B36HADU49Vvi7PWTw26zFFqumYVl9b23bW3vrzAzbg==}
     engines: {node: '>=22'}
@@ -1012,6 +1020,10 @@ packages:
 
   '@atproto/syntax@0.7.5':
     resolution: {integrity: sha512-6vnLQK8OAzg0dO6z/xnvuXn5zMV0UMI54zbxk7G7BXhGlIlLMb1yo+JVYtAlv8Nxzr+AaFdNZ8AJt+L/QhJMFQ==}
+    engines: {node: '>=22'}
+
+  '@atproto/xrpc@0.0.0-spaces-alpha-20260818163953':
+    resolution: {integrity: sha512-AW2zqwpUh8C4pkiDNbmM1FLjmVm5TShaGKDlGAiTMuxf43rfQ+FeBucb9H5w2iaIUQJ594dN3lHXijBATkGNcw==}
     engines: {node: '>=22'}
 
   '@atproto/xrpc@0.8.11':
@@ -11920,15 +11932,22 @@ snapshots:
 
   '@atproto-labs/simple-store@0.5.1': {}
 
-  '@atproto/api@0.20.42':
+  '@atproto/api@0.0.0-spaces-alpha-20260818163953':
     dependencies:
-      '@atproto/common-web': 0.5.10
-      '@atproto/lexicon': 0.7.12
-      '@atproto/syntax': 0.7.5
-      '@atproto/xrpc': 0.8.11
+      '@atproto/common-web': 0.0.0-spaces-alpha-20260818163953
+      '@atproto/lexicon': 0.0.0-spaces-alpha-20260818163953
+      '@atproto/syntax': 0.0.0-spaces-alpha-20260818163953
+      '@atproto/xrpc': 0.0.0-spaces-alpha-20260818163953
       await-lock: 3.0.0
       multiformats: 13.4.2
       tlds: 1.261.0
+      zod: 3.25.76
+
+  '@atproto/common-web@0.0.0-spaces-alpha-20260818163953':
+    dependencies:
+      '@atproto/lex-data': 0.1.7
+      '@atproto/lex-json': 0.1.6
+      '@atproto/syntax': 0.0.0-spaces-alpha-20260818163953
       zod: 3.25.76
 
   '@atproto/common-web@0.5.10':
@@ -11991,6 +12010,13 @@ snapshots:
       '@atproto/lex-data': 0.1.7
       tslib: 2.8.1
 
+  '@atproto/lexicon@0.0.0-spaces-alpha-20260818163953':
+    dependencies:
+      '@atproto/common-web': 0.0.0-spaces-alpha-20260818163953
+      '@atproto/syntax': 0.0.0-spaces-alpha-20260818163953
+      multiformats: 13.4.2
+      zod: 3.25.76
+
   '@atproto/lexicon@0.7.12':
     dependencies:
       '@atproto/common-web': 0.5.10
@@ -12041,6 +12067,11 @@ snapshots:
     dependencies:
       iso-datestring-validator: 2.2.2
       tslib: 2.8.1
+
+  '@atproto/xrpc@0.0.0-spaces-alpha-20260818163953':
+    dependencies:
+      '@atproto/lexicon': 0.0.0-spaces-alpha-20260818163953
+      zod: 3.25.76
 
   '@atproto/xrpc@0.8.11':
     dependencies:

@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@atproto/identity": "catalog:",
-    "@atproto/lex-data": "^0.1.7",
     "@atproto/lex-json": "^0.1.6",
     "@atproto/syntax": "catalog:",
     "@tanstack/react-devtools": "catalog:",
@@ -27,6 +26,7 @@
     "@tiptap/react": "^3.28.0",
     "@tiptap/starter-kit": "^3.28.0",
     "@tiptap/y-tiptap": "^3.0.7",
+    "api": "workspace:*",
     "drizzle-orm": "0.45.2",
     "internal": "workspace:*",
     "lib0": "^0.2.117",

@@ -33,8 +33,8 @@ it("returns a doc's comments oldest first", async () => {
     docSpaceUri: DOC,
     authorDid: ALICE,
     body: "second",
-    anchorStart: "a",
-    anchorEnd: "b",
+    anchorStart: new Uint8Array([1]),
+    anchorEnd: new Uint8Array([2]),
     createdAt: 2000,
   });
   await upsertComment(db, {
@@ -43,8 +43,8 @@ it("returns a doc's comments oldest first", async () => {
     docSpaceUri: DOC,
     authorDid: ALICE,
     body: "first",
-    anchorStart: "a",
-    anchorEnd: "b",
+    anchorStart: new Uint8Array([1]),
+    anchorEnd: new Uint8Array([2]),
     createdAt: 1000,
   });
   const rows = await commentsForDoc(db, DOC);
@@ -59,8 +59,8 @@ it("excludes comments on other docs", async () => {
     docSpaceUri: OTHER_DOC,
     authorDid: ALICE,
     body: "elsewhere",
-    anchorStart: "a",
-    anchorEnd: "b",
+    anchorStart: new Uint8Array([1]),
+    anchorEnd: new Uint8Array([2]),
   });
   expect(await commentsForDoc(db, DOC)).toEqual([]);
 });
@@ -74,8 +74,8 @@ it("upserts on conflict (same uri) rather than duplicating", async () => {
     docSpaceUri: DOC,
     authorDid: ALICE,
     body: "original",
-    anchorStart: "a",
-    anchorEnd: "b",
+    anchorStart: new Uint8Array([1]),
+    anchorEnd: new Uint8Array([2]),
   });
   await upsertComment(db, {
     uri,
@@ -83,8 +83,8 @@ it("upserts on conflict (same uri) rather than duplicating", async () => {
     docSpaceUri: DOC,
     authorDid: ALICE,
     body: "edited",
-    anchorStart: "a",
-    anchorEnd: "b",
+    anchorStart: new Uint8Array([1]),
+    anchorEnd: new Uint8Array([2]),
   });
   const rows = await commentsForDoc(db, DOC);
   expect(rows).toHaveLength(1);
@@ -100,8 +100,8 @@ it("defaults quotedText to null", async () => {
     docSpaceUri: DOC,
     authorDid: ALICE,
     body: "hi",
-    anchorStart: "a",
-    anchorEnd: "b",
+    anchorStart: new Uint8Array([1]),
+    anchorEnd: new Uint8Array([2]),
   });
   const [row] = await commentsForDoc(db, DOC);
   expect(row.quotedText).toBeNull();
@@ -116,8 +116,8 @@ it("commentByUri looks up a single comment by its uri", async () => {
     docSpaceUri: DOC,
     authorDid: ALICE,
     body: "hi",
-    anchorStart: "a",
-    anchorEnd: "b",
+    anchorStart: new Uint8Array([1]),
+    anchorEnd: new Uint8Array([2]),
   });
   expect((await commentByUri(db, uri))?.body).toBe("hi");
   expect(await commentByUri(db, commentUri(BOB))).toBeUndefined();
@@ -133,8 +133,8 @@ it("deleteComment removes only the targeted row", async () => {
     docSpaceUri: DOC,
     authorDid: ALICE,
     body: "keep me? no",
-    anchorStart: "a",
-    anchorEnd: "b",
+    anchorStart: new Uint8Array([1]),
+    anchorEnd: new Uint8Array([2]),
   });
   await upsertComment(db, {
     uri: uri2,
@@ -142,8 +142,8 @@ it("deleteComment removes only the targeted row", async () => {
     docSpaceUri: DOC,
     authorDid: BOB,
     body: "keep me",
-    anchorStart: "a",
-    anchorEnd: "b",
+    anchorStart: new Uint8Array([1]),
+    anchorEnd: new Uint8Array([2]),
   });
   await deleteComment(db, uri1);
   const rows = await commentsForDoc(db, DOC);

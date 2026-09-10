@@ -1,10 +1,24 @@
 import {
+  customType,
   sqliteTable,
   text,
   integer,
   index,
   primaryKey,
 } from "drizzle-orm/sqlite-core";
+
+// bytes is a BLOB column read back as a plain Uint8Array. drizzle's own
+// blob({ mode: "buffer" }) hands back a Node Buffer instead, which TanStack
+// Start's server-function serializer (seroval) doesn't accept, and D1
+// itself returns a blob as an ArrayBuffer or array of numbers depending on
+// the query path — new Uint8Array accepts either.
+const bytes = customType<{
+  data: Uint8Array;
+  driverData: ArrayBuffer | number[];
+}>({
+  dataType: () => "blob",
+  fromDriver: (value) => new Uint8Array(value),
+});
 
 export const docs = sqliteTable(
   "docs",
@@ -81,7 +95,7 @@ export const connectedOrgs = sqliteTable(
 
 // comments holds a doc's comment *threads* — one row per root
 // network.habitat.docs.comment record, which is the only record that
-// carries an anchor (a pair of base64 Yjs relative positions, per that
+// carries an anchor (a pair of encoded Yjs relative positions, per that
 // lexicon's comment) into the doc's CRDT state; replies don't repeat it,
 // they just point back at the root by strongRef (see commentReplies
 // below). Comments live in their own table rather than alongside docs
@@ -105,8 +119,8 @@ export const comments = sqliteTable(
     docSpaceUri: text("doc_space_uri").notNull(),
     authorDid: text("author_did").notNull(),
     body: text("body").notNull(),
-    anchorStart: text("anchor_start").notNull(),
-    anchorEnd: text("anchor_end").notNull(),
+    anchorStart: bytes("anchor_start").notNull(),
+    anchorEnd: bytes("anchor_end").notNull(),
     quotedText: text("quoted_text"),
     createdAt: integer("created_at").notNull(),
   },

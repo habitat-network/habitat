@@ -532,8 +532,8 @@ export const createComment = createServerFn({ method: "POST" })
     (input: {
       docId: string;
       body: string;
-      anchorStart: string;
-      anchorEnd: string;
+      anchorStart: Uint8Array;
+      anchorEnd: Uint8Array;
       quotedText?: string;
     }) => input,
   )

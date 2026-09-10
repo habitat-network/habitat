@@ -263,8 +263,8 @@ export interface CommentRow {
   docSpaceUri: string;
   authorDid: string;
   body: string;
-  anchorStart: string;
-  anchorEnd: string;
+  anchorStart: Uint8Array;
+  anchorEnd: Uint8Array;
   quotedText: string | null;
   createdAt: number;
 }
@@ -283,8 +283,8 @@ export async function upsertComment(
     docSpaceUri: string;
     authorDid: string;
     body: string;
-    anchorStart: string;
-    anchorEnd: string;
+    anchorStart: Uint8Array;
+    anchorEnd: Uint8Array;
     quotedText?: string | null;
     createdAt?: number;
   },

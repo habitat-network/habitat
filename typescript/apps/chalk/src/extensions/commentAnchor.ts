@@ -1,7 +1,6 @@
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { fromBase64, toBase64 } from "@atproto/lex-data";
 import * as Y from "yjs";
 import {
   absolutePositionToRelativePosition,
@@ -19,21 +18,20 @@ function getBinding(state: EditorState) {
 }
 
 // encodeAnchor converts a ProseMirror selection range into the pair of
-// base64 Yjs relative positions a network.habitat.docs.comment record's
+// encoded Yjs relative positions a network.habitat.docs.comment record's
 // anchorStart/anchorEnd fields store (as the lexicon "bytes" type —
-// https://atproto.com/specs/lexicon#bytes — see comments.server.ts's
-// wrapping of these into {$bytes} for the actual record) — CRDT positions
-// that survive concurrent edits made anywhere else in the document, unlike
-// a plain character offset. toBase64 is @atproto/lex-data's own codec, the
-// same one the record's eventual {$bytes} wrapper decodes with server-side
-// (indigo's atdata.Bytes), so there's no risk of a mismatched base64
-// variant between this and the server. Returns undefined if Collaboration
-// hasn't synced yet.
+// https://atproto.com/specs/lexicon#bytes) — CRDT positions that survive
+// concurrent edits made anywhere else in the document, unlike a plain
+// character offset. They stay raw bytes all the way through: server
+// functions carry a Uint8Array as-is, the record's JSON {$bytes} form is
+// produced only at the point it's written (see comments.server.ts), and D1
+// stores them as a blob. Returns undefined if Collaboration hasn't synced
+// yet.
 export function encodeAnchor(
   state: EditorState,
   from: number,
   to: number,
-): { anchorStart: string; anchorEnd: string } | undefined {
+): { anchorStart: Uint8Array; anchorEnd: Uint8Array } | undefined {
   const binding = getBinding(state);
   if (!binding) return undefined;
   const start = absolutePositionToRelativePosition(
@@ -47,8 +45,8 @@ export function encodeAnchor(
     binding.mapping,
   );
   return {
-    anchorStart: toBase64(Y.encodeRelativePosition(start)),
-    anchorEnd: toBase64(Y.encodeRelativePosition(end)),
+    anchorStart: Y.encodeRelativePosition(start),
+    anchorEnd: Y.encodeRelativePosition(end),
   };
 }
 
@@ -61,16 +59,16 @@ export function encodeAnchor(
 // to the comment's quotedText for display in that case.
 export function decodeAnchor(
   state: EditorState,
-  anchorStart: string,
-  anchorEnd: string,
+  anchorStart: Uint8Array,
+  anchorEnd: Uint8Array,
 ): { from: number; to: number } | undefined {
   const binding = getBinding(state);
   if (!binding) return undefined;
   const ydoc = binding.type.doc as Y.Doc | null;
   if (!ydoc) return undefined;
   try {
-    const startRel = Y.decodeRelativePosition(fromBase64(anchorStart));
-    const endRel = Y.decodeRelativePosition(fromBase64(anchorEnd));
+    const startRel = Y.decodeRelativePosition(anchorStart);
+    const endRel = Y.decodeRelativePosition(anchorEnd);
     const from = relativePositionToAbsolutePosition(
       ydoc,
       binding.type,
@@ -86,7 +84,7 @@ export function decodeAnchor(
     if (from === null || to === null || from > to) return undefined;
     return { from, to };
   } catch {
-    // Malformed base64/relative-position bytes — treat like "doesn't
+    // Malformed relative-position bytes — treat like "doesn't
     // resolve" rather than crashing the editor over one bad comment.
     return undefined;
   }
@@ -94,8 +92,8 @@ export function decodeAnchor(
 
 export interface CommentAnchor {
   uri: string;
-  anchorStart: string;
-  anchorEnd: string;
+  anchorStart: Uint8Array;
+  anchorEnd: Uint8Array;
 }
 
 const commentHighlightPluginKey = new PluginKey<DecorationSet>(

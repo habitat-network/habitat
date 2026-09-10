@@ -14,8 +14,8 @@ CREATE TABLE `comments` (
 	`doc_space_uri` text NOT NULL,
 	`author_did` text NOT NULL,
 	`body` text NOT NULL,
-	`anchor_start` text NOT NULL,
-	`anchor_end` text NOT NULL,
+	`anchor_start` blob NOT NULL,
+	`anchor_end` blob NOT NULL,
 	`quoted_text` text,
 	`created_at` integer NOT NULL
 );

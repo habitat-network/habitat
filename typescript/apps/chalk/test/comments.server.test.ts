@@ -21,6 +21,9 @@ const DOC = "at://did:web:alice.example/space/network.habitat.docs/abc";
 const COMMENTS_SPACE =
   "at://did:web:alice.example/space/network.habitat.docs.comments/abc";
 const ALICE = "did:web:alice.example";
+// Stand-ins for encoded Yjs relative positions — any bytes do.
+const ANCHOR_START = new TextEncoder().encode("start-rel-pos");
+const ANCHOR_END = new TextEncoder().encode("end-rel-pos");
 const BOB = "did:web:bob.example";
 
 describe("commentsSpaceUri", () => {
@@ -315,21 +318,27 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
     const client = new SapClient(testEnv, ALICE);
     const view = await writeComment(client, db(), ALICE, DOC, {
       body: "great point",
-      anchorStart: "c3RhcnQtcmVsLXBvcw",
-      anchorEnd: "ZW5kLXJlbC1wb3M",
+      anchorStart: ANCHOR_START,
+      anchorEnd: ANCHOR_END,
       ownerDid: ALICE,
       isOrg: false,
     });
     expect(view).toMatchObject({
       authorDid: ALICE,
       body: "great point",
-      anchorStart: "c3RhcnQtcmVsLXBvcw",
-      anchorEnd: "ZW5kLXJlbC1wb3M",
+      anchorStart: ANCHOR_START,
+      anchorEnd: ANCHOR_END,
       cid: "bafycomment1",
     });
     const rows = await commentsForDoc(db(), DOC);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ uri: view.uri, cid: "bafycomment1" });
+    // Read back out of the blob columns as the same bytes.
+    expect(rows[0]).toMatchObject({
+      uri: view.uri,
+      cid: "bafycomment1",
+      anchorStart: ANCHOR_START,
+      anchorEnd: ANCHOR_END,
+    });
   });
 
   it("writeReply writes a commentReply record referencing the root by strongRef, and mirrors it into D1", async () => {
@@ -377,8 +386,8 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
       docSpaceUri: DOC,
       authorDid: ALICE,
       body: "oops",
-      anchorStart: "a",
-      anchorEnd: "b",
+      anchorStart: new Uint8Array([1]),
+      anchorEnd: new Uint8Array([2]),
     });
     let deleteBody: unknown;
     server.use(

@@ -20,8 +20,8 @@ import {
 // would. anchorStart/anchorEnd ride along only to be handed back to
 // createComment on submit; the sidebar itself never decodes them.
 export interface PendingAnchor {
-  anchorStart: string;
-  anchorEnd: string;
+  anchorStart: Uint8Array;
+  anchorEnd: Uint8Array;
   quotedText: string;
 }
 

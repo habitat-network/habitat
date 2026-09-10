@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8d52b262-f019-4a04-bf6b-2c16767e3137",
+  "id": "e9ac3a73-eec8-4b65-a246-a115da04a204",
   "prevId": "33aa611e-982a-474c-83fb-d752eaa90052",
   "tables": {
     "comment_replies": {
@@ -105,14 +105,14 @@
         },
         "anchor_start": {
           "name": "anchor_start",
-          "type": "text",
+          "type": "blob",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "anchor_end": {
           "name": "anchor_end",
-          "type": "text",
+          "type": "blob",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false

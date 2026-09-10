@@ -1,4 +1,6 @@
 import { AtUri, SpaceRef } from "@atproto/syntax";
+import { jsonToLex, type JsonValue } from "@atproto/lex-json";
+import { NetworkHabitatDocsComment, NetworkHabitatDocsCommentReply } from "api";
 import {
   deleteComment,
   deleteCommentReply,
@@ -15,7 +17,6 @@ import {
 import {
   COMMENT_COLLECTION,
   COMMENT_REPLY_COLLECTION,
-  decodeAnchorBytes,
   docSpaceUriForComments,
 } from "./comments.server";
 import { SapClient } from "./sapClient";
@@ -157,6 +158,12 @@ async function docForComments(db: Db, spaceUri: string) {
 // it didn't author itself — the owner always holds at least reader on the
 // comments space (it inherits from the doc space, which the owner owns).
 //
+// The record is checked against its lexicon (the generated validateMain)
+// after jsonToLex has turned its {"$bytes"} anchors back into Uint8Arrays,
+// which is the form the bytes validator — and the comments table — expects.
+// Anything that fails validation isn't a comment chalk can render, and is
+// ignored like any other uninteresting outbox message.
+//
 // The author is the repo the record lives in, not a field on the record:
 // a comment record can only be written into its own author's repo, so the
 // URI is the authoritative claim about who wrote it. A `author` field in
@@ -178,21 +185,11 @@ async function handleComment(
   if (!resolved) return;
   const { docSpaceUri, doc } = resolved;
 
-  const record = value as {
-    body?: string;
-    anchorStart?: unknown;
-    anchorEnd?: unknown;
-    quotedText?: string;
-    createdAt?: string;
-  };
-  // anchorStart/anchorEnd are the lexicon "bytes" type, which marshals
-  // over JSON as {"$bytes": "<base64>"} — see comments.server.ts's
-  // decodeAnchorBytes — not a plain string.
-  const anchorStart = decodeAnchorBytes(record.anchorStart);
-  const anchorEnd = decodeAnchorBytes(record.anchorEnd);
-  if (typeof record.body !== "string" || !anchorStart || !anchorEnd) {
-    return;
-  }
+  const validated = NetworkHabitatDocsComment.validateMain(
+    jsonToLex(value as JsonValue),
+  );
+  if (!validated.success) return;
+  const record = validated.value;
 
   const client = new SapClient(env, doc.ownerDid);
   let cid: string;
@@ -207,26 +204,28 @@ async function handleComment(
     return; // can't mirror without a cid to hand out for strongRefs
   }
 
-  // createdAt is the record's own claim about when it was written; it
-  // orders a thread, so an unparseable one falls back to now rather than
-  // NaN (which would sort unpredictably).
-  const createdAt = Date.parse(record.createdAt ?? "");
+  // createdAt is the record's own claim about when it was written; the
+  // lexicon's datetime format guarantees it parses.
   await upsertComment(db, {
     uri,
     cid,
     docSpaceUri,
     authorDid: repo,
     body: record.body,
-    anchorStart,
-    anchorEnd,
+    anchorStart: record.anchorStart,
+    anchorEnd: record.anchorEnd,
     quotedText: record.quotedText ?? null,
-    createdAt: Number.isNaN(createdAt) ? Date.now() : createdAt,
+    createdAt: Date.parse(record.createdAt),
   });
 }
 
 // handleCommentReply mirrors a network.habitat.docs.commentReply record
 // into comment_replies. Unlike a root comment, a reply is never itself the
 // target of a strongRef, so this doesn't need its cid — no extra fetch.
+// Validated against its lexicon the same way handleComment is; the
+// strongRef's uri is a space record URI
+// (at://<did>/space/<type>/<skey>/<repo>/<collection>/<rkey>), which is why
+// @atproto/lexicon is pinned to the spaces alpha alongside @atproto/syntax.
 async function handleCommentReply(
   env: Env,
   uri: string,
@@ -243,21 +242,19 @@ async function handleCommentReply(
   if (!resolved) return;
   const { docSpaceUri } = resolved;
 
-  const record = value as {
-    comment?: { uri?: string };
-    body?: string;
-    createdAt?: string;
-  };
-  if (!record.comment?.uri || typeof record.body !== "string") return;
+  const validated = NetworkHabitatDocsCommentReply.validateMain(
+    jsonToLex(value as JsonValue),
+  );
+  if (!validated.success) return;
+  const record = validated.value;
 
-  const createdAt = Date.parse(record.createdAt ?? "");
   await upsertCommentReply(db, {
     uri,
     docSpaceUri,
     commentUri: record.comment.uri,
     authorDid: repo,
     body: record.body,
-    createdAt: Number.isNaN(createdAt) ? Date.now() : createdAt,
+    createdAt: Date.parse(record.createdAt),
   });
 }
 

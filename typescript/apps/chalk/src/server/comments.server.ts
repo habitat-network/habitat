@@ -1,6 +1,6 @@
 import { AtUri, SpaceRef } from "@atproto/syntax";
-import { fromBase64, toBase64 } from "@atproto/lex-data";
-import { encodeLexBytes, parseLexBytes } from "@atproto/lex-json";
+import { lexToJson } from "@atproto/lex-json";
+import type { NetworkHabitatDocsComment } from "api";
 import {
   deleteComment,
   deleteCommentReply,
@@ -35,29 +35,6 @@ export const COMMENT_REPLY_COLLECTION = "network.habitat.docs.commentReply";
 export interface StrongRef {
   uri: string;
   cid: string;
-}
-
-// encodeAnchorBytes wraps a base64 anchor string (see commentAnchor.ts's
-// encodeAnchor) into the lexicon "bytes" type's wire shape
-// (https://atproto.com/specs/lexicon#bytes) — a {"$bytes": "<base64>"}
-// wrapper, not a plain string (indigo's atdata.Bytes on the Go side, which
-// this record type is validated against) — using @atproto/lex-json's own
-// encoder rather than hand-rolling the wrapper. The comment record's
-// anchorStart/anchorEnd fields are declared as bytes rather than string
-// precisely so a client can't sneak arbitrary non-anchor data into them
-// under the guise of "just text".
-export function encodeAnchorBytes(base64: string) {
-  return encodeLexBytes(fromBase64(base64));
-}
-
-// decodeAnchorBytes unwraps a bytes-typed field back to its base64 anchor
-// string, or undefined if the value isn't actually in that shape (a
-// malformed/absent field — treated as "no anchor" the same way a missing
-// string field would be).
-export function decodeAnchorBytes(value: unknown): string | undefined {
-  if (typeof value !== "object" || value === null) return undefined;
-  const bytes = parseLexBytes(value as Record<string, unknown>);
-  return bytes ? toBase64(bytes) : undefined;
 }
 
 // commentsSpaceUri derives the URI of a doc's comments space from the doc's
@@ -325,8 +302,8 @@ export interface CommentView {
   cid: string;
   authorDid: string;
   body: string;
-  anchorStart: string;
-  anchorEnd: string;
+  anchorStart: Uint8Array;
+  anchorEnd: Uint8Array;
   quotedText: string | null;
   createdAt: number;
   replies: CommentReplyView[];
@@ -372,8 +349,8 @@ export async function writeComment(
   docId: string,
   opts: {
     body: string;
-    anchorStart: string;
-    anchorEnd: string;
+    anchorStart: Uint8Array;
+    anchorEnd: Uint8Array;
     quotedText?: string;
     ownerDid: string;
     isOrg: boolean;
@@ -386,6 +363,17 @@ export async function writeComment(
   if (!spaceUri) throw new Error("invalid docId");
 
   const createdAt = new Date();
+  // satisfies rather than a type annotation: the generated Record type's
+  // open [k: string]: unknown index signature isn't a LexValue, but this
+  // literal's own inferred type is.
+  const record = {
+    $type: COMMENT_COLLECTION,
+    body: opts.body,
+    anchorStart: opts.anchorStart,
+    anchorEnd: opts.anchorEnd,
+    ...(opts.quotedText ? { quotedText: opts.quotedText } : {}),
+    createdAt: createdAt.toISOString(),
+  } satisfies NetworkHabitatDocsComment.Record;
   const { uri, cid } = await client.call<{ uri: string; cid: string }>(
     "network.habitat.space.putRecord",
     "POST",
@@ -396,14 +384,11 @@ export async function writeComment(
       // No rkey: comment records are keyed "tid" and pear mints one itself
       // when putRecord is called without it (internal/spaces/store.go's
       // PutRecord), so the returned URI carries the key.
-      record: {
-        $type: COMMENT_COLLECTION,
-        body: opts.body,
-        anchorStart: encodeAnchorBytes(opts.anchorStart),
-        anchorEnd: encodeAnchorBytes(opts.anchorEnd),
-        ...(opts.quotedText ? { quotedText: opts.quotedText } : {}),
-        createdAt: createdAt.toISOString(),
-      },
+      //
+      // lexToJson turns the anchors' Uint8Arrays into the lexicon bytes
+      // type's JSON form ({"$bytes": "<base64>"}), which is what pear (and
+      // indigo's atdata.Bytes behind it) expects on the wire.
+      record: lexToJson(record),
     },
   );
 
