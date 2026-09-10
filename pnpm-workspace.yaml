@@ -19,7 +19,7 @@ packages:
 
 catalog:
   '@atproto/api': 0.0.0-spaces-alpha-20260818163953
-  '@atproto/identity': ^0.5.9
+  '@atproto/identity': 0.0.0-spaces-alpha-20260818163953
   '@atproto/lexicon': 0.0.0-spaces-alpha-20260818163953
   '@atproto/syntax': 0.0.0-spaces-alpha-20260818163953
   '@atproto/xrpc': 0.0.0-spaces-alpha-20260818163953
