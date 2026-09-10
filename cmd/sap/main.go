@@ -143,6 +143,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	internalMux.HandleFunc("/session/list", server.handleListSessions)
 	internalMux.HandleFunc("/space/track", server.handleTrackSpace)
 	internalMux.HandleFunc("/session/recrawl", server.handleRecrawl)
+	internalMux.HandleFunc("/space/credential", server.handleSpaceCredential)
 	if webhookURL == "" {
 		// The outbox is single-consumer (see outbox.Outbox.Watch): once the
 		// webhook consumer is draining it, a /channel client polling the

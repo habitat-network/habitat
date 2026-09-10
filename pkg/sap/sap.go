@@ -236,6 +236,20 @@ func (s *Sap) Recrawl(ctx context.Context, did syntax.DID, sessionID string) {
 	go s.crawler.Restart(detachSpan(ctx), did, sessionID)
 }
 
+// SpaceCredential returns a space credential for space, and the space host it
+// is valid against, minted through some session on record as able to access
+// the space.
+func (s *Sap) SpaceCredential(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) (credential.Credential, error) {
+	cred, err := s.credentials.Credential(ctx, space)
+	if err != nil {
+		return credential.Credential{}, fmt.Errorf("space credential for %s: %w", space, err)
+	}
+	return cred, nil
+}
+
 // Sessions lists the DIDs of the sessions sap syncs on behalf of.
 func (s *Sap) Sessions(ctx context.Context) ([]syntax.DID, error) {
 	sessions, err := s.sessions.List(ctx)
