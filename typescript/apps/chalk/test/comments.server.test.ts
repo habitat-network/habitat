@@ -137,16 +137,13 @@ describe("ensureCommentsSpace", () => {
           return HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` });
         },
       ),
-      http.post(
-        "http://sap-internal.test/space/track",
-        async ({ request }) => {
-          trackedSpace = await request.json();
-          return new HttpResponse(null, { status: 200 });
-        },
-      ),
+      http.post("http://sap-internal.test/space/track", async ({ request }) => {
+        trackedSpace = await request.json();
+        return new HttpResponse(null, { status: 200 });
+      }),
     );
     const client = new SapClient(testEnv, ALICE);
-    const result = await ensureCommentsSpace(client, DOC, {
+    const result = await ensureCommentsSpace(client, client, DOC, {
       ownerDid: ALICE,
       isOrg: false,
     });
@@ -197,7 +194,8 @@ describe("ensureCommentsSpace", () => {
       ),
     );
     const client = new SapClient(testEnv, ALICE);
-    const result = await ensureCommentsSpace(client, DOC, {
+    const managementClient = new SapClient(testEnv, "did:web:org.example");
+    const result = await ensureCommentsSpace(client, managementClient, DOC, {
       ownerDid: "did:web:org.example",
       isOrg: true,
     });
@@ -206,7 +204,7 @@ describe("ensureCommentsSpace", () => {
       org: "did:web:org.example",
       type: "network.habitat.docs.comments",
       skey: "abc",
-      roles: ["admin", "member"],
+      roles: [],
     });
     expect(proxyHeader).toBe("did:web:org.example#habitat");
   });
@@ -215,7 +213,8 @@ describe("ensureCommentsSpace", () => {
     server.use(
       http.post(
         "http://sap-internal.test/proxy/network.habitat.simplespace.createSpace",
-        () => HttpResponse.json({ error: "SpaceAlreadyExists" }, { status: 400 }),
+        () =>
+          HttpResponse.json({ error: "SpaceAlreadyExists" }, { status: 400 }),
       ),
       http.post(
         "http://sap-internal.test/proxy/network.habitat.relationship.setSpaceRelation",
@@ -227,7 +226,7 @@ describe("ensureCommentsSpace", () => {
       ),
     );
     const client = new SapClient(testEnv, ALICE);
-    const result = await ensureCommentsSpace(client, DOC, {
+    const result = await ensureCommentsSpace(client, client, DOC, {
       ownerDid: ALICE,
       isOrg: false,
     });
@@ -242,7 +241,7 @@ describe("ensureCommentsSpace", () => {
     );
     const client = new SapClient(testEnv, ALICE);
     expect(
-      await ensureCommentsSpace(client, "not-a-uri", {
+      await ensureCommentsSpace(client, client, "not-a-uri", {
         ownerDid: ALICE,
         isOrg: false,
       }),
@@ -297,7 +296,7 @@ describe("writeComment / writeReply / resolveThread / removeComment / removeRepl
       ),
     );
     const client = new SapClient(testEnv, ALICE);
-    const view = await writeComment(client, db(), ALICE, DOC, {
+    const view = await writeComment(client, client, db(), ALICE, DOC, {
       body: "great point",
       anchorStart: "c3RhcnQtcmVsLXBvcw",
       anchorEnd: "ZW5kLXJlbC1wb3M",

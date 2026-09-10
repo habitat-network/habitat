@@ -8,6 +8,7 @@ import (
 
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -29,6 +30,15 @@ var (
 // actually exist (see newSpace).
 func newTestStore(t *testing.T) *store {
 	t.Helper()
+	s, _ := newTestStoreWithOpensocial(t)
+	return s
+}
+
+// newTestStoreWithOpensocial is like newTestStore, but also returns the
+// underlying opensocial testutil store so tests can seed real orgs/members
+// (NewOrg, AssignRoles) rather than writing opensocial-shaped records by hand.
+func newTestStoreWithOpensocial(t *testing.T) (*store, *opensocial_testutil.TestStore) {
+	t.Helper()
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
@@ -41,7 +51,7 @@ func newTestStore(t *testing.T) *store {
 		opensocial_testutil.WithSpaceStore(sp),
 	)
 
-	return NewStore(db, sp, fga, os)
+	return NewStore(db, sp, fga, os), os
 }
 
 // newSpace creates a space owned by org in sp and returns its URI.
@@ -255,6 +265,58 @@ func TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant(t *testing.T) {
 
 	t.Run("non-member is not granted read access to the members space", func(t *testing.T) {
 		ok, err := s.CheckUserHasSpaceRole(ctx, bob, membersSpace, habitat_syntax.SpaceRoleReader)
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+}
+
+// TestStoreCheckUserHasSpaceRoleGrantsAccessViaOpensocialMembersSpaceRelation
+// covers sharing a space (e.g. a chalk doc) with an entire org by pointing a
+// spaceRelation's subject at that org's own community.opensocial.members
+// space. Opensocial spaces are never given FGA tuples (see
+// TestStoreCheckUserHasSpaceRoleOpensocialAccessGrant's doc comment), so
+// OpenFGA's own userset expansion for such a spaceRelation has nothing to
+// expand; CheckUserHasSpaceRole has to inject a contextual tuple per org the
+// checked DID actually belongs to, or the grant would silently match nobody.
+func TestStoreCheckUserHasSpaceRoleGrantsAccessViaOpensocialMembersSpaceRelation(t *testing.T) {
+	s, os := newTestStoreWithOpensocial(t)
+	ctx := t.Context()
+
+	orgDIDStr, err := os.NewOrg(ctx, "acme", syntax.DID("did:plc:creator"))
+	require.NoError(t, err)
+	orgDID := syntax.DID(orgDIDStr)
+	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, opensocial.MembersSpaceType, "self")
+
+	require.NoError(t, os.AssignRoles(ctx, orgDID, alice, []string{opensocial.MemberRoleRkey}))
+	// alice only actually belongs (per ListMemberSpaces) once she's written
+	// her own record into the members space, e.g. accepting an invite —
+	// AssignRoles alone writes under the org's own repo, not hers.
+	_, _, err = s.spaces.PutRecord(
+		ctx, membersSpace, alice, "community.opensocial.acceptance", "self",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"updatedAt": "2024-01-01T00:00:00Z"}),
+	)
+	require.NoError(t, err)
+
+	space := newSpace(t, s.spaces, docsType, "doc1")
+	// Share the doc with every member of orgDID: anyone holding "reader" on
+	// the org's members space also gets "reader" on this doc.
+	_, err = s.SetSpaceRoleRelation(
+		ctx,
+		membersSpace,
+		habitat_syntax.SpaceRoleReader,
+		space,
+		habitat_syntax.SpaceRoleReader,
+	)
+	require.NoError(t, err)
+
+	t.Run("an org member gains access via the members-space relation", func(t *testing.T) {
+		ok, err := s.CheckUserHasSpaceRole(ctx, alice, space, habitat_syntax.SpaceRoleReader)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
+
+	t.Run("a non-member does not gain access", func(t *testing.T) {
+		ok, err := s.CheckUserHasSpaceRole(ctx, bob, space, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		require.False(t, ok)
 	})

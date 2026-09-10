@@ -12,6 +12,7 @@ export * from "./kbd";
 export * from "./item";
 export * from "./label";
 export * from "./radio-group";
+export * from "./select";
 export * from "./separator";
 export * from "./sidebar";
 export * from "./textarea";

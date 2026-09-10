@@ -4,7 +4,7 @@ import * as Y from "yjs";
 import { processOutboxMessage } from "../src/server/outbox";
 import {
   commentsForDoc,
-  docsForAccessor,
+  docsFor,
   getDb,
   repliesForDoc,
   resolutionsForDoc,
@@ -27,6 +27,7 @@ beforeEach(async () => {
   vi.stubGlobal("fetch", fetchMock);
   await env.DB.exec("DELETE FROM docs");
   await env.DB.exec("DELETE FROM doc_access");
+  await env.DB.exec("DELETE FROM doc_org_access");
   await env.DB.exec("DELETE FROM comments");
   await env.DB.exec("DELETE FROM comment_replies");
   await env.DB.exec("DELETE FROM comment_resolutions");
@@ -96,9 +97,9 @@ it("records a doc_access grant from a userRelation record", async () => {
     env,
     relationMsg(RELATION_RECORD, { subject: BOB, relation: "writer" }),
   );
-  const rows = await docsForAccessor(getDb(env), BOB);
+  const rows = await docsFor(getDb(env), BOB);
   expect(rows).toEqual([
-    { docId: URI, uri: URI, ownerDid: OWNER, title: "Untitled", isOrg: false },
+    { docId: URI, uri: URI, ownerDid: OWNER, title: "Untitled" },
   ]);
 });
 
@@ -108,7 +109,7 @@ it("removes the grant on a delete tombstone (null value)", async () => {
     relationMsg(RELATION_RECORD, { subject: BOB, relation: "writer" }),
   );
   await processOutboxMessage(env, relationMsg(RELATION_RECORD, null));
-  expect(await docsForAccessor(getDb(env), BOB)).toEqual([]);
+  expect(await docsFor(getDb(env), BOB)).toEqual([]);
 });
 
 it("re-granting the same record uri updates rather than duplicates", async () => {
@@ -120,7 +121,7 @@ it("re-granting the same record uri updates rather than duplicates", async () =>
     env,
     relationMsg(RELATION_RECORD, { subject: BOB, relation: "reader" }),
   );
-  expect(await docsForAccessor(getDb(env), BOB)).toHaveLength(1);
+  expect(await docsFor(getDb(env), BOB)).toHaveLength(1);
 });
 
 it("ignores a userRelation record missing subject or relation", async () => {
@@ -128,7 +129,68 @@ it("ignores a userRelation record missing subject or relation", async () => {
     env,
     relationMsg(RELATION_RECORD, { subject: BOB }),
   );
-  expect(await docsForAccessor(getDb(env), BOB)).toEqual([]);
+  expect(await docsFor(getDb(env), BOB)).toEqual([]);
+});
+
+const ORG = "did:web:org.example";
+const ORG_DOC = `at://${ORG}/space/network.habitat.docs/org1`;
+const MEMBERS_SPACE = `at://${ORG}/space/community.opensocial.members/self`;
+const SPACE_RELATION_RECORD = `${ORG_DOC}/${ORG}/network.habitat.relationship.spaceRelation/rkey1`;
+const ORG_DOC_SUMMARY = {
+  docId: ORG_DOC,
+  uri: ORG_DOC,
+  ownerDid: ORG,
+  title: "Org doc",
+};
+
+async function seedOrgDoc() {
+  await upsertDoc(getDb(env), {
+    spaceUri: ORG_DOC,
+    docId: ORG_DOC,
+    ownerDid: ORG,
+    title: "Org doc",
+  });
+}
+
+it("records an org-wide grant from a members-space spaceRelation", async () => {
+  await seedOrgDoc();
+  await processOutboxMessage(
+    env,
+    relationMsg(SPACE_RELATION_RECORD, {
+      subject: MEMBERS_SPACE,
+      subjectRole: "reader",
+      relation: "reader",
+    }),
+  );
+  // BOB holds no personal grant — the org-wide row is what surfaces it.
+  expect(await docsFor(getDb(env), BOB, ORG)).toEqual([ORG_DOC_SUMMARY]);
+});
+
+it("removes the org-wide grant on a delete tombstone", async () => {
+  await seedOrgDoc();
+  await processOutboxMessage(
+    env,
+    relationMsg(SPACE_RELATION_RECORD, {
+      subject: MEMBERS_SPACE,
+      subjectRole: "reader",
+      relation: "reader",
+    }),
+  );
+  await processOutboxMessage(env, relationMsg(SPACE_RELATION_RECORD, null));
+  expect(await docsFor(getDb(env), BOB, ORG)).toEqual([]);
+});
+
+it("ignores a spaceRelation whose subject is not a members space", async () => {
+  await seedOrgDoc();
+  await processOutboxMessage(
+    env,
+    relationMsg(SPACE_RELATION_RECORD, {
+      subject: `at://${ORG}/space/network.habitat.group/some-group`,
+      subjectRole: "writer",
+      relation: "reader",
+    }),
+  );
+  expect(await docsFor(getDb(env), BOB, ORG)).toEqual([]);
 });
 
 const COMMENTS_SPACE = `at://${OWNER}/space/network.habitat.docs.comments/abc`;

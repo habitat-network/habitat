@@ -1,8 +1,18 @@
 import { drizzle } from "drizzle-orm/d1";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  notInArray,
+  or,
+} from "drizzle-orm";
 import {
   docs,
   docAccess,
+  docOrgAccess,
   connectedOrgs,
   comments,
   commentReplies,
@@ -14,7 +24,6 @@ export interface DocSummary {
   uri: string;
   ownerDid: string;
   title: string;
-  isOrg: boolean;
 }
 
 export function getDb(env: { DB: D1Database }) {
@@ -22,6 +31,7 @@ export function getDb(env: { DB: D1Database }) {
     schema: {
       docs,
       docAccess,
+      docOrgAccess,
       connectedOrgs,
       comments,
       commentReplies,
@@ -39,26 +49,19 @@ export async function upsertDoc(
     docId: string;
     ownerDid: string;
     title: string;
-    isOrg?: boolean;
   },
 ): Promise<void> {
   const now = Date.now();
   await db
     .insert(docs)
-    .values({ ...doc, isOrg: doc.isOrg ?? false, updatedAt: now })
+    .values({ ...doc, updatedAt: now })
     .onConflictDoUpdate({
       target: docs.spaceUri,
-      // isOrg is deliberately omitted unless the caller passes it: a
-      // conflict only updates the columns listed here, so a caller that
-      // doesn't have (or care about) an opinion on isOrg — docRoom.ts's
-      // content-flush upsert, notably — leaves the existing row's value
-      // alone instead of silently resetting it to false.
       set: {
         docId: doc.docId,
         ownerDid: doc.ownerDid,
         title: doc.title,
         updatedAt: now,
-        ...(doc.isOrg !== undefined ? { isOrg: doc.isOrg } : {}),
       },
     });
 }
@@ -69,17 +72,35 @@ function toSummary(r: typeof docs.$inferSelect): DocSummary {
     uri: r.spaceUri,
     ownerDid: r.ownerDid,
     title: r.title,
-    isOrg: r.isOrg,
   };
 }
 
-// docsForAccessor returns the docs a subject holds any role on, per the
+// docsFor returns the docs a subject can open, per the
 // doc_access rows synced from network.habitat.relationship.userRelation
-// (see sapChannel.ts). The (subjectDid, spaceUri) primary key on doc_access
-// means each doc joins in at most once here.
-export async function docsForAccessor(
+// (see outbox.ts), and — in org mode — the doc_org_access rows that share a
+// doc with a whole org.
+//
+// Both modes are the same query, differing only in which docs are in scope.
+// A doc's ownerDid is its space authority (the <did> in
+// at://<did>/space/<type>/<skey>), so it says which identity the doc
+// belongs to: in org mode that's the org itself, and org mode lists the
+// org's docs the member can reach — shared with the whole org, or granted
+// to them personally, which covers a doc they created but haven't shared.
+//
+// Personal mode is the complement: docs belonging to a person rather than
+// an org, which is why it excludes any doc whose authority is an org this
+// deployment knows (connected_orgs — an org's docs only reach this DB once
+// somebody connects it). Without that an org doc would show up in its
+// creator's personal list, since they hold a personal grant on it. There's
+// no org to match either, so the org join finds nothing (no doc_org_access
+// row has an empty org DID) and only personal grants remain.
+//
+// Each join matches at most one row (both are keyed by their table's
+// primary key), so a doc reachable both ways still appears once.
+export async function docsFor(
   db: Db,
   subjectDid: string,
+  orgDid?: string,
 ): Promise<DocSummary[]> {
   const rows = await db
     .select({
@@ -88,31 +109,33 @@ export async function docsForAccessor(
       ownerDid: docs.ownerDid,
       title: docs.title,
       updatedAt: docs.updatedAt,
-      isOrg: docs.isOrg,
     })
     .from(docs)
-    .innerJoin(docAccess, eq(docs.spaceUri, docAccess.spaceUri))
-    .where(eq(docAccess.subjectDid, subjectDid))
-    .orderBy(desc(docs.updatedAt));
-  return rows.map(toSummary);
-}
-
-// docsForOrg returns every doc owned by org, regardless of who created it
-// or any doc_access grant — org docs have none (see createDoc's org-mode
-// branch), since access is org-wide by construction (the space's own
-// community.opensocial.access record, not a per-user relation).
-export async function docsForOrg(db: Db, org: string): Promise<DocSummary[]> {
-  const rows = await db
-    .select({
-      spaceUri: docs.spaceUri,
-      docId: docs.docId,
-      ownerDid: docs.ownerDid,
-      title: docs.title,
-      updatedAt: docs.updatedAt,
-      isOrg: docs.isOrg,
-    })
-    .from(docs)
-    .where(and(eq(docs.isOrg, true), eq(docs.ownerDid, org)))
+    .leftJoin(
+      docAccess,
+      and(
+        eq(docs.spaceUri, docAccess.spaceUri),
+        eq(docAccess.subjectDid, subjectDid),
+      ),
+    )
+    .leftJoin(
+      docOrgAccess,
+      and(
+        eq(docs.spaceUri, docOrgAccess.spaceUri),
+        eq(docOrgAccess.orgDid, orgDid ?? ""),
+      ),
+    )
+    .where(
+      and(
+        orgDid
+          ? eq(docs.ownerDid, orgDid)
+          : notInArray(
+              docs.ownerDid,
+              db.select({ orgDid: connectedOrgs.orgDid }).from(connectedOrgs),
+            ),
+        or(isNotNull(docAccess.spaceUri), isNotNull(docOrgAccess.spaceUri)),
+      ),
+    )
     .orderBy(desc(docs.updatedAt));
   return rows.map(toSummary);
 }
@@ -148,6 +171,37 @@ export async function upsertDocAccess(
 // to the JSON-null tombstone the outbox emits for a deleted record.
 export async function deleteDocAccess(db: Db, uri: string): Promise<void> {
   await db.delete(docAccess).where(eq(docAccess.uri, uri));
+}
+
+// upsertDocOrgAccess records or updates a doc's org-wide grant, keyed by
+// (orgDid, spaceUri) — an org holds at most one relation on a given doc.
+export async function upsertDocOrgAccess(
+  db: Db,
+  access: {
+    uri: string;
+    spaceUri: string;
+    orgDid: string;
+    relation: string;
+  },
+): Promise<void> {
+  const row = { ...access, updatedAt: Date.now() };
+  await db
+    .insert(docOrgAccess)
+    .values(row)
+    .onConflictDoUpdate({
+      target: [docOrgAccess.orgDid, docOrgAccess.spaceUri],
+      set: {
+        uri: row.uri,
+        relation: row.relation,
+        updatedAt: row.updatedAt,
+      },
+    });
+}
+
+// deleteDocOrgAccess removes a doc's org-wide grant by the spaceRelation
+// record's own URI, mirroring deleteDocAccess.
+export async function deleteDocOrgAccess(db: Db, uri: string): Promise<void> {
+  await db.delete(docOrgAccess).where(eq(docOrgAccess.uri, uri));
 }
 
 export async function docByUri(

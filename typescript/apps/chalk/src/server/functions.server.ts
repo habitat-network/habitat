@@ -1,7 +1,8 @@
 import { redirect } from "@tanstack/react-router";
+import { env } from "cloudflare:workers";
 import { SpaceRef, type DidString } from "@atproto/syntax";
 import { useAppSession } from "./session";
-import type { SapClient } from "./sapClient";
+import { SapClient } from "./sapClient";
 
 // Server-only helpers, kept out of functions.ts so that file can stay
 // "pure" (only createServerFn-wrapped exports) per TanStack Start's
@@ -29,22 +30,27 @@ export async function createDocSpace(
   client: SapClient,
   did: string,
   currentOrg: string | undefined,
-): Promise<{ uri: string; ownerDid: string; isOrg: boolean }> {
+): Promise<{ uri: string; ownerDid: string }> {
   if (currentOrg) {
+    // roles is empty: access is granted via explicit spaceRelation/
+    // userRelation records (the share dialog) instead of being baked in at
+    // creation time — sharing with "the whole org" means a spaceRelation
+    // naming the org's own community.opensocial.members space as its
+    // subject (see orgMembersSpaceUri/OrgShareControl).
     const created = await client.call<{ uri: string }>(
       "community.opensocial.createSpace",
       "POST",
-      { org: currentOrg, type: DOCS_SPACE_TYPE, roles: ["admin", "member"] },
+      { org: currentOrg, type: DOCS_SPACE_TYPE, roles: [] },
       { atprotoProxy: `${currentOrg}#habitat` },
     );
-    return { uri: created.uri, ownerDid: currentOrg, isOrg: true };
+    return { uri: created.uri, ownerDid: currentOrg };
   }
   const created = await client.call<{ uri: string }>(
     "network.habitat.simplespace.createSpace",
     "POST",
     { did, type: DOCS_SPACE_TYPE },
   );
-  return { uri: created.uri, ownerDid: did, isOrg: false };
+  return { uri: created.uri, ownerDid: did };
 }
 
 // fetchOrgName reads an org's display name off its
@@ -79,6 +85,19 @@ export async function fetchOrgName(
   } catch {
     return null;
   }
+}
+
+// orgMembersSpaceUri returns the URI of orgDid's own
+// community.opensocial.members space — naming this as a spaceRelation's
+// subject, with subjectRole "reader", grants the relation to every member
+// of the org (pear's CheckUserHasSpaceRole treats holding any opensocial
+// membership as holding "reader" on this space; see internal/perms/store.go).
+export function orgMembersSpaceUri(orgDid: string): string {
+  return new SpaceRef(
+    orgDid as DidString,
+    "community.opensocial.members",
+    "self",
+  ).toString();
 }
 
 // listMyOrgIds lists the DIDs of every opensocial org the member belongs
@@ -194,4 +213,24 @@ export async function docRole(
   if (await checkRelation(client, did, docId, "writer")) return "editor";
   if (await checkRelation(client, did, docId, "reader")) return "viewer";
   return null;
+}
+
+// managementClient returns the SapClient to use for calls that manage a
+// doc (or a doc-adjacent space, like its companion comments space): in org
+// mode this is the org's own OAuth session (sap already tracks one,
+// established when the org was connected — see startOrgConnect), not the
+// calling member's. The org owns its doc spaces outright, so it always
+// passes pear's manager check (CheckUserHasSpaceRole's implicit-owner
+// rule) — unlike an individual member, who may hold no relation on the
+// space at all until someone with manager access grants them one. This
+// sidesteps that bootstrapping problem entirely: managing an org doc never
+// depends on the acting member's own grant. In personal mode there's no
+// org session, so this is just the member's own client, same as
+// everywhere else. Shared by functions.ts (sharing) and
+// comments.server.ts (the comments space's spaceRelation grants).
+export function managementClient(
+  did: string,
+  currentOrg: string | undefined,
+): SapClient {
+  return new SapClient(env, currentOrg ?? did);
 }

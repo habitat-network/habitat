@@ -30,6 +30,12 @@ type OpenSocialStore interface {
 		did syntax.DID,
 		space habitat_syntax.SpaceURI,
 	) (bool, error)
+	// ListMemberSpaces returns the community.opensocial.members spaces did
+	// belongs to (every org it holds a permissioned repo in).
+	ListMemberSpaces(
+		ctx context.Context,
+		did syntax.DID,
+	) ([]habitat_syntax.SpaceURI, error)
 }
 
 type Store interface {
@@ -415,6 +421,7 @@ func (s *store) CheckUserHasSpaceRole(
 	space habitat_syntax.SpaceURI,
 	role habitat_syntax.SpaceRole,
 ) (bool, error) {
+	contextualTuples := []fgastore.Tuple{fgastore.OwnerContextualTuple(space)}
 	if role == habitat_syntax.SpaceRoleReader || role == habitat_syntax.SpaceRoleWriter {
 		allowed, err := s.opensocial.CheckPermission(ctx, did, space)
 		if err != nil {
@@ -423,13 +430,32 @@ func (s *store) CheckUserHasSpaceRole(
 		if allowed {
 			return true, nil
 		}
+		// A spaceRelation can grant this role to every member of an org by
+		// naming that org's members space as its subject, with subjectRole
+		// reader (see network.habitat.relationship.spaceRelation). Since
+		// opensocial spaces are never given real FGA tuples, OpenFGA's own
+		// userset expansion for such a tuple has nothing to expand — inject
+		// a contextual tuple per org did actually belongs to, asserting it
+		// holds reader on that org's members space, so the expansion
+		// resolves instead of silently matching nobody.
+		memberSpaces, err := s.opensocial.ListMemberSpaces(ctx, did)
+		if err != nil {
+			return false, fmt.Errorf("list opensocial member spaces: %w", err)
+		}
+		for _, memberSpace := range memberSpaces {
+			contextualTuples = append(contextualTuples, fgastore.Tuple{
+				User:     fgastore.MemberUserString(did),
+				Relation: fgastore.RelationSpaceReader,
+				Object:   fgastore.SpaceObjectKey(memberSpace),
+			})
+		}
 	}
 	return s.fga.Check(
 		ctx,
 		fgastore.MemberUserString(did),
 		fgaRelationFromRole[role],
 		fgastore.SpaceObjectKey(space),
-		fgastore.OwnerContextualTuple(space),
+		contextualTuples...,
 	)
 }
 

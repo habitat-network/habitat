@@ -85,7 +85,6 @@ export const Route = createFileRoute("/_requireAuth")({
             uri,
             ownerDid: currentOrg?.did ?? actor.did,
             title: "Untitled",
-            isOrg: !!currentOrg,
           },
         ]);
         addRecentDoc(docId);

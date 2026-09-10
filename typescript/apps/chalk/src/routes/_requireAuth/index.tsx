@@ -11,6 +11,7 @@ import {
 } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { useActors } from "@/hooks/useActors";
+import { Route as RequireAuthRoute } from "@/routes/_requireAuth";
 import { listDocs } from "@/server/functions";
 
 function OwnerCell({ owner }: { owner: Actor }) {
@@ -28,6 +29,10 @@ export const Route = createFileRoute("/_requireAuth/")({
       queryKey: ["docs"],
       queryFn: () => listDocs(),
     });
+    // In org mode every doc listed belongs to the org, so an owner column
+    // would repeat the same org on every row.
+    const { currentOrg } = RequireAuthRoute.useLoaderData();
+    const showOwner = !currentOrg;
 
     const getOwner = useActors(docs.map((doc) => doc.ownerDid));
 
@@ -53,7 +58,7 @@ export const Route = createFileRoute("/_requireAuth/")({
             <TableHeader>
               <TableRow>
                 <TableHead>Document</TableHead>
-                <TableHead>Owner</TableHead>
+                {showOwner && <TableHead>Owner</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -68,9 +73,11 @@ export const Route = createFileRoute("/_requireAuth/")({
                       {doc.title}
                     </Link>
                   </TableCell>
-                  <TableCell>
-                    <OwnerCell owner={getOwner(doc.ownerDid)} />
-                  </TableCell>
+                  {showOwner && (
+                    <TableCell>
+                      <OwnerCell owner={getOwner(doc.ownerDid)} />
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

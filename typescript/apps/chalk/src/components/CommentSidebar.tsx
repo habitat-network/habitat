@@ -127,8 +127,7 @@ export function CommentSidebar({
   if (comments.length === 0 && !showPendingThread) {
     return (
       <aside className="w-80 shrink-0 border-l p-4 text-sm text-muted-foreground">
-        No comments yet. Select some text and click "Comment" to start a
-        thread.
+        No comments yet. Select some text and click "Comment" to start a thread.
         <div className="mt-4">
           <Button variant="ghost" size="sm" onClick={onClose}>
             Close
@@ -163,7 +162,9 @@ export function CommentSidebar({
               <Button
                 size="sm"
                 disabled={createCommentMutation.isPending || !reply.trim()}
-                onClick={() => pendingAnchor && createCommentMutation.mutate(pendingAnchor)}
+                onClick={() =>
+                  pendingAnchor && createCommentMutation.mutate(pendingAnchor)
+                }
               >
                 Comment
               </Button>

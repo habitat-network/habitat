@@ -1,17 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { DidString } from "@atproto/syntax";
 import { env } from "cloudflare:workers";
 import {
   commentsForDocWithResolution,
   connectedOrgNames,
   deleteDocAccess,
+  deleteDocOrgAccess,
   docByUri,
-  docsForAccessor,
-  docsForOrg,
+  docsFor,
   getDb,
   repliesForDoc,
   upsertDoc,
   upsertDocAccess,
+  upsertDocOrgAccess,
   type DocSummary,
 } from "../db";
 import {
@@ -20,10 +20,14 @@ import {
   docRole,
   fetchOrgName,
   listMyOrgIds,
+  managementClient,
+  orgMembersSpaceUri,
   requireSession,
   setCurrentOrg,
 } from "./functions.server";
 import {
+  ensureCommentsSpace,
+  isOrgDoc,
   removeComment,
   removeReply,
   resolveThread,
@@ -61,11 +65,21 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     const { did, currentOrg } = await requireSession();
     const client = new SapClient(env, did);
 
-    const { uri, ownerDid, isOrg } = await createDocSpace(
-      client,
-      did,
-      currentOrg,
-    );
+    const { uri, ownerDid } = await createDocSpace(client, did, currentOrg);
+
+    // An org doc space is created with no opensocial access roles (see
+    // createDocSpace), so the member who just created it holds nothing on
+    // it — not even enough for the trackSpace call below, which fails its
+    // space-credential check as UserNotAuthorized. Grant them manager with
+    // the org's own credentials (the org owns the space, so it always
+    // qualifies — see managementClient) before anything else touches it.
+    if (currentOrg) {
+      await managementClient(did, currentOrg).call(
+        "network.habitat.relationship.setUserRelation",
+        "POST",
+        { subject: did, relation: "manager", space: uri },
+      );
+    }
 
     // sap has no way to discover this space on its own until the member's
     // next session crawl — tell it explicitly so DocSync's outbox consumer
@@ -81,29 +95,21 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     const docId = uri;
 
     const db = getDb(env);
-    await upsertDoc(db, {
-      spaceUri: uri,
-      docId,
-      ownerDid,
-      title: "Untitled",
-      isOrg,
-    });
+    await upsertDoc(db, { spaceUri: uri, docId, ownerDid, title: "Untitled" });
 
-    // Personal docs grant the owner local doc_access now rather than
-    // waiting on the outbox webhook to sync their own userRelation record
-    // back — without this, docsForAccessor's inner join hides the doc the
-    // owner just created until that async round-trip lands. Org docs have
-    // no doc_access rows at all: access is org-wide via the space's own
-    // community.opensocial.access record (see createDocSpace), not a
-    // per-user grant.
-    if (!isOrg) {
-      await upsertDocAccess(db, {
-        uri,
-        spaceUri: uri,
-        subjectDid: did,
-        relation: "owner",
-      });
-    }
+    // Record the creator's own grant locally now rather than waiting on the
+    // outbox webhook to sync the matching userRelation record back —
+    // without this, the doc the creator just made is hidden from their own
+    // listing until that async round-trip lands. Personal docs get owner
+    // (simplespace.createSpace grants it); org docs get the manager grant
+    // made just above, and stay invisible to the rest of the org until
+    // they're shared with it (docsFor lists those from doc_org_access).
+    await upsertDocAccess(db, {
+      uri,
+      spaceUri: uri,
+      subjectDid: did,
+      relation: currentOrg ? "manager" : "owner",
+    });
 
     // Record the room's identity now, so the owner-republish alarm knows the
     // owner before the webhook (src/server/webhook.ts) delivers it.
@@ -112,6 +118,30 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
       ownerDid,
     });
 
+    // Create the doc's companion comments space eagerly, right after the
+    // doc itself, rather than waiting for the first comment: the creator's
+    // own client always has full rights on a space it just created, which
+    // writeComment's lazy fallback can't assume for a doc shared with
+    // someone else (a member with only reader/writer on the doc has no
+    // identity that can create the personal-owner's comments space, and
+    // an org doc's comments space needs the org's own manager rights,
+    // exactly like the setUserRelation grant just above it). Best-effort:
+    // a failure here shouldn't block doc creation, and writeComment
+    // retries the same ensureCommentsSpace call on first use anyway.
+    try {
+      await ensureCommentsSpace(
+        client,
+        managementClient(did, currentOrg),
+        uri,
+        {
+          ownerDid,
+          isOrg: !!currentOrg,
+        },
+      );
+    } catch (err) {
+      console.error("[createDoc] ensureCommentsSpace", err);
+    }
+
     return { docId, uri };
   },
 );
@@ -119,8 +149,7 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
 export const listDocs = createServerFn({ method: "GET" }).handler(
   async (): Promise<DocSummary[]> => {
     const { did, currentOrg } = await requireSession();
-    const db = getDb(env);
-    return currentOrg ? docsForOrg(db, currentOrg) : docsForAccessor(db, did);
+    return docsFor(getDb(env), did, currentOrg);
   },
 );
 
@@ -133,10 +162,7 @@ export const getCurrentOrg = createServerFn({ method: "GET" }).handler(
     const { did, currentOrg } = await requireSession();
     if (!currentOrg) return undefined;
     const client = new SapClient(env, did);
-    return {
-      did: currentOrg,
-      name: await fetchOrgName(client, currentOrg as DidString),
-    };
+    return { did: currentOrg, name: await fetchOrgName(client, currentOrg) };
   },
 );
 
@@ -218,6 +244,14 @@ interface UserRelationView {
   relation: string;
 }
 
+// A spaceRelation record as network.habitat.relationship.listRelations
+// returns it — only the fields the org-sharing functions below read.
+interface SpaceRelationView {
+  uri: string;
+  subject: string;
+  relation: string;
+}
+
 // listDocAccess returns every user with a direct grant on the doc, and
 // their relation — the "people with access" list a share dialog shows.
 // Only user grants (subjectType "user"), not space/group usersets:
@@ -228,8 +262,8 @@ export const listDocAccess = createServerFn({ method: "GET" })
     async ({
       data,
     }): Promise<{ did: string; relation: "manager" | "reader" }[]> => {
-      const { did } = await requireSession();
-      const client = new SapClient(env, did);
+      const { did, currentOrg } = await requireSession();
+      const client = managementClient(did, currentOrg);
       const { relations } = await client.call<{
         relations: UserRelationView[];
       }>("network.habitat.relationship.listRelations", "GET", {
@@ -255,16 +289,18 @@ const ROLE_TO_RELATION: Record<"editor" | "viewer", "manager" | "reader"> = {
 };
 
 // shareDoc grants a user access to a doc as either an editor or a viewer.
-// Requires the caller to already hold manager (pear enforces this; a
-// non-manager's setUserRelation call fails there, not here).
+// In personal mode the caller must already hold manager themselves (pear
+// enforces this; a non-manager's setUserRelation call fails there, not
+// here). In org mode this goes through managementClient's org session
+// instead, which always qualifies.
 export const shareDoc = createServerFn({ method: "POST" })
   .validator(
     (input: { docId: string; subjectDid: string; role: "editor" | "viewer" }) =>
       input,
   )
   .handler(async ({ data }) => {
-    const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const { did, currentOrg } = await requireSession();
+    const client = managementClient(did, currentOrg);
     const { uri } = await client.call<{ uri: string }>(
       "network.habitat.relationship.setUserRelation",
       "POST",
@@ -277,7 +313,7 @@ export const shareDoc = createServerFn({ method: "POST" })
 
     // Grant local doc_access immediately rather than waiting on the outbox
     // webhook to sync this same userRelation record back — without this,
-    // the newly-shared user's own docsForAccessor query won't show the doc
+    // the newly-shared user's own docsFor query won't show the doc
     // until that async round-trip lands. The webhook's own upsertDocAccess
     // call is a no-op once this has already landed (same uri).
     await upsertDocAccess(getDb(env), {
@@ -322,8 +358,8 @@ export const getDocInitialState = createServerFn({ method: "GET" })
 export const revokeDocAccess = createServerFn({ method: "POST" })
   .validator((input: { docId: string; subjectDid: string }) => input)
   .handler(async ({ data }) => {
-    const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const { did, currentOrg } = await requireSession();
+    const client = managementClient(did, currentOrg);
     const { relations } = await client.call<{ relations: UserRelationView[] }>(
       "network.habitat.relationship.listRelations",
       "GET",
@@ -342,7 +378,110 @@ export const revokeDocAccess = createServerFn({ method: "POST" })
     await deleteDocAccess(getDb(env), relation.uri);
   });
 
-export type { CommentReplyView, CommentView, StrongRef } from "./comments.server";
+// The org-wide grant maps to "reader"/"writer" (not "manager", used for a
+// per-person editor) — every member reshaing the doc org-wide would be too
+// permissive for a grant this broad.
+const ORG_ROLE_TO_RELATION: Record<"editor" | "viewer", "writer" | "reader"> = {
+  editor: "writer",
+  viewer: "reader",
+};
+
+// getOrgSpaceRelation looks up the doc's spaceRelation naming the caller's
+// org's members space as its subject, if any — the single record that
+// backs the "share with everyone at <org>" option.
+async function getOrgSpaceRelation(
+  client: SapClient,
+  docId: string,
+  currentOrg: string,
+): Promise<SpaceRelationView | undefined> {
+  const { relations } = await client.call<{ relations: SpaceRelationView[] }>(
+    "network.habitat.relationship.listRelations",
+    "GET",
+    { space: docId, subjectType: "space" },
+  );
+  const membersSpace = orgMembersSpaceUri(currentOrg);
+  return relations.find((r) => r.subject === membersSpace);
+}
+
+// getDocOrgAccess resolves whether (and how) a doc is currently shared with
+// every member of the caller's org, for the org-sharing control to show its
+// current state. Returns null outside org mode, or when nothing is shared.
+export const getDocOrgAccess = createServerFn({ method: "GET" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }): Promise<"editor" | "viewer" | null> => {
+    const { currentOrg } = await requireSession();
+    if (!currentOrg) return null;
+    const client = new SapClient(env, currentOrg);
+    const relation = await getOrgSpaceRelation(client, data.docId, currentOrg);
+    if (!relation) return null;
+    return relation.relation === "writer" ? "editor" : "viewer";
+  });
+
+// shareDocWithOrg grants every member of the caller's current org access to
+// a doc, via a single spaceRelation naming the org's own
+// community.opensocial.members space as its subject (see
+// orgMembersSpaceUri) — this is what the share dialog's "entire org" option
+// calls. Always org-mode only; see managementClient's comment for why this
+// uses the org's own session rather than the calling member's.
+export const shareDocWithOrg = createServerFn({ method: "POST" })
+  .validator((input: { docId: string; role: "editor" | "viewer" }) => input)
+  .handler(async ({ data }) => {
+    const { currentOrg } = await requireSession();
+    if (!currentOrg) throw new Error("not acting as an org");
+    // Called with the org's own OAuth session (not the member's): the org
+    // owns the doc space outright, so this always passes pear's manager
+    // check regardless of what the acting member personally holds — see
+    // managementClient's comment above for why that matters.
+    const client = new SapClient(env, currentOrg);
+    const { uri } = await client.call<{ uri: string }>(
+      "network.habitat.relationship.setSpaceRelation",
+      "POST",
+      {
+        subject: orgMembersSpaceUri(currentOrg),
+        subjectRole: "reader",
+        relation: ORG_ROLE_TO_RELATION[data.role],
+        space: data.docId,
+      },
+    );
+
+    // Record the org-wide grant locally now rather than waiting on the
+    // outbox webhook to sync this same spaceRelation back — without this,
+    // the doc doesn't appear in other members' listDocs until that async
+    // round-trip lands. outbox.ts's handleSpaceRelation is a no-op once
+    // this has already landed (same uri).
+    await upsertDocOrgAccess(getDb(env), {
+      uri,
+      spaceUri: data.docId,
+      orgDid: currentOrg,
+      relation: ORG_ROLE_TO_RELATION[data.role],
+    });
+  });
+
+// revokeDocOrgAccess removes the doc's org-wide grant, if any — the share
+// dialog's "not shared with org" option.
+export const revokeDocOrgAccess = createServerFn({ method: "POST" })
+  .validator((input: { docId: string }) => input)
+  .handler(async ({ data }) => {
+    const { currentOrg } = await requireSession();
+    if (!currentOrg) return;
+    const client = new SapClient(env, currentOrg);
+    const relation = await getOrgSpaceRelation(client, data.docId, currentOrg);
+    if (!relation) return;
+    await client.call("network.habitat.relationship.deleteRelation", "POST", {
+      uri: relation.uri,
+    });
+
+    // Drop the local row immediately, for the same reason shareDocWithOrg
+    // writes it immediately: otherwise the doc keeps showing up in every
+    // org member's listDocs until the outbox tombstone lands.
+    await deleteDocOrgAccess(getDb(env), relation.uri);
+  });
+
+export type {
+  CommentReplyView,
+  CommentView,
+  StrongRef,
+} from "./comments.server";
 
 // A CommentsPayload bundles a doc's comment threads — each root comment
 // with its replies and resolve state nested directly on it (see
@@ -413,7 +552,9 @@ export const listComments = createServerFn({ method: "GET" })
 // that space and its inheritance from the doc space on first use.
 // anchorStart/anchorEnd are Yjs relative positions the client computed
 // from its own live Y.Doc before calling this — the server has no editor
-// state of its own to derive them from.
+// state of its own to derive them from. isOrg is derived the same way
+// docsFor tells an org-owned doc apart from a personal one (see
+// isOrgDoc) — the doc itself carries no such flag; only its owner DID does.
 //
 // Requires editor (writer) on the doc: the comments space grants writer to
 // the doc space's writers, so a viewer's putRecord would be rejected by
@@ -430,20 +571,30 @@ export const createComment = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data }): Promise<CommentView> => {
-    const { did } = await requireSession();
+    const { did, currentOrg } = await requireSession();
     const client = new SapClient(env, did);
     if ((await docRole(client, did, data.docId)) !== "editor") {
       throw new Error("forbidden");
     }
-    const doc = await docByUri(getDb(env), data.docId);
-    return writeComment(client, getDb(env), did, data.docId, {
-      body: data.body,
-      anchorStart: data.anchorStart,
-      anchorEnd: data.anchorEnd,
-      quotedText: data.quotedText,
-      ownerDid: doc?.ownerDid ?? did,
-      isOrg: doc?.isOrg ?? false,
-    });
+    const db = getDb(env);
+    const doc = await docByUri(db, data.docId);
+    const ownerDid = doc?.ownerDid ?? did;
+    const isOrg = await isOrgDoc(db, ownerDid);
+    return writeComment(
+      client,
+      managementClient(did, isOrg ? ownerDid : currentOrg),
+      db,
+      did,
+      data.docId,
+      {
+        body: data.body,
+        anchorStart: data.anchorStart,
+        anchorEnd: data.anchorEnd,
+        quotedText: data.quotedText,
+        ownerDid,
+        isOrg,
+      },
+    );
   });
 
 // createReply adds a reply to an existing thread — see writeReply in
@@ -470,8 +621,7 @@ export const createReply = createServerFn({ method: "POST" })
 // thread's root.
 export const resolveComment = createServerFn({ method: "POST" })
   .validator(
-    (input: { docId: string; comment: StrongRef; resolved: boolean }) =>
-      input,
+    (input: { docId: string; comment: StrongRef; resolved: boolean }) => input,
   )
   .handler(async ({ data }) => {
     const { did } = await requireSession();

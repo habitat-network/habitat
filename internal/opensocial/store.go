@@ -220,6 +220,29 @@ func (s *Store) CreateSpace(
 	return spaceURI, nil
 }
 
+// UpdateSpace replaces the roles that may read a space by rewriting its
+// community.opensocial.access record.
+func (s *Store) UpdateSpace(
+	ctx context.Context,
+	spaceURI habitat_syntax.SpaceURI,
+	roles []string,
+) error {
+	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
+		Roles:     roles,
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal access record: %w", err)
+	}
+	if _, _, err := s.spacesStore.PutRecord(
+		ctx, spaceURI, spaceURI.SpaceOwner(), "community.opensocial.access", "self",
+		recordBytes,
+	); err != nil {
+		return fmt.Errorf("put access record: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) UploadImage(
 	ctx context.Context,
 	orgDID syntax.DID,
@@ -356,6 +379,18 @@ func (s *Store) CheckPermission(
 		xmaps.SetFromSlice(membershipRoles),
 	)
 	return len(intersection) > 0, nil
+}
+
+// ListMemberSpaces returns the community.opensocial.members spaces `user`
+// belongs to — every org whose members space it holds a permissioned repo
+// in (i.e. has written its own record into, such as a
+// community.opensocial.acceptance record when joining).
+func (s *Store) ListMemberSpaces(
+	ctx context.Context,
+	user syntax.DID,
+) ([]habitat_syntax.SpaceURI, error) {
+	membersType := syntax.NSID(MembersSpaceType)
+	return s.spacesStore.ListSpaces(ctx, user, nil, &membersType)
 }
 
 func (s *Store) GetUserRoles(

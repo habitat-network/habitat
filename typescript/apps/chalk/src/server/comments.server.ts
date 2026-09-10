@@ -5,6 +5,7 @@ import {
   applyResolution,
   deleteComment,
   deleteCommentReply,
+  isConnectedOrg,
   upsertComment,
   upsertCommentReply,
   type CommentReplyRow,
@@ -73,7 +74,11 @@ export function decodeAnchorBytes(value: unknown): string | undefined {
 export function commentsSpaceUri(docId: string): string | undefined {
   const parts = parseSpaceRef(docId);
   if (!parts) return undefined;
-  return new SpaceRef(parts.spaceDid, COMMENTS_SPACE_TYPE, parts.skey).toString();
+  return new SpaceRef(
+    parts.spaceDid,
+    COMMENTS_SPACE_TYPE,
+    parts.skey,
+  ).toString();
 }
 
 // parseSpaceRef parses a space URI, returning undefined (rather than
@@ -110,6 +115,7 @@ const SPACE_RELATIONS: { subjectRole: "reader" | "writer" }[] = [
 // Atproto-Proxy, exactly as createDocSpace does for the doc space itself.
 export async function ensureCommentsSpace(
   client: SapClient,
+  managementClient: SapClient,
   docId: string,
   opts: { ownerDid: string; isOrg: boolean },
 ): Promise<string | undefined> {
@@ -126,7 +132,7 @@ export async function ensureCommentsSpace(
           org: opts.ownerDid,
           type: COMMENTS_SPACE_TYPE,
           skey: parts.skey,
-          roles: ["admin", "member"],
+          roles: [],
         },
         { atprotoProxy: `${opts.ownerDid}#habitat` },
       );
@@ -143,7 +149,7 @@ export async function ensureCommentsSpace(
 
   for (const { subjectRole } of SPACE_RELATIONS) {
     try {
-      await client.call(
+      await managementClient.call(
         "network.habitat.relationship.setSpaceRelation",
         "POST",
         {
@@ -174,6 +180,16 @@ export async function ensureCommentsSpace(
   }
 
   return spaceUri;
+}
+
+// isOrgDoc reports whether a doc's owner is an org this deployment knows
+// about (see db's isConnectedOrg) — the same connected_orgs signal
+// docsFor uses to tell an org-owned doc apart from a personal one, reused
+// here to decide whether the doc's companion comments space needs to be
+// created as an org space or a personal one (docs.isOrg no longer exists
+// as a stored column).
+export async function isOrgDoc(db: Db, ownerDid: string): Promise<boolean> {
+  return isConnectedOrg(db, ownerDid);
 }
 
 // docSpaceUriForComments is commentsSpaceUri's inverse: given a comments
@@ -306,6 +322,7 @@ export function toCommentView(
 // instead of a proxied error.
 export async function writeComment(
   client: SapClient,
+  managementClient: SapClient,
   db: Db,
   did: string,
   docId: string,
@@ -318,7 +335,7 @@ export async function writeComment(
     isOrg: boolean;
   },
 ): Promise<CommentView> {
-  const spaceUri = await ensureCommentsSpace(client, docId, {
+  const spaceUri = await ensureCommentsSpace(client, managementClient, docId, {
     ownerDid: opts.ownerDid,
     isOrg: opts.isOrg,
   });
