@@ -59,30 +59,35 @@ export function OrgShareControl({
   });
 
   return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-2 text-sm">
-        <UsersIcon className="size-4 text-muted-foreground" />
-        <span>Everyone at {orgName}</span>
-      </div>
-      <Select
-        value={access}
-        onValueChange={(next) => setAccess(next as OrgAccess)}
-        disabled={isPending}
-      >
-        <SelectTrigger
-          size="sm"
-          aria-label={`Access for everyone at ${orgName}`}
+    // px-3 matches the grantee table's cell padding, so the header and row
+    // line up with the per-person grants listed above them.
+    <div className="flex flex-col gap-2 px-3">
+      <h3 className="font-medium">Organization-wide permissions</h3>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm">
+          <UsersIcon className="size-4 text-muted-foreground" />
+          <span>Everyone at {orgName}</span>
+        </div>
+        <Select
+          value={access}
+          onValueChange={(next) => setAccess(next as OrgAccess)}
+          disabled={isPending}
         >
-          <SelectValue>{(value) => LABEL[value as OrgAccess]}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectItem value="none">{LABEL.none}</SelectItem>
-            <SelectItem value="viewer">{LABEL.viewer}</SelectItem>
-            <SelectItem value="editor">{LABEL.editor}</SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+          <SelectTrigger
+            size="sm"
+            aria-label={`Access for everyone at ${orgName}`}
+          >
+            <SelectValue>{(value) => LABEL[value as OrgAccess]}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="none">{LABEL.none}</SelectItem>
+              <SelectItem value="viewer">{LABEL.viewer}</SelectItem>
+              <SelectItem value="editor">{LABEL.editor}</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }
