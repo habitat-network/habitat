@@ -2,12 +2,3 @@ workspace:
   inheritedTasks:
     exclude:
       - start
-
-tasks:
-  test:
-    command: pnpm test
-    inputs:
-      - src/**/*
-      - package.json
-      - tsconfig.json
-      - vitest.config.ts

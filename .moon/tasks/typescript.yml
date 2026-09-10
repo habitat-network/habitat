@@ -46,6 +46,18 @@ tasks:
       - '**/*'
     command: pnpm 
     args: build
+  test:
+    command: pnpm
+    args:
+      - test
+    type: test
+    inputs:
+      - /pnpm-lock.yaml
+      - src/**/*
+      - test/**/*
+      - package.json
+      - tsconfig.json
+      - vitest.config.ts
   start:
     command: pnpm serve
   dev:
