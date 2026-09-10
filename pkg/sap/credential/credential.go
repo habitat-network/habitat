@@ -170,19 +170,38 @@ func (m *Manager) DropSpace(space habitat_syntax.SpaceURI) {
 	delete(m.creds, space)
 }
 
+// Credential is a space credential and the space host it is valid against.
+type Credential struct {
+	Token string
+	Host  string
+}
+
+// Credential returns a valid space credential for space, for a caller that
+// reads the space's host itself rather than through ClientForSpace.
+func (m *Manager) Credential(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) (Credential, error) {
+	c, err := m.credential(ctx, space)
+	if err != nil {
+		return Credential{}, err
+	}
+	return Credential{Token: c.token, Host: c.host}, nil
+}
+
 // ClientForSpace returns an atproto API client that reads space at its own
 // host, authenticated with a valid space credential.
 func (m *Manager) ClientForSpace(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 ) (*atclient.APIClient, error) {
-	c, err := m.credential(ctx, space)
+	c, err := m.Credential(ctx, space)
 	if err != nil {
 		return nil, err
 	}
 	return &atclient.APIClient{
 		Client:  m.httpc,
-		Host:    c.host,
-		Headers: http.Header{"Authorization": []string{"Bearer " + c.token}},
+		Host:    c.Host,
+		Headers: http.Header{"Authorization": []string{"Bearer " + c.Token}},
 	}, nil
 }
