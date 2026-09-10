@@ -41,7 +41,7 @@ func newKey(t *testing.T) (atcrypto.PrivateKey, atcrypto.PublicKey) {
 
 var testSpace = habitat_syntax.ConstructSpaceURI("did:plc:org", "network.habitat.group", "s")
 
-func TestBuild_HostSignedForExternalAuthor(t *testing.T) {
+func TestBuild_HabitatSignedForExternalAuthor(t *testing.T) {
 	hostKey, hostPub := newKey(t)
 	authority := NewAuthority(hostKey, &fakeMember{managed: false})
 
@@ -56,6 +56,7 @@ func TestBuild_HostSignedForExternalAuthor(t *testing.T) {
 	require.Len(t, c.Ikm, ikmLen)
 
 	// External authors are host-signed and verify against the host key.
+	require.True(t, c.HabitatSigned)
 	require.NoError(t, Verify(c, testSpace, author, hash, hostPub))
 }
 
@@ -72,6 +73,7 @@ func TestBuild_MemberSignedForManagedAuthor(t *testing.T) {
 
 	// Managed authors are signed by their own key, even though a host key is also
 	// configured.
+	require.False(t, c.HabitatSigned)
 	require.NoError(t, Verify(c, testSpace, author, hash, memberPub))
 }
 

@@ -161,13 +161,16 @@ func decodeSignedCommit(b []byte) (spacecommit.SignedCommit, error) {
 	if err != nil {
 		return spacecommit.SignedCommit{}, err
 	}
+	// habitatSigned is optional; a commit that omits it decodes to false.
+	habitatSigned, _ := m["habitatSigned"].(bool)
 	return spacecommit.SignedCommit{
-		Ver:  int(ver),
-		Hash: hash,
-		Ikm:  ikm,
-		Mac:  mac,
-		Sig:  sig,
-		Rev:  rev,
+		Ver:           int(ver),
+		Hash:          hash,
+		Ikm:           ikm,
+		Mac:           mac,
+		Sig:           sig,
+		Rev:           rev,
+		HabitatSigned: habitatSigned,
 	}, nil
 }
 
