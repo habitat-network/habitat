@@ -8,15 +8,15 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   ShareDialog,
-  getProfiles,
   type Actor,
   type ShareDialogGrantee,
   type ShareDialogRole,
 } from "internal";
 import { toast } from "internal/components/ui";
+import { useActors } from "internal/hooks";
 import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
 import { OrgShareControl } from "@/components/OrgShareControl";
@@ -65,24 +65,18 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     useEffect(() => addRecentDoc(uri), [uri, addRecentDoc]);
 
     const accessQueryKey = ["docAccess", uri];
-    const { data: grantees = [] } = useQuery({
+    const { data: access = [] } = useQuery({
       queryKey: accessQueryKey,
       // listDocAccess only returns DIDs and relations (what
       // network.habitat.relationship actually stores); resolving DIDs to
-      // handles/avatars for display is a separate, client-side lookup
-      // against the public directory.
-      queryFn: async (): Promise<ShareDialogGrantee[]> => {
-        const access = await listDocAccess({ data: { docId: uri } });
-        const profiles = await getProfiles(access.map((a) => a.did));
-        const relationByDid = new Map(
-          access.map((a) => [a.did, a.relation] as const),
-        );
-        return profiles.map((profile) => ({
-          ...profile,
-          relation: relationByDid.get(profile.did),
-        }));
-      },
+      // handles/avatars for display is useActors's job.
+      queryFn: () => listDocAccess({ data: { docId: uri } }),
     });
+    const getActor = useActors(access.map((a) => a.did));
+    const grantees: ShareDialogGrantee[] = useMemo(
+      () => access.map((a) => ({ ...getActor(a.did), relation: a.relation })),
+      [access, getActor],
+    );
     const invalidateAccess = () =>
       queryClient.invalidateQueries({ queryKey: accessQueryKey });
 

@@ -1,3 +1,7 @@
+workspace:
+  inheritedTasks:
+    exclude:
+      - test
 tasks:
   generate:
     command: pnpm run generate
