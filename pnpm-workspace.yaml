@@ -18,15 +18,20 @@ packages:
   - website
 
 overrides:
-  '@atproto/syntax': 0.0.0-spaces-alpha-20260818163953
+  '@atproto/lex-builder': alpha
+  '@atproto/lex-client': alpha
+  '@atproto/lex-document': alpha
+  '@atproto/lex-installer': alpha
+  '@atproto/lex-resolver': alpha
+  '@atproto/lex-schema': alpha
 
 catalog:
-  '@atproto/api': 0.0.0-spaces-alpha-20260818163953
-  '@atproto/identity': 0.0.0-spaces-alpha-20260818163953
-  '@atproto/lex': 0.3.8
-  '@atproto/lexicon': 0.0.0-spaces-alpha-20260818163953
-  '@atproto/syntax': 0.0.0-spaces-alpha-20260818163953
-  '@atproto/xrpc': 0.0.0-spaces-alpha-20260818163953
+  '@atproto/api': alpha
+  '@atproto/identity': alpha
+  '@atproto/lex': alpha
+  '@atproto/lexicon': alpha
+  '@atproto/syntax': alpha
+  '@atproto/xrpc': alpha
   '@tailwindcss/typography': ^0.5.20
   '@tailwindcss/vite': ^4.3.3
   '@tanstack/devtools-vite': ^0.8.5
