@@ -9,11 +9,11 @@ import {
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { NetworkHabitatGroupsDefs } from "api";
+import { network } from "api";
+import { xrpc } from "@atproto/lex";
 import { AuthManager } from "../authManager";
-import { query } from "../habitatClient";
 
-export type GroupView = NetworkHabitatGroupsDefs.GroupView;
+export type GroupView = network.habitat.groups.defs.GroupView;
 
 // homeProxyHeader targets the home server (which implements groups.*) via pear
 // service proxying. Hardcoded to the local-dev home domain for now.
@@ -50,12 +50,12 @@ export const GroupCombobox = ({
   const { data: groups = [] } = useQuery<GroupView[]>({
     queryKey: ["groups", "listGroups"],
     queryFn: async () => {
-      const { groups } = await query(
-        "network.habitat.groups.listGroups",
-        {},
-        { authManager, headers: homeProxyHeader() },
+      const rsp = await xrpc(
+        authManager,
+        network.habitat.groups.listGroups.main,
+        { headers: homeProxyHeader() },
       );
-      return groups;
+      return rsp.body.groups;
     },
   });
 

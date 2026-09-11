@@ -1,7 +1,8 @@
 import type { OAuthClientMetadata } from "@atproto/oauth-client-browser";
 
 export default (clientName: string, baseUrl: string) => {
-  const origin = baseUrl.replace(/\/+$/, "");
+  let origin = baseUrl;
+  while (origin.endsWith("/")) origin = origin.slice(0, -1);
   return {
     client_id: `${origin}/client-metadata.json`,
     client_name: clientName,

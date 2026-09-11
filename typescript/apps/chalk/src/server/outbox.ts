@@ -1,6 +1,6 @@
 import { AtUri, SpaceRef } from "@atproto/syntax";
 import { jsonToLex, type JsonValue } from "@atproto/lex-json";
-import { NetworkHabitatDocsComment, NetworkHabitatDocsCommentReply } from "api";
+import { network } from "api";
 import {
   deleteComment,
   deleteCommentReply,
@@ -265,7 +265,7 @@ async function handleComment(
   if (!resolved) return;
   const { docSpaceUri, doc } = resolved;
 
-  const validated = NetworkHabitatDocsComment.validateMain(
+  const validated = network.habitat.docs.comment.$safeValidate(
     jsonToLex(value as JsonValue),
   );
   if (!validated.success) return;
@@ -322,7 +322,7 @@ async function handleCommentReply(
   if (!resolved) return;
   const { docSpaceUri } = resolved;
 
-  const validated = NetworkHabitatDocsCommentReply.validateMain(
+  const validated = network.habitat.docs.commentReply.$safeValidate(
     jsonToLex(value as JsonValue),
   );
   if (!validated.success) return;

@@ -1,10 +1,5 @@
 import { useState, type ReactElement } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  NetworkHabitatRelationshipUserRelation,
-  NetworkHabitatRelationshipSpaceRelation,
-  NetworkHabitatGroupProfile,
-} from "api";
 import { UsersIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Button } from "./ui/button";
@@ -22,8 +17,15 @@ import { UserAvatar } from "./UserAvatar";
 import { GroupCombobox, type GroupView } from "./GroupCombobox";
 import { SpaceRef } from "@atproto/syntax";
 import { AuthManager } from "../authManager";
-import { procedure, query } from "../habitatClient";
 import { resolveDidToHandle, resolveHandleToDid } from "../atprotoDirectory";
+import { network } from "api";
+import {
+  xrpc,
+  type AtUriString,
+  type DidString,
+  type NsidString,
+  type UriString,
+} from "@atproto/lex";
 
 const USER_RELATION_COLLECTION = "network.habitat.relationship.userRelation";
 const SPACE_RELATION_COLLECTION = "network.habitat.relationship.spaceRelation";
@@ -67,33 +69,23 @@ async function loadShareState(
   const userDids = new Set<string>();
   const groupSpaces = new Set<string>();
 
-  // Read userRelation records
-  const { records: userRecords } = await query(
-    "network.habitat.space.listRecords",
-    {
-      space: spaceUri,
-      repo: ownerDid(spaceUri),
-      collection: USER_RELATION_COLLECTION,
-    },
-    { authManager },
+  const userRecords = await xrpcSpaceListRecords(
+    spaceUri,
+    authManager,
+    USER_RELATION_COLLECTION,
   );
   for (const record of userRecords) {
-    const rel = record.value as NetworkHabitatRelationshipUserRelation.Record;
+    const rel = record.value as network.habitat.relationship.userRelation.Main;
     userDids.add(rel.subject);
   }
 
-  // Read spaceRelation records
-  const { records: spaceRecords } = await query(
-    "network.habitat.space.listRecords",
-    {
-      space: spaceUri,
-      repo: ownerDid(spaceUri),
-      collection: SPACE_RELATION_COLLECTION,
-    },
-    { authManager },
+  const spaceRecords = await xrpcSpaceListRecords(
+    spaceUri,
+    authManager,
+    SPACE_RELATION_COLLECTION,
   );
   for (const record of spaceRecords) {
-    const rel = record.value as NetworkHabitatRelationshipSpaceRelation.Record;
+    const rel = record.value as network.habitat.relationship.spaceRelation.Main;
     groupSpaces.add(rel.subject);
   }
 
@@ -108,17 +100,19 @@ async function loadShareState(
     await Promise.all(
       [...groupSpaces].map(async (uri): Promise<SharedGroup | null> => {
         try {
-          const record = await query(
-            "network.habitat.space.getRecord",
+          const rsp = await xrpc(
+            authManager,
+            network.habitat.space.getRecord.main,
             {
-              space: uri,
-              repo: ownerDid(uri),
-              collection: GROUP_PROFILE_COLLECTION,
-              rkey: "self",
+              params: {
+                space: uri as AtUriString,
+                repo: ownerDid(uri) as DidString,
+                collection: GROUP_PROFILE_COLLECTION,
+                rkey: "self",
+              },
             },
-            { authManager },
           );
-          const profile = record.value as NetworkHabitatGroupProfile.Main;
+          const profile = rsp.body.value as network.habitat.group.profile.Main;
           return { uri, name: profile.name };
         } catch {
           // Not a group (no profile record) — filter it out.
@@ -129,6 +123,23 @@ async function loadShareState(
   ).filter((g): g is SharedGroup => g !== null);
 
   return { users, groups };
+}
+
+// Same as an inline xrpc() call for space.listRecords; kept separate to avoid
+// repeating the space/repo/collection params.
+async function xrpcSpaceListRecords(
+  spaceUri: string,
+  authManager: AuthManager,
+  collection: string,
+): Promise<network.habitat.space.listRecords.$OutputBody["records"]> {
+  const rsp = await xrpc(authManager, network.habitat.space.listRecords.main, {
+    params: {
+      space: spaceUri as AtUriString,
+      repo: ownerDid(spaceUri) as DidString,
+      collection: collection as NsidString,
+    },
+  });
+  return rsp.body.records;
 }
 
 interface ShareDialogV2Props {
@@ -165,14 +176,16 @@ export const ShareDialogV2 = ({
   const addUser = useMutation({
     mutationFn: async (handle: string) => {
       const did = await resolveHandleToDid(handle);
-      await procedure(
-        "network.habitat.relationship.setUserRelation",
+      await xrpc(
+        authManager,
+        network.habitat.relationship.setUserRelation.main,
         {
-          subject: did,
-          relation,
-          space: spaceUri,
+          body: {
+            subject: did as DidString,
+            relation,
+            space: spaceUri as UriString,
+          },
         },
-        { authManager },
       );
     },
     onSuccess: () => {
@@ -183,15 +196,17 @@ export const ShareDialogV2 = ({
 
   const addGroup = useMutation({
     mutationFn: async (group: GroupView) => {
-      await procedure(
-        "network.habitat.relationship.setSpaceRelation",
+      await xrpc(
+        authManager,
+        network.habitat.relationship.setSpaceRelation.main,
         {
-          subject: group.uri,
-          subjectRole: GROUP_MEMBER_ROLE,
-          relation,
-          space: spaceUri,
+          body: {
+            subject: group.uri as UriString,
+            subjectRole: GROUP_MEMBER_ROLE,
+            relation,
+            space: spaceUri as UriString,
+          },
         },
-        { authManager },
       );
     },
     onSuccess: () => {

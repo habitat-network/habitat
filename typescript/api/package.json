@@ -12,12 +12,6 @@
   "license": "ISC",
   "packageManager": "pnpm@11.25.0",
   "dependencies": {
-    "@atproto/api": "catalog:",
-    "@atproto/lexicon": "catalog:",
-    "@atproto/xrpc": "catalog:",
-    "multiformats": "catalog:"
-  },
-  "devDependencies": {
-    "@atproto/lex-cli": "0.0.0-spaces-alpha-20260818163953"
+    "@atproto/lex": "catalog:"
   }
 }

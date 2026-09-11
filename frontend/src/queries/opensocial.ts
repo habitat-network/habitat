@@ -1,10 +1,15 @@
 import type { AuthManager } from "internal";
-import { query, procedure } from "internal";
-import { ensureValidDid, SpaceRef, type DidString } from "@atproto/syntax";
+import {
+  xrpc,
+  type AtUriString,
+  type DidString,
+  type NsidString,
+} from "@atproto/lex";
+import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import type { InviteView } from "api/types/community/opensocial/defs";
+import { community, network } from "api";
 
-export type { InviteView };
+export type InviteView = community.opensocial.defs.InviteView;
 
 export interface MemberView {
   did: string;
@@ -27,13 +32,13 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["opensocial", "myOrgs"],
     queryFn: async (): Promise<OrgSummary[]> => {
-      const { spaces } = await query(
-        "network.habitat.space.listSpaces",
-        { type: MEMBERS_SPACE_TYPE },
-        { authManager },
+      const response = await xrpc(
+        authManager,
+        network.habitat.space.listSpaces.main,
+        { params: { type: MEMBERS_SPACE_TYPE as NsidString } },
       );
       const orgs: OrgSummary[] = [];
-      for (const space of spaces) {
+      for (const space of response.body.spaces) {
         orgs.push({
           did: SpaceRef.parse(space.uri).spaceDid,
           spaceUri: space.uri,
@@ -50,12 +55,12 @@ export function myInvitesQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["opensocial", "myInvites"],
     queryFn: async (): Promise<InviteView[]> => {
-      const { invites } = await query(
-        "community.opensocial.listInvites",
-        {},
-        { authManager },
+      const response = await xrpc(
+        authManager,
+        community.opensocial.listInvites.main,
+        { params: {} },
       );
-      return invites;
+      return response.body.invites;
     },
   });
 }
@@ -70,12 +75,12 @@ export function orgPendingInvitesQueryOptions(
   return queryOptions({
     queryKey: ["opensocial", "pendingInvites", org],
     queryFn: async (): Promise<InviteView[]> => {
-      const { invites } = await query(
-        "community.opensocial.listPendingInvites",
-        { org },
-        { authManager },
+      const response = await xrpc(
+        authManager,
+        community.opensocial.listPendingInvites.main,
+        { params: { org: org as DidString } },
       );
-      return invites;
+      return response.body.invites;
     },
   });
 }
@@ -115,11 +120,12 @@ export function spaceCredentialQueryOptions(
   return queryOptions({
     queryKey: ["opensocial", "spaceCredential", space],
     queryFn: async (): Promise<string> => {
-      const { token: delegationToken } = await query(
-        "network.habitat.space.getDelegationToken",
-        { space },
-        { authManager },
+      const response = await xrpc(
+        authManager,
+        network.habitat.space.getDelegationToken.main,
+        { params: { space: space as AtUriString } },
       );
+      const { token: delegationToken } = response.body;
       const { credential } = await fetchWithBearer(
         "/xrpc/network.habitat.space.getSpaceCredential",
         delegationToken,
@@ -302,17 +308,24 @@ export function orgProfileQueryOptions(
 
 // updateProfile replaces a community's profile name/description. Requires
 // the caller to be an admin of the community.
-export function updateProfile(
+export async function updateProfile(
   authManager: AuthManager,
   org: string,
   name: string,
   description: string,
 ) {
-  return procedure(
-    "community.opensocial.updateProfile",
-    { org, name, description: description || undefined },
-    { authManager },
+  const response = await xrpc(
+    authManager,
+    community.opensocial.updateProfile.main,
+    {
+      body: {
+        org: org as DidString,
+        name,
+        description: description || undefined,
+      },
+    },
   );
+  return response.body;
 }
 
 // uploadOrgImage sets a community's profile avatar from raw image bytes.
@@ -346,12 +359,13 @@ export async function uploadOrgImage(
 }
 
 // createOrg mints a new community and makes the caller its admin.
-export function createOrg(authManager: AuthManager, handle: string) {
-  return procedure(
-    "network.habitat.opensocial.createOrg",
-    { handle },
-    { authManager },
+export async function createOrg(authManager: AuthManager, handle: string) {
+  const response = await xrpc(
+    authManager,
+    network.habitat.opensocial.createOrg.main,
+    { body: { handle } },
   );
+  return response.body;
 }
 
 // acceptInvite consumes the caller's pending invite to `org`, granting the
@@ -360,45 +374,51 @@ export function createOrg(authManager: AuthManager, handle: string) {
 // joining, so it's authored under their own credentials rather than by the
 // backend on their behalf.
 export async function acceptInvite(authManager: AuthManager, org: string) {
-  const { roles } = await procedure(
-    "community.opensocial.requestJoin",
-    { org },
-    { authManager },
+  const response = await xrpc(
+    authManager,
+    community.opensocial.requestJoin.main,
+    { body: { org: org as DidString } },
   );
+  const { roles } = response.body;
   ensureValidDid(org);
   const membersSpace = new SpaceRef(
     org,
     "community.opensocial.members",
     "self",
   ).toString();
-  await procedure(
-    "network.habitat.space.putRecord",
-    {
-      space: membersSpace,
-      repo: authManager.getAuthInfo()!.did,
-      collection: "community.opensocial.acceptance",
+  await xrpc(authManager, network.habitat.space.putRecord.main, {
+    body: {
+      space: membersSpace as AtUriString,
+      repo: authManager.getAuthInfo()!.did as DidString,
+      collection: "community.opensocial.acceptance" as NsidString,
       rkey: "self",
       record: {
         $type: "community.opensocial.acceptance",
         updatedAt: new Date().toISOString(),
       },
     },
-    { authManager },
-  );
+  });
   return { roles };
 }
 
 // createInvite invites `invitee` to join `org`, granting them `roles` once
 // they accept. Requires the caller to be an admin of the community.
-export function createInvite(
+export async function createInvite(
   authManager: AuthManager,
   org: string,
   invitee: string,
   roles: string[] = ["member"],
 ) {
-  return procedure(
-    "community.opensocial.createInvite",
-    { org, invitee, roles },
-    { authManager },
+  const response = await xrpc(
+    authManager,
+    community.opensocial.createInvite.main,
+    {
+      body: {
+        org: org as DidString,
+        invitee: invitee as DidString,
+        roles,
+      },
+    },
   );
+  return response.body;
 }

@@ -1,6 +1,6 @@
-import { AtUri, SpaceRef } from "@atproto/syntax";
+import { AtUri, SpaceRef, toDatetimeString } from "@atproto/syntax";
 import { lexToJson } from "@atproto/lex-json";
-import type { NetworkHabitatDocsComment } from "api";
+import type { network } from "api";
 import {
   deleteComment,
   deleteCommentReply,
@@ -363,17 +363,17 @@ export async function writeComment(
   if (!spaceUri) throw new Error("invalid docId");
 
   const createdAt = new Date();
-  // satisfies rather than a type annotation: the generated Record type's
-  // open [k: string]: unknown index signature isn't a LexValue, but this
-  // literal's own inferred type is.
+  // satisfies checks the literal against the generated lexicon record type
+  // (so a schema change breaks the build here) while keeping the literal's
+  // own inferred type for lexToJson below.
   const record = {
     $type: COMMENT_COLLECTION,
     body: opts.body,
     anchorStart: opts.anchorStart,
     anchorEnd: opts.anchorEnd,
     ...(opts.quotedText ? { quotedText: opts.quotedText } : {}),
-    createdAt: createdAt.toISOString(),
-  } satisfies NetworkHabitatDocsComment.Record;
+    createdAt: toDatetimeString(createdAt),
+  } satisfies network.habitat.docs.comment.Main;
   const { uri, cid } = await client.call<{ uri: string; cid: string }>(
     "network.habitat.space.putRecord",
     "POST",

@@ -27,13 +27,16 @@ import {
   docsListQueryOptions,
   editorProfilesQueryOptions,
 } from "@/queries/docs";
+import { ShareDialog, AuthManager } from "internal";
 import {
-  ShareDialog,
-  AuthManager,
-  query,
-  XRPCError,
-  procedure,
-} from "internal";
+  xrpc,
+  XrpcResponseError,
+  type AtIdentifierString,
+  type DidString,
+  type NsidString,
+  type RecordKeyString,
+} from "@atproto/lex";
+import { com, network } from "api";
 import {
   AvatarGroup,
   Button,
@@ -49,7 +52,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { CheckIcon } from "lucide-react";
 import { profileQueryOptions } from "@/queries/profile";
 
-const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz";
+const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz" as DidString;
 
 async function startPeerDiscovery(
   uri: string, // The document uri
@@ -62,14 +65,17 @@ async function startPeerDiscovery(
       relayPeerId,
       "/habitat/peer-discovery/1.0.0",
     );
-    const { token: serviceAuthToken } = await query(
-      "com.atproto.server.getServiceAuth",
+    const response = await xrpc(
+      authManager,
+      com.atproto.server.getServiceAuth.main,
       {
-        lxm: "com.atproto.server.getServiceAuth",
-        aud: habitatDID,
+        params: {
+          lxm: "com.atproto.server.getServiceAuth" as NsidString,
+          aud: habitatDID,
+        },
       },
-      { authManager: authManager },
     );
+    const { token: serviceAuthToken } = response.body;
 
     const encoder = new TextEncoder();
     stream.sink(
@@ -306,12 +312,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           docDID === did ? "network.habitat.docs" : "network.habitat.docs.edit";
         const mappedKey = docDID === did ? rkey : `${docDID}-${rkey}`;
 
-        await procedure(
-          "network.habitat.repo.putRecord",
-          {
-            repo: did!,
-            collection: collection,
-            rkey: mappedKey,
+        await xrpc(authManager, network.habitat.repo.putRecord.main, {
+          body: {
+            repo: did! as AtIdentifierString,
+            collection: collection as NsidString,
+            rkey: mappedKey as RecordKeyString,
             record: {
               name: heading ?? "Untitled",
               blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
@@ -319,8 +324,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             },
             grantees: doc.permissions,
           },
-          { authManager },
-        );
+        });
       },
 
       onSuccess: () => {
@@ -443,7 +447,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     );
   },
   errorComponent({ error }) {
-    if (error instanceof XRPCError) {
+    if (error instanceof XrpcResponseError) {
       if (error.status === 403) {
         return <p>You do not have access to this doc</p>;
       }

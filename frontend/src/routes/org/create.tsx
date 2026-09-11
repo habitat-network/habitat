@@ -11,9 +11,11 @@ import {
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { Controller, useForm } from "react-hook-form";
-import { procedure, query, SingleHandleCombobox } from "internal";
-import { NetworkHabitatOrgCreate } from "api";
+import { anonymousAgentFor, SingleHandleCombobox } from "internal";
+import { network } from "api";
 import { SetStateAction, useEffect, useState } from "react";
+import { describeInstance } from "@/queries/instance";
+import { xrpc } from "@atproto/lex";
 
 export const Route = createFileRoute("/org/create")({
   validateSearch: z.object({
@@ -119,11 +121,7 @@ function CreateOrgPage() {
       return;
     }
     let cancelled = false;
-    query(
-      "network.habitat.instance.describeInstance",
-      {},
-      { unauthenticated: true, domain: customDomain },
-    )
+    describeInstance(customDomain)
       .then((result: { name: SetStateAction<string | null> }) => {
         if (!cancelled) {
           setCustomInstanceName(result.name);
@@ -149,7 +147,7 @@ function CreateOrgPage() {
 
   const onSubmit = async (values: FormValues) => {
     try {
-      let body: NetworkHabitatOrgCreate.InputSchema = {
+      let body: network.habitat.org.create.$InputBody = {
         admin_handle: values.admin_handle,
         name: values.name || undefined,
         login_method: values.login_method,
@@ -162,11 +160,12 @@ function CreateOrgPage() {
       } else {
         body.login_id = values.login_id || undefined;
       }
-      const { admin_handle } = await procedure(
-        "network.habitat.org.create",
-        body,
-        { unauthenticated: true, domain: targetDomain },
+      const response = await xrpc(
+        anonymousAgentFor(targetDomain),
+        network.habitat.org.create.main,
+        { body },
       );
+      const { admin_handle } = response.body;
       await navigate({
         to: "/oauth-login",
         search: { handle: admin_handle },
