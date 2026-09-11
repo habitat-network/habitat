@@ -1,4 +1,6 @@
-import { Actor, procedure, TypedRecord, UserAvatar } from "internal";
+import { Actor, TypedRecord, UserAvatar } from "internal";
+import { xrpc, type AtIdentifierString, type NsidString } from "@atproto/lex";
+import { network } from "api";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { deleteDocMutationOptions, docsListQueryOptions } from "@/queries/docs";
@@ -98,36 +100,37 @@ export const Route = createFileRoute("/_requireAuth")({
     const { mutate: create, isPending } = useMutation({
       mutationFn: async () => {
         const did = authManager.getAuthInfo()?.did;
-        const { clique } = await procedure(
-          "network.habitat.clique.createClique",
-          {
-            members: [],
-          },
-          { authManager },
+        const createResponse = await xrpc(
+          authManager,
+          network.habitat.clique.createClique.main,
+          { body: { members: [] } },
         );
-        const response = await procedure(
-          "network.habitat.repo.putRecord",
+        const { clique } = createResponse.body;
+        const response = await xrpc(
+          authManager,
+          network.habitat.repo.putRecord.main,
           {
-            repo: did ?? "",
-            collection: "network.habitat.docs",
-            record: {
-              name: "Untitled",
-              blob: null,
-              editorClique: clique,
-            } satisfies HabitatDoc,
-            grantees: [
-              {
-                $type: "network.habitat.grantee#clique",
-                clique: clique,
-              },
-            ],
+            body: {
+              repo: (did ?? "") as AtIdentifierString,
+              collection: "network.habitat.docs" as NsidString,
+              record: {
+                name: "Untitled",
+                blob: null,
+                editorClique: clique,
+              } satisfies HabitatDoc,
+              grantees: [
+                {
+                  $type: "network.habitat.grantee#clique" as const,
+                  clique: clique,
+                },
+              ],
+            },
           },
-          { authManager },
         );
         navigate({
           to: "/$uri",
           params: {
-            uri: response.uri,
+            uri: response.body.uri,
           },
         });
       },

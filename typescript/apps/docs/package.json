@@ -11,6 +11,7 @@
   "dependencies": {
     "@atproto/api": "catalog:",
     "@atproto/identity": "catalog:",
+    "@atproto/lex": "catalog:",
     "@chainsafe/libp2p-gossipsub": "14.1.2",
     "@chainsafe/libp2p-noise": "16.1.5",
     "@chainsafe/libp2p-yamux": "7.0.4",
@@ -36,6 +37,7 @@
     "@tiptap/react": "^3.28.0",
     "@tiptap/starter-kit": "^3.28.0",
     "@tiptap/y-tiptap": "^3.0.7",
+    "api": "workspace:*",
     "cid": "github:multiformats/cid",
     "internal": "workspace:*",
     "it-byte-stream": "^3.0.0",

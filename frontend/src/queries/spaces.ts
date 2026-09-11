@@ -1,12 +1,24 @@
 import type { AuthManager } from "internal";
-import { query, XRPCError } from "internal";
+import {
+  xrpc,
+  XrpcResponseError,
+  type AtUriString,
+  type DidString,
+  type NsidString,
+} from "@atproto/lex";
 import { queryOptions } from "@tanstack/react-query";
-import type { SpaceView } from "api/types/network/habitat/space/listSpaces";
-import type { Repo } from "api/types/network/habitat/space/listRepos";
-import type { Record as SpaceRecord } from "api/types/network/habitat/space/listRecords";
-import type { Member } from "api/types/network/habitat/simplespace/listMembers";
+import { network } from "api";
 
-export type { SpaceView, Repo, SpaceRecord, Member };
+export type SpaceView =
+  network.habitat.space.listSpaces.$OutputBody["spaces"][number];
+
+export type Repo = network.habitat.space.listRepos.$OutputBody["repos"][number];
+
+export type SpaceRecord =
+  network.habitat.space.listRecords.$OutputBody["records"][number];
+
+export type Member =
+  network.habitat.simplespace.listMembers.$OutputBody["members"][number];
 
 // The list lexicons declare limit/cursor, but the space host does not paginate
 // yet: it returns the complete set and never a cursor, and listRepos answers
@@ -35,12 +47,17 @@ export function spacesListQueryOptions(
   return queryOptions({
     queryKey: ["listSpaces", filter.did ?? null, filter.type ?? null],
     queryFn: async (): Promise<SpaceView[]> => {
-      const { spaces } = await query(
-        "network.habitat.space.listSpaces",
-        { did: filter.did, type: filter.type },
-        { authManager },
+      const response = await xrpc(
+        authManager,
+        network.habitat.space.listSpaces.main,
+        {
+          params: {
+            did: filter.did as DidString | undefined,
+            type: filter.type as NsidString | undefined,
+          },
+        },
       );
-      return spaces;
+      return response.body.spaces;
     },
   });
 }
@@ -54,20 +71,19 @@ export function spaceReposQueryOptions(
   return queryOptions({
     queryKey: ["listRepos", space],
     queryFn: async (): Promise<Repo[]> => {
-      const { repos } = await query(
-        "network.habitat.space.listRepos",
-        { space },
-        { authManager },
+      const response = await xrpc(
+        authManager,
+        network.habitat.space.listRepos.main,
+        { params: { space: space as AtUriString } },
       );
-      return repos;
+      return response.body.repos;
     },
   });
 }
 
 // SpaceCommit is the decoded shape of network.habitat.space.defs#signedCommit.
-// `query` (in internal/habitatClient) already runs responses through
-// jsonToLex, so byte fields arrive as Uint8Array, matching the generated
-// lexicon type.
+// xrpc already runs responses through lex decoding, so byte fields arrive as
+// Uint8Array, matching the generated lexicon type.
 export interface SpaceCommit {
   ver: number;
   rev: string;
@@ -90,14 +106,14 @@ export function spaceLatestCommitQueryOptions(
     queryKey: ["getLatestCommit", space, repo],
     queryFn: async (): Promise<SpaceCommit | null> => {
       try {
-        const { commit } = await query(
-          "network.habitat.space.getLatestCommit",
-          { space, repo },
-          { authManager },
+        const response = await xrpc(
+          authManager,
+          network.habitat.space.getLatestCommit.main,
+          { params: { space: space as AtUriString, repo: repo as DidString } },
         );
-        return (commit as unknown as SpaceCommit | undefined) ?? null;
+        return response.body.commit ?? null;
       } catch (err) {
-        if (err instanceof XRPCError && err.error === "RepoNotFound") {
+        if (err instanceof XrpcResponseError && err.error === "RepoNotFound") {
           return null;
         }
         throw err;
@@ -116,12 +132,12 @@ export function spaceMembersQueryOptions(
   return queryOptions({
     queryKey: ["listMembers", space],
     queryFn: async (): Promise<Member[]> => {
-      const { members } = await query(
-        "network.habitat.simplespace.listMembers",
-        { space },
-        { authManager },
+      const response = await xrpc(
+        authManager,
+        network.habitat.simplespace.listMembers.main,
+        { params: { space: space as AtUriString } },
       );
-      return members ?? [];
+      return response.body.members;
     },
   });
 }
@@ -137,12 +153,18 @@ export function spaceRecordsQueryOptions(
   return queryOptions({
     queryKey: ["listRecords", space, repo],
     queryFn: async (): Promise<SpaceRecord[]> => {
-      const { records } = await query(
-        "network.habitat.space.listRecords",
-        { space, repo, excludeValues: true },
-        { authManager },
+      const response = await xrpc(
+        authManager,
+        network.habitat.space.listRecords.main,
+        {
+          params: {
+            space: space as AtUriString,
+            repo: repo as DidString,
+            excludeValues: true,
+          },
+        },
       );
-      return records;
+      return response.body.records;
     },
   });
 }
@@ -160,12 +182,19 @@ export function spaceRecordQueryOptions(
   return queryOptions({
     queryKey: ["getRecord", space, repo, collection, rkey],
     queryFn: async (): Promise<{ value: unknown; cid?: string }> => {
-      const { value, cid } = await query(
-        "network.habitat.space.getRecord",
-        { space, repo, collection, rkey },
-        { authManager },
+      const response = await xrpc(
+        authManager,
+        network.habitat.space.getRecord.main,
+        {
+          params: {
+            space: space as AtUriString,
+            repo: repo as DidString,
+            collection: collection as NsidString,
+            rkey,
+          },
+        },
       );
-      return { value, cid };
+      return { value: response.body.value as unknown, cid: response.body.cid };
     },
   });
 }

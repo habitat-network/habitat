@@ -6,7 +6,8 @@ import {
 } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { procedure } from "internal";
+import { xrpc, type DidString, type NsidString } from "@atproto/lex";
+import { network } from "api";
 import { SpaceRef } from "@atproto/syntax";
 import {
   Button,
@@ -109,12 +110,17 @@ function CreateSpaceForm() {
 
   const { mutate: createSpace, isPending } = useMutation({
     async mutationFn(type: string) {
-      const { uri } = await procedure(
-        "network.habitat.simplespace.createSpace",
-        { did: authManager.getAuthInfo()!.did, type },
-        { authManager },
+      const response = await xrpc(
+        authManager,
+        network.habitat.simplespace.createSpace.main,
+        {
+          body: {
+            did: authManager.getAuthInfo()!.did as DidString,
+            type: type as NsidString,
+          },
+        },
       );
-      return uri;
+      return response.body.uri;
     },
     async onSuccess(uri) {
       setSpaceType("");

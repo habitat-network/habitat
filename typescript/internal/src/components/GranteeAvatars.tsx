@@ -1,14 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
-import { NetworkHabitatRepoGetRecord } from "api";
+import { network } from "api";
+import { xrpc } from "@atproto/lex";
 import { AvatarGroup, AvatarGroupCount, Spinner } from "./ui";
 import { UserAvatar } from "./UserAvatar";
-import { query } from "../habitatClient";
 import { AuthManager } from "../authManager";
 import { useActors } from "../hooks/useActors";
 
+type Grantee = Exclude<
+  network.habitat.repo.getRecord.$OutputBody["permissions"],
+  undefined
+>[number];
+
 interface GranteeAvatarProps {
   uri: string;
-  grantees: NetworkHabitatRepoGetRecord.OutputSchema["permissions"];
+  grantees: Grantee[] | undefined;
   authManager: AuthManager;
   max?: number;
   size?: "sm" | "lg" | "default";
@@ -31,14 +36,12 @@ const GranteeAvatars = ({
         grantees
           ?.filter((g) => "clique" in g)
           .map(async (g) => {
-            const { members } = await query(
-              "network.habitat.clique.getMembers",
-              {
-                clique: g.clique,
-              },
-              { authManager },
+            const rsp = await xrpc(
+              authManager,
+              network.habitat.clique.getMembers.main,
+              { params: { clique: g.clique } },
             );
-            return members;
+            return rsp.body.members;
           }) ?? [],
       );
       return [

@@ -1,11 +1,11 @@
-import type { NetworkHabitatRenderSchema } from "api";
+import { network } from "api";
 
 // linkTemplate is a frontend-only extension — not part of the published lexicon.
 // Supports {did}, {nsid}, and {rkey} placeholders substituted from the record's AT URI.
-export type RenderSchema = NetworkHabitatRenderSchema.Main & {
+export type RenderSchema = network.habitat.render.schema.Main & {
   linkTemplate?: string;
 };
-export type FieldSchema = NetworkHabitatRenderSchema.FieldSchema;
+export type FieldSchema = network.habitat.render.schema.FieldSchema;
 
 const T = "network.habitat.render.schema";
 

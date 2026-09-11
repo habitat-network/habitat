@@ -1,6 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { query } from "internal";
 import { z } from "zod";
+import {
+  xrpc,
+  type AtIdentifierString,
+  type NsidString,
+  type RecordKeyString,
+} from "@atproto/lex";
+import { network } from "api";
 
 export const Route = createFileRoute("/_requireAuth/pear-test/view")({
   validateSearch: z.object({
@@ -9,12 +15,18 @@ export const Route = createFileRoute("/_requireAuth/pear-test/view")({
   }),
   loaderDeps: ({ search }) => search,
   async loader({ deps: { did, rkey }, context }) {
-    const json = await query(
-      "network.habitat.repo.getRecord",
-      { repo: did, rkey, collection: "network.habitat.test" },
-      { authManager: context.authManager },
+    const json = await xrpc(
+      context.authManager,
+      network.habitat.repo.getRecord.main,
+      {
+        params: {
+          collection: "network.habitat.test" as NsidString,
+          repo: did as AtIdentifierString,
+          rkey: rkey as RecordKeyString,
+        },
+      },
     );
-    return JSON.stringify(json);
+    return JSON.stringify(json.body);
   },
   component() {
     const message = Route.useLoaderData();

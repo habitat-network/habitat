@@ -3,9 +3,25 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { listPrivateRecords, query } from "internal";
+import { listPrivateRecords } from "internal";
 import { useMemo } from "react";
 import { z } from "zod";
+import {
+  xrpc,
+  type AtIdentifierString,
+  type AtUriString,
+  type NsidString,
+} from "@atproto/lex";
+import { com } from "api";
+
+// DebugRecord normalizes the heterogeneous records returned by the private
+// (network.habitat.repo.listRecords) and public (com.atproto.repo.listRecords)
+// branches so the debugger can filter/render them identically.
+interface DebugRecord {
+  uri: AtUriString;
+  cid?: string;
+  value: unknown;
+}
 
 interface FilterCriteria {
   [key: string]: string;
@@ -49,26 +65,25 @@ export const Route = createFileRoute("/_requireAuth/data")({
     try {
       // Use the repo DID if provided, otherwise undefined (uses default)
       const repo = repoDid?.trim() || undefined;
-      if (isPrivate) {
-        const data = await listPrivateRecords(
-          context.authManager,
-          lexicon,
-          undefined,
-          undefined,
-          repo ? [repo] : undefined,
-        );
-        return { records: data.records, error: null };
-      } else {
-        const data = await query(
-          "com.atproto.repo.listRecords",
-          {
-            collection: lexicon,
-            repo: repo ?? "",
-          },
-          { authManager: context.authManager },
-        );
-        return { records: data.records, error: null };
-      }
+      const records = isPrivate
+        ? (
+            await listPrivateRecords<Record<string, unknown>>(
+              context.authManager,
+              lexicon,
+              undefined,
+              undefined,
+              repo ? [repo] : undefined,
+            )
+          ).records
+        : (
+            await xrpc(context.authManager, com.atproto.repo.listRecords.main, {
+              params: {
+                collection: lexicon as NsidString,
+                repo: (repo ?? "") as AtIdentifierString,
+              },
+            })
+          ).body.records;
+      return { records: records as DebugRecord[], error: null };
     } catch (err) {
       return {
         records: [],

@@ -48,14 +48,12 @@ export {
   UnauthenticatedError,
 } from "./authManager";
 export {
-  query,
-  procedure,
+  anonymousAgentFor,
   castRecord,
   listPrivateRecords,
   getPrivateRecord,
-  XRPCError,
-} from "./habitatClient";
-export type { TypedRecord } from "./habitatClient";
+} from "./rpc";
+export type { TypedRecord, ListRecordsResponse } from "./rpc";
 export { default as GranteeAvatars } from "./components/GranteeAvatars";
 
 // Utilities
