@@ -1,0 +1,203 @@
+name: Release Pear
+
+# Every commit pushed to main whose CI run passes becomes a GitHub release
+# tagged vYYYY.M.D-<short sha> (CalVer, UTC date). The release publishes a
+# multi-arch image to ghcr.io/habitat-network/pear under that version and
+# `latest`, and attaches a docker-compose.yml pinned to that version, so
+# `releases/latest/download/docker-compose.yml` always resolves.
+#
+# Manually dispatching this workflow on a branch publishes a test image tagged
+# with the branch name and does not cut a release.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/habitat-network/pear
+
+jobs:
+  meta:
+    # workflow_run's branch filter matches on branch name only, so also require
+    # a push to this repository (not a fork PR whose branch is named main).
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.meta.outputs.sha }}
+      version: ${{ steps.meta.outputs.version }}
+      image_tags: ${{ steps.meta.outputs.image_tags }}
+      release: ${{ steps.meta.outputs.release }}
+    steps:
+      - id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            sha="$RUN_SHA"
+            version="v$(date -u +%Y.%-m.%-d)-${sha::7}"
+            {
+              echo "sha=$sha"
+              echo "version=$version"
+              echo "image_tags=latest ${version#v}"
+              echo "release=true"
+            } >> "$GITHUB_OUTPUT"
+          else
+            # Docker tags only allow [A-Za-z0-9_.-]
+            tag="$(printf '%s' "$REF_NAME" | tr -c 'A-Za-z0-9_.-' '-')"
+            {
+              echo "sha=$GITHUB_SHA"
+              echo "version=$tag"
+              echo "image_tags=$tag"
+              echo "release=false"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+  # Build each platform natively (CGO + SQLite make emulated builds slow) and
+  # push by digest; the merge job stitches the digests into one tagged image.
+  build:
+    needs: meta
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: build/debian/pear/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.meta.outputs.sha }}
+            org.opencontainers.image.version=${{ needs.meta.outputs.version }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: [meta, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create multi-arch manifest
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          IMAGE_TAGS: ${{ needs.meta.outputs.image_tags }}
+        run: |
+          tag_args=()
+          for tag in $IMAGE_TAGS; do
+            tag_args+=(-t "$IMAGE:$tag")
+          done
+          sources=()
+          for digest in *; do
+            sources+=("$IMAGE@sha256:$digest")
+          done
+          docker buildx imagetools create "${tag_args[@]}" "${sources[@]}"
+          docker buildx imagetools inspect "$IMAGE:${IMAGE_TAGS##* }"
+
+  release:
+    needs: [meta, merge]
+    if: needs.meta.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+
+      - name: Pin docker-compose.yml to this release
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          out="$RUNNER_TEMP/docker-compose.yml"
+          sed "s/\${PEAR_TAG:-latest}/\${PEAR_TAG:-${VERSION#v}}/" \
+            build/debian/pear/docker-compose.yml > "$out"
+          # Fail loudly if the compose file's image line changed shape.
+          grep -qF "\${PEAR_TAG:-${VERSION#v}}" "$out"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.meta.outputs.version }}
+          SHA: ${{ needs.meta.outputs.sha }}
+        run: |
+          gh release create "$VERSION" "$RUNNER_TEMP/docker-compose.yml" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$SHA" \
+            --title "$VERSION" \
+            --latest \
+            --generate-notes \
+            --notes "Image: \`$IMAGE:${VERSION#v}\` (linux/amd64, linux/arm64)
+
+          Self-hosting guide: https://github.com/$GITHUB_REPOSITORY/tree/$VERSION/build/debian/pear"

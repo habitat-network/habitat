@@ -599,6 +599,10 @@ func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
 	// Share the main Postgres database for FGA when one is configured; only fall
 	// back to a separate SQLite file when the main store is SQLite.
 	if db.ParseDialect(dsn) == db.Postgres {
+		dsn, err := db.EnsureUTF8ClientEncoding(dsn)
+		if err != nil {
+			return nil, err
+		}
 		fga, err := fgastore.NewPostgres(ctx, dsn)
 		if err != nil {
 			return nil, fmt.Errorf("setup fga store with postgres: %w", err)
