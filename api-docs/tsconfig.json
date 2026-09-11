@@ -1,7 +1,16 @@
 {
   "extends": "@docusaurus/tsconfig",
   "compilerOptions": {
-    "outDir": "../.moon/cache/types/api-docs"
+    "outDir": "../.moon/cache/types/api-docs",
+    // @docusaurus/tsconfig still sets baseUrl, which TypeScript 7 removed.
+    // Unset it; paths resolve relative to this file without it.
+    "baseUrl": null,
+    "paths": {
+      "@site/*": ["./*"]
+    },
+    // TypeScript 7 no longer auto-includes ambient type packages, so the
+    // @docusaurus/* virtual module declarations have to be listed explicitly.
+    "types": ["@docusaurus/module-type-aliases"]
   },
   "include": [
     "src/**/*"
