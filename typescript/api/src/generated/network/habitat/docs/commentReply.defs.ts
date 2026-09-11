@@ -3,7 +3,6 @@
  */
 
 import { l } from '@atproto/lex'
-import * as RepoStrongRef from '../../../com/atproto/repo/strongRef.defs.js'
 
 const $nsid = 'network.habitat.docs.commentReply'
 
@@ -18,7 +17,7 @@ type Main = {
   /**
    * Reference to the thread's root network.habitat.docs.comment record.
    */
-  comment: RepoStrongRef.Main
+  comment: CommentRef
 
   /**
    * The reply text.
@@ -38,9 +37,7 @@ const main = /*#__PURE__*/ l.record<'tid', Main>(
   'tid',
   $nsid,
   /*#__PURE__*/ l.object({
-    comment: /*#__PURE__*/ l.ref<RepoStrongRef.Main>(
-      (() => RepoStrongRef.main) as any,
-    ),
+    comment: /*#__PURE__*/ l.ref<CommentRef>((() => commentRef) as any),
     body: /*#__PURE__*/ l.string({ maxLength: 10000, maxGraphemes: 1000 }),
     createdAt: /*#__PURE__*/ l.string({ format: 'datetime' }),
   }),
@@ -65,3 +62,24 @@ export const $parse = /*#__PURE__*/ main.parse.bind(main)
 export const $safeParse = /*#__PURE__*/ main.safeParse.bind(main)
 export const $validate = /*#__PURE__*/ main.validate.bind(main)
 export const $safeValidate = /*#__PURE__*/ main.safeValidate.bind(main)
+
+/** A URI with a content-hash fingerprint — the same shape as com.atproto.repo.strongRef, defined locally for now because lexgen doesn't generate Go bindings for com.atproto.* refs. */
+type CommentRef = {
+  $type?: 'network.habitat.docs.commentReply#commentRef'
+  uri: l.AtUriString
+  cid: l.CidString
+}
+
+export type { CommentRef }
+
+/** A URI with a content-hash fingerprint — the same shape as com.atproto.repo.strongRef, defined locally for now because lexgen doesn't generate Go bindings for com.atproto.* refs. */
+const commentRef = /*#__PURE__*/ l.typedObject<CommentRef>(
+  $nsid,
+  'commentRef',
+  /*#__PURE__*/ l.object({
+    uri: /*#__PURE__*/ l.string({ format: 'at-uri' }),
+    cid: /*#__PURE__*/ l.string({ format: 'cid' }),
+  }),
+)
+
+export { commentRef }

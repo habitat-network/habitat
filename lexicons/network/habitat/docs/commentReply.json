@@ -16,7 +16,7 @@
                 "properties": {
                     "comment": {
                         "type": "ref",
-                        "ref": "com.atproto.repo.strongRef",
+                        "ref": "#commentRef",
                         "description": "Reference to the thread's root network.habitat.docs.comment record."
                     },
                     "body": {
@@ -30,6 +30,24 @@
                         "format": "datetime",
                         "description": "When the reply was written."
                     }
+                }
+            }
+        },
+        "commentRef": {
+            "type": "object",
+            "description": "A URI with a content-hash fingerprint — the same shape as com.atproto.repo.strongRef, defined locally for now because lexgen doesn't generate Go bindings for com.atproto.* refs.",
+            "required": [
+                "uri",
+                "cid"
+            ],
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "format": "at-uri"
+                },
+                "cid": {
+                    "type": "string",
+                    "format": "cid"
                 }
             }
         }

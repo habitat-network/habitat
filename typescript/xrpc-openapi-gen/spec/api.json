@@ -960,6 +960,111 @@
         }
       }
     },
+    "/community.opensocial.updateSpace": {
+      "post": {
+        "tags": [
+          "community.opensocial.updateSpace"
+        ],
+        "summary": "community.opensocial.updateSpace",
+        "description": "Replace the roles that may read a space, written into its community.opensocial.access record. Requires service-auth. Requires the `space.configure` action.",
+        "operationId": "community.opensocial.updateSpace",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space",
+                  "roles"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "URI of the space to update.",
+                    "format": "at-uri"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidSpace"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/community.opensocial.uploadImage": {
       "post": {
         "tags": [
@@ -10140,7 +10245,7 @@
         ],
         "properties": {
           "comment": {
-            "$ref": "#/components/schemas/com.atproto.repo.strongRef"
+            "$ref": "#/components/schemas/network.habitat.docs.commentReply.commentRef"
           },
           "body": {
             "type": "string",
@@ -10151,6 +10256,24 @@
             "type": "string",
             "description": "When the reply was written.",
             "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.docs.commentReply.commentRef": {
+        "type": "object",
+        "description": "A URI with a content-hash fingerprint — the same shape as com.atproto.repo.strongRef, defined locally for now because lexgen doesn't generate Go bindings for com.atproto.* refs.",
+        "required": [
+          "uri",
+          "cid"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "at-uri"
+          },
+          "cid": {
+            "type": "string",
+            "format": "cid"
           }
         }
       },
@@ -10878,6 +11001,10 @@
           "ver": {
             "type": "integer"
           },
+          "habitatSigned": {
+            "type": "boolean",
+            "description": "True if sig was produced by the space host's key rather than the author's own key."
+          },
           "hash": {
             "type": "string",
             "format": "byte",
@@ -11053,6 +11180,9 @@
     },
     {
       "name": "community.opensocial.updateProfile"
+    },
+    {
+      "name": "community.opensocial.updateSpace"
     },
     {
       "name": "community.opensocial.uploadImage"

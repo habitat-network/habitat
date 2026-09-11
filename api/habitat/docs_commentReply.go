@@ -4,12 +4,26 @@ package habitat
 
 import "encoding/json"
 
+// NetworkHabitatDocsCommentReplyCommentRef represents a commentRef object
+type NetworkHabitatDocsCommentReplyCommentRef struct {
+	LexiconTypeID string `json:"$type"`
+	Cid           string `json:"cid"`
+	Uri           string `json:"uri"`
+}
+
+// MarshalJSON sets $type to "network.habitat.docs.commentReply#commentRef" before encoding.
+func (t NetworkHabitatDocsCommentReplyCommentRef) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "network.habitat.docs.commentReply#commentRef"
+	type alias NetworkHabitatDocsCommentReplyCommentRef
+	return json.Marshal(alias(t))
+}
+
 // NetworkHabitatDocsCommentReply represents a network.habitat.docs.commentReply record
 type NetworkHabitatDocsCommentReply struct {
-	LexiconTypeID string                  `json:"$type"`
-	Body          string                  `json:"body"`
-	Comment       ComAtprotoRepoStrongRef `json:"comment"`
-	CreatedAt     string                  `json:"createdAt"`
+	LexiconTypeID string                                   `json:"$type"`
+	Body          string                                   `json:"body"`
+	Comment       NetworkHabitatDocsCommentReplyCommentRef `json:"comment"`
+	CreatedAt     string                                   `json:"createdAt"`
 }
 
 // MarshalJSON sets $type to "network.habitat.docs.commentReply" before encoding.
