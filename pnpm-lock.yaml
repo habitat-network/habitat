@@ -7,8 +7,8 @@ settings:
 catalogs:
   default:
     '@atproto/api':
-      specifier: 0.0.0-spaces-alpha-20260818163953
-      version: 0.0.0-spaces-alpha-20260818163953
+      specifier: 0.20.42
+      version: 0.20.42
     '@atproto/identity':
       specifier: 0.0.0-spaces-alpha-20260818163953
       version: 0.0.0-spaces-alpha-20260818163953
@@ -118,7 +118,7 @@ importers:
     devDependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260818163953
+        version: 0.20.42
       '@atproto/lexicon':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260818163953
@@ -206,7 +206,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260818163953
+        version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260818163953
@@ -466,7 +466,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260818163953
+        version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260818163953
@@ -720,7 +720,7 @@ importers:
     dependencies:
       '@atproto/api':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260818163953
+        version: 0.20.42
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260818163953
@@ -977,8 +977,8 @@ packages:
     resolution: {integrity: sha512-vfvoDhu6ds6BT3Pqe+d2/LBU1WpDRtt69y6zltlfMCoucPm82m1j50/Wb6xTvv+oZ+2j0JyZVXsmXQ12SWYQJg==}
     engines: {node: '>=22'}
 
-  '@atproto/api@0.0.0-spaces-alpha-20260818163953':
-    resolution: {integrity: sha512-5TZ3rHXTLGRQRxw/H17pwOvcuaAKXZFy24w//LCcfFcSuCdWIBxV9MDvBU47xCxotNOATw2/TENhmkaVWu2QJQ==}
+  '@atproto/api@0.20.42':
+    resolution: {integrity: sha512-x86WgkHFcNqDIo8gf52npc1KvFXlIPDLAJdIhiH1uUAwiQxDw8/WU0iH3pTl1OXMKkB93kwxG0ihx0fTi5FPbw==}
     engines: {node: '>=22'}
 
   '@atproto/common-web@0.0.0-spaces-alpha-20260818163953':
@@ -1066,6 +1066,10 @@ packages:
     resolution: {integrity: sha512-ncg3KVMl4aLj+fEJp1vu3Og6ZkKo/tBzz+5XClsk8zYAwRe6qNsJ+cYW5GrECxPvxuCvUra7ko9wMCwz3VJFmg==}
     engines: {node: '>=22'}
 
+  '@atproto/lexicon@0.7.12':
+    resolution: {integrity: sha512-bXVWXc2+ctVVUc3CEuWV9mVXRMMQcWmdzmyRE7w2Rli0B36HADU49Vvi7PWTw26zFFqumYVl9b23bW3vrzAzbg==}
+    engines: {node: '>=22'}
+
   '@atproto/oauth-client-browser@0.0.0-spaces-alpha-20260818163953':
     resolution: {integrity: sha512-+azegbABjBvH+SHDaPkN0NAAKM3zUwiRqcef55zRZxLio0tvFO/1cSSt5FbFCA74XPc3OnLiyXHrgNUTsdfRSA==}
     engines: {node: '>=22'}
@@ -1088,6 +1092,10 @@ packages:
 
   '@atproto/xrpc@0.0.0-spaces-alpha-20260818163953':
     resolution: {integrity: sha512-AW2zqwpUh8C4pkiDNbmM1FLjmVm5TShaGKDlGAiTMuxf43rfQ+FeBucb9H5w2iaIUQJ594dN3lHXijBATkGNcw==}
+    engines: {node: '>=22'}
+
+  '@atproto/xrpc@0.8.11':
+    resolution: {integrity: sha512-5M38m9REQouVIA4/Gh0wqo6Vncr3QbG7rb5oqlEbqB+f77pruCk4JLDipfrOrsXH+pdnVnU2IaPXvpsSAC7Mqw==}
     engines: {node: '>=22'}
 
   '@babel/code-frame@7.29.7':
@@ -12072,12 +12080,12 @@ snapshots:
 
   '@atproto-labs/simple-store@0.5.1': {}
 
-  '@atproto/api@0.0.0-spaces-alpha-20260818163953':
+  '@atproto/api@0.20.42':
     dependencies:
-      '@atproto/common-web': 0.0.0-spaces-alpha-20260818163953
-      '@atproto/lexicon': 0.0.0-spaces-alpha-20260818163953
+      '@atproto/common-web': 0.5.10
+      '@atproto/lexicon': 0.7.12
       '@atproto/syntax': 0.0.0-spaces-alpha-20260818163953
-      '@atproto/xrpc': 0.0.0-spaces-alpha-20260818163953
+      '@atproto/xrpc': 0.8.11
       await-lock: 3.0.0
       multiformats: 13.4.2
       tlds: 1.261.0
@@ -12228,6 +12236,13 @@ snapshots:
       multiformats: 13.4.2
       zod: 3.25.76
 
+  '@atproto/lexicon@0.7.12':
+    dependencies:
+      '@atproto/common-web': 0.5.10
+      '@atproto/syntax': 0.0.0-spaces-alpha-20260818163953
+      multiformats: 13.4.2
+      zod: 3.25.76
+
   '@atproto/oauth-client-browser@0.0.0-spaces-alpha-20260818163953':
     dependencies:
       '@atproto-labs/did-resolver': 0.3.7
@@ -12281,6 +12296,11 @@ snapshots:
   '@atproto/xrpc@0.0.0-spaces-alpha-20260818163953':
     dependencies:
       '@atproto/lexicon': 0.0.0-spaces-alpha-20260818163953
+      zod: 3.25.76
+
+  '@atproto/xrpc@0.8.11':
+    dependencies:
+      '@atproto/lexicon': 0.7.12
       zod: 3.25.76
 
   '@babel/code-frame@7.29.7':
