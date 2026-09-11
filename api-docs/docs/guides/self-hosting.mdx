@@ -7,6 +7,47 @@ sidebar_position: 3
 
 # Self-hosting guide
 
-⚠️ This is under active development and documentation may get out of date. ⚠️
+⚠️ Habitat is under active development. Releases are cut from `main` continuously. ⚠️
 
-See this guide for information on how to self-host Habitat's Organizational Data Server: https://github.com/habitat-network/habitat/tree/main/build/debian/pear
+Habitat's Organizational Data Server, Pear, ships as a Docker image (`ghcr.io/habitat-network/pear`, for `linux/amd64` and `linux/arm64`).
+
+## Releases
+
+Every commit to `main` that passes CI is published as a [GitHub release](https://github.com/habitat-network/habitat/releases) named `vYYYY.M.D-<short sha>`. Each release has a matching image tag (without the `v`) and a `docker-compose.yml` pinned to that image. The `latest` image tag points at the newest release.
+
+Older `v0.0.x-testing-N` tags are from a previous architecture and do not work with this guide.
+
+## Quick start
+
+You need a Linux server with Docker Compose, a domain pointed at it, and a reverse proxy that terminates TLS.
+
+```bash
+mkdir pear && cd pear
+curl -LO https://github.com/habitat-network/habitat/releases/latest/download/docker-compose.yml
+
+cat > .env <<EOF
+HABITAT_DOMAIN=pear.example.com
+HABITAT_ADMIN_PASSWORD=<password for https://pear.example.com/admin>
+EOF
+
+docker compose up -d
+curl http://localhost:8000/health   # -> ok
+```
+
+Then point your reverse proxy at `localhost:8000`, e.g. with Caddy:
+
+```
+pear.example.com {
+    reverse_proxy localhost:8000
+}
+```
+
+By default, Pear stores its data in SQLite on a Docker volume. It generates its encryption keys and signing key on first boot and saves them to the same volume.
+
+## Postgres
+
+To use Postgres instead of SQLite, set `HABITAT_DB=postgres://user:password@host:5432/dbname` in `.env`. Pear always connects with `client_encoding=UTF8`, but creating the database with `ENCODING 'UTF8'` is recommended. Behind PgBouncer or another transaction-mode pooler, add `default_query_exec_mode=simple_protocol` to the connection string.
+
+## Full reference
+
+For all configuration options, upgrades, backups, and building from source, see the [Pear self-hosting README](https://github.com/habitat-network/habitat/tree/main/build/debian/pear). The copy at a given release tag matches that release.

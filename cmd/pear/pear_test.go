@@ -45,6 +45,38 @@ func TestStartup_Postgres(t *testing.T) {
 	requireStartupHealthy(t, connStr)
 }
 
+// A database created with a non-UTF8 encoding reports that encoding as the
+// connection's client_encoding unless the client asks otherwise, and pgx refuses
+// parameterized simple-protocol queries in that case. Simple protocol is what
+// connection poolers like PgBouncer require. Startup must still succeed.
+func TestStartup_PostgresNonUTF8Database(t *testing.T) {
+	ctx := context.Background()
+
+	container, err := postgres.Run(ctx,
+		"postgres:16-alpine",
+		postgres.WithDatabase("pear"),
+		postgres.WithUsername("pear"),
+		postgres.WithPassword("pear"),
+		tc.WithEnv(map[string]string{
+			"POSTGRES_INITDB_ARGS": "--encoding=SQL_ASCII --locale=C",
+		}),
+		tc.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+		),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	connStr, err := container.ConnectionString(
+		ctx,
+		"sslmode=disable",
+		"default_query_exec_mode=simple_protocol",
+	)
+	require.NoError(t, err)
+
+	requireStartupHealthy(t, connStr)
+}
+
 // requireStartupHealthy boots the pear server against the given database DSN and
 // asserts it comes up and serves /health, failing if it exits early. It drives
 // the shared startup path so both the SQLite and Postgres tests exercise the

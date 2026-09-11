@@ -15,7 +15,11 @@
 ```bash
 git clone https://github.com/habitat-network/habitat
 cd habitat
+# Check out the same release your pear server runs, e.g.
+git checkout v2026.9.11-e3551da
 ```
+
+Releases are listed at https://github.com/habitat-network/habitat/releases.
 
 **2. Create a `.env` file**
 
@@ -51,9 +55,11 @@ Point your reverse proxy at `http://localhost:3000`. On YunoHost, install the **
 - Access: Visitors
 
 ## Updates
-Pull the latest version of the git repo
+Check out the release tag matching your pear server, then rebuild:
 
 ```bash
+git fetch --tags
+git checkout <release tag>
 docker compose build
 docker compose up -d
 ```
