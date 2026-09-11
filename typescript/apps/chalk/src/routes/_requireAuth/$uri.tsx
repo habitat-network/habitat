@@ -8,23 +8,33 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
   ShareDialog,
   type Actor,
   type ShareDialogGrantee,
   type ShareDialogRole,
 } from "internal";
-import { toast } from "internal/components/ui";
+import { Button, toast } from "internal/components/ui";
 import { useActors } from "internal/hooks";
 import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
+import {
+  CommentSidebar,
+  type PendingAnchor,
+} from "@/components/CommentSidebar";
+import {
+  CommentHighlight,
+  encodeAnchor,
+  type CommentAnchor,
+} from "@/extensions/commentAnchor";
 import { OrgShareControl } from "@/components/OrgShareControl";
 import { useYDoc } from "@/hooks/useYDoc";
 import { Route as RequireAuthRoute } from "@/routes/_requireAuth";
 import {
   getDocInitialState,
   getDocRole,
+  listComments,
   listDocAccess,
   revokeDocAccess,
   shareDoc,
@@ -43,6 +53,14 @@ const docInitialStateQueryOptions = (docId: string) =>
     queryFn: () => getDocInitialState({ data: { docId } }),
   });
 
+// Habitat server the share dialog's user search resolves handles against.
+// VITE_HABITAT_DOMAIN is only set by moon's dev task (moon.yml), pointing at
+// local pear — the only server that knows local handles. Production builds
+// leave it unset, so searchActorsTypeahead falls back to its default.
+const identityResolverUrl = import.meta.env.VITE_HABITAT_DOMAIN
+  ? `https://${import.meta.env.VITE_HABITAT_DOMAIN}`
+  : undefined;
+
 export const Route = createFileRoute("/_requireAuth/$uri")({
   loader: async ({ context, params }) => {
     const [role, initialState] = await Promise.all([
@@ -59,22 +77,26 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { role, initialState } = Route.useLoaderData();
     const { currentOrg } = RequireAuthRoute.useLoaderData();
     const ydoc = useYDoc(uri, initialState);
+    // Editors and commenters may write comments; a viewer may only read
+    // them. Mirrors canComment in functions.ts, which is what actually
+    // rejects a viewer's createComment — this only decides what the UI
+    // offers.
+    const canComment = role === "editor" || role === "commenter";
     const queryClient = useQueryClient();
 
     const addRecentDoc = useRecentDocsStore((state) => state.addRecentDoc);
     useEffect(() => addRecentDoc(uri), [uri, addRecentDoc]);
 
     const accessQueryKey = ["docAccess", uri];
+    // listDocAccess only returns DIDs and the tier each one holds;
+    // resolving DIDs to handles/avatars for display is useActors's job.
     const { data: access = [] } = useQuery({
       queryKey: accessQueryKey,
-      // listDocAccess only returns DIDs and relations (what
-      // network.habitat.relationship actually stores); resolving DIDs to
-      // handles/avatars for display is useActors's job.
       queryFn: () => listDocAccess({ data: { docId: uri } }),
     });
     const getActor = useActors(access.map((a) => a.did));
     const grantees: ShareDialogGrantee[] = useMemo(
-      () => access.map((a) => ({ ...getActor(a.did), relation: a.relation })),
+      () => access.map((a) => ({ ...getActor(a.did), role: a.role })),
       [access, getActor],
     );
     const invalidateAccess = () =>
@@ -117,6 +139,29 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       },
     });
 
+    // sidebarOpen tracks the comments panel's own visibility, separate
+    // from activeCommentUri: closing the sidebar shouldn't forget which
+    // thread was selected, and clicking a highlight should reopen it.
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [activeCommentUri, setActiveCommentUri] = useState<string | null>(
+      null,
+    );
+    const [pendingAnchor, setPendingAnchor] = useState<PendingAnchor | null>(
+      null,
+    );
+    // hasSelection drives the toolbar button's label/behavior: with text
+    // selected it starts a new thread ("Add comment"), otherwise it just
+    // opens the sidebar on whatever's already there ("Comments").
+    const [hasSelection, setHasSelection] = useState(false);
+
+    // Shared with CommentSidebar via the same react-query cache entry
+    // (identical queryKey) rather than prop-drilled — only the anchor
+    // fields are needed here, to keep the editor's highlights in sync.
+    const { data: commentsData } = useQuery({
+      queryKey: ["comments", uri],
+      queryFn: () => listComments({ data: { docId: uri } }),
+    });
+
     const editor = useEditor(
       {
         // The doc's real content comes from ydoc over the WebSocket, not
@@ -124,13 +169,16 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         // `document`, which doesn't exist there, and would just be thrown
         // away on hydration anyway.
         immediatelyRender: false,
-        // Client-side only: keeps a viewer's editor read-only. The actual
-        // access gate is the WS route's reader check (ws.$docId.ts) — this
-        // doesn't stop write attempts made outside the UI.
+        // Client-side only: keeps the editor read-only for anyone below
+        // editor — a commenter can add comments but not change the
+        // document itself. The actual access gate is the WS route's reader
+        // check (ws.$docId.ts) — this doesn't stop write attempts made
+        // outside the UI.
         editable: role === "editor",
         extensions: [
           StarterKit.configure({ undoRedo: false }),
           Collaboration.configure({ document: ydoc }),
+          CommentHighlight,
         ],
         editorProps: {
           attributes: {
@@ -138,23 +186,128 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
               "prose max-w-none min-h-full px-[max(2rem,calc(50%-22.5rem))] py-10 outline-none",
           },
         },
+        onSelectionUpdate({ editor }) {
+          setHasSelection(!editor.state.selection.empty);
+        },
       },
       [ydoc, role],
     );
 
+    // Keep the editor's comment-range highlights in sync with the current
+    // comment list (plus any not-yet-created pending selection) whenever
+    // either changes. Highlights are computed decorations, not a mutation
+    // of the shared doc — see commentAnchor.ts's CommentHighlight — so
+    // this is purely a read, safe to rerun on every render of new data.
+    useEffect(() => {
+      // isDestroyed, not just truthiness: React's dev-mode double-invoke
+      // (mount, cleanup/destroy, remount) can leave this closure holding a
+      // stale `editor` whose internal commandManager tiptap's destroy()
+      // has already nulled out — `editor.commands` throws in that case
+      // rather than just being falsy.
+      if (!editor || editor.isDestroyed) return;
+      const anchors: CommentAnchor[] = (commentsData?.comments ?? []).map(
+        (c) => ({
+          uri: c.uri,
+          anchorStart: c.anchorStart,
+          anchorEnd: c.anchorEnd,
+        }),
+      );
+      if (pendingAnchor) {
+        anchors.push({
+          uri: "pending",
+          anchorStart: pendingAnchor.anchorStart,
+          anchorEnd: pendingAnchor.anchorEnd,
+        });
+      }
+      editor.commands.setCommentHighlights(anchors);
+    }, [editor, commentsData, pendingAnchor]);
+
+    // startThread captures the current selection's CRDT anchor (see
+    // encodeAnchor) and opens the sidebar on it with the compose box
+    // ready — the thread's root comment record isn't written until the
+    // user actually submits it (CommentSidebar's startFirstComment), so an
+    // aborted "Comment" click just leaves the selection alone.
+    function startThread() {
+      if (!editor) return;
+      const { from, to, empty } = editor.state.selection;
+      if (empty) return;
+      const anchor = encodeAnchor(editor.state, from, to);
+      if (!anchor) return;
+      const quotedText = editor.state.doc.textBetween(from, to, " ");
+      setPendingAnchor({ ...anchor, quotedText });
+      setActiveCommentUri(null);
+      setSidebarOpen(true);
+    }
+
+    // handleEditorClick opens the sidebar on the thread whose highlight was
+    // clicked, the same way clicking a comment bubble does in most doc
+    // editors — highlights are plain decorations (see CommentHighlight),
+    // so this reads the DOM attribute they render rather than a
+    // ProseMirror mark.
+    function handleEditorClick(e: MouseEvent<HTMLDivElement>) {
+      const target = (e.target as HTMLElement).closest<HTMLElement>(
+        "[data-comment-uri]",
+      );
+      const commentUri = target?.dataset.commentUri;
+      if (commentUri && commentUri !== "pending") {
+        setActiveCommentUri(commentUri);
+        setSidebarOpen(true);
+      }
+    }
+
     return (
       <div className="flex flex-col-reverse h-full">
-        <div className="flex-1 flex flex-col items-center">
-          <EditorContent className="w-full flex-1" editor={editor} />
+        <div className="flex-1 flex overflow-hidden">
+          <div
+            className="flex-1 flex flex-col items-center overflow-y-auto"
+            onClick={handleEditorClick}
+          >
+            <EditorContent className="w-full flex-1" editor={editor} />
+          </div>
+          {sidebarOpen && (
+            <CommentSidebar
+              docId={uri}
+              currentUserDid={currentUserDid}
+              canComment={canComment}
+              activeCommentUri={activeCommentUri}
+              pendingAnchor={pendingAnchor}
+              onPendingAnchorResolved={() => setPendingAnchor(null)}
+              onClose={() => {
+                setSidebarOpen(false);
+                // Closing without submitting abandons the pending
+                // selection — otherwise its highlight (and the sidebar's
+                // "no comments yet" fallback) would linger after the user
+                // clearly walked away from it.
+                setPendingAnchor(null);
+              }}
+            />
+          )}
         </div>
         <PageHeader>
           <div className="flex gap-2">
+            {canComment ? (
+              <Button
+                variant="ghost"
+                onClick={
+                  hasSelection ? startThread : () => setSidebarOpen(true)
+                }
+              >
+                {hasSelection ? "Add comment" : "Comments"}
+              </Button>
+            ) : (
+              // A viewer can read the thread list but not start one, so
+              // the button never offers "Add comment" to them.
+              <Button variant="ghost" onClick={() => setSidebarOpen(true)}>
+                Comments
+              </Button>
+            )}
             {role === "editor" && (
               <ShareDialog
                 grantees={grantees}
                 isAdding={isAddingPermission}
                 roles
                 currentUserDid={currentUserDid}
+                identityResolverUrl={identityResolverUrl}
                 onAddPermission={(actors, role) =>
                   addPermission({ actors, role })
                 }

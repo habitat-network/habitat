@@ -10,8 +10,8 @@ catalogs:
       specifier: 0.0.0-spaces-alpha-20260818163953
       version: 0.0.0-spaces-alpha-20260818163953
     '@atproto/identity':
-      specifier: ^0.5.9
-      version: 0.5.10
+      specifier: 0.0.0-spaces-alpha-20260818163953
+      version: 0.0.0-spaces-alpha-20260818163953
     '@atproto/lex':
       specifier: 0.3.8
       version: 0.3.8
@@ -209,7 +209,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.10
+        version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/lex':
         specifier: 'catalog:'
         version: 0.3.8
@@ -321,16 +321,25 @@ importers:
     dependencies:
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.10
+        version: 0.0.0-spaces-alpha-20260818163953
+      '@atproto/lex-json':
+        specifier: ^0.1.6
+        version: 0.1.6
       '@atproto/syntax':
         specifier: 0.0.0-spaces-alpha-20260818163953
         version: 0.0.0-spaces-alpha-20260818163953
+      '@posthog/react':
+        specifier: ^1.10.6
+        version: 1.10.6(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)
       '@tanstack/react-devtools':
         specifier: 'catalog:'
         version: 0.10.12(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)
+      '@tanstack/react-query-devtools':
+        specifier: ^5.102.8
+        version: 5.102.8(@tanstack/react-query@5.102.8(react@19.2.8))(react@19.2.8)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.34(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -340,6 +349,9 @@ importers:
       '@tanstack/react-start':
         specifier: ^1.168.47
         version: 1.168.51(crossws@0.4.10(srvx@0.11.22))(esbuild@0.28.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.13)(yaml@2.9.0))(webpack@5.108.4(@swc/core@1.15.47)(@swc/html@1.15.47)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.26))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.26))
+      '@tiptap/core':
+        specifier: ^3.28.0
+        version: 3.30.3(@tiptap/pm@3.30.3)
       '@tiptap/extension-collaboration':
         specifier: ^3.28.0
         version: 3.30.3(@tiptap/core@3.30.3(@tiptap/pm@3.30.3))(@tiptap/pm@3.30.3)(@tiptap/y-tiptap@3.0.9(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32))(yjs@13.6.32)
@@ -352,6 +364,12 @@ importers:
       '@tiptap/starter-kit':
         specifier: ^3.28.0
         version: 3.30.3
+      '@tiptap/y-tiptap':
+        specifier: ^3.0.7
+        version: 3.0.9(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
+      api:
+        specifier: workspace:*
+        version: link:../../api
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(@cloudflare/workers-types@5.20260825.1)
@@ -364,6 +382,9 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 1.34.0(react@19.2.8)
+      posthog-js:
+        specifier: ^1.418.10
+        version: 1.418.10
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -448,7 +469,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.10
+        version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/lex':
         specifier: 'catalog:'
         version: 0.3.8
@@ -702,13 +723,13 @@ importers:
         version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.5.10
+        version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/lex':
         specifier: 'catalog:'
         version: 0.3.8
       '@atproto/oauth-client-browser':
-        specifier: ^0.5.0
-        version: 0.5.4
+        specifier: 0.0.0-spaces-alpha-20260818163953
+        version: 0.0.0-spaces-alpha-20260818163953
       '@atproto/syntax':
         specifier: 0.0.0-spaces-alpha-20260818163953
         version: 0.0.0-spaces-alpha-20260818163953
@@ -972,6 +993,10 @@ packages:
     resolution: {integrity: sha512-WvgY0CDgodmTS7B1KDVFt868h1b85iQtQZeoDVI+6oOZmg1jINWUl+bZ1rwf59Tk1PqcMz5OzH6OS2J7Mb9/Iw==}
     engines: {node: '>=22'}
 
+  '@atproto/crypto@0.0.0-spaces-alpha-20260818163953':
+    resolution: {integrity: sha512-Cjqoa3BKUFaqkdZkiZy+aQJTPxFGFv0yNmbsF21zh+gK3Hvkjdgxg7TjlaFasLIy6RKY1k9weD3SztVKKMoZzw==}
+    engines: {node: '>=22'}
+
   '@atproto/crypto@0.5.4':
     resolution: {integrity: sha512-UR0BkuYNYuFtw+dA+y/oPPxzX0SWRnGJ+1Cfh/jGP1BvjRUyezK3omjpeLms5fYrXbM9vnfX+ckJFJqkBgLOdw==}
     engines: {node: '>=22'}
@@ -980,8 +1005,8 @@ packages:
     resolution: {integrity: sha512-BlnwQ+obL+4ZA71KH/EzZ3TY+cpSxnLiUI85mjBJIQwvDF/oN2sQA18wIj9jpduviIt2b/cMtlJuzHjzBkfXvw==}
     engines: {node: '>=22'}
 
-  '@atproto/identity@0.5.10':
-    resolution: {integrity: sha512-aan/2rKWznpZ8MKuFPmakEVQs4f5K4+yTyVhV3CnJUR8zoXM7O51tw6KTpFKljbA/IgrepFEynZCKF6/BLva7Q==}
+  '@atproto/identity@0.0.0-spaces-alpha-20260818163953':
+    resolution: {integrity: sha512-Ozc2nPVAc93AsGMmcfUNuWfeT6pIwptDmftVu1XbZOcoODbemHk0pJfz7n27pHjWgghjMUkCj6KDq6TogAX/jg==}
     engines: {node: '>=22'}
 
   '@atproto/jwk-jose@0.2.4':
@@ -1041,16 +1066,12 @@ packages:
     resolution: {integrity: sha512-ncg3KVMl4aLj+fEJp1vu3Og6ZkKo/tBzz+5XClsk8zYAwRe6qNsJ+cYW5GrECxPvxuCvUra7ko9wMCwz3VJFmg==}
     engines: {node: '>=22'}
 
-  '@atproto/lexicon@0.7.12':
-    resolution: {integrity: sha512-bXVWXc2+ctVVUc3CEuWV9mVXRMMQcWmdzmyRE7w2Rli0B36HADU49Vvi7PWTw26zFFqumYVl9b23bW3vrzAzbg==}
+  '@atproto/oauth-client-browser@0.0.0-spaces-alpha-20260818163953':
+    resolution: {integrity: sha512-+azegbABjBvH+SHDaPkN0NAAKM3zUwiRqcef55zRZxLio0tvFO/1cSSt5FbFCA74XPc3OnLiyXHrgNUTsdfRSA==}
     engines: {node: '>=22'}
 
-  '@atproto/oauth-client-browser@0.5.4':
-    resolution: {integrity: sha512-+mFzVwjDmi6n6ImfTuj9dIvM2nDjGp/uv01ONhXS6TbA30WG2cPBXqPjycPldc/OSc6F7TJ4/DQREBUCeDGn8w==}
-    engines: {node: '>=22'}
-
-  '@atproto/oauth-client@0.8.4':
-    resolution: {integrity: sha512-fO3V+4f3Tm6tHKxjXoE/fNREcO3IjQVGPpyfX7FTrkJhu+pWk68TQ5bwUNon14zxIUr8V5RQq2egY5CA/x0wKQ==}
+  '@atproto/oauth-client@0.0.0-spaces-alpha-20260818163953':
+    resolution: {integrity: sha512-LYCLFJuIkf3hgZxpFdN+tIkOtdRtszshS8aURcv/tEwlDWwIL86nryf/ORh+FCo/AxgJpXEZmr/zkyNBlGmdlw==}
     engines: {node: '>=22'}
 
   '@atproto/oauth-types@0.7.5':
@@ -1067,10 +1088,6 @@ packages:
 
   '@atproto/xrpc@0.0.0-spaces-alpha-20260818163953':
     resolution: {integrity: sha512-AW2zqwpUh8C4pkiDNbmM1FLjmVm5TShaGKDlGAiTMuxf43rfQ+FeBucb9H5w2iaIUQJ594dN3lHXijBATkGNcw==}
-    engines: {node: '>=22'}
-
-  '@atproto/xrpc@0.8.11':
-    resolution: {integrity: sha512-5M38m9REQouVIA4/Gh0wqo6Vncr3QbG7rb5oqlEbqB+f77pruCk4JLDipfrOrsXH+pdnVnU2IaPXvpsSAC7Mqw==}
     engines: {node: '>=22'}
 
   '@babel/code-frame@7.29.7':
@@ -4931,6 +4948,9 @@ packages:
   '@tanstack/query-core@5.102.8':
     resolution: {integrity: sha512-ZNjkJ33CqvPNec/6lZBnHqLc3EVGPZ9ySLhYahU9TcuRFdmwXewuj0c4hwSWcGHqEUwcSrKeZ+oGcvPBqXcQcg==}
 
+  '@tanstack/query-devtools@5.102.8':
+    resolution: {integrity: sha512-ZgeMKuF5d/zOE+tgWm3cSbD6Zcbr6IugVsnbHzUcSismqLZDSUPBKM6ILUxExgwe6rPAOox2x5bA5T+PSOQG0Q==}
+
   '@tanstack/react-devtools@0.10.12':
     resolution: {integrity: sha512-dgoz7TFm97Izo/D34z91PD0h+ufk+eBmoN9OgRHJlj/c7Ol5xpIP7bqLBNByjgt5paRE2eSu5AQHV92Ul+G6iw==}
     engines: {node: '>=18'}
@@ -4939,6 +4959,12 @@ packages:
       '@types/react-dom': '>=16.8'
       react: '>=16.8'
       react-dom: '>=16.8'
+
+  '@tanstack/react-query-devtools@5.102.8':
+    resolution: {integrity: sha512-QKb7A44BZOU7nxsGA4gFN1fofjYovar5O0T83Ff4Y+2eRq09RGFrAzzutVdF/6/emfSaMDohp6e759BjB3fxEw==}
+    peerDependencies:
+      '@tanstack/react-query': ^5.102.8
+      react: ^18 || ^19
 
   '@tanstack/react-query@5.102.8':
     resolution: {integrity: sha512-TYBea4OuXWD7MhaSHq069TWbFe7rcwWN6kzT7JF0OKi1K6c1gTv2IzD6A6ExJsCMozdkqBWeuIUZmu4KQg0O5A==}
@@ -12079,6 +12105,12 @@ snapshots:
       multiformats: 13.4.2
       pino: 10.3.1
 
+  '@atproto/crypto@0.0.0-spaces-alpha-20260818163953':
+    dependencies:
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      uint8arrays: 5.1.1
+
   '@atproto/crypto@0.5.4':
     dependencies:
       '@noble/curves': 1.9.7
@@ -12089,10 +12121,10 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
-  '@atproto/identity@0.5.10':
+  '@atproto/identity@0.0.0-spaces-alpha-20260818163953':
     dependencies:
-      '@atproto/common-web': 0.5.10
-      '@atproto/crypto': 0.5.4
+      '@atproto/common-web': 0.0.0-spaces-alpha-20260818163953
+      '@atproto/crypto': 0.0.0-spaces-alpha-20260818163953
 
   '@atproto/jwk-jose@0.2.4':
     dependencies:
@@ -12196,14 +12228,7 @@ snapshots:
       multiformats: 13.4.2
       zod: 3.25.76
 
-  '@atproto/lexicon@0.7.12':
-    dependencies:
-      '@atproto/common-web': 0.5.10
-      '@atproto/syntax': 0.0.0-spaces-alpha-20260818163953
-      multiformats: 13.4.2
-      zod: 3.25.76
-
-  '@atproto/oauth-client-browser@0.5.4':
+  '@atproto/oauth-client-browser@0.0.0-spaces-alpha-20260818163953':
     dependencies:
       '@atproto-labs/did-resolver': 0.3.7
       '@atproto-labs/handle-resolver': 0.4.8
@@ -12211,11 +12236,11 @@ snapshots:
       '@atproto/did': 0.5.4
       '@atproto/jwk': 0.7.4
       '@atproto/jwk-webcrypto': 0.3.4
-      '@atproto/oauth-client': 0.8.4
+      '@atproto/oauth-client': 0.0.0-spaces-alpha-20260818163953
       '@atproto/oauth-types': 0.7.5
       core-js: 3.50.0
 
-  '@atproto/oauth-client@0.8.4':
+  '@atproto/oauth-client@0.0.0-spaces-alpha-20260818163953':
     dependencies:
       '@atproto-labs/did-resolver': 0.3.7
       '@atproto-labs/fetch': 0.3.5
@@ -12226,7 +12251,7 @@ snapshots:
       '@atproto/did': 0.5.4
       '@atproto/jwk': 0.7.4
       '@atproto/oauth-types': 0.7.5
-      '@atproto/xrpc': 0.8.11
+      '@atproto/xrpc': 0.0.0-spaces-alpha-20260818163953
       core-js: 3.50.0
       multiformats: 13.4.2
       zod: 3.25.76
@@ -12256,11 +12281,6 @@ snapshots:
   '@atproto/xrpc@0.0.0-spaces-alpha-20260818163953':
     dependencies:
       '@atproto/lexicon': 0.0.0-spaces-alpha-20260818163953
-      zod: 3.25.76
-
-  '@atproto/xrpc@0.8.11':
-    dependencies:
-      '@atproto/lexicon': 0.7.12
       zod: 3.25.76
 
   '@babel/code-frame@7.29.7':
@@ -16832,6 +16852,8 @@ snapshots:
 
   '@tanstack/query-core@5.102.8': {}
 
+  '@tanstack/query-devtools@5.102.8': {}
+
   '@tanstack/react-devtools@0.10.12(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)':
     dependencies:
       '@tanstack/devtools': 0.14.2(csstype@3.2.3)(solid-js@1.9.14)
@@ -16844,6 +16866,12 @@ snapshots:
       - csstype
       - solid-js
       - utf-8-validate
+
+  '@tanstack/react-query-devtools@5.102.8(@tanstack/react-query@5.102.8(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@tanstack/query-devtools': 5.102.8
+      '@tanstack/react-query': 5.102.8(react@19.2.8)
+      react: 19.2.8
 
   '@tanstack/react-query@5.102.8(react@19.2.8)':
     dependencies:

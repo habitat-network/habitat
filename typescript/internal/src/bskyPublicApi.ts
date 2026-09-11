@@ -15,7 +15,7 @@ export async function searchActorsTypeahead(
       `${PUBLIC_BSKY_API}/xrpc/app.bsky.actor.searchActorsTypeahead?${params}`,
     ),
     fetch(
-      `${identityResolverUrl || "https://pear.habitat.network/xrpc/com.atproto.identity.resolveIdentity"}?identifier=${q}`,
+      `${identityResolverUrl || "https://pear.habitat.network"}/xrpc/com.atproto.identity.resolveIdentity?identifier=${q}`,
     ),
   ]);
   const searchData: { actors: Actor[] } = await searchResp.json();

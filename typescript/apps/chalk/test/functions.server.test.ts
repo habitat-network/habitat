@@ -199,3 +199,214 @@ describe("listMyOrgIds", () => {
     ]);
   });
 });
+
+describe("docRole", () => {
+  const server = setupServer();
+  beforeEach(() => server.listen({ onUnhandledRequest: "error" }));
+  afterEach(() => {
+    server.resetHandlers();
+    server.close();
+  });
+
+  const DOC = "at://did:web:alice.example/space/network.habitat.docs/abc";
+  const COMMENTS =
+    "at://did:web:alice.example/space/network.habitat.docs.comments/abc";
+  const BOB = "did:plc:bob";
+
+  // allow lists the (space, relation) pairs pear should say yes to; every
+  // other check answers false. The two spaces inherit from each other, so
+  // a realistic fixture has to include the relations that inheritance
+  // implies, not just the one that was granted directly.
+  function grant(allow: [string, string][]) {
+    server.use(
+      http.get(
+        "http://sap-internal.test/proxy/network.habitat.relationship.checkUserRelation",
+        ({ request }) => {
+          const params = new URL(request.url).searchParams;
+          const allowed = allow.some(
+            ([space, relation]) =>
+              params.get("space") === space &&
+              params.get("relation") === relation,
+          );
+          return HttpResponse.json({ allowed });
+        },
+      ),
+    );
+  }
+
+  async function roleOf(allow: [string, string][]) {
+    grant(allow);
+    const { SapClient } = await import("../src/server/sapClient");
+    const { docRole } = await import("../src/server/functions.server");
+    return docRole(new SapClient(testEnv, BOB), BOB, DOC);
+  }
+
+  it("is editor for a writer on the doc space", async () => {
+    // An editor is a comments-space writer too, through the inheritance —
+    // the doc-space check has to win over it.
+    expect(
+      await roleOf([
+        [DOC, "writer"],
+        [DOC, "reader"],
+        [COMMENTS, "writer"],
+      ]),
+    ).toBe("editor");
+  });
+
+  it("is commenter for a writer on the comments space only", async () => {
+    // A commenter reads the doc through the comments space's inheritance,
+    // so the doc-space reader check passes for them too — commenter has to
+    // win over viewer.
+    expect(
+      await roleOf([
+        [COMMENTS, "writer"],
+        [DOC, "reader"],
+      ]),
+    ).toBe("commenter");
+  });
+
+  it("is viewer for a reader on the doc space", async () => {
+    expect(await roleOf([[DOC, "reader"]])).toBe("viewer");
+  });
+
+  it("is null with no relation at all", async () => {
+    expect(await roleOf([])).toBeNull();
+  });
+
+  it("is null for a malformed docId (no comments space to check)", async () => {
+    grant([]);
+    const { SapClient } = await import("../src/server/sapClient");
+    const { docRole } = await import("../src/server/functions.server");
+    expect(await docRole(new SapClient(testEnv, BOB), BOB, "not-a-uri")).toBe(
+      null,
+    );
+  });
+});
+
+describe("deleteUserGrant", () => {
+  const server = setupServer();
+  beforeEach(() => server.listen({ onUnhandledRequest: "error" }));
+  afterEach(() => {
+    server.resetHandlers();
+    server.close();
+  });
+
+  const SPACE = "at://did:web:alice.example/space/network.habitat.docs/abc";
+  const GRANT = `${SPACE}/did:web:alice.example/network.habitat.relationship.userRelation/rk1`;
+  const BOB = "did:plc:bob";
+
+  function relations(found: { uri: string }[]) {
+    const deleted: unknown[] = [];
+    server.use(
+      http.get(
+        "http://sap-internal.test/proxy/network.habitat.relationship.listRelations",
+        ({ request }) => {
+          const params = new URL(request.url).searchParams;
+          expect(params.get("space")).toBe(SPACE);
+          expect(params.get("subjectDid")).toBe(BOB);
+          expect(params.get("subjectType")).toBe("user");
+          return HttpResponse.json({ relations: found });
+        },
+      ),
+      http.post(
+        "http://sap-internal.test/proxy/network.habitat.relationship.deleteRelation",
+        async ({ request }) => {
+          deleted.push(await request.json());
+          return new HttpResponse(null, { status: 200 });
+        },
+      ),
+    );
+    return deleted;
+  }
+
+  it("deletes the subject's grant on the space and returns its record uri", async () => {
+    const deleted = relations([
+      { uri: GRANT, subject: BOB, relation: "writer" },
+    ]);
+    const { SapClient } = await import("../src/server/sapClient");
+    const { deleteUserGrant } = await import("../src/server/functions.server");
+    const client = new SapClient(testEnv, BOB);
+    expect(await deleteUserGrant(client, SPACE, BOB)).toBe(GRANT);
+    expect(deleted).toEqual([{ uri: GRANT }]);
+  });
+
+  it("is a no-op when the subject holds no grant on the space", async () => {
+    const deleted = relations([]);
+    const { SapClient } = await import("../src/server/sapClient");
+    const { deleteUserGrant } = await import("../src/server/functions.server");
+    const client = new SapClient(testEnv, BOB);
+    expect(await deleteUserGrant(client, SPACE, BOB)).toBeUndefined();
+    expect(deleted).toEqual([]);
+  });
+
+  it("is a no-op when the space doesn't exist", async () => {
+    // A doc created before comments spaces existed has none, and pear
+    // rejects any relationship query against it as SpaceNotFound.
+    server.use(
+      http.get(
+        "http://sap-internal.test/proxy/network.habitat.relationship.listRelations",
+        () => HttpResponse.json({ error: "SpaceNotFound" }, { status: 400 }),
+      ),
+    );
+    const { SapClient } = await import("../src/server/sapClient");
+    const { deleteUserGrant } = await import("../src/server/functions.server");
+    const client = new SapClient(testEnv, BOB);
+    expect(await deleteUserGrant(client, SPACE, BOB)).toBeUndefined();
+  });
+});
+
+describe("listUserGrants", () => {
+  const server = setupServer();
+  beforeEach(() => server.listen({ onUnhandledRequest: "error" }));
+  afterEach(() => {
+    server.resetHandlers();
+    server.close();
+  });
+
+  const SPACE = "at://did:web:alice.example/space/network.habitat.docs/abc";
+  const GRANT = `${SPACE}/did:web:alice.example/network.habitat.relationship.userRelation/rk1`;
+  const BOB = "did:plc:bob";
+
+  function listRelations(response: () => Response) {
+    server.use(
+      http.get(
+        "http://sap-internal.test/proxy/network.habitat.relationship.listRelations",
+        response,
+      ),
+    );
+  }
+
+  it("returns the user grants on the space", async () => {
+    listRelations(() =>
+      HttpResponse.json({
+        relations: [{ uri: GRANT, subject: BOB, relation: "reader" }],
+      }),
+    );
+    const { SapClient } = await import("../src/server/sapClient");
+    const { listUserGrants } = await import("../src/server/functions.server");
+    const client = new SapClient(testEnv, BOB);
+    expect(await listUserGrants(client, SPACE)).toEqual([
+      { uri: GRANT, subject: BOB, relation: "reader" },
+    ]);
+  });
+
+  it("returns no grants when the space doesn't exist", async () => {
+    listRelations(() =>
+      HttpResponse.json({ error: "SpaceNotFound" }, { status: 400 }),
+    );
+    const { SapClient } = await import("../src/server/sapClient");
+    const { listUserGrants } = await import("../src/server/functions.server");
+    const client = new SapClient(testEnv, BOB);
+    expect(await listUserGrants(client, SPACE)).toEqual([]);
+  });
+
+  it("rethrows any other failure", async () => {
+    listRelations(() =>
+      HttpResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    );
+    const { SapClient } = await import("../src/server/sapClient");
+    const { listUserGrants } = await import("../src/server/functions.server");
+    const client = new SapClient(testEnv, BOB);
+    await expect(listUserGrants(client, SPACE)).rejects.toThrow("Unauthorized");
+  });
+});

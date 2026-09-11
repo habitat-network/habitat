@@ -20,6 +20,11 @@ type SignedCommit = {
   ver: number
 
   /**
+   * True if sig was produced by the space host's key rather than the author's own key.
+   */
+  habitatSigned?: boolean
+
+  /**
    * sha256 digest of the LtHash state (32 bytes).
    */
   hash: Uint8Array
@@ -53,6 +58,7 @@ const signedCommit = /*#__PURE__*/ l.typedObject<SignedCommit>(
   'signedCommit',
   /*#__PURE__*/ l.object({
     ver: /*#__PURE__*/ l.integer(),
+    habitatSigned: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.boolean()),
     hash: /*#__PURE__*/ l.bytes(),
     ikm: /*#__PURE__*/ l.bytes(),
     sig: /*#__PURE__*/ l.bytes(),

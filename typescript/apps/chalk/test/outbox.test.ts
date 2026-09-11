@@ -2,7 +2,14 @@ import { env } from "cloudflare:test";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import { processOutboxMessage } from "../src/server/outbox";
-import { getDb, upsertDoc, docsFor, docByUri } from "../src/db";
+import {
+  commentsForDoc,
+  docByUri,
+  docsFor,
+  getDb,
+  repliesForDoc,
+  upsertDoc,
+} from "../src/db";
 
 // A well-formed empty Yjs V2 update — `applyRemote` feeds getBlob's response
 // straight into `mergeUpdate`, which decodes it, so an arbitrary byte
@@ -21,6 +28,8 @@ beforeEach(async () => {
   await env.DB.exec("DELETE FROM docs");
   await env.DB.exec("DELETE FROM doc_access");
   await env.DB.exec("DELETE FROM doc_org_access");
+  await env.DB.exec("DELETE FROM comments");
+  await env.DB.exec("DELETE FROM comment_replies");
   await upsertDoc(getDb(env), {
     spaceUri: URI,
     docId: URI,
@@ -287,4 +296,235 @@ it("ignores a spaceRelation whose subject is not a members space", async () => {
     }),
   );
   expect(await docsFor(getDb(env), BOB, ORG)).toEqual([]);
+});
+
+// A commenter's grant is a userRelation on the doc's *comments* space (see
+// functions.ts's ROLE_TO_GRANT). doc_access answers "which docs can this
+// subject see", and docsFor joins it against the doc — so the row
+// has to be filed under the doc space, not the space the record names, or
+// the commenter never sees the doc in their own list.
+const COMMENTS_RELATION_RECORD = `at://${OWNER}/space/network.habitat.docs.comments/abc/${OWNER}/network.habitat.relationship.userRelation/rkey2`;
+
+it("files a comments-space grant under the doc space", async () => {
+  await processOutboxMessage(
+    env,
+    relationMsg(COMMENTS_RELATION_RECORD, { subject: BOB, relation: "writer" }),
+  );
+  expect(await docsFor(getDb(env), BOB)).toEqual([
+    { docId: URI, uri: URI, ownerDid: OWNER, title: "Untitled" },
+  ]);
+});
+
+it("a non-writer relation on the comments space leaves the doc-space row alone", async () => {
+  // Creating the comments space writes its creator an *owner* userRelation
+  // on it, alongside the one they already hold on the doc space. Both
+  // would map to the same (subject, doc space) row, and the second to
+  // arrive would overwrite the first's record URI — after which the wrong
+  // tombstone deletes the row and the right one matches nothing. Only a
+  // writer grant on the comments space means anything to doc_access.
+  await processOutboxMessage(
+    env,
+    relationMsg(RELATION_RECORD, { subject: BOB, relation: "owner" }),
+  );
+  await processOutboxMessage(
+    env,
+    relationMsg(COMMENTS_RELATION_RECORD, { subject: BOB, relation: "owner" }),
+  );
+  // The doc-space record's own tombstone must still find the row.
+  await processOutboxMessage(env, relationMsg(RELATION_RECORD, null));
+  expect(await docsFor(getDb(env), BOB)).toEqual([]);
+});
+
+it("removes a comments-space grant on its delete tombstone", async () => {
+  await processOutboxMessage(
+    env,
+    relationMsg(COMMENTS_RELATION_RECORD, { subject: BOB, relation: "writer" }),
+  );
+  // The tombstone carries only the record's own URI — on the comments
+  // space — which still has to find the row filed under the doc space.
+  await processOutboxMessage(env, relationMsg(COMMENTS_RELATION_RECORD, null));
+  expect(await docsFor(getDb(env), BOB)).toEqual([]);
+});
+
+const COMMENTS_SPACE = `at://${OWNER}/space/network.habitat.docs.comments/abc`;
+const COMMENT_RECORD = `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.comment/3jzfcijpj2z2a`;
+
+function commentMsg(uri: string, value: unknown) {
+  return { id: 1, uri, value };
+}
+
+// handleComment backfills the comment's cid via a getRecord call
+// (authenticated as the doc's owner) since the outbox message itself
+// carries none — see outbox.ts's handleComment. mockGetRecord makes
+// fetchMock answer that call; other calls (there shouldn't be any in
+// these tests) fail loudly instead of hanging.
+function mockGetRecord(cid: string) {
+  fetchMock.mockImplementation(async (url: string) => {
+    if (String(url).includes("space.getRecord")) {
+      return new Response(JSON.stringify({ uri: COMMENT_RECORD, cid }), {
+        status: 200,
+      });
+    }
+    throw new Error(`unexpected fetch: ${url}`);
+  });
+}
+
+it("mirrors a comment record into the comments table, backfilling its cid via getRecord", async () => {
+  mockGetRecord("bafycid1");
+  await processOutboxMessage(
+    env,
+    commentMsg(COMMENT_RECORD, {
+      $type: "network.habitat.docs.comment",
+      body: "nice doc",
+      anchorStart: { $bytes: "c3RhcnQtcmVsLXBvcw" },
+      anchorEnd: { $bytes: "ZW5kLXJlbC1wb3M" },
+      createdAt: "2024-01-01T00:00:00.000Z",
+    }),
+  );
+  const rows = await commentsForDoc(getDb(env), URI);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    uri: COMMENT_RECORD,
+    cid: "bafycid1",
+    docSpaceUri: URI,
+    authorDid: BOB, // the repo holding the record, not a field on it
+    body: "nice doc",
+    anchorStart: new TextEncoder().encode("start-rel-pos"),
+    anchorEnd: new TextEncoder().encode("end-rel-pos"),
+    createdAt: Date.parse("2024-01-01T00:00:00.000Z"),
+  });
+});
+
+it("removes the comment on a delete tombstone (null value), without calling getRecord", async () => {
+  mockGetRecord("bafycid1");
+  await processOutboxMessage(
+    env,
+    commentMsg(COMMENT_RECORD, {
+      $type: "network.habitat.docs.comment",
+      body: "nice doc",
+      anchorStart: { $bytes: "YQ" },
+      anchorEnd: { $bytes: "Yg" },
+      createdAt: "2024-01-01T00:00:00.000Z",
+    }),
+  );
+  fetchMock.mockReset();
+  fetchMock.mockImplementation(async () => {
+    throw new Error("should not be called for a tombstone");
+  });
+  await processOutboxMessage(env, commentMsg(COMMENT_RECORD, null));
+  expect(await commentsForDoc(getDb(env), URI)).toEqual([]);
+});
+
+it("ignores a comment on a doc this deployment doesn't know", async () => {
+  const unknownSpace = `at://${OWNER}/space/network.habitat.docs.comments/zzz`;
+  const unknownRecord = `${unknownSpace}/${BOB}/network.habitat.docs.comment/1`;
+  await processOutboxMessage(
+    env,
+    commentMsg(unknownRecord, {
+      $type: "network.habitat.docs.comment",
+      body: "x",
+      anchorStart: { $bytes: "YQ" },
+      anchorEnd: { $bytes: "Yg" },
+      createdAt: "2024-01-01T00:00:00.000Z",
+    }),
+  );
+  expect(fetchMock).not.toHaveBeenCalled(); // never reaches the getRecord call
+  expect(
+    await commentsForDoc(
+      getDb(env),
+      `at://${OWNER}/space/network.habitat.docs/zzz`,
+    ),
+  ).toEqual([]);
+});
+
+it("ignores a comment record that fails lexicon validation", async () => {
+  const valid = {
+    $type: "network.habitat.docs.comment",
+    body: "x",
+    anchorStart: { $bytes: "YQ" },
+    anchorEnd: { $bytes: "Yg" },
+    createdAt: "2024-01-01T00:00:00.000Z",
+  };
+  for (const invalid of [
+    { ...valid, anchorEnd: undefined }, // missing an anchor
+    { ...valid, anchorStart: "YQ" }, // anchor as a string, not bytes
+    { ...valid, $type: undefined }, // not typed as a comment
+  ]) {
+    await processOutboxMessage(env, commentMsg(COMMENT_RECORD, invalid));
+  }
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(await commentsForDoc(getDb(env), URI)).toEqual([]);
+});
+
+it("drops a comment whose getRecord call fails (can't mirror without a cid)", async () => {
+  fetchMock.mockImplementation(
+    async () => new Response("nope", { status: 404 }),
+  );
+  await processOutboxMessage(
+    env,
+    commentMsg(COMMENT_RECORD, {
+      $type: "network.habitat.docs.comment",
+      body: "x",
+      anchorStart: { $bytes: "YQ" },
+      anchorEnd: { $bytes: "Yg" },
+      createdAt: "2024-01-01T00:00:00.000Z",
+    }),
+  );
+  expect(await commentsForDoc(getDb(env), URI)).toEqual([]);
+});
+
+const COMMENT_REPLY_RECORD = `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.commentReply/xyz`;
+const ROOT_COMMENT_URI = `${COMMENTS_SPACE}/${OWNER}/network.habitat.docs.comment/1`;
+// A well-formed reply record. Its strongRef names a space record URI, which
+// lexicon validation has to accept, and the strongRef's cid is format
+// "cid", so this has to be a real one.
+const REPLY_VALUE = {
+  $type: "network.habitat.docs.commentReply",
+  comment: {
+    uri: ROOT_COMMENT_URI,
+    cid: "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm",
+  },
+  body: "I agree",
+  createdAt: "2024-01-01T00:00:00.000Z",
+};
+
+function replyMsg(uri: string, value: unknown) {
+  return { id: 1, uri, value };
+}
+
+it("mirrors a commentReply record into comment_replies, without needing a cid (no getRecord call)", async () => {
+  fetchMock.mockImplementation(async () => {
+    throw new Error("replies should not need a getRecord call");
+  });
+  await processOutboxMessage(env, replyMsg(COMMENT_REPLY_RECORD, REPLY_VALUE));
+  const rows = await repliesForDoc(getDb(env), URI);
+  expect(rows).toEqual([
+    expect.objectContaining({
+      uri: COMMENT_REPLY_RECORD,
+      docSpaceUri: URI,
+      commentUri: ROOT_COMMENT_URI,
+      authorDid: BOB,
+      body: "I agree",
+      createdAt: Date.parse("2024-01-01T00:00:00.000Z"),
+    }),
+  ]);
+});
+
+it("removes the reply on a delete tombstone (null value)", async () => {
+  await processOutboxMessage(env, replyMsg(COMMENT_REPLY_RECORD, REPLY_VALUE));
+  expect(await repliesForDoc(getDb(env), URI)).toHaveLength(1);
+  await processOutboxMessage(env, replyMsg(COMMENT_REPLY_RECORD, null));
+  expect(await repliesForDoc(getDb(env), URI)).toEqual([]);
+});
+
+it("ignores a commentReply record that fails lexicon validation", async () => {
+  for (const invalid of [
+    { ...REPLY_VALUE, comment: undefined }, // missing its comment ref
+    { ...REPLY_VALUE, body: undefined }, // missing its body
+    { ...REPLY_VALUE, comment: { uri: "not-a-uri", cid: "x" } }, // bad ref
+    { ...REPLY_VALUE, $type: undefined }, // not typed as a reply
+  ]) {
+    await processOutboxMessage(env, replyMsg(COMMENT_REPLY_RECORD, invalid));
+  }
+  expect(await repliesForDoc(getDb(env), URI)).toEqual([]);
 });

@@ -36,6 +36,13 @@
       "when": 1788997729014,
       "tag": "0004_classy_ikaris",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789067756949,
+      "tag": "0005_tidy_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,22 @@
 import { drizzle } from "drizzle-orm/d1";
-import { and, desc, eq, inArray, isNotNull, notInArray, or } from "drizzle-orm";
-import { docs, docAccess, docOrgAccess, connectedOrgs } from "./schema";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  notInArray,
+  or,
+} from "drizzle-orm";
+import {
+  docs,
+  docAccess,
+  docOrgAccess,
+  connectedOrgs,
+  comments,
+  commentReplies,
+} from "./schema";
 
 export interface DocSummary {
   docId: string;
@@ -11,7 +27,14 @@ export interface DocSummary {
 
 export function getDb(env: { DB: D1Database }) {
   return drizzle(env.DB, {
-    schema: { docs, docAccess, docOrgAccess, connectedOrgs },
+    schema: {
+      docs,
+      docAccess,
+      docOrgAccess,
+      connectedOrgs,
+      comments,
+      commentReplies,
+    },
   });
 }
 
@@ -232,4 +255,156 @@ export async function connectedOrgNames(
     if (!names.has(row.orgDid)) names.set(row.orgDid, row.orgName);
   }
   return names;
+}
+
+export interface CommentRow {
+  uri: string;
+  cid: string;
+  docSpaceUri: string;
+  authorDid: string;
+  body: string;
+  anchorStart: Uint8Array;
+  anchorEnd: Uint8Array;
+  quotedText: string | null;
+  createdAt: number;
+}
+
+// upsertComment mirrors one network.habitat.docs.comment record — the root
+// of a thread — into the comments table. Keyed by the record's own URI, so
+// re-delivery of the same record from the outbox (which sap retries until
+// chalk 200s — see webhook.ts) updates in place rather than duplicating
+// the comment. cid is stored so a reply can build the
+// com.atproto.repo.strongRef it needs without a separate read.
+export async function upsertComment(
+  db: Db,
+  comment: {
+    uri: string;
+    cid: string;
+    docSpaceUri: string;
+    authorDid: string;
+    body: string;
+    anchorStart: Uint8Array;
+    anchorEnd: Uint8Array;
+    quotedText?: string | null;
+    createdAt?: number;
+  },
+): Promise<void> {
+  const row = {
+    ...comment,
+    quotedText: comment.quotedText ?? null,
+    createdAt: comment.createdAt ?? Date.now(),
+  };
+  await db
+    .insert(comments)
+    .values(row)
+    .onConflictDoUpdate({
+      target: comments.uri,
+      set: {
+        cid: row.cid,
+        docSpaceUri: row.docSpaceUri,
+        authorDid: row.authorDid,
+        body: row.body,
+        anchorStart: row.anchorStart,
+        anchorEnd: row.anchorEnd,
+        quotedText: row.quotedText,
+        createdAt: row.createdAt,
+      },
+    });
+}
+
+// commentsForDoc returns every thread-starting comment on a doc, oldest
+// first. Ordered by (createdAt, uri) rather than createdAt alone so two
+// comments written in the same millisecond still come back in a stable
+// order across calls.
+export async function commentsForDoc(
+  db: Db,
+  docSpaceUri: string,
+): Promise<CommentRow[]> {
+  return db
+    .select()
+    .from(comments)
+    .where(eq(comments.docSpaceUri, docSpaceUri))
+    .orderBy(asc(comments.createdAt), asc(comments.uri));
+}
+
+// commentByUri looks up a single root comment by its own URI — used to
+// resolve the strongRef a reply needs to reference it (uri + cid) when the
+// caller only has the URI in hand.
+export async function commentByUri(
+  db: Db,
+  uri: string,
+): Promise<CommentRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(comments)
+    .where(eq(comments.uri, uri))
+    .limit(1);
+  return row;
+}
+
+// deleteComment removes a comment by its record URI, in response to either
+// an explicit delete or the JSON-null tombstone the outbox emits for a
+// deleted record. Its replies are left as-is (they reference the URI,
+// which still identifies the thread even once the root record is gone) —
+// cleaning those up isn't implemented; deleting a thread's root is not
+// itself a supported operation yet.
+export async function deleteComment(db: Db, uri: string): Promise<void> {
+  await db.delete(comments).where(eq(comments.uri, uri));
+}
+
+export interface CommentReplyRow {
+  uri: string;
+  docSpaceUri: string;
+  commentUri: string;
+  authorDid: string;
+  body: string;
+  createdAt: number;
+}
+
+// upsertCommentReply mirrors one network.habitat.docs.commentReply record.
+// Keyed by the reply's own URI, same reasoning as upsertComment.
+export async function upsertCommentReply(
+  db: Db,
+  reply: {
+    uri: string;
+    docSpaceUri: string;
+    commentUri: string;
+    authorDid: string;
+    body: string;
+    createdAt?: number;
+  },
+): Promise<void> {
+  const row = { ...reply, createdAt: reply.createdAt ?? Date.now() };
+  await db
+    .insert(commentReplies)
+    .values(row)
+    .onConflictDoUpdate({
+      target: commentReplies.uri,
+      set: {
+        docSpaceUri: row.docSpaceUri,
+        commentUri: row.commentUri,
+        authorDid: row.authorDid,
+        body: row.body,
+        createdAt: row.createdAt,
+      },
+    });
+}
+
+// repliesForDoc returns every reply on a doc, oldest first — grouped by
+// commentUri client-side the same way commentsForDoc's rows are grouped
+// into threads.
+export async function repliesForDoc(
+  db: Db,
+  docSpaceUri: string,
+): Promise<CommentReplyRow[]> {
+  return db
+    .select()
+    .from(commentReplies)
+    .where(eq(commentReplies.docSpaceUri, docSpaceUri))
+    .orderBy(asc(commentReplies.createdAt), asc(commentReplies.uri));
+}
+
+// deleteCommentReply removes a reply by its record URI.
+export async function deleteCommentReply(db: Db, uri: string): Promise<void> {
+  await db.delete(commentReplies).where(eq(commentReplies.uri, uri));
 }

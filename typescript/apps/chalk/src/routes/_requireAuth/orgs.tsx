@@ -33,7 +33,8 @@ export const Route = createFileRoute("/_requireAuth/orgs")({
   },
   errorComponent: ({ error }) => (
     <p className="text-sm text-destructive">
-      Couldn't load your orgs: {error.message}
+      Couldn't load your orgs:{" "}
+      {error instanceof Error ? error.message : String(error)}
     </p>
   ),
   component() {

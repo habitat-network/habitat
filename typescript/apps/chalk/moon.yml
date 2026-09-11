@@ -4,6 +4,10 @@ tasks:
   dev:
     env:
       SERVER_PORT: "5177"
+      # Habitat server the share dialog's user search resolves handles
+      # against. Unset in production builds, which fall back to
+      # pear.habitat.network (see $uri.tsx).
+      VITE_HABITAT_DOMAIN: pear.local.habitat.network
       # workerd's outbound fetch only trusts public CAs plus this bundle, not
       # the macOS keychain, so without it every request to a Caddy-served
       # *.local.habitat.network host (e.g. getBlob on the space host) fails

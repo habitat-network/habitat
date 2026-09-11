@@ -17,25 +17,37 @@ import {
 import { Spinner } from "./ui/spinner";
 import { XIcon } from "lucide-react";
 
-export type Role = "editor" | "viewer";
+// Role is what a grantee may do, in descending order of privilege. A
+// commenter sits between the two: they can't change the document itself,
+// but unlike a viewer they can add comments to it. Consumers map these
+// onto whatever relations they actually store — the dialog only ever
+// speaks in roles.
+export type Role = "editor" | "commenter" | "viewer";
+
+// ROLES drives both the picker and the labels, so a role can't be offered
+// without being renderable in the table (or the reverse).
+const ROLES: { role: Role; label: string }[] = [
+  { role: "editor", label: "Editor" },
+  { role: "commenter", label: "Commenter" },
+  { role: "viewer", label: "Viewer" },
+];
+
+const ROLE_LABEL: Record<Role, string> = Object.fromEntries(
+  ROLES.map((r) => [r.role, r.label]),
+) as Record<Role, string>;
 
 export interface Grantee extends Actor {
-  relation?: "manager" | "reader";
+  role?: Role;
 }
-
-const RELATION_LABEL: Record<"manager" | "reader", string> = {
-  manager: "Editor",
-  reader: "Viewer",
-};
 
 interface ShareDialogProps {
   grantees: Grantee[];
   onAddPermission: (grantees: Actor[], role: Role) => void;
   onRemovePermission: (grantee: Actor) => void;
   isAdding?: boolean;
-  // Shows an editor/viewer role picker for new grantees and a role column
-  // for existing ones. Off by default: not every caller (e.g. docs' clique-
-  // based sharing) has a reader/writer distinction.
+  // Shows a role picker for new grantees and a role column for existing
+  // ones. Off by default: not every caller (e.g. docs' clique-based
+  // sharing) has a role distinction at all.
   roles?: boolean;
   // The signed-in user's own DID. When a grantee's did matches, its remove
   // button is hidden — a user shouldn't be able to revoke their own access
@@ -44,6 +56,10 @@ interface ShareDialogProps {
   // Extra access controls rendered below the grantee list, for access that
   // isn't a per-person grant — chalk passes its org-wide share control here.
   children?: ReactNode;
+  // Origin of the habitat server that resolves handles typed into the user
+  // search (see searchActorsTypeahead). Unset falls back to production
+  // pear, which can't resolve local-dev handles.
+  identityResolverUrl?: string;
 }
 
 const ShareDialog = ({
@@ -54,6 +70,7 @@ const ShareDialog = ({
   roles = false,
   currentUserDid,
   children,
+  identityResolverUrl,
 }: ShareDialogProps) => {
   const [newGrantees, setNewGrantees] = useState<Actor[]>([]);
   const [role, setRole] = useState<Role>("editor");
@@ -63,29 +80,25 @@ const ShareDialog = ({
       <DialogTrigger render={<Button>Share</Button>} />
       <DialogContent>
         <DialogTitle>Share</DialogTitle>
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <UserCombobox value={newGrantees} onValueChange={setNewGrantees} />
-          </div>
-          {roles && (
-            <ButtonGroup>
+        <UserCombobox
+          value={newGrantees}
+          onValueChange={setNewGrantees}
+          identityResolverUrl={identityResolverUrl}
+        />
+        {roles && (
+          <ButtonGroup>
+            {ROLES.map(({ role: r, label }) => (
               <Button
+                key={r}
                 type="button"
-                variant={role === "editor" ? "default" : "outline"}
-                onClick={() => setRole("editor")}
+                variant={role === r ? "default" : "outline"}
+                onClick={() => setRole(r)}
               >
-                Editor
+                {label}
               </Button>
-              <Button
-                type="button"
-                variant={role === "viewer" ? "default" : "outline"}
-                onClick={() => setRole("viewer")}
-              >
-                Viewer
-              </Button>
-            </ButtonGroup>
-          )}
-        </div>
+            ))}
+          </ButtonGroup>
+        )}
         <Button
           onClick={() => {
             onAddPermission(newGrantees, role);
@@ -114,9 +127,7 @@ const ShareDialog = ({
                   </div>
                 </TableCell>
                 {roles && (
-                  <TableCell>
-                    {g.relation ? RELATION_LABEL[g.relation] : ""}
-                  </TableCell>
+                  <TableCell>{g.role ? ROLE_LABEL[g.role] : ""}</TableCell>
                 )}
                 <TableCell>
                   {g.did !== currentUserDid && (

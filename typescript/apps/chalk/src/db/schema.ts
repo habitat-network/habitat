@@ -1,10 +1,24 @@
 import {
+  customType,
   sqliteTable,
   text,
   integer,
   index,
   primaryKey,
 } from "drizzle-orm/sqlite-core";
+
+// bytes is a BLOB column read back as a plain Uint8Array. drizzle's own
+// blob({ mode: "buffer" }) hands back a Node Buffer instead, which TanStack
+// Start's server-function serializer (seroval) doesn't accept, and D1
+// itself returns a blob as an ArrayBuffer or array of numbers depending on
+// the query path — new Uint8Array accepts either.
+const bytes = customType<{
+  data: Uint8Array;
+  driverData: ArrayBuffer | number[];
+}>({
+  dataType: () => "blob",
+  fromDriver: (value) => new Uint8Array(value),
+});
 
 export const docs = sqliteTable(
   "docs",
@@ -77,4 +91,55 @@ export const connectedOrgs = sqliteTable(
     connectedAt: integer("connected_at").notNull(),
   },
   (t) => [primaryKey({ columns: [t.memberDid, t.orgDid] })],
+);
+
+// comments holds a doc's comment *threads* — one row per root
+// network.habitat.docs.comment record, which is the only record that
+// carries an anchor (a pair of encoded Yjs relative positions, per that
+// lexicon's comment) into the doc's CRDT state; replies don't repeat it,
+// they just point back at the root by strongRef (see commentReplies
+// below). Comments live in their own table rather than alongside docs
+// because they're their own space's records: each doc has a companion
+// comments space (type "network.habitat.docs.comments", same owner and
+// space key as the doc — see commentsSpaceUri in src/server/comments.ts),
+// whose readers/writers are inherited from the doc space via
+// spaceRelation records.
+//
+// Keyed by the record's own AT-URI, which is what the outbox delivers on
+// both a write and a delete tombstone. cid is stored alongside so a reply
+// can build the com.atproto.repo.strongRef it needs to reference this
+// comment without an extra read. docSpaceUri (not the
+// comments space's URI) is stored so listing a doc's comments is a single
+// indexed lookup keyed by the same docId the rest of chalk passes around.
+export const comments = sqliteTable(
+  "comments",
+  {
+    uri: text("uri").primaryKey(),
+    cid: text("cid").notNull(),
+    docSpaceUri: text("doc_space_uri").notNull(),
+    authorDid: text("author_did").notNull(),
+    body: text("body").notNull(),
+    anchorStart: bytes("anchor_start").notNull(),
+    anchorEnd: bytes("anchor_end").notNull(),
+    quotedText: text("quoted_text"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("comments_doc_created").on(t.docSpaceUri, t.createdAt)],
+);
+
+// commentReplies mirrors network.habitat.docs.commentReply records — a
+// reply within a thread, referencing its root comment record by strongRef
+// (commentUri/commentCid) rather than carrying its own anchor. Keyed by
+// the reply's own URI, same reasoning as comments above.
+export const commentReplies = sqliteTable(
+  "comment_replies",
+  {
+    uri: text("uri").primaryKey(),
+    docSpaceUri: text("doc_space_uri").notNull(),
+    commentUri: text("comment_uri").notNull(),
+    authorDid: text("author_did").notNull(),
+    body: text("body").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("comment_replies_thread").on(t.docSpaceUri, t.commentUri)],
 );

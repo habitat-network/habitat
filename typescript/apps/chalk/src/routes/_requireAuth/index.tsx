@@ -34,6 +34,7 @@ export const Route = createFileRoute("/_requireAuth/")({
     const { currentOrg } = RequireAuthRoute.useLoaderData();
     const showOwner = !currentOrg;
 
+    // No owner column in org mode, so no profiles to look up either.
     const getOwner = useActors(
       showOwner ? docs.map((doc) => doc.ownerDid) : [],
     );
