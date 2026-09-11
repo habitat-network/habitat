@@ -16,7 +16,7 @@
 git clone https://github.com/habitat-network/habitat
 cd habitat
 # Check out the same release your pear server runs, e.g.
-git checkout v2026.9.11-e3551da
+git checkout v2026.9.11-5d3b3ba
 ```
 
 Releases are listed at https://github.com/habitat-network/habitat/releases.

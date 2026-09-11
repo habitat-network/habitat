@@ -7,13 +7,13 @@ sidebar_position: 3
 
 # Self-hosting guide
 
-⚠️ Habitat is under active development. Releases are cut from `main` continuously. ⚠️
+⚠️ Habitat is under active development. Releases are cut from `main` every week. ⚠️
 
 Habitat's Organizational Data Server, Pear, ships as a Docker image (`ghcr.io/habitat-network/pear`, for `linux/amd64` and `linux/arm64`).
 
 ## Releases
 
-Every commit to `main` that passes CI is published as a [GitHub release](https://github.com/habitat-network/habitat/releases) named `vYYYY.M.D-<short sha>`. Each release has a matching image tag (without the `v`) and a `docker-compose.yml` pinned to that image. The `latest` image tag points at the newest release.
+Every Tuesday, the newest commit on `main` that passed CI is published as a [GitHub release](https://github.com/habitat-network/habitat/releases) named `vYYYY.M.D-<short sha>`. Each release has a matching image tag (without the `v`) and a `docker-compose.yml` pinned to that image. The `latest` image tag points at the newest release.
 
 Older `v0.0.x-testing-N` tags are from a previous architecture and do not work with this guide.
 
