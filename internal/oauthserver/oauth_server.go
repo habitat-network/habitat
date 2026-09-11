@@ -713,8 +713,8 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var output habitat.NetworkHabitatListConnectedAppsOutput
-	output.Apps = make([]habitat.NetworkHabitatListConnectedAppsApp, len(rows))
-	for i, row := range rows {
+	output.Apps = make([]habitat.NetworkHabitatListConnectedAppsApp, 0, len(rows))
+	for _, row := range rows {
 		fositeClient, err := o.storage.GetClient(ctx, row.ClientID)
 		if err != nil {
 			slog.WarnContext(
@@ -739,13 +739,13 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 		if c.LogoURI != nil {
 			logoURI = *c.LogoURI
 		}
-		output.Apps[i] = habitat.NetworkHabitatListConnectedAppsApp{
+		output.Apps = append(output.Apps, habitat.NetworkHabitatListConnectedAppsApp{
 			ClientID:  row.ClientID,
 			ClientUri: clientURI,
 			LastUsed:  row.UpdatedAt.Format(time.RFC3339Nano),
 			Name:      clientName,
 			LogoUri:   logoURI,
-		}
+		})
 	}
 	httpx.WriteJSON(ctx, w, output)
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -1594,4 +1595,68 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, postResp.StatusCode)
 
 	require.Empty(t, pds.LoginID, "login provider should never have been invoked")
+}
+
+// TestListConnectedAppsSkipsUnresolvableClients verifies ListConnectedApps
+// omits ConnectedApp rows whose client metadata can no longer be fetched.
+// Previously those rows were serialized as zero-value apps, producing an
+// invalid empty lastUsed datetime that the lexicon validator rejects.
+func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
+	db := dbtestutil.NewDB(t)
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	p := login_testutil.NewPassthroughProvider(t)
+	oauthServer, err := NewOAuthServer(
+		bytes,
+		&org.LoginRouter{Pds: p},
+		dummyDir,
+		db,
+		noop.Meter{},
+		testStore(t),
+		"https://habitat.example",
+		NewJWTBearerStore(),
+		testOpensocialStore(t),
+	)
+	require.NoError(t, err)
+
+	// A live OAuth flow records a ConnectedApp row for the client app.
+	validToken := acquireAccessToken(t, oauthServer, p)
+
+	// A metadata server that 404s: FetchMetadata (and thus GetClient) errors
+	// for any ConnectedApp row referencing it.
+	goneClient := httptest.NewServer(http.NotFoundHandler())
+	defer goneClient.Close()
+
+	require.NoError(t, db.Create(&ConnectedApp{
+		Subject:  "did:web:example.did.com",
+		ClientID: goneClient.URL + "/client-metadata.json",
+		Scopes:   "atproto",
+	}).Error)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.listConnectedApps",
+		http.NoBody,
+	)
+	req.Header.Set("Authorization", "Bearer "+validToken)
+	rec := httptest.NewRecorder()
+	oauthServer.ListConnectedApps(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var output habitat.NetworkHabitatListConnectedAppsOutput
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&output))
+
+	for _, app := range output.Apps {
+		require.NotEmpty(
+			t,
+			app.LastUsed,
+			"app %q must carry a non-empty lastUsed datetime",
+			app.ClientID,
+		)
+	}
+	require.Len(t, output.Apps, 1, "unresolvable client should be omitted from the response")
 }
