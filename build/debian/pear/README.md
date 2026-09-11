@@ -4,9 +4,9 @@ Pear is Habitat's Organizational Data Server. It ships as a single Docker image,
 
 ## Releases
 
-Every commit to `main` that passes CI is released automatically as `vYYYY.M.D-<short sha>` (for example `v2026.9.11-e3551da`). Each [GitHub release](https://github.com/habitat-network/habitat/releases) has:
+Releases are cut automatically every Tuesday from the newest commit on `main` that passed CI, and are named `vYYYY.M.D-<short sha>` (for example `v2026.9.11-5d3b3ba`). If nothing has changed since the last release, that week is skipped. Maintainers can also cut one early by running the [Release Pear](https://github.com/habitat-network/habitat/actions/workflows/release-pear.yml) workflow on `main`. Each [GitHub release](https://github.com/habitat-network/habitat/releases) has:
 
-- a matching image tag without the `v`, e.g. `ghcr.io/habitat-network/pear:2026.9.11-e3551da`
+- a matching image tag without the `v`, e.g. `ghcr.io/habitat-network/pear:2026.9.11-5d3b3ba`
 - a `docker-compose.yml` asset whose image tag is pinned to that release
 
 The `latest` image tag always points at the newest release.
@@ -28,7 +28,7 @@ mkdir pear && cd pear
 curl -LO https://github.com/habitat-network/habitat/releases/latest/download/docker-compose.yml
 ```
 
-To install a specific release instead, replace `latest/download` with `download/<version>`, e.g. `download/v2026.9.11-e3551da`.
+To install a specific release instead, replace `latest/download` with `download/<version>`, e.g. `download/v2026.9.11-5d3b3ba`.
 
 **2. Create a `.env` file in the same directory**
 
@@ -63,7 +63,7 @@ curl -LO https://github.com/habitat-network/habitat/releases/latest/download/doc
 docker compose pull && docker compose up -d
 ```
 
-Alternatively, set `PEAR_TAG` in `.env` to pick an image tag without re-downloading. For example, `PEAR_TAG=latest` tracks `main`, and `PEAR_TAG=2026.9.11-e3551da` pins a release. Database migrations run automatically on startup.
+Alternatively, set `PEAR_TAG` in `.env` to pick an image tag without re-downloading. For example, `PEAR_TAG=latest` tracks the newest weekly release, and `PEAR_TAG=2026.9.11-5d3b3ba` pins a release. Database migrations run automatically on startup.
 
 ## Configuration
 
@@ -147,7 +147,7 @@ Build from a release tag rather than an arbitrary commit, so the source matches 
 
 ```bash
 git clone https://github.com/habitat-network/habitat && cd habitat
-git checkout v2026.9.11-e3551da
+git checkout v2026.9.11-5d3b3ba
 docker build -f build/debian/pear/Dockerfile -t ghcr.io/habitat-network/pear:local .
 ```
 
