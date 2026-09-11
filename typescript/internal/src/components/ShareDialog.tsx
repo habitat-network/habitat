@@ -56,6 +56,10 @@ interface ShareDialogProps {
   // Extra access controls rendered below the grantee list, for access that
   // isn't a per-person grant — chalk passes its org-wide share control here.
   children?: ReactNode;
+  // Origin of the habitat server that resolves handles typed into the user
+  // search (see searchActorsTypeahead). Unset falls back to production
+  // pear, which can't resolve local-dev handles.
+  identityResolverUrl?: string;
 }
 
 const ShareDialog = ({
@@ -66,6 +70,7 @@ const ShareDialog = ({
   roles = false,
   currentUserDid,
   children,
+  identityResolverUrl,
 }: ShareDialogProps) => {
   const [newGrantees, setNewGrantees] = useState<Actor[]>([]);
   const [role, setRole] = useState<Role>("editor");
@@ -75,7 +80,11 @@ const ShareDialog = ({
       <DialogTrigger render={<Button>Share</Button>} />
       <DialogContent>
         <DialogTitle>Share</DialogTitle>
-        <UserCombobox value={newGrantees} onValueChange={setNewGrantees} />
+        <UserCombobox
+          value={newGrantees}
+          onValueChange={setNewGrantees}
+          identityResolverUrl={identityResolverUrl}
+        />
         {roles && (
           <ButtonGroup>
             {ROLES.map(({ role: r, label }) => (

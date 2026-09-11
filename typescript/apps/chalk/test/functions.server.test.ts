@@ -338,4 +338,75 @@ describe("deleteUserGrant", () => {
     expect(await deleteUserGrant(client, SPACE, BOB)).toBeUndefined();
     expect(deleted).toEqual([]);
   });
+
+  it("is a no-op when the space doesn't exist", async () => {
+    // A doc created before comments spaces existed has none, and pear
+    // rejects any relationship query against it as SpaceNotFound.
+    server.use(
+      http.get(
+        "http://sap-internal.test/proxy/network.habitat.relationship.listRelations",
+        () => HttpResponse.json({ error: "SpaceNotFound" }, { status: 400 }),
+      ),
+    );
+    const { SapClient } = await import("../src/server/sapClient");
+    const { deleteUserGrant } = await import("../src/server/functions.server");
+    const client = new SapClient(testEnv, BOB);
+    expect(await deleteUserGrant(client, SPACE, BOB)).toBeUndefined();
+  });
+});
+
+describe("listUserGrants", () => {
+  const server = setupServer();
+  beforeEach(() => server.listen({ onUnhandledRequest: "error" }));
+  afterEach(() => {
+    server.resetHandlers();
+    server.close();
+  });
+
+  const SPACE = "at://did:web:alice.example/space/network.habitat.docs/abc";
+  const GRANT = `${SPACE}/did:web:alice.example/network.habitat.relationship.userRelation/rk1`;
+  const BOB = "did:plc:bob";
+
+  function listRelations(response: () => Response) {
+    server.use(
+      http.get(
+        "http://sap-internal.test/proxy/network.habitat.relationship.listRelations",
+        response,
+      ),
+    );
+  }
+
+  it("returns the user grants on the space", async () => {
+    listRelations(() =>
+      HttpResponse.json({
+        relations: [{ uri: GRANT, subject: BOB, relation: "reader" }],
+      }),
+    );
+    const { SapClient } = await import("../src/server/sapClient");
+    const { listUserGrants } = await import("../src/server/functions.server");
+    const client = new SapClient(testEnv, BOB);
+    expect(await listUserGrants(client, SPACE)).toEqual([
+      { uri: GRANT, subject: BOB, relation: "reader" },
+    ]);
+  });
+
+  it("returns no grants when the space doesn't exist", async () => {
+    listRelations(() =>
+      HttpResponse.json({ error: "SpaceNotFound" }, { status: 400 }),
+    );
+    const { SapClient } = await import("../src/server/sapClient");
+    const { listUserGrants } = await import("../src/server/functions.server");
+    const client = new SapClient(testEnv, BOB);
+    expect(await listUserGrants(client, SPACE)).toEqual([]);
+  });
+
+  it("rethrows any other failure", async () => {
+    listRelations(() =>
+      HttpResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    );
+    const { SapClient } = await import("../src/server/sapClient");
+    const { listUserGrants } = await import("../src/server/functions.server");
+    const client = new SapClient(testEnv, BOB);
+    await expect(listUserGrants(client, SPACE)).rejects.toThrow("Unauthorized");
+  });
 });

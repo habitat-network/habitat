@@ -53,6 +53,14 @@ const docInitialStateQueryOptions = (docId: string) =>
     queryFn: () => getDocInitialState({ data: { docId } }),
   });
 
+// Habitat server the share dialog's user search resolves handles against.
+// VITE_HABITAT_DOMAIN is only set by moon's dev task (moon.yml), pointing at
+// local pear — the only server that knows local handles. Production builds
+// leave it unset, so searchActorsTypeahead falls back to its default.
+const identityResolverUrl = import.meta.env.VITE_HABITAT_DOMAIN
+  ? `https://${import.meta.env.VITE_HABITAT_DOMAIN}`
+  : undefined;
+
 export const Route = createFileRoute("/_requireAuth/$uri")({
   loader: async ({ context, params }) => {
     const [role, initialState] = await Promise.all([
@@ -299,6 +307,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
                 isAdding={isAddingPermission}
                 roles
                 currentUserDid={currentUserDid}
+                identityResolverUrl={identityResolverUrl}
                 onAddPermission={(actors, role) =>
                   addPermission({ actors, role })
                 }

@@ -250,10 +250,41 @@ export async function docRole(
 
 // A userRelation record as network.habitat.relationship.listRelations
 // returns it — only the fields the sharing paths actually read.
-interface UserRelationView {
+export interface UserRelationView {
   uri: string;
   subject: string;
   relation: string;
+}
+
+// listUserGrants lists the user grants on space — every one, or only
+// subjectDid's when given.
+//
+// A space that doesn't exist holds no grants, rather than being an error:
+// docs created before comments spaces were introduced have none, and pear
+// rejects any relationship query against a missing space as SpaceNotFound
+// (SapClient surfaces the proxied response body in the error message).
+// Without this, every sharing path that also looks at a doc's comments
+// space would fail outright for those docs.
+export async function listUserGrants(
+  client: SapClient,
+  space: string,
+  subjectDid?: string,
+): Promise<UserRelationView[]> {
+  try {
+    const { relations } = await client.call<{
+      relations: UserRelationView[];
+    }>("network.habitat.relationship.listRelations", "GET", {
+      space,
+      subjectType: "user",
+      ...(subjectDid ? { subjectDid } : {}),
+    });
+    return relations;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("SpaceNotFound")) {
+      return [];
+    }
+    throw err;
+  }
 }
 
 // deleteUserGrant removes subjectDid's own grant record on space, if they
@@ -276,12 +307,7 @@ export async function deleteUserGrant(
   space: string,
   subjectDid: string,
 ): Promise<string | undefined> {
-  const { relations } = await client.call<{ relations: UserRelationView[] }>(
-    "network.habitat.relationship.listRelations",
-    "GET",
-    { space, subjectType: "user", subjectDid },
-  );
-  const relation = relations[0];
+  const [relation] = await listUserGrants(client, space, subjectDid);
   if (!relation) return undefined;
   await client.call("network.habitat.relationship.deleteRelation", "POST", {
     uri: relation.uri,

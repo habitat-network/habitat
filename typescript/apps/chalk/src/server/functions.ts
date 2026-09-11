@@ -22,6 +22,7 @@ import {
   fetchOrgName,
   listMyOrgIds,
   deleteUserGrant,
+  listUserGrants,
   orgMembersSpaceUri,
   requireSession,
   setCurrentOrg,
@@ -223,14 +224,6 @@ export const startOrgConnect = createServerFn({ method: "POST" })
     };
   });
 
-// A userRelation record as network.habitat.relationship.listRelations
-// returns it — only the fields sharing.ts actually reads.
-interface UserRelationView {
-  uri: string;
-  subject: string;
-  relation: string;
-}
-
 // A spaceRelation record as network.habitat.relationship.listRelations
 // returns it — only the fields the org-sharing functions below read.
 interface SpaceRelationView {
@@ -325,12 +318,7 @@ export const listDocAccess = createServerFn({ method: "GET" })
     const client = managementClient(did, currentOrg);
     const perSpace = await Promise.all(
       grantSpaces(data.docId).map(async ({ space, onComments }) => {
-        const { relations } = await client.call<{
-          relations: UserRelationView[];
-        }>("network.habitat.relationship.listRelations", "GET", {
-          space,
-          subjectType: "user",
-        });
+        const relations = await listUserGrants(client, space);
         return relations.flatMap((r) => {
           const role = relationToRole(r.relation, onComments);
           return role ? [{ did: r.subject, role }] : [];
@@ -357,6 +345,21 @@ export const shareDoc = createServerFn({ method: "POST" })
     const { relation, onComments } = ROLE_TO_GRANT[data.role];
     const space = onComments ? commentsSpaceUri(data.docId) : data.docId;
     if (!space) throw new Error("invalid docId");
+
+    // A doc created before comments spaces were introduced has none yet
+    // (createDoc makes one up front now), and a role can't be granted on a
+    // space that doesn't exist. ensureCommentsSpace is idempotent, so this
+    // is only a few no-op writes for every doc that already has one.
+    if (onComments) {
+      const doc = await docByUri(getDb(env), data.docId);
+      const ownerDid = doc?.ownerDid ?? did;
+      await ensureCommentsSpace(new SapClient(env, did), data.docId, {
+        ownerDid,
+        // Same derivation as createComment: an org doc is one owned by the
+        // org the caller is currently acting as.
+        isOrg: currentOrg !== undefined && ownerDid === currentOrg,
+      });
+    }
 
     const { uri } = await client.call<{ uri: string }>(
       "network.habitat.relationship.setUserRelation",
