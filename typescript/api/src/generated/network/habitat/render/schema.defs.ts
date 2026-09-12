@@ -145,105 +145,81 @@ const fieldSchema = /*#__PURE__*/ l.typedObject<FieldSchema>(
 export { fieldSchema }
 
 /** Render as plain text. */
+type Text = 'network.habitat.render.schema#text'
+
+export type { Text }
+
+/** Render as plain text. */
 const text = /*#__PURE__*/ l.token($nsid, 'text')
 
 export { text }
 
-/** Render as plain text. */
-const Text = /*#__PURE__*/ text.value
+/** Render as a formatted date/time string. */
+type Datetime = 'network.habitat.render.schema#datetime'
 
-/** Render as plain text. */
-type Text = typeof Text
-
-export { Text }
+export type { Datetime }
 
 /** Render as a formatted date/time string. */
 const datetime = /*#__PURE__*/ l.token($nsid, 'datetime')
 
 export { datetime }
 
-/** Render as a formatted date/time string. */
-const Datetime = /*#__PURE__*/ datetime.value
+/** Render as a hyperlink. */
+type Url = 'network.habitat.render.schema#url'
 
-/** Render as a formatted date/time string. */
-type Datetime = typeof Datetime
-
-export { Datetime }
+export type { Url }
 
 /** Render as a hyperlink. */
 const url = /*#__PURE__*/ l.token($nsid, 'url')
 
 export { url }
 
-/** Render as a hyperlink. */
-const Url = /*#__PURE__*/ url.value
+/** Render as a pill badge, extracting the token name from an NSID#token value. */
+type Badge = 'network.habitat.render.schema#badge'
 
-/** Render as a hyperlink. */
-type Url = typeof Url
-
-export { Url }
+export type { Badge }
 
 /** Render as a pill badge, extracting the token name from an NSID#token value. */
 const badge = /*#__PURE__*/ l.token($nsid, 'badge')
 
 export { badge }
 
-/** Render as a pill badge, extracting the token name from an NSID#token value. */
-const Badge = /*#__PURE__*/ badge.value
+/** Render as a list of items. */
+type List = 'network.habitat.render.schema#list'
 
-/** Render as a pill badge, extracting the token name from an NSID#token value. */
-type Badge = typeof Badge
-
-export { Badge }
+export type { List }
 
 /** Render as a list of items. */
 const list = /*#__PURE__*/ l.token($nsid, 'list')
 
 export { list }
 
-/** Render as a list of items. */
-const List = /*#__PURE__*/ list.value
+/** Most prominent display — used for the record's main identifier (e.g. title). */
+type Primary = 'network.habitat.render.schema#primary'
 
-/** Render as a list of items. */
-type List = typeof List
-
-export { List }
+export type { Primary }
 
 /** Most prominent display — used for the record's main identifier (e.g. title). */
 const primary = /*#__PURE__*/ l.token($nsid, 'primary')
 
 export { primary }
 
-/** Most prominent display — used for the record's main identifier (e.g. title). */
-const Primary = /*#__PURE__*/ primary.value
+/** Standard field-value display. */
+type Secondary = 'network.habitat.render.schema#secondary'
 
-/** Most prominent display — used for the record's main identifier (e.g. title). */
-type Primary = typeof Primary
-
-export { Primary }
+export type { Secondary }
 
 /** Standard field-value display. */
 const secondary = /*#__PURE__*/ l.token($nsid, 'secondary')
 
 export { secondary }
 
-/** Standard field-value display. */
-const Secondary = /*#__PURE__*/ secondary.value
+/** De-emphasized display, shown at the bottom or collapsed. */
+type Metadata = 'network.habitat.render.schema#metadata'
 
-/** Standard field-value display. */
-type Secondary = typeof Secondary
-
-export { Secondary }
+export type { Metadata }
 
 /** De-emphasized display, shown at the bottom or collapsed. */
 const metadata = /*#__PURE__*/ l.token($nsid, 'metadata')
 
 export { metadata }
-
-/** De-emphasized display, shown at the bottom or collapsed. */
-const Metadata = /*#__PURE__*/ metadata.value
-
-/** De-emphasized display, shown at the bottom or collapsed. */
-type Metadata = typeof Metadata
-
-export { Metadata }

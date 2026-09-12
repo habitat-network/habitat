@@ -21,14 +21,16 @@ tasks:
     options:
       mergeDeps: replace
   generate:
-    command: pnpx
+    command: pnpm
     args:
-    - "@atproto/lex"
+    - exec
+    - lex
     - build
     - --lexicons
     - ../../lexicons
     - --out
     - ./src/generated
+    - --clear
     - --index-file
     - --defs-export
     outputs:

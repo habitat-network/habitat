@@ -165,43 +165,34 @@ const mode = /*#__PURE__*/ l.withDefault(
 export { mode }
 
 /** A virtual event that takes place online. */
+type Virtual = 'community.lexicon.calendar.event#virtual'
+
+export type { Virtual }
+
+/** A virtual event that takes place online. */
 const virtual = /*#__PURE__*/ l.token($nsid, 'virtual')
 
 export { virtual }
 
-/** A virtual event that takes place online. */
-const Virtual = /*#__PURE__*/ virtual.value
+/** An in-person event that takes place offline. */
+type Inperson = 'community.lexicon.calendar.event#inperson'
 
-/** A virtual event that takes place online. */
-type Virtual = typeof Virtual
-
-export { Virtual }
+export type { Inperson }
 
 /** An in-person event that takes place offline. */
 const inperson = /*#__PURE__*/ l.token($nsid, 'inperson')
 
 export { inperson }
 
-/** An in-person event that takes place offline. */
-const Inperson = /*#__PURE__*/ inperson.value
+/** A hybrid event that takes place both online and offline. */
+type Hybrid = 'community.lexicon.calendar.event#hybrid'
 
-/** An in-person event that takes place offline. */
-type Inperson = typeof Inperson
-
-export { Inperson }
+export type { Hybrid }
 
 /** A hybrid event that takes place both online and offline. */
 const hybrid = /*#__PURE__*/ l.token($nsid, 'hybrid')
 
 export { hybrid }
-
-/** A hybrid event that takes place both online and offline. */
-const Hybrid = /*#__PURE__*/ hybrid.value
-
-/** A hybrid event that takes place both online and offline. */
-type Hybrid = typeof Hybrid
-
-export { Hybrid }
 
 /** The status of the event. */
 type Status =
@@ -231,69 +222,54 @@ const status = /*#__PURE__*/ l.withDefault(
 export { status }
 
 /** The event has been created, but not finalized. */
+type Planned = 'community.lexicon.calendar.event#planned'
+
+export type { Planned }
+
+/** The event has been created, but not finalized. */
 const planned = /*#__PURE__*/ l.token($nsid, 'planned')
 
 export { planned }
 
-/** The event has been created, but not finalized. */
-const Planned = /*#__PURE__*/ planned.value
+/** The event has been created and scheduled. */
+type Scheduled = 'community.lexicon.calendar.event#scheduled'
 
-/** The event has been created, but not finalized. */
-type Planned = typeof Planned
-
-export { Planned }
+export type { Scheduled }
 
 /** The event has been created and scheduled. */
 const scheduled = /*#__PURE__*/ l.token($nsid, 'scheduled')
 
 export { scheduled }
 
-/** The event has been created and scheduled. */
-const Scheduled = /*#__PURE__*/ scheduled.value
+/** The event has been rescheduled. */
+type Rescheduled = 'community.lexicon.calendar.event#rescheduled'
 
-/** The event has been created and scheduled. */
-type Scheduled = typeof Scheduled
-
-export { Scheduled }
+export type { Rescheduled }
 
 /** The event has been rescheduled. */
 const rescheduled = /*#__PURE__*/ l.token($nsid, 'rescheduled')
 
 export { rescheduled }
 
-/** The event has been rescheduled. */
-const Rescheduled = /*#__PURE__*/ rescheduled.value
+/** The event has been cancelled. */
+type Cancelled = 'community.lexicon.calendar.event#cancelled'
 
-/** The event has been rescheduled. */
-type Rescheduled = typeof Rescheduled
-
-export { Rescheduled }
+export type { Cancelled }
 
 /** The event has been cancelled. */
 const cancelled = /*#__PURE__*/ l.token($nsid, 'cancelled')
 
 export { cancelled }
 
-/** The event has been cancelled. */
-const Cancelled = /*#__PURE__*/ cancelled.value
+/** The event has been postponed and a new start date has not been set. */
+type Postponed = 'community.lexicon.calendar.event#postponed'
 
-/** The event has been cancelled. */
-type Cancelled = typeof Cancelled
-
-export { Cancelled }
+export type { Postponed }
 
 /** The event has been postponed and a new start date has not been set. */
 const postponed = /*#__PURE__*/ l.token($nsid, 'postponed')
 
 export { postponed }
-
-/** The event has been postponed and a new start date has not been set. */
-const Postponed = /*#__PURE__*/ postponed.value
-
-/** The event has been postponed and a new start date has not been set. */
-type Postponed = typeof Postponed
-
-export { Postponed }
 
 /** A URI associated with the event. */
 type Uri = {

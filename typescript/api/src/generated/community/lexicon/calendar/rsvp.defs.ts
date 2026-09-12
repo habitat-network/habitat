@@ -64,41 +64,33 @@ export const $parse = /*#__PURE__*/ main.parse.bind(main)
 export const $safeParse = /*#__PURE__*/ main.safeParse.bind(main)
 export const $validate = /*#__PURE__*/ main.validate.bind(main)
 export const $safeValidate = /*#__PURE__*/ main.safeValidate.bind(main)
+
+/** Interested in the event */
+type Interested = 'community.lexicon.calendar.rsvp#interested'
+
+export type { Interested }
+
 /** Interested in the event */
 const interested = /*#__PURE__*/ l.token($nsid, 'interested')
 
 export { interested }
 
-/** Interested in the event */
-const Interested = /*#__PURE__*/ interested.value
+/** Going to the event */
+type Going = 'community.lexicon.calendar.rsvp#going'
 
-/** Interested in the event */
-type Interested = typeof Interested
-
-export { Interested }
+export type { Going }
 
 /** Going to the event */
 const going = /*#__PURE__*/ l.token($nsid, 'going')
 
 export { going }
 
-/** Going to the event */
-const Going = /*#__PURE__*/ going.value
+/** Not going to the event */
+type Notgoing = 'community.lexicon.calendar.rsvp#notgoing'
 
-/** Going to the event */
-type Going = typeof Going
-
-export { Going }
+export type { Notgoing }
 
 /** Not going to the event */
 const notgoing = /*#__PURE__*/ l.token($nsid, 'notgoing')
 
 export { notgoing }
-
-/** Not going to the event */
-const Notgoing = /*#__PURE__*/ notgoing.value
-
-/** Not going to the event */
-type Notgoing = typeof Notgoing
-
-export { Notgoing }
