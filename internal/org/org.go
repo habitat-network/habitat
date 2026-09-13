@@ -3,6 +3,7 @@ package org
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
@@ -37,6 +38,8 @@ type Org interface {
 	GetMetadata(ctx context.Context, domain string) habitat.NetworkHabitatOrgGetMetadataOutput
 
 	LoginMethod(ctx context.Context) LoginMethod
+
+	GetMemberByLoginID(ctx context.Context, loginID string) (*Member, error)
 
 	db.Store[Org]
 }
@@ -287,6 +290,26 @@ func (s *orgImpl) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func (s *orgImpl) GetMemberByLoginID(ctx context.Context, loginID string) (*Member, error) {
+	var m member
+	if err := s.db.WithContext(ctx).
+		Where("login_id = ?", loginID).
+		Where("org_id = ?", s.orgID).
+		First(&m).
+		Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrMemberNotFound
+		}
+		return nil, fmt.Errorf("failed to get member: %w", err)
+	}
+	return &Member{
+		Org:     s,
+		DID:     m.Did,
+		Role:    m.Role,
+		LoginID: m.LoginID,
+	}, nil
 }
 
 // WithTx implements [Org].

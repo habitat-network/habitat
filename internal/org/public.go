@@ -93,6 +93,11 @@ func (e *everyoneOrg) AuthenticateMember(
 	return false, ErrNotSupportedPublic
 }
 
+// GetMemberByLoginID implements [Org].
+func (e *EveryoneOrg) GetMemberByLoginID(ctx context.Context, loginID string) (*Member, error) {
+	return nil, ErrNotSupportedPublic
+}
+
 // WithTx implements [Org].
 func (e *everyoneOrg) WithTx(tx *gorm.DB) Org {
 	return e
