@@ -59,7 +59,7 @@ export async function processOutboxMessage(
   } catch {
     return; // not a uri at all
   }
-  const spaceRef = atUri.spaceRef();
+  const spaceRef = atUri.isSpace ? SpaceRef.for(atUri.href) : undefined;
   const { authorDid, collection, rkey } = atUri;
   if (!spaceRef || !authorDid || !collection || !rkey) return;
   const spaceUri = spaceRef.toString();

@@ -255,7 +255,7 @@ export function parseCommentsRecordUri(
   } catch {
     return undefined;
   }
-  const spaceRef = atUri.spaceRef();
+  const spaceRef = atUri.isSpace ? SpaceRef.for(atUri.href) : undefined;
   const { authorDid, rkey } = atUri;
   if (!spaceRef || spaceRef.spaceType !== COMMENTS_SPACE_TYPE) return undefined;
   if (atUri.collection !== collection || !authorDid || !rkey) return undefined;
