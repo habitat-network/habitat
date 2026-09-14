@@ -26,10 +26,19 @@ export const upsertFromWebhook = internalMutation({
     if (target.table !== "userRelations") {
       throw new Error(`unhandled table ${target.table} — add a case below`);
     }
+    // `write` inserts a row with a synthetic "pending:<uuid>" uri, only
+    // patched to the real at-uri once confirmWrite runs. If this webhook
+    // fires before that patch lands, a lookup by the real uri finds nothing
+    // and a second row gets inserted here — a benign, self-resolving
+    // duplicate (the next webhook delivery will patch whichever row
+    // .first() picks). Use .first() rather than .unique() so that race
+    // degrades to patching one row instead of throwing (which would return
+    // a non-2xx to sap and, per cmd/sap/webhook.go's strict-order retry,
+    // permanently wedge the outbox on this uri).
     const existing = await ctx.db
       .query("userRelations")
       .withIndex("by_uri", (q) => q.eq("uri", uri))
-      .unique();
+      .first();
     const row = {
       uri,
       did,

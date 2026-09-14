@@ -13,6 +13,9 @@ tasks:
       # points to Convex's public .convex.site URL. The reverse direction (Convex → sap)
       # is tunneled via sap-ngrok below.
       SAP_WEBHOOK_URL: '${CONVEX_SITE_URL}/sap-webhook'
+  # sap-ngrok exposes the internal port (/proxy, /session/add, /space/track)
+  # publicly. SAP_INTERNAL_AUTH_SECRET must be set in dev.env or this is an
+  # unauthenticated write-as-any-DID proxy open to the internet.
   sap-ngrok:
     script: 'command -v ngrok >/dev/null 2>&1 && exec ngrok http "2581" --url "https://${SAP_NGROK_DOMAIN}" --log stdout --log-level error || echo "[ngrok] not installed, skipping tunnel" >&2'
     preset: server
