@@ -19,7 +19,8 @@
     "@tanstack/react-start": "^1.168.36",
     "convex": "^1.44.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^4.0.0",
