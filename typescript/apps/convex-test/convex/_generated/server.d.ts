@@ -30,6 +30,8 @@ import type { DataModel } from "./dataModel.js";
 type Env = {
   readonly CONVEX_CLOUD_URL: string;
   readonly CONVEX_SITE_URL: string;
+  readonly SAP_INTERNAL_AUTH_SECRET: string | undefined;
+  readonly SAP_INTERNAL_URL: string | undefined;
 };
 
 /**

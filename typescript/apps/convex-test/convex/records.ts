@@ -1,7 +1,8 @@
 // typescript/apps/convex-test/convex/records.ts
-import { internalMutation, query } from "./_generated/server";
+import { env, internalAction, internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { collections } from "../collections.config.mjs";
+import { internal } from "./_generated/api";
 
 const collectionByNsid = new Map(collections.map((c) => [c.nsid, c]));
 
@@ -48,4 +49,94 @@ export const upsertFromWebhook = internalMutation({
 export const list = query({
   args: {},
   handler: async (ctx) => ctx.db.query("userRelations").collect(),
+});
+
+export const write = mutation({
+  args: {
+    space: v.string(),
+    repo: v.string(),
+    subject: v.string(),
+    relation: v.string(),
+  },
+  handler: async (ctx, { space, repo, subject, relation }) => {
+    const uri = `pending:${crypto.randomUUID()}`; // placeholder until putRecord returns the real at-uri
+    const recordId = await ctx.db.insert("userRelations", {
+      uri,
+      did: repo,
+      syncStatus: "pending",
+      subject,
+      relation,
+    });
+    await ctx.scheduler.runAfter(0, internal.records.pushToSap, {
+      recordId,
+      space,
+      repo,
+      subject,
+      relation,
+    });
+    return recordId;
+  },
+});
+
+// Internal (not client-callable): scheduled by `write`, carries the
+// SAP_INTERNAL_AUTH_SECRET, and is only ever invoked via
+// `internal.records.pushToSap`.
+export const pushToSap = internalAction({
+  args: {
+    recordId: v.id("userRelations"),
+    space: v.string(),
+    repo: v.string(),
+    subject: v.string(),
+    relation: v.string(),
+  },
+  handler: async (ctx, { recordId, space, repo, subject, relation }) => {
+    // Convex actions run in Convex's own sandbox and cannot import from
+    // src/server/ (the TanStack app's server code, a separate deploy
+    // target), so this duplicates the minimal fetch call rather than
+    // importing SapClient from src/server/sapClient.ts.
+    // Use the generated `env` (a typed wrapper around process.env — see
+    // _generated/server.ts) rather than `process.env` directly, since this
+    // file also exports mutations/queries and cannot run in the Node.js
+    // runtime (which "process"/"Buffer" would otherwise require).
+    const sapUrl = env.SAP_INTERNAL_URL;
+    if (!sapUrl) throw new Error("SAP_INTERNAL_URL is not set");
+    const secret = env.SAP_INTERNAL_AUTH_SECRET;
+    const headers: Record<string, string> = {
+      "Habitat-Did": repo,
+      "content-type": "application/json",
+    };
+    if (secret) {
+      headers.Authorization = `Basic ${btoa(`:${secret}`)}`;
+    }
+    const res = await fetch(`${sapUrl}/proxy/network.habitat.space.putRecord`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        space,
+        repo,
+        collection: "network.habitat.relationship.userRelation",
+        record: { subject, relation, createdAt: new Date().toISOString() },
+      }),
+    });
+    if (!res.ok) {
+      await ctx.runMutation(internal.records.markFailed, { recordId });
+      throw new Error(`putRecord failed (${res.status}): ${await res.text()}`);
+    }
+    const { uri, cid } = (await res.json()) as { uri: string; cid: string };
+    await ctx.runMutation(internal.records.confirmWrite, { recordId, uri, cid });
+  },
+});
+
+export const confirmWrite = internalMutation({
+  args: { recordId: v.id("userRelations"), uri: v.string(), cid: v.string() },
+  handler: async (ctx, { recordId, uri, cid }) => {
+    await ctx.db.patch(recordId, { uri, cid, syncStatus: "confirmed" });
+  },
+});
+
+export const markFailed = internalMutation({
+  args: { recordId: v.id("userRelations") },
+  handler: async (ctx, { recordId }) => {
+    await ctx.db.patch(recordId, { syncStatus: "failed" });
+  },
 });
