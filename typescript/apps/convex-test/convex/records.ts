@@ -108,16 +108,26 @@ export const pushToSap = internalAction({
     if (secret) {
       headers.Authorization = `Basic ${btoa(`:${secret}`)}`;
     }
-    const res = await fetch(`${sapUrl}/proxy/network.habitat.space.putRecord`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        space,
-        repo,
-        collection: "network.habitat.relationship.userRelation",
-        record: { subject, relation, createdAt: new Date().toISOString() },
-      }),
-    });
+    // A thrown fetch error (network failure, sap unreachable, timeout) is
+    // just as much a failure as a non-ok response — mark the row failed on
+    // either path so it never gets stuck at syncStatus: "pending" with no
+    // signal to the UI.
+    let res: Response;
+    try {
+      res = await fetch(`${sapUrl}/proxy/network.habitat.space.putRecord`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          space,
+          repo,
+          collection: "network.habitat.relationship.userRelation",
+          record: { subject, relation, createdAt: new Date().toISOString() },
+        }),
+      });
+    } catch (err) {
+      await ctx.runMutation(internal.records.markFailed, { recordId });
+      throw err;
+    }
     if (!res.ok) {
       await ctx.runMutation(internal.records.markFailed, { recordId });
       throw new Error(`putRecord failed (${res.status}): ${await res.text()}`);
