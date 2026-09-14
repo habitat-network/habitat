@@ -1,5 +1,5 @@
 // typescript/apps/convex-test/convex/records.ts
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { collections } from "../collections.config.mjs";
 
