@@ -620,7 +620,7 @@ git commit -m "Tunnel sap's internal port for Convex cloud dev deployment access
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { startLogin } from "@/server/sapClient";
+import { startLogin } from "~/server/sapClient";
 
 const startLoginFn = createServerFn({ method: "POST" })
   .validator((input: { handle: string }) => input)
@@ -674,7 +674,7 @@ export const Route = createFileRoute("/login")({
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { useAppSession } from "@/server/session";
+import { useAppSession } from "~/server/session";
 
 const setSessionDidFn = createServerFn({ method: "POST" })
   .validator((input: { did: string }) => input)
@@ -704,7 +704,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "convex/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
-import { useAppSession } from "@/server/session";
+import { useAppSession } from "~/server/session";
 
 const whoamiFn = createServerFn({ method: "GET" }).handler(async () => {
   const session = await useAppSession();
