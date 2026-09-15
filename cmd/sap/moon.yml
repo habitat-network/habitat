@@ -3,11 +3,22 @@ tasks:
     deps:
       - root:caddy
       - pear:dev
+      - sap-ngrok
     env:
       SAP_SECRET: 'z42tt1ZWxkfKn5ujwLsELfY7191h4q6UCFjeRGf6tKXaMCnX'
       SAP_IDENTITY_RESOLVER: 'https://pear.local.habitat.network'
-      # Posts outbox events straight to the dev Worker with no secret —
-      # nothing else on the machine can reach this loopback URL. Replaces
-      # chalk polling/holding a connection open to sap's old /channel
-      # WebSocket (see typescript/apps/chalk's SapChannel removal).
-      SAP_WEBHOOK_URL: 'http://127.0.0.1:5177/webhook/sap'
+      SAP_INTERNAL_AUTH_SECRET: '${SAP_INTERNAL_AUTH_SECRET}'
+      # Posts outbox events to Convex's public endpoint (not loopback like before).
+      # sap runs locally but Convex cloud functions can't reach localhost, so this
+      # points to Convex's public .convex.site URL. The reverse direction (Convex → sap)
+      # is tunneled via sap-ngrok below.
+      SAP_WEBHOOK_URL: '${CONVEX_SITE_URL}/sap-webhook'
+  # sap-ngrok exposes the internal port (/proxy, /session/add, /space/track)
+  # publicly. SAP_INTERNAL_AUTH_SECRET must be set in dev.env or this is an
+  # unauthenticated write-as-any-DID proxy open to the internet.
+  sap-ngrok:
+    script: 'command -v ngrok >/dev/null 2>&1 && exec ngrok http "2581" --url "https://${SAP_NGROK_DOMAIN}" --log stdout --log-level error || echo "[ngrok] not installed, skipping tunnel" >&2'
+    preset: server
+    options:
+      envFile:
+        - /dev.env
