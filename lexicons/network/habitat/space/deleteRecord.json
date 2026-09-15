@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Delete a record in a permissioned space, or ensure it doesn't exist. Requires auth, implemented by PDS.",
+      "description": "Delete a record in a permissioned space, or ensure it doesn't exist. Protected mailbox records cannot be deleted; append a logical tombstone instead. Requires auth, implemented by PDS.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -41,7 +41,7 @@
           "properties": {}
         }
       },
-      "errors": [{ "name": "SpaceNotFound" }]
+      "errors": [{ "name": "SpaceNotFound" }, { "name": "ImmutableRecord" }]
     }
   }
 }

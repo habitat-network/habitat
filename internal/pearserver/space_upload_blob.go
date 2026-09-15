@@ -15,7 +15,7 @@ import (
 
 func (p *PearServer) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	_, ok := p.validator.Request(
+	credential, ok := p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth),
 	).Validate(w, r)
 	if !ok {
@@ -37,6 +37,10 @@ func (p *PearServer) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	c, size, err := p.blobStore.PutBlob(ctx, mimeType, data)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("store blob: %w", err))
+		return
+	}
+	if err := p.spacesStore.RegisterBlobUpload(ctx, credential.Subject, c); err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("register blob upload: %w", err))
 		return
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatRepoUploadBlobOutput{

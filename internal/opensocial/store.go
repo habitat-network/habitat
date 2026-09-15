@@ -356,6 +356,9 @@ func (s *Store) UploadImage(
 		if err != nil {
 			return fmt.Errorf("put blob: %w", err)
 		}
+		if err := spacesStoreTx.RegisterBlobUpload(ctx, orgDID, cid); err != nil {
+			return fmt.Errorf("register profile blob: %w", err)
+		}
 		blob = atdata.Blob{
 			Ref:      atdata.CIDLink(cid),
 			Size:     size,

@@ -43,6 +43,15 @@ func (p *PearServer) GetBlob(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse cid", err)
 		return
 	}
+	referenced, err := p.spacesStore.SpaceReferencesBlob(ctx, spaceURI, c)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check blob reference: %w", err))
+		return
+	}
+	if !referenced {
+		httpx.WriteError(ctx, w, "BlobNotFound", "blob not found", http.StatusNotFound)
+		return
+	}
 	mimeType, data, err := p.blobStore.GetBlob(ctx, c)
 	if errors.Is(err, spaces.ErrBlobNotFound) {
 		httpx.WriteError(ctx, w, "BlobNotFound", "blob not found", http.StatusNotFound)

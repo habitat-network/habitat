@@ -110,6 +110,14 @@ type Store interface {
 		filterType *syntax.NSID,
 	) ([]habitat_syntax.SpaceURI, error)
 	CheckSpaceExists(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
+	RegisterBlobUpload(ctx context.Context, repo syntax.DID, c cid.Cid) error
+	SpaceReferencesBlob(ctx context.Context, space habitat_syntax.SpaceURI, c cid.Cid) (bool, error)
+	ApplyCreates(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		writes []CreateWrite,
+	) ([]CreateResult, error)
 
 	// Member operations
 	ListRepos(
@@ -249,10 +257,11 @@ var (
 // ---- Store implementation ----
 
 type store struct {
-	db       *gorm.DB
-	clock    *syntax.TIDClock
-	notifier Notifier
-	commit   *spacecommit.Authority
+	db                *gorm.DB
+	clock             *syntax.TIDClock
+	notifier          Notifier
+	commit            *spacecommit.Authority
+	transactionScoped bool
 }
 
 var _ Store = &store{}
@@ -265,7 +274,13 @@ func NewStore(
 	notifier Notifier,
 	commit *spacecommit.Authority,
 ) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceRepo{}); err != nil {
+	if err := db.AutoMigrate(
+		&space{},
+		&spaceRecord{},
+		&spaceRepo{},
+		&blobUpload{},
+		&spaceBlobRef{},
+	); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
 	return &store{
@@ -279,10 +294,11 @@ func NewStore(
 // WithTx implements [Store], returning a store whose DB operations run on tx.
 func (s *store) WithTx(tx *gorm.DB) Store {
 	return &store{
-		db:       tx,
-		clock:    s.clock,
-		notifier: s.notifier,
-		commit:   s.commit,
+		db:                tx,
+		clock:             s.clock,
+		notifier:          s.notifier,
+		commit:            s.commit,
+		transactionScoped: true,
 	}
 }
 
@@ -546,6 +562,10 @@ func (s *store) PutRecord(
 		return "", nil, ErrSpaceNotFound
 	}
 	span.SetAttributes(attribute.Int("cbor_bytes", len(value)))
+	blobCIDs, err := recordBlobCIDs(value)
+	if err != nil {
+		return "", nil, err
+	}
 
 	newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(value)
 	if err != nil {
@@ -559,6 +579,9 @@ func (s *store) PutRecord(
 	var skipped bool
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, spaceURI, repo); err != nil {
+			return err
+		}
+		if err := requireBlobUploads(tx, repo, blobCIDs); err != nil {
 			return err
 		}
 		tid := s.clock.Next()
@@ -575,18 +598,28 @@ func (s *store) PutRecord(
 		// Maintain the cached LtHash: fold out this record's previous element (if
 		// it already existed) and fold in the new one, then advance the rev.
 		var existing spaceRecord
-		err = tx.
+		existingQuery := tx
+		if immutableMailboxCollection(collection) {
+			// Include keys deleted before this policy was installed. Reusing
+			// one would allow an old operation claim to acquire a new meaning.
+			existingQuery = existingQuery.Unscoped()
+		}
+		err = existingQuery.
 			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
 				spaceURI, repo, collection, rkey).
 			First(&existing).Error
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("failed to get existing record: %w", err)
 		} else if err == nil {
+			if immutableMailboxCollection(collection) &&
+				(existing.DeletedAt.Valid || newCidStr != existing.Cid) {
+				return ErrRecordAlreadyExists
+			}
 			// previous record exists
 			if newCidStr == existing.Cid {
 				// if the new cid is the same as the previous one, we don't update the rev
 				skipped = true
-				return nil
+				return replaceSpaceBlobRefs(tx, spaceURI, repo, collection, rkey, blobCIDs)
 			}
 			// otherwise, remove the prev element from hash
 			h.Remove(spacecommit.RecordElement(collection, rkey, existing.Cid))
@@ -596,7 +629,7 @@ func (s *store) PutRecord(
 			return fmt.Errorf("failed to save repo hash: %w", err)
 		}
 		repoHash = h.Sum()
-		return tx.Save(&spaceRecord{
+		if err := tx.Save(&spaceRecord{
 			Repo:       repo,
 			Space:      spaceURI,
 			Collection: collection,
@@ -605,7 +638,10 @@ func (s *store) PutRecord(
 			Rev:        tid,
 			PrevCid:    existing.Cid,
 			Cid:        newCidStr,
-		}).Error
+		}).Error; err != nil {
+			return err
+		}
+		return replaceSpaceBlobRefs(tx, spaceURI, repo, collection, rkey, blobCIDs)
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
@@ -714,7 +750,12 @@ func (s *store) RepoSnapshot(
 
 		var sp space
 		err := tx.
-			Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
+			Where(
+				"owner = ? AND type = ? AND skey = ?",
+				uri.SpaceOwner(),
+				uri.SpaceType(),
+				uri.Skey(),
+			).
 			First(&sp).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrSpaceNotFound
@@ -766,6 +807,9 @@ func (s *store) RepoSnapshot(
 func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
 	// everything after this point is idempotent — use a transaction
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("space = ?", uri).Delete(&spaceBlobRef{}).Error; err != nil {
+			return err
+		}
 		// Drop the records for this space
 		if err := tx.
 			Where("space = ?", uri).
@@ -784,7 +828,12 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 
 		// Drop the space itself
 		deleteSpace := tx.
-			Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
+			Where(
+				"owner = ? AND type = ? AND skey = ?",
+				uri.SpaceOwner(),
+				uri.SpaceType(),
+				uri.Skey(),
+			).
 			Delete(&space{})
 		if deleteSpace.Error != nil {
 			return deleteSpace.Error
@@ -922,6 +971,9 @@ func (s *store) DeleteRecord(
 	collection syntax.NSID,
 	rkey string,
 ) error {
+	if immutableMailboxCollection(collection) {
+		return ErrImmutableRecord
+	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, uri, repo); err != nil {
 			return err
@@ -946,6 +998,16 @@ func (s *store) DeleteRecord(
 				"prev_cid":   rows[0].Cid,
 			}).Error; err != nil {
 			return fmt.Errorf("delete record: %w", err)
+		}
+		if err := replaceSpaceBlobRefs(
+			tx,
+			uri,
+			repo,
+			collection,
+			syntax.RecordKey(rkey),
+			nil,
+		); err != nil {
+			return fmt.Errorf("delete blob references: %w", err)
 		}
 		// Fold the deleted records out of the cached LtHash.
 		h, _, _, err := loadRepoHash(tx, uri, repo)

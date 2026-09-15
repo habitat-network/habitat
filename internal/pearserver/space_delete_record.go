@@ -2,12 +2,14 @@ package pearserver
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -50,6 +52,16 @@ func (p *PearServer) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := p.spacesStore.DeleteRecord(ctx, spaceURI, repo, collection, input.Rkey); err != nil {
+		if errors.Is(err, spaces.ErrImmutableRecord) {
+			httpx.WriteError(
+				ctx,
+				w,
+				"ImmutableRecord",
+				"append a mailbox tombstone instead of deleting a record",
+				http.StatusForbidden,
+			)
+			return
+		}
 		httpx.WriteServerError(ctx, w, fmt.Errorf("delete record: %w", err))
 		return
 	}

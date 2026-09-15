@@ -88,8 +88,20 @@ func (p *PearServer) PutRecord(w http.ResponseWriter, r *http.Request) {
 		rkey,
 		recordBytes,
 	)
-	if errors.Is(err, spaces.ErrSpaceNotFound) {
+	if errors.Is(err, spaces.ErrRecordAlreadyExists) {
+		httpx.WriteError(
+			ctx,
+			w,
+			"RecordAlreadyExists",
+			"mailbox record cannot be replaced",
+			http.StatusConflict,
+		)
+		return
+	} else if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
+		return
+	} else if errors.Is(err, spaces.ErrBlobNotFound) {
+		httpx.WriteError(ctx, w, "BlobNotFound", "blob not found", http.StatusNotFound)
 		return
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("put record: %w", err))

@@ -1,0 +1,108 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.space.applyWrites",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Atomically create records in one authenticated member repository within one Space. A collision with any existing or deleted record key rejects the entire batch. Schema validation, updates, and deletes are not supported.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["space", "repo", "writes"],
+          "properties": {
+            "space": {
+              "type": "string",
+              "format": "at-uri"
+            },
+            "repo": {
+              "type": "string",
+              "format": "did"
+            },
+            "validate": {
+              "type": "boolean",
+              "description": "Schema validation is not supported. Omit this field or set it to false."
+            },
+            "writes": {
+              "type": "array",
+              "minLength": 1,
+              "maxLength": 100,
+              "items": {
+                "type": "ref",
+                "ref": "#create"
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["results"],
+          "properties": {
+            "results": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#result"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "RecordAlreadyExists"
+        },
+        {
+          "name": "InvalidRequest"
+        },
+        {
+          "name": "NotSupported"
+        },
+        {
+          "name": "SpaceNotFound"
+        },
+        {
+          "name": "BlobNotFound"
+        }
+      ]
+    },
+    "create": {
+      "type": "object",
+      "required": ["action", "collection", "rkey", "value"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["create"]
+        },
+        "collection": {
+          "type": "string",
+          "format": "nsid"
+        },
+        "rkey": {
+          "type": "string",
+          "format": "record-key"
+        },
+        "value": {
+          "type": "unknown"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": ["uri", "cid"],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "at-uri"
+        },
+        "cid": {
+          "type": "string",
+          "format": "cid"
+        }
+      }
+    }
+  }
+}
