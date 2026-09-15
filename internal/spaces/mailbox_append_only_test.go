@@ -18,6 +18,7 @@ func TestMailboxAppendOnlyAcrossMutationPaths(t *testing.T) {
 	for _, collection := range []syntax.NSID{
 		"email.atmos.message", "email.atmos.messageStateRevision", "email.atmos.messageStateOperation",
 		"email.atmos.folderRevision", "email.atmos.folderOperation",
+		"email.atmos.messagesPrototype.entry",
 	} {
 		t.Run(collection.String(), func(t *testing.T) {
 			notifier := &notifytest.TestNotifier{}
