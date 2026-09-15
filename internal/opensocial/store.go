@@ -163,6 +163,39 @@ func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 		); err != nil {
 			return fmt.Errorf("put access record: %w", err)
 		}
+		// The admin role starts out bound to every standardized action, and
+		// able to assign/eject either built-in role; the member role starts
+		// with no actions bound. Communities can rebind both via
+		// updatePermissions once they hold the community.configure action.
+		permissionsBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialPermissions{
+			Bindings: []opensocial_api.CommunityOpensocialPermissionsActionBinding{
+				{Action: string(ActionModRead), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionModResolve), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionLabel), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionTakedown), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionInvite), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionAdmit), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionEject), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionRoleAssign), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionSpaceCreate), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionSpaceConfigure), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionSpaceDelete), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionCommunityConfigure), Roles: []string{AdminRoleRkey}},
+			},
+			Assignable: []opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
+				{Role: AdminRoleRkey, Roles: []string{AdminRoleRkey, MemberRoleRkey}},
+			},
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal permissions record: %w", err)
+		}
+		if _, _, err = spacesStoreTx.PutRecord(
+			ctx, membersSpace, orgID.DID, PermissionsCollection, "self",
+			permissionsBytes,
+		); err != nil {
+			return fmt.Errorf("put permissions record: %w", err)
+		}
 		orgDID = orgID.DID
 		return nil
 	}); err != nil {

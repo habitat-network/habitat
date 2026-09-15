@@ -28,6 +28,11 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/community.opensocial.requestJoin", p.RequestJoin)
 	p.router.HandleFunc("/xrpc/community.opensocial.createSpace", p.CreateOpensocialSpace)
 	p.router.HandleFunc("/xrpc/community.opensocial.updateSpace", p.UpdateOpensocialSpace)
+	p.router.HandleFunc("/xrpc/community.opensocial.putRole", p.PutRole)
+	p.router.HandleFunc("/xrpc/community.opensocial.deleteRole", p.DeleteRole)
+	p.router.HandleFunc("/xrpc/community.opensocial.updatePermissions", p.UpdatePermissions)
+	p.router.HandleFunc("/xrpc/community.opensocial.assignRoles", p.AssignRoles)
+	p.router.HandleFunc("/xrpc/community.opensocial.ejectMember", p.EjectMember)
 
 	// Simplespace
 	p.router.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", p.CreateSpace)

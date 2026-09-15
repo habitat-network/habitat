@@ -1,0 +1,41 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.deleteRole",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Remove a role. Members holding it keep their other roles; the role is left off any access or permissions bindings that named it. Requires service-auth. Requires the `community.configure` action.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org",
+                        "role"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the community the role belongs to."
+                        },
+                        "role": {
+                            "type": "string",
+                            "description": "Record key of the role to remove."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "RoleNotFound",
+                    "description": "No role with the given record key exists in this community."
+                },
+                {
+                    "name": "CannotDeleteBuiltinRole",
+                    "description": "The admin and member roles are required by the community and cannot be deleted."
+                }
+            ]
+        }
+    }
+}
