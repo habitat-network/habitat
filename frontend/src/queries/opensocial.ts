@@ -8,6 +8,7 @@ import {
 import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { community, network } from "api";
+import { fetchClientMetadata } from "@/lib/oauthScopes";
 
 export type InviteView = community.opensocial.defs.InviteView;
 
@@ -188,11 +189,17 @@ export function orgMembersQueryOptions(
 
 export interface AppAccessView {
   clientId: string;
+  // The record's rkey: a base64url (no padding) encoding of clientId (see
+  // internal/syntax/app_access.go). Route params can't safely carry a raw
+  // client_id (typically a URL, with slashes and colons), so app-detail
+  // links use this opaque, already-URL-safe id instead and decode it back
+  // with decodeAppAccessRkey.
+  rkey: string;
 }
 
 // decodeAppAccessRkey reverses AppAccessRkey (internal/syntax/app_access.go):
 // the record key is the base64url (no padding) encoding of the client_id.
-function decodeAppAccessRkey(rkey: string): string {
+export function decodeAppAccessRkey(rkey: string): string {
   const base64 = rkey.replace(/-/g, "+").replace(/_/g, "/");
   return atob(base64);
 }
@@ -228,8 +235,21 @@ export function orgAppAccessQueryOptions(
       );
       return (records as RawRecord[]).map((record) => ({
         clientId: decodeAppAccessRkey(record.rkey),
+        rkey: record.rkey,
       }));
     },
+  });
+}
+
+// clientMetadataQueryOptions fetches (and caches) an authorized app's OAuth
+// client metadata document, keyed only by client_id since the document is
+// not org-specific.
+export function clientMetadataQueryOptions(clientId: string) {
+  return queryOptions({
+    queryKey: ["opensocial", "clientMetadata", clientId],
+    queryFn: () => fetchClientMetadata(clientId),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 }
 
@@ -399,6 +419,190 @@ export async function acceptInvite(authManager: AuthManager, org: string) {
     },
   });
   return { roles };
+}
+
+export interface RoleView {
+  rkey: string;
+  name: string;
+  description?: string;
+}
+
+// orgRolesQueryOptions lists a community's declared roles, read directly off
+// the community.opensocial.role records in its members space via a space
+// credential (see spaceCredentialQueryOptions) — there's no dedicated
+// listRoles endpoint.
+export function orgRolesQueryOptions(
+  org: DidString,
+  authManager: AuthManager,
+  queryClient: QueryClient,
+) {
+  const membersSpace = new SpaceRef(
+    org,
+    "community.opensocial.members",
+    "self",
+  ).toString();
+  return queryOptions({
+    queryKey: ["opensocial", "roles", org],
+    queryFn: async (): Promise<RoleView[]> => {
+      const credential = await queryClient.fetchQuery(
+        spaceCredentialQueryOptions(membersSpace, authManager),
+      );
+      const params = new URLSearchParams({
+        space: membersSpace,
+        repo: org,
+        collection: "community.opensocial.role",
+      });
+      const { records } = await fetchWithBearer(
+        `/xrpc/network.habitat.space.listRecords?${params}`,
+        credential,
+      );
+      return (
+        records as {
+          rkey: string;
+          value?: { name?: string; description?: string };
+        }[]
+      ).map((record) => ({
+        rkey: record.rkey,
+        name: record.value?.name ?? record.rkey,
+        description: record.value?.description,
+      }));
+    },
+  });
+}
+
+export type ActionBinding = community.opensocial.permissions.ActionBinding;
+export type AssignableBinding =
+  community.opensocial.permissions.AssignableBinding;
+
+export interface PermissionsView {
+  bindings: ActionBinding[];
+  assignable: AssignableBinding[];
+}
+
+// orgPermissionsQueryOptions fetches a community's authz configuration (the
+// community.opensocial.permissions record), read via a space credential.
+// Resolves to empty bindings if the community hasn't written one yet.
+export function orgPermissionsQueryOptions(
+  org: DidString,
+  authManager: AuthManager,
+  queryClient: QueryClient,
+) {
+  const membersSpace = new SpaceRef(
+    org,
+    "community.opensocial.members",
+    "self",
+  ).toString();
+  return queryOptions({
+    queryKey: ["opensocial", "permissions", org],
+    queryFn: async (): Promise<PermissionsView> => {
+      const credential = await queryClient.fetchQuery(
+        spaceCredentialQueryOptions(membersSpace, authManager),
+      );
+      const params = new URLSearchParams({
+        space: membersSpace,
+        repo: org,
+        collection: "community.opensocial.permissions",
+        rkey: "self",
+      });
+      try {
+        const { value } = await fetchWithBearer(
+          `/xrpc/network.habitat.space.getRecord?${params}`,
+          credential,
+        );
+        return {
+          bindings: value?.bindings ?? [],
+          assignable: value?.assignable ?? [],
+        };
+      } catch {
+        return { bindings: [], assignable: [] };
+      }
+    },
+  });
+}
+
+// putRole creates or updates a role declaration. Requires the caller to hold
+// the community.configure action.
+export async function putRole(
+  authManager: AuthManager,
+  org: string,
+  role: string,
+  name: string,
+  description?: string,
+) {
+  const response = await xrpc(authManager, community.opensocial.putRole.main, {
+    body: {
+      org: org as DidString,
+      role,
+      name,
+      description: description || undefined,
+    },
+  });
+  return response.body;
+}
+
+// deleteRole removes a role declaration. Requires the caller to hold the
+// community.configure action; the built-in admin/member roles can't be
+// removed.
+export async function deleteRole(
+  authManager: AuthManager,
+  org: string,
+  role: string,
+) {
+  const response = await xrpc(
+    authManager,
+    community.opensocial.deleteRole.main,
+    { body: { org: org as DidString, role } },
+  );
+  return response.body;
+}
+
+// updatePermissions replaces a community's authz configuration: which roles
+// authorize which actions, and which roles each role may assign/eject.
+// Requires the caller to hold the community.configure action.
+export async function updatePermissions(
+  authManager: AuthManager,
+  org: string,
+  bindings: ActionBinding[],
+  assignable: AssignableBinding[],
+) {
+  const response = await xrpc(
+    authManager,
+    community.opensocial.updatePermissions.main,
+    { body: { org: org as DidString, bindings, assignable } },
+  );
+  return response.body;
+}
+
+// assignRoles sets a member's full role set. Requires the caller to hold the
+// role.assign action, bounded by the roles it's permitted to assign.
+export async function assignRoles(
+  authManager: AuthManager,
+  org: string,
+  member: string,
+  roles: string[],
+) {
+  const response = await xrpc(
+    authManager,
+    community.opensocial.assignRoles.main,
+    { body: { org: org as DidString, member: member as DidString, roles } },
+  );
+  return response.body;
+}
+
+// ejectMember removes a member from the community, revoking their roles and
+// access. Requires the caller to hold the eject action, bounded by the roles
+// it's permitted to assign.
+export async function ejectMember(
+  authManager: AuthManager,
+  org: string,
+  member: string,
+) {
+  const response = await xrpc(
+    authManager,
+    community.opensocial.ejectMember.main,
+    { body: { org: org as DidString, member: member as DidString } },
+  );
+  return response.body;
 }
 
 // createInvite invites `invitee` to join `org`, granting them `roles` once

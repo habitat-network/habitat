@@ -10,7 +10,7 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-/** Declares that a role exists within the community. Lives in the community's `members` space, authored by the community DID. What actions a role authorizes is out of scope for this record. */
+/** Declares that a role exists within the community. Lives in the community's `members` space, authored by the community DID. Which actions a role authorizes is tracked separately, in the community's community.opensocial.permissions record. */
 type Main = {
   $type: 'community.opensocial.role'
 
@@ -24,7 +24,7 @@ type Main = {
 
 export type { Main }
 
-/** Declares that a role exists within the community. Lives in the community's `members` space, authored by the community DID. What actions a role authorizes is out of scope for this record. */
+/** Declares that a role exists within the community. Lives in the community's `members` space, authored by the community DID. Which actions a role authorizes is tracked separately, in the community's community.opensocial.permissions record. */
 const main = /*#__PURE__*/ l.record<'any', Main>(
   'any',
   $nsid,
