@@ -6,9 +6,10 @@ import "encoding/json"
 
 // NetworkHabitatSpaceAppAccess represents a network.habitat.space.appAccess record
 type NetworkHabitatSpaceAppAccess struct {
-	LexiconTypeID string `json:"$type"`
-	CreatedAt     string `json:"createdAt,omitempty"`
-	Note          string `json:"note,omitempty"`
+	LexiconTypeID string   `json:"$type"`
+	CreatedAt     string   `json:"createdAt,omitempty"`
+	Note          string   `json:"note,omitempty"`
+	Scopes        []string `json:"scopes,omitempty"`
 }
 
 // MarshalJSON sets $type to "network.habitat.space.appAccess" before encoding.

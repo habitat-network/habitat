@@ -147,7 +147,7 @@ export function spaceCredentialQueryOptions(
 // The raw (un-jsonToLex'd) shape of a listRecords entry.
 interface RawRecord {
   rkey: string;
-  value?: { roles?: string[] };
+  value?: { roles?: string[]; scopes?: string[] };
 }
 
 // orgMembersQueryOptions lists a community's members and their roles, read
@@ -195,6 +195,10 @@ export interface AppAccessView {
   // links use this opaque, already-URL-safe id instead and decode it back
   // with decodeAppAccessRkey.
   rkey: string;
+  // The scopes granted to this client as of its most recent org-credential
+  // approval (see internal/oauthserver's HandleToken). Empty if the grant
+  // predates this field, or wasn't made through that flow.
+  scopes: string[];
 }
 
 // decodeAppAccessRkey reverses AppAccessRkey (internal/syntax/app_access.go):
@@ -236,6 +240,7 @@ export function orgAppAccessQueryOptions(
       return (records as RawRecord[]).map((record) => ({
         clientId: decodeAppAccessRkey(record.rkey),
         rkey: record.rkey,
+        scopes: record.value?.scopes ?? [],
       }));
     },
   });

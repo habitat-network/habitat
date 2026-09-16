@@ -484,7 +484,10 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		}
 		if isOpensocialOrg {
 			clientID := req.GetClient().GetID()
-			if err := o.opensocialStore.GrantAppAccess(ctx, subjectDID, clientID); err != nil {
+			grantedScopes := []string(req.GetGrantedScopes())
+			if err := o.opensocialStore.GrantAppAccess(
+				ctx, subjectDID, clientID, grantedScopes,
+			); err != nil {
 				logError(ctx, err)
 				httpx.WriteServerError(ctx, w, fmt.Errorf("failed to grant app access: %w", err))
 				return

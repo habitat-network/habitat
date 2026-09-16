@@ -500,10 +500,16 @@ func (s *Store) IsOrg(ctx context.Context, orgDID syntax.DID) (bool, error) {
 	return exists, nil
 }
 
+// GrantAppAccess grants clientID access to orgDID's members space (and so,
+// via CheckAppAccess, every space of the org), overwriting any prior grant.
+// scopes records what was actually approved as of this grant — e.g. when
+// clientID is approved to act as the org's own DID via an org credential —
+// for display; it isn't itself enforced.
 func (s *Store) GrantAppAccess(
 	ctx context.Context,
 	orgDID syntax.DID,
 	clientID string,
+	scopes []string,
 ) error {
 	rkey, err := habitat_syntax.AppAccessRkey(clientID)
 	if err != nil {
@@ -511,6 +517,7 @@ func (s *Store) GrantAppAccess(
 	}
 	recordBytes, err := spaces.MarshalRecord(habitat.NetworkHabitatSpaceAppAccess{
 		CreatedAt: time.Now().Format(time.RFC3339),
+		Scopes:    scopes,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal app access record: %w", err)
