@@ -6,6 +6,7 @@ import {
   type AssignableBinding,
   type RoleView,
 } from "@/queries/opensocial";
+import { RoleCombobox } from "@/components/RoleCombobox";
 import { OPENSOCIAL_ACTIONS } from "@/lib/opensocialActions";
 import {
   Card,
@@ -14,38 +15,46 @@ import {
   CardTitle,
   Field,
   FieldLabel,
-  ToggleGroup,
-  ToggleGroupItem,
 } from "internal/components/ui";
 
-// rolesForAction/rolesForAssignable read the current binding for one
-// action/role out of the flat bindings/assignable arrays.
-function rolesForAction(bindings: ActionBinding[], action: string): string[] {
-  return bindings.find((b) => b.action === action)?.roles ?? [];
+// rolesForAction/rolesForAssignable resolve the current binding for one
+// action/role out of the flat bindings/assignable arrays into the RoleView
+// objects the combobox works with.
+function rolesForAction(
+  bindings: ActionBinding[],
+  action: string,
+  roles: RoleView[],
+): RoleView[] {
+  const rkeys = bindings.find((b) => b.action === action)?.roles ?? [];
+  return roles.filter((r) => rkeys.includes(r.rkey));
 }
 
 function rolesForAssignable(
   assignable: AssignableBinding[],
   role: string,
-): string[] {
-  return assignable.find((a) => a.role === role)?.roles ?? [];
+  roles: RoleView[],
+): RoleView[] {
+  const rkeys = assignable.find((a) => a.role === role)?.roles ?? [];
+  return roles.filter((r) => rkeys.includes(r.rkey));
 }
 
 function withAction(
   bindings: ActionBinding[],
   action: string,
-  roles: string[],
+  selected: RoleView[],
 ): ActionBinding[] {
   const rest = bindings.filter((b) => b.action !== action);
+  const roles = selected.map((r) => r.rkey);
   return roles.length > 0 ? [...rest, { action, roles }] : rest;
 }
 
 function withAssignable(
   assignable: AssignableBinding[],
   role: string,
-  roles: string[],
+  selected: RoleView[],
 ): AssignableBinding[] {
   const rest = assignable.filter((a) => a.role !== role);
+  const roles = selected.map((r) => r.rkey);
   return roles.length > 0 ? [...rest, { role, roles }] : rest;
 }
 
@@ -75,8 +84,6 @@ export function CapabilitiesEditor({
       }),
   });
 
-  const roleRkeys = roles.map((r) => r.rkey);
-
   return (
     <div className="flex flex-col gap-6">
       <Card size="sm">
@@ -84,7 +91,8 @@ export function CapabilitiesEditor({
           <CardTitle className="text-base">Capabilities</CardTitle>
           <p className="text-sm text-muted-foreground">
             Which roles authorize each action. A member's authorized actions are
-            the union of every role they hold.
+            the union of every role they hold, so an action can be bound to
+            several roles at once.
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -92,23 +100,17 @@ export function CapabilitiesEditor({
             <Field key={action}>
               <FieldLabel>{label}</FieldLabel>
               <p className="text-xs text-muted-foreground -mt-1">{hint}</p>
-              <ToggleGroup
-                value={rolesForAction(bindings, action)}
+              <RoleCombobox
+                roles={roles}
+                value={rolesForAction(bindings, action, roles)}
                 onValueChange={(next) =>
                   save({
                     bindings: withAction(bindings, action, next),
                     assignable,
                   })
                 }
-                multiple
                 disabled={saving}
-              >
-                {roleRkeys.map((rkey) => (
-                  <ToggleGroupItem key={rkey} value={rkey}>
-                    {roles.find((r) => r.rkey === rkey)?.name ?? rkey}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
+              />
             </Field>
           ))}
         </CardContent>
@@ -126,23 +128,17 @@ export function CapabilitiesEditor({
           {roles.map((role) => (
             <Field key={role.rkey}>
               <FieldLabel>{role.name} may assign/eject</FieldLabel>
-              <ToggleGroup
-                value={rolesForAssignable(assignable, role.rkey)}
+              <RoleCombobox
+                roles={roles}
+                value={rolesForAssignable(assignable, role.rkey, roles)}
                 onValueChange={(next) =>
                   save({
                     bindings,
                     assignable: withAssignable(assignable, role.rkey, next),
                   })
                 }
-                multiple
                 disabled={saving}
-              >
-                {roleRkeys.map((rkey) => (
-                  <ToggleGroupItem key={rkey} value={rkey}>
-                    {roles.find((r) => r.rkey === rkey)?.name ?? rkey}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
+              />
             </Field>
           ))}
         </CardContent>
