@@ -5,13 +5,7 @@ import {
   decodeAppAccessRkey,
 } from "@/queries/opensocial";
 import { describeScopes } from "@/lib/oauthScopes";
-import {
-  Badge,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "internal/components/ui";
+import { Badge } from "internal/components/ui";
 
 export const Route = createFileRoute(
   "/_requireAuth/opensocial/$org/app/$clientKey",
@@ -27,9 +21,9 @@ function AppDetail() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card size="sm">
-        <CardHeader className="flex flex-row items-center gap-3">
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-row items-center gap-3">
           {data?.metadata.logo_uri && (
             <img
               src={data.metadata.logo_uri}
@@ -38,15 +32,15 @@ function AppDetail() {
             />
           )}
           <div>
-            <CardTitle className="text-base">
+            <h2 className="text-base font-semibold">
               {data?.metadata.client_name ?? clientId}
-            </CardTitle>
+            </h2>
             <p className="font-mono text-xs text-muted-foreground break-all">
               {clientId}
             </p>
           </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 text-sm">
+        </div>
+        <div className="flex flex-col gap-2 text-sm">
           {isLoading && (
             <p className="text-muted-foreground">Loading client metadata…</p>
           )}
@@ -110,46 +104,42 @@ function AppDetail() {
               )}
             </dl>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {data && (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="text-base">Requested access</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              const scopes = describeScopes(data.metadata.scope);
-              if (scopes.length === 0) {
-                return (
-                  <p className="text-sm text-muted-foreground">
-                    This app requests no scopes beyond basic authentication.
-                  </p>
-                );
-              }
+        <div className="flex flex-col gap-4">
+          <h2 className="text-base font-semibold">Requested access</h2>
+          {(() => {
+            const scopes = describeScopes(data.metadata.scope);
+            if (scopes.length === 0) {
               return (
-                <ul className="flex flex-col gap-3">
-                  {scopes.map((s) => (
-                    <li key={s.scope} className="flex flex-col gap-0.5">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {s.scope}
-                        </Badge>
-                        <span className="font-medium text-sm">{s.summary}</span>
-                      </div>
-                      {s.detail && (
-                        <p className="text-xs text-muted-foreground">
-                          {s.detail}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                <p className="text-sm text-muted-foreground">
+                  This app requests no scopes beyond basic authentication.
+                </p>
               );
-            })()}
-          </CardContent>
-        </Card>
+            }
+            return (
+              <ul className="flex flex-col gap-3">
+                {scopes.map((s) => (
+                  <li key={s.scope} className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {s.scope}
+                      </Badge>
+                      <span className="font-medium text-sm">{s.summary}</span>
+                    </div>
+                    {s.detail && (
+                      <p className="text-xs text-muted-foreground">
+                        {s.detail}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
+        </div>
       )}
     </div>
   );

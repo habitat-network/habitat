@@ -2,12 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { orgProfileQueryOptions } from "@/queries/opensocial";
 import { OrgProfileForm } from "@/components/OrgProfileForm";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "internal/components/ui";
 
 export const Route = createFileRoute("/_requireAuth/opensocial/$org/settings")({
   loader: ({ context, params }) =>
@@ -30,19 +24,15 @@ function OrgSettings() {
   );
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle className="text-base">Community profile</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <OrgProfileForm
-          org={org}
-          initialName={profile?.name ?? ""}
-          initialDescription={profile?.description ?? ""}
-          avatarUrl={profile?.avatarUrl}
-          authManager={authManager}
-        />
-      </CardContent>
-    </Card>
+    <div className="flex flex-col gap-4">
+      <h2 className="text-base font-semibold">Community profile</h2>
+      <OrgProfileForm
+        org={org}
+        initialName={profile?.name ?? ""}
+        initialDescription={profile?.description ?? ""}
+        avatarUrl={profile?.avatarUrl}
+        authManager={authManager}
+      />
+    </div>
   );
 }
