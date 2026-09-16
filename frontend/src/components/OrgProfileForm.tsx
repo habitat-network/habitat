@@ -5,12 +5,6 @@ import { OrgAvatar, type AuthManager } from "internal";
 import { updateProfile, uploadOrgImage } from "@/queries/opensocial";
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
   Field,
   FieldError,
   FieldLabel,
@@ -18,70 +12,31 @@ import {
   Textarea,
 } from "internal/components/ui";
 
-export function EditProfileDialog({
-  org,
-  name,
-  description,
-  avatarUrl,
-  authManager,
-}: {
-  org: string;
-  name: string;
-  description: string;
-  avatarUrl?: string;
-  authManager: AuthManager;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline">Edit</Button>} />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit community profile</DialogTitle>
-        </DialogHeader>
-        {/* Unmounted while closed so each open starts from the latest
-            fetched profile, without an effect to re-seed stale form state. */}
-        {open && (
-          <EditProfileForm
-            org={org}
-            initialName={name}
-            initialDescription={description}
-            avatarUrl={avatarUrl}
-            authManager={authManager}
-            onSaved={() => setOpen(false)}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 interface FormValues {
   name: string;
   description: string;
   avatar: File | null;
 }
 
-function EditProfileForm({
+// OrgProfileForm edits a community's profile (name, description, avatar) in
+// place. Used as the body of the org settings page.
+export function OrgProfileForm({
   org,
   initialName,
   initialDescription,
   avatarUrl,
   authManager,
-  onSaved,
 }: {
   org: string;
   initialName: string;
   initialDescription: string;
   avatarUrl?: string;
   authManager: AuthManager;
-  onSaved: () => void;
 }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { register, handleSubmit, watch, setValue, reset, getValues } =
+  const { register, handleSubmit, watch, setValue, getValues } =
     useForm<FormValues>({
       defaultValues: {
         name: initialName,
@@ -93,6 +48,7 @@ function EditProfileForm({
   const avatar = watch("avatar");
   const watchedName = watch("name");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!avatar) {
@@ -115,15 +71,18 @@ function EditProfileForm({
       await queryClient.invalidateQueries({
         queryKey: ["opensocial", "profile", org],
       });
-      reset();
-      onSaved();
+      setValue("avatar", null);
+      setSaved(true);
     },
   });
 
   return (
     <form
       className="flex flex-col gap-4"
-      onSubmit={handleSubmit((values: FormValues) => mutate(values))}
+      onSubmit={handleSubmit((values: FormValues) => {
+        setSaved(false);
+        mutate(values);
+      })}
     >
       <Field>
         <FieldLabel>Avatar</FieldLabel>
@@ -163,7 +122,7 @@ function EditProfileForm({
       </Field>
       <Field>
         <FieldLabel htmlFor="org-name">Name</FieldLabel>
-        <Input id="org-name" {...register("name")} autoFocus />
+        <Input id="org-name" {...register("name")} />
       </Field>
       <Field>
         <FieldLabel htmlFor="org-description">Description</FieldLabel>
@@ -174,11 +133,14 @@ function EditProfileForm({
         />
       </Field>
       <FieldError errors={error ? [{ message: error.message }] : []} />
-      <DialogFooter>
+      <div className="flex items-center gap-3">
         <Button type="submit" disabled={isPending || !getValues("name").trim()}>
           {isPending ? "Saving…" : "Save"}
         </Button>
-      </DialogFooter>
+        {saved && !isPending && (
+          <span className="text-sm text-muted-foreground">Saved.</span>
+        )}
+      </div>
     </form>
   );
 }

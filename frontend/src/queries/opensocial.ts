@@ -520,6 +520,17 @@ export function orgPermissionsQueryOptions(
   });
 }
 
+// orgProxyHeaders routes an XRPC call through pear's Atproto-Proxy
+// middleware (internal/forwarding.ServiceProxy): the caller's own OAuth
+// session is validated, then the request is re-signed server-side as a
+// service-auth JWT audienced to the org DID's #habitat service, which is
+// what the service-auth-only endpoints below require. Used for every
+// org-admin mutation that isn't already accepted over the caller's own
+// OAuth session (see e.g. updateProfile/createInvite, which are).
+function orgProxyHeaders(org: string): HeadersInit {
+  return { "Atproto-Proxy": `${org}#habitat` };
+}
+
 // putRole creates or updates a role declaration. Requires the caller to hold
 // the community.configure action.
 export async function putRole(
@@ -530,6 +541,7 @@ export async function putRole(
   description?: string,
 ) {
   const response = await xrpc(authManager, community.opensocial.putRole.main, {
+    headers: orgProxyHeaders(org),
     body: {
       org: org as DidString,
       role,
@@ -551,7 +563,7 @@ export async function deleteRole(
   const response = await xrpc(
     authManager,
     community.opensocial.deleteRole.main,
-    { body: { org: org as DidString, role } },
+    { headers: orgProxyHeaders(org), body: { org: org as DidString, role } },
   );
   return response.body;
 }
@@ -568,7 +580,10 @@ export async function updatePermissions(
   const response = await xrpc(
     authManager,
     community.opensocial.updatePermissions.main,
-    { body: { org: org as DidString, bindings, assignable } },
+    {
+      headers: orgProxyHeaders(org),
+      body: { org: org as DidString, bindings, assignable },
+    },
   );
   return response.body;
 }
@@ -584,7 +599,10 @@ export async function assignRoles(
   const response = await xrpc(
     authManager,
     community.opensocial.assignRoles.main,
-    { body: { org: org as DidString, member: member as DidString, roles } },
+    {
+      headers: orgProxyHeaders(org),
+      body: { org: org as DidString, member: member as DidString, roles },
+    },
   );
   return response.body;
 }
@@ -600,7 +618,10 @@ export async function ejectMember(
   const response = await xrpc(
     authManager,
     community.opensocial.ejectMember.main,
-    { body: { org: org as DidString, member: member as DidString } },
+    {
+      headers: orgProxyHeaders(org),
+      body: { org: org as DidString, member: member as DidString },
+    },
   );
   return response.body;
 }

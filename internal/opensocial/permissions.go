@@ -35,6 +35,18 @@ func (s *Store) GetPermissions(
 	ctx context.Context,
 	orgDID syntax.DID,
 ) (opensocial_api.CommunityOpensocialPermissions, error) {
+	permissions, _, err := s.getPermissions(ctx, orgDID)
+	return permissions, err
+}
+
+// getPermissions is GetPermissions plus whether a permissions record exists
+// at all, so callers can tell "the community configured permissions and
+// bound nothing" apart from "the community never configured permissions" —
+// distinct cases for CheckAction/AssignableRoles's admin fallback below.
+func (s *Store) getPermissions(
+	ctx context.Context,
+	orgDID syntax.DID,
+) (opensocial_api.CommunityOpensocialPermissions, bool, error) {
 	record, err := s.spacesStore.GetRecord(
 		ctx,
 		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
@@ -43,20 +55,39 @@ func (s *Store) GetPermissions(
 		"self",
 	)
 	if errors.Is(err, spaces.ErrRecordNotFound) {
-		return opensocial_api.CommunityOpensocialPermissions{}, nil
+		return opensocial_api.CommunityOpensocialPermissions{}, false, nil
 	}
 	if err != nil {
-		return opensocial_api.CommunityOpensocialPermissions{}, fmt.Errorf(
+		return opensocial_api.CommunityOpensocialPermissions{}, false, fmt.Errorf(
 			"get permissions record: %w", err,
 		)
 	}
 	var permissions opensocial_api.CommunityOpensocialPermissions
 	if err := decodeRecordValue(record.Value, &permissions); err != nil {
-		return opensocial_api.CommunityOpensocialPermissions{}, fmt.Errorf(
+		return opensocial_api.CommunityOpensocialPermissions{}, false, fmt.Errorf(
 			"decode permissions record: %w", err,
 		)
 	}
-	return permissions, nil
+	return permissions, true, nil
+}
+
+// listRoleRkeys returns the record keys of every role declared in orgDID.
+func (s *Store) listRoleRkeys(ctx context.Context, orgDID syntax.DID) ([]string, error) {
+	collection := syntax.NSID(RoleCollection)
+	records, err := s.spacesStore.ListRecords(
+		ctx,
+		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
+		orgDID,
+		&collection,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list role records: %w", err)
+	}
+	rkeys := make([]string, len(records))
+	for i, record := range records {
+		rkeys[i] = string(record.Rkey)
+	}
+	return rkeys, nil
 }
 
 // PutPermissions replaces orgDID's authz configuration.
@@ -89,7 +120,11 @@ func (s *Store) PutPermissions(
 
 // CheckAction reports whether user is authorized to perform action in
 // orgDID, i.e. whether any role they hold is bound to it in the community's
-// permissions record.
+// permissions record. A community that has never written a permissions
+// record (e.g. one created before this authz layer existed) falls back to
+// authorizing its admins for every action, mirroring NewOrg's bootstrap
+// default — otherwise no one could hold the community.configure action
+// needed to write that first permissions record at all.
 func (s *Store) CheckAction(
 	ctx context.Context,
 	orgDID syntax.DID,
@@ -103,9 +138,12 @@ func (s *Store) CheckAction(
 	if len(userRoles) == 0 {
 		return false, nil
 	}
-	permissions, err := s.GetPermissions(ctx, orgDID)
+	permissions, exists, err := s.getPermissions(ctx, orgDID)
 	if err != nil {
 		return false, fmt.Errorf("get permissions: %w", err)
+	}
+	if !exists {
+		return slices.Contains(userRoles, AdminRoleRkey), nil
 	}
 	userRoleSet := xmaps.SetFromSlice(userRoles)
 	for _, binding := range permissions.Bindings {
@@ -121,7 +159,10 @@ func (s *Store) CheckAction(
 
 // AssignableRoles returns the union, across every role user holds in
 // orgDID, of the roles they may grant/revoke via role.assign or eject a
-// holder of via eject.
+// holder of via eject. As in CheckAction, a community with no permissions
+// record at all falls back to letting its admins assign/eject any declared
+// role, rather than locking every community created before this authz layer
+// existed out of role.assign/eject entirely.
 func (s *Store) AssignableRoles(
 	ctx context.Context,
 	orgDID syntax.DID,
@@ -134,9 +175,15 @@ func (s *Store) AssignableRoles(
 	if len(userRoles) == 0 {
 		return nil, nil
 	}
-	permissions, err := s.GetPermissions(ctx, orgDID)
+	permissions, exists, err := s.getPermissions(ctx, orgDID)
 	if err != nil {
 		return nil, fmt.Errorf("get permissions: %w", err)
+	}
+	if !exists {
+		if !slices.Contains(userRoles, AdminRoleRkey) {
+			return nil, nil
+		}
+		return s.listRoleRkeys(ctx, orgDID)
 	}
 	userRoleSet := xmaps.SetFromSlice(userRoles)
 	assignable := xmaps.Set[string]{}

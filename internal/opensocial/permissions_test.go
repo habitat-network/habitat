@@ -187,3 +187,60 @@ func TestPermissions(t *testing.T) {
 		require.ErrorIs(t, err, opensocial.ErrMemberNotFound)
 	})
 }
+
+// TestPermissionsLegacyOrgFallback covers a community that predates this
+// authz layer and so never had NewOrg write it a permissions record: its
+// admins must still be authorized for every action and able to assign/eject
+// any declared role, or nobody could ever hold the community.configure
+// action needed to write that first permissions record.
+func TestPermissionsLegacyOrgFallback(t *testing.T) {
+	s := opensocial_testutil.NewTestStore(t)
+	creator := syntax.DID("did:plc:legacy-creator")
+
+	orgDIDStr, err := s.NewOrg(t.Context(), "legacy-acme", creator)
+	require.NoError(t, err)
+	org := syntax.DID(orgDIDStr)
+
+	// Simulate a pre-existing community by deleting the permissions record
+	// NewOrg bootstrapped.
+	require.NoError(t, s.SpaceStore.DeleteRecord(
+		t.Context(),
+		habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self"),
+		org,
+		opensocial.PermissionsCollection,
+		"self",
+	))
+
+	ok, err := s.CheckAction(t.Context(), org, creator, opensocial.ActionCommunityConfigure)
+	require.NoError(t, err)
+	require.True(t, ok, "admin should fall back to authorized for every action")
+
+	member := syntax.DID("did:plc:legacy-member")
+	require.NoError(
+		t, s.AssignRoles(t.Context(), org, member, []string{opensocial.MemberRoleRkey}),
+	)
+	ok, err = s.CheckAction(t.Context(), org, member, opensocial.ActionCommunityConfigure)
+	require.NoError(t, err)
+	require.False(t, ok, "a non-admin gets no fallback")
+
+	assignable, err := s.AssignableRoles(t.Context(), org, creator)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{opensocial.AdminRoleRkey, opensocial.MemberRoleRkey}, assignable)
+
+	assignable, err = s.AssignableRoles(t.Context(), org, member)
+	require.NoError(t, err)
+	require.Empty(t, assignable, "a non-admin gets no fallback")
+
+	// The admin can now write a real permissions record, ending the
+	// fallback.
+	require.NoError(t, s.PutPermissions(
+		t.Context(), org,
+		[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
+			{Action: string(opensocial.ActionCommunityConfigure), Roles: []string{opensocial.AdminRoleRkey}},
+		},
+		nil,
+	))
+	assignable, err = s.AssignableRoles(t.Context(), org, creator)
+	require.NoError(t, err)
+	require.Empty(t, assignable, "the fallback no longer applies once permissions are configured")
+}

@@ -2,10 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { orgAppAccessQueryOptions } from "@/queries/opensocial";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Table,
   TableBody,
   TableCell,
@@ -35,43 +31,39 @@ function OrgApps() {
   );
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle className="text-base">
-          Authorized apps ({appAccess.length})
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Client ID</TableHead>
+    <div className="flex flex-col gap-4">
+      <h2 className="text-base font-semibold">
+        Authorized apps ({appAccess.length})
+      </h2>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Client ID</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {appAccess.map((app) => (
+            <TableRow key={app.clientId}>
+              <TableCell className="font-mono text-xs break-all">
+                <Link
+                  to="/opensocial/$org/app/$clientKey"
+                  params={{ org, clientKey: app.rkey }}
+                  className="hover:underline"
+                >
+                  {app.clientId}
+                </Link>
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {appAccess.map((app) => (
-              <TableRow key={app.clientId}>
-                <TableCell className="font-mono text-xs break-all">
-                  <Link
-                    to="/opensocial/$org/app/$clientKey"
-                    params={{ org, clientKey: app.rkey }}
-                    className="hover:underline"
-                  >
-                    {app.clientId}
-                  </Link>
-                </TableCell>
-              </TableRow>
-            ))}
-            {appAccess.length === 0 && (
-              <TableRow>
-                <TableCell className="text-muted-foreground">
-                  No authorized apps yet.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+          ))}
+          {appAccess.length === 0 && (
+            <TableRow>
+              <TableCell className="text-muted-foreground">
+                No authorized apps yet.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

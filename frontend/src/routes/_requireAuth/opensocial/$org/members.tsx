@@ -13,10 +13,6 @@ import { EjectMemberButton } from "@/components/EjectMemberButton";
 import { UserAvatar, UserDisplayName, type Actor } from "internal";
 import {
   Badge,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Table,
   TableBody,
   TableCell,
@@ -64,84 +60,76 @@ function OrgMembers() {
     <div className="flex flex-col gap-6">
       {isAdmin && <PendingOrgInvites org={org} authManager={authManager} />}
 
-      <Card size="sm">
-        <CardHeader className="flex items-center justify-between flex-row">
-          <CardTitle className="text-base">
-            Members ({members.length})
-          </CardTitle>
-          {isAdmin && (
-            <InviteMemberDialog org={org} authManager={authManager} />
-          )}
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Member</TableHead>
-                <TableHead>Roles</TableHead>
-                {isAdmin && <TableHead />}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {members.map((member) => (
-                <TableRow key={member.did}>
-                  <TableCell>
-                    <DidHoverCard did={member.did}>
-                      <div className="flex items-center gap-2">
-                        <UserAvatar
-                          actor={
-                            profileByDid.get(member.did) ?? { did: member.did }
-                          }
-                          size="sm"
-                        />
-                        <UserDisplayName
-                          actor={
-                            profileByDid.get(member.did) ?? { did: member.did }
-                          }
-                        />
-                      </div>
-                    </DidHoverCard>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2 flex-wrap">
-                      {member.roles.map((role) => (
-                        <Badge key={role} variant="outline">
-                          {roles.find((r) => r.rkey === role)?.name ?? role}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  {isAdmin && (
-                    <TableCell className="text-right">
-                      <div className="flex gap-2 justify-end">
-                        <AssignRolesDialog
-                          org={org}
-                          memberDid={member.did}
-                          currentRoles={member.roles}
-                          roles={roles}
-                          authManager={authManager}
-                        />
-                        <EjectMemberButton
-                          org={org}
-                          memberDid={member.did}
-                          authManager={authManager}
-                        />
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-              {members.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-muted-foreground">
-                    No members yet.
-                  </TableCell>
-                </TableRow>
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold">Members ({members.length})</h2>
+        {isAdmin && <InviteMemberDialog org={org} authManager={authManager} />}
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Member</TableHead>
+            <TableHead>Roles</TableHead>
+            {isAdmin && <TableHead />}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {members.map((member) => (
+            <TableRow key={member.did}>
+              <TableCell>
+                <DidHoverCard did={member.did}>
+                  <div className="flex items-center gap-2">
+                    <UserAvatar
+                      actor={
+                        profileByDid.get(member.did) ?? { did: member.did }
+                      }
+                      size="sm"
+                    />
+                    <UserDisplayName
+                      actor={
+                        profileByDid.get(member.did) ?? { did: member.did }
+                      }
+                    />
+                  </div>
+                </DidHoverCard>
+              </TableCell>
+              <TableCell>
+                <div className="flex gap-2 flex-wrap">
+                  {member.roles.map((role) => (
+                    <Badge key={role} variant="outline">
+                      {roles.find((r) => r.rkey === role)?.name ?? role}
+                    </Badge>
+                  ))}
+                </div>
+              </TableCell>
+              {isAdmin && (
+                <TableCell className="text-right">
+                  <div className="flex gap-2 justify-end">
+                    <AssignRolesDialog
+                      org={org}
+                      memberDid={member.did}
+                      currentRoles={member.roles}
+                      roles={roles}
+                      authManager={authManager}
+                    />
+                    <EjectMemberButton
+                      org={org}
+                      memberDid={member.did}
+                      authManager={authManager}
+                    />
+                  </div>
+                </TableCell>
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </TableRow>
+          ))}
+          {members.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={3} className="text-muted-foreground">
+                No members yet.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
     </div>
   );
 }

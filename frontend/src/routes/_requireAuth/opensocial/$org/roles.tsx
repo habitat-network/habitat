@@ -1,29 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  orgPermissionsQueryOptions,
-  orgRolesQueryOptions,
-} from "@/queries/opensocial";
-import { RolesCapabilitiesEditor } from "@/components/RolesCapabilitiesEditor";
+import { orgRolesQueryOptions } from "@/queries/opensocial";
+import { RolesEditor } from "@/components/RolesEditor";
 
 export const Route = createFileRoute("/_requireAuth/opensocial/$org/roles")({
   loader: ({ context, params }) =>
-    Promise.all([
-      context.queryClient.ensureQueryData(
-        orgRolesQueryOptions(
-          params.org,
-          context.authManager,
-          context.queryClient,
-        ),
+    context.queryClient.ensureQueryData(
+      orgRolesQueryOptions(
+        params.org,
+        context.authManager,
+        context.queryClient,
       ),
-      context.queryClient.ensureQueryData(
-        orgPermissionsQueryOptions(
-          params.org,
-          context.authManager,
-          context.queryClient,
-        ),
-      ),
-    ]),
+    ),
   component: OrgRoles,
 });
 
@@ -34,17 +22,6 @@ function OrgRoles() {
   const { data: roles = [] } = useQuery(
     orgRolesQueryOptions(org, authManager, queryClient),
   );
-  const { data: permissions } = useQuery(
-    orgPermissionsQueryOptions(org, authManager, queryClient),
-  );
 
-  return (
-    <RolesCapabilitiesEditor
-      org={org}
-      roles={roles}
-      bindings={permissions?.bindings ?? []}
-      assignable={permissions?.assignable ?? []}
-      authManager={authManager}
-    />
-  );
+  return <RolesEditor org={org} roles={roles} authManager={authManager} />;
 }
