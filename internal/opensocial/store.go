@@ -169,12 +169,7 @@ func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 		// updatePermissions once they hold the community.configure action.
 		permissionsBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialPermissions{
 			Bindings: []opensocial_api.CommunityOpensocialPermissionsActionBinding{
-				{Action: string(ActionModRead), Roles: []string{AdminRoleRkey}},
-				{Action: string(ActionModResolve), Roles: []string{AdminRoleRkey}},
-				{Action: string(ActionLabel), Roles: []string{AdminRoleRkey}},
-				{Action: string(ActionTakedown), Roles: []string{AdminRoleRkey}},
 				{Action: string(ActionInvite), Roles: []string{AdminRoleRkey}},
-				{Action: string(ActionAdmit), Roles: []string{AdminRoleRkey}},
 				{Action: string(ActionEject), Roles: []string{AdminRoleRkey}},
 				{Action: string(ActionRoleAssign), Roles: []string{AdminRoleRkey}},
 				{Action: string(ActionSpaceCreate), Roles: []string{AdminRoleRkey}},

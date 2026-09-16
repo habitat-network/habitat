@@ -27,12 +27,7 @@ func TestPermissions(t *testing.T) {
 		// The creator, as admin, is authorized to perform every standardized
 		// action.
 		for _, action := range []opensocial.Action{
-			opensocial.ActionModRead,
-			opensocial.ActionModResolve,
-			opensocial.ActionLabel,
-			opensocial.ActionTakedown,
 			opensocial.ActionInvite,
-			opensocial.ActionAdmit,
 			opensocial.ActionEject,
 			opensocial.ActionRoleAssign,
 			opensocial.ActionSpaceCreate,
@@ -73,14 +68,14 @@ func TestPermissions(t *testing.T) {
 			t.Context(), org,
 			[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
 				{Action: string(opensocial.ActionEject), Roles: []string{opensocial.AdminRoleRkey}},
-				{Action: string(opensocial.ActionModRead), Roles: []string{"moderator", opensocial.AdminRoleRkey}},
+				{Action: string(opensocial.ActionSpaceConfigure), Roles: []string{"moderator", opensocial.AdminRoleRkey}},
 			},
 			[]opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
 				{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.MemberRoleRkey, "moderator"}},
 			},
 		))
 
-		ok, err := s.CheckAction(t.Context(), org, moderator, opensocial.ActionModRead)
+		ok, err := s.CheckAction(t.Context(), org, moderator, opensocial.ActionSpaceConfigure)
 		require.NoError(t, err)
 		require.True(t, ok)
 

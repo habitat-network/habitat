@@ -30,7 +30,7 @@ import {
   ShieldIcon,
   KeyRoundIcon,
   PlugIcon,
-  SettingsIcon,
+  PaletteIcon,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_requireAuth/opensocial/$org")({
@@ -69,7 +69,7 @@ const NAV_ITEMS: {
     icon: KeyRoundIcon,
   },
   { to: "/opensocial/$org/apps", label: "Authorized apps", icon: PlugIcon },
-  { to: "/opensocial/$org/settings", label: "Settings", icon: SettingsIcon },
+  { to: "/opensocial/$org/settings", label: "Branding", icon: PaletteIcon },
 ];
 
 function OrgLayout() {

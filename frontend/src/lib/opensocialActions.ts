@@ -37,25 +37,4 @@ export const OPENSOCIAL_ACTIONS: {
     label: "Invite",
     hint: "Issue invites to join the community.",
   },
-  { action: "admit", label: "Admit", hint: "Approve join requests." },
-  {
-    action: "mod.read",
-    label: "View moderation queue",
-    hint: "See the moderation queue and subject histories.",
-  },
-  {
-    action: "mod.resolve",
-    label: "Resolve reports",
-    hint: "Resolve or escalate a subject, add notes.",
-  },
-  {
-    action: "label",
-    label: "Apply labels",
-    hint: "Apply and negate labels (excluding hide/takedown).",
-  },
-  {
-    action: "takedown",
-    label: "Takedown",
-    hint: "Apply and negate hide/takedown labels.",
-  },
 ];

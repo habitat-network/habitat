@@ -72,12 +72,7 @@ type ActionBinding = {
    * The action this binding authorizes.
    */
   action:
-    | 'mod.read'
-    | 'mod.resolve'
-    | 'label'
-    | 'takedown'
     | 'invite'
-    | 'admit'
     | 'eject'
     | 'role.assign'
     | 'space.create'
@@ -100,12 +95,7 @@ const actionBinding = /*#__PURE__*/ l.typedObject<ActionBinding>(
   /*#__PURE__*/ l.object({
     action: /*#__PURE__*/ l.string<{
       knownValues: [
-        'mod.read',
-        'mod.resolve',
-        'label',
-        'takedown',
         'invite',
-        'admit',
         'eject',
         'role.assign',
         'space.create',

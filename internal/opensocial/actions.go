@@ -7,12 +7,7 @@ package opensocial
 type Action string
 
 const (
-	ActionModRead            Action = "mod.read"
-	ActionModResolve         Action = "mod.resolve"
-	ActionLabel              Action = "label"
-	ActionTakedown           Action = "takedown"
 	ActionInvite             Action = "invite"
-	ActionAdmit              Action = "admit"
 	ActionEject              Action = "eject"
 	ActionRoleAssign         Action = "role.assign"
 	ActionSpaceCreate        Action = "space.create"

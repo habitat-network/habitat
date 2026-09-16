@@ -46,12 +46,7 @@
                 "action": {
                     "type": "string",
                     "knownValues": [
-                        "mod.read",
-                        "mod.resolve",
-                        "label",
-                        "takedown",
                         "invite",
-                        "admit",
                         "eject",
                         "role.assign",
                         "space.create",
