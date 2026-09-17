@@ -14,7 +14,6 @@ import {
   isOAuthScope,
   oauthClientMetadataSchema,
   parseAtprotoLoopbackClientId,
-  parseOAuthDiscoverableClientId,
   type OAuthClientMetadata,
 } from "@atproto/oauth-types";
 
@@ -94,9 +93,11 @@ export interface ClientMetadataResult {
 
 // fetchClientMetadata resolves a client_id to its client metadata document.
 // Per the atproto/OAuth client-id-metadata-document spec, a "discoverable"
-// client_id is itself the HTTPS URL of a publicly (CORS-enabled) fetchable
-// JSON document; a loopback client_id (local dev clients) instead encodes
-// its metadata directly in the URL and needs no network request.
+// client_id is itself the HTTPS URL of a publicly fetchable JSON document; a
+// loopback client_id (local dev clients) instead encodes its metadata directly
+// in the URL and needs no network request. Discoverable documents are fetched
+// via pear's server-side /client-metadata proxy rather than directly from the
+// browser, since the client's own server may not send CORS headers.
 export async function fetchClientMetadata(
   clientId: string,
 ): Promise<ClientMetadataResult> {
@@ -104,10 +105,11 @@ export async function fetchClientMetadata(
     isOAuthClientIdDiscoverable(clientId) ||
     isConventionalOAuthClientId(clientId)
   ) {
-    const url = parseOAuthDiscoverableClientId(clientId);
-    const res = await fetch(url.toString(), {
-      headers: { Accept: "application/json" },
-    });
+    const domain = import.meta.env.VITE_HABITAT_DOMAIN;
+    const res = await fetch(
+      `https://${domain}/client-metadata?client_id=${encodeURIComponent(clientId)}`,
+      { headers: { Accept: "application/json" } },
+    );
     if (!res.ok) {
       throw new Error(`client metadata request failed: ${res.status}`);
     }
