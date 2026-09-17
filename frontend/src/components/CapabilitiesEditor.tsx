@@ -9,12 +9,12 @@ import {
 import { RoleCombobox } from "@/components/RoleCombobox";
 import { OPENSOCIAL_ACTIONS } from "@/lib/opensocialActions";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Field,
   FieldLabel,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
 } from "internal/components/ui";
 
 // rolesForAction/rolesForAssignable resolve the current binding for one
@@ -85,17 +85,22 @@ export function CapabilitiesEditor({
   });
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle className="text-base">Capabilities</CardTitle>
+    <Tabs defaultValue="actions">
+      <TabsList>
+        <TabsTrigger value="actions">Actions</TabsTrigger>
+        <TabsTrigger value="assignments">Assignments</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="actions" className="pt-4">
+        <div className="mb-4">
+          <h3 className="text-base font-semibold">Capabilities</h3>
           <p className="text-sm text-muted-foreground">
             Which roles authorize each action. A member's authorized actions are
             the union of every role they hold, so an action can be bound to
             several roles at once.
           </p>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+        </div>
+        <div className="flex flex-col gap-4">
           {OPENSOCIAL_ACTIONS.map(({ action, label, hint }) => (
             <Field key={action}>
               <FieldLabel>{label}</FieldLabel>
@@ -113,18 +118,18 @@ export function CapabilitiesEditor({
               />
             </Field>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </TabsContent>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle className="text-base">Assignable roles</CardTitle>
+      <TabsContent value="assignments" className="pt-4">
+        <div className="mb-4">
+          <h3 className="text-base font-semibold">Assignable roles</h3>
           <p className="text-sm text-muted-foreground">
             Which roles a holder of each role may grant, revoke, or eject a
             holder of (via the assign-roles and eject actions above).
           </p>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+        </div>
+        <div className="flex flex-col gap-4">
           {roles.map((role) => (
             <Field key={role.rkey}>
               <FieldLabel>{role.name} may assign/eject</FieldLabel>
@@ -141,8 +146,8 @@ export function CapabilitiesEditor({
               />
             </Field>
           ))}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </TabsContent>
+    </Tabs>
   );
 }
