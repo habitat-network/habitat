@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AuthManager } from "internal";
 import {
   Badge,
@@ -89,8 +89,9 @@ function RecordBody({
   collection: string;
   authManager: AuthManager;
 }) {
+  const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery(
-    recordBodyQueryOptions(record, authManager),
+    recordBodyQueryOptions(record, authManager, queryClient),
   );
 
   return (

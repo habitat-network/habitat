@@ -55,10 +55,20 @@ export const Route = createFileRoute(
     const space = new SpaceRef(spaceOwner, spaceType, spaceKey).toString();
     const [records, commit] = await Promise.all([
       context.queryClient.fetchQuery(
-        spaceRecordsQueryOptions(space, recordOwner, context.authManager),
+        spaceRecordsQueryOptions(
+          space,
+          recordOwner,
+          context.authManager,
+          context.queryClient,
+        ),
       ),
       context.queryClient.fetchQuery(
-        spaceLatestCommitQueryOptions(space, recordOwner, context.authManager),
+        spaceLatestCommitQueryOptions(
+          space,
+          recordOwner,
+          context.authManager,
+          context.queryClient,
+        ),
       ),
     ]);
     return { records, commit };
@@ -224,10 +234,20 @@ function CollectionSection({
       // above the collections is stale too.
       await Promise.all([
         queryClient.invalidateQueries(
-          spaceRecordsQueryOptions(space, params.recordOwner, authManager),
+          spaceRecordsQueryOptions(
+            space,
+            params.recordOwner,
+            authManager,
+            queryClient,
+          ),
         ),
         queryClient.invalidateQueries(
-          spaceLatestCommitQueryOptions(space, params.recordOwner, authManager),
+          spaceLatestCommitQueryOptions(
+            space,
+            params.recordOwner,
+            authManager,
+            queryClient,
+          ),
         ),
       ]);
       await router.invalidate();

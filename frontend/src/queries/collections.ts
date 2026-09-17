@@ -5,9 +5,10 @@ import {
   type DidString,
   type NsidString,
 } from "@atproto/lex";
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { network } from "api";
 import { homeProxyHeaders } from "./groups";
+import { spaceAgent, spaceCredentialQueryOptions } from "./spaceCredential";
 
 export type CollectionView =
   network.habitat.collections.listCollections.$OutputBody["collections"][number];
@@ -55,17 +56,23 @@ export function collectionRecordsQueryOptions(
   });
 }
 
-// recordBodyQueryOptions fetches a single record's body directly from pear,
-// from the space it belongs to. The collections index never stores bodies.
+// recordBodyQueryOptions fetches a single record's body from the space it
+// belongs to, via a space credential (see spaceCredentialQueryOptions) routed
+// to that space's own resolved host. The collections index never stores
+// bodies.
 export function recordBodyQueryOptions(
   record: RecordView,
   authManager: AuthManager,
+  queryClient: QueryClient,
 ) {
   return queryOptions({
     queryKey: ["record-body", record.uri],
     queryFn: async (): Promise<unknown> => {
+      const cred = await queryClient.fetchQuery(
+        spaceCredentialQueryOptions(record.space, authManager),
+      );
       const response = await xrpc(
-        authManager,
+        spaceAgent(cred),
         network.habitat.space.getRecord.main,
         {
           params: {

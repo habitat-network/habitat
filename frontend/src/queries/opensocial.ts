@@ -1,7 +1,9 @@
 import type { AuthManager } from "internal";
 import {
+  getBlobCidString,
   xrpc,
   type AtUriString,
+  type BlobRef,
   type DidString,
   type NsidString,
 } from "@atproto/lex";
@@ -9,6 +11,7 @@ import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { community, network } from "api";
 import { fetchClientMetadata } from "@/lib/oauthScopes";
+import { spaceAgent, spaceCredentialQueryOptions } from "./spaceCredential";
 
 export type InviteView = community.opensocial.defs.InviteView;
 
@@ -86,70 +89,6 @@ export function orgPendingInvitesQueryOptions(
   });
 }
 
-// fetchWithBearer makes a JSON request against this pear instance using an
-// arbitrary bearer token (a delegation token or space credential) rather than
-// the caller's own OAuth session.
-async function fetchWithBearer(
-  path: string,
-  token: string,
-  init?: RequestInit,
-) {
-  const domain = import.meta.env.VITE_HABITAT_DOMAIN;
-  const res = await fetch(`https://${domain}${path}`, {
-    ...init,
-    headers: { ...init?.headers, Authorization: `Bearer ${token}` },
-  });
-  const body = await res.json().catch(() => undefined);
-  if (!res.ok) {
-    throw new Error(
-      body?.message || body?.error || `request failed: ${res.status}`,
-    );
-  }
-  return body;
-}
-
-// spaceCredentialQueryOptions fetches a credential for reading `space`
-// cross-repo: a delegation token minted under the caller's own OAuth session,
-// exchanged for a credential the space owner's own key signs off on. Cached
-// per space, so any query that needs to read records out of the same space
-// (a profile, its avatar blob, ...) shares one exchange instead of repeating
-// it.
-export function spaceCredentialQueryOptions(
-  space: string,
-  authManager: AuthManager,
-) {
-  return queryOptions({
-    queryKey: ["opensocial", "spaceCredential", space],
-    queryFn: async (): Promise<string> => {
-      const response = await xrpc(
-        authManager,
-        network.habitat.space.getDelegationToken.main,
-        { params: { space: space as AtUriString } },
-      );
-      const { token: delegationToken } = response.body;
-      const { credential } = await fetchWithBearer(
-        "/xrpc/network.habitat.space.getSpaceCredential",
-        delegationToken,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ space }),
-        },
-      );
-      return credential as string;
-    },
-    // Credentials are short-lived, server-signed tokens; treat as fresh for a
-    // few minutes instead of re-exchanging on every read of the space.
-    staleTime: 2 * 60 * 1000,
-  });
-}
-
-// The raw (un-jsonToLex'd) shape of a listRecords entry.
-interface RawRecord {
-  rkey: string;
-  value?: { roles?: string[]; scopes?: string[] };
-}
-
 // orgMembersQueryOptions lists a community's members and their roles, read
 // directly off the community.opensocial.membership records in its members
 // space via a space credential (see spaceCredentialQueryOptions) — there's no
@@ -167,21 +106,23 @@ export function orgMembersQueryOptions(
   return queryOptions({
     queryKey: ["opensocial", "members", org],
     queryFn: async (): Promise<MemberView[]> => {
-      const credential = await queryClient.fetchQuery(
+      const cred = await queryClient.fetchQuery(
         spaceCredentialQueryOptions(membersSpace, authManager),
       );
-      const params = new URLSearchParams({
-        space: membersSpace,
-        repo: org,
-        collection: "community.opensocial.membership",
-      });
-      const { records } = await fetchWithBearer(
-        `/xrpc/network.habitat.space.listRecords?${params}`,
-        credential,
+      const response = await xrpc(
+        spaceAgent(cred),
+        network.habitat.space.listRecords.main,
+        {
+          params: {
+            space: membersSpace as AtUriString,
+            repo: org,
+            collection: "community.opensocial.membership" as NsidString,
+          },
+        },
       );
-      return (records as RawRecord[]).map((record) => ({
+      return response.body.records.map((record) => ({
         did: record.rkey,
-        roles: record.value?.roles ?? [],
+        roles: (record.value as { roles?: string[] } | undefined)?.roles ?? [],
       }));
     },
   });
@@ -225,22 +166,25 @@ export function orgAppAccessQueryOptions(
   return queryOptions({
     queryKey: ["opensocial", "appAccess", org],
     queryFn: async (): Promise<AppAccessView[]> => {
-      const credential = await queryClient.fetchQuery(
+      const cred = await queryClient.fetchQuery(
         spaceCredentialQueryOptions(membersSpace, authManager),
       );
-      const params = new URLSearchParams({
-        space: membersSpace,
-        repo: org,
-        collection: "network.habitat.space.appAccess",
-      });
-      const { records } = await fetchWithBearer(
-        `/xrpc/network.habitat.space.listRecords?${params}`,
-        credential,
+      const response = await xrpc(
+        spaceAgent(cred),
+        network.habitat.space.listRecords.main,
+        {
+          params: {
+            space: membersSpace as AtUriString,
+            repo: org,
+            collection: "network.habitat.space.appAccess" as NsidString,
+          },
+        },
       );
-      return (records as RawRecord[]).map((record) => ({
+      return response.body.records.map((record) => ({
         clientId: decodeAppAccessRkey(record.rkey),
         rkey: record.rkey,
-        scopes: record.value?.scopes ?? [],
+        scopes:
+          (record.value as { scopes?: string[] } | undefined)?.scopes ?? [],
       }));
     },
   });
@@ -262,13 +206,6 @@ export interface OrgProfile {
   name: string;
   description?: string;
   avatarUrl?: string;
-}
-
-// The raw (un-jsonToLex'd) shape of a blob reference as it comes back from
-// getRecord: {"$type":"blob","ref":{"$link":"<cid>"},"mimeType":"...","size":...}.
-interface RawBlobRef {
-  ref?: { $link?: string };
-  mimeType?: string;
 }
 
 // orgProfileQueryOptions fetches a community's profile record (and its
@@ -293,31 +230,37 @@ export function orgProfileQueryOptions(
     queryKey: ["opensocial", "profile", org],
     queryFn: async (): Promise<OrgProfile | null> => {
       try {
-        const credential = await queryClient.fetchQuery(
+        const cred = await queryClient.fetchQuery(
           spaceCredentialQueryOptions(aboutSpace, authManager),
         );
-        const params = new URLSearchParams({
-          space: aboutSpace,
-          repo: org,
-          collection: "community.opensocial.profile",
-          rkey: "self",
-        });
-        const { value } = await fetchWithBearer(
-          `/xrpc/network.habitat.space.getRecord?${params}`,
-          credential,
+        const agent = spaceAgent(cred);
+        const response = await xrpc(
+          agent,
+          network.habitat.space.getRecord.main,
+          {
+            params: {
+              space: aboutSpace as AtUriString,
+              repo: org as DidString,
+              collection: "community.opensocial.profile" as NsidString,
+              rkey: "self",
+            },
+          },
         );
+        const value = response.body.value as {
+          name: string;
+          description?: string;
+          avatar?: BlobRef;
+        };
         const profile: OrgProfile = {
           name: value.name,
           description: value.description,
         };
-        const avatar = value.avatar as RawBlobRef | undefined;
-        const cid = avatar?.ref?.$link;
+        const cid = value.avatar && getBlobCidString(value.avatar);
         if (cid) {
           const blobParams = new URLSearchParams({ space: aboutSpace, cid });
-          const domain = import.meta.env.VITE_HABITAT_DOMAIN;
           const blobRes = await fetch(
-            `https://${domain}/xrpc/network.habitat.space.getBlob?${blobParams}`,
-            { headers: { Authorization: `Bearer ${credential}` } },
+            `${cred.host}/xrpc/network.habitat.space.getBlob?${blobParams}`,
+            { headers: { Authorization: `Bearer ${cred.credential}` } },
           );
           if (blobRes.ok) {
             profile.avatarUrl = URL.createObjectURL(await blobRes.blob());
@@ -449,28 +392,29 @@ export function orgRolesQueryOptions(
   return queryOptions({
     queryKey: ["opensocial", "roles", org],
     queryFn: async (): Promise<RoleView[]> => {
-      const credential = await queryClient.fetchQuery(
+      const cred = await queryClient.fetchQuery(
         spaceCredentialQueryOptions(membersSpace, authManager),
       );
-      const params = new URLSearchParams({
-        space: membersSpace,
-        repo: org,
-        collection: "community.opensocial.role",
-      });
-      const { records } = await fetchWithBearer(
-        `/xrpc/network.habitat.space.listRecords?${params}`,
-        credential,
+      const response = await xrpc(
+        spaceAgent(cred),
+        network.habitat.space.listRecords.main,
+        {
+          params: {
+            space: membersSpace as AtUriString,
+            repo: org,
+            collection: "community.opensocial.role" as NsidString,
+          },
+        },
       );
-      return (
-        records as {
-          rkey: string;
-          value?: { name?: string; description?: string };
-        }[]
-      ).map((record) => ({
-        rkey: record.rkey,
-        name: record.value?.name ?? record.rkey,
-        description: record.value?.description,
-      }));
+      return response.body.records.map((record) => {
+        const value = record.value as
+          { name?: string; description?: string } | undefined;
+        return {
+          rkey: record.rkey,
+          name: value?.name ?? record.rkey,
+          description: value?.description,
+        };
+      });
     },
   });
 }
@@ -500,23 +444,29 @@ export function orgPermissionsQueryOptions(
   return queryOptions({
     queryKey: ["opensocial", "permissions", org],
     queryFn: async (): Promise<PermissionsView> => {
-      const credential = await queryClient.fetchQuery(
+      const cred = await queryClient.fetchQuery(
         spaceCredentialQueryOptions(membersSpace, authManager),
       );
-      const params = new URLSearchParams({
-        space: membersSpace,
-        repo: org,
-        collection: "community.opensocial.permissions",
-        rkey: "self",
-      });
       try {
-        const { value } = await fetchWithBearer(
-          `/xrpc/network.habitat.space.getRecord?${params}`,
-          credential,
+        const response = await xrpc(
+          spaceAgent(cred),
+          network.habitat.space.getRecord.main,
+          {
+            params: {
+              space: membersSpace as AtUriString,
+              repo: org,
+              collection: "community.opensocial.permissions" as NsidString,
+              rkey: "self",
+            },
+          },
         );
+        const value = response.body.value as {
+          bindings?: ActionBinding[];
+          assignable?: AssignableBinding[];
+        };
         return {
-          bindings: value?.bindings ?? [],
-          assignable: value?.assignable ?? [],
+          bindings: value.bindings ?? [],
+          assignable: value.assignable ?? [],
         };
       } catch {
         return { bindings: [], assignable: [] };
