@@ -37,7 +37,7 @@ import { HabitatDoc } from "@/habitatDoc";
 
 export const Route = createFileRoute("/_requireAuth")({
   async beforeLoad({ context }) {
-    await context.authManager.maybeExchangeCode();
+    await context.authManager.init();
     if (!context.authManager.getAuthInfo()) {
       throw redirect({ to: "/login" });
     }
