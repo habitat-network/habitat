@@ -423,6 +423,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Server for opensocial community routes
 	mux.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", pearApp.CreateOrg)
 	mux.PathPrefix("/xrpc/community.opensocial.").Handler(pearApp)
+	// Server-side client-metadata proxy for the management frontend
+	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
 
 	cliqueServer := clique.NewServer(cliqueStore, validator)
 	pearServer := pear.NewServer(
