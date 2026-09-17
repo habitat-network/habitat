@@ -6,8 +6,9 @@ import {
   type DidString,
   type NsidString,
 } from "@atproto/lex";
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { network } from "api";
+import { spaceAgent, spaceCredentialQueryOptions } from "./spaceCredential";
 
 export type SpaceView =
   network.habitat.space.listSpaces.$OutputBody["spaces"][number];
@@ -63,16 +64,21 @@ export function spacesListQueryOptions(
 }
 
 // spaceReposQueryOptions lists the repos holding data in a space — the space's
-// members, from the authority's point of view.
+// members, from the authority's point of view. Read via a space credential
+// (see spaceCredentialQueryOptions), routed to the space's own resolved host.
 export function spaceReposQueryOptions(
   space: string,
   authManager: AuthManager,
+  queryClient: QueryClient,
 ) {
   return queryOptions({
     queryKey: ["listRepos", space],
     queryFn: async (): Promise<Repo[]> => {
+      const cred = await queryClient.fetchQuery(
+        spaceCredentialQueryOptions(space, authManager),
+      );
       const response = await xrpc(
-        authManager,
+        spaceAgent(cred),
         network.habitat.space.listRepos.main,
         { params: { space: space as AtUriString } },
       );
@@ -96,18 +102,23 @@ export interface SpaceCommit {
 // spaceLatestCommitQueryOptions fetches the host-signed commit over a repo's
 // current state in a space. A repo that holds no records has no commit to sign
 // and the host answers RepoNotFound, which is a normal state here rather than
-// an error, so it resolves to null.
+// an error, so it resolves to null. Read via a space credential (see
+// spaceCredentialQueryOptions), routed to the space's own resolved host.
 export function spaceLatestCommitQueryOptions(
   space: string,
   repo: string,
   authManager: AuthManager,
+  queryClient: QueryClient,
 ) {
   return queryOptions({
     queryKey: ["getLatestCommit", space, repo],
     queryFn: async (): Promise<SpaceCommit | null> => {
       try {
+        const cred = await queryClient.fetchQuery(
+          spaceCredentialQueryOptions(space, authManager),
+        );
         const response = await xrpc(
-          authManager,
+          spaceAgent(cred),
           network.habitat.space.getLatestCommit.main,
           { params: { space: space as AtUriString, repo: repo as DidString } },
         );
@@ -144,17 +155,23 @@ export function spaceMembersQueryOptions(
 
 // spaceRecordsQueryOptions lists one member's records in a space. Values are
 // excluded: the member page only groups records by collection, and each
-// record's body is fetched on demand by the record page.
+// record's body is fetched on demand by the record page. Read via a space
+// credential (see spaceCredentialQueryOptions), routed to the space's own
+// resolved host.
 export function spaceRecordsQueryOptions(
   space: string,
   repo: string,
   authManager: AuthManager,
+  queryClient: QueryClient,
 ) {
   return queryOptions({
     queryKey: ["listRecords", space, repo],
     queryFn: async (): Promise<SpaceRecord[]> => {
+      const cred = await queryClient.fetchQuery(
+        spaceCredentialQueryOptions(space, authManager),
+      );
       const response = await xrpc(
-        authManager,
+        spaceAgent(cred),
         network.habitat.space.listRecords.main,
         {
           params: {
@@ -170,6 +187,8 @@ export function spaceRecordsQueryOptions(
 }
 
 // spaceRecordQueryOptions fetches a single record's body for the JSON viewer.
+// Read via a space credential (see spaceCredentialQueryOptions), routed to the
+// space's own resolved host.
 export function spaceRecordQueryOptions(
   {
     space,
@@ -178,12 +197,16 @@ export function spaceRecordQueryOptions(
     rkey,
   }: { space: string; repo: string; collection: string; rkey: string },
   authManager: AuthManager,
+  queryClient: QueryClient,
 ) {
   return queryOptions({
     queryKey: ["getRecord", space, repo, collection, rkey],
     queryFn: async (): Promise<{ value: unknown; cid?: string }> => {
+      const cred = await queryClient.fetchQuery(
+        spaceCredentialQueryOptions(space, authManager),
+      );
       const response = await xrpc(
-        authManager,
+        spaceAgent(cred),
         network.habitat.space.getRecord.main,
         {
           params: {

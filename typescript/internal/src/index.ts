@@ -20,7 +20,11 @@ export type {
 export { default as ShareDialogV2 } from "./components/ShareDialogV2";
 export { default as GroupCombobox } from "./components/GroupCombobox";
 export type { GroupView } from "./components/GroupCombobox";
-export { resolveHandleToDid, resolveDidToHandle } from "./atprotoDirectory";
+export {
+  resolveHandleToDid,
+  resolveDidToHandle,
+  resolveSpaceHost,
+} from "./atprotoDirectory";
 export {
   SidebarGroup,
   SidebarGroupLabel,

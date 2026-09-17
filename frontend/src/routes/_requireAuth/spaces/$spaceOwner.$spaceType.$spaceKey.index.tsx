@@ -65,7 +65,7 @@ export const Route = createFileRoute(
         spaceMembersQueryOptions(space, context.authManager),
       ),
       context.queryClient.fetchQuery(
-        spaceReposQueryOptions(space, context.authManager),
+        spaceReposQueryOptions(space, context.authManager, context.queryClient),
       ),
     ]);
     return { members, repos };
