@@ -50,11 +50,21 @@ type spaceRecord struct {
 // listRepoOps commit) don't rescan every record. State is the 2048-byte LtHash
 // buffer, maintained incrementally in the write path (folded in on put, out on
 // delete). Rev tracks the repo's latest write revision.
+//
+// Remote marks a row registered from an inbound notifyWrite rather than a
+// local PutRecord/DeleteRecord: the repo's records live on its own PDS, not in
+// this space's spaceRecord table, so Hash holds the reported commit digest
+// directly rather than the raw LtHash state a local write can fold into. Every
+// call site that reads local record state (RepoSnapshot, ListRepoOps,
+// RepoHead, RepoHeadCommit) must treat a Remote row as holding no local
+// records; only ListRepos, which just reports the repo set and its last-known
+// digest, reads Hash directly for such a row.
 type spaceRepo struct {
 	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	Repo      syntax.DID              `gorm:"primaryKey"`
 	Hash      []byte
 	Rev       syntax.TID
+	Remote    bool
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
 }
@@ -106,6 +116,22 @@ type Store interface {
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 	) ([]RepoInfo, error)
+
+	// RegisterRemoteWrite records that repo advanced to rev/hash on its own
+	// PDS, without this space host holding the record data locally. It is the
+	// space-host side of an inbound notifyWrite: a repo host whose PDS
+	// implements the spaces protocol natively calls notifyWrite directly
+	// rather than writing through PutRecord, so ListRepos would otherwise
+	// never learn about it. hash is the repo's reported commit digest (not a
+	// raw LtHash state, since this host never computed it). Forwards the
+	// notification to any syncers registered for repo, same as a local write.
+	RegisterRemoteWrite(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		rev syntax.TID,
+		hash []byte,
+	) error
 
 	// Record operations
 	//
@@ -367,10 +393,17 @@ func loadRepoHash(
 	if err != nil {
 		return spacecommit.LtHash{}, "", false, err
 	}
+	if row.Remote {
+		// Remote rows hold a reported digest, not a raw LtHash state this
+		// host can fold or serve records against — treat as "holds no local
+		// records" for every local-data read/write path.
+		return spacecommit.LtHash{}, "", false, nil
+	}
 	return spacecommit.Load(row.Hash), row.Rev, true, nil
 }
 
-// saveRepoHash persists a repo's LtHash state and rev.
+// saveRepoHash persists a repo's LtHash state and rev for a locally-written
+// repo.
 func saveRepoHash(
 	tx *gorm.DB,
 	space habitat_syntax.SpaceURI,
@@ -383,6 +416,25 @@ func saveRepoHash(
 		Repo:  repo,
 		Hash:  h.State(),
 		Rev:   rev,
+	}).Error
+}
+
+// saveRemoteRepoHash persists a remotely-written repo's reported commit digest
+// and rev, marking the row Remote so local-data reads know not to serve
+// records for it out of this space's own tables.
+func saveRemoteRepoHash(
+	tx *gorm.DB,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	digest []byte,
+	rev syntax.TID,
+) error {
+	return tx.Save(&spaceRepo{
+		Space:  space,
+		Repo:   repo,
+		Hash:   digest,
+		Rev:    rev,
+		Remote: true,
 	}).Error
 }
 
@@ -426,14 +478,49 @@ func (s *store) ListRepos(
 
 	repos := make([]RepoInfo, len(rows))
 	for i, row := range rows {
-		h := spacecommit.Load(row.Hash)
+		digest := row.Hash
+		if !row.Remote {
+			// Local rows store the raw LtHash state; derive the digest.
+			h := spacecommit.Load(row.Hash)
+			digest = h.Sum()
+		}
 		repos[i] = RepoInfo{
 			DID:  row.Repo,
 			Rev:  string(row.Rev),
-			Hash: h.Sum(),
+			Hash: digest,
 		}
 	}
 	return repos, nil
+}
+
+// RegisterRemoteWrite implements [Store].
+func (s *store) RegisterRemoteWrite(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	rev syntax.TID,
+	hash []byte,
+) error {
+	ok, err := s.CheckSpaceExists(ctx, uri)
+	if err != nil {
+		return fmt.Errorf("failed to get space: %w", err)
+	} else if !ok {
+		return ErrSpaceNotFound
+	}
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockRepo(tx, uri, repo); err != nil {
+			return err
+		}
+		return saveRemoteRepoHash(tx, uri, repo, hash, rev)
+	})
+	if err != nil {
+		return fmt.Errorf("register remote write: %w", err)
+	}
+
+	// Best-effort: forward to registered syncers, same as a local write.
+	s.notifier.NotifyWrite(ctx, uri, repo, rev, hash)
+	return nil
 }
 
 // ---- Record operations ----

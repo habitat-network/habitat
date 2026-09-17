@@ -398,6 +398,73 @@ func TestListRepos_SpaceNotFound(t *testing.T) {
 	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
+// TestListRepos_RemoteWrite verifies a repo registered via RegisterRemoteWrite
+// (a repo host reporting its own write, rather than a local PutRecord) shows
+// up in ListRepos with the reported rev and digest, alongside a locally
+// written repo.
+func TestListRepos_RemoteWrite(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(
+		t.Context(), uri, owner, coll, "k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
+	require.NoError(t, err)
+
+	digest := []byte(strings.Repeat("d", 32))
+	err = s.RegisterRemoteWrite(t.Context(), uri, alice, "3lrev", digest)
+	require.NoError(t, err)
+
+	repos, err := s.ListRepos(t.Context(), uri)
+	require.NoError(t, err)
+	require.Len(t, repos, 2)
+
+	byDID := make(map[syntax.DID]spaces.RepoInfo, len(repos))
+	for _, r := range repos {
+		byDID[r.DID] = r
+	}
+	require.Equal(t, "3lrev", byDID[alice].Rev)
+	require.Equal(t, digest, byDID[alice].Hash)
+	require.NotEqual(t, digest, byDID[owner].Hash)
+}
+
+func TestRegisterRemoteWrite_SpaceNotFound(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
+	err := s.RegisterRemoteWrite(t.Context(), uri, alice, "3lrev", []byte("hash"))
+	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
+}
+
+// TestRegisterRemoteWrite_NoLocalRecords verifies a remotely-registered repo
+// reports as holding no local records: its data lives on its own PDS, not in
+// this space's own tables, so the space host must not serve stale/empty data
+// as if it were authoritative.
+func TestRegisterRemoteWrite_NoLocalRecords(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	err = s.RegisterRemoteWrite(t.Context(), uri, alice, "3lrev", []byte(strings.Repeat("d", 32)))
+	require.NoError(t, err)
+
+	rev, hash, found, err := s.RepoHead(t.Context(), uri, alice)
+	require.NoError(t, err)
+	require.False(t, found)
+	require.Empty(t, rev)
+	require.Nil(t, hash)
+
+	commit, blocks, err := s.RepoSnapshot(t.Context(), uri, alice)
+	require.NoError(t, err)
+	require.Nil(t, commit)
+	require.Empty(t, blocks)
+}
+
 func TestPutAndGetRecord(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
