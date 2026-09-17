@@ -1,26 +1,11 @@
-import {
-  HandleResolver,
-  DidResolver,
-  type DidDocument,
-} from "@atproto/identity";
+import { HandleResolver, DidResolver } from "@atproto/identity";
+import { getServiceEndpoint } from "@atproto/common-web";
 
 // Resolvers over the public AT Protocol identity system (the PLC directory for
 // did:plc and .well-known for did:web). Instantiated once and reused so repeated
 // lookups share any internal caching.
 const handleResolver = new HandleResolver();
 const didResolver = new DidResolver({});
-
-// getServiceEndpoint looks up a service entry by id (a "#fragment", matched
-// either bare or prefixed with the doc's own DID, per the DID core spec) and
-// returns its endpoint if it's a plain string.
-function getServiceEndpoint(doc: DidDocument, id: string): string | undefined {
-  const service = doc.service?.find(
-    (s) => s.id === id || s.id === `${doc.id}${id}`,
-  );
-  return typeof service?.serviceEndpoint === "string"
-    ? service.serviceEndpoint
-    : undefined;
-}
 
 // resolveHandleToDid looks a handle up in the atproto directory and returns its
 // DID, throwing if the handle does not resolve.
@@ -61,11 +46,14 @@ export async function resolveSpaceHost(spaceOwnerDid: string): Promise<string> {
   if (!doc) {
     throw new Error(`DID not found: ${spaceOwnerDid}`);
   }
-  const spaceHost = getServiceEndpoint(doc, "#atproto_space_host");
+  const spaceHost = getServiceEndpoint(doc, { id: "#atproto_space_host" });
   if (spaceHost) {
     return spaceHost;
   }
-  const pds = getServiceEndpoint(doc, "#atproto_pds");
+  const pds = getServiceEndpoint(doc, {
+    id: "#atproto_pds",
+    type: "AtprotoPersonalDataServer",
+  });
   if (!pds) {
     throw new Error(`No space host or PDS found for DID: ${spaceOwnerDid}`);
   }

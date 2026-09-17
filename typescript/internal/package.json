@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@atproto/api": "catalog:",
+    "@atproto/common-web": "catalog:",
     "@atproto/identity": "catalog:",
     "@atproto/lex": "catalog:",
     "@atproto/oauth-client-browser": "alpha",
