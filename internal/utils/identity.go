@@ -15,16 +15,6 @@ func SpaceHostEndpoint(ident *identity.Identity) string {
 	return ident.PDSEndpoint()
 }
 
-// unsupportedSpaceErrors are the XRPC error names (and, generically, HTTP
-// statuses) a server returns for a method it does not implement at all, as
-// opposed to a semantic error from a method it recognizes and applied its own
-// validation or business logic to.
-var unsupportedSpaceErrorNames = map[string]bool{
-	"MethodNotImplemented": true,
-	"XRPCNotSupported":     true,
-	"NotFound":             true,
-}
-
 // SupportsSpaces reports whether the PDS at pdsEndpoint implements the atproto
 // permissioned-data ("spaces") protocol — com.atproto.simplespace — per the
 // alpha proposal (github.com/bluesky-social/proposals, 0016-permissioned-data).
@@ -32,12 +22,15 @@ var unsupportedSpaceErrorNames = map[string]bool{
 // #atproto_space_host service to support spaces: the proposal lets a PDS serve
 // the protocol at its ordinary #atproto_pds endpoint with no separate
 // advertisement. So capability is detected empirically instead of by reading
-// the DID document: probe a read-only method every implementation exposes
-// (getSpace) and classify the response. A PDS that doesn't recognize the
-// method responds with an HTTP 404/501 or the XRPC "method not implemented"
-// error family; a PDS that does implement it responds with its own semantic
-// error (invalid params, space not found, ...) or a successful result —
-// either way, calling the method didn't fail because the method is unknown.
+// the DID document: probe getSpace with no params, a call every implementation
+// recognizes, and only treat it as supported when the response is one only a
+// real implementation would give — a successful result, or the XRPC
+// "InvalidRequest" a lexicon-validating server returns for the missing
+// required "space" param (e.g. `{"error":"InvalidRequest","message":"Invalid
+// com.atproto.simplespace.getSpace params: Missing required key \"space\""}`
+// from a real spaces-alpha PDS). Any other response — a 404/501, a generic
+// router error, or some other error name entirely — is treated as
+// unsupported, since it isn't a signal a spaces implementation must produce.
 func SupportsSpaces(ctx context.Context, client *http.Client, pdsEndpoint string) bool {
 	req, err := http.NewRequestWithContext(
 		ctx, http.MethodGet, pdsEndpoint+"/xrpc/com.atproto.simplespace.getSpace", nil,
@@ -53,17 +46,15 @@ func SupportsSpaces(ctx context.Context, client *http.Client, pdsEndpoint string
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusNotImplemented {
-		return false
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return true
 	}
 
 	var body struct {
 		Error string `json:"error"`
 	}
-	// A response body that isn't a structured XRPC error (or isn't JSON at
-	// all) still means the request reached a handler for the method, since an
-	// unrecognized method fails closed with 404/501 above before a body
-	// matters.
-	_ = json.NewDecoder(resp.Body).Decode(&body)
-	return !unsupportedSpaceErrorNames[body.Error]
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return false
+	}
+	return body.Error == "InvalidRequest"
 }

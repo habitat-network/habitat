@@ -17,10 +17,13 @@ func TestSupportsSpaces(t *testing.T) {
 		noRoute bool // simulate a server that isn't reachable at all
 	}{
 		{
-			name:   "recognized method returns a semantic error",
+			// A real spaces-alpha PDS, called with no params:
+			// https://spaces-alpha.host.bsky.network/xrpc/com.atproto.simplespace.getSpace
+			name:   "missing required param reports InvalidRequest",
 			status: http.StatusBadRequest,
-			body:   `{"error":"SpaceNotFound","message":"no such space"}`,
-			want:   true,
+			body: `{"error":"InvalidRequest","message":"Invalid com.atproto.simplespace.` +
+				`getSpace params: Missing required key \"space\""}`,
+			want: true,
 		},
 		{
 			name:   "recognized method succeeds",
@@ -32,6 +35,12 @@ func TestSupportsSpaces(t *testing.T) {
 			name:   "unimplemented method reports MethodNotImplemented",
 			status: http.StatusNotImplemented,
 			body:   `{"error":"MethodNotImplemented"}`,
+			want:   false,
+		},
+		{
+			name:   "unrelated semantic error is not a spaces signal",
+			status: http.StatusBadRequest,
+			body:   `{"error":"SpaceNotFound","message":"no such space"}`,
 			want:   false,
 		},
 		{
