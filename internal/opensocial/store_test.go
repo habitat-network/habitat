@@ -297,7 +297,8 @@ func TestStore(t *testing.T) {
 		require.False(t, ok)
 
 		require.NoError(
-			t, s.GrantAppAccess(t.Context(), org, clientID, []string{"atproto", "transition:generic"}),
+			t,
+			s.GrantAppAccess(t.Context(), org, clientID, []string{"atproto", "transition:generic"}),
 		)
 
 		// The grant is now visible, and only for that client_id.

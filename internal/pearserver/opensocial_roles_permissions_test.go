@@ -73,7 +73,14 @@ func TestServer_DeleteRole(t *testing.T) {
 		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
 		require.NoError(t, err)
 		require.NoError(
-			t, ts.OpenSocialStore.PutRole(t.Context(), syntax.DID(orgDID), "moderator", "Moderator", ""),
+			t,
+			ts.OpenSocialStore.PutRole(
+				t.Context(),
+				syntax.DID(orgDID),
+				"moderator",
+				"Moderator",
+				"",
+			),
 		)
 
 		var out struct{}
@@ -153,7 +160,10 @@ func TestServer_AssignRoles(t *testing.T) {
 		require.NoError(t, ts.OpenSocialStore.PutPermissions(
 			t.Context(), syntax.DID(orgDID),
 			[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
-				{Action: string(opensocial.ActionRoleAssign), Roles: []string{opensocial.AdminRoleRkey}},
+				{
+					Action: string(opensocial.ActionRoleAssign),
+					Roles:  []string{opensocial.AdminRoleRkey},
+				},
 			},
 			[]opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
 				{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.MemberRoleRkey}},

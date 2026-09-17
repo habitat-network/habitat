@@ -221,7 +221,11 @@ func TestServiceProxyIntegration_DoesNotDuplicateCORSHeaders(t *testing.T) {
 	sp := NewServiceProxy(successValidator(callerID.DID), h, dir, nil)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/xrpc/community.opensocial.updatePermissions", http.NoBody)
+	r := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/community.opensocial.updatePermissions",
+		http.NoBody,
+	)
 	r.Header.Set("Atproto-Proxy", targetDID+"#habitat")
 	// Simulate the outer CORS middleware having already set these headers
 	// on the same ResponseWriter before this middleware runs.

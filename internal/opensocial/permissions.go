@@ -23,8 +23,10 @@ const (
 var (
 	ErrRoleNotFound            = errors.New("role not found")
 	ErrCannotDeleteBuiltinRole = errors.New("admin and member roles cannot be deleted")
-	ErrRoleNotAssignable       = errors.New("caller may not assign or revoke one of the given roles")
-	ErrMemberNotFound          = errors.New("member not found")
+	ErrRoleNotAssignable       = errors.New(
+		"caller may not assign or revoke one of the given roles",
+	)
+	ErrMemberNotFound = errors.New("member not found")
 )
 
 // GetPermissions returns orgDID's authz configuration: which roles authorize

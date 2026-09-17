@@ -68,10 +68,16 @@ func TestPermissions(t *testing.T) {
 			t.Context(), org,
 			[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
 				{Action: string(opensocial.ActionEject), Roles: []string{opensocial.AdminRoleRkey}},
-				{Action: string(opensocial.ActionSpaceConfigure), Roles: []string{"moderator", opensocial.AdminRoleRkey}},
+				{
+					Action: string(opensocial.ActionSpaceConfigure),
+					Roles:  []string{"moderator", opensocial.AdminRoleRkey},
+				},
 			},
 			[]opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
-				{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.MemberRoleRkey, "moderator"}},
+				{
+					Role:  opensocial.AdminRoleRkey,
+					Roles: []string{opensocial.MemberRoleRkey, "moderator"},
+				},
 			},
 		))
 
@@ -90,7 +96,10 @@ func TestPermissions(t *testing.T) {
 		require.NoError(t, s.PutPermissions(
 			t.Context(), org,
 			[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
-				{Action: string(opensocial.ActionRoleAssign), Roles: []string{opensocial.AdminRoleRkey}},
+				{
+					Action: string(opensocial.ActionRoleAssign),
+					Roles:  []string{opensocial.AdminRoleRkey},
+				},
 			},
 			[]opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
 				{Role: opensocial.AdminRoleRkey, Roles: []string{opensocial.MemberRoleRkey}},
@@ -220,7 +229,11 @@ func TestPermissionsLegacyOrgFallback(t *testing.T) {
 
 	assignable, err := s.AssignableRoles(t.Context(), org, creator)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{opensocial.AdminRoleRkey, opensocial.MemberRoleRkey}, assignable)
+	require.ElementsMatch(
+		t,
+		[]string{opensocial.AdminRoleRkey, opensocial.MemberRoleRkey},
+		assignable,
+	)
 
 	assignable, err = s.AssignableRoles(t.Context(), org, member)
 	require.NoError(t, err)
@@ -231,7 +244,10 @@ func TestPermissionsLegacyOrgFallback(t *testing.T) {
 	require.NoError(t, s.PutPermissions(
 		t.Context(), org,
 		[]opensocial_api.CommunityOpensocialPermissionsActionBinding{
-			{Action: string(opensocial.ActionCommunityConfigure), Roles: []string{opensocial.AdminRoleRkey}},
+			{
+				Action: string(opensocial.ActionCommunityConfigure),
+				Roles:  []string{opensocial.AdminRoleRkey},
+			},
 		},
 		nil,
 	))
