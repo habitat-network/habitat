@@ -16,6 +16,8 @@ var (
 
 	fClientName = "client-name"
 	fClientURI  = "client-uri"
+
+	fOAuthScopes = "oauth-scopes"
 )
 
 func getFlags() []cli.Flag {
@@ -83,6 +85,12 @@ func getFlags() []cli.Flag {
 			Name:    fClientURI,
 			Usage:   "OAuth client uri",
 			Sources: cli.EnvVars("SAP_CLIENT_URI"),
+		},
+		&cli.StringSliceFlag{
+			Name:    fOAuthScopes,
+			Usage:   "OAuth scopes requested by the client (passed to the oauth client config)",
+			Value:   []string{"atproto"},
+			Sources: cli.EnvVars("SAP_OAUTH_SCOPES"),
 		},
 	}
 }
