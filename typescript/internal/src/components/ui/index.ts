@@ -19,6 +19,7 @@ export * from "./textarea";
 export * from "./popover";
 export * from "./spinner";
 export * from "./table";
+export * from "./tabs";
 export * from "./collapsible";
 export * from "./calendar";
 export * from "./field";

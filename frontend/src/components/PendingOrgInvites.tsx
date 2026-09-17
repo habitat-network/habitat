@@ -6,10 +6,6 @@ import { profilesQueryOptions } from "@/queries/profiles";
 import { DidHoverCard } from "@/components/DidHoverCard";
 import {
   Badge,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Table,
   TableBody,
   TableCell,
@@ -41,58 +37,54 @@ export function PendingOrgInvites({
   if (invites.length === 0) return null;
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle className="text-base">
-          Pending invites ({invites.length})
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Invitee</TableHead>
-              <TableHead>Roles</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {invites.map((invite) => (
-              <TableRow key={invite.id}>
-                <TableCell>
-                  <DidHoverCard did={invite.invitee}>
-                    <div className="flex items-center gap-2">
-                      <UserAvatar
-                        actor={
-                          profileByDid.get(invite.invitee) ?? {
-                            did: invite.invitee,
-                          }
+    <div className="flex flex-col gap-4">
+      <h2 className="text-base font-semibold">
+        Pending invites ({invites.length})
+      </h2>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Invitee</TableHead>
+            <TableHead>Roles</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {invites.map((invite) => (
+            <TableRow key={invite.id}>
+              <TableCell>
+                <DidHoverCard did={invite.invitee}>
+                  <div className="flex items-center gap-2">
+                    <UserAvatar
+                      actor={
+                        profileByDid.get(invite.invitee) ?? {
+                          did: invite.invitee,
                         }
-                        size="sm"
-                      />
-                      <UserDisplayName
-                        actor={
-                          profileByDid.get(invite.invitee) ?? {
-                            did: invite.invitee,
-                          }
+                      }
+                      size="sm"
+                    />
+                    <UserDisplayName
+                      actor={
+                        profileByDid.get(invite.invitee) ?? {
+                          did: invite.invitee,
                         }
-                      />
-                    </div>
-                  </DidHoverCard>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-2 flex-wrap">
-                    {invite.roles.map((role) => (
-                      <Badge key={role} variant="outline">
-                        {role}
-                      </Badge>
-                    ))}
+                      }
+                    />
                   </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+                </DidHoverCard>
+              </TableCell>
+              <TableCell>
+                <div className="flex gap-2 flex-wrap">
+                  {invite.roles.map((role) => (
+                    <Badge key={role} variant="outline">
+                      {role}
+                    </Badge>
+                  ))}
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

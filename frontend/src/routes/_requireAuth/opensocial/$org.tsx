@@ -1,30 +1,37 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useMatchRoute,
+} from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  orgAppAccessQueryOptions,
   orgMembersQueryOptions,
   orgProfileQueryOptions,
 } from "@/queries/opensocial";
 import { DidHoverCard } from "@/components/DidHoverCard";
-import { InviteMemberDialog } from "@/components/InviteMemberDialog";
-import { EditProfileDialog } from "@/components/EditProfileDialog";
-import { PendingOrgInvites } from "@/components/PendingOrgInvites";
-import { profilesQueryOptions } from "@/queries/profiles";
-import { OrgAvatar, UserAvatar, UserDisplayName, type Actor } from "internal";
+import { OrgAvatar } from "internal";
 import {
-  Badge,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
 } from "internal/components/ui";
 import { ensureValidDid } from "@atproto/syntax";
+import {
+  UsersIcon,
+  ShieldIcon,
+  KeyRoundIcon,
+  PlugIcon,
+  PaletteIcon,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_requireAuth/opensocial/$org")({
   params: {
@@ -41,176 +48,105 @@ export const Route = createFileRoute("/_requireAuth/opensocial/$org")({
         context.queryClient,
       ),
     ),
-  component: OrgDetail,
+  component: OrgLayout,
 });
 
-function OrgDetail() {
+const NAV_ITEMS: {
+  to:
+    | "/opensocial/$org/members"
+    | "/opensocial/$org/roles"
+    | "/opensocial/$org/capabilities"
+    | "/opensocial/$org/apps"
+    | "/opensocial/$org/settings";
+  label: string;
+  icon: typeof UsersIcon;
+}[] = [
+  { to: "/opensocial/$org/members", label: "Members", icon: UsersIcon },
+  { to: "/opensocial/$org/roles", label: "Roles", icon: ShieldIcon },
+  {
+    to: "/opensocial/$org/capabilities",
+    label: "Capabilities",
+    icon: KeyRoundIcon,
+  },
+  { to: "/opensocial/$org/apps", label: "Authorized apps", icon: PlugIcon },
+  { to: "/opensocial/$org/settings", label: "Branding", icon: PaletteIcon },
+];
+
+function OrgLayout() {
   const { org } = Route.useParams();
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
-  const members = Route.useLoaderData();
   const { data: profile } = useQuery(
     orgProfileQueryOptions(org, authManager, queryClient),
   );
-  const { data: appAccess = [] } = useQuery(
-    orgAppAccessQueryOptions(org, authManager, queryClient),
-  );
-  const { data: profiles } = useQuery(
-    profilesQueryOptions(
-      members.map((m) => m.did),
-      queryClient,
-    ),
-  );
-  const profileByDid = new Map<string, Actor>(profiles?.map((p) => [p.did, p]));
-
-  // The caller is an admin if their own membership record (already loaded
-  // as part of the member list) carries the admin role.
-  const isAdmin = members.some(
-    (m) =>
-      m.did === authManager.getAuthInfo()?.did && m.roles.includes("admin"),
-  );
+  const matchRoute = useMatchRoute();
 
   return (
-    <div className="flex flex-col gap-6 py-6">
-      <div>
-        <Link
-          to="/opensocial"
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          ← All organizations
-        </Link>
-        <div className="flex items-center justify-between gap-3 mt-2">
-          <div className="flex items-center gap-3">
-            <OrgAvatar
-              did={org}
-              name={profile?.name}
-              avatarUrl={profile?.avatarUrl}
-              size="lg"
-            />
-            <h1 className="text-2xl font-semibold">
-              {profile?.name ?? <DidHoverCard did={org}>{org}</DidHoverCard>}
-            </h1>
-          </div>
-          {isAdmin && (
-            <div className="flex gap-2">
-              <InviteMemberDialog org={org} authManager={authManager} />
-              <EditProfileDialog
-                org={org}
-                name={profile?.name ?? ""}
-                description={profile?.description ?? ""}
-                avatarUrl={profile?.avatarUrl}
-                authManager={authManager}
-              />
-            </div>
-          )}
-        </div>
-        {profile?.description && (
-          <p className="text-muted-foreground mt-1">{profile.description}</p>
-        )}
-        <p className="font-mono text-xs text-muted-foreground break-all mt-1">
-          {org}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        <div className="flex flex-col gap-6">
-          {isAdmin && <PendingOrgInvites org={org} authManager={authManager} />}
-
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle className="text-base">
-                Members ({members.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Member</TableHead>
-                    <TableHead>Roles</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {members.map((member) => (
-                    <TableRow key={member.did}>
-                      <TableCell>
-                        <DidHoverCard did={member.did}>
-                          <div className="flex items-center gap-2">
-                            <UserAvatar
-                              actor={
-                                profileByDid.get(member.did) ?? {
-                                  did: member.did,
-                                }
-                              }
-                              size="sm"
-                            />
-                            <UserDisplayName
-                              actor={
-                                profileByDid.get(member.did) ?? {
-                                  did: member.did,
-                                }
-                              }
-                            />
-                          </div>
-                        </DidHoverCard>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2 flex-wrap">
-                          {member.roles.map((role) => (
-                            <Badge key={role} variant="outline">
-                              {role}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {members.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-muted-foreground">
-                        No members yet.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="text-base">
-              Approved apps ({appAccess.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Client ID</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {appAccess.map((app) => (
-                  <TableRow key={app.clientId}>
-                    <TableCell className="font-mono text-xs break-all">
-                      {app.clientId}
-                    </TableCell>
-                  </TableRow>
+    // [contain:layout] gives this element its own containing block, so the
+    // sidebar's `fixed` positioning is scoped to this section instead of the
+    // real viewport — otherwise it would render fixed to the browser window
+    // and overlap the app's own top nav bar (rendered above this route in
+    // __root.tsx), which isn't itself fixed/sticky.
+    <SidebarProvider className="min-h-[calc(100svh-1px)] [contain:layout]">
+      <Sidebar collapsible="icon" variant="floating">
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" render={<Link to="/opensocial" />}>
+                <OrgAvatar
+                  did={org}
+                  name={profile?.name}
+                  avatarUrl={profile?.avatarUrl}
+                />
+                <div className="flex flex-col overflow-hidden">
+                  <span className="truncate font-medium">
+                    {profile?.name ?? (
+                      <DidHoverCard did={org}>{org}</DidHoverCard>
+                    )}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    All organizations
+                  </span>
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {NAV_ITEMS.map((item) => (
+                  <SidebarMenuItem key={item.to}>
+                    <SidebarMenuButton
+                      isActive={
+                        !!matchRoute({
+                          to: item.to,
+                          params: { org },
+                          fuzzy: true,
+                        })
+                      }
+                      tooltip={item.label}
+                      render={<Link to={item.to} params={{ org }} />}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 ))}
-                {appAccess.length === 0 && (
-                  <TableRow>
-                    <TableCell className="text-muted-foreground">
-                      No approved apps yet.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+      <SidebarInset>
+        <div className="flex flex-col gap-6 py-6 px-4">
+          <div className="flex items-center gap-2">
+            <SidebarTrigger />
+          </div>
+          <Outlet />
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

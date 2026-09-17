@@ -17,6 +17,13 @@
           "createdAt": {
             "type": "string",
             "format": "datetime"
+          },
+          "scopes": {
+            "type": "array",
+            "description": "The OAuth scopes granted to this client for the org credential as of the most recent authorization, e.g. when it was approved to act as an opensocial community's own DID. Overwritten on each re-grant; not populated for appAccess records outside that flow.",
+            "items": {
+              "type": "string"
+            }
           }
         }
       }

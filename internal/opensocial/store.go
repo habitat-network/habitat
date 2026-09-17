@@ -163,6 +163,34 @@ func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 		); err != nil {
 			return fmt.Errorf("put access record: %w", err)
 		}
+		// The admin role starts out bound to every standardized action, and
+		// able to assign/eject either built-in role; the member role starts
+		// with no actions bound. Communities can rebind both via
+		// updatePermissions once they hold the community.configure action.
+		permissionsBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialPermissions{
+			Bindings: []opensocial_api.CommunityOpensocialPermissionsActionBinding{
+				{Action: string(ActionInvite), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionEject), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionRoleAssign), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionSpaceCreate), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionSpaceConfigure), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionSpaceDelete), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionCommunityConfigure), Roles: []string{AdminRoleRkey}},
+			},
+			Assignable: []opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
+				{Role: AdminRoleRkey, Roles: []string{AdminRoleRkey, MemberRoleRkey}},
+			},
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal permissions record: %w", err)
+		}
+		if _, _, err = spacesStoreTx.PutRecord(
+			ctx, membersSpace, orgID.DID, PermissionsCollection, "self",
+			permissionsBytes,
+		); err != nil {
+			return fmt.Errorf("put permissions record: %w", err)
+		}
 		orgDID = orgID.DID
 		return nil
 	}); err != nil {
@@ -472,10 +500,16 @@ func (s *Store) IsOrg(ctx context.Context, orgDID syntax.DID) (bool, error) {
 	return exists, nil
 }
 
+// GrantAppAccess grants clientID access to orgDID's members space (and so,
+// via CheckAppAccess, every space of the org), overwriting any prior grant.
+// scopes records what was actually approved as of this grant — e.g. when
+// clientID is approved to act as the org's own DID via an org credential —
+// for display; it isn't itself enforced.
 func (s *Store) GrantAppAccess(
 	ctx context.Context,
 	orgDID syntax.DID,
 	clientID string,
+	scopes []string,
 ) error {
 	rkey, err := habitat_syntax.AppAccessRkey(clientID)
 	if err != nil {
@@ -483,6 +517,7 @@ func (s *Store) GrantAppAccess(
 	}
 	recordBytes, err := spaces.MarshalRecord(habitat.NetworkHabitatSpaceAppAccess{
 		CreatedAt: time.Now().Format(time.RFC3339),
+		Scopes:    scopes,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal app access record: %w", err)

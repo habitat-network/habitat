@@ -296,12 +296,26 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, ok)
 
-		require.NoError(t, s.GrantAppAccess(t.Context(), org, clientID))
+		require.NoError(
+			t,
+			s.GrantAppAccess(t.Context(), org, clientID, []string{"atproto", "transition:generic"}),
+		)
 
 		// The grant is now visible, and only for that client_id.
 		ok, err = s.CheckAppAccess(t.Context(), spaceURI, clientID)
 		require.NoError(t, err)
 		require.True(t, ok)
+
+		// The granted scopes are recorded on the appAccess record.
+		rkey, err := habitat_syntax.AppAccessRkey(clientID)
+		require.NoError(t, err)
+		record, err := s.SpaceStore.GetRecord(
+			t.Context(),
+			habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self"),
+			org, "network.habitat.space.appAccess", rkey,
+		)
+		require.NoError(t, err)
+		require.Equal(t, []any{"atproto", "transition:generic"}, record.Value["scopes"])
 
 		ok, err = s.CheckAppAccess(t.Context(), spaceURI, "https://other.example.com")
 		require.NoError(t, err)

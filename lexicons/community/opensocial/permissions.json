@@ -1,0 +1,89 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.permissions",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "The community's authz configuration. Binds roles to the actions they authorize, and bounds which roles a role may grant or revoke via role.assign/eject. Lives in the community's `members` space, authored by the community DID. Roles composes by unioning: a member's authorized actions are the union of the actions bound to every role they hold; there are no deny-rules.",
+            "key": "literal:self",
+            "record": {
+                "type": "object",
+                "required": [
+                    "bindings",
+                    "assignable"
+                ],
+                "properties": {
+                    "bindings": {
+                        "type": "array",
+                        "description": "Which roles authorize each action.",
+                        "items": {
+                            "type": "ref",
+                            "ref": "#actionBinding"
+                        }
+                    },
+                    "assignable": {
+                        "type": "array",
+                        "description": "Which roles each role may grant or revoke (via role.assign) or eject a member holding (via eject).",
+                        "items": {
+                            "type": "ref",
+                            "ref": "#assignableBinding"
+                        }
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        },
+        "actionBinding": {
+            "type": "object",
+            "required": [
+                "action",
+                "roles"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "knownValues": [
+                        "invite",
+                        "eject",
+                        "role.assign",
+                        "space.create",
+                        "space.configure",
+                        "space.delete",
+                        "community.configure"
+                    ],
+                    "description": "The action this binding authorizes."
+                },
+                "roles": {
+                    "type": "array",
+                    "description": "Record keys of the community.opensocial.role records authorized to perform this action.",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "assignableBinding": {
+            "type": "object",
+            "required": [
+                "role",
+                "roles"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "description": "Record key of the role this binding applies to."
+                },
+                "roles": {
+                    "type": "array",
+                    "description": "Record keys of the roles a holder of `role` may assign to, or eject a holder of, via role.assign/eject.",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,40 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.putRole",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Create or update a role. Requires service-auth. Requires the `community.configure` action.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org",
+                        "role",
+                        "name"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the community the role belongs to."
+                        },
+                        "role": {
+                            "type": "string",
+                            "description": "Record key for the role, e.g. \"moderator\"."
+                        },
+                        "name": {
+                            "type": "string",
+                            "maxLength": 256
+                        },
+                        "description": {
+                            "type": "string",
+                            "maxLength": 2048
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
