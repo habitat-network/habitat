@@ -77,7 +77,11 @@ func TestServer_GetClientMetadata(t *testing.T) {
 		var got oauth.ClientMetadata
 		code := client.Query(
 			ts.Server.GetClientMetadata,
-			url.Values{"client_id": {"http://localhost/?redirect_uri=http://127.0.0.1/callback&scope=atproto"}},
+			url.Values{
+				"client_id": {
+					"http://localhost/?redirect_uri=http://127.0.0.1/callback&scope=atproto",
+				},
+			},
 			&got,
 		)
 		require.Equal(t, http.StatusOK, code)
