@@ -2,7 +2,7 @@ import {
   createFileRoute,
   Link,
   Outlet,
-  useLocation,
+  useMatchRoute,
 } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -79,7 +79,7 @@ function OrgLayout() {
   const { data: profile } = useQuery(
     orgProfileQueryOptions(org, authManager, queryClient),
   );
-  const currentPath = useLocation({ select: (loc) => loc.pathname });
+  const matchRoute = useMatchRoute();
 
   return (
     // [contain:layout] gives this element its own containing block, so the
@@ -119,9 +119,13 @@ function OrgLayout() {
                 {NAV_ITEMS.map((item) => (
                   <SidebarMenuItem key={item.to}>
                     <SidebarMenuButton
-                      isActive={currentPath.startsWith(
-                        item.to.replace("$org", org),
-                      )}
+                      isActive={
+                        !!matchRoute({
+                          to: item.to,
+                          params: { org },
+                          fuzzy: true,
+                        })
+                      }
                       tooltip={item.label}
                       render={<Link to={item.to} params={{ org }} />}
                     >
