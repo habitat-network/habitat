@@ -139,11 +139,7 @@ export function CapabilitiesEditor({
                 onValueChange={(next) =>
                   save({
                     bindings,
-                    assignable: withAssignable(
-                      assignable,
-                      role.rkey,
-                      next,
-                    ),
+                    assignable: withAssignable(assignable, role.rkey, next),
                   })
                 }
                 disabled={saving}
