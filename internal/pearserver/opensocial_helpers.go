@@ -63,3 +63,29 @@ func (p *PearServer) requireMember(
 	}
 	return true
 }
+
+// requireAction validates that caller is authorized to perform action in
+// org — i.e. holds a role bound to it in the community's
+// community.opensocial.permissions record — writing an appropriate error
+// response and returning false if not.
+func (p *PearServer) requireAction(
+	ctx context.Context,
+	w http.ResponseWriter,
+	org syntax.DID,
+	caller syntax.DID,
+	action opensocial.Action,
+) bool {
+	ok, err := p.opensocialStore.CheckAction(ctx, org, caller, action)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check action: %w", err))
+		return false
+	}
+	if !ok {
+		httpx.WriteUnauthorized(
+			ctx, w,
+			fmt.Sprintf("caller is not authorized to perform the %q action", action),
+		)
+		return false
+	}
+	return true
+}

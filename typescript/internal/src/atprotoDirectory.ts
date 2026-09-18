@@ -1,4 +1,5 @@
 import { HandleResolver, DidResolver } from "@atproto/identity";
+import { getServiceEndpoint } from "@atproto/common-web";
 
 // Resolvers over the public AT Protocol identity system (the PLC directory for
 // did:plc and .well-known for did:web). Instantiated once and reused so repeated
@@ -33,4 +34,28 @@ export async function resolveDidToHandle(
   } catch {
     return undefined;
   }
+}
+
+// resolveSpaceHost resolves the host that serves a space's records and blobs
+// (network.habitat.space.* — see bluesky-social/proposals#0016): the
+// `atproto_space_host` service on the space owner's DID document when it
+// declares one, falling back to its PDS endpoint. Throws if the DID can't be
+// resolved or declares neither service.
+export async function resolveSpaceHost(spaceOwnerDid: string): Promise<string> {
+  const doc = await didResolver.resolve(spaceOwnerDid);
+  if (!doc) {
+    throw new Error(`DID not found: ${spaceOwnerDid}`);
+  }
+  const spaceHost = getServiceEndpoint(doc, { id: "#atproto_space_host" });
+  if (spaceHost) {
+    return spaceHost;
+  }
+  const pds = getServiceEndpoint(doc, {
+    id: "#atproto_pds",
+    type: "AtprotoPersonalDataServer",
+  });
+  if (!pds) {
+    throw new Error(`No space host or PDS found for DID: ${spaceOwnerDid}`);
+  }
+  return pds;
 }

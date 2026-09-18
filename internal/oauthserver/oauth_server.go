@@ -484,7 +484,10 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		}
 		if isOpensocialOrg {
 			clientID := req.GetClient().GetID()
-			if err := o.opensocialStore.GrantAppAccess(ctx, subjectDID, clientID); err != nil {
+			grantedScopes := []string(req.GetGrantedScopes())
+			if err := o.opensocialStore.GrantAppAccess(
+				ctx, subjectDID, clientID, grantedScopes,
+			); err != nil {
 				logError(ctx, err)
 				httpx.WriteServerError(ctx, w, fmt.Errorf("failed to grant app access: %w", err))
 				return
@@ -524,7 +527,7 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodGet {
 		c, _ := requester.GetClient().(*client)
-		var clientName, clientURI, logoURI string
+		var clientName, clientURI, logoURI, tosURI, policyURI string
 		if c.ClientName != nil {
 			clientName = *c.ClientName
 		}
@@ -534,11 +537,20 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 		if c.LogoURI != nil {
 			logoURI = *c.LogoURI
 		}
+		if c.TosURI != nil {
+			tosURI = *c.TosURI
+		}
+		if c.PolicyURI != nil {
+			policyURI = *c.PolicyURI
+		}
 		httpx.WriteJSON(ctx, w, map[string]any{
 			"scopes":     requester.GetRequestedScopes(),
+			"clientId":   c.ClientID,
 			"clientName": clientName,
 			"clientUri":  clientURI,
 			"logoUri":    logoURI,
+			"tosUri":     tosURI,
+			"policyUri":  policyURI,
 		})
 		return
 	}

@@ -27,6 +27,7 @@ export const Route = createFileRoute(
           rkey: params.recordKey,
         },
         context.authManager,
+        context.queryClient,
       ),
     );
   },

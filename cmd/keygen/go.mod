@@ -1,3 +1,14 @@
 module github.com/habitat-network/habitat/cmd/keygen
 
 go 1.26.3
+
+require github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
+
+require (
+	github.com/mr-tron/base58 v1.3.0 // indirect
+	github.com/stretchr/testify v1.12.1 // indirect
+	gitlab.com/yawning/secp256k1-voi v0.0.0-20230925100816-f2616030848b // indirect
+	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect
+	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+)

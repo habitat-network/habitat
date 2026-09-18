@@ -30,9 +30,11 @@ overrides:
 
 catalog:
   '@atproto/api': 0.0.0-spaces-alpha-20260913191958
+  '@atproto/common-web': 0.0.0-spaces-alpha-20260915165437
   '@atproto/identity': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lexicon': 0.0.0-spaces-alpha-20260913191958
+  '@atproto/oauth-types': 0.0.0-spaces-alpha-20260913191958
   '@atproto/syntax': 0.0.0-spaces-alpha-20260913191958
   '@atproto/xrpc': 0.0.0-spaces-alpha-20260913191958
   '@tailwindcss/typography': ^0.5.20

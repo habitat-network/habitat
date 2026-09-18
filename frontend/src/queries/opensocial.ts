@@ -1,13 +1,17 @@
 import type { AuthManager } from "internal";
 import {
+  getBlobCidString,
   xrpc,
   type AtUriString,
+  type BlobRef,
   type DidString,
   type NsidString,
 } from "@atproto/lex";
 import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { community, network } from "api";
+import { fetchClientMetadata } from "@/lib/oauthScopes";
+import { spaceAgent, spaceCredentialQueryOptions } from "./spaceCredential";
 
 export type InviteView = community.opensocial.defs.InviteView;
 
@@ -85,70 +89,6 @@ export function orgPendingInvitesQueryOptions(
   });
 }
 
-// fetchWithBearer makes a JSON request against this pear instance using an
-// arbitrary bearer token (a delegation token or space credential) rather than
-// the caller's own OAuth session.
-async function fetchWithBearer(
-  path: string,
-  token: string,
-  init?: RequestInit,
-) {
-  const domain = import.meta.env.VITE_HABITAT_DOMAIN;
-  const res = await fetch(`https://${domain}${path}`, {
-    ...init,
-    headers: { ...init?.headers, Authorization: `Bearer ${token}` },
-  });
-  const body = await res.json().catch(() => undefined);
-  if (!res.ok) {
-    throw new Error(
-      body?.message || body?.error || `request failed: ${res.status}`,
-    );
-  }
-  return body;
-}
-
-// spaceCredentialQueryOptions fetches a credential for reading `space`
-// cross-repo: a delegation token minted under the caller's own OAuth session,
-// exchanged for a credential the space owner's own key signs off on. Cached
-// per space, so any query that needs to read records out of the same space
-// (a profile, its avatar blob, ...) shares one exchange instead of repeating
-// it.
-export function spaceCredentialQueryOptions(
-  space: string,
-  authManager: AuthManager,
-) {
-  return queryOptions({
-    queryKey: ["opensocial", "spaceCredential", space],
-    queryFn: async (): Promise<string> => {
-      const response = await xrpc(
-        authManager,
-        network.habitat.space.getDelegationToken.main,
-        { params: { space: space as AtUriString } },
-      );
-      const { token: delegationToken } = response.body;
-      const { credential } = await fetchWithBearer(
-        "/xrpc/network.habitat.space.getSpaceCredential",
-        delegationToken,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ space }),
-        },
-      );
-      return credential as string;
-    },
-    // Credentials are short-lived, server-signed tokens; treat as fresh for a
-    // few minutes instead of re-exchanging on every read of the space.
-    staleTime: 2 * 60 * 1000,
-  });
-}
-
-// The raw (un-jsonToLex'd) shape of a listRecords entry.
-interface RawRecord {
-  rkey: string;
-  value?: { roles?: string[] };
-}
-
 // orgMembersQueryOptions lists a community's members and their roles, read
 // directly off the community.opensocial.membership records in its members
 // space via a space credential (see spaceCredentialQueryOptions) — there's no
@@ -166,21 +106,23 @@ export function orgMembersQueryOptions(
   return queryOptions({
     queryKey: ["opensocial", "members", org],
     queryFn: async (): Promise<MemberView[]> => {
-      const credential = await queryClient.fetchQuery(
+      const cred = await queryClient.fetchQuery(
         spaceCredentialQueryOptions(membersSpace, authManager),
       );
-      const params = new URLSearchParams({
-        space: membersSpace,
-        repo: org,
-        collection: "community.opensocial.membership",
-      });
-      const { records } = await fetchWithBearer(
-        `/xrpc/network.habitat.space.listRecords?${params}`,
-        credential,
+      const response = await xrpc(
+        spaceAgent(cred),
+        network.habitat.space.listRecords.main,
+        {
+          params: {
+            space: membersSpace as AtUriString,
+            repo: org,
+            collection: "community.opensocial.membership" as NsidString,
+          },
+        },
       );
-      return (records as RawRecord[]).map((record) => ({
+      return response.body.records.map((record) => ({
         did: record.rkey,
-        roles: record.value?.roles ?? [],
+        roles: (record.value as { roles?: string[] } | undefined)?.roles ?? [],
       }));
     },
   });
@@ -188,11 +130,21 @@ export function orgMembersQueryOptions(
 
 export interface AppAccessView {
   clientId: string;
+  // The record's rkey: a base64url (no padding) encoding of clientId (see
+  // internal/syntax/app_access.go). Route params can't safely carry a raw
+  // client_id (typically a URL, with slashes and colons), so app-detail
+  // links use this opaque, already-URL-safe id instead and decode it back
+  // with decodeAppAccessRkey.
+  rkey: string;
+  // The scopes granted to this client as of its most recent org-credential
+  // approval (see internal/oauthserver's HandleToken). Empty if the grant
+  // predates this field, or wasn't made through that flow.
+  scopes: string[];
 }
 
 // decodeAppAccessRkey reverses AppAccessRkey (internal/syntax/app_access.go):
 // the record key is the base64url (no padding) encoding of the client_id.
-function decodeAppAccessRkey(rkey: string): string {
+export function decodeAppAccessRkey(rkey: string): string {
   const base64 = rkey.replace(/-/g, "+").replace(/_/g, "/");
   return atob(base64);
 }
@@ -214,22 +166,39 @@ export function orgAppAccessQueryOptions(
   return queryOptions({
     queryKey: ["opensocial", "appAccess", org],
     queryFn: async (): Promise<AppAccessView[]> => {
-      const credential = await queryClient.fetchQuery(
+      const cred = await queryClient.fetchQuery(
         spaceCredentialQueryOptions(membersSpace, authManager),
       );
-      const params = new URLSearchParams({
-        space: membersSpace,
-        repo: org,
-        collection: "network.habitat.space.appAccess",
-      });
-      const { records } = await fetchWithBearer(
-        `/xrpc/network.habitat.space.listRecords?${params}`,
-        credential,
+      const response = await xrpc(
+        spaceAgent(cred),
+        network.habitat.space.listRecords.main,
+        {
+          params: {
+            space: membersSpace as AtUriString,
+            repo: org,
+            collection: "network.habitat.space.appAccess" as NsidString,
+          },
+        },
       );
-      return (records as RawRecord[]).map((record) => ({
+      return response.body.records.map((record) => ({
         clientId: decodeAppAccessRkey(record.rkey),
+        rkey: record.rkey,
+        scopes:
+          (record.value as { scopes?: string[] } | undefined)?.scopes ?? [],
       }));
     },
+  });
+}
+
+// clientMetadataQueryOptions fetches (and caches) an authorized app's OAuth
+// client metadata document, keyed only by client_id since the document is
+// not org-specific.
+export function clientMetadataQueryOptions(clientId: string) {
+  return queryOptions({
+    queryKey: ["opensocial", "clientMetadata", clientId],
+    queryFn: () => fetchClientMetadata(clientId),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 }
 
@@ -237,13 +206,6 @@ export interface OrgProfile {
   name: string;
   description?: string;
   avatarUrl?: string;
-}
-
-// The raw (un-jsonToLex'd) shape of a blob reference as it comes back from
-// getRecord: {"$type":"blob","ref":{"$link":"<cid>"},"mimeType":"...","size":...}.
-interface RawBlobRef {
-  ref?: { $link?: string };
-  mimeType?: string;
 }
 
 // orgProfileQueryOptions fetches a community's profile record (and its
@@ -268,31 +230,37 @@ export function orgProfileQueryOptions(
     queryKey: ["opensocial", "profile", org],
     queryFn: async (): Promise<OrgProfile | null> => {
       try {
-        const credential = await queryClient.fetchQuery(
+        const cred = await queryClient.fetchQuery(
           spaceCredentialQueryOptions(aboutSpace, authManager),
         );
-        const params = new URLSearchParams({
-          space: aboutSpace,
-          repo: org,
-          collection: "community.opensocial.profile",
-          rkey: "self",
-        });
-        const { value } = await fetchWithBearer(
-          `/xrpc/network.habitat.space.getRecord?${params}`,
-          credential,
+        const agent = spaceAgent(cred);
+        const response = await xrpc(
+          agent,
+          network.habitat.space.getRecord.main,
+          {
+            params: {
+              space: aboutSpace as AtUriString,
+              repo: org as DidString,
+              collection: "community.opensocial.profile" as NsidString,
+              rkey: "self",
+            },
+          },
         );
+        const value = response.body.value as {
+          name: string;
+          description?: string;
+          avatar?: BlobRef;
+        };
         const profile: OrgProfile = {
           name: value.name,
           description: value.description,
         };
-        const avatar = value.avatar as RawBlobRef | undefined;
-        const cid = avatar?.ref?.$link;
+        const cid = value.avatar && getBlobCidString(value.avatar);
         if (cid) {
           const blobParams = new URLSearchParams({ space: aboutSpace, cid });
-          const domain = import.meta.env.VITE_HABITAT_DOMAIN;
           const blobRes = await fetch(
-            `https://${domain}/xrpc/network.habitat.space.getBlob?${blobParams}`,
-            { headers: { Authorization: `Bearer ${credential}` } },
+            `${cred.host}/xrpc/network.habitat.space.getBlob?${blobParams}`,
+            { headers: { Authorization: `Bearer ${cred.credential}` } },
           );
           if (blobRes.ok) {
             profile.avatarUrl = URL.createObjectURL(await blobRes.blob());
@@ -399,6 +367,218 @@ export async function acceptInvite(authManager: AuthManager, org: string) {
     },
   });
   return { roles };
+}
+
+export interface RoleView {
+  rkey: string;
+  name: string;
+  description?: string;
+}
+
+// orgRolesQueryOptions lists a community's declared roles, read directly off
+// the community.opensocial.role records in its members space via a space
+// credential (see spaceCredentialQueryOptions) — there's no dedicated
+// listRoles endpoint.
+export function orgRolesQueryOptions(
+  org: DidString,
+  authManager: AuthManager,
+  queryClient: QueryClient,
+) {
+  const membersSpace = new SpaceRef(
+    org,
+    "community.opensocial.members",
+    "self",
+  ).toString();
+  return queryOptions({
+    queryKey: ["opensocial", "roles", org],
+    queryFn: async (): Promise<RoleView[]> => {
+      const cred = await queryClient.fetchQuery(
+        spaceCredentialQueryOptions(membersSpace, authManager),
+      );
+      const response = await xrpc(
+        spaceAgent(cred),
+        network.habitat.space.listRecords.main,
+        {
+          params: {
+            space: membersSpace as AtUriString,
+            repo: org,
+            collection: "community.opensocial.role" as NsidString,
+          },
+        },
+      );
+      return response.body.records.map((record) => {
+        const value = record.value as
+          { name?: string; description?: string } | undefined;
+        return {
+          rkey: record.rkey,
+          name: value?.name ?? record.rkey,
+          description: value?.description,
+        };
+      });
+    },
+  });
+}
+
+export type ActionBinding = community.opensocial.permissions.ActionBinding;
+export type AssignableBinding =
+  community.opensocial.permissions.AssignableBinding;
+
+export interface PermissionsView {
+  bindings: ActionBinding[];
+  assignable: AssignableBinding[];
+}
+
+// orgPermissionsQueryOptions fetches a community's authz configuration (the
+// community.opensocial.permissions record), read via a space credential.
+// Resolves to empty bindings if the community hasn't written one yet.
+export function orgPermissionsQueryOptions(
+  org: DidString,
+  authManager: AuthManager,
+  queryClient: QueryClient,
+) {
+  const membersSpace = new SpaceRef(
+    org,
+    "community.opensocial.members",
+    "self",
+  ).toString();
+  return queryOptions({
+    queryKey: ["opensocial", "permissions", org],
+    queryFn: async (): Promise<PermissionsView> => {
+      const cred = await queryClient.fetchQuery(
+        spaceCredentialQueryOptions(membersSpace, authManager),
+      );
+      try {
+        const response = await xrpc(
+          spaceAgent(cred),
+          network.habitat.space.getRecord.main,
+          {
+            params: {
+              space: membersSpace as AtUriString,
+              repo: org,
+              collection: "community.opensocial.permissions" as NsidString,
+              rkey: "self",
+            },
+          },
+        );
+        const value = response.body.value as {
+          bindings?: ActionBinding[];
+          assignable?: AssignableBinding[];
+        };
+        return {
+          bindings: value.bindings ?? [],
+          assignable: value.assignable ?? [],
+        };
+      } catch {
+        return { bindings: [], assignable: [] };
+      }
+    },
+  });
+}
+
+// orgProxyHeaders routes an XRPC call through pear's Atproto-Proxy
+// middleware (internal/forwarding.ServiceProxy): the caller's own OAuth
+// session is validated, then the request is re-signed server-side as a
+// service-auth JWT audienced to the org DID's #habitat service, which is
+// what the service-auth-only endpoints below require. Used for every
+// org-admin mutation that isn't already accepted over the caller's own
+// OAuth session (see e.g. updateProfile/createInvite, which are).
+function orgProxyHeaders(org: string): HeadersInit {
+  return { "Atproto-Proxy": `${org}#habitat` };
+}
+
+// putRole creates or updates a role declaration. Requires the caller to hold
+// the community.configure action.
+export async function putRole(
+  authManager: AuthManager,
+  org: string,
+  role: string,
+  name: string,
+  description?: string,
+) {
+  const response = await xrpc(authManager, community.opensocial.putRole.main, {
+    headers: orgProxyHeaders(org),
+    body: {
+      org: org as DidString,
+      role,
+      name,
+      description: description || undefined,
+    },
+  });
+  return response.body;
+}
+
+// deleteRole removes a role declaration. Requires the caller to hold the
+// community.configure action; the built-in admin/member roles can't be
+// removed.
+export async function deleteRole(
+  authManager: AuthManager,
+  org: string,
+  role: string,
+) {
+  const response = await xrpc(
+    authManager,
+    community.opensocial.deleteRole.main,
+    { headers: orgProxyHeaders(org), body: { org: org as DidString, role } },
+  );
+  return response.body;
+}
+
+// updatePermissions replaces a community's authz configuration: which roles
+// authorize which actions, and which roles each role may assign/eject.
+// Requires the caller to hold the community.configure action.
+export async function updatePermissions(
+  authManager: AuthManager,
+  org: string,
+  bindings: ActionBinding[],
+  assignable: AssignableBinding[],
+) {
+  const response = await xrpc(
+    authManager,
+    community.opensocial.updatePermissions.main,
+    {
+      headers: orgProxyHeaders(org),
+      body: { org: org as DidString, bindings, assignable },
+    },
+  );
+  return response.body;
+}
+
+// assignRoles sets a member's full role set. Requires the caller to hold the
+// role.assign action, bounded by the roles it's permitted to assign.
+export async function assignRoles(
+  authManager: AuthManager,
+  org: string,
+  member: string,
+  roles: string[],
+) {
+  const response = await xrpc(
+    authManager,
+    community.opensocial.assignRoles.main,
+    {
+      headers: orgProxyHeaders(org),
+      body: { org: org as DidString, member: member as DidString, roles },
+    },
+  );
+  return response.body;
+}
+
+// ejectMember removes a member from the community, revoking their roles and
+// access. Requires the caller to hold the eject action, bounded by the roles
+// it's permitted to assign.
+export async function ejectMember(
+  authManager: AuthManager,
+  org: string,
+  member: string,
+) {
+  const response = await xrpc(
+    authManager,
+    community.opensocial.ejectMember.main,
+    {
+      headers: orgProxyHeaders(org),
+      body: { org: org as DidString, member: member as DidString },
+    },
+  );
+  return response.body;
 }
 
 // createInvite invites `invitee` to join `org`, granting them `roles` once

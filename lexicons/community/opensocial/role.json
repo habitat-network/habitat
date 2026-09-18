@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "record",
-            "description": "Declares that a role exists within the community. Lives in the community's `members` space, authored by the community DID. What actions a role authorizes is out of scope for this record.",
+            "description": "Declares that a role exists within the community. Lives in the community's `members` space, authored by the community DID. Which actions a role authorizes is tracked separately, in the community's community.opensocial.permissions record.",
             "key": "any",
             "record": {
                 "type": "object",
