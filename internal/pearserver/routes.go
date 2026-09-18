@@ -15,6 +15,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/network.habitat.space.getRepo", p.GetRepo)
 	p.router.HandleFunc("/xrpc/network.habitat.space.getDelegationToken", p.GetDelegationToken)
 	p.router.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential", p.GetSpaceCredential)
+	p.router.HandleFunc("/xrpc/network.habitat.space.registerNotify", p.RegisterNotify)
 	p.router.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", p.UploadBlob)
 
 	// Opensocial
@@ -69,6 +70,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/com.atproto.space.getRepo", p.GetRepo)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getDelegationToken", p.GetDelegationToken)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getSpaceCredential", p.GetSpaceCredential)
+	p.router.HandleFunc("/xrpc/com.atproto.space.registerNotify", p.RegisterNotify)
 	p.router.HandleFunc("/xrpc/com.atproto.repo.uploadBlob", p.UploadBlob)
 	p.router.HandleFunc("/xrpc/com.atproto.simplespace.createSpace", p.CreateSpace)
 	p.router.HandleFunc("/xrpc/com.atproto.simplespace.putMember", p.AddMember)
