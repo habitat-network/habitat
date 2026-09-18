@@ -439,7 +439,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		defaultDir,
 	)
 
-	idServer, err := habitat_identity.NewServer(hive, validator, orgStore, pdsForwarding, domain)
+	idServer, err := habitat_identity.NewServer(
+		hive, validator, orgStore, pdsForwarding, domain,
+		habitat_identity.WithClient(httpx.NewClient()),
+	)
 	if err != nil {
 		return fmt.Errorf("setup hive server: %w", err)
 	}
