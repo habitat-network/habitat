@@ -53,4 +53,26 @@ func (p *PearServer) registerRoutes() {
 	)
 	p.router.HandleFunc("/xrpc/network.habitat.relationship.resolveRelations", p.ResolveRelations)
 	p.router.HandleFunc("/xrpc/network.habitat.relationship.listRelatedSpaces", p.ListRelatedSpaces)
+
+	// com.atproto aliases for the permissioned-data proposal's official NSIDs
+	// (proposal 0016). Same handlers as the network.habitat registrations
+	// above; com.atproto.simplespace.putMember aliases addMember.
+	p.router.HandleFunc("/xrpc/com.atproto.space.listSpaces", p.ListSpaces)
+	p.router.HandleFunc("/xrpc/com.atproto.space.listRepos", p.ListRepos)
+	p.router.HandleFunc("/xrpc/com.atproto.space.putRecord", p.PutRecord)
+	p.router.HandleFunc("/xrpc/com.atproto.space.getRecord", p.GetRecord)
+	p.router.HandleFunc("/xrpc/com.atproto.space.getBlob", p.GetBlob)
+	p.router.HandleFunc("/xrpc/com.atproto.space.listRecords", p.ListRecords)
+	p.router.HandleFunc("/xrpc/com.atproto.space.deleteRecord", p.DeleteRecord)
+	p.router.HandleFunc("/xrpc/com.atproto.space.listRepoOps", p.ListRepoOps)
+	p.router.HandleFunc("/xrpc/com.atproto.space.getLatestCommit", p.GetLatestCommit)
+	p.router.HandleFunc("/xrpc/com.atproto.space.getRepo", p.GetRepo)
+	p.router.HandleFunc("/xrpc/com.atproto.space.getDelegationToken", p.GetDelegationToken)
+	p.router.HandleFunc("/xrpc/com.atproto.space.getSpaceCredential", p.GetSpaceCredential)
+	p.router.HandleFunc("/xrpc/com.atproto.repo.uploadBlob", p.UploadBlob)
+	p.router.HandleFunc("/xrpc/com.atproto.simplespace.createSpace", p.CreateSpace)
+	p.router.HandleFunc("/xrpc/com.atproto.simplespace.putMember", p.AddMember)
+	p.router.HandleFunc("/xrpc/com.atproto.simplespace.removeMember", p.RemoveMember)
+	p.router.HandleFunc("/xrpc/com.atproto.simplespace.listMembers", p.ListMembers)
+	p.router.HandleFunc("/xrpc/com.atproto.simplespace.deleteSpace", p.DeleteSpace)
 }
