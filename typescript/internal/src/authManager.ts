@@ -12,6 +12,7 @@ export class AuthManager implements Agent {
   private client: BrowserOAuthClient;
   private session: OAuthSession | undefined;
   private onUnauthenticated: (error?: string) => void;
+  private initPromise: Promise<void> | undefined;
 
   get did(): DidString | undefined {
     return this.session?.did as DidString | undefined;
@@ -43,20 +44,32 @@ export class AuthManager implements Agent {
   }
 
   // Processes an OAuth callback if present in the URL, otherwise restores an
-  // existing session. Idempotent: the underlying client.init() must run once.
-  async init(): Promise<void> {
+  // existing session. The underlying client.init() must run exactly once (it
+  // consumes the single-use authorization code in the URL), but TanStack
+  // Router's root beforeLoad can invoke this multiple times concurrently
+  // (route re-evaluation, React StrictMode). Memoize the call so every
+  // caller awaits the same run instead of racing to set `this.session` from
+  // their own independent client.init() call.
+  init(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = this.doInit();
+    }
+    return this.initPromise;
+  }
+
+  private async doInit(): Promise<void> {
     try {
       const result = await this.client.init();
       this.session = result?.session;
     } catch (err) {
-      // The provider (or the user) rejected the auth request. Route back to
-      // login the same way any other unauthenticated state does, carrying
-      // the reason along.
-      if (err instanceof OAuthCallbackError) {
-        this.onUnauthenticated(err.message);
-        return;
-      }
-      throw err;
+      // Either the provider (or the user) rejected the auth request, or a
+      // previously persisted session could no longer be restored (e.g. an
+      // expired/revoked refresh token). Both leave us unauthenticated, so
+      // route back to login the same way any other unauthenticated state
+      // does, carrying the reason along when there is one.
+      this.onUnauthenticated(
+        err instanceof OAuthCallbackError ? err.message : undefined,
+      );
     }
   }
 

@@ -8,7 +8,10 @@ export default (clientName: string, baseUrl: string) => {
     client_name: clientName,
     client_uri: origin,
     redirect_uris: [`${origin}/oauth-login`, origin],
-    scope: "atproto transition:generic",
+    // "space:*?authority=*&action=read" requests read access to every space
+    // (any type, any authority) per the permissioned-data proposal
+    // (github.com/bluesky-social/proposals, 0016-permissioned-data#oauth-scopes).
+    scope: "atproto transition:generic space:*?authority=*&action=read",
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
     token_endpoint_auth_method: "none",
