@@ -365,15 +365,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
 
-	notifyServer := notify.NewServer(
-		notifyStore,
-		validator,
-	)
-
 	simpleStore := simplespace.NewStore(db, spacesStore, permStore)
 
 	// Consolidated server owning the opensocial, simplespace, relationship,
-	// and spaces handler routes.
+	// spaces, and registerNotify handler routes.
 	pearApp := pearserver.New(
 		domain,
 		validator,
@@ -384,6 +379,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		opensocialStore,
 		permStore,
 		simpleStore,
+		notifyStore,
 		clientmetadata.NewResolver(),
 	)
 
@@ -527,8 +523,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
-	// Spaces (registerNotify stays with notifyServer; the rest route to pearApp)
-	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
+	// Spaces
 	mux.PathPrefix("/xrpc/network.habitat.space.").Handler(pearApp)
 
 	// Simplespace
@@ -536,6 +531,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	// Relationships
 	mux.PathPrefix("/xrpc/network.habitat.relationship.").Handler(pearApp)
+
+	// Proposal 0016 aliases: the official com.atproto NSIDs served by the same
+	// pearApp handlers as their network.habitat counterparts above.
+	mux.PathPrefix("/xrpc/com.atproto.space.").Handler(pearApp)
+	mux.PathPrefix("/xrpc/com.atproto.simplespace.").Handler(pearApp)
 
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
