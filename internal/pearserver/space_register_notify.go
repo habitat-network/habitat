@@ -1,4 +1,4 @@
-package notify
+package pearserver
 
 import (
 	"encoding/json"
@@ -18,19 +18,10 @@ import (
 // the syncer must renew it.
 const registrationTTL = 24 * time.Hour
 
-type Server struct {
-	store     Store
-	validator authn.RequestValidator
-}
-
-func NewServer(store Store, validator authn.RequestValidator) *Server {
-	return &Server{store: store, validator: validator}
-}
-
 // RegisterNotify handles network.habitat.space.registerNotify: a syncer
 // authenticated with a space credential subscribes an endpoint to notifyWrite
 // events for the whole space or a specific repo.
-func (s *Server) RegisterNotify(w http.ResponseWriter, r *http.Request) {
+func (p *PearServer) RegisterNotify(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var input habitat.NetworkHabitatSpaceRegisterNotifyInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -42,7 +33,7 @@ func (s *Server) RegisterNotify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The space credential must authorize the space being registered against.
-	if _, ok = s.validator.Request(
+	if _, ok = p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodSpaceCredential),
 		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),
 	).Validate(w, r); !ok {
@@ -56,7 +47,7 @@ func (s *Server) RegisterNotify(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	expiresAt := time.Now().Add(registrationTTL)
-	if err := s.store.Register(ctx, spaceURI, repo, input.Endpoint, expiresAt); err != nil {
+	if err := p.notifyStore.Register(ctx, spaceURI, repo, input.Endpoint, expiresAt); err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("register notify: %w", err))
 		return
 	}

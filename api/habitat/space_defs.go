@@ -4,7 +4,6 @@ package habitat
 
 import (
 	"encoding/json"
-
 	"github.com/bluesky-social/indigo/atproto/atdata"
 )
 

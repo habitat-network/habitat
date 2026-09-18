@@ -603,15 +603,13 @@ func setupPear(t *testing.T) *pearHost {
 		pearserver_testutil.WithSpaceStore(spacesStore),
 		pearserver_testutil.WithValidator(validator),
 		pearserver_testutil.WithHive(orgHive),
+		pearserver_testutil.WithNotifyStore(notifyStore),
 	)
 	pearApp := ts.Server
-	notifyServer := notify.NewServer(notifyStore, validator)
 
-	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
-	// pearApp serves the remaining spaces read/sync surface. Its gorilla router
-	// must be mounted at root — a ServeMux subtree prefix would hide the full
-	// path from it and 404 every route. The exact registerNotify pattern above
-	// still takes precedence for that single path.
+	// pearApp serves the full spaces read/sync surface including
+	// registerNotify. Its gorilla router must be mounted at root — a ServeMux
+	// subtree prefix would hide the full path from it and 404 every route.
 	mux.Handle("/", pearApp)
 
 	return &pearHost{server: server, store: spacesStore, hive: orgHive, author: author}

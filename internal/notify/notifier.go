@@ -11,6 +11,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	_ "github.com/bluesky-social/indigo/atproto/auth" // registers the ES256/ES256K signing methods jwt.GetSigningMethod resolves below
+
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"

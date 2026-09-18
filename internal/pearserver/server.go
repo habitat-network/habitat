@@ -10,6 +10,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/simplespace"
@@ -34,6 +35,7 @@ type PearServer struct {
 	opensocialStore *opensocial.Store
 	permStore       perms.Store
 	simpleStore     *simplespace.Store
+	notifyStore     notify.Store
 
 	// clientMeta resolves OAuth client metadata/JWKS for verifying client
 	// attestations on getSpaceCredential.
@@ -52,6 +54,7 @@ func New(
 	opensocialStore *opensocial.Store,
 	permStore perms.Store,
 	simpleStore *simplespace.Store,
+	notifyStore notify.Store,
 	clientMeta *clientmetadata.Resolver,
 ) *PearServer {
 	ps := &PearServer{
@@ -66,6 +69,7 @@ func New(
 		opensocialStore: opensocialStore,
 		permStore:       permStore,
 		simpleStore:     simpleStore,
+		notifyStore:     notifyStore,
 		clientMeta:      clientMeta,
 	}
 	ps.registerRoutes()

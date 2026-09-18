@@ -14,6 +14,7 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -33,6 +34,7 @@ type TestServer struct {
 	SpaceStore      spaces.Store
 	OpenSocialStore *opensocial.Store
 	SimpleStore     *simplespace.Store
+	NotifyStore     notify.Store
 	Hive            hive.Hive
 	HostKey         atcrypto.PrivateKey
 	DB              *gorm.DB
@@ -66,6 +68,12 @@ func WithDB(db *gorm.DB) utils.Opt[TestServer] {
 func WithSpaceStore(store spaces.Store) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.SpaceStore = store
+	}
+}
+
+func WithNotifyStore(store notify.Store) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.NotifyStore = store
 	}
 }
 
@@ -114,6 +122,11 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 			spaces_testutil.WithHostKey(ts.HostKey),
 		)
 	}
+	if ts.NotifyStore == nil {
+		notifyStore, err := notify.NewStore(ts.DB)
+		require.NoError(t, err)
+		ts.NotifyStore = notifyStore
+	}
 	blobStore := spaces_testutil.NewTestBlobStore(t)
 
 	os, err := opensocial.NewStore(ts.DB, ts.SpaceStore, blobStore, ts.Hive)
@@ -134,6 +147,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		os,
 		ps,
 		ss,
+		ts.NotifyStore,
 		clientmetadata.NewResolver(),
 	)
 	ts.PermStore = ps
