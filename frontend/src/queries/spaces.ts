@@ -83,7 +83,7 @@ export function spaceReposQueryOptions(
         com.atproto.space.listRepos.main,
         {
           validateResponse: false,
-          params: { space: space as SpaceRefString }
+          params: { space: space as SpaceRefString },
         },
       );
       return response.body.repos;
@@ -126,7 +126,7 @@ export function spaceLatestCommitQueryOptions(
           com.atproto.space.getLatestCommit.main,
           {
             validateResponse: false,
-            params: { space: space as SpaceRefString, repo: repo as DidString }
+            params: { space: space as SpaceRefString, repo: repo as DidString },
           },
         );
         return response.body.commit ?? null;

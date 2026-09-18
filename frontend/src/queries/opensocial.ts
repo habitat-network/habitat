@@ -234,18 +234,14 @@ export function orgProfileQueryOptions(
           spaceCredentialQueryOptions(aboutSpace, authManager),
         );
         const agent = spaceAgent(cred);
-        const response = await xrpc(
-          agent,
-          com.atproto.space.getRecord.main,
-          {
-            params: {
-              space: aboutSpace as SpaceRefString,
-              repo: org as DidString,
-              collection: "community.opensocial.profile" as NsidString,
-              rkey: "self",
-            },
+        const response = await xrpc(agent, com.atproto.space.getRecord.main, {
+          params: {
+            space: aboutSpace as SpaceRefString,
+            repo: org as DidString,
+            collection: "community.opensocial.profile" as NsidString,
+            rkey: "self",
           },
-        );
+        });
         const value = response.body.value as {
           name: string;
           description?: string;

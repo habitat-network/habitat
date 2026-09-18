@@ -7,7 +7,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { xrpc, type DidString, type NsidString } from "@atproto/lex";
-import { com, network } from "api";
+import { network } from "api";
 import { SpaceRef } from "@atproto/syntax";
 import {
   Button,
