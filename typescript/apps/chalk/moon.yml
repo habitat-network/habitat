@@ -16,7 +16,7 @@ tasks:
     deps:
       - pear:dev
       - target: "sap:dev"
-        env: 
+        env:
           SAP_OAUTH_SCOPES: "space:network.habitat.docs?authority=*&action=create&action=read&action=update&action=delete&manage=create&manage=update&manage=delete,space:network.habitat.docs.comments?authority=*&action=create&action=read&action=update&action=delete&manage=create&manage=update&manage=delete,space:community.opensocial.members?authority=*&action=read,space:community.opensocial.about?authority=*&action=read"
 
       - root:caddy
