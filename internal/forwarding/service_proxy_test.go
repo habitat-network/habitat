@@ -156,6 +156,7 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", http.NoBody)
 	r.Header.Set("Atproto-Proxy", targetDID+"#atproto_labeler")
 	r.Header.Set("DPoP", "some-dpop-proof")
+	r.Header.Set("Habitat-Auth-Method", "oauth")
 	sp(neverNext(t)).ServeHTTP(w, r)
 
 	require.Equal(t, http.StatusOK, w.Code)
@@ -169,6 +170,12 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 		t,
 		received.Header.Get("DPoP"),
 		"DPoP must be stripped (proof is bound to Habitat's endpoint)",
+	)
+	require.Empty(
+		t,
+		received.Header.Get("Habitat-Auth-Method"),
+		"Habitat-Auth-Method must be stripped, or the target's OAuthServer.CanHandle "+
+			"would misidentify the forwarded service-auth JWT as an OAuth token",
 	)
 
 	// Verify the forwarded Authorization is a service auth JWT issued by the caller.

@@ -52,6 +52,7 @@ export function spacesListQueryOptions(
         authManager,
         com.atproto.space.listSpaces.main,
         {
+          validateResponse: false,
           params: {
             did: filter.did as DidString | undefined,
             type: filter.type as NsidString | undefined,
@@ -80,7 +81,10 @@ export function spaceReposQueryOptions(
       const response = await xrpc(
         spaceAgent(cred),
         com.atproto.space.listRepos.main,
-        { params: { space: space as SpaceRefString } },
+        {
+          validateResponse: false,
+          params: { space: space as SpaceRefString }
+        },
       );
       return response.body.repos;
     },
@@ -120,7 +124,10 @@ export function spaceLatestCommitQueryOptions(
         const response = await xrpc(
           spaceAgent(cred),
           com.atproto.space.getLatestCommit.main,
-          { params: { space: space as SpaceRefString, repo: repo as DidString } },
+          {
+            validateResponse: false,
+            params: { space: space as SpaceRefString, repo: repo as DidString }
+          },
         );
         return response.body.commit ?? null;
       } catch (err) {
@@ -181,6 +188,7 @@ export function spaceRecordsQueryOptions(
         spaceAgent(cred),
         com.atproto.space.listRecords.main,
         {
+          validateResponse: false,
           params: {
             space: space as SpaceRefString,
             repo: repo as DidString,
