@@ -11,7 +11,11 @@ import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { com, community, network } from "api";
 import { fetchClientMetadata } from "@/lib/oauthScopes";
-import { spaceAgent, spaceCredentialQueryOptions } from "./spaceCredential";
+import {
+  spaceAgent,
+  spaceCredentialHeaders,
+  spaceCredentialQueryOptions,
+} from "./spaceCredential";
 
 export type InviteView = community.opensocial.defs.InviteView;
 
@@ -254,10 +258,10 @@ export function orgProfileQueryOptions(
         const cid = value.avatar && getBlobCidString(value.avatar);
         if (cid) {
           const blobParams = new URLSearchParams({ space: aboutSpace, cid });
-          const blobRes = await fetch(
-            `${cred.host}/xrpc/com.atproto.space.getBlob?${blobParams}`,
-            { headers: { Authorization: `Bearer ${cred.credential}` } },
-          );
+          const blobUrl = `${cred.host}/xrpc/com.atproto.space.getBlob?${blobParams}`;
+          const blobRes = await fetch(blobUrl, {
+            headers: await spaceCredentialHeaders(cred, "GET", blobUrl),
+          });
           if (blobRes.ok) {
             profile.avatarUrl = URL.createObjectURL(await blobRes.blob());
           }
