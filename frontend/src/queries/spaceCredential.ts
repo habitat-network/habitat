@@ -1,6 +1,6 @@
 import type { AuthManager } from "internal";
 import { createDpopProof, resolveSpaceHost } from "internal";
-import { xrpc, type AgentConfig, type SpaceRefString } from "@atproto/lex";
+import { xrpc, type Agent, type SpaceRefString } from "@atproto/lex";
 import { SpaceRef } from "@atproto/syntax";
 import { queryOptions } from "@tanstack/react-query";
 import { com } from "api";
@@ -87,14 +87,39 @@ export function spaceCredentialQueryOptions(
   });
 }
 
-// spaceAgent turns a space credential into xrpc agent options: requests are
-// sent to the space's own resolved host (not this pear instance) with the
-// credential as a bearer token, so a lexicon-typed, lex-decoded read (e.g.
+// spaceCredentialHeaders builds the Authorization + DPoP headers needed to
+// present cred on a `method url` request. A space credential reads a whole
+// space and is shown to every repo host in it — as a bearer token it would be
+// a shared secret, since any host given one could replay it against every
+// other host in the space. So per the permissioned-data proposal
+// (github.com/bluesky-social/proposals/0016-permissioned-data), it's
+// presented via the DPoP scheme with a fresh proof (binding the credential's
+// hash into "ath") on every request, not just the exchange that minted it.
+export async function spaceCredentialHeaders(
+  cred: SpaceCredential,
+  method: string,
+  url: string,
+): Promise<HeadersInit> {
+  const proof = await createDpopProof(method, url, cred.credential);
+  return { Authorization: `DPoP ${cred.credential}`, DPoP: proof };
+}
+
+// spaceAgent turns a space credential into an xrpc Agent: requests are sent
+// to the space's own resolved host (not this pear instance), DPoP-presenting
+// the credential per request, so a lexicon-typed, lex-decoded read (e.g.
 // com.atproto.space.listRecords) can be made the same way an
 // authManager-backed one would.
-export function spaceAgent(cred: SpaceCredential): AgentConfig {
+export function spaceAgent(cred: SpaceCredential): Agent {
   return {
-    service: cred.host,
-    headers: { Authorization: `Bearer ${cred.credential}` },
+    fetchHandler: async (path, init) => {
+      const url = `${cred.host}${path}`;
+      const method = init.method ?? "GET";
+      const headers = new Headers(init.headers);
+      const auth = await spaceCredentialHeaders(cred, method, url);
+      for (const [key, value] of new Headers(auth)) {
+        headers.set(key, value);
+      }
+      return fetch(url, { ...init, headers });
+    },
   };
 }

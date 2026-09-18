@@ -11,7 +11,11 @@ import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { com, community, network } from "api";
 import { fetchClientMetadata } from "@/lib/oauthScopes";
-import { spaceAgent, spaceCredentialQueryOptions } from "./spaceCredential";
+import {
+  spaceAgent,
+  spaceCredentialHeaders,
+  spaceCredentialQueryOptions,
+} from "./spaceCredential";
 
 export type InviteView = community.opensocial.defs.InviteView;
 
@@ -54,7 +58,11 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
 }
 
 // myInvitesQueryOptions lists the calling user's pending invites across every
-// community on this instance.
+// community on this instance. community.opensocial.listInvites is a habitat
+// management-plane endpoint with no PDS-side implementation, so it's proxied
+// to this habitat instance the same way createSpace is — otherwise a
+// spaces-capable identity's session would send it straight to their own PDS,
+// which doesn't implement it.
 export function myInvitesQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["opensocial", "myInvites"],
@@ -62,7 +70,12 @@ export function myInvitesQueryOptions(authManager: AuthManager) {
       const response = await xrpc(
         authManager,
         community.opensocial.listInvites.main,
-        { params: {} },
+        {
+          params: {},
+          headers: {
+            "atproto-proxy": `did:web:${import.meta.env.VITE_HABITAT_DOMAIN}#habitat`,
+          },
+        },
       );
       return response.body.invites;
     },
@@ -254,10 +267,10 @@ export function orgProfileQueryOptions(
         const cid = value.avatar && getBlobCidString(value.avatar);
         if (cid) {
           const blobParams = new URLSearchParams({ space: aboutSpace, cid });
-          const blobRes = await fetch(
-            `${cred.host}/xrpc/com.atproto.space.getBlob?${blobParams}`,
-            { headers: { Authorization: `Bearer ${cred.credential}` } },
-          );
+          const blobUrl = `${cred.host}/xrpc/com.atproto.space.getBlob?${blobParams}`;
+          const blobRes = await fetch(blobUrl, {
+            headers: await spaceCredentialHeaders(cred, "GET", blobUrl),
+          });
           if (blobRes.ok) {
             profile.avatarUrl = URL.createObjectURL(await blobRes.blob());
           }
