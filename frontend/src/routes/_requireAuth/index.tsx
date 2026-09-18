@@ -25,7 +25,7 @@ export const Route = createFileRoute("/_requireAuth/")({
       authManager,
       network.habitat.listConnectedApps.main,
       { params: {} },
-    );
+    ).catch(() => ({ body: { apps: [] } }));
 
     const apps = appData.body.apps.filter(
       (app) => app.clientUri !== import.meta.env.VITE_BASE_URL,
