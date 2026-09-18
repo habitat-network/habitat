@@ -64,12 +64,11 @@ export function spaceCredentialQueryOptions(
       // credential to a key the caller holds (see
       // lexicons/com/atproto/space/getSpaceCredential.json), so a
       // spaces-capable PDS talked to directly (bypassing pear's proxy)
-      // rejects this call without one.
-      const dpopProof = await createDpopProof(
-        "POST",
-        `${host}${path}`,
-        delegationToken,
-      );
+      // rejects this call without one. No credential exists yet at this
+      // exchange step — it's the delegation token being exchanged for one —
+      // so the proof carries no "ath" claim (that's only for proving
+      // possession of a key already bound to an existing credential).
+      const dpopProof = await createDpopProof("POST", `${host}${path}`);
       const { credential } = await fetchWithBearer(
         host,
         path,
