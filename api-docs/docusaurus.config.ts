@@ -2,6 +2,8 @@ import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
 
+// Overridable for preview deployments served from a subpath; production
+// serves the docs at the origin root.
 const baseUrl = process.env.BASE_URL ?? "/";
 
 const config: Config = {
@@ -12,13 +14,14 @@ const config: Config = {
     v4: true,
   },
 
-  url: "https://habitat.network",
-  baseUrl: baseUrl, // /habitat/api in production, just localhost:3000/ in dev
+  url: "https://api.habitat.network",
+  baseUrl: baseUrl,
 
   organizationName: "habitat",
   projectName: "habitat",
 
-  onBrokenLinks: "warn",
+  onBrokenLinks: "throw",
+  onBrokenAnchors: "throw",
 
   i18n: {
     defaultLocale: "en",
@@ -56,6 +59,28 @@ const config: Config = {
         },
       },
     ],
+    [
+      "@docusaurus/plugin-client-redirects",
+      {
+        // Slugs used to carry a `.mdx` extension into the public URL. Anything
+        // already linking to the old form — the blog, Discord, a crawler's
+        // index — must keep working. Derived from the built routes rather than
+        // listed by hand, so new pages are covered automatically.
+        //
+        // Scoped to hand-written pages: most routes are generated API
+        // reference pages that never had a `.mdx` URL.
+        createRedirects(existingPath: string) {
+          if (
+            existingPath.startsWith("/docs/") &&
+            !existingPath.startsWith("/docs/api/")
+          ) {
+            return [`${existingPath}.mdx`];
+          }
+          return undefined;
+        },
+      },
+    ],
+    "./src/plugins/llms-txt",
   ],
 
   themes: ["docusaurus-theme-openapi-docs"],

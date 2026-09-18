@@ -1,0 +1,79 @@
+---
+id: agents
+slug: /building/agents
+sidebar_label: Coding agents
+sidebar_position: 6
+---
+
+# Working with coding agents
+
+If you build on Habitat with a coding agent — Claude Code, Cursor, or
+similar — give it this context up front. Copy the block below into your
+project's `CLAUDE.md`, `AGENTS.md`, or equivalent.
+
+This is for apps that _consume_ Habitat. If you are contributing to
+Habitat itself, the repository's own `CLAUDE.md` covers that instead.
+
+## Machine-readable documentation
+
+Point an agent at these directly:
+
+- [`llms.txt`](pathname:///llms.txt) — an index of this documentation.
+- [`llms-full.txt`](pathname:///llms-full.txt) — the full prose in one file.
+- [`openapi.json`](pathname:///openapi.json) — the OpenAPI specification
+  for every XRPC endpoint.
+
+## Template
+
+````md
+# Building on Habitat
+
+This project uses Habitat, a data ownership layer for organizations built
+on AT Protocol primitives.
+
+## Key facts
+
+- Habitat's hosted instance is `https://pear.habitat.network`. XRPC
+  endpoints live under `/xrpc/<nsid>`, e.g.
+  `https://pear.habitat.network/xrpc/network.habitat.space.getRecord`.
+- Authentication is standard AT Protocol OAuth. The app OAuths with
+  Habitat; Habitat brokers to the user's own PDS.
+- Habitat acts as the identity resolver. It rewrites the `#atproto_pds`
+  entry in a resolved DID document to point at itself, so standard atproto
+  clients route through it without Habitat-specific code.
+- Data is AT Protocol records and blobs, stored in per-identity
+  repositories and addressed by collection NSID plus record key.
+- A space groups records across repositories and is the unit that
+  permissions are granted against.
+
+## Which APIs to use
+
+For permissioned data, use only these namespaces:
+
+- `network.habitat.space.*` — records, blobs, and repo operations within a
+  space. This is the primary surface.
+- `community.opensocial.*` — community membership, invites, profiles, and
+  spaces.
+- `network.habitat.opensocial.createOrg` — creating an organization.
+
+**Do not use `network.habitat.clique.*`.** Cliques are a deprecated
+permissioning primitive, superseded by spaces. They still appear in the
+OpenAPI spec but must not be used in new code.
+
+## Documentation
+
+- Index for agents: https://api.habitat.network/llms.txt
+- Full prose: https://api.habitat.network/llms-full.txt
+- OpenAPI spec: https://api.habitat.network/openapi.json
+- HTTP reference: https://api.habitat.network/docs/api
+
+## Conventions
+
+- Never invent lexicon names. Every valid NSID appears in the OpenAPI
+  spec; check there before writing a record, and prefer the namespaces
+  listed above.
+- Prefer the published client over hand-rolled fetch calls:
+  `npm install @habitat-network/habitat`.
+- Treat record writes as permissioned. A write that succeeds locally can
+  still be rejected by the space's access rules.
+````

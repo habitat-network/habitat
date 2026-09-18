@@ -19,10 +19,17 @@ https://pear.habitat.network/xrpc/
 
 ## Authentication
 
-Authenticated endpoints use HTTP Bearer auth. Pass your token in the `Authorization` header:
+Habitat authenticates apps with the standard AT Protocol OAuth flow — not
+static bearer tokens.
 
-```
-Authorization: Bearer <token>
-```
+Your app OAuths with Habitat, and Habitat in turn acts as an OAuth client
+against the user's own PDS. Because a Habitat-resolved DID document names
+Habitat as the PDS, a standard atproto OAuth client discovers Habitat's
+`/.well-known/oauth-protected-resource` and authorizes against it with no
+Habitat-specific code.
 
-[View the full API reference →](/docs/api/habitats-api)
+See [Getting started](/docs/space-proxy/getting-started) for a working
+client, and [Identities & authentication](/docs/building/auth) for how
+identities, login methods, and service auth fit together.
+
+[View the full API reference →](/docs/api/habitat-api)
