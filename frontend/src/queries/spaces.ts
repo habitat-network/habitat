@@ -2,24 +2,24 @@ import type { AuthManager } from "internal";
 import {
   xrpc,
   XrpcResponseError,
-  type AtUriString,
   type DidString,
   type NsidString,
+  type SpaceRefString,
 } from "@atproto/lex";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import { network } from "api";
+import { com } from "api";
 import { spaceAgent, spaceCredentialQueryOptions } from "./spaceCredential";
 
 export type SpaceView =
-  network.habitat.space.listSpaces.$OutputBody["spaces"][number];
+  com.atproto.space.listSpaces.$OutputBody["spaces"][number];
 
-export type Repo = network.habitat.space.listRepos.$OutputBody["repos"][number];
+export type Repo = com.atproto.space.listRepos.$OutputBody["repos"][number];
 
 export type SpaceRecord =
-  network.habitat.space.listRecords.$OutputBody["records"][number];
+  com.atproto.space.listRecords.$OutputBody["records"][number];
 
 export type Member =
-  network.habitat.simplespace.listMembers.$OutputBody["members"][number];
+  com.atproto.simplespace.listMembers.$OutputBody["members"][number];
 
 // The list lexicons declare limit/cursor, but the space host does not paginate
 // yet: it returns the complete set and never a cursor, and listRepos answers
@@ -50,7 +50,7 @@ export function spacesListQueryOptions(
     queryFn: async (): Promise<SpaceView[]> => {
       const response = await xrpc(
         authManager,
-        network.habitat.space.listSpaces.main,
+        com.atproto.space.listSpaces.main,
         {
           params: {
             did: filter.did as DidString | undefined,
@@ -79,15 +79,15 @@ export function spaceReposQueryOptions(
       );
       const response = await xrpc(
         spaceAgent(cred),
-        network.habitat.space.listRepos.main,
-        { params: { space: space as AtUriString } },
+        com.atproto.space.listRepos.main,
+        { params: { space: space as SpaceRefString } },
       );
       return response.body.repos;
     },
   });
 }
 
-// SpaceCommit is the decoded shape of network.habitat.space.defs#signedCommit.
+// SpaceCommit is the decoded shape of com.atproto.space.defs#signedCommit.
 // xrpc already runs responses through lex decoding, so byte fields arrive as
 // Uint8Array, matching the generated lexicon type.
 export interface SpaceCommit {
@@ -119,8 +119,8 @@ export function spaceLatestCommitQueryOptions(
         );
         const response = await xrpc(
           spaceAgent(cred),
-          network.habitat.space.getLatestCommit.main,
-          { params: { space: space as AtUriString, repo: repo as DidString } },
+          com.atproto.space.getLatestCommit.main,
+          { params: { space: space as SpaceRefString, repo: repo as DidString } },
         );
         return response.body.commit ?? null;
       } catch (err) {
@@ -136,6 +136,10 @@ export function spaceLatestCommitQueryOptions(
 // spaceMembersQueryOptions lists a space's member list — the DIDs granted read
 // access. This is the space's ACL, which is broader than the writer set
 // listRepos returns: a member who has never written data has no repo.
+// The canonical com.atproto.simplespace.listMembers member type carries read
+// and write access, but the host has not grown those yet and still answers
+// with { did } only, so the response is taken unvalidated. Relax when the
+// host starts returning read/write.
 export function spaceMembersQueryOptions(
   space: string,
   authManager: AuthManager,
@@ -145,8 +149,11 @@ export function spaceMembersQueryOptions(
     queryFn: async (): Promise<Member[]> => {
       const response = await xrpc(
         authManager,
-        network.habitat.simplespace.listMembers.main,
-        { params: { space: space as AtUriString } },
+        com.atproto.simplespace.listMembers.main,
+        {
+          params: { space: space as SpaceRefString },
+          validateResponse: false,
+        },
       );
       return response.body.members;
     },
@@ -172,10 +179,10 @@ export function spaceRecordsQueryOptions(
       );
       const response = await xrpc(
         spaceAgent(cred),
-        network.habitat.space.listRecords.main,
+        com.atproto.space.listRecords.main,
         {
           params: {
-            space: space as AtUriString,
+            space: space as SpaceRefString,
             repo: repo as DidString,
             excludeValues: true,
           },
@@ -207,10 +214,10 @@ export function spaceRecordQueryOptions(
       );
       const response = await xrpc(
         spaceAgent(cred),
-        network.habitat.space.getRecord.main,
+        com.atproto.space.getRecord.main,
         {
           params: {
-            space: space as AtUriString,
+            space: space as SpaceRefString,
             repo: repo as DidString,
             collection: collection as NsidString,
             rkey,

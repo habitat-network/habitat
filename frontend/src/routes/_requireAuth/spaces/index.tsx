@@ -7,7 +7,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { xrpc, type DidString, type NsidString } from "@atproto/lex";
-import { network } from "api";
+import { com } from "api";
 import { SpaceRef } from "@atproto/syntax";
 import {
   Button,
@@ -112,12 +112,18 @@ function CreateSpaceForm() {
     async mutationFn(type: string) {
       const response = await xrpc(
         authManager,
-        network.habitat.simplespace.createSpace.main,
+        com.atproto.simplespace.createSpace.main,
         {
+          // The host implements the pre-canonical wire contract: a `did`
+          // (the caller's own, so the owner is theirs) plus the space type,
+          // with host defaults for read/write/appAccess policy. The canonical
+          // com.atproto.simplespace input instead requires explicit policies
+          // and omits `did` (owner = authenticated user), so the body is
+          // widened until the host adopts that contract.
           body: {
             did: authManager.getAuthInfo()!.did as DidString,
             type: type as NsidString,
-          },
+          } as unknown as com.atproto.simplespace.createSpace.$InputBody,
         },
       );
       return response.body.uri;
