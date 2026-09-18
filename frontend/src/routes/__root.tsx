@@ -47,7 +47,13 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     const { profile, org } = Route.useLoaderData();
     return (
       <div className="flex flex-col items-center w-full justify-stretch gap-4">
-        {<Header profile={profile} org={org} onLogout={authManager.logout} />}
+        {
+          <Header
+            profile={profile}
+            org={org}
+            onLogout={() => authManager.logout()}
+          />
+        }
         <div className="container px-4 flex flex-col">
           <Outlet />
         </div>
