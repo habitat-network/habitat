@@ -2,6 +2,7 @@
   "name": "frontend",
   "private": true,
   "type": "module",
+  "description": "The user interface for the Habitat web client.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --build --force && vite build",
