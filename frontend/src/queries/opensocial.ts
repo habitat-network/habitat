@@ -58,7 +58,11 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
 }
 
 // myInvitesQueryOptions lists the calling user's pending invites across every
-// community on this instance.
+// community on this instance. community.opensocial.listInvites is a habitat
+// management-plane endpoint with no PDS-side implementation, so it's proxied
+// to this habitat instance the same way createSpace is — otherwise a
+// spaces-capable identity's session would send it straight to their own PDS,
+// which doesn't implement it.
 export function myInvitesQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["opensocial", "myInvites"],
@@ -66,7 +70,12 @@ export function myInvitesQueryOptions(authManager: AuthManager) {
       const response = await xrpc(
         authManager,
         community.opensocial.listInvites.main,
-        { params: {} },
+        {
+          params: {},
+          headers: {
+            "atproto-proxy": `did:web:${import.meta.env.VITE_HABITAT_DOMAIN}#habitat`,
+          },
+        },
       );
       return response.body.invites;
     },
