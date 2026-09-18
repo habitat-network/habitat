@@ -9,13 +9,17 @@
     "emitDeclarationOnly": true,
     "outDir": "../../.moon/cache/types/typescript/internal",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@habitat-network/habitat": ["../habitat/src/index.ts"]
     }
   },
   "include": ["src/**/*", "../globals.d.ts"],
   "references": [
     {
       "path": "../api"
+    },
+    {
+      "path": "../habitat"
     }
   ]
 }
