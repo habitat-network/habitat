@@ -24,6 +24,7 @@ export {
   resolveHandleToDid,
   resolveDidToHandle,
   resolveSpaceHost,
+  resolveDidService,
 } from "./atprotoDirectory";
 export { createDpopProof } from "./dpop";
 export {

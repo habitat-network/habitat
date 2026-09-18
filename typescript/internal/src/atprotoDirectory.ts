@@ -59,3 +59,20 @@ export async function resolveSpaceHost(spaceOwnerDid: string): Promise<string> {
   }
   return pds;
 }
+
+// resolveDidService resolves a "did#serviceId" audience — the same shape
+// used for an Atproto-Proxy header or a service-auth "aud" — to that
+// service's endpoint URL declared in the DID's document. Throws if the DID
+// or that specific service can't be resolved.
+export async function resolveDidService(aud: string): Promise<string> {
+  const [did, serviceId] = aud.split("#");
+  const doc = await didResolver.resolve(did);
+  if (!doc) {
+    throw new Error(`DID not found: ${did}`);
+  }
+  const endpoint = getServiceEndpoint(doc, { id: `#${serviceId}` });
+  if (!endpoint) {
+    throw new Error(`No #${serviceId} service found for DID: ${did}`);
+  }
+  return endpoint;
+}

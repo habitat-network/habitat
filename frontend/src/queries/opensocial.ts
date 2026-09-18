@@ -11,6 +11,7 @@ import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { com, community, network } from "api";
 import { fetchClientMetadata } from "@/lib/oauthScopes";
+import { pearAgent } from "./pearAgent";
 import {
   spaceAgent,
   spaceCredentialHeaders,
@@ -58,24 +59,19 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
 }
 
 // myInvitesQueryOptions lists the calling user's pending invites across every
-// community on this instance. community.opensocial.listInvites is a habitat
-// management-plane endpoint with no PDS-side implementation, so it's proxied
-// to this habitat instance the same way createSpace is — otherwise a
-// spaces-capable identity's session would send it straight to their own PDS,
-// which doesn't implement it.
+// community on this instance. community.opensocial.* endpoints are a habitat
+// management-plane API with no PDS-side implementation, so they're all
+// proxied to this habitat instance via pearAgent — otherwise a spaces-capable
+// identity's session would send them straight to their own PDS, which
+// doesn't implement them.
 export function myInvitesQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["opensocial", "myInvites"],
     queryFn: async (): Promise<InviteView[]> => {
       const response = await xrpc(
-        authManager,
+        pearAgent(authManager),
         community.opensocial.listInvites.main,
-        {
-          params: {},
-          headers: {
-            "atproto-proxy": `did:web:${import.meta.env.VITE_HABITAT_DOMAIN}#habitat`,
-          },
-        },
+        { params: {} },
       );
       return response.body.invites;
     },
@@ -93,7 +89,7 @@ export function orgPendingInvitesQueryOptions(
     queryKey: ["opensocial", "pendingInvites", org],
     queryFn: async (): Promise<InviteView[]> => {
       const response = await xrpc(
-        authManager,
+        pearAgent(authManager),
         community.opensocial.listPendingInvites.main,
         { params: { org: org as DidString } },
       );
@@ -292,7 +288,7 @@ export async function updateProfile(
   description: string,
 ) {
   const response = await xrpc(
-    authManager,
+    pearAgent(authManager),
     community.opensocial.updateProfile.main,
     {
       body: {
@@ -306,8 +302,8 @@ export async function updateProfile(
 }
 
 // uploadOrgImage sets a community's profile avatar from raw image bytes.
-// Requires the caller to be an admin of the community. Uses
-// authManager.fetch directly, like other raw-body blob uploads, since this
+// Requires the caller to be an admin of the community. Uses pearAgent's
+// fetchHandler directly, like other raw-body blob uploads, since this
 // endpoint takes the image as its request body rather than JSON.
 export async function uploadOrgImage(
   authManager: AuthManager,
@@ -317,11 +313,9 @@ export async function uploadOrgImage(
   const buf = await file.arrayBuffer();
   const headers = new Headers();
   headers.append("Content-Type", file.type || "application/octet-stream");
-  const res = await authManager.fetch(
+  const res = await pearAgent(authManager).fetchHandler(
     `/xrpc/community.opensocial.uploadImage?org=${encodeURIComponent(org)}`,
-    "POST",
-    buf,
-    headers,
+    { method: "POST", body: buf, headers },
   );
   if (!res) {
     throw new Error("Upload failed: no response");
@@ -338,7 +332,7 @@ export async function uploadOrgImage(
 // createOrg mints a new community and makes the caller its admin.
 export async function createOrg(authManager: AuthManager, handle: string) {
   const response = await xrpc(
-    authManager,
+    pearAgent(authManager),
     network.habitat.opensocial.createOrg.main,
     { body: { handle } },
   );
@@ -352,7 +346,7 @@ export async function createOrg(authManager: AuthManager, handle: string) {
 // backend on their behalf.
 export async function acceptInvite(authManager: AuthManager, org: string) {
   const response = await xrpc(
-    authManager,
+    pearAgent(authManager),
     community.opensocial.requestJoin.main,
     { body: { org: org as DidString } },
   );
@@ -484,17 +478,6 @@ export function orgPermissionsQueryOptions(
   });
 }
 
-// orgProxyHeaders routes an XRPC call through pear's Atproto-Proxy
-// middleware (internal/forwarding.ServiceProxy): the caller's own OAuth
-// session is validated, then the request is re-signed server-side as a
-// service-auth JWT audienced to the org DID's #habitat service, which is
-// what the service-auth-only endpoints below require. Used for every
-// org-admin mutation that isn't already accepted over the caller's own
-// OAuth session (see e.g. updateProfile/createInvite, which are).
-function orgProxyHeaders(org: string): HeadersInit {
-  return { "Atproto-Proxy": `${org}#habitat` };
-}
-
 // putRole creates or updates a role declaration. Requires the caller to hold
 // the community.configure action.
 export async function putRole(
@@ -504,15 +487,18 @@ export async function putRole(
   name: string,
   description?: string,
 ) {
-  const response = await xrpc(authManager, community.opensocial.putRole.main, {
-    headers: orgProxyHeaders(org),
-    body: {
-      org: org as DidString,
-      role,
-      name,
-      description: description || undefined,
+  const response = await xrpc(
+    pearAgent(authManager, `${org}#habitat`),
+    community.opensocial.putRole.main,
+    {
+      body: {
+        org: org as DidString,
+        role,
+        name,
+        description: description || undefined,
+      },
     },
-  });
+  );
   return response.body;
 }
 
@@ -525,9 +511,9 @@ export async function deleteRole(
   role: string,
 ) {
   const response = await xrpc(
-    authManager,
+    pearAgent(authManager, `${org}#habitat`),
     community.opensocial.deleteRole.main,
-    { headers: orgProxyHeaders(org), body: { org: org as DidString, role } },
+    { body: { org: org as DidString, role } },
   );
   return response.body;
 }
@@ -542,12 +528,9 @@ export async function updatePermissions(
   assignable: AssignableBinding[],
 ) {
   const response = await xrpc(
-    authManager,
+    pearAgent(authManager, `${org}#habitat`),
     community.opensocial.updatePermissions.main,
-    {
-      headers: orgProxyHeaders(org),
-      body: { org: org as DidString, bindings, assignable },
-    },
+    { body: { org: org as DidString, bindings, assignable } },
   );
   return response.body;
 }
@@ -561,12 +544,9 @@ export async function assignRoles(
   roles: string[],
 ) {
   const response = await xrpc(
-    authManager,
+    pearAgent(authManager, `${org}#habitat`),
     community.opensocial.assignRoles.main,
-    {
-      headers: orgProxyHeaders(org),
-      body: { org: org as DidString, member: member as DidString, roles },
-    },
+    { body: { org: org as DidString, member: member as DidString, roles } },
   );
   return response.body;
 }
@@ -580,12 +560,9 @@ export async function ejectMember(
   member: string,
 ) {
   const response = await xrpc(
-    authManager,
+    pearAgent(authManager, `${org}#habitat`),
     community.opensocial.ejectMember.main,
-    {
-      headers: orgProxyHeaders(org),
-      body: { org: org as DidString, member: member as DidString },
-    },
+    { body: { org: org as DidString, member: member as DidString } },
   );
   return response.body;
 }
@@ -599,7 +576,7 @@ export async function createInvite(
   roles: string[] = ["member"],
 ) {
   const response = await xrpc(
-    authManager,
+    pearAgent(authManager),
     community.opensocial.createInvite.main,
     {
       body: {
