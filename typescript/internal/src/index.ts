@@ -25,6 +25,7 @@ export {
   resolveDidToHandle,
   resolveSpaceHost,
 } from "./atprotoDirectory";
+export { createDpopProof } from "./dpop";
 export {
   SidebarGroup,
   SidebarGroupLabel,

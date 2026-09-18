@@ -747,10 +747,16 @@ importers:
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260913191958
+      '@atproto/jwk-webcrypto':
+        specifier: ^0.3.4
+        version: 0.3.4
       '@atproto/lex':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260913191958
       '@atproto/oauth-client-browser':
+        specifier: alpha
+        version: 0.0.0-spaces-alpha-20260915165437
+      '@atproto/space':
         specifier: alpha
         version: 0.0.0-spaces-alpha-20260915165437
       '@atproto/syntax':
@@ -1021,6 +1027,10 @@ packages:
     resolution: {integrity: sha512-yKawKV5Z2gyA4PmuJF3d68V2SgeeFj8yZr9zK0IRz12ZiEegJ7UXNj6CSuQ5CLQgrsftK2CYnPDgNAinmE36zQ==}
     engines: {node: '>=22'}
 
+  '@atproto/car@0.0.0-spaces-alpha-20260915165437':
+    resolution: {integrity: sha512-ZXGWTstKjd8zEuCZDRPW5+Cv8FrBjv4IqdHSVyD8w2BA+cseaqj6OWgK9qO3olmF4fjwM84BFkiJRCGoRpEyFQ==}
+    engines: {node: '>=22'}
+
   '@atproto/common-web@0.0.0-spaces-alpha-20260915165437':
     resolution: {integrity: sha512-yFIbg+mN+T+FheVcFMYvrR1X4NjRIoEYDU5oYKW1MfFsH0SD707gGhW4tFwtGHWd/VHZf0somi3Pxls81gMGvw==}
     engines: {node: '>=22'}
@@ -1031,6 +1041,10 @@ packages:
 
   '@atproto/crypto@0.0.0-spaces-alpha-20260913191958':
     resolution: {integrity: sha512-hjGe5gDXkwHP4FinzFBg6RaI+9LwD7t4Y2XFjVOzknBEIl5HT+DJQYNqWX7GUnQQO6A9qqiDBb/dOy3flkJksg==}
+    engines: {node: '>=22'}
+
+  '@atproto/crypto@0.0.0-spaces-alpha-20260915165437':
+    resolution: {integrity: sha512-nY7rucPt4jayOJWmB25rMsE8i4+rzW8FrY63OF05sfc/p+1jJqlFM6v4tep9yEtKVuK/H/4Wmnc3lTrb7cnBPg==}
     engines: {node: '>=22'}
 
   '@atproto/did@0.0.0-spaces-alpha-20260915165437':
@@ -1124,6 +1138,10 @@ packages:
 
   '@atproto/repo@0.0.0-spaces-alpha-20260913191958':
     resolution: {integrity: sha512-BlrTLn9/ZsSdO82UOmapWBOzY3J8z8Mvv35PMtZTKTuUXxruMFhPPtzpjapJ767eO6lqoNF1TpTU8PJl7JS7Yg==}
+    engines: {node: '>=22'}
+
+  '@atproto/space@0.0.0-spaces-alpha-20260915165437':
+    resolution: {integrity: sha512-jok5Et0PrGAmpMIi1lOillLZPT1TyY4YE2WDuqt7+JuGlIj5BXmOEszm3e6UzOLeO8Z26gYvDxgvF/UExByABA==}
     engines: {node: '>=22'}
 
   '@atproto/syntax@0.0.0-spaces-alpha-20260913191958':
@@ -12166,6 +12184,13 @@ snapshots:
       tslib: 2.8.1
       varint: 6.0.0
 
+  '@atproto/car@0.0.0-spaces-alpha-20260915165437':
+    dependencies:
+      '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      tslib: 2.8.1
+      varint: 6.0.0
+
   '@atproto/common-web@0.0.0-spaces-alpha-20260915165437':
     dependencies:
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
@@ -12182,6 +12207,12 @@ snapshots:
       pino: 10.3.1
 
   '@atproto/crypto@0.0.0-spaces-alpha-20260913191958':
+    dependencies:
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      uint8arrays: 5.1.1
+
+  '@atproto/crypto@0.0.0-spaces-alpha-20260915165437':
     dependencies:
       '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
@@ -12358,6 +12389,18 @@ snapshots:
       '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
+      zod: 3.25.76
+
+  '@atproto/space@0.0.0-spaces-alpha-20260915165437':
+    dependencies:
+      '@atproto/car': 0.0.0-spaces-alpha-20260915165437
+      '@atproto/crypto': 0.0.0-spaces-alpha-20260915165437
+      '@atproto/jwk': 0.7.4
+      '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
+      '@noble/hashes': 1.8.0
+      jose: 5.10.0
       zod: 3.25.76
 
   '@atproto/syntax@0.0.0-spaces-alpha-20260913191958':
