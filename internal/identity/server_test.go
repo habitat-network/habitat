@@ -3,6 +3,7 @@ package identity
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -13,7 +14,17 @@ import (
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 )
 
-func testResolveServer() *Server {
+// testResolveServer builds a Server resolving a single mock identity whose
+// "PDS" is a local test server that doesn't implement the spaces protocol (a
+// bare 404), so overriddenDidDoc always takes the "redirect to this habitat
+// instance" branch these tests assert on.
+func testResolveServer(t *testing.T) *Server {
+	t.Helper()
+	pds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(pds.Close)
+
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:         syntax.DID("did:web:alice.example.com"),
@@ -22,15 +33,15 @@ func testResolveServer() *Server {
 		Services: map[string]identity.ServiceEndpoint{
 			"atproto": {
 				Type: "AtprotoPersonalDataServer",
-				URL:  "https://public.pds",
+				URL:  pds.URL,
 			},
 		},
 	})
-	return &Server{directory: dir, domain: "pear.domain"}
+	return &Server{directory: dir, domain: "pear.domain", httpClient: pds.Client()}
 }
 
 func TestResolveDID(t *testing.T) {
-	s := testResolveServer()
+	s := testResolveServer(t)
 
 	var out json.RawMessage
 	code := httpx_testutil.NewTestXRPCClient(t).Query(
@@ -60,7 +71,7 @@ func TestResolveDID(t *testing.T) {
 }
 
 func TestResolveHandle(t *testing.T) {
-	s := testResolveServer()
+	s := testResolveServer(t)
 
 	var out json.RawMessage
 	code := httpx_testutil.NewTestXRPCClient(t).Query(
@@ -74,7 +85,7 @@ func TestResolveHandle(t *testing.T) {
 }
 
 func TestResolveIdentity(t *testing.T) {
-	s := testResolveServer()
+	s := testResolveServer(t)
 
 	var out json.RawMessage
 	code := httpx_testutil.NewTestXRPCClient(t).Query(
@@ -106,7 +117,7 @@ func TestResolveIdentity(t *testing.T) {
 }
 
 func TestResolveHandleNotFound(t *testing.T) {
-	s := testResolveServer()
+	s := testResolveServer(t)
 
 	var out json.RawMessage
 	code := httpx_testutil.NewTestXRPCClient(t).Query(

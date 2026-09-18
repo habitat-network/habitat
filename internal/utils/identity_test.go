@@ -5,16 +5,49 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/stretchr/testify/require"
+
+	"github.com/habitat-network/habitat/internal/did"
 )
 
-func TestSupportsSpaces(t *testing.T) {
+func testPublicKeyMultibase(t *testing.T) string {
+	t.Helper()
+	priv, err := atcrypto.GeneratePrivateKeyK256()
+	require.NoError(t, err)
+	pub, err := priv.PublicKey()
+	require.NoError(t, err)
+	return pub.Multibase()
+}
+
+func TestSupportsSpaces_AdvertisedServiceOrKey(t *testing.T) {
+	// These identities advertise support directly in their DID document, so
+	// SupportsSpaces must not need to reach their PDS at all: give it a nil
+	// client to prove the network path is never taken.
+	t.Run("advertises an atproto_space_host service", func(t *testing.T) {
+		ident := did.New(syntax.DID("did:web:alice.example.com")).
+			ATProtoSpaceHost("https://space-host.example.com").
+			Build()
+		require.True(t, SupportsSpaces(t.Context(), nil, ident))
+	})
+
+	t.Run("advertises an atproto_space verification key", func(t *testing.T) {
+		ident := did.New(syntax.DID("did:web:alice.example.com")).
+			ATProtoSpaceKey(testPublicKeyMultibase(t)).
+			Build()
+		require.True(t, SupportsSpaces(t.Context(), nil, ident))
+	})
+}
+
+func TestSupportsSpaces_ProbesPDS(t *testing.T) {
 	cases := []struct {
 		name    string
 		status  int
 		body    string
 		want    bool
-		noRoute bool // simulate a server that isn't reachable at all
+		noRoute bool // simulate a PDS that isn't reachable at all
 	}{
 		{
 			// A real spaces-alpha PDS, called with no params:
@@ -70,7 +103,7 @@ func TestSupportsSpaces(t *testing.T) {
 			} else {
 				srv := httptest.NewServer(http.HandlerFunc(
 					func(w http.ResponseWriter, r *http.Request) {
-						assert.Equal(t, "/xrpc/com.atproto.simplespace.getSpace", r.URL.Path)
+						require.Equal(t, "/xrpc/com.atproto.simplespace.getSpace", r.URL.Path)
 						w.WriteHeader(tc.status)
 						_, _ = w.Write([]byte(tc.body))
 					},
@@ -79,8 +112,14 @@ func TestSupportsSpaces(t *testing.T) {
 				endpoint = srv.URL
 			}
 
-			got := SupportsSpaces(t.Context(), http.DefaultClient, endpoint)
-			assert.Equal(t, tc.want, got)
+			ident := &identity.Identity{
+				DID: syntax.DID("did:web:alice.example.com"),
+				Services: map[string]identity.ServiceEndpoint{
+					"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: endpoint},
+				},
+			}
+			got := SupportsSpaces(t.Context(), http.DefaultClient, ident)
+			require.Equal(t, tc.want, got)
 		})
 	}
 }
