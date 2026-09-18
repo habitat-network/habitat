@@ -17,7 +17,7 @@ import (
 func (p *PearServer) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
-		authn.WithMethods(authn.ValidatorMethodOAuth),
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 	).Validate(w, r)
 	if !ok {
 		return

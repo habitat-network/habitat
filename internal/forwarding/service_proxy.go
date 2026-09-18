@@ -181,6 +181,10 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	outReq.Header.Del("DPoP")
 	// Strip Atproto-Proxy to prevent the target from attempting further proxying.
 	outReq.Header.Del("Atproto-Proxy")
+	// Habitat-Auth-Method is a client hint that the Authorization header carries
+	// an OAuth token; left in place it would make OAuthServer.CanHandle claim
+	// the newly-minted service-auth JWT above, so it must not be forwarded.
+	outReq.Header.Del("Habitat-Auth-Method")
 
 	resp, err := s.httpClient.Do(outReq)
 	if err != nil {

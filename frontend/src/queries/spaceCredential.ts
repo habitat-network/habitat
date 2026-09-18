@@ -1,9 +1,9 @@
 import type { AuthManager } from "internal";
 import { resolveSpaceHost } from "internal";
-import { xrpc, type AgentConfig, type AtUriString } from "@atproto/lex";
+import { xrpc, type AgentConfig, type SpaceRefString } from "@atproto/lex";
 import { SpaceRef } from "@atproto/syntax";
 import { queryOptions } from "@tanstack/react-query";
-import { network } from "api";
+import { com } from "api";
 
 // fetchWithBearer makes a JSON request against `host` using an arbitrary
 // bearer token (a delegation token or space credential) rather than the
@@ -34,7 +34,7 @@ export interface SpaceCredential {
   // The space authority's host, resolved from its DID document (the
   // atproto_space_host service, falling back to its PDS) — see
   // internal/utils.SpaceHostEndpoint on the Go side for the same rule. Every
-  // network.habitat.space.* read for this space is served here, per
+  // com.atproto.space.* read for this space is served here, per
   // bluesky-social/proposals#0016.
   host: string;
 }
@@ -54,14 +54,14 @@ export function spaceCredentialQueryOptions(
     queryFn: async (): Promise<SpaceCredential> => {
       const response = await xrpc(
         authManager,
-        network.habitat.space.getDelegationToken.main,
-        { params: { space: space as AtUriString } },
+        com.atproto.space.getDelegationToken.main,
+        { params: { space: space as SpaceRefString } },
       );
       const { token: delegationToken } = response.body;
       const host = await resolveSpaceHost(SpaceRef.parse(space).spaceDid);
       const { credential } = await fetchWithBearer(
         host,
-        "/xrpc/network.habitat.space.getSpaceCredential",
+        "/xrpc/com.atproto.space.getSpaceCredential",
         delegationToken,
         {
           method: "POST",
@@ -80,7 +80,7 @@ export function spaceCredentialQueryOptions(
 // spaceAgent turns a space credential into xrpc agent options: requests are
 // sent to the space's own resolved host (not this pear instance) with the
 // credential as a bearer token, so a lexicon-typed, lex-decoded read (e.g.
-// network.habitat.space.listRecords) can be made the same way an
+// com.atproto.space.listRecords) can be made the same way an
 // authManager-backed one would.
 export function spaceAgent(cred: SpaceCredential): AgentConfig {
   return {

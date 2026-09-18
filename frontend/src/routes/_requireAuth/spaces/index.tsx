@@ -118,6 +118,9 @@ function CreateSpaceForm() {
             did: authManager.getAuthInfo()!.did as DidString,
             type: type as NsidString,
           },
+          headers: {
+            "atproto-proxy": `did:web:${import.meta.env.VITE_HABITAT_DOMAIN}#habitat`,
+          },
         },
       );
       return response.body.uri;

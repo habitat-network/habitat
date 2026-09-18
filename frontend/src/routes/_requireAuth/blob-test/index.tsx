@@ -53,7 +53,7 @@ function RouteComponent() {
       const headers = new Headers();
       headers.append("Content-Type", file.type || "application/octet-stream");
       const res = await authManager.fetch(
-        "/xrpc/network.habitat.repo.uploadBlob",
+        "/xrpc/com.atproto.repo.uploadBlob",
         "POST",
         buf,
         headers,
@@ -90,7 +90,7 @@ function RouteComponent() {
   } = useMutation({
     async mutationFn(values: GetBlobFormValues): Promise<FetchedBlob> {
       const res = await authManager.fetch(
-        `/xrpc/network.habitat.space.getBlob?space=${encodeURIComponent(values.space)}&cid=${encodeURIComponent(values.cid)}`,
+        `/xrpc/com.atproto.space.getBlob?space=${encodeURIComponent(values.space)}&cid=${encodeURIComponent(values.cid)}`,
         "GET",
       );
 

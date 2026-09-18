@@ -1,12 +1,12 @@
 import type { AuthManager } from "internal";
 import {
   xrpc,
-  type AtUriString,
   type DidString,
   type NsidString,
+  type SpaceRefString,
 } from "@atproto/lex";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import { network } from "api";
+import { com, network } from "api";
 import { homeProxyHeaders } from "./groups";
 import { spaceAgent, spaceCredentialQueryOptions } from "./spaceCredential";
 
@@ -73,10 +73,10 @@ export function recordBodyQueryOptions(
       );
       const response = await xrpc(
         spaceAgent(cred),
-        network.habitat.space.getRecord.main,
+        com.atproto.space.getRecord.main,
         {
           params: {
-            space: record.space as AtUriString,
+            space: record.space as SpaceRefString,
             repo: record.repo as DidString,
             collection: record.collection as NsidString,
             rkey: record.rkey,

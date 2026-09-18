@@ -2,14 +2,14 @@ import type { AuthManager } from "internal";
 import {
   getBlobCidString,
   xrpc,
-  type AtUriString,
   type BlobRef,
   type DidString,
   type NsidString,
+  type SpaceRefString,
 } from "@atproto/lex";
 import { SpaceRef, ensureValidDid } from "@atproto/syntax";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import { community, network } from "api";
+import { com, community, network } from "api";
 import { fetchClientMetadata } from "@/lib/oauthScopes";
 import { spaceAgent, spaceCredentialQueryOptions } from "./spaceCredential";
 
@@ -38,7 +38,7 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
     queryFn: async (): Promise<OrgSummary[]> => {
       const response = await xrpc(
         authManager,
-        network.habitat.space.listSpaces.main,
+        com.atproto.space.listSpaces.main,
         { params: { type: MEMBERS_SPACE_TYPE as NsidString } },
       );
       const orgs: OrgSummary[] = [];
@@ -111,10 +111,10 @@ export function orgMembersQueryOptions(
       );
       const response = await xrpc(
         spaceAgent(cred),
-        network.habitat.space.listRecords.main,
+        com.atproto.space.listRecords.main,
         {
           params: {
-            space: membersSpace as AtUriString,
+            space: membersSpace as SpaceRefString,
             repo: org,
             collection: "community.opensocial.membership" as NsidString,
           },
@@ -171,10 +171,10 @@ export function orgAppAccessQueryOptions(
       );
       const response = await xrpc(
         spaceAgent(cred),
-        network.habitat.space.listRecords.main,
+        com.atproto.space.listRecords.main,
         {
           params: {
-            space: membersSpace as AtUriString,
+            space: membersSpace as SpaceRefString,
             repo: org,
             collection: "network.habitat.space.appAccess" as NsidString,
           },
@@ -234,18 +234,14 @@ export function orgProfileQueryOptions(
           spaceCredentialQueryOptions(aboutSpace, authManager),
         );
         const agent = spaceAgent(cred);
-        const response = await xrpc(
-          agent,
-          network.habitat.space.getRecord.main,
-          {
-            params: {
-              space: aboutSpace as AtUriString,
-              repo: org as DidString,
-              collection: "community.opensocial.profile" as NsidString,
-              rkey: "self",
-            },
+        const response = await xrpc(agent, com.atproto.space.getRecord.main, {
+          params: {
+            space: aboutSpace as SpaceRefString,
+            repo: org as DidString,
+            collection: "community.opensocial.profile" as NsidString,
+            rkey: "self",
           },
-        );
+        });
         const value = response.body.value as {
           name: string;
           description?: string;
@@ -259,7 +255,7 @@ export function orgProfileQueryOptions(
         if (cid) {
           const blobParams = new URLSearchParams({ space: aboutSpace, cid });
           const blobRes = await fetch(
-            `${cred.host}/xrpc/network.habitat.space.getBlob?${blobParams}`,
+            `${cred.host}/xrpc/com.atproto.space.getBlob?${blobParams}`,
             { headers: { Authorization: `Bearer ${cred.credential}` } },
           );
           if (blobRes.ok) {
@@ -354,9 +350,9 @@ export async function acceptInvite(authManager: AuthManager, org: string) {
     "community.opensocial.members",
     "self",
   ).toString();
-  await xrpc(authManager, network.habitat.space.putRecord.main, {
+  await xrpc(authManager, com.atproto.space.putRecord.main, {
     body: {
-      space: membersSpace as AtUriString,
+      space: membersSpace as SpaceRefString,
       repo: authManager.getAuthInfo()!.did as DidString,
       collection: "community.opensocial.acceptance" as NsidString,
       rkey: "self",
@@ -397,10 +393,10 @@ export function orgRolesQueryOptions(
       );
       const response = await xrpc(
         spaceAgent(cred),
-        network.habitat.space.listRecords.main,
+        com.atproto.space.listRecords.main,
         {
           params: {
-            space: membersSpace as AtUriString,
+            space: membersSpace as SpaceRefString,
             repo: org,
             collection: "community.opensocial.role" as NsidString,
           },
@@ -450,10 +446,10 @@ export function orgPermissionsQueryOptions(
       try {
         const response = await xrpc(
           spaceAgent(cred),
-          network.habitat.space.getRecord.main,
+          com.atproto.space.getRecord.main,
           {
             params: {
-              space: membersSpace as AtUriString,
+              space: membersSpace as SpaceRefString,
               repo: org,
               collection: "community.opensocial.permissions" as NsidString,
               rkey: "self",

@@ -5,12 +5,12 @@ import { useForm } from "react-hook-form";
 import { type AuthManager } from "internal";
 import {
   xrpc,
-  type AtUriString,
   type DidString,
   type LexMap,
   type NsidString,
+  type SpaceRefString,
 } from "@atproto/lex";
-import { network } from "api";
+import { com } from "api";
 import { SpaceRef, ensureValidDid, ensureValidNsid } from "@atproto/syntax";
 import {
   Button,
@@ -94,8 +94,8 @@ function SpaceMembers() {
 
   const { mutate: removeMember } = useMutation({
     async mutationFn(did: string) {
-      await xrpc(authManager, network.habitat.simplespace.removeMember.main, {
-        body: { space: space as AtUriString, did: did as DidString },
+      await xrpc(authManager, com.atproto.simplespace.removeMember.main, {
+        body: { space: space as SpaceRefString, did: did as DidString },
       });
     },
     onSuccess: invalidateMembers,
@@ -247,8 +247,17 @@ function AddMemberDialog({
     reset: resetMutation,
   } = useMutation({
     async mutationFn({ did }: AddMemberForm) {
-      await xrpc(authManager, network.habitat.simplespace.addMember.main, {
-        body: { space: space as AtUriString, did: did as DidString },
+      // The canonical putMember carries read/write access, which the host
+      // does not implement yet (it just adds the DID to the member list).
+      // Send the defaults it would apply anyway; drop when the host grows
+      // per-member read/write.
+      await xrpc(authManager, com.atproto.simplespace.putMember.main, {
+        body: {
+          space: space as SpaceRefString,
+          did: did as DidString,
+          read: true,
+          write: true,
+        },
       });
     },
     onSuccess() {
@@ -336,13 +345,16 @@ function CreateRecordDialog({
       } catch {
         throw new Error("Record must be valid JSON");
       }
-      await xrpc(authManager, network.habitat.space.putRecord.main, {
+      await xrpc(authManager, com.atproto.space.putRecord.main, {
         body: {
-          space: space as AtUriString,
+          space: space as SpaceRefString,
           collection: collection as NsidString,
           record,
           repo: authManager.getAuthInfo()!.did as DidString,
-        },
+          // The canonical putRecord declares rkey required, but the host
+          // auto-assigns a TID when it's omitted (what the previous
+          // network.habitat contract did), so the body is widened.
+        } as unknown as com.atproto.space.putRecord.$InputBody,
       });
     },
     async onSuccess() {
