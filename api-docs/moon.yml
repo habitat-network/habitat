@@ -22,9 +22,24 @@ tasks:
   build:
     deps:
       - generate
+    # The reference is rendered from the OpenAPI spec, which lives outside this
+    # project. Without it as an input, `moon ci` would not rerun the docs build
+    # when a lexicon change alters the API surface, so a link broken by that
+    # change would slip through. Appended to the inherited inputs.
+    inputs:
+      - /typescript/xrpc-openapi-gen/spec/api.json
     options:
       mergeDeps: replace
       mergeOutputs: replace
+  # Defined locally rather than inherited: the workspace `test` task is
+  # excluded below, and these are plain node:test files with no runner.
+  test:
+    # Node 26 resolves a bare directory arg as a module path, so pass a glob.
+    command: node --test 'test/**/*.test.js'
+    inputs:
+      - test/**/*
+      - docs/**/*
+      - src/**/*
 workspace:
   inheritedTasks:
     exclude:
