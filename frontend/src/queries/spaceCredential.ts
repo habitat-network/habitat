@@ -1,5 +1,5 @@
 import type { AuthManager } from "internal";
-import { resolveSpaceHost } from "internal";
+import { createDpopProof, resolveSpaceHost } from "internal";
 import { xrpc, type AgentConfig, type SpaceRefString } from "@atproto/lex";
 import { SpaceRef } from "@atproto/syntax";
 import { queryOptions } from "@tanstack/react-query";
@@ -59,13 +59,24 @@ export function spaceCredentialQueryOptions(
       );
       const { token: delegationToken } = response.body;
       const host = await resolveSpaceHost(SpaceRef.parse(space).spaceDid);
+      const path = "/xrpc/com.atproto.space.getSpaceCredential";
+      // The atproto spaces protocol requires a DPoP proof binding the minted
+      // credential to a key the caller holds (see
+      // lexicons/com/atproto/space/getSpaceCredential.json), so a
+      // spaces-capable PDS talked to directly (bypassing pear's proxy)
+      // rejects this call without one.
+      const dpopProof = await createDpopProof(
+        "POST",
+        `${host}${path}`,
+        delegationToken,
+      );
       const { credential } = await fetchWithBearer(
         host,
-        "/xrpc/com.atproto.space.getSpaceCredential",
+        path,
         delegationToken,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", DPoP: dpopProof },
           body: JSON.stringify({ space }),
         },
       );
