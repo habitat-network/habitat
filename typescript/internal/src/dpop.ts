@@ -17,14 +17,11 @@ function dpopKey(): Promise<WebcryptoKey> {
 // createDpopProof builds a DPoP proof JWT (RFC 9449) for `method url`,
 // binding it to this page's ephemeral key. Delegates to @atproto/space's
 // createDpopProof — the same implementation a space authority verifies
-// against — rather than reimplementing the proof shape here. When credential
-// is given, it's hashed into the "ath" claim, binding the proof to that
-// specific delegation token/credential.
+// against — rather than reimplementing the proof shape here.
 export async function createDpopProof(
   method: string,
   url: string,
-  credential?: string,
 ): Promise<string> {
   const key = await dpopKey();
-  return createSpaceDpopProof(key, { htm: method, htu: url, credential });
+  return createSpaceDpopProof(key, { htm: method, htu: url });
 }
