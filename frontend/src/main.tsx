@@ -16,9 +16,9 @@ const authManager = new AuthManager(
   "Habitat",
   import.meta.env.VITE_BASE_URL,
   `https://${import.meta.env.VITE_HABITAT_DOMAIN}`,
-  () => {
+  (error?: string) => {
     router.invalidate();
-    router.navigate({ to: "/oauth-login" });
+    router.navigate({ to: "/oauth-login", search: { error } });
   },
 );
 const queryClient = new QueryClient({
