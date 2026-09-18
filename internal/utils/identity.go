@@ -33,7 +33,10 @@ func SpaceHostEndpoint(ident *identity.Identity) string {
 // unsupported, since it isn't a signal a spaces implementation must produce.
 func SupportsSpaces(ctx context.Context, client *http.Client, pdsEndpoint string) bool {
 	req, err := http.NewRequestWithContext(
-		ctx, http.MethodGet, pdsEndpoint+"/xrpc/com.atproto.simplespace.getSpace", nil,
+		ctx,
+		http.MethodGet,
+		pdsEndpoint+"/xrpc/com.atproto.simplespace.getSpace",
+		http.NoBody,
 	)
 	if err != nil {
 		return false
