@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -39,26 +40,38 @@ type Server struct {
 	orgStore      org.Store
 	pdsForwarding *forwarding.PDSForwarding
 	domain        string
+	httpClient    *http.Client
+}
+
+func WithClient(client *http.Client) utils.Opt[Server] {
+	return func(s *Server) {
+		s.httpClient = client
+	}
 }
 
 // NewServer constructs the hive HTTP server. The validator is required to
 // authenticate the caller for endpoints that mint things using the identity's
-// signing key (e.g. com.atproto.server.getServiceAuth).
+// signing key (e.g. com.atproto.server.getServiceAuth). httpClient is used to
+// probe whether an externally-resolved identity's PDS supports the atproto
+// spaces protocol.
 func NewServer(
 	hive hive.Hive,
 	validator authn.RequestValidator,
 	orgStore org.Store,
 	pdsForwarding *forwarding.PDSForwarding,
 	domain string,
+	opts ...utils.Opt[Server],
 ) (*Server, error) {
-	return &Server{
+	server := utils.ResolveOptions(Server{
 		hive:          hive,
 		directory:     NewWrappedDirectory(hive, identity.DefaultDirectory()),
 		validator:     validator,
 		orgStore:      orgStore,
 		pdsForwarding: pdsForwarding,
 		domain:        domain,
-	}, nil
+		httpClient:    httpx.NewClient(),
+	}, opts)
+	return &server, nil
 }
 
 // GetServiceAuth implements com.atproto.server.getServiceAuth for habitat-hosted
@@ -180,7 +193,7 @@ func (s *Server) ResolveDID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(ctx, w, atproto.IdentityResolveDid_Output{
-		DidDoc: s.overriddenDidDoc(ident),
+		DidDoc: s.overriddenDidDoc(ctx, ident),
 	})
 }
 
@@ -240,11 +253,25 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(ctx, w, atproto.IdentityDefs_IdentityInfo{
 		Did:    ident.DID.String(),
 		Handle: ident.Handle.String(),
-		DidDoc: s.overriddenDidDoc(ident),
+		DidDoc: s.overriddenDidDoc(ctx, ident),
 	})
 }
 
-func (s *Server) overriddenDidDoc(ident *identity.Identity) identity.DIDDocument {
+// overriddenDidDoc returns ident's DID document, redirecting its PDS service
+// to this habitat instance except when the identity's real PDS can be talked
+// to directly: an identity hive doesn't manage (not an org member whose repo
+// is served here) whose real PDS already implements the atproto spaces
+// protocol. Any other identity — a hive-managed one, or an externally-resolved
+// one whose PDS doesn't support spaces — gets redirected here, either because
+// this instance really is its PDS, or so it can proxy the spaces protocol on
+// the real PDS's behalf.
+func (s *Server) overriddenDidDoc(
+	ctx context.Context,
+	ident *identity.Identity,
+) identity.DIDDocument {
+	if utils.SupportsSpaces(ctx, s.httpClient, ident) {
+		return ident.DIDDocument()
+	}
 	b := did.New(ident.DID).AlsoKnownAs(ident.AlsoKnownAs...)
 	for k, vm := range ident.Keys {
 		b.VerificationMethod(

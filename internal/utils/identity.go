@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 )
@@ -31,11 +32,25 @@ func SpaceHostEndpoint(ident *identity.Identity) string {
 // from a real spaces-alpha PDS). Any other response — a 404/501, a generic
 // router error, or some other error name entirely — is treated as
 // unsupported, since it isn't a signal a spaces implementation must produce.
-func SupportsSpaces(ctx context.Context, client *http.Client, pdsEndpoint string) bool {
+func SupportsSpaces(ctx context.Context, client *http.Client, ident *identity.Identity) bool {
+	if ident.GetServiceEndpoint("atproto_space_host") != "" {
+		return true
+	}
+	if publicKey, err := ident.GetPublicKey("atproto_space"); err == nil && publicKey != nil {
+		return true
+	}
+	pdsEndpoint := ident.PDSEndpoint()
+	for _, knownSpaceHost := range []string{
+		"spaces-alpha.host.bsky.network",
+	} {
+		if strings.Contains(pdsEndpoint, knownSpaceHost) {
+			return true
+		}
+	}
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		pdsEndpoint+"/xrpc/com.atproto.simplespace.getSpace",
+		ident.PDSEndpoint()+"/xrpc/com.atproto.simplespace.getSpace",
 		http.NoBody,
 	)
 	if err != nil {
