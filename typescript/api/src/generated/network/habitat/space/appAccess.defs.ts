@@ -19,6 +19,11 @@ type Main = {
    */
   note?: string
   createdAt?: l.DatetimeString
+
+  /**
+   * The OAuth scopes granted to this client for the org credential as of the most recent authorization, e.g. when it was approved to act as an opensocial community's own DID. Overwritten on each re-grant; not populated for appAccess records outside that flow.
+   */
+  scopes?: string[]
 }
 
 export type { Main }
@@ -31,6 +36,9 @@ const main = /*#__PURE__*/ l.record<'any', Main>(
     note: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ maxLength: 640 })),
     createdAt: /*#__PURE__*/ l.optional(
       /*#__PURE__*/ l.string({ format: 'datetime' }),
+    ),
+    scopes: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.array(/*#__PURE__*/ l.string()),
     ),
   }),
 )

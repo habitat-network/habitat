@@ -17,6 +17,120 @@
     }
   ],
   "paths": {
+    "/community.opensocial.assignRoles": {
+      "post": {
+        "tags": [
+          "community.opensocial.assignRoles"
+        ],
+        "summary": "community.opensocial.assignRoles",
+        "description": "Set a member's full role set, replacing whatever roles they previously held. Requires service-auth. Requires the `role.assign` action, bounded by the roles the caller may assign: every role being added or removed must be one the caller's own roles are permitted to assign, per the community's permissions record.",
+        "operationId": "community.opensocial.assignRoles",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "member",
+                  "roles"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community.",
+                    "format": "did"
+                  },
+                  "member": {
+                    "type": "string",
+                    "description": "DID of the member whose roles to set.",
+                    "format": "did"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "RoleNotAssignable"
+                        },
+                        {
+                          "const": "MemberNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/community.opensocial.createInvite": {
       "post": {
         "tags": [
@@ -244,6 +358,112 @@
                         },
                         {
                           "const": "InvalidType"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.deleteRole": {
+      "post": {
+        "tags": [
+          "community.opensocial.deleteRole"
+        ],
+        "summary": "community.opensocial.deleteRole",
+        "description": "Remove a role. Members holding it keep their other roles; the role is left off any access or permissions bindings that named it. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "community.opensocial.deleteRole",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "role"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the role belongs to.",
+                    "format": "did"
+                  },
+                  "role": {
+                    "type": "string",
+                    "description": "Record key of the role to remove."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "RoleNotFound"
+                        },
+                        {
+                          "const": "CannotDeleteBuiltinRole"
                         }
                       ]
                     },
@@ -629,6 +849,115 @@
         }
       }
     },
+    "/community.opensocial.putRole": {
+      "post": {
+        "tags": [
+          "community.opensocial.putRole"
+        ],
+        "summary": "community.opensocial.putRole",
+        "description": "Create or update a role. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "community.opensocial.putRole",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "role",
+                  "name"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the role belongs to.",
+                    "format": "did"
+                  },
+                  "role": {
+                    "type": "string",
+                    "description": "Record key for the role, e.g. \"moderator\"."
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2048
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/community.opensocial.requestJoin": {
       "post": {
         "tags": [
@@ -812,6 +1141,115 @@
                         },
                         {
                           "const": "InviteNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.updatePermissions": {
+      "post": {
+        "tags": [
+          "community.opensocial.updatePermissions"
+        ],
+        "summary": "community.opensocial.updatePermissions",
+        "description": "Replace the community's authz configuration: which roles authorize which actions, and which roles each role may assign/eject. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "community.opensocial.updatePermissions",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "bindings",
+                  "assignable"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community whose permissions to update.",
+                    "format": "did"
+                  },
+                  "bindings": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/community.opensocial.permissions.actionBinding"
+                    }
+                  },
+                  "assignable": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/community.opensocial.permissions.assignableBinding"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
                         }
                       ]
                     },
@@ -9873,6 +10311,78 @@
           }
         }
       },
+      "community.opensocial.permissions": {
+        "type": "object",
+        "required": [
+          "bindings",
+          "assignable"
+        ],
+        "properties": {
+          "bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/community.opensocial.permissions.actionBinding"
+            }
+          },
+          "assignable": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/community.opensocial.permissions.assignableBinding"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "community.opensocial.permissions.actionBinding": {
+        "type": "object",
+        "required": [
+          "action",
+          "roles"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "The action this binding authorizes.",
+            "enum": [
+              "invite",
+              "eject",
+              "role.assign",
+              "space.create",
+              "space.configure",
+              "space.delete",
+              "community.configure"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "community.opensocial.permissions.assignableBinding": {
+        "type": "object",
+        "required": [
+          "role",
+          "roles"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "Record key of the role this binding applies to."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "community.opensocial.profile": {
         "type": "object",
         "required": [
@@ -10728,6 +11238,12 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -10888,6 +11404,9 @@
       "name": "community.opensocial.access"
     },
     {
+      "name": "community.opensocial.assignRoles"
+    },
+    {
       "name": "community.opensocial.createInvite"
     },
     {
@@ -10895,6 +11414,9 @@
     },
     {
       "name": "community.opensocial.defs"
+    },
+    {
+      "name": "community.opensocial.deleteRole"
     },
     {
       "name": "community.opensocial.ejectMember"
@@ -10909,7 +11431,13 @@
       "name": "community.opensocial.membership"
     },
     {
+      "name": "community.opensocial.permissions"
+    },
+    {
       "name": "community.opensocial.profile"
+    },
+    {
+      "name": "community.opensocial.putRole"
     },
     {
       "name": "community.opensocial.requestJoin"
@@ -10922,6 +11450,9 @@
     },
     {
       "name": "community.opensocial.space"
+    },
+    {
+      "name": "community.opensocial.updatePermissions"
     },
     {
       "name": "community.opensocial.updateProfile"

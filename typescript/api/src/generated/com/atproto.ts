@@ -4,3 +4,5 @@
 
 export * as repo from './atproto/repo.js'
 export * as server from './atproto/server.js'
+export * as simplespace from './atproto/simplespace.js'
+export * as space from './atproto/space.js'
