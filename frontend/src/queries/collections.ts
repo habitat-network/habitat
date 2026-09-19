@@ -75,6 +75,7 @@ export function recordBodyQueryOptions(
         spaceAgent(cred),
         com.atproto.space.getRecord.main,
         {
+          validateResponse: false,
           params: {
             space: record.space as SpaceRefString,
             repo: record.repo as DidString,

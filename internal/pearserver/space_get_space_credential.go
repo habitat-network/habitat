@@ -69,16 +69,21 @@ func (p *PearServer) verifyClientAttestation(
 	if !isOrg {
 		return true
 	}
-	clientID := ""
-	if attestation != "" {
-		clientID, err = clientmetadata.VerifyAttestation(ctx, p.clientMeta, attestation, orgDID)
-		if errors.Is(err, clientmetadata.ErrInvalidAttestation) {
-			httpx.WriteInvalidClientAttestation(ctx, w, err.Error(), err)
-			return false
-		} else if err != nil {
-			httpx.WriteServerError(ctx, w, fmt.Errorf("verify attestation: %w", err))
-			return false
-		}
+	if attestation == "" {
+		// Per https://atproto.com/specs/oauth, a public client has no signing
+		// key, so it structurally cannot produce a client attestation (which
+		// must be signed by the client's own key) — there's no client_id to
+		// check app access against. Only confidential clients (which can
+		// attest) are gated by the org's app-access allow-list.
+		return true
+	}
+	clientID, err := clientmetadata.VerifyAttestation(ctx, p.clientMeta, attestation, orgDID)
+	if errors.Is(err, clientmetadata.ErrInvalidAttestation) {
+		httpx.WriteInvalidClientAttestation(ctx, w, err.Error(), err)
+		return false
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("verify attestation: %w", err))
+		return false
 	}
 	granted, err := p.opensocialStore.CheckAppAccess(ctx, spaceURI, clientID)
 	if err != nil {
