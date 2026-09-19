@@ -44,7 +44,10 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
       const response = await xrpc(
         authManager,
         com.atproto.space.listSpaces.main,
-        { params: { type: MEMBERS_SPACE_TYPE as NsidString } },
+        {
+          validateResponse: false,
+          params: { type: MEMBERS_SPACE_TYPE as NsidString },
+        },
       );
       const orgs: OrgSummary[] = [];
       for (const space of response.body.spaces) {
@@ -122,6 +125,7 @@ export function orgMembersQueryOptions(
         spaceAgent(cred),
         com.atproto.space.listRecords.main,
         {
+          validateResponse: false,
           params: {
             space: membersSpace as SpaceRefString,
             repo: org,
@@ -182,6 +186,7 @@ export function orgAppAccessQueryOptions(
         spaceAgent(cred),
         com.atproto.space.listRecords.main,
         {
+          validateResponse: false,
           params: {
             space: membersSpace as SpaceRefString,
             repo: org,
@@ -244,6 +249,7 @@ export function orgProfileQueryOptions(
         );
         const agent = spaceAgent(cred);
         const response = await xrpc(agent, com.atproto.space.getRecord.main, {
+          validateResponse: false,
           params: {
             space: aboutSpace as SpaceRefString,
             repo: org as DidString,
@@ -402,6 +408,7 @@ export function orgRolesQueryOptions(
         spaceAgent(cred),
         com.atproto.space.listRecords.main,
         {
+          validateResponse: false,
           params: {
             space: membersSpace as SpaceRefString,
             repo: org,
@@ -455,6 +462,7 @@ export function orgPermissionsQueryOptions(
           spaceAgent(cred),
           com.atproto.space.getRecord.main,
           {
+            validateResponse: false,
             params: {
               space: membersSpace as SpaceRefString,
               repo: org,

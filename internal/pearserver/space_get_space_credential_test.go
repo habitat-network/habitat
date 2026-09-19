@@ -106,15 +106,18 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 		clientID, priv := clientmetadata_testutil.AttestationTestClient(t, "key-1")
 		grantAppAccess(t, ts.SpaceStore, org, clientID)
 
-		t.Run("no attestation is rejected", func(t *testing.T) {
-			var apiErr atclient.ErrorBody
+		t.Run("no attestation is accepted (public client)", func(t *testing.T) {
+			// Per https://atproto.com/specs/oauth, a public client has no
+			// signing key and so cannot produce a client attestation at all —
+			// it isn't gated by the org's app-access allow-list.
+			var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
 			code := httpx_testutil.NewTestXRPCClient(t).Procedure(
 				ts.Server.GetSpaceCredential,
 				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{Space: uri.String()},
-				&apiErr,
+				&out,
 			)
-			require.Equal(t, http.StatusBadRequest, code)
-			require.Equal(t, "AppNotAuthorized", apiErr.Name)
+			require.Equal(t, http.StatusOK, code)
+			require.NotEmpty(t, out.Credential)
 		})
 
 		t.Run("granted client with valid attestation is accepted", func(t *testing.T) {
