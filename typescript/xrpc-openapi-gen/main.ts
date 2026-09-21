@@ -22,6 +22,8 @@ const lexiconPaths = (
     [
       "../../lexicons/{network,community/opensocial}/**/*.json",
       "!../../lexicons/network/habitat/collections/**/*.json",
+      "!../../lexicons/network/habitat/clique.json",
+      "!../../lexicons/network/habitat/clique/**/*.json",
     ],
     { cwd: __dirname, absolute: true },
   )
