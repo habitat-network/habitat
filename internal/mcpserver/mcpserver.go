@@ -12,6 +12,7 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/habitat-network/habitat/internal/authn"
@@ -64,7 +65,13 @@ func New(
 
 	streamable := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return mcpServer
-	}, nil)
+	}, &mcp.StreamableHTTPOptions{
+		// pear runs behind a reverse proxy (Caddy locally, Cloud Run in prod),
+		// so requests reach it from a loopback address carrying the public Host
+		// header, which the SDK's DNS-rebinding guard would reject. Every
+		// request is bearer-authenticated, so the guard adds nothing here.
+		DisableLocalhostProtection: true,
+	})
 
 	authed := auth.RequireBearerToken(verifyToken(tokens), &auth.RequireBearerTokenOptions{
 		ResourceMetadataURL: issuer + ProtectedResourceMetadataPath,
@@ -98,6 +105,7 @@ func verifyToken(tokens authn.RawMethod) auth.TokenVerifier {
 	return func(ctx context.Context, token string, _ *http.Request) (*auth.TokenInfo, error) {
 		credInfo, ok, err := tokens.ValidateRaw(ctx, token)
 		if err != nil {
+			slog.WarnContext(ctx, "mcp: invalid token", "err", err)
 			return nil, fmt.Errorf("%w: %v", auth.ErrInvalidToken, err)
 		}
 		if !ok {

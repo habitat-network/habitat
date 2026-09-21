@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -204,4 +206,34 @@ func bytes2Reader(t *testing.T, v any) *bytes.Reader {
 	b, err := json.Marshal(v)
 	require.NoError(t, err)
 	return bytes.NewReader(b)
+}
+
+func TestNormalizeLoopbackRedirect(t *testing.T) {
+	db := dbtestutil.NewDB(t)
+	secretBytes, err := encrypt.ParseKey(mustGenerateKey(t))
+	require.NoError(t, err)
+	oauthSrv, err := NewOAuthServer(
+		secretBytes, &org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
+		pdsclient.NewDummyDirectory("http://pds.url"), db, noop.Meter{}, testStore(t),
+		"https://habitat.example", NewJWTBearerStore(), testOpensocialStore(t),
+	)
+	require.NoError(t, err)
+
+	// Mirrors Claude Code's client metadata: portless localhost + 127.0.0.1.
+	require.NoError(t, oauthSrv.storage.CreateDynamicClient(t.Context(), &oauth.ClientMetadata{
+		ClientID:     "native",
+		RedirectURIs: []string{"http://localhost/callback", "http://127.0.0.1/callback"},
+	}))
+	require.NoError(t, oauthSrv.storage.CreateDynamicClient(t.Context(), &oauth.ClientMetadata{
+		ClientID:     "exact",
+		RedirectURIs: []string{"http://localhost:3000/cb"},
+	}))
+
+	form := url.Values{"client_id": {"native"}, "redirect_uri": {"http://localhost:56393/callback"}}
+	oauthSrv.normalizeLoopbackRedirect(t.Context(), form)
+	require.Equal(t, "http://127.0.0.1:56393/callback", form.Get("redirect_uri"))
+
+	form = url.Values{"client_id": {"exact"}, "redirect_uri": {"http://localhost:3000/cb"}}
+	oauthSrv.normalizeLoopbackRedirect(t.Context(), form)
+	require.Equal(t, "http://localhost:3000/cb", form.Get("redirect_uri"))
 }
