@@ -15,8 +15,8 @@ import (
 	"net/http"
 
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/repo"
+	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
@@ -43,24 +43,24 @@ type Server struct {
 //   - tokens validates bearer tokens presented to the MCP endpoint. In
 //     production this is the same *oauthserver.OAuthServer used for every
 //     other Habitat OAuth client.
-//   - repo and perms back the "get_record" tool: perms enforces the same
-//     access-control check internal/pear's own GetRecord path does before
-//     repo returns the record.
+//   - spacesStore and permStore back the "get_record" tool: permStore checks
+//     the caller holds at least a reader role on the record's space before
+//     spacesStore returns the record.
 //   - issuer is this server's issuer origin (an https URL with no path),
 //     used to build the resource identifier in the protected resource
 //     metadata document.
 func New(
 	tokens authn.RawMethod,
-	repo repo.Repo,
-	perms permissions.Store,
+	spacesStore spaces.Store,
+	permStore perms.Store,
 	issuer string,
 ) *Server {
 	impl := &mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}
 	mcpServer := mcp.NewServer(impl, nil)
 	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name:        "get_record",
-		Description: "Get a single Habitat record by its habitat:// URI.",
-	}, getRecordHandler(repo, perms))
+		Description: "Get a single Habitat record by its space record URI.",
+	}, getRecordHandler(spacesStore, permStore))
 
 	streamable := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return mcpServer

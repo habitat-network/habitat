@@ -395,7 +395,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
-	mcpServer := mcpserver.New(oauthServer, repo, permissions, "https://"+domain)
+	mcpServer := mcpserver.New(oauthServer, spacesStore, permStore, "https://"+domain)
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,

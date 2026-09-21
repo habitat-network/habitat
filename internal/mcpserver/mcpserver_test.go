@@ -8,10 +8,13 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/clique"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/repo"
+	"github.com/habitat-network/habitat/internal/fgastore"
+	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
+	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/spaces"
+	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
@@ -46,16 +49,22 @@ func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(req)
 }
 
-func setupStores(t *testing.T) (repo.Repo, permissions.Store) {
+// setupStores builds a spaces.Store and a perms.Store sharing the same
+// throwaway DB and an in-memory FGA store, mirroring how cmd/pear/main.go
+// wires them together.
+func setupStores(t *testing.T) (spaces.Store, perms.Store) {
 	t.Helper()
 	db := dbtestutil.NewDB(t)
-	cliqueStore, err := clique.NewStore(db)
+	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db))
+	osTestStore := opensocial_testutil.NewTestStore(
+		t,
+		opensocial_testutil.WithDB(db),
+		opensocial_testutil.WithSpaceStore(spacesStore),
+	)
+	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
-	permStore, err := permissions.NewStore(db, cliqueStore)
-	require.NoError(t, err)
-	repoStore, err := repo.NewRepo(db)
-	require.NoError(t, err)
-	return repoStore, permStore
+	permStore := perms.NewStore(db, spacesStore, fga, osTestStore.Store)
+	return spacesStore, permStore
 }
 
 func connectAs(
@@ -74,20 +83,24 @@ func connectAs(
 
 func TestMCPServerGetRecordTool(t *testing.T) {
 	ctx := t.Context()
-	repoStore, permStore := setupStores(t)
+	spacesStore, permStore := setupStores(t)
 
 	owner := syntax.DID("did:plc:owner")
 	other := syntax.DID("did:plc:other")
+	collection := syntax.NSID("network.habitat.example")
 
-	uri, err := repoStore.PutRecord(ctx, repo.Record{
-		Did:        owner.String(),
-		Collection: "network.habitat.example",
-		Rkey:       "abc123",
-		Value:      map[string]any{"hello": "world"},
-	}, nil)
+	spaceURI, err := spacesStore.CreateSpace(
+		ctx, owner, syntax.NSID("network.habitat.space.type"), habitat_syntax.SpaceKey("test"),
+	)
 	require.NoError(t, err)
 
-	srv := New(fakeTokens{}, repoStore, permStore, "https://habitat.example")
+	recordURI, _, err := spacesStore.PutRecord(
+		ctx, spaceURI, owner, collection, "abc123",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"hello": "world"}),
+	)
+	require.NoError(t, err)
+
+	srv := New(fakeTokens{}, spacesStore, permStore, "https://habitat.example")
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
 
@@ -98,12 +111,12 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 
 		result, err := session.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "get_record",
-			Arguments: map[string]any{"uri": uri.String()},
+			Arguments: map[string]any{"uri": recordURI.String()},
 		})
 		require.NoError(t, err)
 		require.False(t, result.IsError, "%+v", result)
 		require.Equal(t, map[string]any{
-			"uri":   uri.String(),
+			"uri":   recordURI.String(),
 			"value": map[string]any{"hello": "world"},
 		}, result.StructuredContent)
 	})
@@ -115,7 +128,7 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 
 		result, err := session.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "get_record",
-			Arguments: map[string]any{"uri": uri.String()},
+			Arguments: map[string]any{"uri": recordURI.String()},
 		})
 		require.NoError(t, err)
 		require.True(t, result.IsError)

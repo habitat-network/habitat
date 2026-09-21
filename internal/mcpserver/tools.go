@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
-	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/repo"
+	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -15,7 +15,7 @@ import (
 )
 
 type getRecordInput struct {
-	URI string `json:"uri" jsonschema:"the habitat:// URI of the record to fetch, e.g. habitat://did:plc:abc/network.habitat.example/3jz"`
+	URI string `json:"uri" jsonschema:"the space record URI of the record to fetch, e.g. at://did:plc:abc/space/network.habitat.example/3jz/did:plc:abc/network.habitat.example/3jz"`
 }
 
 type getRecordOutput struct {
@@ -23,12 +23,12 @@ type getRecordOutput struct {
 	Value any    `json:"value"`
 }
 
-// getRecordHandler implements the "get_record" MCP tool. It mirrors
-// internal/pear's getRecordLocal: check the caller's permission on the
-// target record, then read it straight from the repo store.
+// getRecordHandler implements the "get_record" MCP tool: check the caller
+// holds at least a reader role on the record's space, then read the record
+// straight from the space store.
 func getRecordHandler(
-	store repo.Repo,
-	perms permissions.Store,
+	store spaces.Store,
+	permStore perms.Store,
 ) mcp.ToolHandlerFor[getRecordInput, getRecordOutput] {
 	return func(
 		ctx context.Context,
@@ -41,16 +41,18 @@ func getRecordHandler(
 		}
 		caller := syntax.DID(tokenInfo.UserID)
 
-		uri, err := habitat_syntax.ParseHabitatURI(input.URI)
+		recordURI, err := habitat_syntax.ParseSpaceRecordURI(input.URI)
 		if err != nil {
 			return nil, getRecordOutput{}, fmt.Errorf("invalid uri: %w", err)
 		}
-		owner, collection, rkey, err := uri.ExtractParts()
-		if err != nil {
-			return nil, getRecordOutput{}, fmt.Errorf("invalid uri: %w", err)
-		}
+		spaceURI := recordURI.SpaceURI()
+		owner := recordURI.Repo()
+		collection := recordURI.Collection()
+		rkey := recordURI.Rkey()
 
-		ok, err := perms.HasPermission(ctx, caller, owner, collection, rkey)
+		ok, err := permStore.CheckUserHasSpaceRole(
+			ctx, caller, spaceURI, habitat_syntax.SpaceRoleReader,
+		)
 		if err != nil {
 			return nil, getRecordOutput{}, fmt.Errorf("checking permission: %w", err)
 		}
@@ -58,7 +60,7 @@ func getRecordHandler(
 			return nil, getRecordOutput{}, habitat_err.ErrUnauthorized
 		}
 
-		record, err := store.GetRecord(ctx, owner.String(), collection.String(), rkey.String())
+		record, err := store.GetRecord(ctx, spaceURI, owner, collection, rkey)
 		if err != nil {
 			return nil, getRecordOutput{}, fmt.Errorf("getting record: %w", err)
 		}
