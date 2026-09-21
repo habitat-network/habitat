@@ -40,6 +40,7 @@ import (
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
@@ -394,6 +395,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
+	mcpServer := mcpserver.New(oauthServer, spacesStore, permStore, "https://"+domain)
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,
@@ -504,8 +506,20 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsent)
 	mux.HandleFunc("/oauth/opensocial", oauthServer.HandleOpensocial)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
+	mux.HandleFunc("/oauth/register", oauthServer.HandleRegister)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
+
+	// MCP (Model Context Protocol) server. Its OAuth surface is the same
+	// broker above: MCP clients register via /oauth/register (RFC 7591,
+	// since most can't publish a Client ID Metadata Document) and then use
+	// the same /oauth/authorize -> PDS -> /oauth/token flow as any other
+	// Habitat OAuth client.
+	mux.Handle(
+		mcpserver.ProtectedResourceMetadataPath,
+		mcpServer.ProtectedResourceMetadataHandler(),
+	)
+	mux.Handle(mcpserver.Path, mcpServer.Handler())
 
 	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)

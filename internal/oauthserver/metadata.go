@@ -4,30 +4,43 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 )
 
+// authServerMetadata extends indigo's atproto-focused AuthServerMetadata with
+// the registration_endpoint field (RFC 7591), which that struct omits.
+// Dynamic client registration is what lets generic OAuth/MCP clients — which
+// don't support atproto's Client ID Metadata Document convention — obtain a
+// client_id usable against this same authorization server.
+type authServerMetadata struct {
+	oauth.AuthServerMetadata
+	RegistrationEndpoint string `json:"registration_endpoint,omitempty"`
+}
+
 // buildAuthServerMetadata assembles the authorization-server metadata document
 // for the given issuer origin. The advertised capabilities describe the target
 // atproto-compliant surface; PAR and DPoP enforcement are wired up in later
 // phases.
-func buildAuthServerMetadata(issuer string) oauth.AuthServerMetadata {
-	return oauth.AuthServerMetadata{
-		Issuer:                             issuer,
-		AuthorizationEndpoint:              issuer + "/oauth/authorize",
-		TokenEndpoint:                      issuer + "/oauth/token",
-		PushedAuthorizationRequestEndpoint: issuer + "/oauth/par",
-		ResponseTypesSupported:             []string{"code"},
-		GrantTypesSupported: []string{
-			"authorization_code",
-			"refresh_token",
-			"urn:ietf:params:oauth:grant-type:jwt-bearer",
+func buildAuthServerMetadata(issuer string) authServerMetadata {
+	return authServerMetadata{
+		AuthServerMetadata: oauth.AuthServerMetadata{
+			Issuer:                             issuer,
+			AuthorizationEndpoint:              issuer + "/oauth/authorize",
+			TokenEndpoint:                      issuer + "/oauth/token",
+			PushedAuthorizationRequestEndpoint: issuer + "/oauth/par",
+			ResponseTypesSupported:             []string{"code"},
+			GrantTypesSupported: []string{
+				"authorization_code",
+				"refresh_token",
+				"urn:ietf:params:oauth:grant-type:jwt-bearer",
+			},
+			CodeChallengeMethodsSupported:              []string{"S256"},
+			TokenEndpointAuthMethodsSupoorted:          []string{"none", "private_key_jwt"},
+			TokenEndpointAuthSigningAlgValuesSupported: []string{"ES256"},
+			ScopesSupported:                            []string{"atproto"},
+			DPoPSigningAlgValuesSupported:              []string{"ES256"},
+			AuthorizationReponseISSParameterSupported:  true,
+			RequirePushedAuthorizationRequests:         true,
+			ClientIDMetadataDocumentSupported:          true,
 		},
-		CodeChallengeMethodsSupported:              []string{"S256"},
-		TokenEndpointAuthMethodsSupoorted:          []string{"none", "private_key_jwt"},
-		TokenEndpointAuthSigningAlgValuesSupported: []string{"ES256"},
-		ScopesSupported:                            []string{"atproto"},
-		DPoPSigningAlgValuesSupported:              []string{"ES256"},
-		AuthorizationReponseISSParameterSupported:  true,
-		RequirePushedAuthorizationRequests:         true,
-		ClientIDMetadataDocumentSupported:          true,
+		RegistrationEndpoint: issuer + "/oauth/register",
 	}
 }
 

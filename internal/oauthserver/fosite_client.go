@@ -132,3 +132,9 @@ func (c *client) GetTokenEndpointAuthSigningAlgorithm() string {
 	}
 	return ""
 }
+
+// IsDPoPBound reports whether the client declared dpop_bound_access_tokens,
+// which atproto OAuth clients must and generic OAuth/MCP clients don't.
+func (c *client) IsDPoPBound() bool {
+	return c.DPoPBoundAccessTokens
+}

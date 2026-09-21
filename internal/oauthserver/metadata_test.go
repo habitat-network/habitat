@@ -30,7 +30,8 @@ func TestBuildAuthServerMetadata(t *testing.T) {
 		"dpop_signing_alg_values_supported": ["ES256"],
 		"authorization_response_iss_parameter_supported": true,
 		"require_pushed_authorization_requests": true,
-		"client_id_metadata_document_supported": true
+		"client_id_metadata_document_supported": true,
+		"registration_endpoint": "https://habitat.example/oauth/register"
 		}`, string(b))
 }
 
