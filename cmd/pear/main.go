@@ -515,7 +515,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// since most can't publish a Client ID Metadata Document) and then use
 	// the same /oauth/authorize -> PDS -> /oauth/token flow as any other
 	// Habitat OAuth client.
-	mux.Handle(mcpserver.ProtectedResourceMetadataPath, mcpServer.ProtectedResourceMetadataHandler())
+	mux.Handle(
+		mcpserver.ProtectedResourceMetadataPath,
+		mcpServer.ProtectedResourceMetadataHandler(),
+	)
 	mux.Handle(mcpserver.Path, mcpServer.Handler())
 
 	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
