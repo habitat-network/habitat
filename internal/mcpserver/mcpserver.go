@@ -10,8 +10,11 @@
 package mcpserver
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -66,6 +69,9 @@ func New(
 	streamable := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return mcpServer
 	}, &mcp.StreamableHTTPOptions{
+		// Stateless: a session opened unauthenticated (to list tools) must not
+		// be tied to whichever user later authenticates on it.
+		Stateless: true,
 		// pear runs behind a reverse proxy (Caddy locally, Cloud Run in prod),
 		// so requests reach it from a loopback address carrying the public Host
 		// header, which the SDK's DNS-rebinding guard would reject. Every
@@ -81,7 +87,7 @@ func New(
 		AllowMissingExpiration: true,
 	})(streamable)
 
-	return &Server{issuer: issuer, handler: authed}
+	return &Server{issuer: issuer, handler: allowUnauthenticatedDiscovery(streamable, authed)}
 }
 
 // Handler serves the MCP endpoint. Mount it at Path.
@@ -98,6 +104,47 @@ func (s *Server) ProtectedResourceMetadataHandler() http.Handler {
 		AuthorizationServers: []string{s.issuer},
 	})
 }
+
+// unauthenticatedMethods are the JSON-RPC methods served without a token so an
+// MCP client can connect and list tools before prompting the user to
+// authenticate; calling a tool (or anything else) still requires a bearer token.
+var unauthenticatedMethods = map[string]bool{
+	"initialize":                true,
+	"notifications/initialized": true,
+	"ping":                      true,
+	"tools/list":                true,
+}
+
+// allowUnauthenticatedDiscovery routes single JSON-RPC requests for
+// unauthenticatedMethods, and any non-POST request, straight to open; everything
+// else (including batches and unparseable bodies) goes to authed.
+func allowUnauthenticatedDiscovery(open, authed http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			// The stateless handler answers GET/DELETE with 405 and serves no
+			// data. Clients open a GET stream right after initialize, and a 401
+			// there would be read as "authentication required" at connect time.
+			open.ServeHTTP(w, r)
+			return
+		}
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxDiscoveryBodyBytes))
+		if err != nil {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		var msg struct {
+			Method string `json:"method"`
+		}
+		if json.Unmarshal(body, &msg) == nil && unauthenticatedMethods[msg.Method] {
+			open.ServeHTTP(w, r)
+			return
+		}
+		authed.ServeHTTP(w, r)
+	})
+}
+
+const maxDiscoveryBodyBytes = 1 << 20
 
 // verifyToken adapts an authn.RawMethod (internal/oauthserver.OAuthServer's
 // bearer-token validation) to the go-sdk's auth.TokenVerifier shape.

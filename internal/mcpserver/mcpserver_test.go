@@ -147,8 +147,30 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 		require.True(t, result.IsError)
 	})
 
-	t.Run("unauthenticated request is rejected", func(t *testing.T) {
-		_, err := connectAs(t, ctx, httpServer.URL, "")
+	t.Run("unauthenticated GET is not an auth challenge", func(t *testing.T) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, httpServer.URL, http.NoBody)
+		require.NoError(t, err)
+		req.Header.Set("Accept", "text/event-stream")
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
+	})
+
+	t.Run("unauthenticated client can list tools but not call them", func(t *testing.T) {
+		session, err := connectAs(t, ctx, httpServer.URL, "")
+		require.NoError(t, err)
+		defer func() { _ = session.Close() }()
+
+		tools, err := session.ListTools(ctx, nil)
+		require.NoError(t, err)
+		require.Len(t, tools.Tools, 1)
+		require.Equal(t, "get_record", tools.Tools[0].Name)
+
+		_, err = session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "get_record",
+			Arguments: map[string]any{"uri": recordURI.String()},
+		})
 		require.Error(t, err)
 	})
 }

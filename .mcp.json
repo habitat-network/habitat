@@ -2,6 +2,10 @@
   "mcpServers": {
     "habitat": {
       "type": "http",
+      "url": "https://pear.habitat.network/mcp"
+    },
+    "habitat_local": {
+      "type": "http",
       "url": "https://pear.local.habitat.network/mcp"
     }
   }
