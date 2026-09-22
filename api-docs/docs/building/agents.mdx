@@ -35,13 +35,12 @@ on AT Protocol primitives.
   endpoints live under `/xrpc/<nsid>`, e.g.
   `https://pear.habitat.network/xrpc/network.habitat.space.getRecord`.
 - Authentication is standard AT Protocol OAuth. The app OAuths with
-  Habitat; Habitat brokers to the user's own PDS.
+  Habitat; Habitat brokers to user's identity provider.
 - For use-cases where users bring their own AT Protocol account,
   Habitat acts as the [identity resolver](https://atproto.com/specs/did)
   (see also the [atproto identity guide](https://atproto.com/guides/identity)).
-  It rewrites the `#atproto_pds`
-  entry in a resolved DID document to point at itself, so standard atproto
-  clients route through it without Habitat-specific code.
+  It rewrites the `#atproto_pds` entry in a resolved DID document to point at itself, 
+  so standard atproto clients route through it without Habitat-specific code.
 - Data is AT Protocol records and blobs, stored in per-identity
   repositories and addressed by collection NSID plus record key.
 - A space groups records across repositories and is the unit that
