@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.listServers",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List MCP servers configured for the caller's org, along with whether the caller has connected to each one. Callable by any org member.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "servers"
+          ],
+          "properties": {
+            "servers": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#serverWithStatus"
+              }
+            }
+          }
+        }
+      }
+    },
+    "serverWithStatus": {
+      "type": "object",
+      "required": [
+        "server",
+        "connected"
+      ],
+      "properties": {
+        "server": {
+          "type": "ref",
+          "ref": "network.habitat.mcp.defs#server"
+        },
+        "connected": {
+          "type": "boolean",
+          "description": "Whether the caller has a stored credential for this server."
+        }
+      }
+    }
+  }
+}

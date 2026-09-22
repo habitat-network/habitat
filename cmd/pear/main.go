@@ -40,6 +40,8 @@ import (
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
+	mcpgateway_server "github.com/habitat-network/habitat/internal/mcpgateway/server"
 	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
@@ -417,6 +419,19 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.issueInviteToken", orgServer.IssueInviteToken)
 	mux.HandleFunc("/xrpc/network.habitat.org.mintMemberIdentity", orgServer.MintMemberIdentity)
 	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
+
+	// Store + server for org-configured MCP servers and per-user credentials
+	mcpGatewayStore, err := mcpgateway.NewStore(db.WithContext(startupCtx), credKey)
+	if err != nil {
+		return fmt.Errorf("setup mcp gateway store: %w", err)
+	}
+	mcpGatewayServer := mcpgateway_server.NewServer(mcpGatewayStore, orgStore, validator)
+	mux.HandleFunc("/xrpc/network.habitat.mcp.addServer", mcpGatewayServer.AddServer)
+	mux.HandleFunc("/xrpc/network.habitat.mcp.updateServer", mcpGatewayServer.UpdateServer)
+	mux.HandleFunc("/xrpc/network.habitat.mcp.removeServer", mcpGatewayServer.RemoveServer)
+	mux.HandleFunc("/xrpc/network.habitat.mcp.listServers", mcpGatewayServer.ListServers)
+	mux.HandleFunc("/xrpc/network.habitat.mcp.connectServer", mcpGatewayServer.ConnectServer)
+	mux.HandleFunc("/xrpc/network.habitat.mcp.disconnectServer", mcpGatewayServer.DisconnectServer)
 
 	// Server for opensocial community routes
 	mux.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", pearApp.CreateOrg)

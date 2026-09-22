@@ -17,6 +17,7 @@ import { Route as OauthLoginRouteImport } from './routes/oauth-login'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
+import { Route as RequireAuthMcpRouteImport } from './routes/_requireAuth/mcp'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
 import { Route as CommunityCreateRouteImport } from './routes/community/create'
 import { Route as LoginHabitatRouteImport } from './routes/login/habitat'
@@ -90,6 +91,11 @@ const RequireAuthIndexRoute = RequireAuthIndexRouteImport.update({
 const RequireAuthDataRoute = RequireAuthDataRouteImport.update({
   id: '/data',
   path: '/data',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
+const RequireAuthMcpRoute = RequireAuthMcpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => RequireAuthRoute,
 } as any)
 const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
@@ -305,6 +311,7 @@ export interface FileRoutesByFullPath {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
+  '/mcp': typeof RequireAuthMcpRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
@@ -348,6 +355,7 @@ export interface FileRoutesByTo {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
+  '/mcp': typeof RequireAuthMcpRoute
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
   '/org/create': typeof OrgCreateRoute
@@ -391,6 +399,7 @@ export interface FileRoutesById {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
+  '/_requireAuth/mcp': typeof RequireAuthMcpRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
@@ -438,6 +447,7 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
+    | '/mcp'
     | '/permissions'
     | '/community/create'
     | '/login/habitat'
@@ -481,6 +491,7 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
+    | '/mcp'
     | '/community/create'
     | '/login/habitat'
     | '/org/create'
@@ -523,6 +534,7 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/_requireAuth/data'
+    | '/_requireAuth/mcp'
     | '/_requireAuth/permissions'
     | '/community/create'
     | '/login/habitat'
@@ -629,6 +641,13 @@ declare module '@tanstack/react-router' {
       path: '/data'
       fullPath: '/data'
       preLoaderRoute: typeof RequireAuthDataRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/mcp': {
+      id: '/_requireAuth/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof RequireAuthMcpRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/permissions': {
@@ -962,6 +981,7 @@ const RequireAuthOpensocialOrgRouteWithChildren =
 
 interface RequireAuthRouteChildren {
   RequireAuthDataRoute: typeof RequireAuthDataRoute
+  RequireAuthMcpRoute: typeof RequireAuthMcpRoute
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
   RequireAuthCollectionsCollectionRoute: typeof RequireAuthCollectionsCollectionRoute
@@ -985,6 +1005,7 @@ interface RequireAuthRouteChildren {
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthDataRoute: RequireAuthDataRoute,
+  RequireAuthMcpRoute: RequireAuthMcpRoute,
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
   RequireAuthCollectionsCollectionRoute: RequireAuthCollectionsCollectionRoute,

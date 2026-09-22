@@ -1,0 +1,58 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.updateServer",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Update an org's configured MCP server. Only callable by org admins.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "authType": {
+              "type": "string",
+              "knownValues": [
+                "none",
+                "api_key"
+              ]
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "server"
+          ],
+          "properties": {
+            "server": {
+              "type": "ref",
+              "ref": "network.habitat.mcp.defs#server"
+            }
+          }
+        }
+      }
+    }
+  }
+}
