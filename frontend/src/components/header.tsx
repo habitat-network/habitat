@@ -36,11 +36,6 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
                   Organizations
                 </Button>
               </li>
-              <li>
-                <Button variant="link" render={<Link to="/mcp" />}>
-                  MCP servers
-                </Button>
-              </li>
               {import.meta.env.DEV && (
                 <>
                   <li>

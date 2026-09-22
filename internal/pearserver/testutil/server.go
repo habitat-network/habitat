@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -12,8 +13,10 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pearserver"
@@ -39,6 +42,7 @@ type TestServer struct {
 	HostKey         atcrypto.PrivateKey
 	DB              *gorm.DB
 	FGA             fgastore.Store
+	McpGatewayStore mcpgateway.Store
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -137,6 +141,12 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	ts.OpenSocialStore = os
 	ts.SimpleStore = ss
 
+	mcpGatewayStore, err := mcpgateway.NewStore(
+		ts.DB, encrypt.TestKey, http.DefaultClient, "https://pear.example.com/mcp-oauth-callback",
+	)
+	require.NoError(t, err)
+	ts.McpGatewayStore = mcpGatewayStore
+
 	ts.Server = pearserver.New(
 		"pear.example.com",
 		ts.Validator,
@@ -149,6 +159,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ss,
 		ts.NotifyStore,
 		clientmetadata.NewResolver(),
+		mcpGatewayStore,
 	)
 	ts.PermStore = ps
 	return &ts

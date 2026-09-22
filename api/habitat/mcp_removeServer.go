@@ -4,5 +4,6 @@ package habitat
 
 // NetworkHabitatMcpRemoveServerInput represents the input for network.habitat.mcp.removeServer
 type NetworkHabitatMcpRemoveServerInput struct {
-	Id string `json:"id"`
+	Id  string `json:"id"`
+	Org string `json:"org"`
 }

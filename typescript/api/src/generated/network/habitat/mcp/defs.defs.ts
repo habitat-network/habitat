@@ -27,9 +27,9 @@ type Server = {
   description?: string
 
   /**
-   * How users authenticate to this MCP server. "none" requires no per-user credential; "api_key" requires each user to supply a bearer token/API key.
+   * How users authenticate to this MCP server. "none" requires no per-user authorization; "oauth" requires each user to complete an OAuth authorization-code flow against the server's own authorization server, per the MCP authorization spec.
    */
-  authType: 'none' | 'api_key' | l.UnknownString
+  authType: 'none' | 'oauth' | l.UnknownString
 }
 
 export type { Server }
@@ -45,7 +45,7 @@ const server = /*#__PURE__*/ l.typedObject<Server>(
     description: /*#__PURE__*/ l.optional(
       /*#__PURE__*/ l.string({ maxLength: 2000 }),
     ),
-    authType: /*#__PURE__*/ l.string<{ knownValues: ['none', 'api_key'] }>(),
+    authType: /*#__PURE__*/ l.string<{ knownValues: ['none', 'oauth'] }>(),
   }),
 )
 

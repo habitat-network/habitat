@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'network.habitat.mcp.connectServer'
+const $nsid = 'network.habitat.mcp.startAuthorization'
 
 type $nsid = typeof $nsid
 
@@ -15,14 +15,17 @@ export const $params = /*#__PURE__*/ l.params()
 export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
+  org: /*#__PURE__*/ l.string({ format: 'did' }),
   id: /*#__PURE__*/ l.string(),
-  credential: /*#__PURE__*/ l.string({ maxLength: 8192 }),
+  redirectUri: /*#__PURE__*/ l.string({ format: 'uri' }),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
 
-export const $output = /*#__PURE__*/ l.payload()
+export const $output = /*#__PURE__*/ l.jsonPayload({
+  authorizationUrl: /*#__PURE__*/ l.string({ format: 'uri' }),
+})
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
 export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
@@ -30,7 +33,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Store the caller's credential for an org-configured MCP server, opting the caller in to using it. Callable by any org member. */
+/** Begin an OAuth authorization-code flow so the caller can connect their own credential to an org-configured MCP server. Returns a URL to redirect the caller's browser to; the gateway completes the flow when the authorization server redirects back to it. Requires service-auth. Callable by any org member. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

@@ -4,17 +4,22 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Configure a new MCP server for the org. Only callable by org admins.",
+      "description": "Configure a new MCP server for the org. The gateway probes the server to detect whether it requires OAuth authorization per the MCP authorization spec, discovering and registering with its authorization server if so. Requires service-auth. Requires the community.configure action.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "required": [
+            "org",
             "name",
-            "url",
-            "authType"
+            "url"
           ],
           "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community to configure the server for."
+            },
             "name": {
               "type": "string",
               "maxLength": 200
@@ -26,13 +31,6 @@
             "description": {
               "type": "string",
               "maxLength": 2000
-            },
-            "authType": {
-              "type": "string",
-              "knownValues": [
-                "none",
-                "api_key"
-              ]
             }
           }
         }

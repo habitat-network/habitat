@@ -4,5 +4,6 @@ package habitat
 
 // NetworkHabitatMcpDisconnectServerInput represents the input for network.habitat.mcp.disconnectServer
 type NetworkHabitatMcpDisconnectServerInput struct {
-	Id string `json:"id"`
+	Id  string `json:"id"`
+	Org string `json:"org"`
 }

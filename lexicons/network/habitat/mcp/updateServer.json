@@ -4,15 +4,21 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Update an org's configured MCP server. Only callable by org admins.",
+      "description": "Update an org's configured MCP server. If url changes, the gateway re-probes it to detect whether it requires OAuth authorization, per the MCP authorization spec. Requires service-auth. Requires the community.configure action.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "required": [
+            "org",
             "id"
           ],
           "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community the server belongs to."
+            },
             "id": {
               "type": "string"
             },
@@ -27,13 +33,6 @@
             "description": {
               "type": "string",
               "maxLength": 2000
-            },
-            "authType": {
-              "type": "string",
-              "knownValues": [
-                "none",
-                "api_key"
-              ]
             }
           }
         }

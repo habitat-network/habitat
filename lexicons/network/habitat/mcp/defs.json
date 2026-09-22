@@ -33,9 +33,9 @@
           "type": "string",
           "knownValues": [
             "none",
-            "api_key"
+            "oauth"
           ],
-          "description": "How users authenticate to this MCP server. \"none\" requires no per-user credential; \"api_key\" requires each user to supply a bearer token/API key."
+          "description": "How users authenticate to this MCP server. \"none\" requires no per-user authorization; \"oauth\" requires each user to complete an OAuth authorization-code flow against the server's own authorization server, per the MCP authorization spec."
         }
       }
     }

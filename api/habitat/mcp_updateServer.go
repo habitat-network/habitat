@@ -4,10 +4,10 @@ package habitat
 
 // NetworkHabitatMcpUpdateServerInput represents the input for network.habitat.mcp.updateServer
 type NetworkHabitatMcpUpdateServerInput struct {
-	AuthType    string `json:"authType,omitempty"`
 	Description string `json:"description,omitempty"`
 	Id          string `json:"id"`
 	Name        string `json:"name,omitempty"`
+	Org         string `json:"org"`
 	Url         string `json:"url,omitempty"`
 }
 

@@ -4,9 +4,9 @@ package habitat
 
 // NetworkHabitatMcpAddServerInput represents the input for network.habitat.mcp.addServer
 type NetworkHabitatMcpAddServerInput struct {
-	AuthType    string `json:"authType"`
 	Description string `json:"description,omitempty"`
 	Name        string `json:"name"`
+	Org         string `json:"org"`
 	Url         string `json:"url"`
 }
 

@@ -17,7 +17,6 @@ import { Route as OauthLoginRouteImport } from './routes/oauth-login'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
-import { Route as RequireAuthMcpRouteImport } from './routes/_requireAuth/mcp'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
 import { Route as CommunityCreateRouteImport } from './routes/community/create'
 import { Route as LoginHabitatRouteImport } from './routes/login/habitat'
@@ -40,6 +39,7 @@ import { Route as RequireAuthSpacesIndexRouteImport } from './routes/_requireAut
 import { Route as RequireAuthOpensocialOrgIndexRouteImport } from './routes/_requireAuth/opensocial/$org/index'
 import { Route as RequireAuthOpensocialOrgAppsRouteImport } from './routes/_requireAuth/opensocial/$org/apps'
 import { Route as RequireAuthOpensocialOrgCapabilitiesRouteImport } from './routes/_requireAuth/opensocial/$org/capabilities'
+import { Route as RequireAuthOpensocialOrgMcpRouteImport } from './routes/_requireAuth/opensocial/$org/mcp'
 import { Route as RequireAuthOpensocialOrgMembersRouteImport } from './routes/_requireAuth/opensocial/$org/members'
 import { Route as RequireAuthOpensocialOrgRolesRouteImport } from './routes/_requireAuth/opensocial/$org/roles'
 import { Route as RequireAuthOpensocialOrgSettingsRouteImport } from './routes/_requireAuth/opensocial/$org/settings'
@@ -91,11 +91,6 @@ const RequireAuthIndexRoute = RequireAuthIndexRouteImport.update({
 const RequireAuthDataRoute = RequireAuthDataRouteImport.update({
   id: '/data',
   path: '/data',
-  getParentRoute: () => RequireAuthRoute,
-} as any)
-const RequireAuthMcpRoute = RequireAuthMcpRouteImport.update({
-  id: '/mcp',
-  path: '/mcp',
   getParentRoute: () => RequireAuthRoute,
 } as any)
 const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
@@ -220,6 +215,12 @@ const RequireAuthOpensocialOrgCapabilitiesRoute =
     path: '/capabilities',
     getParentRoute: () => RequireAuthOpensocialOrgRoute,
   } as any)
+const RequireAuthOpensocialOrgMcpRoute =
+  RequireAuthOpensocialOrgMcpRouteImport.update({
+    id: '/mcp',
+    path: '/mcp',
+    getParentRoute: () => RequireAuthOpensocialOrgRoute,
+  } as any)
 const RequireAuthOpensocialOrgMembersRoute =
   RequireAuthOpensocialOrgMembersRouteImport.update({
     id: '/members',
@@ -311,7 +312,6 @@ export interface FileRoutesByFullPath {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
-  '/mcp': typeof RequireAuthMcpRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
@@ -333,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/spaces/': typeof RequireAuthSpacesIndexRoute
   '/opensocial/$org/apps': typeof RequireAuthOpensocialOrgAppsRoute
   '/opensocial/$org/capabilities': typeof RequireAuthOpensocialOrgCapabilitiesRoute
+  '/opensocial/$org/mcp': typeof RequireAuthOpensocialOrgMcpRoute
   '/opensocial/$org/members': typeof RequireAuthOpensocialOrgMembersRoute
   '/opensocial/$org/roles': typeof RequireAuthOpensocialOrgRolesRoute
   '/opensocial/$org/settings': typeof RequireAuthOpensocialOrgSettingsRoute
@@ -355,7 +356,6 @@ export interface FileRoutesByTo {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
-  '/mcp': typeof RequireAuthMcpRoute
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
   '/org/create': typeof OrgCreateRoute
@@ -375,6 +375,7 @@ export interface FileRoutesByTo {
   '/spaces': typeof RequireAuthSpacesIndexRoute
   '/opensocial/$org/apps': typeof RequireAuthOpensocialOrgAppsRoute
   '/opensocial/$org/capabilities': typeof RequireAuthOpensocialOrgCapabilitiesRoute
+  '/opensocial/$org/mcp': typeof RequireAuthOpensocialOrgMcpRoute
   '/opensocial/$org/members': typeof RequireAuthOpensocialOrgMembersRoute
   '/opensocial/$org/roles': typeof RequireAuthOpensocialOrgRolesRoute
   '/opensocial/$org/settings': typeof RequireAuthOpensocialOrgSettingsRoute
@@ -399,7 +400,6 @@ export interface FileRoutesById {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
-  '/_requireAuth/mcp': typeof RequireAuthMcpRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
@@ -422,6 +422,7 @@ export interface FileRoutesById {
   '/_requireAuth/spaces/': typeof RequireAuthSpacesIndexRoute
   '/_requireAuth/opensocial/$org/apps': typeof RequireAuthOpensocialOrgAppsRoute
   '/_requireAuth/opensocial/$org/capabilities': typeof RequireAuthOpensocialOrgCapabilitiesRoute
+  '/_requireAuth/opensocial/$org/mcp': typeof RequireAuthOpensocialOrgMcpRoute
   '/_requireAuth/opensocial/$org/members': typeof RequireAuthOpensocialOrgMembersRoute
   '/_requireAuth/opensocial/$org/roles': typeof RequireAuthOpensocialOrgRolesRoute
   '/_requireAuth/opensocial/$org/settings': typeof RequireAuthOpensocialOrgSettingsRoute
@@ -447,7 +448,6 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
-    | '/mcp'
     | '/permissions'
     | '/community/create'
     | '/login/habitat'
@@ -469,6 +469,7 @@ export interface FileRouteTypes {
     | '/spaces/'
     | '/opensocial/$org/apps'
     | '/opensocial/$org/capabilities'
+    | '/opensocial/$org/mcp'
     | '/opensocial/$org/members'
     | '/opensocial/$org/roles'
     | '/opensocial/$org/settings'
@@ -491,7 +492,6 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
-    | '/mcp'
     | '/community/create'
     | '/login/habitat'
     | '/org/create'
@@ -511,6 +511,7 @@ export interface FileRouteTypes {
     | '/spaces'
     | '/opensocial/$org/apps'
     | '/opensocial/$org/capabilities'
+    | '/opensocial/$org/mcp'
     | '/opensocial/$org/members'
     | '/opensocial/$org/roles'
     | '/opensocial/$org/settings'
@@ -534,7 +535,6 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/_requireAuth/data'
-    | '/_requireAuth/mcp'
     | '/_requireAuth/permissions'
     | '/community/create'
     | '/login/habitat'
@@ -557,6 +557,7 @@ export interface FileRouteTypes {
     | '/_requireAuth/spaces/'
     | '/_requireAuth/opensocial/$org/apps'
     | '/_requireAuth/opensocial/$org/capabilities'
+    | '/_requireAuth/opensocial/$org/mcp'
     | '/_requireAuth/opensocial/$org/members'
     | '/_requireAuth/opensocial/$org/roles'
     | '/_requireAuth/opensocial/$org/settings'
@@ -641,13 +642,6 @@ declare module '@tanstack/react-router' {
       path: '/data'
       fullPath: '/data'
       preLoaderRoute: typeof RequireAuthDataRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
-    '/_requireAuth/mcp': {
-      id: '/_requireAuth/mcp'
-      path: '/mcp'
-      fullPath: '/mcp'
-      preLoaderRoute: typeof RequireAuthMcpRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/permissions': {
@@ -804,6 +798,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthOpensocialOrgCapabilitiesRouteImport
       parentRoute: typeof RequireAuthOpensocialOrgRoute
     }
+    '/_requireAuth/opensocial/$org/mcp': {
+      id: '/_requireAuth/opensocial/$org/mcp'
+      path: '/mcp'
+      fullPath: '/opensocial/$org/mcp'
+      preLoaderRoute: typeof RequireAuthOpensocialOrgMcpRouteImport
+      parentRoute: typeof RequireAuthOpensocialOrgRoute
+    }
     '/_requireAuth/opensocial/$org/members': {
       id: '/_requireAuth/opensocial/$org/members'
       path: '/members'
@@ -953,6 +954,7 @@ const RequireAuthPermissionsRouteWithChildren =
 interface RequireAuthOpensocialOrgRouteChildren {
   RequireAuthOpensocialOrgAppsRoute: typeof RequireAuthOpensocialOrgAppsRoute
   RequireAuthOpensocialOrgCapabilitiesRoute: typeof RequireAuthOpensocialOrgCapabilitiesRoute
+  RequireAuthOpensocialOrgMcpRoute: typeof RequireAuthOpensocialOrgMcpRoute
   RequireAuthOpensocialOrgMembersRoute: typeof RequireAuthOpensocialOrgMembersRoute
   RequireAuthOpensocialOrgRolesRoute: typeof RequireAuthOpensocialOrgRolesRoute
   RequireAuthOpensocialOrgSettingsRoute: typeof RequireAuthOpensocialOrgSettingsRoute
@@ -965,6 +967,7 @@ const RequireAuthOpensocialOrgRouteChildren: RequireAuthOpensocialOrgRouteChildr
     RequireAuthOpensocialOrgAppsRoute: RequireAuthOpensocialOrgAppsRoute,
     RequireAuthOpensocialOrgCapabilitiesRoute:
       RequireAuthOpensocialOrgCapabilitiesRoute,
+    RequireAuthOpensocialOrgMcpRoute: RequireAuthOpensocialOrgMcpRoute,
     RequireAuthOpensocialOrgMembersRoute: RequireAuthOpensocialOrgMembersRoute,
     RequireAuthOpensocialOrgRolesRoute: RequireAuthOpensocialOrgRolesRoute,
     RequireAuthOpensocialOrgSettingsRoute:
@@ -981,7 +984,6 @@ const RequireAuthOpensocialOrgRouteWithChildren =
 
 interface RequireAuthRouteChildren {
   RequireAuthDataRoute: typeof RequireAuthDataRoute
-  RequireAuthMcpRoute: typeof RequireAuthMcpRoute
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
   RequireAuthCollectionsCollectionRoute: typeof RequireAuthCollectionsCollectionRoute
@@ -1005,7 +1007,6 @@ interface RequireAuthRouteChildren {
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthDataRoute: RequireAuthDataRoute,
-  RequireAuthMcpRoute: RequireAuthMcpRoute,
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
   RequireAuthCollectionsCollectionRoute: RequireAuthCollectionsCollectionRoute,

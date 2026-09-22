@@ -4,7 +4,20 @@
   "defs": {
     "main": {
       "type": "query",
-      "description": "List MCP servers configured for the caller's org, along with whether the caller has connected to each one. Callable by any org member.",
+      "description": "List MCP servers configured for an org, along with whether the caller has connected to each one. Requires service-auth. Callable by any org member.",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "org"
+        ],
+        "properties": {
+          "org": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the community to list MCP servers for."
+          }
+        }
+      },
       "output": {
         "encoding": "application/json",
         "schema": {

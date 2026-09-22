@@ -1,0 +1,52 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.startAuthorization",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Begin an OAuth authorization-code flow so the caller can connect their own credential to an org-configured MCP server. Returns a URL to redirect the caller's browser to; the gateway completes the flow when the authorization server redirects back to it. Requires service-auth. Callable by any org member.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "org",
+            "id",
+            "redirectUri"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community the server belongs to."
+            },
+            "id": {
+              "type": "string"
+            },
+            "redirectUri": {
+              "type": "string",
+              "format": "uri",
+              "description": "Where to send the caller's browser back to once authorization completes. Must be an HTTPS URL (or a loopback address, for local development)."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "authorizationUrl"
+          ],
+          "properties": {
+            "authorizationUrl": {
+              "type": "string",
+              "format": "uri",
+              "description": "The URL to redirect the caller's browser to in order to authorize."
+            }
+          }
+        }
+      }
+    }
+  }
+}

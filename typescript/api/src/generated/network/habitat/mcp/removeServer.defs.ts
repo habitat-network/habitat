@@ -15,6 +15,7 @@ export const $params = /*#__PURE__*/ l.params()
 export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
+  org: /*#__PURE__*/ l.string({ format: 'did' }),
   id: /*#__PURE__*/ l.string(),
 })
 
@@ -29,7 +30,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Remove an org's configured MCP server, along with any stored user credentials for it. Only callable by org admins. */
+/** Remove an org's configured MCP server, along with any stored user credentials for it. Requires service-auth. Requires the community.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

@@ -3,7 +3,7 @@
  */
 
 import { l } from '@atproto/lex'
-import * as HabitatMcpDefs from '../mcp/defs.defs.js'
+import * as McpDefs from './defs.defs.js'
 
 const $nsid = 'network.habitat.mcp.listServers'
 
@@ -11,32 +11,9 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-type ServerWithStatus = {
-  $type?: 'network.habitat.mcp.listServers#serverWithStatus'
-  server: HabitatMcpDefs.Server
-
-  /**
-   * Whether the caller has a stored credential for this server.
-   */
-  connected: boolean
-}
-
-export type { ServerWithStatus }
-
-const serverWithStatus = /*#__PURE__*/ l.typedObject<ServerWithStatus>(
-  $nsid,
-  'serverWithStatus',
-  /*#__PURE__*/ l.object({
-    server: /*#__PURE__*/ l.ref<HabitatMcpDefs.Server>(
-      (() => HabitatMcpDefs.server) as any,
-    ),
-    connected: /*#__PURE__*/ l.boolean(),
-  }),
-)
-
-export { serverWithStatus }
-
-export const $params = /*#__PURE__*/ l.params()
+export const $params = /*#__PURE__*/ l.params({
+  org: /*#__PURE__*/ l.string({ format: 'did' }),
+})
 
 export type $Params = l.InferOutput<typeof $params>
 
@@ -52,7 +29,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** List MCP servers configured for the caller's org, along with whether the caller has connected to each one. Callable by any org member. */
+/** List MCP servers configured for an org, along with whether the caller has connected to each one. Requires service-auth. Callable by any org member. */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output)
 
 export { main }
@@ -62,3 +39,26 @@ const $lxm = $nsid
 type $lxm = typeof $lxm
 
 export { $lxm }
+
+type ServerWithStatus = {
+  $type?: 'network.habitat.mcp.listServers#serverWithStatus'
+  server: McpDefs.Server
+
+  /**
+   * Whether the caller has a stored credential for this server.
+   */
+  connected: boolean
+}
+
+export type { ServerWithStatus }
+
+const serverWithStatus = /*#__PURE__*/ l.typedObject<ServerWithStatus>(
+  $nsid,
+  'serverWithStatus',
+  /*#__PURE__*/ l.object({
+    server: /*#__PURE__*/ l.ref<McpDefs.Server>((() => McpDefs.server) as any),
+    connected: /*#__PURE__*/ l.boolean(),
+  }),
+)
+
+export { serverWithStatus }

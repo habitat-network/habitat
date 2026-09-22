@@ -4,6 +4,11 @@ package habitat
 
 import "encoding/json"
 
+// NetworkHabitatMcpListServersParams represents the input parameters for network.habitat.mcp.listServers
+type NetworkHabitatMcpListServersParams struct {
+	Org string `json:"org"`
+}
+
 // NetworkHabitatMcpListServersOutput represents the output for network.habitat.mcp.listServers
 type NetworkHabitatMcpListServersOutput struct {
 	Servers []NetworkHabitatMcpListServersServerWithStatus `json:"servers"`

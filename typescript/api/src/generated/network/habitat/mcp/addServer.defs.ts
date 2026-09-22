@@ -3,7 +3,7 @@
  */
 
 import { l } from '@atproto/lex'
-import * as HabitatMcpDefs from '../mcp/defs.defs.js'
+import * as McpDefs from './defs.defs.js'
 
 const $nsid = 'network.habitat.mcp.addServer'
 
@@ -16,21 +16,19 @@ export const $params = /*#__PURE__*/ l.params()
 export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
+  org: /*#__PURE__*/ l.string({ format: 'did' }),
   name: /*#__PURE__*/ l.string({ maxLength: 200 }),
   url: /*#__PURE__*/ l.string({ format: 'uri' }),
   description: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.string({ maxLength: 2000 }),
   ),
-  authType: /*#__PURE__*/ l.string<{ knownValues: ['none', 'api_key'] }>(),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
-  server: /*#__PURE__*/ l.ref<HabitatMcpDefs.Server>(
-    (() => HabitatMcpDefs.server) as any,
-  ),
+  server: /*#__PURE__*/ l.ref<McpDefs.Server>((() => McpDefs.server) as any),
 })
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
@@ -39,7 +37,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Configure a new MCP server for the org. Only callable by org admins. */
+/** Configure a new MCP server for the org. The gateway probes the server to detect whether it requires OAuth authorization per the MCP authorization spec, discovering and registering with its authorization server if so. Requires service-auth. Requires the community.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

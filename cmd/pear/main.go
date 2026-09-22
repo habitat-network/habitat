@@ -41,7 +41,6 @@ import (
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
-	mcpgateway_server "github.com/habitat-network/habitat/internal/mcpgateway/server"
 	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
@@ -370,6 +369,17 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	simpleStore := simplespace.NewStore(db, spacesStore, permStore)
 
+	// Store for org-configured MCP servers and per-user OAuth credentials.
+	mcpGatewayStore, err := mcpgateway.NewStore(
+		db.WithContext(startupCtx),
+		credKey,
+		httpx.NewClient(),
+		"https://"+domain+"/mcp-oauth-callback",
+	)
+	if err != nil {
+		return fmt.Errorf("setup mcp gateway store: %w", err)
+	}
+
 	// Consolidated server owning the opensocial, simplespace, relationship,
 	// spaces, and registerNotify handler routes.
 	pearApp := pearserver.New(
@@ -384,6 +394,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		simpleStore,
 		notifyStore,
 		clientmetadata.NewResolver(),
+		mcpGatewayStore,
 	)
 
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))
@@ -420,24 +431,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.mintMemberIdentity", orgServer.MintMemberIdentity)
 	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
 
-	// Store + server for org-configured MCP servers and per-user credentials
-	mcpGatewayStore, err := mcpgateway.NewStore(db.WithContext(startupCtx), credKey)
-	if err != nil {
-		return fmt.Errorf("setup mcp gateway store: %w", err)
-	}
-	mcpGatewayServer := mcpgateway_server.NewServer(mcpGatewayStore, orgStore, validator)
-	mux.HandleFunc("/xrpc/network.habitat.mcp.addServer", mcpGatewayServer.AddServer)
-	mux.HandleFunc("/xrpc/network.habitat.mcp.updateServer", mcpGatewayServer.UpdateServer)
-	mux.HandleFunc("/xrpc/network.habitat.mcp.removeServer", mcpGatewayServer.RemoveServer)
-	mux.HandleFunc("/xrpc/network.habitat.mcp.listServers", mcpGatewayServer.ListServers)
-	mux.HandleFunc("/xrpc/network.habitat.mcp.connectServer", mcpGatewayServer.ConnectServer)
-	mux.HandleFunc("/xrpc/network.habitat.mcp.disconnectServer", mcpGatewayServer.DisconnectServer)
-
 	// Server for opensocial community routes
 	mux.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", pearApp.CreateOrg)
 	mux.PathPrefix("/xrpc/community.opensocial.").Handler(pearApp)
 	// Server-side client-metadata proxy for the management frontend
 	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
+	// MCP gateway routes (network.habitat.mcp.*) are handled by pearApp via
+	// registerRoutes in internal/pearserver/routes.go.
+	mux.PathPrefix("/xrpc/network.habitat.mcp.").Handler(pearApp)
+	// OAuth redirect_uri registered with MCP servers' authorization servers.
+	mux.HandleFunc("/mcp-oauth-callback", pearApp.McpOAuthCallback)
 
 	cliqueServer := clique.NewServer(cliqueStore, validator)
 	pearServer := pear.NewServer(

@@ -3,9 +3,9 @@
  */
 
 export * as addServer from './mcp/addServer.js'
-export * as connectServer from './mcp/connectServer.js'
 export * as defs from './mcp/defs.js'
 export * as disconnectServer from './mcp/disconnectServer.js'
 export * as listServers from './mcp/listServers.js'
 export * as removeServer from './mcp/removeServer.js'
+export * as startAuthorization from './mcp/startAuthorization.js'
 export * as updateServer from './mcp/updateServer.js'

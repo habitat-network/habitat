@@ -4,15 +4,21 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Remove an org's configured MCP server, along with any stored user credentials for it. Only callable by org admins.",
+      "description": "Remove an org's configured MCP server, along with any stored user credentials for it. Requires service-auth. Requires the community.configure action.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "required": [
+            "org",
             "id"
           ],
           "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community the server belongs to."
+            },
             "id": {
               "type": "string"
             }
