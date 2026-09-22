@@ -25,7 +25,15 @@ const lexiconPaths = (
       "!../../lexicons/network/habitat/clique.json",
       "!../../lexicons/network/habitat/clique/**/*.json",
       "!../../lexicons/network/habitat/permissions/**/*.json",
-      "!../../lexicons/network/habitat/repo/**/*.json",
+      // The rest of network.habitat.repo.* is tied to the deprecated
+      // clique-based permissioned repo; getBlob and uploadBlob are still
+      // in use and stay included.
+      "!../../lexicons/network/habitat/repo/createRecord.json",
+      "!../../lexicons/network/habitat/repo/deleteRecord.json",
+      "!../../lexicons/network/habitat/repo/describeRepo.json",
+      "!../../lexicons/network/habitat/repo/getRecord.json",
+      "!../../lexicons/network/habitat/repo/listRecords.json",
+      "!../../lexicons/network/habitat/repo/putRecord.json",
       "!../../lexicons/network/habitat/grantee.json",
     ],
     { cwd: __dirname, absolute: true },
