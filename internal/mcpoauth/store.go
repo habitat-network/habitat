@@ -63,8 +63,7 @@ type RefreshSession struct {
 func (RefreshSession) TableName() string { return "mcp_oauth_refresh_sessions" }
 
 type store struct {
-	db       *gorm.DB
-	resource string
+	db *gorm.DB
 }
 
 var (
@@ -74,17 +73,17 @@ var (
 	_ pkce.PKCERequestStorage       = (*store)(nil)
 )
 
-func newStore(db *gorm.DB, resource string) (*store, error) {
+func newStore(db *gorm.DB) (*store, error) {
 	if err := db.AutoMigrate(&Client{}, &Request{}, &RefreshSession{}); err != nil {
 		return nil, fmt.Errorf("migrate mcp oauth tables: %w", err)
 	}
-	return &store{db: db, resource: resource}, nil
+	return &store{db: db}, nil
 }
 
 // toAuthorizeRequest rebuilds the fosite.AuthorizeRequest this row was stored
 // from. The redirect URI is parsed because WriteAuthorizeResponse reads the
 // struct field, not the form.
-func (r *Request) toAuthorizeRequest(client fosite.Client, resource string) *fosite.AuthorizeRequest {
+func (r *Request) toAuthorizeRequest(client fosite.Client) *fosite.AuthorizeRequest {
 	scopes := fosite.Arguments(strings.Fields(r.Scopes))
 	redirectURI, _ := url.Parse(r.RedirectURI)
 	return &fosite.AuthorizeRequest{
@@ -95,7 +94,7 @@ func (r *Request) toAuthorizeRequest(client fosite.Client, resource string) *fos
 		State:                r.State,
 		Request: fosite.Request{
 			Client:         client,
-			Session:        &session{Subject: r.Subject, ClientID: r.ClientID, Audience: resource, Scopes: scopes},
+			Session:        &session{Subject: r.Subject, ClientID: r.ClientID, Scopes: scopes},
 			RequestedScope: scopes,
 			GrantedScope:   scopes,
 			Form: url.Values{
@@ -166,7 +165,7 @@ func (s *store) getRequest(ctx context.Context, key string) (*fosite.AuthorizeRe
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
-	return r.toAuthorizeRequest(client, s.resource), nil
+	return r.toAuthorizeRequest(client), nil
 }
 
 func (s *store) deletePending(ctx context.Context, key string) error {
@@ -319,7 +318,6 @@ func (s *store) GetRefreshTokenSession(
 		Session: &session{
 			Subject:               row.Subject,
 			ClientID:              row.ClientID,
-			Audience:              s.resource,
 			Scopes:                scopes,
 			RefreshTokenExpiresAt: row.ExpiresAt,
 		},

@@ -15,7 +15,6 @@ import (
 type session struct {
 	Subject               string
 	ClientID              string
-	Audience              string
 	Scopes                []string
 	AuthCodeExpiresAt     time.Time
 	AccessTokenExpiresAt  time.Time
@@ -32,13 +31,17 @@ func (s *session) GetJWTClaims() jwt.JWTClaimsContainer {
 	return &jwt.JWTClaims{
 		Subject:   s.Subject,
 		ExpiresAt: s.AccessTokenExpiresAt,
-		Audience:  []string{s.Audience},
+		Audience:  []string{s.ClientID},
 	}
 }
 
-// GetJWTHeader implements oauth2.JWTSessionContainer.
+// GetJWTHeader implements oauth2.JWTSessionContainer. The "typ" here is
+// internal/oauthserver's own marker for a token it should handle (see
+// OAuthServer.CanHandle) — this server shares that server's exact signing key
+// (see New) so the two are, deliberately, the same token type: a token from
+// either server works against either server's resources.
 func (s *session) GetJWTHeader() *jwt.Headers {
-	return &jwt.Headers{Extra: map[string]any{"typ": "at+jwt"}}
+	return &jwt.Headers{Extra: map[string]any{"typ": "oauth+JWT"}}
 }
 
 // Clone implements fosite.Session.

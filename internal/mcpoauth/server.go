@@ -24,7 +24,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 
@@ -76,9 +75,13 @@ const (
 )
 
 // New returns the MCP authorization server for origin (an https URL with no
-// path). secret is the server's root secret; the signing and HMAC keys are
-// derived from it, so tokens minted here can never validate against
-// internal/oauthserver, which signs with the secret itself.
+// path). secret must be the exact same root secret passed to
+// internal/oauthserver.NewOAuthServer: both servers sign access tokens with
+// the ECDSA key parsed directly from it (same derivation oauthserver uses),
+// so the two issue interchangeable tokens — either server's token validates
+// against either server's resources. Only the signing key needs to match;
+// each server's own opaque grants (refresh tokens, authorization codes) stay
+// private to it via its own HMAC key and storage.
 func New(
 	secret []byte,
 	db *gorm.DB,
@@ -86,22 +89,18 @@ func New(
 	clientMetadata oauth.ClientMetadata,
 	origin string,
 ) (*Server, error) {
-	signingKey, err := hkdf.Key(sha256.New, secret, nil, "habitat-mcp-oauth-signing", 32)
+	privateKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), secret)
 	if err != nil {
-		return nil, fmt.Errorf("derive signing key: %w", err)
+		return nil, fmt.Errorf("parse signing key: %w", err)
 	}
 	hmacKey, err := hkdf.Key(sha256.New, secret, nil, "habitat-mcp-oauth-hmac", 32)
 	if err != nil {
 		return nil, fmt.Errorf("derive hmac key: %w", err)
 	}
-	privateKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), signingKey)
-	if err != nil {
-		return nil, fmt.Errorf("parse signing key: %w", err)
-	}
 
 	issuer := origin + IssuerPath
 	resource := origin + ResourcePath
-	st, err := newStore(db, resource)
+	st, err := newStore(db)
 	if err != nil {
 		return nil, err
 	}
@@ -366,7 +365,6 @@ func (s *Server) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	resp, err := s.provider.NewAuthorizeResponse(ctx, ar, &session{
 		Subject:  login.DID.String(),
 		ClientID: ar.GetClient().GetID(),
-		Audience: s.resource,
 		Scopes:   ar.GetRequestedScopes(),
 	})
 	if err != nil {
@@ -384,7 +382,7 @@ func (s *Server) HandleCallback(w http.ResponseWriter, r *http.Request) {
 // grants).
 func (s *Server) HandleToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	req, err := s.provider.NewAccessRequest(ctx, r, &session{Audience: s.resource})
+	req, err := s.provider.NewAccessRequest(ctx, r, &session{})
 	if err != nil {
 		s.provider.WriteAccessError(ctx, w, req, err)
 		return
@@ -398,9 +396,11 @@ func (s *Server) HandleToken(w http.ResponseWriter, r *http.Request) {
 	s.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
-// ValidateRaw implements authn.RawMethod: it validates an MCP access token and
-// returns the DID it was issued to. Tokens are signed with a key derived
-// separately from internal/oauthserver's, so only tokens minted here validate.
+// ValidateRaw implements authn.RawMethod: it validates an access token and
+// returns the DID it was issued to. Tokens are signed with the same key as
+// internal/oauthserver.OAuthServer (see New), so a token from either
+// authorization server validates here, and a token minted here validates
+// there — deliberately: see internal/oauthserver.OAuthServer.CanHandle.
 func (s *Server) ValidateRaw(
 	ctx context.Context, token string, scopes ...string,
 ) (*authn.CredentialInfo, bool, error) {
@@ -411,9 +411,6 @@ func (s *Server) ValidateRaw(
 	did := ar.GetSession().GetSubject()
 	if did == "" {
 		return nil, false, errors.New("token has no subject")
-	}
-	if aud := ar.GetGrantedAudience(); len(aud) > 0 && !slices.Contains(aud, s.resource) {
-		return nil, false, errors.New("token is not for this resource")
 	}
 	return &authn.CredentialInfo{Subject: syntaxDID(did)}, true, nil
 }

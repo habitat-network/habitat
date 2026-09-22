@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -17,7 +18,15 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
+	"github.com/habitat-network/habitat/internal/oauthserver"
+	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
+	"github.com/habitat-network/habitat/internal/org"
+	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/metric/noop"
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -376,4 +385,142 @@ func mustJSON(t *testing.T, v any) []byte {
 	b, err := json.Marshal(v)
 	require.NoError(t, err)
 	return b
+}
+
+// TestTokensInterchangeableWithOAuthServer proves the "same type of token"
+// claim in New's doc comment: a token minted by this server validates against
+// internal/oauthserver.OAuthServer (the atproto broker pear's regular
+// endpoints use), and a token minted by that server validates here — as long
+// as both are constructed with the same secret.
+func TestTokensInterchangeableWithOAuthServer(t *testing.T) {
+	db := dbtestutil.NewDB(t)
+	key, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	secret, err := encrypt.ParseKey(key)
+	require.NoError(t, err)
+
+	mcpSrv, err := New(secret, db, &fakeBroker{}, oauth.ClientMetadata{}, testOrigin)
+	require.NoError(t, err)
+
+	orgStore := org_testutil.NewTestStore(t)
+	_, _, err = orgStore.CreateOrg(t.Context(), "org-name", "admin", "password", "", "", "", "contact@example.com")
+	require.NoError(t, err)
+	pds := login_testutil.NewPassthroughProvider(t)
+	atprotoSrv, err := oauthserver.NewOAuthServer(
+		secret,
+		&org.LoginRouter{Pds: pds, OrgStore: orgStore},
+		pdsclient.NewDummyDirectory("http://pds.url"),
+		db, noop.Meter{}, orgStore, testOrigin,
+		oauthserver.NewJWTBearerStore(), opensocial_testutil.NewTestStore(t).Store,
+	)
+	require.NoError(t, err)
+
+	t.Run("a token minted here validates against OAuthServer", func(t *testing.T) {
+		ts := setupTest(t)
+		// setupTest built its own Server; swap in the one whose db/secret we
+		// need to share with atprotoSrv above.
+		ts.Server = mcpSrv
+		mux := http.NewServeMux()
+		mux.HandleFunc(RegisterPath, mcpSrv.HandleRegister)
+		mux.HandleFunc(AuthorizePath, mcpSrv.HandleAuthorize)
+		mux.HandleFunc(AuthorizeSubmitPath, mcpSrv.HandleAuthorizeSubmit)
+		mux.HandleFunc(CallbackPath, mcpSrv.HandleCallback)
+		mux.HandleFunc(TokenPath, mcpSrv.HandleToken)
+		ts.http = httptest.NewServer(mux)
+		t.Cleanup(ts.http.Close)
+		ts.broker = &fakeBroker{}
+
+		clientID := ts.register(t)
+		ts.authorize(t, clientID)
+		resp := ts.callback(t, url.Values{"state": {"atproto-state-1"}, "code": {"c"}, "iss": {"i"}})
+		loc, err := resp.Location()
+		require.NoError(t, err)
+		status, tok := ts.token(t, url.Values{
+			"grant_type": {"authorization_code"}, "code": {loc.Query().Get("code")}, "client_id": {clientID},
+			"redirect_uri": {testRedirect}, "code_verifier": {testVerifier},
+		})
+		require.Equal(t, http.StatusOK, status, tok)
+
+		credInfo, ok, err := atprotoSrv.ValidateRaw(t.Context(), tok["access_token"].(string))
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, testDID, credInfo.Subject)
+	})
+
+	t.Run("a token minted by OAuthServer validates here", func(t *testing.T) {
+		// Drive OAuthServer's real authorization_code flow (mirrors
+		// internal/oauthserver's own TestOAuthServerE2E) to get a token signed
+		// the way its /oauth/token endpoint actually signs one, then confirm
+		// this server's introspection accepts it. atprotoSrv resolves any
+		// login_hint DID via PassthroughProvider without a real PDS.
+		mux := http.NewServeMux()
+		mux.HandleFunc("/authorize", atprotoSrv.HandleAuthorize)
+		mux.HandleFunc("/oauth-callback", atprotoSrv.HandleCallback)
+		mux.HandleFunc("/token", atprotoSrv.HandleToken)
+		server := httptest.NewTLSServer(mux)
+		t.Cleanup(server.Close)
+		jar, err := cookiejar.New(nil)
+		require.NoError(t, err)
+		server.Client().Jar = jar
+		pds.RedirectURI = server.URL + "/oauth-callback"
+
+		clientApp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"client_id":      "http://" + r.Host + "/client-metadata.json",
+				"redirect_uris":  []string{"http://" + r.Host + "/oauth-callback"},
+				"response_types": []string{"code"},
+				"grant_types":    []string{"authorization_code"},
+			}))
+		}))
+		t.Cleanup(clientApp.Close)
+
+		verifier := oauth2.GenerateVerifier()
+		challenge := sha256.Sum256([]byte(verifier))
+		authURL := server.URL + "/authorize?" + url.Values{
+			"response_type":         {"code"},
+			"client_id":             {clientApp.URL + "/client-metadata.json"},
+			"redirect_uri":          {clientApp.URL + "/oauth-callback"},
+			"code_challenge":        {base64.RawURLEncoding.EncodeToString(challenge[:])},
+			"code_challenge_method": {"S256"},
+			"state":                 {"client-state-12345678"},
+			"handle":                {testDID.String()},
+		}.Encode()
+		req, err := http.NewRequest(http.MethodGet, authURL, http.NoBody)
+		require.NoError(t, err)
+		// The client app's own /oauth-callback isn't served by this test (it
+		// only exercises OAuthServer's broker, not a real client app), so stop
+		// following redirects at that last hop instead of letting the default
+		// client 404 trying to fetch it.
+		server.Client().CheckRedirect = func(req *http.Request, _ []*http.Request) error {
+			if strings.HasPrefix(req.URL.String(), clientApp.URL) {
+				return http.ErrUseLastResponse
+			}
+			return nil
+		}
+		result, err := server.Client().Do(req)
+		require.NoError(t, err)
+		defer func() { _ = result.Body.Close() }()
+		loc, err := result.Location()
+		require.NoError(t, err)
+		require.Empty(t, loc.Query().Get("error"), "%s", loc)
+
+		tokenResp, err := server.Client().PostForm(server.URL+"/token", url.Values{
+			"grant_type":    {"authorization_code"},
+			"code":          {loc.Query().Get("code")},
+			"client_id":     {clientApp.URL + "/client-metadata.json"},
+			"redirect_uri":  {clientApp.URL + "/oauth-callback"},
+			"code_verifier": {verifier},
+		})
+		require.NoError(t, err)
+		defer func() { _ = tokenResp.Body.Close() }()
+		var tok map[string]any
+		require.NoError(t, json.NewDecoder(tokenResp.Body).Decode(&tok))
+		accessToken, _ := tok["access_token"].(string)
+		require.NotEmpty(t, accessToken, "%v", tok)
+
+		credInfo, ok, err := mcpSrv.ValidateRaw(t.Context(), accessToken)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, testDID, credInfo.Subject)
+	})
 }
