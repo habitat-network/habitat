@@ -5,13 +5,6 @@ sidebar_label: Coding agents
 sidebar_position: 6
 ---
 
-# Working with coding agents
-
-If you build an app that reads or writes data stored in Habitat, using a
-coding agent — Claude Code, Cursor, or similar — give it this context up
-front. Copy the block below into your
-project's `CLAUDE.md`, `AGENTS.md`, or equivalent.
-
 ## Machine-readable documentation
 
 Point an agent at these directly:
@@ -20,6 +13,15 @@ Point an agent at these directly:
 - [`llms-full.txt`](pathname:///llms-full.txt) — the full prose in one file.
 - [`openapi.json`](pathname:///openapi.json) — the OpenAPI specification
   for every XRPC endpoint.
+- Any single page as markdown — append `.md` to its URL, e.g.
+  `https://api.habitat.network/building/permissions.md`.
+
+## Working with coding agents
+
+If you build an app that reads or writes data stored in Habitat, using a
+coding agent — Claude Code, Cursor, or similar — give it this context up
+front. Copy the block below into your
+project's `CLAUDE.md`, `AGENTS.md`, or equivalent.
 
 ## Template
 
@@ -56,9 +58,6 @@ For permissioned data, use only these namespaces:
   spaces.
 - `network.habitat.opensocial.createOrg` — creating an organization.
 
-**Do not use `network.habitat.clique.*`.** Cliques are a deprecated
-permissioning primitive.
-
 ## Documentation
 
 - Index for agents: https://api.habitat.network/llms.txt
@@ -72,6 +71,10 @@ permissioning primitive.
   spec; check there before writing a record, and prefer the namespaces
   listed above.
 - Use the regular atproto API client (e.g. `@atproto/api`) rather than
-  hand-rolled fetch calls. `@habitat-network/habitat` currently only
-  provides an identity resolver.
+  hand-rolled fetch calls. 
+- To use the Habitat Space Proxy until atproto spaces are part of reference PDS'es, 
+  use the npm package `@habitat-network/habitat` which provides an identity resolver
+  to route space requests through Habitat.
+- **Do not use anything that references cliques**. Cliques are a deprecated
+  permissioning primitive.
 ````

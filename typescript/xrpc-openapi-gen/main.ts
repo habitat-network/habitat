@@ -24,6 +24,9 @@ const lexiconPaths = (
       "!../../lexicons/network/habitat/collections/**/*.json",
       "!../../lexicons/network/habitat/clique.json",
       "!../../lexicons/network/habitat/clique/**/*.json",
+      "!../../lexicons/network/habitat/permissions/**/*.json",
+      "!../../lexicons/network/habitat/repo/**/*.json",
+      "!../../lexicons/network/habitat/grantee.json",
     ],
     { cwd: __dirname, absolute: true },
   )

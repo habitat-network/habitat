@@ -80,12 +80,15 @@ const config: Config = {
         },
       },
     ],
-    // Emits llms.txt and llms-full.txt into the build output.
+    // Emits llms.txt and llms-full.txt into the build output, plus a .md
+    // copy of every page so an agent can fetch a single page's markdown
+    // (docs/foo -> foo.md) instead of always pulling the full-prose dump.
     [
       "docusaurus-plugin-llms",
       {
         // The generated API reference is covered by openapi.json instead.
         ignoreFiles: ["docs/api/**"],
+        generateMarkdownFiles: true,
       },
     ],
     "./src/plugins/openapi-json",
