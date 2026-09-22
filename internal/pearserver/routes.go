@@ -42,6 +42,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.removeServer", p.RemoveServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.listServers", p.ListServers)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.startAuthorization", p.StartAuthorization)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.confirmConnection", p.ConfirmConnection)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.disconnectServer", p.DisconnectServer)
 
 	// Simplespace

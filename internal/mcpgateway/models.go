@@ -15,18 +15,17 @@ const (
 	// AuthTypeNone means the MCP server did not challenge an unauthenticated
 	// request, so it requires no per-user authorization.
 	AuthTypeNone AuthType = "none"
-	// AuthTypeOAuth means the MCP server requires each user to complete an
-	// OAuth authorization-code flow against its own authorization server.
+	// AuthTypeOAuth means the MCP server requires each user to authorize via
+	// OAuth, brokered through Nango's mcp-generic provider.
 	AuthTypeOAuth AuthType = "oauth"
 )
 
-// ServerID identifies an MCP server configured for an org.
+// ServerID identifies an MCP server configured for an org. It also serves as
+// the unique_key of the Nango Integration backing it, when AuthType is
+// AuthTypeOAuth.
 type ServerID string
 
-// serverModel is an MCP server configured by an org admin. When AuthType is
-// AuthTypeOAuth, the OAuth* fields hold the configuration discovered and
-// registered (RFC 8414/9728/7591) against the server's authorization server
-// when it was added.
+// serverModel is an MCP server configured by an org admin.
 type serverModel struct {
 	ID          ServerID   `gorm:"primaryKey"`
 	OrgID       syntax.DID `gorm:"index;not null"`
@@ -35,45 +34,19 @@ type serverModel struct {
 	Description string
 	AuthType    AuthType `gorm:"not null"`
 
-	OAuthIssuer                string
-	OAuthAuthorizationEndpoint string
-	OAuthTokenEndpoint         string
-	OAuthScopes                string // space-separated
-	OAuthClientID              string
-	OAuthClientSecret          string // encrypted; empty for public clients
-
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-// credentialModel stores a user's encrypted OAuth tokens for an MCP server.
+// credentialModel records that a user has connected to an MCP server via
+// Nango. The actual OAuth tokens live in Nango, not here.
 type credentialModel struct {
-	ServerID     ServerID   `gorm:"primaryKey"`
-	DID          syntax.DID `gorm:"column:did;primaryKey"`
-	AccessToken  string     `gorm:"not null"` // encrypted
-	RefreshToken string     // encrypted; empty if the server didn't issue one
-	TokenType    string
-	Expiry       time.Time
+	ServerID          ServerID   `gorm:"primaryKey"`
+	DID               syntax.DID `gorm:"column:did;primaryKey"`
+	NangoConnectionID string     `gorm:"not null"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
-}
-
-// pendingAuthModel tracks an in-flight OAuth authorization-code flow between
-// Store.StartAuthorization and the redirect back to Store.CompleteAuthorization.
-type pendingAuthModel struct {
-	State        string     `gorm:"primaryKey"`
-	ServerID     ServerID   `gorm:"not null"`
-	DID          syntax.DID `gorm:"column:did;not null"`
-	OrgID        syntax.DID `gorm:"not null"`
-	CodeVerifier string     `gorm:"not null"`
-	// ReturnURL is where the caller's browser is sent once authorization
-	// completes, as supplied to Store.StartAuthorization. Distinct from the
-	// OAuth redirect_uri (this instance's own callback endpoint, registered
-	// with the MCP server's authorization server).
-	ReturnURL string `gorm:"not null"`
-
-	CreatedAt time.Time
 }
 
 // Server is an MCP server configured for an org.

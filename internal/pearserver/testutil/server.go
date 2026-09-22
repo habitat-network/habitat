@@ -13,7 +13,6 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
@@ -43,6 +42,7 @@ type TestServer struct {
 	DB              *gorm.DB
 	FGA             fgastore.Store
 	McpGatewayStore mcpgateway.Store
+	NangoClient     *FakeNangoClient
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -78,6 +78,12 @@ func WithSpaceStore(store spaces.Store) utils.Opt[TestServer] {
 func WithNotifyStore(store notify.Store) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.NotifyStore = store
+	}
+}
+
+func WithNangoClient(client *FakeNangoClient) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.NangoClient = client
 	}
 }
 
@@ -141,9 +147,10 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	ts.OpenSocialStore = os
 	ts.SimpleStore = ss
 
-	mcpGatewayStore, err := mcpgateway.NewStore(
-		ts.DB, encrypt.TestKey, http.DefaultClient, "https://pear.example.com/mcp-oauth-callback",
-	)
+	if ts.NangoClient == nil {
+		ts.NangoClient = NewFakeNangoClient()
+	}
+	mcpGatewayStore, err := mcpgateway.NewStore(ts.DB, http.DefaultClient, ts.NangoClient)
 	require.NoError(t, err)
 	ts.McpGatewayStore = mcpGatewayStore
 

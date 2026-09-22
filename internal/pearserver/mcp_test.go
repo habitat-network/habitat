@@ -2,7 +2,6 @@ package pearserver_test
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -47,6 +46,7 @@ func TestServer_AddServer(t *testing.T) {
 		require.Equal(t, http.StatusOK, code)
 		require.Equal(t, "Linear", out.Server.Name)
 		require.Equal(t, "oauth", out.Server.AuthType)
+		require.True(t, ts.NangoClient.Integrations[out.Server.Id])
 
 		servers, err := ts.McpGatewayStore.ListServers(t.Context(), syntax.DID(orgDID))
 		require.NoError(t, err)
@@ -87,27 +87,24 @@ func TestServer_ListServersAndAuthorize(t *testing.T) {
 		var startOut habitat.NetworkHabitatMcpStartAuthorizationOutput
 		code = client.Procedure(
 			aliceTS.Server.StartAuthorization,
-			habitat.NetworkHabitatMcpStartAuthorizationInput{Org: orgDID, Id: addOut.Server.Id, RedirectUri: "https://frontend.example/opensocial/" + orgDID + "/mcp"},
+			habitat.NetworkHabitatMcpStartAuthorizationInput{Org: orgDID, Id: addOut.Server.Id},
 			&startOut,
 		)
 		require.Equal(t, http.StatusOK, code)
-		parsed, err := url.Parse(startOut.AuthorizationUrl)
-		require.NoError(t, err)
-		require.Equal(t, fake.URL+"/authorize", parsed.Scheme+"://"+parsed.Host+parsed.Path)
-		state := parsed.Query().Get("state")
-		require.NotEmpty(t, state)
+		require.NotEmpty(t, startOut.SessionToken)
 
-		// The authorization server redirects the caller's browser back to
-		// the gateway's callback with the code and state.
-		callbackReq := httptest.NewRequest(
-			http.MethodGet,
-			"/mcp-oauth-callback?code=fake-code&state="+state,
-			http.NoBody,
+		// The Nango Connect UI reports success to the frontend, which
+		// confirms the resulting connection with the gateway.
+		aliceTS.NangoClient.Connections["conn-1"] = addOut.Server.Id
+		var confirmOut struct{}
+		code = client.Procedure(
+			aliceTS.Server.ConfirmConnection,
+			habitat.NetworkHabitatMcpConfirmConnectionInput{
+				Org: orgDID, Id: addOut.Server.Id, ConnectionId: "conn-1",
+			},
+			&confirmOut,
 		)
-		rec := httptest.NewRecorder()
-		aliceTS.Server.McpOAuthCallback(rec, callbackReq)
-		require.Equal(t, http.StatusFound, rec.Code)
-		require.Contains(t, rec.Header().Get("Location"), "/opensocial/")
+		require.Equal(t, http.StatusOK, code)
 
 		code = client.Query(
 			aliceTS.Server.ListServers, url.Values{"org": []string{orgDID}}, &listOut,
@@ -147,7 +144,7 @@ func TestServer_StartAuthorization_NotOAuthServer(t *testing.T) {
 	var startOut habitat.NetworkHabitatMcpStartAuthorizationOutput
 	code = client.Procedure(
 		ts.Server.StartAuthorization,
-		habitat.NetworkHabitatMcpStartAuthorizationInput{Org: orgDID, Id: addOut.Server.Id, RedirectUri: "https://frontend.example/opensocial/" + orgDID + "/mcp"},
+		habitat.NetworkHabitatMcpStartAuthorizationInput{Org: orgDID, Id: addOut.Server.Id},
 		&startOut,
 	)
 	require.Equal(t, http.StatusBadRequest, code)
@@ -160,15 +157,16 @@ func TestServer_RemoveServer(t *testing.T) {
 		ts := newOpenSocialServer(t, admin)
 		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
 		require.NoError(t, err)
-		srv := newFakeOpenMcpServer(t)
+		fake := newFakeOAuthMcpServer(t)
 
 		var addOut habitat.NetworkHabitatMcpAddServerOutput
 		code := client.Procedure(
 			ts.Server.AddServer,
-			habitat.NetworkHabitatMcpAddServerInput{Org: orgDID, Name: "Open", Url: srv.URL},
+			habitat.NetworkHabitatMcpAddServerInput{Org: orgDID, Name: "Linear", Url: fake.URL},
 			&addOut,
 		)
 		require.Equal(t, http.StatusOK, code)
+		require.True(t, ts.NangoClient.Integrations[addOut.Server.Id])
 
 		var removeOut struct{}
 		code = client.Procedure(
@@ -181,6 +179,7 @@ func TestServer_RemoveServer(t *testing.T) {
 		servers, err := ts.McpGatewayStore.ListServers(t.Context(), syntax.DID(orgDID))
 		require.NoError(t, err)
 		require.Empty(t, servers)
+		require.False(t, ts.NangoClient.Integrations[addOut.Server.Id])
 	})
 
 	t.Run("non-admin cannot remove", func(t *testing.T) {

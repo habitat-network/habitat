@@ -4,15 +4,14 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Begin an OAuth authorization-code flow so the caller can connect their own credential to an org-configured MCP server. Returns a URL to redirect the caller's browser to; the gateway completes the flow when the authorization server redirects back to it. Requires service-auth. Callable by any org member.",
+      "description": "Begin authorizing the caller against an org-configured MCP server via Nango. Returns a Nango Connect session token for the caller's browser to use with the Nango frontend SDK's Connect UI. Requires service-auth. Callable by any org member.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "required": [
             "org",
-            "id",
-            "redirectUri"
+            "id"
           ],
           "properties": {
             "org": {
@@ -22,11 +21,6 @@
             },
             "id": {
               "type": "string"
-            },
-            "redirectUri": {
-              "type": "string",
-              "format": "uri",
-              "description": "Where to send the caller's browser back to once authorization completes. Must be an HTTPS URL (or a loopback address, for local development)."
             }
           }
         }
@@ -36,13 +30,12 @@
         "schema": {
           "type": "object",
           "required": [
-            "authorizationUrl"
+            "sessionToken"
           ],
           "properties": {
-            "authorizationUrl": {
+            "sessionToken": {
               "type": "string",
-              "format": "uri",
-              "description": "The URL to redirect the caller's browser to in order to authorize."
+              "description": "A Nango Connect session token, to be passed to the Nango frontend SDK's openConnectUI."
             }
           }
         }

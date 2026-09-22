@@ -42,6 +42,7 @@ import (
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/mcpserver"
+	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
@@ -369,12 +370,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	simpleStore := simplespace.NewStore(db, spacesStore, permStore)
 
-	// Store for org-configured MCP servers and per-user OAuth credentials.
+	// Store for org-configured MCP servers and per-user Nango connections.
+	nangoClient := nango.NewClient(cmd.String(fNangoSecretKey), httpx.NewClient())
 	mcpGatewayStore, err := mcpgateway.NewStore(
 		db.WithContext(startupCtx),
-		credKey,
 		httpx.NewClient(),
-		"https://"+domain+"/mcp-oauth-callback",
+		nangoClient,
 	)
 	if err != nil {
 		return fmt.Errorf("setup mcp gateway store: %w", err)
@@ -439,8 +440,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// MCP gateway routes (network.habitat.mcp.*) are handled by pearApp via
 	// registerRoutes in internal/pearserver/routes.go.
 	mux.PathPrefix("/xrpc/network.habitat.mcp.").Handler(pearApp)
-	// OAuth redirect_uri registered with MCP servers' authorization servers.
-	mux.HandleFunc("/mcp-oauth-callback", pearApp.McpOAuthCallback)
 
 	cliqueServer := clique.NewServer(cliqueStore, validator)
 	pearServer := pear.NewServer(

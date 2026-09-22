@@ -25,6 +25,7 @@ var (
 	fUiDevProxy         = "ui_dev_proxy"
 	fBuiltinApps        = "builtin_app"
 	fBlobBucket         = "blob_bucket"
+	fNangoSecretKey     = "nango_secret_key"
 )
 
 var profiles []string
@@ -136,6 +137,12 @@ func getFlags() []cli.Flag {
 			Usage:   "gocloud.dev bucket connection string for blob storage, with inline credentials (e.g. s3://bucket?region=us-east-1, gs://bucket, file:///var/blobs). Defaults to an in-memory store.",
 			Value:   "mem://",
 			Sources: getSources(fBlobBucket),
+		},
+		&cli.StringFlag{
+			Name:     fNangoSecretKey,
+			Usage:    "Secret key for the Nango environment brokering MCP server OAuth connections",
+			Required: true,
+			Sources:  getSources(fNangoSecretKey),
 		},
 	}
 }

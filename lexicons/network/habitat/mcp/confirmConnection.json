@@ -1,0 +1,35 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.confirmConnection",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Record that the caller has connected to an org-configured MCP server, as reported by the Nango Connect UI after a successful authorization. Requires service-auth. Callable by any org member.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "org",
+            "id",
+            "connectionId"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community the server belongs to."
+            },
+            "id": {
+              "type": "string"
+            },
+            "connectionId": {
+              "type": "string",
+              "description": "The Nango connectionId returned by the Connect UI's 'connect' event."
+            }
+          }
+        }
+      }
+    }
+  }
+}

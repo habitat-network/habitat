@@ -1,5 +1,5 @@
 import type { AuthManager } from "internal";
-import { xrpc, type DidString, type UriString } from "@atproto/lex";
+import { xrpc, type DidString } from "@atproto/lex";
 import { queryOptions } from "@tanstack/react-query";
 import { network } from "api";
 import { pearAgent } from "./pearAgent";
@@ -73,22 +73,35 @@ export async function removeMcpServer(
   );
 }
 
-// startMcpAuthorization begins an OAuth authorization-code flow for the
-// caller to connect to an org-configured MCP server, returning the URL to
-// redirect the browser to. redirectUri is where the browser lands once
-// authorization completes.
+// startMcpAuthorization begins a Nango Connect session for the caller to
+// authorize against an org-configured MCP server, returning a session token
+// for the Nango frontend SDK's Connect UI.
 export async function startMcpAuthorization(
   authManager: AuthManager,
   org: DidString,
   id: string,
-  redirectUri: string,
 ) {
   const response = await xrpc(
     pearAgent(authManager, `${org}#habitat`),
     network.habitat.mcp.startAuthorization.main,
-    { body: { org, id, redirectUri: redirectUri as UriString } },
+    { body: { org, id } },
   );
-  return response.body.authorizationUrl;
+  return response.body.sessionToken;
+}
+
+// confirmMcpConnection records that the caller has connected to an
+// org-configured MCP server, once the Nango Connect UI reports success.
+export async function confirmMcpConnection(
+  authManager: AuthManager,
+  org: DidString,
+  id: string,
+  connectionId: string,
+) {
+  await xrpc(
+    pearAgent(authManager, `${org}#habitat`),
+    network.habitat.mcp.confirmConnection.main,
+    { body: { org, id, connectionId } },
+  );
 }
 
 // disconnectMcpServer removes the caller's stored credential for an

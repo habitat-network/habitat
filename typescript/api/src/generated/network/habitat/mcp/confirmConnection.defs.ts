@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'network.habitat.mcp.startAuthorization'
+const $nsid = 'network.habitat.mcp.confirmConnection'
 
 type $nsid = typeof $nsid
 
@@ -17,14 +17,13 @@ export type $Params = l.InferOutput<typeof $params>
 export const $input = /*#__PURE__*/ l.jsonPayload({
   org: /*#__PURE__*/ l.string({ format: 'did' }),
   id: /*#__PURE__*/ l.string(),
+  connectionId: /*#__PURE__*/ l.string(),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
 
-export const $output = /*#__PURE__*/ l.jsonPayload({
-  sessionToken: /*#__PURE__*/ l.string(),
-})
+export const $output = /*#__PURE__*/ l.payload()
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
 export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
@@ -32,7 +31,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Begin authorizing the caller against an org-configured MCP server via Nango. Returns a Nango Connect session token for the caller's browser to use with the Nango frontend SDK's Connect UI. Requires service-auth. Callable by any org member. */
+/** Record that the caller has connected to an org-configured MCP server, as reported by the Nango Connect UI after a successful authorization. Requires service-auth. Callable by any org member. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

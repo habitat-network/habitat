@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import Nango from "@nangohq/frontend";
 import type { AuthManager } from "internal";
 import type { DidString, UriString } from "@atproto/lex";
 import {
   addMcpServer,
+  confirmMcpConnection,
   disconnectMcpServer,
   removeMcpServer,
   startMcpAuthorization,
@@ -28,6 +30,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  toast,
 } from "internal/components/ui";
 
 const AUTH_TYPE_LABEL: Record<string, string> = {
@@ -121,20 +124,52 @@ function ConnectionCell({
   authManager: AuthManager;
 }) {
   const queryClient = useQueryClient();
+  const [authorizing, setAuthorizing] = useState(false);
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["mcp", "servers", org] });
 
   const { mutate: disconnect, isPending: disconnecting } = useMutation({
     mutationFn: () => disconnectMcpServer(authManager, org, server.id),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["mcp", "servers", org] }),
+    onSuccess: invalidate,
   });
 
-  const { mutate: authorize, isPending: authorizing } = useMutation({
-    mutationFn: () =>
-      startMcpAuthorization(authManager, org, server.id, window.location.href),
-    onSuccess: (authorizationUrl) => {
-      window.location.href = authorizationUrl;
-    },
-  });
+  const authorize = async () => {
+    setAuthorizing(true);
+    try {
+      const sessionToken = await startMcpAuthorization(
+        authManager,
+        org,
+        server.id,
+      );
+      const nango = new Nango();
+      const connect = nango.openConnectUI({
+        sessionToken,
+        onEvent: async (event) => {
+          if (event.type === "connect") {
+            await confirmMcpConnection(
+              authManager,
+              org,
+              server.id,
+              event.payload.connectionId,
+            );
+            await invalidate();
+          }
+          if (event.type === "connect" || event.type === "close") {
+            setAuthorizing(false);
+          }
+          if (event.type === "error") {
+            setAuthorizing(false);
+            toast.add({ type: "error", title: "Failed to connect" });
+          }
+        },
+      });
+      connect.open();
+    } catch {
+      setAuthorizing(false);
+      toast.add({ type: "error", title: "Failed to start authorization" });
+    }
+  };
 
   if (connected) {
     return (
@@ -161,9 +196,9 @@ function ConnectionCell({
       variant="outline"
       size="sm"
       disabled={authorizing}
-      onClick={() => authorize()}
+      onClick={() => void authorize()}
     >
-      {authorizing ? "Redirecting…" : "Connect"}
+      {authorizing ? "Connecting…" : "Connect"}
     </Button>
   );
 }
