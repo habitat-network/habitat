@@ -7,12 +7,10 @@ sidebar_position: 6
 
 # Working with coding agents
 
-If you build on Habitat with a coding agent — Claude Code, Cursor, or
-similar — give it this context up front. Copy the block below into your
+If you build an app that reads or writes data stored in Habitat, using a
+coding agent — Claude Code, Cursor, or similar — give it this context up
+front. Copy the block below into your
 project's `CLAUDE.md`, `AGENTS.md`, or equivalent.
-
-This is for apps that _consume_ Habitat. If you are contributing to
-Habitat itself, the repository's own `CLAUDE.md` covers that instead.
 
 ## Machine-readable documentation
 
@@ -38,7 +36,10 @@ on AT Protocol primitives.
   `https://pear.habitat.network/xrpc/network.habitat.space.getRecord`.
 - Authentication is standard AT Protocol OAuth. The app OAuths with
   Habitat; Habitat brokers to the user's own PDS.
-- Habitat acts as the identity resolver. It rewrites the `#atproto_pds`
+- For use-cases where users bring their own AT Protocol account,
+  Habitat acts as the [identity resolver](https://atproto.com/specs/did)
+  (see also the [atproto identity guide](https://atproto.com/guides/identity)).
+  It rewrites the `#atproto_pds`
   entry in a resolved DID document to point at itself, so standard atproto
   clients route through it without Habitat-specific code.
 - Data is AT Protocol records and blobs, stored in per-identity
@@ -57,8 +58,7 @@ For permissioned data, use only these namespaces:
 - `network.habitat.opensocial.createOrg` — creating an organization.
 
 **Do not use `network.habitat.clique.*`.** Cliques are a deprecated
-permissioning primitive, superseded by spaces. They still appear in the
-OpenAPI spec but must not be used in new code.
+permissioning primitive.
 
 ## Documentation
 
@@ -72,8 +72,7 @@ OpenAPI spec but must not be used in new code.
 - Never invent lexicon names. Every valid NSID appears in the OpenAPI
   spec; check there before writing a record, and prefer the namespaces
   listed above.
-- Prefer the published client over hand-rolled fetch calls:
-  `npm install @habitat-network/habitat`.
-- Treat record writes as permissioned. A write that succeeds locally can
-  still be rejected by the space's access rules.
+- Use the regular atproto API client (e.g. `@atproto/api`) rather than
+  hand-rolled fetch calls. `@habitat-network/habitat` currently only
+  provides an identity resolver.
 ````

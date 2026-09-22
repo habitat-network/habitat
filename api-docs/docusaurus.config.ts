@@ -80,7 +80,15 @@ const config: Config = {
         },
       },
     ],
-    "./src/plugins/llms-txt",
+    // Emits llms.txt and llms-full.txt into the build output.
+    [
+      "docusaurus-plugin-llms",
+      {
+        // The generated API reference is covered by openapi.json instead.
+        ignoreFiles: ["docs/api/**"],
+      },
+    ],
+    "./src/plugins/openapi-json",
   ],
 
   themes: ["docusaurus-theme-openapi-docs"],
