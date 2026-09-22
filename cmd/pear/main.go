@@ -381,6 +381,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup mcp gateway store: %w", err)
 	}
 
+	pdsForwarding := forwarding.NewPDSForwarding(
+		pdsCredStore,
+		validator,
+		pdsClientFactory,
+		defaultDir,
+	)
+
 	// Consolidated server owning the opensocial, simplespace, relationship,
 	// spaces, and registerNotify handler routes.
 	pearApp := pearserver.New(
@@ -396,6 +403,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		notifyStore,
 		clientmetadata.NewResolver(),
 		mcpGatewayStore,
+		pdsForwarding,
 	)
 
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))
@@ -451,12 +459,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup p2p server: %w", err)
 	}
-	pdsForwarding := forwarding.NewPDSForwarding(
-		pdsCredStore,
-		validator,
-		pdsClientFactory,
-		defaultDir,
-	)
 
 	idServer, err := habitat_identity.NewServer(
 		hive, validator, orgStore, pdsForwarding, domain,

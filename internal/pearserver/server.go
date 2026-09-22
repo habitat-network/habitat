@@ -9,6 +9,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
+	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
@@ -42,6 +43,9 @@ type PearServer struct {
 	// clientMeta resolves OAuth client metadata/JWKS for verifying client
 	// attestations on getSpaceCredential.
 	clientMeta *clientmetadata.Resolver
+
+	// pdsForwarding proxies requests for remote identities to their real PDS.
+	pdsForwarding *forwarding.PDSForwarding
 }
 
 // New creates a PearServer with the given dependencies and prepares
@@ -59,6 +63,7 @@ func New(
 	notifyStore notify.Store,
 	clientMeta *clientmetadata.Resolver,
 	mcpGatewayStore mcpgateway.Store,
+	pdsForwarding *forwarding.PDSForwarding,
 ) *PearServer {
 	ps := &PearServer{
 		router:          mux.NewRouter(),
@@ -75,6 +80,7 @@ func New(
 		notifyStore:     notifyStore,
 		clientMeta:      clientMeta,
 		mcpGatewayStore: mcpGatewayStore,
+		pdsForwarding:   pdsForwarding,
 	}
 	ps.registerRoutes()
 	return ps
