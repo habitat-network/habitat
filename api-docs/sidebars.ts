@@ -35,6 +35,10 @@ const sidebars: SidebarsConfig = {
   ods: [
     {
       type: "doc",
+      id: "start",
+    },
+    {
+      type: "doc",
       id: "habitat",
     },
     {
