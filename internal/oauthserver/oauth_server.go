@@ -257,7 +257,6 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 ) (fosite.AuthorizeRequester, string) {
 	ctx := r.Context()
 	if r.FormValue("response_type") == "code" {
-		o.normalizeLoopbackRedirect(ctx, r.Form)
 		// non-par authorize requests start with /oauth/authorize with a "code" response_type
 		loginHint := r.URL.Query().Get("login_hint")
 		if loginHint == "" {
@@ -329,9 +328,6 @@ func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 		// fosite's PAR handler reads r.Form. Setting it also makes the
 		// ParseMultipartForm call in there skip parsing the JSON body.
 		r.Form = body.formValues()
-	}
-	if err := r.ParseForm(); err == nil {
-		o.normalizeLoopbackRedirect(ctx, r.Form)
 	}
 	did, err := o.resolveLoginHint(r.FormValue("login_hint"))
 	if err != nil {
@@ -463,9 +459,6 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		// r.Form from it plus the URL query, rather than parsing the body.
 		r.PostForm = body.formValues()
 	}
-	if err := r.ParseForm(); err == nil {
-		o.normalizeLoopbackRedirect(ctx, r.PostForm)
-	}
 	req, err := o.provider.NewAccessRequest(ctx, r, newSession())
 	if err != nil {
 		logError(ctx, err)
@@ -504,15 +497,10 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	resp.SetExtra("sub", req.GetSession().GetSubject())
 	// The atproto OAuth client requires DPoP-bound tokens and rejects any
 	// token_type other than "DPoP". Habitat does not yet enforce DPoP
-	// server-side (tokens remain bearer tokens in practice), so we advertise
-	// the DPoP token type only to clients that declare dpop_bound_access_tokens;
-	// everyone else (e.g. MCP clients) gets the standard "Bearer".
+	// server-side (tokens remain bearer tokens in practice), but we advertise
+	// the DPoP token type so atproto clients accept the response.
 	// TODO: implement real DPoP proof validation and key binding.
-	if dc, ok := req.GetClient().(interface{ IsDPoPBound() bool }); ok && dc.IsDPoPBound() {
-		resp.SetTokenType("DPoP")
-	} else {
-		resp.SetTokenType("Bearer")
-	}
+	resp.SetTokenType("DPoP")
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 

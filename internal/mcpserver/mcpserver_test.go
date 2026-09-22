@@ -20,7 +20,7 @@ import (
 )
 
 // fakeTokens is an authn.RawMethod fake standing in for
-// oauthserver.OAuthServer: a token validates as the DID equal to the token
+// mcpoauth.Server: a token validates as the DID equal to the token
 // string itself, and any other token (including empty) is invalid.
 type fakeTokens struct{}
 
@@ -100,7 +100,7 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	srv := New(fakeTokens{}, spacesStore, permStore, "https://habitat.example")
+	srv := New(fakeTokens{}, spacesStore, permStore, "https://habitat.example", "https://habitat.example/mcp")
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
 

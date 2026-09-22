@@ -23,7 +23,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	indigooauth "github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/identity/apidir"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -40,6 +42,7 @@ import (
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/mcpoauth"
 	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
@@ -62,6 +65,7 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/webui"
+	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
 
@@ -395,7 +399,40 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
-	mcpServer := mcpserver.New(oauthServer, spacesStore, permStore, "https://"+domain)
+	// The MCP endpoint has its own OAuth server: it prompts for a handle and runs
+	// atproto OAuth against that account's PDS with the indigo client. Identity
+	// is resolved through pear's own resolveIdentity endpoint (see
+	// api-docs/docs/space-proxy/getting-started.mdx), which already rewrites
+	// pear-hosted accounts' PDS pointer to pear itself — so those accounts
+	// redirect to pear's own atproto OAuth server, and remote accounts resolve
+	// exactly the way any other client following that doc would see them.
+	mcpOrigin := "https://" + domain
+	mcpIdentityDir := identity.NewCacheDirectory(
+		apidir.NewAPIDirectory(mcpOrigin), 100_000, time.Hour, time.Minute, time.Hour,
+	)
+	mcpAuthStore, err := oauthclient.NewGormStore(
+		db.WithContext(startupCtx),
+		oauthclient.WithTableNames("mcp_client_sessions", "mcp_client_auth_requests"),
+	)
+	if err != nil {
+		return fmt.Errorf("setup mcp oauth client store: %w", err)
+	}
+	mcpAtprotoClient := indigooauth.NewPublicConfig(
+		mcpOrigin+mcpoauth.ClientMetadataPath,
+		mcpOrigin+mcpoauth.CallbackPath,
+		[]string{"atproto"},
+	)
+	mcpOAuth, err := mcpoauth.New(
+		oauthSecret,
+		db.WithContext(startupCtx),
+		mcpoauth.NewIndigoBroker(mcpAtprotoClient, mcpAuthStore, mcpIdentityDir, httpx.NewClient()),
+		mcpAtprotoClient.ClientMetadata(),
+		mcpOrigin,
+	)
+	if err != nil {
+		return fmt.Errorf("setup mcp oauth server: %w", err)
+	}
+	mcpServer := mcpserver.New(mcpOAuth, spacesStore, permStore, mcpOrigin, mcpOAuth.Issuer())
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,
@@ -506,15 +543,17 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsent)
 	mux.HandleFunc("/oauth/opensocial", oauthServer.HandleOpensocial)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
-	mux.HandleFunc("/oauth/register", oauthServer.HandleRegister)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
 
-	// MCP (Model Context Protocol) server. Its OAuth surface is the same
-	// broker above: MCP clients register via /oauth/register (RFC 7591,
-	// since most can't publish a Client ID Metadata Document) and then use
-	// the same /oauth/authorize -> PDS -> /oauth/token flow as any other
-	// Habitat OAuth client.
+	// MCP (Model Context Protocol) server and its own OAuth server.
+	mux.HandleFunc(mcpoauth.MetadataPath, mcpOAuth.HandleMetadata)
+	mux.HandleFunc(mcpoauth.RegisterPath, mcpOAuth.HandleRegister).Methods("POST")
+	mux.HandleFunc(mcpoauth.AuthorizePath, mcpOAuth.HandleAuthorize).Methods("GET")
+	mux.HandleFunc(mcpoauth.AuthorizeSubmitPath, mcpOAuth.HandleAuthorizeSubmit).Methods("POST")
+	mux.HandleFunc(mcpoauth.CallbackPath, mcpOAuth.HandleCallback)
+	mux.HandleFunc(mcpoauth.TokenPath, mcpOAuth.HandleToken).Methods("POST")
+	mux.HandleFunc(mcpoauth.ClientMetadataPath, mcpOAuth.HandleClientMetadata)
 	mux.Handle(
 		mcpserver.ProtectedResourceMetadataPath,
 		mcpServer.ProtectedResourceMetadataHandler(),

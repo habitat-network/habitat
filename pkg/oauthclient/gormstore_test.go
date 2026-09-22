@@ -145,3 +145,35 @@ func TestStore_SingleSessionPerUser_IsolatedPerDID(t *testing.T) {
 	require.Equal(t, []string{"read"}, got.Scopes)
 	require.Equal(t, "sess1", got.SessionID)
 }
+
+func TestStore_CustomTableNames(t *testing.T) {
+	db := testutil.NewDB(t)
+	ctx := context.Background()
+	defaultStore, err := NewGormStore(db)
+	require.NoError(t, err)
+	custom, err := NewGormStore(db, WithTableNames("custom_sessions", "custom_auth_requests"))
+	require.NoError(t, err)
+
+	require.NoError(t, custom.SaveSession(ctx, oauth.ClientSessionData{AccountDID: "did:plc:test", SessionID: "s"}))
+	require.NoError(t, custom.SaveAuthRequestInfo(ctx, oauth.AuthRequestData{State: "st"}))
+
+	_, err = custom.GetSession(ctx, "did:plc:test", "s")
+	require.NoError(t, err)
+	_, err = custom.GetAuthRequestInfo(ctx, "st")
+	require.NoError(t, err)
+
+	// The default store shares nothing with the custom tables.
+	_, err = defaultStore.GetSession(ctx, "did:plc:test", "s")
+	require.Error(t, err)
+	_, err = defaultStore.GetAuthRequestInfo(ctx, "st")
+	require.Error(t, err)
+
+	var count int64
+	require.NoError(t, db.Table("custom_sessions").Count(&count).Error)
+	require.EqualValues(t, 1, count)
+
+	require.NoError(t, custom.DeleteSession(ctx, "did:plc:test", "s"))
+	require.NoError(t, custom.DeleteAuthRequestInfo(ctx, "st"))
+	_, err = custom.GetSession(ctx, "did:plc:test", "s")
+	require.Error(t, err)
+}

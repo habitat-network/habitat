@@ -7,6 +7,10 @@
         "@playwright/mcp@latest"
       ],
       "env": {}
+    },
+    "habitat_local": {
+      "type": "http",
+      "url": "https://pear.local.habitat.network/mcp"
     }
   }
 }

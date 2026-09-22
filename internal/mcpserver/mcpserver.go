@@ -1,12 +1,8 @@
 // Package mcpserver exposes pear's data over the Model Context Protocol
-// (MCP, see https://modelcontextprotocol.io), authenticated with the same
-// OAuth 2.0 provider (internal/oauthserver) used by every other Habitat
-// OAuth client. An MCP client discovers this server's authorization server
-// via RFC 9728 protected resource metadata, registers itself with
-// internal/oauthserver's RFC 7591 dynamic client registration endpoint (MCP
-// clients generally can't publish an atproto Client ID Metadata Document),
-// and is then routed through the exact same "type a handle, get redirected
-// to your PDS" broker flow as any other Habitat OAuth client.
+// (MCP, see https://modelcontextprotocol.io), authenticated with tokens from
+// its own OAuth authorization server (internal/mcpoauth). An MCP client
+// discovers that authorization server via RFC 9728 protected resource
+// metadata.
 package mcpserver
 
 import (
@@ -32,29 +28,31 @@ const ProtectedResourceMetadataPath = "/.well-known/oauth-protected-resource/mcp
 const Path = "/mcp"
 
 // Server exposes pear's data as an MCP server over streamable HTTP, guarded
-// by bearer tokens issued by internal/oauthserver.OAuthServer.
+// by bearer tokens issued by internal/mcpoauth.
 type Server struct {
-	issuer  string
-	handler http.Handler
+	origin     string
+	authServer string
+	handler    http.Handler
 }
 
 // New constructs the MCP server and its authenticated streamable-HTTP
 // handler.
 //
-//   - tokens validates bearer tokens presented to the MCP endpoint. In
-//     production this is the same *oauthserver.OAuthServer used for every
-//     other Habitat OAuth client.
+//   - tokens validates bearer tokens presented to the MCP endpoint (in
+//     production, *mcpoauth.Server).
 //   - spacesStore and permStore back the "get_record" tool: permStore checks
 //     the caller holds at least a reader role on the record's space before
 //     spacesStore returns the record.
-//   - issuer is this server's issuer origin (an https URL with no path),
-//     used to build the resource identifier in the protected resource
-//     metadata document.
+//   - origin is this server's public origin (an https URL with no path), used
+//     to build the resource identifier in the protected resource metadata.
+//   - authServer is the issuer of the authorization server (internal/mcpoauth)
+//     that issues tokens for this resource.
 func New(
 	tokens authn.RawMethod,
 	spacesStore spaces.Store,
 	permStore perms.Store,
-	issuer string,
+	origin string,
+	authServer string,
 ) *Server {
 	impl := &mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}
 	mcpServer := mcp.NewServer(impl, nil)
@@ -74,14 +72,14 @@ func New(
 	})
 
 	authed := auth.RequireBearerToken(verifyToken(tokens), &auth.RequireBearerTokenOptions{
-		ResourceMetadataURL: issuer + ProtectedResourceMetadataPath,
+		ResourceMetadataURL: origin + ProtectedResourceMetadataPath,
 		// ValidateRaw already enforces token expiry (via fosite's
 		// IntrospectToken) before returning ok=true, so there is no separate
 		// expiration for this middleware to re-check.
 		AllowMissingExpiration: true,
 	})(streamable)
 
-	return &Server{issuer: issuer, handler: authed}
+	return &Server{origin: origin, authServer: authServer, handler: authed}
 }
 
 // Handler serves the MCP endpoint. Mount it at Path.
@@ -94,13 +92,13 @@ func (s *Server) Handler() http.Handler {
 // ProtectedResourceMetadataPath.
 func (s *Server) ProtectedResourceMetadataHandler() http.Handler {
 	return auth.ProtectedResourceMetadataHandler(&oauthex.ProtectedResourceMetadata{
-		Resource:             s.issuer + Path,
-		AuthorizationServers: []string{s.issuer},
+		Resource:             s.origin + Path,
+		AuthorizationServers: []string{s.authServer},
 	})
 }
 
-// verifyToken adapts an authn.RawMethod (internal/oauthserver.OAuthServer's
-// bearer-token validation) to the go-sdk's auth.TokenVerifier shape.
+// verifyToken adapts an authn.RawMethod (internal/mcpoauth's bearer-token
+// validation) to the go-sdk's auth.TokenVerifier shape.
 func verifyToken(tokens authn.RawMethod) auth.TokenVerifier {
 	return func(ctx context.Context, token string, _ *http.Request) (*auth.TokenInfo, error) {
 		credInfo, ok, err := tokens.ValidateRaw(ctx, token)
