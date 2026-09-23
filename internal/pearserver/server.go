@@ -9,6 +9,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/notify"
@@ -44,6 +45,9 @@ type PearServer struct {
 
 	// pdsForwarding proxies requests for remote identities to their real PDS.
 	pdsForwarding *forwarding.PDSForwarding
+
+	// emailDomainStore maps email domains to orgs for email-based sign-in.
+	emailDomainStore *emaildomain.Store
 }
 
 // New creates a PearServer with the given dependencies and prepares
@@ -61,22 +65,24 @@ func New(
 	notifyStore notify.Store,
 	clientMeta *clientmetadata.Resolver,
 	pdsForwarding *forwarding.PDSForwarding,
+	emailDomainStore *emaildomain.Store,
 ) *PearServer {
 	ps := &PearServer{
-		router:          mux.NewRouter(),
-		domain:          domain,
-		validator:       validator,
-		decoder:         schema.NewDecoder(),
-		hive:            hive,
-		hostKey:         hostKey,
-		blobStore:       blobStore,
-		spacesStore:     spacesStore,
-		opensocialStore: opensocialStore,
-		permStore:       permStore,
-		simpleStore:     simpleStore,
-		notifyStore:     notifyStore,
-		clientMeta:      clientMeta,
-		pdsForwarding:   pdsForwarding,
+		router:           mux.NewRouter(),
+		domain:           domain,
+		validator:        validator,
+		decoder:          schema.NewDecoder(),
+		hive:             hive,
+		hostKey:          hostKey,
+		blobStore:        blobStore,
+		spacesStore:      spacesStore,
+		opensocialStore:  opensocialStore,
+		permStore:        permStore,
+		simpleStore:      simpleStore,
+		notifyStore:      notifyStore,
+		clientMeta:       clientMeta,
+		pdsForwarding:    pdsForwarding,
+		emailDomainStore: emailDomainStore,
 	}
 	ps.registerRoutes()
 	return ps

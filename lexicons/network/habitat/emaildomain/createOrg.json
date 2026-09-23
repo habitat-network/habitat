@@ -1,0 +1,44 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.emaildomain.createOrg",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Create a new opensocial-backed org mapped to an email domain. The org starts with no members: the first user to sign in with a Google-verified email at the domain becomes its admin, and later ones become members. Requires OAuth or service-auth.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": ["handle", "domain"],
+                    "properties": {
+                        "handle": {
+                            "type": "string",
+                            "description": "Subdomain handle for the org (alphanumeric, 1-50 chars)."
+                        },
+                        "domain": {
+                            "type": "string",
+                            "description": "Email domain whose users sign in to this org, e.g. \"acme.com\"."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": ["org"],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the created org."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                { "name": "DomainTaken", "description": "The email domain is already mapped to an org." }
+            ]
+        }
+    }
+}
