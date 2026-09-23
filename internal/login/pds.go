@@ -80,33 +80,33 @@ func (p *pdsProvider) Exchange(
 	ctx context.Context,
 	query url.Values,
 	stateBytes []byte,
-) (loginID string, err error) {
+) (loginID string, profile Profile, err error) {
 	code := query.Get("code")
 	issuer := query.Get("iss")
 	var s pdsProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
-		return "", fmt.Errorf("unmarshal pds provider state: %w", err)
+		return "", Profile{}, fmt.Errorf("unmarshal pds provider state: %w", err)
 	}
 	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), s.DpopKey)
 	if err != nil {
-		return "", fmt.Errorf("parse dpop key: %w", err)
+		return "", Profile{}, fmt.Errorf("parse dpop key: %w", err)
 	}
 	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
 	tokenInfo, err := p.oauthClient.ExchangeCode(dpopClient, code, issuer, &s.AuthorizeState)
 	if err != nil {
-		return "", fmt.Errorf("exchange code: %w", err)
+		return "", Profile{}, fmt.Errorf("exchange code: %w", err)
 	}
 	token, err := jwt.ParseSigned(tokenInfo.AccessToken)
 	if err != nil {
-		return "", fmt.Errorf("parse access token: %w", err)
+		return "", Profile{}, fmt.Errorf("parse access token: %w", err)
 	}
 	var claims jwt.Claims
 	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil {
-		return "", fmt.Errorf("parse access token claims: %w", err)
+		return "", Profile{}, fmt.Errorf("parse access token claims: %w", err)
 	}
 	loginDID, err := syntax.ParseDID(claims.Subject)
 	if err != nil {
-		return "", fmt.Errorf("parse loginID: %w", err)
+		return "", Profile{}, fmt.Errorf("parse loginID: %w", err)
 	}
 	if err := p.credStore.UpsertCredentials(ctx, loginDID, &pdscred.Credentials{
 		AccessToken:  tokenInfo.AccessToken,
@@ -116,5 +116,5 @@ func (p *pdsProvider) Exchange(
 		// Log and move on since an error upserting doesn't mean the login failed
 		slog.WarnContext(ctx, "error upserting PDS credentials", "err", err)
 	}
-	return loginDID.String(), nil
+	return loginDID.String(), Profile{}, nil
 }

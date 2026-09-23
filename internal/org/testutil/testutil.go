@@ -16,6 +16,16 @@ import (
 
 func NewTestStore(t *testing.T) org.Store {
 	t.Helper()
+	store, _ := NewTestStoreWithHive(t)
+	return store
+}
+
+// NewTestStoreWithHive is like NewTestStore but also returns the hive.Hive
+// backing the store's identities, so callers that need to resolve those
+// identities (e.g. an identity.Directory-consuming server under test) can do
+// so locally instead of over the network.
+func NewTestStoreWithHive(t *testing.T) (org.Store, hive.Hive) {
+	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
@@ -39,5 +49,5 @@ func NewTestStore(t *testing.T) org.Store {
 		org.NewEveryoneOrg("everyone.example.com"),
 	)
 	require.NoError(t, err)
-	return store
+	return store, h
 }

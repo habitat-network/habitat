@@ -91,41 +91,41 @@ func (p *googleProvider) Exchange(
 	ctx context.Context,
 	query url.Values,
 	stateBytes []byte,
-) (loginID string, err error) {
+) (loginID string, profile Profile, err error) {
 	code := query.Get("code")
 	var s googleProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
-		return "", fmt.Errorf("unmarshal google state: %w", err)
+		return "", Profile{}, fmt.Errorf("unmarshal google state: %w", err)
 	}
 	if s.State != query.Get("state") {
-		return "", fmt.Errorf("google state mismatch")
+		return "", Profile{}, fmt.Errorf("google state mismatch")
 	}
 	token, err := p.oauthCfg.Exchange(ctx, code, oauth2.VerifierOption(s.Verifier))
 	if err != nil {
-		return "", fmt.Errorf("google token exchange: %w", err)
+		return "", Profile{}, fmt.Errorf("google token exchange: %w", err)
 	}
 
 	idToken, ok := token.Extra("id_token").(string)
 	if !ok || idToken == "" {
-		return "", fmt.Errorf("no id_token in google token response")
+		return "", Profile{}, fmt.Errorf("no id_token in google token response")
 	}
 
-	email, err := verifyGoogleIDToken(idToken, p.oauthCfg.ClientID)
+	claims, err := verifyGoogleIDToken(idToken, p.oauthCfg.ClientID)
 	if err != nil {
-		return "", fmt.Errorf("verify google id token: %w", err)
+		return "", Profile{}, fmt.Errorf("verify google id token: %w", err)
 	}
 
-	if err := p.upsertCredentials(ctx, email, &Credentials{
+	if err := p.upsertCredentials(ctx, claims.Email, &Credentials{
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		Expiry:       token.Expiry,
 		IDToken:      idToken,
-		Email:        email,
+		Email:        claims.Email,
 	}); err != nil {
-		return "", fmt.Errorf("store google credentials: %w", err)
+		return "", Profile{}, fmt.Errorf("store google credentials: %w", err)
 	}
 
-	return email, nil
+	return claims.Email, Profile{Name: claims.Name, Picture: claims.Picture}, nil
 }
 
 type googleCredentialsModel struct {
@@ -201,41 +201,44 @@ type googleIDTokenClaims struct {
 	Exp           int64  `json:"exp"`
 }
 
-func verifyGoogleIDToken(idToken, clientID string) (string, error) {
+func verifyGoogleIDToken(idToken, clientID string) (googleIDTokenClaims, error) {
 	parts := strings.Split(idToken, ".")
 	if len(parts) != 3 {
-		return "", fmt.Errorf("invalid id token: expected 3 segments, got %d", len(parts))
+		return googleIDTokenClaims{}, fmt.Errorf(
+			"invalid id token: expected 3 segments, got %d",
+			len(parts),
+		)
 	}
 
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", fmt.Errorf("decode id token payload: %w", err)
+		return googleIDTokenClaims{}, fmt.Errorf("decode id token payload: %w", err)
 	}
 
 	var claims googleIDTokenClaims
 	if err := json.Unmarshal(payload, &claims); err != nil {
-		return "", fmt.Errorf("parse id token claims: %w", err)
+		return googleIDTokenClaims{}, fmt.Errorf("parse id token claims: %w", err)
 	}
 
 	if claims.Iss != "https://accounts.google.com" && claims.Iss != "accounts.google.com" {
-		return "", fmt.Errorf("unexpected id token issuer: %s", claims.Iss)
+		return googleIDTokenClaims{}, fmt.Errorf("unexpected id token issuer: %s", claims.Iss)
 	}
 	if claims.Aud != clientID {
-		return "", fmt.Errorf(
+		return googleIDTokenClaims{}, fmt.Errorf(
 			"id token audience mismatch: got %s, expected %s",
 			claims.Aud,
 			clientID,
 		)
 	}
 	if claims.Exp > 0 && time.Now().Unix() > claims.Exp {
-		return "", fmt.Errorf("id token expired")
+		return googleIDTokenClaims{}, fmt.Errorf("id token expired")
 	}
 	if !claims.EmailVerified {
-		return "", fmt.Errorf("google email not verified")
+		return googleIDTokenClaims{}, fmt.Errorf("google email not verified")
 	}
 	if claims.Email == "" {
-		return "", fmt.Errorf("no email in google id token")
+		return googleIDTokenClaims{}, fmt.Errorf("no email in google id token")
 	}
 
-	return claims.Email, nil
+	return claims, nil
 }

@@ -65,7 +65,7 @@ func TestPDSProvider_Exchange(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	loginID, err := p.Exchange(
+	loginID, _, err := p.Exchange(
 		t.Context(),
 		url.Values{"code": {"dummyCode"}, "iss": {"https://pds.example.com"}},
 		state,

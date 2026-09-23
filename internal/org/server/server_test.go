@@ -18,6 +18,7 @@ import (
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/instance"
+	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	orgpkg "github.com/habitat-network/habitat/internal/org"
 	orgtestutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/stretchr/testify/require"
@@ -59,7 +60,7 @@ func newTestServer(
 	policy instance.PolicyStore,
 ) (*Server, orgpkg.Store, syntax.DID, syntax.DID) {
 	t.Helper()
-	store := orgtestutil.NewTestStore(t)
+	store, dir := orgtestutil.NewTestStoreWithHive(t)
 
 	orgIdIdent, adminIdent, err := store.CreateOrg(
 		t.Context(),
@@ -77,8 +78,9 @@ func newTestServer(
 		store,
 		successValidator(adminIdent.DID),
 		"pear.example.com",
-		identity.DefaultDirectory(),
+		dir,
 		policy,
+		opensocial_testutil.NewTestStore(t).Store,
 	)
 	require.NoError(t, err)
 	return srv, store, orgIdIdent.DID, adminIdent.DID
@@ -193,6 +195,45 @@ func TestGetMetadataViaAuthenticatedCaller(t *testing.T) {
 	require.Equal(t, string(orgpkg.LoginMethodPassword), out.LoginMethod)
 }
 
+func TestGetProfile(t *testing.T) {
+	srv, _, _, adminDID := newTestServer(t, &fakeInstancePolicy{policy: "open"})
+
+	// No memberProfile record set: displayName/bio/avatarUrl are empty but
+	// did/handle still resolve.
+	var out habitat.NetworkHabitatOrgGetProfileOutput
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		srv.GetProfile, url.Values{"did": {adminDID.String()}}, &out,
+	)
+	require.Equal(t, http.StatusOK, code)
+	require.Equal(t, adminDID.String(), out.Did)
+	require.NotEmpty(t, out.Handle)
+	require.Empty(t, out.DisplayName)
+}
+
+func TestGetProfile_NotAMember(t *testing.T) {
+	srv, _, _, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
+
+	var out habitat.NetworkHabitatOrgGetProfileOutput
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		srv.GetProfile, url.Values{"did": {"did:plc:notamember"}}, &out,
+	)
+	require.Equal(t, http.StatusNotFound, code)
+}
+
+func TestGetProfiles(t *testing.T) {
+	srv, _, _, adminDID := newTestServer(t, &fakeInstancePolicy{policy: "open"})
+
+	var out habitat.NetworkHabitatOrgGetProfilesOutput
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		srv.GetProfiles,
+		url.Values{"dids": {adminDID.String(), "did:plc:notamember"}},
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
+	require.Len(t, out.Profiles, 1)
+	require.Equal(t, adminDID.String(), out.Profiles[0].Did)
+}
+
 func newCreateTestServer(t *testing.T) *Server {
 	t.Helper()
 	srv, err := NewServer(
@@ -201,6 +242,7 @@ func newCreateTestServer(t *testing.T) *Server {
 		"domain",
 		identity.DefaultDirectory(),
 		&fakeInstancePolicy{policy: "open"},
+		opensocial_testutil.NewTestStore(t).Store,
 	)
 	require.NoError(t, err)
 	return srv
@@ -319,6 +361,7 @@ func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		&fakeInstancePolicy{policy: "open"},
+		opensocial_testutil.NewTestStore(t).Store,
 	)
 	require.NoError(t, err)
 
@@ -345,6 +388,7 @@ func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		&fakeInstancePolicy{policy: "invite_only"},
+		opensocial_testutil.NewTestStore(t).Store,
 	)
 	require.NoError(t, err)
 
@@ -371,6 +415,7 @@ func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		&fakeInstancePolicy{policy: "invite_only", validateErr: errors.New("bad token")},
+		opensocial_testutil.NewTestStore(t).Store,
 	)
 	require.NoError(t, err)
 
@@ -399,6 +444,7 @@ func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		policy,
+		opensocial_testutil.NewTestStore(t).Store,
 	)
 	require.NoError(t, err)
 
@@ -430,6 +476,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		policy,
+		opensocial_testutil.NewTestStore(t).Store,
 	)
 	require.NoError(t, err)
 
@@ -491,6 +538,7 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		instanceStore,
+		opensocial_testutil.NewTestStore(t).Store,
 	)
 	require.NoError(t, err)
 

@@ -328,6 +328,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup opensocial store: %w", err)
 	}
+	loginRouter.OpensocialStore = opensocialStore
 	emailResolver := habitat_identity.NewEmailResolver(
 		db.WithContext(startupCtx), emailDomainStore, hive, opensocialStore,
 	)
@@ -423,6 +424,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		domain,
 		hiveDir,
 		instanceAdminStore,
+		opensocialStore,
 	)
 	if err != nil {
 		return fmt.Errorf("setup org server for domain %q: %w", domain, err)
@@ -430,6 +432,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.getMetadata", orgServer.GetMetadata)
 	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
 	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
+	mux.HandleFunc("/xrpc/network.habitat.org.getProfile", orgServer.GetProfile)
+	mux.HandleFunc("/xrpc/network.habitat.org.getProfiles", orgServer.GetProfiles)
 	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
