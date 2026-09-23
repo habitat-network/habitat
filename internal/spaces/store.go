@@ -216,6 +216,12 @@ type Store interface {
 	// transactional with the DB, but callers run them inside the same closure so
 	// a DB rollback follows an FGA failure.
 	db.Store[Store]
+
+	// LockRepo acquires the per-(space, repo) advisory lock PutRecord and
+	// DeleteRecord hold for their writes, held until the enclosing
+	// transaction ends. It only serializes anything on a store scoped to a
+	// transaction via WithTx, and is a no-op outside Postgres.
+	LockRepo(ctx context.Context, space habitat_syntax.SpaceURI, repo syntax.DID) error
 }
 
 // Notifier is notified when a space changes so it can deliver events to
@@ -453,6 +459,15 @@ func lockRepo(tx *gorm.DB, space habitat_syntax.SpaceURI, repo syntax.DID) error
 		return fmt.Errorf("failed to acquire lock: %w", err)
 	}
 	return nil
+}
+
+// LockRepo implements [Store].
+func (s *store) LockRepo(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) error {
+	return lockRepo(s.db.WithContext(ctx), space, repo)
 }
 
 func (s *store) ListRepos(
