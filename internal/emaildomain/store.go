@@ -47,12 +47,6 @@ func (s *Store) WithTx(tx *gorm.DB) *Store {
 	return &Store{db: tx}
 }
 
-// Transaction runs fn in a transaction on this store's DB, so callers can
-// scope this and other stores (via their WithTx) to the same transaction.
-func (s *Store) Transaction(ctx context.Context, fn func(tx *gorm.DB) error) error {
-	return s.db.WithContext(ctx).Transaction(fn)
-}
-
 func (s *Store) LookupDomain(
 	ctx context.Context,
 	domain string,

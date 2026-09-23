@@ -28,17 +28,19 @@ const (
 // for it, minting one and enrolling it in the email domain's org on first
 // sight (see emaildomain.Store.CreateDomainMapping).
 type EmailResolver struct {
+	db              *gorm.DB
 	emailStore      *emaildomain.Store
 	hive            hive.Hive
 	opensocialStore *opensocial.Store
 }
 
 func NewEmailResolver(
+	db *gorm.DB,
 	emailStore *emaildomain.Store,
 	h hive.Hive,
 	opensocialStore *opensocial.Store,
 ) *EmailResolver {
-	return &EmailResolver{emailStore: emailStore, hive: h, opensocialStore: opensocialStore}
+	return &EmailResolver{db: db, emailStore: emailStore, hive: h, opensocialStore: opensocialStore}
 }
 
 // ResolveEmailIdentity returns the identity provisioned for email, minting
@@ -69,7 +71,7 @@ func (r *EmailResolver) ResolveEmailIdentity(
 	orgLabel, _, _ := strings.Cut(orgIdent.Handle.String(), ".")
 
 	var minted *identity.Identity
-	err = r.emailStore.Transaction(ctx, func(tx *gorm.DB) error {
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		ident, err := mintMemberIdentity(ctx, r.hive.WithTx(tx), email, orgLabel)
 		if err != nil {
 			return err

@@ -15,7 +15,8 @@ import (
 // TestStore runs against one store shared by the subtests, in order: the
 // member-email subtests rely on the mapping created by "domain mapping".
 func TestStore(t *testing.T) {
-	s, err := emaildomain.NewStore(db_testutil.NewDB(t))
+	db := db_testutil.NewDB(t)
+	s, err := emaildomain.NewStore(db)
 	require.NoError(t, err)
 	org := syntax.DID("did:web:acme.example.com")
 	alice := syntax.DID("did:web:alice.example.com")
@@ -78,7 +79,7 @@ func TestStore(t *testing.T) {
 
 	t.Run("transaction rolls back", func(t *testing.T) {
 		bobEmail := emaildomain.Email("bob@acme.com")
-		err := s.Transaction(t.Context(), func(tx *gorm.DB) error {
+		err := db.WithContext(t.Context()).Transaction(func(tx *gorm.DB) error {
 			require.NoError(t, s.WithTx(tx).Provision(
 				t.Context(), bobEmail, org, "did:web:bob.example.com",
 			))

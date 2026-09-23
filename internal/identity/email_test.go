@@ -48,7 +48,7 @@ func newEmailFixture(t *testing.T) emailFixture {
 		t.Context(), "acme.com", org, emaildomain.LoginMethodGoogle,
 	))
 	return emailFixture{
-		resolver:   NewEmailResolver(emailStore, h, osStore.Store),
+		resolver:   NewEmailResolver(db, emailStore, h, osStore.Store),
 		emailStore: emailStore,
 		opensocial: osStore,
 		hive:       h,
