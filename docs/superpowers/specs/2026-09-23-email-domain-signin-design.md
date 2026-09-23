@@ -82,11 +82,11 @@ Implementation mirrors `RequestJoin` (`internal/opensocial/invite.go:146`): with
 
 ## Create-org endpoint
 
-New lexicon `network.habitat.emaildomain.createOrg` (`{handle, domain}` → `{org: did}`), handled in `internal/pearserver` following the existing `CreateOrg` handler's shape (`internal/pearserver/opensocial_create_org.go:22`): OAuth/service-auth authenticated (any authenticated user, same as `opensocial.createOrg` — no instance-admin gate), validates `handle` the same way, then:
+New lexicon `network.habitat.emaildomain.createOrg` (`{handle, domain}` → `{org: did}`), handled in `internal/pearserver` following the existing `CreateOrg` handler's shape (`internal/pearserver/opensocial_create_org.go:22`) but unauthenticated (no OAuth/service-auth check, no instance-admin gate), validates `handle` the same way, then:
 1. `opensocialStore.NewOrgWithoutCreator(ctx, handle)` → `orgDID`.
 2. `emailDomainStore.CreateDomainMapping(ctx, domain, orgDID, "google")`.
 
-Any authenticated user can call this — not just instance admins — because claiming a domain mapping grants no access by itself: only someone who can complete Google OAuth for an `@domain` address can ever sign in to the resulting org, and the first such sign-in (not the org creator) becomes admin. The residual risk is domain squatting (claiming `acme.com` before Acme's own admin does, blocking them from registering it later) rather than credential exposure; not addressed here.
+Anyone can call this — no authentication required — because claiming a domain mapping grants no access by itself: only someone who can complete Google OAuth for an `@domain` address can ever sign in to the resulting org, and the first such sign-in (not the org creator) becomes admin. The residual risk is domain squatting (claiming `acme.com` before Acme's own admin does, blocking them from registering it later) rather than credential exposure; not addressed here.
 
 ## Identity resolution: the email path
 

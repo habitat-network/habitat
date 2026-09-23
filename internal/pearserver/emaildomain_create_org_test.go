@@ -59,13 +59,13 @@ func TestServer_CreateEmailDomainOrg(t *testing.T) {
 		require.Equal(t, http.StatusConflict, code)
 	})
 
-	t.Run("requires auth", func(t *testing.T) {
+	t.Run("does not require auth", func(t *testing.T) {
 		ts := pearserver_testutil.NewTestServer(
 			t,
 			pearserver_testutil.WithValidator(authntest.NewFailureValidator()),
 		)
 		_, code := create(ts, "acme", "acme.com")
-		require.Equal(t, http.StatusUnauthorized, code)
+		require.Equal(t, http.StatusOK, code)
 	})
 
 	t.Run("rejects invalid input", func(t *testing.T) {

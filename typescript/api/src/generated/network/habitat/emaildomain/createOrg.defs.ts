@@ -32,7 +32,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Create a new opensocial-backed org mapped to an email domain. The org starts with no members: the first user to sign in with a Google-verified email at the domain becomes its admin, and later ones become members. Requires OAuth or service-auth. */
+/** Create a new opensocial-backed org mapped to an email domain. The org starts with no members: the first user to sign in with a Google-verified email at the domain becomes its admin, and later ones become members. Does not require authentication. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'DomainTaken',
 ])

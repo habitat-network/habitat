@@ -11,22 +11,16 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/httpx"
 )
 
-// CreateEmailDomainOrg implements network.habitat.emaildomain.createOrg. Any
-// authenticated user may call it: mapping a domain grants the caller nothing,
+// CreateEmailDomainOrg implements network.habitat.emaildomain.createOrg. It is
+// unauthenticated: mapping a domain grants the caller nothing,
 // since only someone completing Google OAuth for an address at the domain
 // can ever sign in to the org, and the first such sign-in becomes admin.
 func (p *PearServer) CreateEmailDomainOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if _, ok := p.validator.Request(
-		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
-	).Validate(w, r); !ok {
-		return
-	}
 	var input habitat.NetworkHabitatEmaildomainCreateOrgInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "decode request body", err)
