@@ -22,18 +22,13 @@ import (
 //
 // memberDID is granted the admin role if it is the org's first member
 // (i.e. the org was created via NewOrgWithoutCreator and nobody has joined
-// yet), and the member role otherwise. This check-and-write is made
-// race-safe by acquiring the same per-(space, repo) advisory lock PutRecord
-// itself takes before counting existing community.opensocial.membership
-// records for orgDID, so two concurrent first sign-ins cannot both become
-// admin.
+// yet), and the member role otherwise. This check is not race-safe: two
+// concurrent first sign-ins can both observe zero existing members and both
+// be granted admin. That's an acceptable outcome here.
 func (s *Store) ProvisionMember(ctx context.Context, orgDID, memberDID syntax.DID) error {
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		spacesStoreTx := s.spacesStore.WithTx(tx)
 		membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self")
-		if err := spacesStoreTx.LockRepo(ctx, membersSpace, orgDID); err != nil {
-			return fmt.Errorf("lock members repo: %w", err)
-		}
 		membershipNSID := syntax.NSID(MembershipCollection)
 		existing, err := spacesStoreTx.ListRecords(ctx, membersSpace, orgDID, &membershipNSID)
 		if err != nil {
