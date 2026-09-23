@@ -346,14 +346,32 @@ func TestStoreNewOrgWithoutCreator(t *testing.T) {
 
 	// Same bootstrap records as NewOrg...
 	aboutSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.AboutSpaceType, "self")
-	_, err = s.SpaceStore.GetRecord(t.Context(), aboutSpace, org, opensocial.ProfileCollection, "self")
+	_, err = s.SpaceStore.GetRecord(
+		t.Context(),
+		aboutSpace,
+		org,
+		opensocial.ProfileCollection,
+		"self",
+	)
 	require.NoError(t, err)
 	membersSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
 	for _, rkey := range []syntax.RecordKey{opensocial.AdminRoleRkey, opensocial.MemberRoleRkey} {
-		_, err = s.SpaceStore.GetRecord(t.Context(), membersSpace, org, "community.opensocial.role", rkey)
+		_, err = s.SpaceStore.GetRecord(
+			t.Context(),
+			membersSpace,
+			org,
+			"community.opensocial.role",
+			rkey,
+		)
 		require.NoError(t, err)
 	}
-	_, err = s.SpaceStore.GetRecord(t.Context(), membersSpace, org, opensocial.PermissionsCollection, "self")
+	_, err = s.SpaceStore.GetRecord(
+		t.Context(),
+		membersSpace,
+		org,
+		opensocial.PermissionsCollection,
+		"self",
+	)
 	require.NoError(t, err)
 
 	// ...but nobody is a member yet.

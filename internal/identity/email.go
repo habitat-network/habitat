@@ -147,7 +147,11 @@ func mintMemberIdentity(
 		}
 		candidate = base + hex.EncodeToString(suffix)
 	}
-	return nil, fmt.Errorf("mint member identity for %s: handle taken after %d attempts", email, mintAttempts)
+	return nil, fmt.Errorf(
+		"mint member identity for %s: handle taken after %d attempts",
+		email,
+		mintAttempts,
+	)
 }
 
 // handlePrefix keeps only the characters hive allows in a handle prefix
