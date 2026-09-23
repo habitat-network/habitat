@@ -863,7 +863,7 @@ func TestValidate(t *testing.T) {
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
-		nil,
+			nil,
 		)
 		require.NoError(t, srvErr)
 		return s, p
@@ -981,7 +981,7 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
-		nil,
+			nil,
 		)
 		require.NoError(t, srvErr)
 		return s, p
