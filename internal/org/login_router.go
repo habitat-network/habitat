@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/login"
 )
 
@@ -15,6 +17,9 @@ type LoginRouter struct {
 	Google   login.Provider
 	Password login.Provider
 	OrgStore Store
+	// EmailStore, if set, routes DIDs provisioned via email-domain sign-in
+	// (see identity.EmailResolver) through their domain's login method.
+	EmailStore *emaildomain.Store
 }
 
 func (r *LoginRouter) getProvider(org Org) login.Provider {
@@ -29,10 +34,57 @@ func (r *LoginRouter) getProvider(org Org) login.Provider {
 	return nil
 }
 
+// emailProvider returns the login provider for an email domain's login
+// method, or nil if it isn't configured on this instance.
+func (r *LoginRouter) emailProvider(method emaildomain.LoginMethod) login.Provider {
+	switch method {
+	case emaildomain.LoginMethodGoogle:
+		return r.Google
+	}
+	return nil
+}
+
+// emailLogin returns the login provider and provisioned email for did if it
+// was provisioned via email-domain sign-in; ok is false for any other DID.
+func (r *LoginRouter) emailLogin(
+	ctx context.Context,
+	did syntax.DID,
+) (login.Provider, emaildomain.Email, bool, error) {
+	if r.EmailStore == nil {
+		return nil, "", false, nil
+	}
+	method, ok, err := r.EmailStore.GetLoginMethod(ctx, did)
+	if err != nil {
+		return nil, "", false, fmt.Errorf("get email login method: %w", err)
+	}
+	if !ok {
+		return nil, "", false, nil
+	}
+	email, ok, err := r.EmailStore.GetEmail(ctx, did)
+	if err != nil {
+		return nil, "", false, fmt.Errorf("get provisioned email: %w", err)
+	}
+	if !ok {
+		return nil, "", false, fmt.Errorf("no email provisioned for %s", did)
+	}
+	provider := r.emailProvider(method)
+	if provider == nil {
+		return nil, "", false, fmt.Errorf("unsupported login provider for %s", did)
+	}
+	return provider, email, true, nil
+}
+
 func (r *LoginRouter) Authorize(
 	ctx context.Context,
 	did syntax.DID,
 ) (string, []byte, error) {
+	// email-domain member login
+	if provider, email, ok, err := r.emailLogin(ctx, did); err != nil {
+		return "", nil, err
+	} else if ok {
+		return provider.Authorize(ctx, string(email))
+	}
+
 	// org login (requires admin credential)
 	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
 	if err == nil {
@@ -63,6 +115,20 @@ func (r *LoginRouter) Exchange(
 	query url.Values,
 	state []byte,
 ) error {
+	// email-domain member login
+	if provider, email, ok, err := r.emailLogin(ctx, did); err != nil {
+		return err
+	} else if ok {
+		loginID, err := provider.Exchange(ctx, query, state)
+		if err != nil {
+			return fmt.Errorf("failed to exchange code: %w", err)
+		}
+		if !strings.EqualFold(loginID, string(email)) {
+			return fmt.Errorf("login id mismatch: %s != %s", email, loginID)
+		}
+		return nil
+	}
+
 	// org login (requires admin)
 	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
 	if err == nil {
