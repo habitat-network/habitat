@@ -22,6 +22,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/org"
@@ -51,6 +52,12 @@ const (
 	providerStateCookie = "provider_state"
 )
 
+// EmailIdentityResolver resolves a work email typed as a login hint to the
+// identity provisioned for it (see identity.EmailResolver).
+type EmailIdentityResolver interface {
+	ResolveEmailIdentity(ctx context.Context, email emaildomain.Email) (*identity.Identity, error)
+}
+
 // OAuthServer implements an OAuth 2.0 authorization server with AT Protocol integration.
 // It handles OAuth authorization flows, token issuance, and integrates with DPoP
 // for proof-of-possession token binding.
@@ -72,6 +79,8 @@ type OAuthServer struct {
 	// issuer origin (https URL, no path) the discovery metadata is built from.
 	issuer          string
 	opensocialStore *opensocial.Store
+	// emailResolver, if set, lets login hints be work emails.
+	emailResolver EmailIdentityResolver
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -91,6 +100,7 @@ type OAuthServer struct {
 //   - issuer: this server's issuer origin (an https URL with no path), from
 //     which the endpoint URLs in the discovery metadata and the token endpoint
 //     URL (used to validate the "aud" claim of JWT Bearer assertions) are built
+//   - emailResolver: resolves work-email login hints; nil disables them
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
@@ -103,6 +113,7 @@ func NewOAuthServer(
 	issuer string,
 	approvedJwtBearerClients ApprovedClientStore,
 	opensocialStore *opensocial.Store,
+	emailResolver EmailIdentityResolver,
 ) (*OAuthServer, error) {
 	config := &fosite.Config{
 		GlobalSecret:               secret,
@@ -166,6 +177,7 @@ func NewOAuthServer(
 		orgStore:        orgStore,
 		issuer:          issuer,
 		opensocialStore: opensocialStore,
+		emailResolver:   emailResolver,
 	}, nil
 }
 
@@ -263,7 +275,7 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 		if loginHint == "" {
 			loginHint = r.URL.Query().Get("handle")
 		}
-		did, err := o.resolveLoginHint(loginHint)
+		did, err := o.resolveLoginHint(ctx, loginHint)
 		if err != nil {
 			httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 			return nil, ""
@@ -288,7 +300,7 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 	}
 	requestKey, _ := cookieSession.Values[requestKeyCookie].(string)
 	if r.FormValue("disambiguation") != "" {
-		did, err := o.resolveLoginHint(r.FormValue("disambiguation"))
+		did, err := o.resolveLoginHint(ctx, r.FormValue("disambiguation"))
 		if err != nil {
 			httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 			return nil, ""
@@ -333,7 +345,7 @@ func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err == nil {
 		o.normalizeLoopbackRedirect(ctx, r.Form)
 	}
-	did, err := o.resolveLoginHint(r.FormValue("login_hint"))
+	did, err := o.resolveLoginHint(ctx, r.FormValue("login_hint"))
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 		return
@@ -352,14 +364,23 @@ func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 	o.provider.WritePushedAuthorizeResponse(ctx, w, req, resp)
 }
 
-func (o *OAuthServer) resolveLoginHint(loginHint string) (syntax.DID, error) {
+func (o *OAuthServer) resolveLoginHint(ctx context.Context, loginHint string) (syntax.DID, error) {
 	if loginHint == "" {
 		return "", nil
 	}
 	if atid, err := syntax.ParseAtIdentifier(loginHint); err == nil {
-		id, err := o.directory.Lookup(context.Background(), atid)
+		id, err := o.directory.Lookup(ctx, atid)
 		if err != nil {
 			return "", fmt.Errorf("failed to lookup handle: %w", err)
+		}
+		return id.DID, nil
+	}
+	// A work email resolves (minting on first sight) to the identity
+	// provisioned for it in its domain's org; see identity.EmailResolver.
+	if email, err := emaildomain.ParseEmail(loginHint); err == nil && o.emailResolver != nil {
+		id, err := o.emailResolver.ResolveEmailIdentity(ctx, email)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve email: %w", err)
 		}
 		return id.DID, nil
 	}

@@ -12,6 +12,7 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -31,17 +32,18 @@ import (
 type TestServer struct {
 	Server *pearserver.PearServer
 
-	Validator       authn.RequestValidator
-	PermStore       perms.Store
-	SpaceStore      spaces.Store
-	OpenSocialStore *opensocial.Store
-	SimpleStore     *simplespace.Store
-	NotifyStore     notify.Store
-	Hive            hive.Hive
-	HostKey         atcrypto.PrivateKey
-	DB              *gorm.DB
-	FGA             fgastore.Store
-	PDSForwarding   *forwarding.PDSForwarding
+	Validator        authn.RequestValidator
+	PermStore        perms.Store
+	SpaceStore       spaces.Store
+	OpenSocialStore  *opensocial.Store
+	SimpleStore      *simplespace.Store
+	NotifyStore      notify.Store
+	Hive             hive.Hive
+	HostKey          atcrypto.PrivateKey
+	DB               *gorm.DB
+	FGA              fgastore.Store
+	PDSForwarding    *forwarding.PDSForwarding
+	EmailDomainStore *emaildomain.Store
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -159,6 +161,10 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		)
 	}
 
+	emailDomainStore, err := emaildomain.NewStore(ts.DB)
+	require.NoError(t, err)
+	ts.EmailDomainStore = emailDomainStore
+
 	ts.Server = pearserver.New(
 		"pear.example.com",
 		ts.Validator,
@@ -172,6 +178,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ts.NotifyStore,
 		clientmetadata.NewResolver(),
 		ts.PDSForwarding,
+		emailDomainStore,
 	)
 	ts.PermStore = ps
 	return &ts
