@@ -30,7 +30,7 @@ func TestHandleRegisterRejectsMissingRedirectURIs(t *testing.T) {
 	oauthSrv, err := NewOAuthServer(
 		secretBytes, &org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
 		pdsclient.NewDummyDirectory("http://pds.url"), db, noop.Meter{}, testStore(t),
-		"https://habitat.example", NewJWTBearerStore(), testOpensocialStore(t),
+		"https://habitat.example", NewJWTBearerStore(), testOpensocialStore(t), nil,
 	)
 	require.NoError(t, err)
 
@@ -50,7 +50,7 @@ func TestHandleRegisterIssuesUsableClient(t *testing.T) {
 	oauthSrv, err := NewOAuthServer(
 		secretBytes, &org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
 		pdsclient.NewDummyDirectory("http://pds.url"), db, noop.Meter{}, testStore(t),
-		"https://habitat.example", NewJWTBearerStore(), testOpensocialStore(t),
+		"https://habitat.example", NewJWTBearerStore(), testOpensocialStore(t), nil,
 	)
 	require.NoError(t, err)
 
@@ -95,7 +95,7 @@ func TestDynamicClientRegistrationE2E(t *testing.T) {
 	pds := login_testutil.NewPassthroughProvider(t)
 	oauthSrv, err := NewOAuthServer(
 		secretBytes, &org.LoginRouter{Pds: pds}, dummyDir, db, noop.Meter{}, testStore(t),
-		"https://habitat.example", NewJWTBearerStore(), testOpensocialStore(t),
+		"https://habitat.example", NewJWTBearerStore(), testOpensocialStore(t), nil,
 	)
 	require.NoError(t, err)
 
@@ -215,7 +215,7 @@ func TestNormalizeLoopbackRedirect(t *testing.T) {
 	oauthSrv, err := NewOAuthServer(
 		secretBytes, &org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
 		pdsclient.NewDummyDirectory("http://pds.url"), db, noop.Meter{}, testStore(t),
-		"https://habitat.example", NewJWTBearerStore(), testOpensocialStore(t),
+		"https://habitat.example", NewJWTBearerStore(), testOpensocialStore(t), nil,
 	)
 	require.NoError(t, err)
 
