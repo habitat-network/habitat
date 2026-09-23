@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -66,6 +67,60 @@ func TestClientCreateConnectSession(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "did:plc:user", tags["end_user_id"])
 	require.Equal(t, "did:plc:org", tags["organization_id"])
+	require.Equal(t, "mcp", tags["type"])
+}
+
+func TestClientListConnections(t *testing.T) {
+	var gotQuery url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/connections", r.URL.Path)
+		gotQuery = r.URL.Query()
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"connections": []map[string]any{
+				{
+					"connection_id":       "conn-1",
+					"provider_config_key": "server-123",
+					"tags":                map[string]any{"organization_id": "did:plc:org"},
+				},
+				{"connection_id": "conn-2", "provider_config_key": "server-456"},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("test-secret", srv.Client())
+	c.baseURL = srv.URL
+
+	conns, err := c.ListConnections(t.Context(), "did:plc:user")
+	require.NoError(t, err)
+	require.Equal(t, "did:plc:user", gotQuery.Get("tags[end_user_id]"))
+	require.Equal(t, "mcp", gotQuery.Get("tags[type]"))
+	require.Equal(t, []Connection{
+		{ConnectionID: "conn-1", ProviderConfigKey: "server-123", OrgID: "did:plc:org"},
+		{ConnectionID: "conn-2", ProviderConfigKey: "server-456"},
+	}, conns)
+}
+
+func TestClientGetConnection(t *testing.T) {
+	var gotURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotURL = r.URL.String()
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"connection_config": map[string]any{"mcp_server_url": "https://mcp.example.com/mcp"},
+			"credentials":       map[string]any{"access_token": "tok-abc"},
+		})
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("test-secret", srv.Client())
+	c.baseURL = srv.URL
+
+	details, err := c.GetConnection(t.Context(), "conn-1", "server-123")
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(gotURL, "/connection/conn-1"))
+	require.Contains(t, gotURL, "provider_config_key=server-123")
+	require.Equal(t, &ConnectionDetails{
+		MCPServerURL: "https://mcp.example.com/mcp",
+		AccessToken:  "tok-abc",
+	}, details)
 }
 
 func TestClientDeleteConnection(t *testing.T) {

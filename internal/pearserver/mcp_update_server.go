@@ -5,10 +5,11 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
@@ -35,17 +36,11 @@ func (p *PearServer) UpdateServer(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "missing required fields", nil)
 		return
 	}
-	if !p.requireAction(ctx, w, org, credInfo.Subject, opensocial.ActionCommunityConfigure) {
+	if !p.requireAction(ctx, w, org, credInfo.Subject, opensocial.ActionMcpConfigure) {
 		return
 	}
 
-	var name, url, description *string
-	if input.Name != "" {
-		name = &input.Name
-	}
-	if input.Url != "" {
-		url = &input.Url
-	}
+	var description *string
 	if input.Description != "" {
 		description = &input.Description
 	}
@@ -53,12 +48,10 @@ func (p *PearServer) UpdateServer(w http.ResponseWriter, r *http.Request) {
 	server, err := p.mcpGatewayStore.UpdateServer(
 		ctx,
 		org,
-		mcpgateway.ServerID(input.Id),
-		name,
-		url,
+		syntax.RecordKey(input.Id),
 		description,
 	)
-	if errors.Is(err, mcpgateway.ErrServerNotFound) {
+	if errors.Is(err, opensocial.ErrMcpServerNotFound) {
 		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
 		return
 	} else if err != nil {

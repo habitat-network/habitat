@@ -373,9 +373,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Store for org-configured MCP servers and per-user Nango connections.
 	nangoClient := nango.NewClient(cmd.String(fNangoSecretKey), httpx.NewClient())
 	mcpGatewayStore, err := mcpgateway.NewStore(
-		db.WithContext(startupCtx),
-		httpx.NewClient(),
 		nangoClient,
+		opensocialStore,
 	)
 	if err != nil {
 		return fmt.Errorf("setup mcp gateway store: %w", err)
@@ -417,7 +416,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
-	mcpServer := mcpserver.New(oauthServer, spacesStore, permStore, "https://"+domain)
+	mcpServer := mcpserver.New(oauthServer, spacesStore, permStore, nangoClient, opensocialStore, "https://"+domain)
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,

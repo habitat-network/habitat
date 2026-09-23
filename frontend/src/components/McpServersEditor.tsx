@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Nango from "@nangohq/frontend";
 import type { AuthManager } from "internal";
-import type { DidString, UriString } from "@atproto/lex";
+import type { DidString } from "@atproto/lex";
 import {
-  addMcpServer,
-  confirmMcpConnection,
+  beginAddMcpServer,
+  cancelAddMcpServer,
+  completeAddMcpServer,
   disconnectMcpServer,
   removeMcpServer,
   startMcpAuthorization,
@@ -33,10 +34,11 @@ import {
   toast,
 } from "internal/components/ui";
 
-const AUTH_TYPE_LABEL: Record<string, string> = {
-  none: "No authorization required",
-  oauth: "OAuth",
-};
+// Mirrors mcpgateway.serverNamePattern (Go). The name doubles as the
+// server's record key and, once connected, the namespace its tools are
+// exposed under (e.g. "cloudflare:docs"), so it's restricted to a plain,
+// unique-per-org slug.
+const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 export function McpServersEditor({
   org,
@@ -61,8 +63,7 @@ export function McpServersEditor({
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead>URL</TableHead>
-            <TableHead>Auth</TableHead>
+            <TableHead>Description</TableHead>
             <TableHead>Status</TableHead>
             <TableHead />
           </TableRow>
@@ -71,13 +72,8 @@ export function McpServersEditor({
           {servers.map(({ server, connected }) => (
             <TableRow key={server.id}>
               <TableCell className="font-medium">{server.name}</TableCell>
-              <TableCell className="text-muted-foreground font-mono text-xs">
-                {server.url}
-              </TableCell>
-              <TableCell>
-                <Badge variant="outline">
-                  {AUTH_TYPE_LABEL[server.authType] ?? server.authType}
-                </Badge>
+              <TableCell className="text-muted-foreground">
+                {server.description}
               </TableCell>
               <TableCell>
                 <ConnectionCell
@@ -101,7 +97,7 @@ export function McpServersEditor({
           ))}
           {servers.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-muted-foreground">
+              <TableCell colSpan={4} className="text-muted-foreground">
                 No MCP servers configured yet.
               </TableCell>
             </TableRow>
@@ -147,12 +143,6 @@ function ConnectionCell({
         sessionToken,
         onEvent: async (event) => {
           if (event.type === "connect") {
-            await confirmMcpConnection(
-              authManager,
-              org,
-              server.id,
-              event.payload.connectionId,
-            );
             await invalidate();
           }
           if (event.type === "connect" || event.type === "close") {
@@ -187,10 +177,6 @@ function ConnectionCell({
     );
   }
 
-  if (server.authType === "none") {
-    return <Badge variant="secondary">No authorization needed</Badge>;
-  }
-
   return (
     <Button
       variant="outline"
@@ -212,30 +198,87 @@ function AddServerDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
   const [description, setDescription] = useState("");
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Tracks the in-progress add's server ID between opening Nango's Connect UI
+  // and it reporting success or being abandoned, so a "close" without a
+  // preceding "connect" knows to cancel it.
+  const pendingIdRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { mutate, isPending, error } = useMutation({
-    mutationFn: () =>
-      addMcpServer(authManager, org, {
+  const reset = () => {
+    setName("");
+    setDescription("");
+    setConnecting(false);
+    setError(null);
+    pendingIdRef.current = null;
+  };
+
+  const submit = async () => {
+    setConnecting(true);
+    setError(null);
+    try {
+      const { id, sessionToken } = await beginAddMcpServer(authManager, org, {
         name,
-        url: url as UriString,
         description: description || undefined,
-      }),
-    async onSuccess() {
-      await queryClient.invalidateQueries({
-        queryKey: ["mcp", "servers", org],
       });
-      setOpen(false);
-      setName("");
-      setUrl("");
-      setDescription("");
-    },
-  });
+      pendingIdRef.current = id;
+
+      const nango = new Nango();
+      const connect = nango.openConnectUI({
+        sessionToken,
+        onEvent: async (event) => {
+          if (event.type === "connect") {
+            pendingIdRef.current = null;
+            try {
+              await completeAddMcpServer(authManager, org, {
+                id,
+                name,
+                description: description || undefined,
+              });
+              await queryClient.invalidateQueries({
+                queryKey: ["mcp", "servers", org],
+              });
+              setOpen(false);
+              reset();
+            } catch {
+              setConnecting(false);
+              toast.add({ type: "error", title: "Failed to add server" });
+            }
+          }
+          if (event.type === "close") {
+            setConnecting(false);
+            if (pendingIdRef.current) {
+              await cancelAddMcpServer(authManager, org, pendingIdRef.current);
+              pendingIdRef.current = null;
+            }
+          }
+          if (event.type === "error") {
+            setConnecting(false);
+            if (pendingIdRef.current) {
+              await cancelAddMcpServer(authManager, org, pendingIdRef.current);
+              pendingIdRef.current = null;
+            }
+            toast.add({ type: "error", title: "Failed to connect" });
+          }
+        },
+      });
+      connect.open();
+    } catch (e) {
+      setConnecting(false);
+      setError(e instanceof Error ? e.message : "Failed to start");
+    }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
       <DialogTrigger render={<Button size="sm" />}>Add server</DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -245,7 +288,7 @@ function AddServerDialog({
           className="flex flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (name.trim() && url.trim()) mutate();
+            if (SERVER_NAME_PATTERN.test(name)) void submit();
           }}
         >
           <Field>
@@ -254,22 +297,12 @@ function AddServerDialog({
               id="mcp-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Linear"
+              placeholder="cloudflare"
               autoFocus
             />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="mcp-url">URL</FieldLabel>
-            <Input
-              id="mcp-url"
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://mcp.example.com"
-            />
             <p className="text-xs text-muted-foreground">
-              The gateway will probe this URL to detect whether it requires
-              OAuth authorization.
+              Letters, numbers, hyphens, and underscores only. Unique within
+              this community, and can't be changed later.
             </p>
           </Field>
           <Field>
@@ -282,13 +315,16 @@ function AddServerDialog({
               onChange={(e) => setDescription(e.target.value)}
             />
           </Field>
-          <FieldError errors={error ? [{ message: error.message }] : []} />
+          <p className="text-xs text-muted-foreground">
+            You'll enter the server's URL and connect to it in the next step.
+          </p>
+          <FieldError errors={error ? [{ message: error }] : []} />
           <DialogFooter>
             <Button
               type="submit"
-              disabled={isPending || !name.trim() || !url.trim()}
+              disabled={connecting || !SERVER_NAME_PATTERN.test(name)}
             >
-              {isPending ? "Adding…" : "Add server"}
+              {connecting ? "Connecting…" : "Continue"}
             </Button>
           </DialogFooter>
         </form>

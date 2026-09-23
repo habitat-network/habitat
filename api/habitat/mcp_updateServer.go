@@ -6,9 +6,7 @@ package habitat
 type NetworkHabitatMcpUpdateServerInput struct {
 	Description string `json:"description,omitempty"`
 	Id          string `json:"id"`
-	Name        string `json:"name,omitempty"`
 	Org         string `json:"org"`
-	Url         string `json:"url,omitempty"`
 }
 
 // NetworkHabitatMcpUpdateServerOutput represents the output for network.habitat.mcp.updateServer

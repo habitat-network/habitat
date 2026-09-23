@@ -1,0 +1,38 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.server",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. Authorization against the server itself is handled entirely by Nango's mcp-generic connector, which the admin fills in (including the server's URL) while adding it. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": [
+          "name",
+          "nangoKey",
+          "updatedAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Also this record's key. Letters, digits, hyphens, and underscores only."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "nangoKey": {
+            "type": "string",
+            "description": "The Nango integration's unique_key, globally unique across the whole Nango environment (unlike name, which is only unique within the org)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

@@ -38,11 +38,12 @@ func (p *PearServer) registerRoutes() {
 
 	// MCP gateway
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.addServer", p.AddServer)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.completeAddServer", p.CompleteAddServer)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.cancelAddServer", p.CancelAddServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.updateServer", p.UpdateServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.removeServer", p.RemoveServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.listServers", p.ListServers)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.startAuthorization", p.StartAuthorization)
-	p.router.HandleFunc("/xrpc/network.habitat.mcp.confirmConnection", p.ConfirmConnection)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.disconnectServer", p.DisconnectServer)
 
 	// Simplespace

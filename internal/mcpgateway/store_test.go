@@ -3,20 +3,30 @@ package mcpgateway
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
+
+	"github.com/habitat-network/habitat/internal/nango"
+	"github.com/habitat-network/habitat/internal/opensocial"
+	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 )
 
-// fakeNangoClient is an in-memory stand-in for internal/nango.Client.
+// fakeConnection is a nango.Connection plus the end user it belongs to,
+// mirroring how the real API scopes ListConnections by the end_user_id tag.
+type fakeConnection struct {
+	nango.Connection
+	endUserID string
+}
+
+// fakeNangoClient is an in-memory stand-in for internal/nango.Client,
+// satisfying NangoClient, so tests don't need real Nango credentials or
+// network access.
 type fakeNangoClient struct {
 	integrations         map[string]bool
-	connections          map[string]string // connectionID -> uniqueKey
+	connections          map[string]fakeConnection // connectionID -> connection
 	createIntegrationErr error
 	createSessionErr     error
 }
@@ -24,7 +34,7 @@ type fakeNangoClient struct {
 func newFakeNangoClient() *fakeNangoClient {
 	return &fakeNangoClient{
 		integrations: make(map[string]bool),
-		connections:  make(map[string]string),
+		connections:  make(map[string]fakeConnection),
 	}
 }
 
@@ -53,213 +63,236 @@ func (f *fakeNangoClient) CreateConnectSession(
 	if !f.integrations[uniqueKey] {
 		return "", errors.New("unknown integration")
 	}
-	return "session-token-" + uuid.NewString(), nil
+	return "session-token", nil
+}
+
+// connect simulates endUserID completing the Nango Connect UI for uniqueKey,
+// as a test setup helper.
+func (f *fakeNangoClient) connect(connectionID, uniqueKey, endUserID string) {
+	f.connections[connectionID] = fakeConnection{
+		Connection: nango.Connection{
+			ConnectionID:      connectionID,
+			ProviderConfigKey: uniqueKey,
+		},
+		endUserID: endUserID,
+	}
+}
+
+func (f *fakeNangoClient) ListConnections(
+	ctx context.Context, endUserID string,
+) ([]nango.Connection, error) {
+	conns := make([]nango.Connection, 0, len(f.connections))
+	for _, c := range f.connections {
+		if c.endUserID == endUserID {
+			conns = append(conns, c.Connection)
+		}
+	}
+	return conns, nil
 }
 
 func (f *fakeNangoClient) DeleteConnection(ctx context.Context, connectionID, providerConfigKey string) error {
-	if f.connections[connectionID] != providerConfigKey {
+	if f.connections[connectionID].ProviderConfigKey != providerConfigKey {
 		return errors.New("connection not found")
 	}
 	delete(f.connections, connectionID)
 	return nil
 }
 
-func newTestStore(t *testing.T) (Store, *fakeNangoClient) {
+func newTestStore(t *testing.T) (Store, *fakeNangoClient, OrgMcpServerStore) {
 	t.Helper()
 	nangoClient := newFakeNangoClient()
-	s, err := NewStore(testutil.NewDB(t), http.DefaultClient, nangoClient)
+	records := opensocial_testutil.NewTestStore(t)
+	s, err := NewStore(nangoClient, records)
 	require.NoError(t, err)
-	return s, nangoClient
+	return s, nangoClient, records
 }
 
-func newFakeOpenMCPServer(t *testing.T) *httptest.Server {
+func newTestOrg(t *testing.T, records OrgMcpServerStore) syntax.DID {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	t.Cleanup(srv.Close)
-	return srv
+	ts, ok := records.(*opensocial_testutil.TestStore)
+	require.True(t, ok)
+	handle := "acme-" + uuid.NewString()
+	orgDID, err := ts.NewOrg(t.Context(), handle, syntax.DID("did:plc:creator"))
+	require.NoError(t, err)
+	return syntax.DID(orgDID)
 }
 
-func newFakeOAuthMCPServer(t *testing.T) *httptest.Server {
+// addServer drives the full BeginAddServer -> connect -> CompleteAddServer
+// flow, as the frontend would, and returns the resulting server.
+func addServer(
+	t *testing.T, s Store, nangoClient *fakeNangoClient, org syntax.DID, did syntax.DID, name, description string,
+) *opensocial.McpServer {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="https://example.com/.well-known/oauth-protected-resource"`)
-		w.WriteHeader(http.StatusUnauthorized)
-	}))
-	t.Cleanup(srv.Close)
-	return srv
+	id, sessionToken, err := s.BeginAddServer(t.Context(), org, did, name, description)
+	require.NoError(t, err)
+	require.NotEmpty(t, sessionToken)
+	nangoKey := NangoKeyFor(org, id)
+	require.True(t, nangoClient.integrations[nangoKey])
+
+	nangoClient.connect("conn-"+string(id), nangoKey, did.String())
+
+	server, err := s.CompleteAddServer(t.Context(), org, did, id, name, description)
+	require.NoError(t, err)
+	return server
 }
 
-func TestStoreAddServer_DetectsNoAuth(t *testing.T) {
-	s, nangoClient := newTestStore(t)
-	srv := newFakeOpenMCPServer(t)
+func TestStoreBeginAddServer_CreatesIntegrationAndSession(t *testing.T) {
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
+	did := syntax.DID("did:plc:admin")
 
-	server, err := s.AddServer(t.Context(), syntax.DID("did:plc:org"), "Open", srv.URL, "")
+	id, sessionToken, err := s.BeginAddServer(t.Context(), org, did, "linear", "")
 	require.NoError(t, err)
-	require.Equal(t, AuthTypeNone, server.AuthType)
-	require.Empty(t, nangoClient.integrations)
+	require.NotEmpty(t, id)
+	require.NotEmpty(t, sessionToken)
+	require.True(t, nangoClient.integrations[NangoKeyFor(org, id)])
+
+	// No record exists yet: begin alone doesn't write one.
+	servers, err := records.ListMcpServers(t.Context(), org)
+	require.NoError(t, err)
+	require.Empty(t, servers)
 }
 
-func TestStoreAddServer_DetectsOAuthAndCreatesIntegration(t *testing.T) {
-	s, nangoClient := newTestStore(t)
-	fake := newFakeOAuthMCPServer(t)
+func TestStoreCompleteAddServer_RequiresNangoConnection(t *testing.T) {
+	s, _, records := newTestStore(t)
+	org := newTestOrg(t, records)
+	did := syntax.DID("did:plc:admin")
 
-	server, err := s.AddServer(t.Context(), syntax.DID("did:plc:org"), "Linear", fake.URL, "")
+	id, _, err := s.BeginAddServer(t.Context(), org, did, "linear", "")
 	require.NoError(t, err)
-	require.Equal(t, AuthTypeOAuth, server.AuthType)
-	require.True(t, nangoClient.integrations[string(server.ID)])
+
+	_, err = s.CompleteAddServer(t.Context(), org, did, id, "linear", "")
+	require.Error(t, err)
 }
 
-func TestStoreAddServer_ListsForOrgOnly(t *testing.T) {
-	s, _ := newTestStore(t)
-	orgA := syntax.DID("did:plc:org-a")
-	orgB := syntax.DID("did:plc:org-b")
-	srv := newFakeOpenMCPServer(t)
+func TestStoreCompleteAddServer_WritesRecord(t *testing.T) {
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
+	did := syntax.DID("did:plc:admin")
 
-	server, err := s.AddServer(t.Context(), orgA, "Open", srv.URL, "")
+	server := addServer(t, s, nangoClient, org, did, "linear", "desc")
+	require.Equal(t, "linear", server.Name)
+	require.Equal(t, "desc", server.Description)
+
+	all, err := records.ListMcpServers(t.Context(), org)
 	require.NoError(t, err)
-	require.NotEmpty(t, server.ID)
+	require.Len(t, all, 1)
+	require.Equal(t, server.ID, all[0].ID)
+}
 
-	otherSrv := newFakeOpenMCPServer(t)
-	_, err = s.AddServer(t.Context(), orgB, "Other", otherSrv.URL, "")
+func TestStoreCancelAddServer_DeletesIntegration(t *testing.T) {
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
+	did := syntax.DID("did:plc:admin")
+
+	id, _, err := s.BeginAddServer(t.Context(), org, did, "linear", "")
 	require.NoError(t, err)
+	require.True(t, nangoClient.integrations[NangoKeyFor(org, id)])
 
-	servers, err := s.ListServers(t.Context(), orgA)
+	require.NoError(t, s.CancelAddServer(t.Context(), org, id))
+	require.False(t, nangoClient.integrations[NangoKeyFor(org, id)])
+}
+
+func TestStoreListServers_ScopedPerOrg(t *testing.T) {
+	s, nangoClient, records := newTestStore(t)
+	orgA := newTestOrg(t, records)
+	orgB := newTestOrg(t, records)
+	did := syntax.DID("did:plc:admin")
+
+	server := addServer(t, s, nangoClient, orgA, did, "server-a", "")
+	addServer(t, s, nangoClient, orgB, did, "server-b", "")
+
+	servers, err := s.ListServers(t.Context(), orgA, syntax.DID("did:plc:user"))
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
-	require.Equal(t, server.ID, servers[0].ID)
+	require.Equal(t, server.ID, servers[0].Server.ID)
 }
 
 func TestStoreUpdateServer(t *testing.T) {
-	s, _ := newTestStore(t)
-	org := syntax.DID("did:plc:org")
-	srv := newFakeOpenMCPServer(t)
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
+	did := syntax.DID("did:plc:admin")
 
-	server, err := s.AddServer(t.Context(), org, "Open", srv.URL, "desc")
+	server := addServer(t, s, nangoClient, org, did, "server", "desc")
+
+	newDescription := "updated description"
+	updated, err := s.UpdateServer(t.Context(), org, server.ID, &newDescription)
 	require.NoError(t, err)
-
-	newName := "Open MCP"
-	updated, err := s.UpdateServer(t.Context(), org, server.ID, &newName, nil, nil)
-	require.NoError(t, err)
-	require.Equal(t, "Open MCP", updated.Name)
-	require.Equal(t, srv.URL, updated.URL) // unchanged
-
-	// Wrong org can't update it.
-	_, err = s.UpdateServer(t.Context(), syntax.DID("did:plc:other"), server.ID, &newName, nil, nil)
-	require.ErrorIs(t, err, ErrServerNotFound)
+	require.Equal(t, "server", updated.Name) // unchanged
+	require.Equal(t, "updated description", updated.Description)
 }
 
-func TestStoreUpdateServer_URLChangeCreatesIntegration(t *testing.T) {
-	s, nangoClient := newTestStore(t)
-	org := syntax.DID("did:plc:org")
-	openSrv := newFakeOpenMCPServer(t)
+func TestStoreBeginAddServer_RejectsInvalidName(t *testing.T) {
+	s, _, records := newTestStore(t)
+	org := newTestOrg(t, records)
+	did := syntax.DID("did:plc:admin")
 
-	server, err := s.AddServer(t.Context(), org, "Server", openSrv.URL, "")
-	require.NoError(t, err)
-	require.Equal(t, AuthTypeNone, server.AuthType)
-
-	oauthSrv := newFakeOAuthMCPServer(t)
-	newURL := oauthSrv.URL
-	updated, err := s.UpdateServer(t.Context(), org, server.ID, nil, &newURL, nil)
-	require.NoError(t, err)
-	require.Equal(t, AuthTypeOAuth, updated.AuthType)
-	require.True(t, nangoClient.integrations[string(server.ID)])
+	_, _, err := s.BeginAddServer(t.Context(), org, did, "not a valid name!", "")
+	require.ErrorIs(t, err, ErrInvalidServerName)
 }
 
-func TestStoreRemoveServer_CascadesConnectionsAndIntegration(t *testing.T) {
-	s, nangoClient := newTestStore(t)
-	org := syntax.DID("did:plc:org")
+func TestStoreBeginAddServer_RejectsDuplicateName(t *testing.T) {
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
+	did := syntax.DID("did:plc:admin")
+
+	addServer(t, s, nangoClient, org, did, "linear", "")
+
+	_, _, err := s.BeginAddServer(t.Context(), org, did, "linear", "")
+	require.ErrorIs(t, err, ErrServerNameTaken)
+}
+
+func TestStoreRemoveServer_DeletesIntegration(t *testing.T) {
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
 	did := syntax.DID("did:plc:user")
-	fake := newFakeOAuthMCPServer(t)
 
-	server, err := s.AddServer(t.Context(), org, "Linear", fake.URL, "")
-	require.NoError(t, err)
-
-	nangoClient.connections["conn-1"] = string(server.ID)
-	require.NoError(t, s.ConfirmConnection(t.Context(), did, org, server.ID, "conn-1"))
-	connected, err := s.IsConnected(t.Context(), did, server.ID)
-	require.NoError(t, err)
-	require.True(t, connected)
+	server := addServer(t, s, nangoClient, org, did, "linear", "")
 
 	require.NoError(t, s.RemoveServer(t.Context(), org, server.ID))
 
-	_, err = s.GetServer(t.Context(), org, server.ID)
-	require.ErrorIs(t, err, ErrServerNotFound)
-	require.False(t, nangoClient.integrations[string(server.ID)])
-
-	connected, err = s.IsConnected(t.Context(), did, server.ID)
+	servers, err := s.ListServers(t.Context(), org, did)
 	require.NoError(t, err)
-	require.False(t, connected)
+	require.Empty(t, servers)
+	require.False(t, nangoClient.integrations[NangoKeyFor(org, server.ID)])
 }
 
-func TestStoreRemoveServer_NotFound(t *testing.T) {
-	s, _ := newTestStore(t)
-	err := s.RemoveServer(t.Context(), syntax.DID("did:plc:org"), ServerID("nonexistent"))
-	require.ErrorIs(t, err, ErrServerNotFound)
-}
+func TestStoreListServers_ReflectsNangoConnections(t *testing.T) {
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
+	admin := syntax.DID("did:plc:admin")
+	member := syntax.DID("did:plc:member")
 
-func TestStoreStartAuthorization_NotOAuthServer(t *testing.T) {
-	s, _ := newTestStore(t)
-	org := syntax.DID("did:plc:org")
-	srv := newFakeOpenMCPServer(t)
+	server := addServer(t, s, nangoClient, org, admin, "linear", "")
 
-	server, err := s.AddServer(t.Context(), org, "Open", srv.URL, "")
+	servers, err := s.ListServers(t.Context(), org, member)
 	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.False(t, servers[0].Connected)
 
-	_, err = s.StartAuthorization(t.Context(), syntax.DID("did:plc:user"), org, server.ID)
-	require.ErrorIs(t, err, ErrNotOAuthServer)
-}
-
-func TestStoreAuthorizationFlow(t *testing.T) {
-	s, nangoClient := newTestStore(t)
-	org := syntax.DID("did:plc:org")
-	did := syntax.DID("did:plc:user")
-	fake := newFakeOAuthMCPServer(t)
-
-	server, err := s.AddServer(t.Context(), org, "Linear", fake.URL, "")
-	require.NoError(t, err)
-
-	connected, err := s.IsConnected(t.Context(), did, server.ID)
-	require.NoError(t, err)
-	require.False(t, connected)
-
-	sessionToken, err := s.StartAuthorization(t.Context(), did, org, server.ID)
+	sessionToken, err := s.StartAuthorization(t.Context(), member, org, server.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, sessionToken)
 
-	nangoClient.connections["conn-1"] = string(server.ID)
-	require.NoError(t, s.ConfirmConnection(t.Context(), did, org, server.ID, "conn-1"))
+	// The Nango Connect UI reports success directly to the frontend, which
+	// simply refetches; there's nothing for the gateway to record.
+	nangoClient.connect("conn-member", NangoKeyFor(org, server.ID), member.String())
 
-	connected, err = s.IsConnected(t.Context(), did, server.ID)
+	servers, err = s.ListServers(t.Context(), org, member)
 	require.NoError(t, err)
-	require.True(t, connected)
+	require.True(t, servers[0].Connected)
 }
 
 func TestStoreDisconnectServer(t *testing.T) {
-	s, nangoClient := newTestStore(t)
-	org := syntax.DID("did:plc:org")
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
 	did := syntax.DID("did:plc:user")
-	fake := newFakeOAuthMCPServer(t)
 
-	server, err := s.AddServer(t.Context(), org, "Linear", fake.URL, "")
-	require.NoError(t, err)
-	nangoClient.connections["conn-1"] = string(server.ID)
-	require.NoError(t, s.ConfirmConnection(t.Context(), did, org, server.ID, "conn-1"))
+	server := addServer(t, s, nangoClient, org, did, "linear", "")
 
-	require.NoError(t, s.DisconnectServer(t.Context(), did, server.ID))
-	connected, err := s.IsConnected(t.Context(), did, server.ID)
-	require.NoError(t, err)
-	require.False(t, connected)
-	require.NotContains(t, nangoClient.connections, "conn-1")
+	require.NoError(t, s.DisconnectServer(t.Context(), did, org, server.ID))
+	require.NotContains(t, nangoClient.connections, "conn-"+string(server.ID))
 
-	err = s.DisconnectServer(t.Context(), did, server.ID)
-	require.ErrorIs(t, err, ErrCredentialNotFound)
-}
-
-func TestStoreIsConnected_NotFound(t *testing.T) {
-	s, _ := newTestStore(t)
-	connected, err := s.IsConnected(t.Context(), syntax.DID("did:plc:user"), ServerID("none"))
-	require.NoError(t, err)
-	require.False(t, connected)
+	err := s.DisconnectServer(t.Context(), did, org, server.ID)
+	require.ErrorIs(t, err, ErrNotConnected)
 }

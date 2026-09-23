@@ -7,9 +7,7 @@
       "description": "An MCP server configured for an org.",
       "required": [
         "id",
-        "name",
-        "url",
-        "authType"
+        "name"
       ],
       "properties": {
         "id": {
@@ -20,22 +18,9 @@
           "type": "string",
           "maxLength": 200
         },
-        "url": {
-          "type": "string",
-          "format": "uri",
-          "description": "The MCP server's endpoint URL."
-        },
         "description": {
           "type": "string",
           "maxLength": 2000
-        },
-        "authType": {
-          "type": "string",
-          "knownValues": [
-            "none",
-            "oauth"
-          ],
-          "description": "How users authenticate to this MCP server. \"none\" requires no per-user authorization; \"oauth\" requires each user to complete an OAuth authorization-code flow against the server's own authorization server, per the MCP authorization spec."
         }
       }
     }

@@ -7,11 +7,9 @@ import "encoding/json"
 // NetworkHabitatMcpDefsServer represents a server object
 type NetworkHabitatMcpDefsServer struct {
 	LexiconTypeID string `json:"$type"`
-	AuthType      string `json:"authType"`
 	Description   string `json:"description,omitempty"`
 	Id            string `json:"id"`
 	Name          string `json:"name"`
-	Url           string `json:"url"`
 }
 
 // MarshalJSON sets $type to "network.habitat.mcp.defs#server" before encoding.

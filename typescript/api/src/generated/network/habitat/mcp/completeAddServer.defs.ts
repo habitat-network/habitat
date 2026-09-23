@@ -3,8 +3,9 @@
  */
 
 import { l } from '@atproto/lex'
+import * as McpDefs from './defs.defs.js'
 
-const $nsid = 'network.habitat.mcp.removeServer'
+const $nsid = 'network.habitat.mcp.completeAddServer'
 
 type $nsid = typeof $nsid
 
@@ -17,12 +18,18 @@ export type $Params = l.InferOutput<typeof $params>
 export const $input = /*#__PURE__*/ l.jsonPayload({
   org: /*#__PURE__*/ l.string({ format: 'did' }),
   id: /*#__PURE__*/ l.string(),
+  name: /*#__PURE__*/ l.string({ maxLength: 64 }),
+  description: /*#__PURE__*/ l.optional(
+    /*#__PURE__*/ l.string({ maxLength: 2000 }),
+  ),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
 
-export const $output = /*#__PURE__*/ l.payload()
+export const $output = /*#__PURE__*/ l.jsonPayload({
+  server: /*#__PURE__*/ l.ref<McpDefs.Server>((() => McpDefs.server) as any),
+})
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
 export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
@@ -30,7 +37,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Remove an org's configured MCP server, along with any stored user credentials for it. Requires service-auth. Requires the mcp.configure action. */
+/** Finish configuring an MCP server previously started with addServer, once the caller has completed authorization in Nango's Connect UI. Writes the server's record to the org. Requires service-auth. Requires the mcp.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

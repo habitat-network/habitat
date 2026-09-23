@@ -176,6 +176,7 @@ func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 				{Action: string(ActionSpaceConfigure), Roles: []string{AdminRoleRkey}},
 				{Action: string(ActionSpaceDelete), Roles: []string{AdminRoleRkey}},
 				{Action: string(ActionCommunityConfigure), Roles: []string{AdminRoleRkey}},
+				{Action: string(ActionMcpConfigure), Roles: []string{AdminRoleRkey}},
 			},
 			Assignable: []opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
 				{Role: AdminRoleRkey, Roles: []string{AdminRoleRkey, MemberRoleRkey}},

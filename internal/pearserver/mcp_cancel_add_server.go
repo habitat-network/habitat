@@ -2,17 +2,19 @@ package pearserver
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"net/http"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
-// ConfirmConnection implements network.habitat.mcp.confirmConnection.
-func (p *PearServer) ConfirmConnection(w http.ResponseWriter, r *http.Request) {
+// CancelAddServer implements network.habitat.mcp.cancelAddServer.
+func (p *PearServer) CancelAddServer(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
@@ -21,7 +23,7 @@ func (p *PearServer) ConfirmConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input habitat.NetworkHabitatMcpConfirmConnectionInput
+	var input habitat.NetworkHabitatMcpCancelAddServerInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "reading request body", err)
 		return
@@ -30,22 +32,16 @@ func (p *PearServer) ConfirmConnection(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if input.Id == "" || input.ConnectionId == "" {
+	if input.Id == "" {
 		httpx.WriteInvalidRequest(ctx, w, "missing required fields", nil)
 		return
 	}
-	if !p.requireMember(ctx, w, org, credInfo.Subject) {
+	if !p.requireAction(ctx, w, org, credInfo.Subject, opensocial.ActionMcpConfigure) {
 		return
 	}
 
-	err := p.mcpGatewayStore.ConfirmConnection(
-		ctx, credInfo.Subject, org, mcpgateway.ServerID(input.Id), input.ConnectionId,
-	)
-	if errors.Is(err, mcpgateway.ErrServerNotFound) {
-		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
-		return
-	} else if err != nil {
-		httpx.WriteServerError(ctx, w, err)
+	if err := p.mcpGatewayStore.CancelAddServer(ctx, org, syntax.RecordKey(input.Id)); err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("cancel add mcp server: %w", err))
 		return
 	}
 }

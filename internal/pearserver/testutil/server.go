@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -159,7 +158,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	if ts.NangoClient == nil {
 		ts.NangoClient = NewFakeNangoClient()
 	}
-	mcpGatewayStore, err := mcpgateway.NewStore(ts.DB, http.DefaultClient, ts.NangoClient)
+	mcpGatewayStore, err := mcpgateway.NewStore(ts.NangoClient, os)
 	require.NoError(t, err)
 	ts.McpGatewayStore = mcpGatewayStore
 

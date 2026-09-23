@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'network.habitat.mcp.confirmConnection'
+const $nsid = 'network.habitat.mcp.cancelAddServer'
 
 type $nsid = typeof $nsid
 
@@ -17,7 +17,6 @@ export type $Params = l.InferOutput<typeof $params>
 export const $input = /*#__PURE__*/ l.jsonPayload({
   org: /*#__PURE__*/ l.string({ format: 'did' }),
   id: /*#__PURE__*/ l.string(),
-  connectionId: /*#__PURE__*/ l.string(),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
@@ -31,7 +30,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Record that the caller has connected to an org-configured MCP server, as reported by the Nango Connect UI after a successful authorization. Requires service-auth. Callable by any org member. */
+/** Abandon an in-progress addServer flow, e.g. because the caller closed Nango's Connect UI without completing it. Deletes the Nango integration registered by addServer; no org record was ever written. Requires service-auth. Requires the mcp.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

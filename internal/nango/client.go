@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
 
 const defaultBaseURL = "https://api.nango.dev"
@@ -21,6 +22,11 @@ const defaultBaseURL = "https://api.nango.dev"
 // registers with an MCP server's authorization server on the caller's
 // behalf, per https://nango.dev/docs/guides/auth/mcp-auth.
 const mcpGenericProvider = "mcp-generic"
+
+// connectionTypeTag tags every connection this client creates as an MCP
+// connection, so they can be told apart from any other kind of connection
+// (e.g. a future non-MCP integration) sharing the same Nango environment.
+const connectionTypeTag = "mcp"
 
 // Client is a client for Nango's backend HTTP API.
 type Client struct {
@@ -68,6 +74,7 @@ func (c *Client) CreateConnectSession(
 		"tags": map[string]string{
 			"end_user_id":     endUserID,
 			"organization_id": orgID,
+			"type":            connectionTypeTag,
 		},
 	})
 	if err != nil {
@@ -82,6 +89,83 @@ func (c *Client) CreateConnectSession(
 		return "", fmt.Errorf("decode create connect session response: %w", err)
 	}
 	return out.Data.Token, nil
+}
+
+// Connection identifies a single Nango Connection.
+type Connection struct {
+	ConnectionID      string
+	ProviderConfigKey string
+	// OrgID is the organization_id tag set on the connection by
+	// CreateConnectSession, identifying which org's server it connects to.
+	OrgID string
+}
+
+// ListConnections lists the MCP connections tagged with endUserID (see
+// CreateConnectSession), across all Integrations.
+func (c *Client) ListConnections(ctx context.Context, endUserID string) ([]Connection, error) {
+	q := url.Values{}
+	q.Set("tags[end_user_id]", endUserID)
+	q.Set("tags[type]", connectionTypeTag)
+	body, err := c.do(ctx, http.MethodGet, "/connections?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Connections []struct {
+			ConnectionID      string            `json:"connection_id"`
+			ProviderConfigKey string            `json:"provider_config_key"`
+			Tags              map[string]string `json:"tags"`
+		} `json:"connections"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("decode list connections response: %w", err)
+	}
+	connections := make([]Connection, len(out.Connections))
+	for i, conn := range out.Connections {
+		connections[i] = Connection{
+			ConnectionID:      conn.ConnectionID,
+			ProviderConfigKey: conn.ProviderConfigKey,
+			OrgID:             conn.Tags["organization_id"],
+		}
+	}
+	return connections, nil
+}
+
+// ConnectionDetails is what's needed to call an MCP server on behalf of a
+// connected user: its URL (entered by the user in Nango's Connect UI, held
+// in connection_config) and, if the server requires authorization, a bearer
+// access token Nango has obtained and keeps refreshed.
+type ConnectionDetails struct {
+	MCPServerURL string
+	AccessToken  string // empty for connections that required no authorization
+}
+
+// GetConnection fetches a Connection's live details, including its
+// credentials, from Nango.
+func (c *Client) GetConnection(ctx context.Context, connectionID, providerConfigKey string) (*ConnectionDetails, error) {
+	path := "/connection/" + connectionID + "?provider_config_key=" + providerConfigKey
+	body, err := c.do(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		ConnectionConfig struct {
+			MCPServerURL string `json:"mcp_server_url"`
+		} `json:"connection_config"`
+		Credentials struct {
+			AccessToken string `json:"access_token"`
+		} `json:"credentials"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("decode get connection response: %w", err)
+	}
+	if out.ConnectionConfig.MCPServerURL == "" {
+		return nil, fmt.Errorf("connection %s has no mcp_server_url", connectionID)
+	}
+	return &ConnectionDetails{
+		MCPServerURL: out.ConnectionConfig.MCPServerURL,
+		AccessToken:  out.Credentials.AccessToken,
+	}, nil
 }
 
 // DeleteConnection deletes a Nango Connection, revoking its stored credentials.

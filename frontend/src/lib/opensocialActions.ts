@@ -37,4 +37,9 @@ export const OPENSOCIAL_ACTIONS: {
     label: "Invite",
     hint: "Issue invites to join the community.",
   },
+  {
+    action: "mcp.configure",
+    label: "Configure MCP servers",
+    hint: "Add, update, and remove MCP servers configured for the community.",
+  },
 ];

@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
@@ -36,12 +37,12 @@ func (p *PearServer) RemoveServer(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "missing required fields", nil)
 		return
 	}
-	if !p.requireAction(ctx, w, org, credInfo.Subject, opensocial.ActionCommunityConfigure) {
+	if !p.requireAction(ctx, w, org, credInfo.Subject, opensocial.ActionMcpConfigure) {
 		return
 	}
 
-	err := p.mcpGatewayStore.RemoveServer(ctx, org, mcpgateway.ServerID(input.Id))
-	if errors.Is(err, mcpgateway.ErrServerNotFound) {
+	err := p.mcpGatewayStore.RemoveServer(ctx, org, syntax.RecordKey(input.Id))
+	if errors.Is(err, opensocial.ErrMcpServerNotFound) {
 		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
 		return
 	} else if err != nil {

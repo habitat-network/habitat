@@ -18,8 +18,6 @@ export type $Params = l.InferOutput<typeof $params>
 export const $input = /*#__PURE__*/ l.jsonPayload({
   org: /*#__PURE__*/ l.string({ format: 'did' }),
   id: /*#__PURE__*/ l.string(),
-  name: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ maxLength: 200 })),
-  url: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'uri' })),
   description: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.string({ maxLength: 2000 }),
   ),
@@ -38,7 +36,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Update an org's configured MCP server. If url changes, the gateway re-probes it to detect whether it requires OAuth authorization, per the MCP authorization spec. Requires service-auth. Requires the community.configure action. */
+/** Update an org's configured MCP server's description. Its name can't be changed, since it's also the server's record key and tool namespace; remove and re-add it under a new name instead. Requires service-auth. Requires the mcp.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

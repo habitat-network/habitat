@@ -14,4 +14,5 @@ const (
 	ActionSpaceConfigure     Action = "space.configure"
 	ActionSpaceDelete        Action = "space.delete"
 	ActionCommunityConfigure Action = "community.configure"
+	ActionMcpConfigure       Action = "mcp.configure"
 )

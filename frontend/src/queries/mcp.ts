@@ -28,9 +28,13 @@ export function orgMcpServersQueryOptions(
   });
 }
 
-// addMcpServer configures a new MCP server for org. Requires the caller to
-// hold the community.configure action.
-export async function addMcpServer(
+// beginAddMcpServer starts configuring a new MCP server for org: it
+// registers a Nango integration and returns a Nango Connect session token.
+// The caller enters the server's URL and completes authorization directly in
+// Nango's Connect UI; call completeAddMcpServer once that succeeds, or
+// cancelAddMcpServer if it's abandoned. Requires the caller to hold the
+// mcp.configure action.
+export async function beginAddMcpServer(
   authManager: AuthManager,
   org: DidString,
   input: Omit<network.habitat.mcp.addServer.$InputBody, "org">,
@@ -40,11 +44,42 @@ export async function addMcpServer(
     network.habitat.mcp.addServer.main,
     { body: { org, ...input } },
   );
+  return response.body;
+}
+
+// completeAddMcpServer finishes configuring an MCP server previously started
+// with beginAddMcpServer, once the caller has completed authorization in
+// Nango's Connect UI. Requires the caller to hold the mcp.configure action.
+export async function completeAddMcpServer(
+  authManager: AuthManager,
+  org: DidString,
+  input: Omit<network.habitat.mcp.completeAddServer.$InputBody, "org">,
+) {
+  const response = await xrpc(
+    pearAgent(authManager, `${org}#habitat`),
+    network.habitat.mcp.completeAddServer.main,
+    { body: { org, ...input } },
+  );
   return response.body.server;
 }
 
-// updateMcpServer updates an org's configured MCP server. Requires the
-// caller to hold the community.configure action.
+// cancelAddMcpServer abandons an in-progress beginAddMcpServer flow, e.g.
+// because the caller closed Nango's Connect UI without completing it.
+// Requires the caller to hold the mcp.configure action.
+export async function cancelAddMcpServer(
+  authManager: AuthManager,
+  org: DidString,
+  id: string,
+) {
+  await xrpc(
+    pearAgent(authManager, `${org}#habitat`),
+    network.habitat.mcp.cancelAddServer.main,
+    { body: { org, id } },
+  );
+}
+
+// updateMcpServer updates an org's configured MCP server's display name or
+// description. Requires the caller to hold the mcp.configure action.
 export async function updateMcpServer(
   authManager: AuthManager,
   org: DidString,
@@ -60,7 +95,7 @@ export async function updateMcpServer(
 
 // removeMcpServer deletes an org's configured MCP server, along with any
 // stored user credentials for it. Requires the caller to hold the
-// community.configure action.
+// mcp.configure action.
 export async function removeMcpServer(
   authManager: AuthManager,
   org: DidString,
@@ -74,8 +109,8 @@ export async function removeMcpServer(
 }
 
 // startMcpAuthorization begins a Nango Connect session for the caller to
-// authorize against an org-configured MCP server, returning a session token
-// for the Nango frontend SDK's Connect UI.
+// authorize against an existing org-configured MCP server, returning a
+// session token for the Nango frontend SDK's Connect UI.
 export async function startMcpAuthorization(
   authManager: AuthManager,
   org: DidString,
@@ -87,21 +122,6 @@ export async function startMcpAuthorization(
     { body: { org, id } },
   );
   return response.body.sessionToken;
-}
-
-// confirmMcpConnection records that the caller has connected to an
-// org-configured MCP server, once the Nango Connect UI reports success.
-export async function confirmMcpConnection(
-  authManager: AuthManager,
-  org: DidString,
-  id: string,
-  connectionId: string,
-) {
-  await xrpc(
-    pearAgent(authManager, `${org}#habitat`),
-    network.habitat.mcp.confirmConnection.main,
-    { body: { org, id, connectionId } },
-  );
 }
 
 // disconnectMcpServer removes the caller's stored credential for an

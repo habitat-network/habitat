@@ -32,7 +32,7 @@ func (p *PearServer) ListServers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	servers, err := p.mcpGatewayStore.ListServers(ctx, org)
+	servers, err := p.mcpGatewayStore.ListServers(ctx, org, credInfo.Subject)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list mcp servers: %w", err))
 		return
@@ -40,16 +40,9 @@ func (p *PearServer) ListServers(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]habitat.NetworkHabitatMcpListServersServerWithStatus, len(servers))
 	for i, server := range servers {
-		connected, err := p.mcpGatewayStore.IsConnected(ctx, credInfo.Subject, server.ID)
-		if err != nil {
-			httpx.WriteServerError(
-				ctx, w, fmt.Errorf("check mcp server connection: %w", err),
-			)
-			return
-		}
 		out[i] = habitat.NetworkHabitatMcpListServersServerWithStatus{
-			Server:    mcpServerToAPI(server),
-			Connected: connected,
+			Server:    mcpServerToAPI(server.Server),
+			Connected: server.Connected,
 		}
 	}
 

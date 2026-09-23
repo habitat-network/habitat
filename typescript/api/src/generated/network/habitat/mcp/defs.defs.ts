@@ -19,17 +19,7 @@ type Server = {
    */
   id: string
   name: string
-
-  /**
-   * The MCP server's endpoint URL.
-   */
-  url: l.UriString
   description?: string
-
-  /**
-   * How users authenticate to this MCP server. "none" requires no per-user authorization; "oauth" requires each user to complete an OAuth authorization-code flow against the server's own authorization server, per the MCP authorization spec.
-   */
-  authType: 'none' | 'oauth' | l.UnknownString
 }
 
 export type { Server }
@@ -41,11 +31,9 @@ const server = /*#__PURE__*/ l.typedObject<Server>(
   /*#__PURE__*/ l.object({
     id: /*#__PURE__*/ l.string(),
     name: /*#__PURE__*/ l.string({ maxLength: 200 }),
-    url: /*#__PURE__*/ l.string({ format: 'uri' }),
     description: /*#__PURE__*/ l.optional(
       /*#__PURE__*/ l.string({ maxLength: 2000 }),
     ),
-    authType: /*#__PURE__*/ l.string<{ knownValues: ['none', 'oauth'] }>(),
   }),
 )
 

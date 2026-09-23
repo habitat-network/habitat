@@ -4,15 +4,14 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Configure a new MCP server for the org. The gateway probes the server to detect whether it requires OAuth authorization per the MCP authorization spec, discovering and registering with its authorization server if so. Requires service-auth. Requires the community.configure action.",
+      "description": "Begin configuring a new MCP server for the org. Registers a Nango integration for it and returns a Nango Connect session token for the caller's browser: the caller enters the server's URL and completes authorization directly in Nango's Connect UI. Call completeAddServer once that succeeds, or cancelAddServer if the caller abandons it. Requires service-auth. Requires the mcp.configure action.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "required": [
             "org",
-            "name",
-            "url"
+            "name"
           ],
           "properties": {
             "org": {
@@ -22,11 +21,8 @@
             },
             "name": {
               "type": "string",
-              "maxLength": 200
-            },
-            "url": {
-              "type": "string",
-              "format": "uri"
+              "maxLength": 64,
+              "description": "Also becomes the server's record key and the namespace under which its tools are exposed. Letters, digits, hyphens, and underscores only, and must be unique within the org."
             },
             "description": {
               "type": "string",
@@ -40,12 +36,17 @@
         "schema": {
           "type": "object",
           "required": [
-            "server"
+            "id",
+            "sessionToken"
           ],
           "properties": {
-            "server": {
-              "type": "ref",
-              "ref": "network.habitat.mcp.defs#server"
+            "id": {
+              "type": "string",
+              "description": "The new server's identifier (equal to name). Pass this to completeAddServer or cancelAddServer."
+            },
+            "sessionToken": {
+              "type": "string",
+              "description": "A Nango Connect session token, to be passed to the Nango frontend SDK's openConnectUI."
             }
           }
         }

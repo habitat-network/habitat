@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Remove an org's configured MCP server, along with any stored user credentials for it. Requires service-auth. Requires the community.configure action.",
+      "description": "Remove an org's configured MCP server, along with any stored user credentials for it. Requires service-auth. Requires the mcp.configure action.",
       "input": {
         "encoding": "application/json",
         "schema": {

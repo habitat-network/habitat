@@ -7,10 +7,10 @@ type NetworkHabitatMcpAddServerInput struct {
 	Description string `json:"description,omitempty"`
 	Name        string `json:"name"`
 	Org         string `json:"org"`
-	Url         string `json:"url"`
 }
 
 // NetworkHabitatMcpAddServerOutput represents the output for network.habitat.mcp.addServer
 type NetworkHabitatMcpAddServerOutput struct {
-	Server NetworkHabitatMcpDefsServer `json:"server"`
+	Id           string `json:"id"`
+	SessionToken string `json:"sessionToken"`
 }

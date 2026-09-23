@@ -1,17 +1,18 @@
 {
   "lexicon": 1,
-  "id": "network.habitat.mcp.updateServer",
+  "id": "network.habitat.mcp.completeAddServer",
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Update an org's configured MCP server's description. Its name can't be changed, since it's also the server's record key and tool namespace; remove and re-add it under a new name instead. Requires service-auth. Requires the mcp.configure action.",
+      "description": "Finish configuring an MCP server previously started with addServer, once the caller has completed authorization in Nango's Connect UI. Writes the server's record to the org. Requires service-auth. Requires the mcp.configure action.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "required": [
             "org",
-            "id"
+            "id",
+            "name"
           ],
           "properties": {
             "org": {
@@ -20,7 +21,13 @@
               "description": "DID of the community the server belongs to."
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "description": "The server identifier returned by addServer."
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Must match the name passed to addServer."
             },
             "description": {
               "type": "string",
