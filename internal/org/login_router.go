@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
 type LoginRouter struct {
@@ -20,6 +21,10 @@ type LoginRouter struct {
 	// EmailStore, if set, routes DIDs provisioned via email-domain sign-in
 	// (see identity.EmailResolver) through their domain's login method.
 	EmailStore *emaildomain.Store
+	// OpensocialStore, if set alongside EmailStore, seeds a first-time
+	// email-domain member's profile from the login provider's account
+	// metadata (e.g. Google name/picture) once Exchange verifies it.
+	OpensocialStore *opensocial.Store
 }
 
 func (r *LoginRouter) getProvider(org Org) login.Provider {
@@ -119,12 +124,15 @@ func (r *LoginRouter) Exchange(
 	if provider, email, ok, err := r.emailLogin(ctx, did); err != nil {
 		return err
 	} else if ok {
-		loginID, err := provider.Exchange(ctx, query, state)
+		loginID, profile, err := provider.Exchange(ctx, query, state)
 		if err != nil {
 			return fmt.Errorf("failed to exchange code: %w", err)
 		}
 		if !strings.EqualFold(loginID, string(email)) {
 			return fmt.Errorf("login id mismatch: %s != %s", email, loginID)
+		}
+		if err := r.seedMemberProfile(ctx, did, email, profile); err != nil {
+			return fmt.Errorf("failed to seed member profile: %w", err)
 		}
 		return nil
 	}
@@ -136,7 +144,7 @@ func (r *LoginRouter) Exchange(
 		if provider == nil {
 			return fmt.Errorf("unsupported login provider for %s", did)
 		}
-		loginID, err := provider.Exchange(ctx, query, state)
+		loginID, _, err := provider.Exchange(ctx, query, state)
 		if err != nil {
 			return fmt.Errorf("failed to exchange code: %w", err)
 		}
@@ -161,12 +169,41 @@ func (r *LoginRouter) Exchange(
 	if provider == nil {
 		return fmt.Errorf("unsupported login provider for %s", did)
 	}
-	loginID, err := provider.Exchange(ctx, query, state)
+	loginID, _, err := provider.Exchange(ctx, query, state)
 	if err != nil {
 		return fmt.Errorf("failed to exchange code: %w", err)
 	}
 	if member.LoginID != loginID {
 		return fmt.Errorf("login id mismatch: %s != %s", member.LoginID, loginID)
+	}
+	return nil
+}
+
+// seedMemberProfile best-effort seeds did's community.opensocial.memberProfile
+// record from profile once its email-domain sign-in has been verified by
+// Exchange, if the org has such a store configured and profile carries
+// anything usable. It never overwrites a profile the member has since
+// customized (see opensocial.Store.SeedMemberProfile).
+func (r *LoginRouter) seedMemberProfile(
+	ctx context.Context,
+	did syntax.DID,
+	email emaildomain.Email,
+	profile login.Profile,
+) error {
+	if r.OpensocialStore == nil || (profile.Name == "" && profile.Picture == "") {
+		return nil
+	}
+	orgDID, _, ok, err := r.EmailStore.LookupDomain(ctx, email.Domain())
+	if err != nil {
+		return fmt.Errorf("lookup email domain: %w", err)
+	}
+	if !ok {
+		return nil
+	}
+	if err := r.OpensocialStore.SeedMemberProfile(
+		ctx, orgDID, did, profile.Name, profile.Picture,
+	); err != nil {
+		return fmt.Errorf("seed member profile: %w", err)
 	}
 	return nil
 }

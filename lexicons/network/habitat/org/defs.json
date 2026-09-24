@@ -1,0 +1,32 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.org.defs",
+    "defs": {
+        "profileView": {
+            "type": "object",
+            "description": "A member's profile within an org, combining their community.opensocial.memberProfile record with their handle.",
+            "required": [
+                "did",
+                "handle"
+            ],
+            "properties": {
+                "did": {
+                    "type": "string",
+                    "format": "did"
+                },
+                "handle": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "bio": {
+                    "type": "string"
+                },
+                "avatarUrl": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

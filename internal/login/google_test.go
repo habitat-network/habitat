@@ -16,14 +16,16 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func makeIDToken(clientID, email string) string {
+func makeIDToken(clientID, email, name, picture string) string {
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
 	payload := base64.RawURLEncoding.EncodeToString(
 		fmt.Appendf(
 			nil,
-			`{"iss":"https://accounts.google.com","aud":"%s","sub":"123","email":"%s","email_verified":true,"iat":1000000000,"exp":9999999999}`,
+			`{"iss":"https://accounts.google.com","aud":"%s","sub":"123","email":"%s","email_verified":true,"name":"%s","picture":"%s","iat":1000000000,"exp":9999999999}`,
 			clientID,
 			email,
+			name,
+			picture,
 		))
 	return header + "." + payload + ".fakesignature"
 }
@@ -63,7 +65,7 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	idToken := makeIDToken(clientID, "user@gmail.com")
+	idToken := makeIDToken(clientID, "user@gmail.com", "Test User", "https://example.com/avatar.png")
 
 	tokenServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,9 +98,13 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	require.NoError(t, json.Unmarshal(state, &gs))
 
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, tokenServer.Client())
-	loginID, err := p.Exchange(ctx, url.Values{"code": {"auth-code"}, "state": {gs.State}}, state)
+	loginID, profile, err := p.Exchange(
+		ctx, url.Values{"code": {"auth-code"}, "state": {gs.State}}, state,
+	)
 	require.NoError(t, err)
 	require.Equal(t, "user@gmail.com", loginID)
+	require.Equal(t, "Test User", profile.Name)
+	require.Equal(t, "https://example.com/avatar.png", profile.Picture)
 
 	creds, err := gp.GetCredentials(ctx, "user@gmail.com")
 	require.NoError(t, err)
@@ -112,14 +118,16 @@ func TestVerifyGoogleIDToken(t *testing.T) {
 	clientID := "my-client-id.apps.googleusercontent.com"
 
 	t.Run("valid token returns email", func(t *testing.T) {
-		token := makeIDToken(clientID, "user@gmail.com")
-		email, err := verifyGoogleIDToken(token, clientID)
+		token := makeIDToken(clientID, "user@gmail.com", "Test User", "https://example.com/avatar.png")
+		claims, err := verifyGoogleIDToken(token, clientID)
 		require.NoError(t, err)
-		require.Equal(t, "user@gmail.com", email)
+		require.Equal(t, "user@gmail.com", claims.Email)
+		require.Equal(t, "Test User", claims.Name)
+		require.Equal(t, "https://example.com/avatar.png", claims.Picture)
 	})
 
 	t.Run("wrong audience rejected", func(t *testing.T) {
-		token := makeIDToken("other-client-id", "user@gmail.com")
+		token := makeIDToken("other-client-id", "user@gmail.com", "", "")
 		_, err := verifyGoogleIDToken(token, clientID)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "audience mismatch")

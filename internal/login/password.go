@@ -113,8 +113,9 @@ func (p *PasswordLoginProvider) Exchange(
 	_ context.Context,
 	query url.Values,
 	_ []byte,
-) (loginID string, err error) {
-	return p.verifyToken(query.Get("code"))
+) (loginID string, profile Profile, err error) {
+	loginID, err = p.verifyToken(query.Get("code"))
+	return loginID, Profile{}, err
 }
 
 func (p *PasswordLoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Request) {

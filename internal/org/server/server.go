@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/mail"
@@ -17,6 +18,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/instance"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	orgpkg "github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -24,12 +26,13 @@ import (
 var errNotMemberOfOrg = errors.New("not a member of an organization")
 
 type Server struct {
-	store          orgpkg.Store
-	validator      authn.RequestValidator
-	domain         string
-	decoder        *schema.Decoder
-	dir            identity.Directory
-	instancePolicy instance.PolicyStore
+	store           orgpkg.Store
+	validator       authn.RequestValidator
+	domain          string
+	decoder         *schema.Decoder
+	dir             identity.Directory
+	instancePolicy  instance.PolicyStore
+	opensocialStore *opensocial.Store
 }
 
 func NewServer(
@@ -38,14 +41,16 @@ func NewServer(
 	domain string,
 	dir identity.Directory,
 	instancePolicy instance.PolicyStore,
+	opensocialStore *opensocial.Store,
 ) (*Server, error) {
 	return &Server{
-		store:          store,
-		validator:      validator,
-		domain:         domain,
-		decoder:        schema.NewDecoder(),
-		dir:            dir,
-		instancePolicy: instancePolicy,
+		store:           store,
+		validator:       validator,
+		domain:          domain,
+		decoder:         schema.NewDecoder(),
+		dir:             dir,
+		instancePolicy:  instancePolicy,
+		opensocialStore: opensocialStore,
 	}, nil
 }
 
@@ -348,6 +353,151 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(r.Context(), w, &habitat.NetworkHabitatOrgGetMembersOutput{
 		Members: members,
 	})
+}
+
+// GetProfile implements network.habitat.org.getProfile: fetches a member's
+// profile (handle plus their community.opensocial.memberProfile record, if
+// any) within the authenticated caller's org. Callable by any org member.
+func (s *Server) GetProfile(w http.ResponseWriter, r *http.Request) {
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+
+	var params habitat.NetworkHabitatOrgGetProfileParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "decoding query params", http.StatusBadRequest)
+		return
+	}
+	memberDID, err := syntax.ParseDID(params.Did)
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing did", http.StatusBadRequest)
+		return
+	}
+
+	org, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
+	if err != nil {
+		utils.LogAndHTTPError(
+			r.Context(), w, err, "getting organization", http.StatusInternalServerError,
+		)
+		return
+	}
+	isMember, err := org.IsMember(r.Context(), memberDID)
+	if err != nil {
+		utils.LogAndHTTPError(
+			r.Context(), w, err, "checking membership", http.StatusInternalServerError,
+		)
+		return
+	}
+	if !isMember {
+		utils.LogAndHTTPError(
+			r.Context(), w, errNotMemberOfOrg, "member not in org", http.StatusNotFound,
+		)
+		return
+	}
+
+	view, err := s.getProfileView(r.Context(), org.DID(), memberDID)
+	if err != nil {
+		utils.LogAndHTTPError(
+			r.Context(), w, err, "getting member profile", http.StatusInternalServerError,
+		)
+		return
+	}
+
+	httpx.WriteJSON(r.Context(), w, &habitat.NetworkHabitatOrgGetProfileOutput{
+		Did:         view.Did,
+		Handle:      view.Handle,
+		DisplayName: view.DisplayName,
+		Bio:         view.Bio,
+		AvatarUrl:   view.AvatarUrl,
+	})
+}
+
+// GetProfiles implements network.habitat.org.getProfiles: fetches several
+// members' profiles within the authenticated caller's org. Callable by any
+// org member. Members not in the caller's org are silently omitted.
+func (s *Server) GetProfiles(w http.ResponseWriter, r *http.Request) {
+	credInfo, ok := s.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth),
+	).Validate(w, r)
+	if !ok {
+		return
+	}
+
+	var params habitat.NetworkHabitatOrgGetProfilesParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "decoding query params", http.StatusBadRequest)
+		return
+	}
+
+	org, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
+	if err != nil {
+		utils.LogAndHTTPError(
+			r.Context(), w, err, "getting organization", http.StatusInternalServerError,
+		)
+		return
+	}
+
+	profiles := make([]habitat.NetworkHabitatOrgDefsProfileView, 0, len(params.Dids))
+	for _, didStr := range params.Dids {
+		memberDID, err := syntax.ParseDID(didStr)
+		if err != nil {
+			utils.LogAndHTTPError(r.Context(), w, err, "parsing did", http.StatusBadRequest)
+			return
+		}
+		isMember, err := org.IsMember(r.Context(), memberDID)
+		if err != nil {
+			utils.LogAndHTTPError(
+				r.Context(), w, err, "checking membership", http.StatusInternalServerError,
+			)
+			return
+		}
+		if !isMember {
+			continue
+		}
+		view, err := s.getProfileView(r.Context(), org.DID(), memberDID)
+		if err != nil {
+			utils.LogAndHTTPError(
+				r.Context(), w, err, "getting member profile", http.StatusInternalServerError,
+			)
+			return
+		}
+		profiles = append(profiles, view)
+	}
+
+	httpx.WriteJSON(r.Context(), w, &habitat.NetworkHabitatOrgGetProfilesOutput{
+		Profiles: profiles,
+	})
+}
+
+// getProfileView resolves memberDID's handle and, if set, their
+// community.opensocial.memberProfile record within orgDID into a single
+// view.
+func (s *Server) getProfileView(
+	ctx context.Context,
+	orgDID, memberDID syntax.DID,
+) (habitat.NetworkHabitatOrgDefsProfileView, error) {
+	id, err := s.dir.LookupDID(ctx, memberDID)
+	if err != nil {
+		return habitat.NetworkHabitatOrgDefsProfileView{}, fmt.Errorf(
+			"looking up member handle: %w", err,
+		)
+	}
+	profile, err := s.opensocialStore.GetMemberProfile(ctx, orgDID, memberDID)
+	if err != nil {
+		return habitat.NetworkHabitatOrgDefsProfileView{}, fmt.Errorf(
+			"getting member profile record: %w", err,
+		)
+	}
+	return habitat.NetworkHabitatOrgDefsProfileView{
+		Did:         memberDID.String(),
+		Handle:      id.Handle.String(),
+		DisplayName: profile.DisplayName,
+		Bio:         profile.Bio,
+		AvatarUrl:   profile.AvatarUrl,
+	}, nil
 }
 
 func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {

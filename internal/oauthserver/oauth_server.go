@@ -432,7 +432,7 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		// org/member branching doesn't apply here — the admin's membership
 		// was already verified by HandleOpensocial before this PDS login
 		// began, and the subject stays the org DID throughout.
-		if _, err := o.loginRouter.Pds.Exchange(ctx, r.URL.Query(), providerState); err != nil {
+		if _, _, err := o.loginRouter.Pds.Exchange(ctx, r.URL.Query(), providerState); err != nil {
 			o.metrics.callbackErr(ctx, err, "complete_login")
 			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
 			return
