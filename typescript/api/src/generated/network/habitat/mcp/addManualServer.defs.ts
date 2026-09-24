@@ -5,7 +5,7 @@
 import { l } from '@atproto/lex'
 import * as McpDefs from './defs.defs.js'
 
-const $nsid = 'network.habitat.mcp.updateServer'
+const $nsid = 'network.habitat.mcp.addManualServer'
 
 type $nsid = typeof $nsid
 
@@ -17,11 +17,11 @@ export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
   org: /*#__PURE__*/ l.string({ format: 'did' }),
-  id: /*#__PURE__*/ l.string(),
+  name: /*#__PURE__*/ l.string({ maxLength: 64 }),
   description: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.string({ maxLength: 2000 }),
   ),
-  url: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'uri' })),
+  url: /*#__PURE__*/ l.string({ format: 'uri' }),
   headers: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.array(
       /*#__PURE__*/ l.ref<McpDefs.Header>((() => McpDefs.header) as any),
@@ -43,7 +43,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Update an org's configured MCP server. Its name can't be changed, since it's also the server's ID and tool namespace; remove and re-add it under a new name instead. url and headers apply only to manual servers. Requires service-auth. Requires the mcp.configure action. */
+/** Configure an MCP server for the org by hand: its URL and any static headers (e.g. an API key), or none for servers that need no auth. The configuration is shared by every org member, who are all connected automatically; the URL and header values are stored encrypted and never returned. Use addServer instead for servers that support MCP OAuth. Requires service-auth. Requires the mcp.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

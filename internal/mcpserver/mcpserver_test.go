@@ -102,6 +102,7 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 
 	srv := New(
 		fakeTokens{}, spacesStore, permStore, newFakeNangoClient(), newFakeOrgMcpServerStore(),
+		nil,
 		"https://habitat.example",
 	)
 	httpServer := httptest.NewServer(srv.Handler())

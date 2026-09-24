@@ -48,6 +48,23 @@ export async function beginAddMcpServer(
   return response.body;
 }
 
+// addManualMcpServer configures an MCP server for org by hand, with its URL
+// and any static headers (or none, for servers without auth). Every org
+// member is connected to it automatically. Requires the caller to hold the
+// mcp.configure action.
+export async function addManualMcpServer(
+  authManager: AuthManager,
+  org: DidString,
+  input: Omit<network.habitat.mcp.addManualServer.$InputBody, "org">,
+) {
+  const response = await xrpc(
+    pearAgent(authManager, `${org}#habitat`),
+    network.habitat.mcp.addManualServer.main,
+    { body: { org, ...input } },
+  );
+  return response.body.server;
+}
+
 // completeAddMcpServer finishes configuring an MCP server previously started
 // with beginAddMcpServer, once the caller has completed authorization in
 // Nango's Connect UI. Requires the caller to hold the mcp.configure action.

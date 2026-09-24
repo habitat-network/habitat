@@ -284,3 +284,94 @@ func TestServer_RemoveServer(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, code)
 	})
 }
+
+func TestServer_AddManualServer(t *testing.T) {
+	client := httpx_testutil.NewTestXRPCClient(t)
+
+	t.Run("requires mcp.configure", func(t *testing.T) {
+		ts := newOpenSocialServer(t, alice)
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
+
+		var out habitat.NetworkHabitatMcpAddManualServerOutput
+		code := client.Procedure(
+			ts.Server.AddManualServer,
+			habitat.NetworkHabitatMcpAddManualServerInput{
+				Org: orgDID, Name: "docs", Url: "https://mcp.example.com",
+			},
+			&out,
+		)
+		require.Equal(t, http.StatusUnauthorized, code)
+	})
+
+	t.Run("rejects an invalid url", func(t *testing.T) {
+		ts := newOpenSocialServer(t, admin)
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
+
+		var out habitat.NetworkHabitatMcpAddManualServerOutput
+		code := client.Procedure(
+			ts.Server.AddManualServer,
+			habitat.NetworkHabitatMcpAddManualServerInput{
+				Org: orgDID, Name: "docs", Url: "not a url",
+			},
+			&out,
+		)
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("members see it connected, with nothing to authorize", func(t *testing.T) {
+		adminTS, aliceTS, _ := newSharedOpenSocialServers(t)
+		orgDID, err := adminTS.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
+		require.NoError(
+			t, adminTS.OpenSocialStore.AssignRoles(
+				t.Context(), syntax.DID(orgDID), alice, []string{"member"},
+			),
+		)
+
+		var addOut habitat.NetworkHabitatMcpAddManualServerOutput
+		code := client.Procedure(
+			adminTS.Server.AddManualServer,
+			habitat.NetworkHabitatMcpAddManualServerInput{
+				Org:  orgDID,
+				Name: "docs",
+				Url:  "https://mcp.example.com/mcp",
+				Headers: []habitat.NetworkHabitatMcpDefsHeader{
+					{Name: "X-Api-Key", Value: "secret"},
+				},
+			},
+			&addOut,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, "manual", addOut.Server.AuthType)
+
+		var listOut habitat.NetworkHabitatMcpListServersOutput
+		code = client.Query(
+			aliceTS.Server.ListServers, url.Values{"org": []string{orgDID}}, &listOut,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.Len(t, listOut.Servers, 1)
+		require.True(t, listOut.Servers[0].Connected)
+		require.Equal(t, "manual", listOut.Servers[0].Server.AuthType)
+
+		var startOut habitat.NetworkHabitatMcpStartAuthorizationOutput
+		code = client.Procedure(
+			aliceTS.Server.StartAuthorization,
+			habitat.NetworkHabitatMcpStartAuthorizationInput{Org: orgDID, Id: "docs"},
+			&startOut,
+		)
+		require.Equal(t, http.StatusBadRequest, code)
+
+		var updateOut habitat.NetworkHabitatMcpUpdateServerOutput
+		code = client.Procedure(
+			adminTS.Server.UpdateServer,
+			habitat.NetworkHabitatMcpUpdateServerInput{
+				Org: orgDID, Id: "docs", Url: "https://other.example.com/mcp",
+			},
+			&updateOut,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, "manual", updateOut.Server.AuthType)
+	})
+}

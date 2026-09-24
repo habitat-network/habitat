@@ -2,20 +2,17 @@ package pearserver
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"net/http"
-
-	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
-// UpdateServer implements network.habitat.mcp.updateServer.
-func (p *PearServer) UpdateServer(w http.ResponseWriter, r *http.Request) {
+// AddManualServer implements network.habitat.mcp.addManualServer.
+func (p *PearServer) AddManualServer(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
@@ -24,7 +21,7 @@ func (p *PearServer) UpdateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input habitat.NetworkHabitatMcpUpdateServerInput
+	var input habitat.NetworkHabitatMcpAddManualServerInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "reading request body", err)
 		return
@@ -33,7 +30,7 @@ func (p *PearServer) UpdateServer(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if input.Id == "" {
+	if input.Name == "" || input.Url == "" {
 		httpx.WriteInvalidRequest(ctx, w, "missing required fields", nil)
 		return
 	}
@@ -41,30 +38,18 @@ func (p *PearServer) UpdateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var update mcpgateway.ServerUpdate
-	if input.Description != "" {
-		update.Description = &input.Description
-	}
-	if input.Url != "" {
-		update.URL = &input.Url
-	}
-	update.Headers = mcpHeadersFromAPI(input.Headers)
-
-	server, err := p.mcpGatewayStore.UpdateServer(
-		ctx,
-		org,
-		syntax.RecordKey(input.Id),
-		update,
+	server, err := p.mcpGatewayStore.AddManualServer(
+		ctx, org, input.Name, input.Description, input.Url, mcpHeadersFromAPI(input.Headers),
 	)
-	if errors.Is(err, opensocial.ErrMcpServerNotFound) {
-		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
+	if isMcpConfigError(err) {
+		httpx.WriteInvalidRequest(ctx, w, "add manual mcp server", err)
 		return
 	} else if err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "update mcp server", err)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("add manual mcp server: %w", err))
 		return
 	}
 
-	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatMcpUpdateServerOutput{
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatMcpAddManualServerOutput{
 		Server: mcpServerToAPI(server),
 	})
 }

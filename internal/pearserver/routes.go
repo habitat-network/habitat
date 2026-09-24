@@ -38,6 +38,7 @@ func (p *PearServer) registerRoutes() {
 
 	// MCP gateway
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.addServer", p.AddServer)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.addManualServer", p.AddManualServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.completeAddServer", p.CompleteAddServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.cancelAddServer", p.CancelAddServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.updateServer", p.UpdateServer)

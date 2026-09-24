@@ -12,6 +12,7 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"log/slog"
 	"net/http"
 
@@ -50,6 +51,16 @@ type OrgMcpServerStore interface {
 		id syntax.RecordKey,
 	) (*opensocial.McpServer, error)
 	ListMcpServers(ctx context.Context, orgDID syntax.DID) ([]*opensocial.McpServer, error)
+}
+
+// ManualServerSource lists the manually configured MCP servers (see
+// internal/mcpgateway) available to an org member, with the URL and headers
+// to reach each.
+type ManualServerSource interface {
+	ListManualServersForMember(
+		ctx context.Context,
+		did syntax.DID,
+	) ([]*mcpgateway.ManualServer, error)
 }
 
 // ProtectedResourceMetadataPath is the well-known path (RFC 9728) advertising
@@ -91,6 +102,7 @@ func New(
 	permStore perms.Store,
 	nangoClient NangoClient,
 	orgRecords OrgMcpServerStore,
+	manualServers ManualServerSource,
 	issuer string,
 ) *Server {
 	impl := &mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}
@@ -100,8 +112,8 @@ func New(
 		Description: "Get a single Habitat record by its space record URI.",
 	}, getRecordHandler(spacesStore, permStore))
 	mcpServer.AddReceivingMiddleware(
-		mergeConnectedToolsMiddleware(nangoClient, orgRecords),
-		proxyConnectedToolCallMiddleware(nangoClient, orgRecords),
+		mergeConnectedToolsMiddleware(nangoClient, orgRecords, manualServers),
+		proxyConnectedToolCallMiddleware(nangoClient, orgRecords, manualServers),
 	)
 
 	streamable := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {

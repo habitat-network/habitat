@@ -388,9 +388,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		slog.WarnContext(ctx, "nango secret key not set; MCP server configuration is disabled")
 	}
 	nangoClient := nango.NewClient(nangoSecretKey, httpx.NewClient())
+	// Manually configured MCP servers' URLs and headers are secrets, so
+	// they're encrypted like PDS credentials, with the same key.
+	manualMcpServers, err := mcpgateway.NewManualServerStore(db, credKey)
+	if err != nil {
+		return fmt.Errorf("setup manual mcp server store: %w", err)
+	}
 	mcpGatewayStore, err := mcpgateway.NewStore(
 		nangoClient,
 		opensocialStore,
+		manualMcpServers,
 	)
 	if err != nil {
 		return fmt.Errorf("setup mcp gateway store: %w", err)
@@ -439,6 +446,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		permStore,
 		nangoClient,
 		opensocialStore,
+		mcpGatewayStore,
 		"https://"+domain,
 	)
 	// Server for org management routes

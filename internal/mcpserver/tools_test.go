@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"go.opentelemetry.io/otel/trace"
 	"net/http"
 	"net/http/httptest"
@@ -142,6 +143,7 @@ func TestMCPServerToolsList_MergesConnectedServerTools(t *testing.T) {
 		permStore,
 		nangoClient,
 		orgRecords,
+		nil,
 		"https://habitat.example",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
@@ -182,6 +184,7 @@ func TestMCPServerToolsList_SkipsUnreachableConnectedServer(t *testing.T) {
 		permStore,
 		nangoClient,
 		orgRecords,
+		nil,
 		"https://habitat.example",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
@@ -219,6 +222,7 @@ func TestMCPServerToolsList_SkipsConnectionWithNoMatchingRecord(t *testing.T) {
 		permStore,
 		nangoClient,
 		newFakeOrgMcpServerStore(),
+		nil,
 		"https://habitat.example",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
@@ -256,6 +260,7 @@ func TestMCPServerToolsCall_ProxiesToConnectedServer(t *testing.T) {
 		permStore,
 		nangoClient,
 		orgRecords,
+		nil,
 		"https://habitat.example",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
@@ -278,6 +283,7 @@ func TestMCPServerToolsCall_UnknownNamespacedToolFallsThrough(t *testing.T) {
 
 	srv := New(
 		fakeTokens{}, spacesStore, permStore, newFakeNangoClient(), newFakeOrgMcpServerStore(),
+		nil,
 		"https://habitat.example",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
@@ -307,4 +313,75 @@ func TestDownstreamContext(t *testing.T) {
 	cancel()
 	<-ctx.Done()
 	require.ErrorIs(t, ctx.Err(), context.Canceled)
+}
+
+// fakeManualServerSource is an in-memory stand-in for mcpgateway.Store,
+// satisfying ManualServerSource.
+type fakeManualServerSource struct {
+	servers map[syntax.DID][]*mcpgateway.ManualServer // member -> servers
+}
+
+func (f fakeManualServerSource) ListManualServersForMember(
+	ctx context.Context, did syntax.DID,
+) ([]*mcpgateway.ManualServer, error) {
+	return f.servers[did], nil
+}
+
+// requireHeader rejects requests to next that lack header name=value, like a
+// downstream MCP server authenticated by a static API key.
+func requireHeader(next http.Handler, name, value string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(name) != value {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func TestMCPServerTools_ManualServer(t *testing.T) {
+	ctx := t.Context()
+	spacesStore, permStore := setupStores(t)
+	caller := syntax.DID("did:plc:caller")
+
+	fake := newFakeMCPServer(t)
+	keyed := httptest.NewServer(requireHeader(fake.Config.Handler, "X-Api-Key", "secret"))
+	t.Cleanup(keyed.Close)
+	manual := fakeManualServerSource{servers: map[syntax.DID][]*mcpgateway.ManualServer{
+		caller: {{
+			OrgID:   "did:web:org1.example",
+			ID:      "docs",
+			URL:     keyed.URL,
+			Headers: map[string]string{"X-Api-Key": "secret"},
+		}},
+	}}
+
+	// Nango isn't configured at all: manual servers work without it.
+	srv := New(
+		fakeTokens{},
+		spacesStore,
+		permStore,
+		newFakeNangoClient(),
+		newFakeOrgMcpServerStore(),
+		manual,
+		"https://habitat.example",
+	)
+	httpServer := httptest.NewServer(srv.Handler())
+	defer httpServer.Close()
+
+	session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	result, err := session.ListTools(ctx, nil)
+	require.NoError(t, err)
+	names := make([]string, len(result.Tools))
+	for i, tool := range result.Tools {
+		names[i] = tool.Name
+	}
+	require.Contains(t, names, "docs:ping")
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "docs:ping"})
+	require.NoError(t, err)
+	require.False(t, res.IsError)
 }

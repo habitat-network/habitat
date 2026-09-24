@@ -10,6 +10,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
@@ -45,6 +46,9 @@ func (p *PearServer) StartAuthorization(w http.ResponseWriter, r *http.Request) 
 	)
 	if errors.Is(err, opensocial.ErrMcpServerNotFound) {
 		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
+		return
+	} else if errors.Is(err, mcpgateway.ErrManualServer) {
+		httpx.WriteInvalidRequest(ctx, w, "start mcp authorization", err)
 		return
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, err)

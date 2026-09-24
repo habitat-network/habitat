@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
@@ -105,7 +107,9 @@ func newTestStore(t *testing.T) (Store, *fakeNangoClient, OrgMcpServerStore) {
 	t.Helper()
 	nangoClient := newFakeNangoClient()
 	records := opensocial_testutil.NewTestStore(t)
-	s, err := NewStore(nangoClient, records)
+	manual, err := NewManualServerStore(db_testutil.NewDB(t), encrypt.TestKey)
+	require.NoError(t, err)
+	s, err := NewStore(nangoClient, records, manual)
 	require.NoError(t, err)
 	return s, nangoClient, records
 }
@@ -120,6 +124,16 @@ func newTestOrg(t *testing.T, records OrgMcpServerStore) syntax.DID {
 	return syntax.DID(orgDID)
 }
 
+// newTestMember provisions did as a member of org.
+func newTestMember(t *testing.T, records OrgMcpServerStore, org syntax.DID) syntax.DID {
+	t.Helper()
+	ts, ok := records.(*opensocial_testutil.TestStore)
+	require.True(t, ok)
+	did := syntax.DID("did:plc:member-" + uuid.NewString())
+	require.NoError(t, ts.ProvisionMember(t.Context(), org, did))
+	return did
+}
+
 // addServer drives the full BeginAddServer -> connect -> CompleteAddServer
 // flow, as the frontend would, and returns the resulting server.
 func addServer(
@@ -129,7 +143,7 @@ func addServer(
 	org syntax.DID,
 	did syntax.DID,
 	name, description string,
-) *opensocial.McpServer {
+) *Server {
 	t.Helper()
 	id, sessionToken, err := s.BeginAddServer(t.Context(), org, did, name, description)
 	require.NoError(t, err)
@@ -224,7 +238,9 @@ func TestStoreUpdateServer(t *testing.T) {
 	server := addServer(t, s, nangoClient, org, did, "server", "desc")
 
 	newDescription := "updated description"
-	updated, err := s.UpdateServer(t.Context(), org, server.ID, &newDescription)
+	updated, err := s.UpdateServer(
+		t.Context(), org, server.ID, ServerUpdate{Description: &newDescription},
+	)
 	require.NoError(t, err)
 	require.Equal(t, "server", updated.Name) // unchanged
 	require.Equal(t, "updated description", updated.Description)
@@ -303,4 +319,124 @@ func TestStoreDisconnectServer(t *testing.T) {
 
 	err := s.DisconnectServer(t.Context(), did, org, server.ID)
 	require.ErrorIs(t, err, ErrNotConnected)
+}
+
+func TestStoreAddManualServer(t *testing.T) {
+	s, _, records := newTestStore(t)
+	org := newTestOrg(t, records)
+	member := syntax.DID("did:plc:member")
+
+	server, err := s.AddManualServer(
+		t.Context(), org, "docs", "internal docs", "https://mcp.example.com/mcp",
+		map[string]string{"X-Api-Key": "secret"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, AuthTypeManual, server.AuthType)
+	require.Equal(t, "docs", server.Name)
+
+	// Manual servers are connected for every member without any sign-in.
+	servers, err := s.ListServers(t.Context(), org, member)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.True(t, servers[0].Connected)
+	require.Equal(t, AuthTypeManual, servers[0].Server.AuthType)
+
+	_, err = s.StartAuthorization(t.Context(), member, org, server.ID)
+	require.ErrorIs(t, err, ErrManualServer)
+	require.ErrorIs(t, s.DisconnectServer(t.Context(), member, org, server.ID), ErrManualServer)
+}
+
+func TestStoreAddManualServer_Validates(t *testing.T) {
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
+
+	_, err := s.AddManualServer(t.Context(), org, "bad name", "", "https://a.example", nil)
+	require.ErrorIs(t, err, ErrInvalidServerName)
+	_, err = s.AddManualServer(t.Context(), org, "srv", "", "ftp://a.example", nil)
+	require.ErrorIs(t, err, ErrInvalidServerURL)
+	_, err = s.AddManualServer(t.Context(), org, "srv", "", "/relative", nil)
+	require.ErrorIs(t, err, ErrInvalidServerURL)
+	_, err = s.AddManualServer(
+		t.Context(), org, "srv", "", "https://a.example", map[string]string{"Bad Header": "x"},
+	)
+	require.ErrorIs(t, err, ErrInvalidHeaderName)
+
+	// Names are unique across both auth types.
+	addServer(t, s, nangoClient, org, "did:plc:admin", "linear", "")
+	_, err = s.AddManualServer(t.Context(), org, "linear", "", "https://a.example", nil)
+	require.ErrorIs(t, err, ErrServerNameTaken)
+	_, err = s.AddManualServer(t.Context(), org, "docs", "", "https://a.example", nil)
+	require.NoError(t, err)
+	_, _, err = s.BeginAddServer(t.Context(), org, "did:plc:admin", "docs", "")
+	require.ErrorIs(t, err, ErrServerNameTaken)
+}
+
+func TestStoreUpdateManualServer(t *testing.T) {
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
+	creator := newTestMember(t, records, org)
+
+	_, err := s.AddManualServer(
+		t.Context(), org, "docs", "old", "https://old.example/mcp",
+		map[string]string{"Authorization": "Bearer old"},
+	)
+	require.NoError(t, err)
+
+	newURL := "https://new.example/mcp"
+	newDescription := "new"
+	updated, err := s.UpdateServer(t.Context(), org, "docs", ServerUpdate{
+		Description: &newDescription,
+		URL:         &newURL,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "new", updated.Description)
+
+	manual, err := s.ListManualServersForMember(t.Context(), creator)
+	require.NoError(t, err)
+	require.Len(t, manual, 1)
+	require.Equal(t, newURL, manual[0].URL)
+	require.Equal(t, map[string]string{"Authorization": "Bearer old"}, manual[0].Headers)
+
+	// An empty, non-nil Headers clears them.
+	_, err = s.UpdateServer(t.Context(), org, "docs", ServerUpdate{Headers: map[string]string{}})
+	require.NoError(t, err)
+	manual, err = s.ListManualServersForMember(t.Context(), creator)
+	require.NoError(t, err)
+	require.Empty(t, manual[0].Headers)
+
+	// URL and headers don't apply to OAuth servers.
+	oauth := addServer(t, s, nangoClient, org, "did:plc:admin", "linear", "")
+	_, err = s.UpdateServer(t.Context(), org, oauth.ID, ServerUpdate{URL: &newURL})
+	require.Error(t, err)
+}
+
+func TestStoreRemoveManualServer(t *testing.T) {
+	s, _, records := newTestStore(t)
+	org := newTestOrg(t, records)
+
+	_, err := s.AddManualServer(t.Context(), org, "docs", "", "https://a.example", nil)
+	require.NoError(t, err)
+	require.NoError(t, s.RemoveServer(t.Context(), org, "docs"))
+
+	servers, err := s.ListServers(t.Context(), org, "did:plc:member")
+	require.NoError(t, err)
+	require.Empty(t, servers)
+	require.ErrorIs(t, s.RemoveServer(t.Context(), org, "docs"), opensocial.ErrMcpServerNotFound)
+}
+
+func TestStoreListManualServersForMember_OnlyMemberOrgs(t *testing.T) {
+	s, _, records := newTestStore(t)
+	org := newTestOrg(t, records)
+
+	_, err := s.AddManualServer(t.Context(), org, "docs", "", "https://a.example", nil)
+	require.NoError(t, err)
+
+	manual, err := s.ListManualServersForMember(t.Context(), newTestMember(t, records, org))
+	require.NoError(t, err)
+	require.Len(t, manual, 1)
+	require.Equal(t, org, manual[0].OrgID)
+
+	manual, err = s.ListManualServersForMember(t.Context(), "did:plc:stranger")
+	require.NoError(t, err)
+	require.Empty(t, manual)
 }

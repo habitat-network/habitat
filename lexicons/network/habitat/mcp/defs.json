@@ -7,7 +7,8 @@
       "description": "An MCP server configured for an org.",
       "required": [
         "id",
-        "name"
+        "name",
+        "authType"
       ],
       "properties": {
         "id": {
@@ -21,6 +22,32 @@
         "description": {
           "type": "string",
           "maxLength": 2000
+        },
+        "authType": {
+          "type": "string",
+          "knownValues": [
+            "oauth",
+            "manual"
+          ],
+          "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: an admin configured the server's URL and any headers once for the whole org, and every member is connected automatically."
+        }
+      }
+    },
+    "header": {
+      "type": "object",
+      "description": "A static HTTP header sent on every request to a manually configured MCP server, e.g. an API key.",
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 8192
         }
       }
     }

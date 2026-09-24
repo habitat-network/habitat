@@ -1,26 +1,29 @@
 {
   "lexicon": 1,
-  "id": "network.habitat.mcp.updateServer",
+  "id": "network.habitat.mcp.addManualServer",
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Update an org's configured MCP server. Its name can't be changed, since it's also the server's ID and tool namespace; remove and re-add it under a new name instead. url and headers apply only to manual servers. Requires service-auth. Requires the mcp.configure action.",
+      "description": "Configure an MCP server for the org by hand: its URL and any static headers (e.g. an API key), or none for servers that need no auth. The configuration is shared by every org member, who are all connected automatically; the URL and header values are stored encrypted and never returned. Use addServer instead for servers that support MCP OAuth. Requires service-auth. Requires the mcp.configure action.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "required": [
             "org",
-            "id"
+            "name",
+            "url"
           ],
           "properties": {
             "org": {
               "type": "string",
               "format": "did",
-              "description": "DID of the community the server belongs to."
+              "description": "DID of the community to configure the server for."
             },
-            "id": {
-              "type": "string"
+            "name": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Also becomes the server's ID and the namespace under which its tools are exposed. Letters, digits, hyphens, and underscores only, and must be unique within the org."
             },
             "description": {
               "type": "string",
@@ -29,7 +32,7 @@
             "url": {
               "type": "string",
               "format": "uri",
-              "description": "Manual servers only: the server's new URL."
+              "description": "The server's streamable HTTP endpoint."
             },
             "headers": {
               "type": "array",
@@ -37,8 +40,7 @@
                 "type": "ref",
                 "ref": "network.habitat.mcp.defs#header"
               },
-              "maxLength": 50,
-              "description": "Manual servers only: replaces all of the server's headers. Omit to leave them unchanged; pass an empty array to clear them."
+              "maxLength": 50
             }
           }
         }

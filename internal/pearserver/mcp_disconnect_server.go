@@ -54,6 +54,9 @@ func (p *PearServer) DisconnectServer(w http.ResponseWriter, r *http.Request) {
 	} else if errors.Is(err, opensocial.ErrMcpServerNotFound) {
 		httpx.WriteError(ctx, w, "NotFound", "mcp server not found", http.StatusNotFound)
 		return
+	} else if errors.Is(err, mcpgateway.ErrManualServer) {
+		httpx.WriteInvalidRequest(ctx, w, "disconnect from mcp server", err)
+		return
 	} else if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("disconnect from mcp server: %w", err))
 		return

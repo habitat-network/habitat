@@ -4,6 +4,7 @@ import Nango from "@nangohq/frontend";
 import type { AuthManager } from "internal";
 import type { DidString } from "@atproto/lex";
 import {
+  addManualMcpServer,
   beginAddMcpServer,
   cancelAddMcpServer,
   completeAddMcpServer,
@@ -22,9 +23,14 @@ import {
   DialogTitle,
   DialogTrigger,
   Field,
+  FieldContent,
+  FieldDescription,
   FieldError,
   FieldLabel,
+  FieldTitle,
   Input,
+  RadioGroup,
+  RadioGroupItem,
   Table,
   TableBody,
   TableCell,
@@ -39,6 +45,16 @@ import {
 // exposed under (e.g. "cloudflare:docs"), so it's restricted to a plain,
 // unique-per-org slug.
 const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+// How pear authenticates to a server; see mcpgateway.AuthType (Go).
+type AuthType = "oauth" | "manual";
+
+type HeaderRow = { name: string; value: string };
+
+// isUri narrows s to the lexicon's uri string format.
+function isUri(s: string): s is `${string}:${string}` {
+  return URL.canParse(s);
+}
 
 export function McpServersEditor({
   org,
@@ -161,6 +177,10 @@ function ConnectionCell({
     }
   };
 
+  if (server.authType === "manual") {
+    return <Badge variant="secondary">Shared</Badge>;
+  }
+
   if (connected) {
     return (
       <div className="flex items-center gap-2">
@@ -199,6 +219,9 @@ function AddServerDialog({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [authType, setAuthType] = useState<AuthType>("oauth");
+  const [url, setUrl] = useState("");
+  const [headers, setHeaders] = useState<HeaderRow[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Tracks the in-progress add's server ID between opening Nango's Connect UI
@@ -210,10 +233,45 @@ function AddServerDialog({
   const reset = () => {
     setName("");
     setDescription("");
+    setAuthType("oauth");
+    setUrl("");
+    setHeaders([]);
     setConnecting(false);
     setError(null);
     pendingIdRef.current = null;
   };
+
+  const submitManual = async () => {
+    if (!isUri(url)) return;
+    setConnecting(true);
+    setError(null);
+    try {
+      await addManualMcpServer(authManager, org, {
+        name,
+        description: description || undefined,
+        url,
+        headers: headers
+          .filter((h) => h.name !== "")
+          .map((h) => ({ name: h.name, value: h.value })),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["mcp", "servers", org],
+      });
+      setOpen(false);
+      reset();
+    } catch (e) {
+      setConnecting(false);
+      setError(e instanceof Error ? e.message : "Failed to add server");
+    }
+  };
+
+  const updateHeader = (index: number, patch: Partial<HeaderRow>) =>
+    setHeaders((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+
+  const canSubmit =
+    SERVER_NAME_PATTERN.test(name) && (authType === "oauth" || isUri(url));
 
   const submit = async () => {
     setConnecting(true);
@@ -288,7 +346,8 @@ function AddServerDialog({
           className="flex flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (SERVER_NAME_PATTERN.test(name)) void submit();
+            if (!canSubmit) return;
+            void (authType === "manual" ? submitManual() : submit());
           }}
         >
           <Field>
@@ -315,16 +374,117 @@ function AddServerDialog({
               onChange={(e) => setDescription(e.target.value)}
             />
           </Field>
-          <p className="text-xs text-muted-foreground">
-            You'll enter the server's URL and connect to it in the next step.
-          </p>
+          <Field>
+            <FieldLabel>How members connect</FieldLabel>
+            <RadioGroup
+              value={authType}
+              onValueChange={(value) =>
+                setAuthType(value === "manual" ? "manual" : "oauth")
+              }
+            >
+              <FieldLabel htmlFor="mcp-auth-oauth">
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldTitle>Sign in with OAuth</FieldTitle>
+                    <FieldDescription>
+                      Each member signs in with their own account. Use this for
+                      servers that support MCP sign-in.
+                    </FieldDescription>
+                  </FieldContent>
+                  <RadioGroupItem value="oauth" id="mcp-auth-oauth" />
+                </Field>
+              </FieldLabel>
+              <FieldLabel htmlFor="mcp-auth-manual">
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldTitle>API key or no auth</FieldTitle>
+                    <FieldDescription>
+                      You enter the URL and any headers once, and everyone in
+                      this community connects with them.
+                    </FieldDescription>
+                  </FieldContent>
+                  <RadioGroupItem value="manual" id="mcp-auth-manual" />
+                </Field>
+              </FieldLabel>
+            </RadioGroup>
+          </Field>
+          {authType === "manual" ? (
+            <>
+              <Field>
+                <FieldLabel htmlFor="mcp-url">Server URL</FieldLabel>
+                <Input
+                  id="mcp-url"
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://mcp.example.com/mcp"
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Headers (optional)</FieldLabel>
+                {headers.map((header, i) => (
+                  <div key={i} className="flex gap-2">
+                    <Input
+                      aria-label="Header name"
+                      value={header.name}
+                      onChange={(e) =>
+                        updateHeader(i, { name: e.target.value })
+                      }
+                      placeholder="Authorization"
+                    />
+                    <Input
+                      aria-label="Header value"
+                      type="password"
+                      value={header.value}
+                      onChange={(e) =>
+                        updateHeader(i, { value: e.target.value })
+                      }
+                      placeholder="Bearer …"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setHeaders((rows) => rows.filter((_, j) => j !== i))
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  onClick={() =>
+                    setHeaders((rows) => [...rows, { name: "", value: "" }])
+                  }
+                >
+                  Add header
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  The URL and header values are stored encrypted and can't be
+                  viewed after saving.
+                </p>
+              </Field>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              You'll enter the server's URL and connect to it in the next step.
+            </p>
+          )}
           <FieldError errors={error ? [{ message: error }] : []} />
           <DialogFooter>
-            <Button
-              type="submit"
-              disabled={connecting || !SERVER_NAME_PATTERN.test(name)}
-            >
-              {connecting ? "Connecting…" : "Continue"}
+            <Button type="submit" disabled={connecting || !canSubmit}>
+              {connecting
+                ? authType === "manual"
+                  ? "Adding…"
+                  : "Connecting…"
+                : authType === "manual"
+                  ? "Add server"
+                  : "Continue"}
             </Button>
           </DialogFooter>
         </form>

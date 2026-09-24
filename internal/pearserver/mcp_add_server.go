@@ -2,14 +2,12 @@ package pearserver
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
-	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
@@ -43,8 +41,7 @@ func (p *PearServer) AddServer(w http.ResponseWriter, r *http.Request) {
 	id, sessionToken, err := p.mcpGatewayStore.BeginAddServer(
 		ctx, org, credInfo.Subject, input.Name, input.Description,
 	)
-	if errors.Is(err, mcpgateway.ErrInvalidServerName) ||
-		errors.Is(err, mcpgateway.ErrServerNameTaken) {
+	if isMcpConfigError(err) {
 		httpx.WriteInvalidRequest(ctx, w, "begin add mcp server", err)
 		return
 	} else if err != nil {

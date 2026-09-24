@@ -119,33 +119,49 @@ func resolveServerName(
 	return "", fmt.Errorf("no mcp server record matches connection %s", conn.ConnectionID)
 }
 
-// bearerRoundTripper adds a static bearer token to every outgoing request,
-// authorizing calls to a connected MCP server on the caller's behalf.
-type bearerRoundTripper struct {
-	token string
+// downstream is a connected MCP server pear can open a client session to on
+// the caller's behalf.
+type downstream struct {
+	url     string
+	headers map[string]string
 }
 
-func (t bearerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+// headerRoundTripper adds static headers to every outgoing request,
+// authorizing calls to a connected MCP server on the caller's behalf.
+type headerRoundTripper struct {
+	headers map[string]string
+}
+
+func (t headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
-	if t.token != "" {
-		req.Header.Set("Authorization", "Bearer "+t.token)
+	for name, value := range t.headers {
+		req.Header.Set(name, value)
 	}
 	return http.DefaultTransport.RoundTrip(req)
 }
 
-// connectToServer opens an MCP client session to the server behind conn,
-// using its Nango-held URL and, if required, access token.
-func connectToServer(
+// nangoDownstream fetches conn's Nango-held URL and, if required, access
+// token.
+func nangoDownstream(
 	ctx context.Context, nangoClient NangoClient, conn nango.Connection,
-) (*mcp.ClientSession, error) {
+) (downstream, error) {
 	details, err := nangoClient.GetConnection(ctx, conn.ConnectionID, conn.ProviderConfigKey)
 	if err != nil {
-		return nil, fmt.Errorf("get connection: %w", err)
+		return downstream{}, fmt.Errorf("get connection: %w", err)
 	}
+	d := downstream{url: details.MCPServerURL}
+	if details.AccessToken != "" {
+		d.headers = map[string]string{"Authorization": "Bearer " + details.AccessToken}
+	}
+	return d, nil
+}
+
+// connectToServer opens an MCP client session to d.
+func connectToServer(ctx context.Context, d downstream) (*mcp.ClientSession, error) {
 	client := mcp.NewClient(&mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}, nil)
 	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint:   details.MCPServerURL,
-		HTTPClient: &http.Client{Transport: bearerRoundTripper{token: details.AccessToken}},
+		Endpoint:   d.url,
+		HTTPClient: &http.Client{Transport: headerRoundTripper{headers: d.headers}},
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("connect to mcp server: %w", err)
@@ -153,14 +169,76 @@ func connectToServer(
 	return session, nil
 }
 
+// connectedServer is one of a caller's connected MCP servers, named by its
+// org-chosen name. resolve looks up how to reach it, which for an OAuth
+// server means a Nango call, so it's deferred until needed.
+type connectedServer struct {
+	name    string
+	resolve func(ctx context.Context) (downstream, error)
+}
+
+// listConnectedServers lists caller's connected MCP servers (see
+// internal/mcpgateway): the manual servers of every org caller belongs to,
+// then caller's own Nango connections. A source or server that can't be
+// listed or resolved back to a name is logged and skipped, so one broken
+// server can't hide the rest.
+func listConnectedServers(
+	ctx context.Context,
+	nangoClient NangoClient,
+	orgRecords OrgMcpServerStore,
+	manualServers ManualServerSource,
+	caller string,
+) []connectedServer {
+	var out []connectedServer
+	if manualServers != nil {
+		manual, err := manualServers.ListManualServersForMember(ctx, syntax.DID(caller))
+		if err != nil {
+			slog.WarnContext(ctx, "mcp: listing manual servers", "err", err)
+		}
+		for _, server := range manual {
+			d := downstream{url: server.URL, headers: server.Headers}
+			out = append(out, connectedServer{
+				name:    string(server.ID),
+				resolve: func(context.Context) (downstream, error) { return d, nil },
+			})
+		}
+	}
+
+	connections, err := nangoClient.ListConnections(ctx, caller)
+	if errors.Is(err, nango.ErrNotConfigured) {
+		// Pear logs once at startup when Nango is unset.
+		return out
+	} else if err != nil {
+		slog.WarnContext(ctx, "mcp: listing nango connections", "err", err)
+		return out
+	}
+	for _, conn := range connections {
+		name, err := resolveServerName(ctx, orgRecords, conn)
+		if err != nil {
+			slog.WarnContext(
+				ctx, "mcp: resolving connected server name",
+				"connection", conn.ConnectionID, "err", err,
+			)
+			continue
+		}
+		out = append(out, connectedServer{
+			name: name,
+			resolve: func(ctx context.Context) (downstream, error) {
+				return nangoDownstream(ctx, nangoClient, conn)
+			},
+		})
+	}
+	return out
+}
+
 // mergeConnectedToolsMiddleware merges every tool from the caller's
-// connected MCP servers (see internal/mcpgateway) into this server's own
-// tools/list response, namespaced by server name. A server that can't be
-// reached, or resolved back to a name, is skipped rather than failing the
-// whole listing.
+// connected MCP servers into this server's own tools/list response,
+// namespaced by server name. A server that can't be reached is skipped
+// rather than failing the whole listing.
 func mergeConnectedToolsMiddleware(
 	nangoClient NangoClient,
 	orgRecords OrgMcpServerStore,
+	manualServers ManualServerSource,
 ) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
@@ -177,34 +255,21 @@ func mergeConnectedToolsMiddleware(
 				return result, nil
 			}
 
-			connections, err := nangoClient.ListConnections(ctx, extra.TokenInfo.UserID)
-			if errors.Is(err, nango.ErrNotConfigured) {
-				// Pear logs once at startup when Nango is unset.
-				return result, nil
-			} else if err != nil {
-				slog.WarnContext(ctx, "mcp: listing nango connections for tools/list", "err", err)
-				return result, nil
-			}
-			for _, conn := range connections {
-				name, err := resolveServerName(ctx, orgRecords, conn)
-				if err != nil {
-					slog.WarnContext(
-						ctx, "mcp: resolving connected server name",
-						"connection", conn.ConnectionID, "err", err,
-					)
-					continue
-				}
-				tools, err := listToolsForConnection(ctx, nangoClient, conn)
+			servers := listConnectedServers(
+				ctx, nangoClient, orgRecords, manualServers, extra.TokenInfo.UserID,
+			)
+			for _, server := range servers {
+				tools, err := listToolsForServer(ctx, server)
 				if err != nil {
 					slog.WarnContext(
 						ctx, "mcp: listing tools for connected server",
-						"server", name, "err", err,
+						"server", server.name, "err", err,
 					)
 					continue
 				}
 				for _, tool := range tools {
 					namespaced := *tool
-					namespaced.Name = namespaceTool(name, tool.Name)
+					namespaced.Name = namespaceTool(server.name, tool.Name)
 					listResult.Tools = append(listResult.Tools, &namespaced)
 				}
 			}
@@ -213,13 +278,14 @@ func mergeConnectedToolsMiddleware(
 	}
 }
 
-// listToolsForConnection connects to the MCP server behind conn and lists
-// its tools, unnamespaced.
-func listToolsForConnection(
-	ctx context.Context, nangoClient NangoClient, conn nango.Connection,
-) ([]*mcp.Tool, error) {
+// listToolsForServer connects to server and lists its tools, unnamespaced.
+func listToolsForServer(ctx context.Context, server connectedServer) ([]*mcp.Tool, error) {
 	ctx = downstreamContext(ctx)
-	session, err := connectToServer(ctx, nangoClient, conn)
+	d, err := server.resolve(ctx)
+	if err != nil {
+		return nil, err
+	}
+	session, err := connectToServer(ctx, d)
 	if err != nil {
 		return nil, err
 	}
@@ -236,12 +302,13 @@ func listToolsForConnection(
 }
 
 // proxyConnectedToolCallMiddleware routes a tools/call for a namespaced tool
-// (see namespaceTool) straight through to the connected server that owns
-// it, using the caller's own Nango-held credentials. A call for a
-// non-namespaced tool is left to this server's own dispatch.
+// (see namespaceTool) straight through to the caller's connected server
+// that owns it. A call for a non-namespaced tool is left to this server's
+// own dispatch.
 func proxyConnectedToolCallMiddleware(
 	nangoClient NangoClient,
 	orgRecords OrgMcpServerStore,
+	manualServers ManualServerSource,
 ) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
@@ -261,40 +328,35 @@ func proxyConnectedToolCallMiddleware(
 				return nil, fmt.Errorf("missing authenticated caller")
 			}
 
-			connections, err := nangoClient.ListConnections(ctx, extra.TokenInfo.UserID)
-			if err != nil {
-				return nil, fmt.Errorf("listing connections: %w", err)
-			}
-			for _, conn := range connections {
-				if conn.OrgID == "" {
-					continue
+			servers := listConnectedServers(
+				ctx, nangoClient, orgRecords, manualServers, extra.TokenInfo.UserID,
+			)
+			for _, server := range servers {
+				if server.name == serverName {
+					return callConnectedTool(ctx, server, toolName, params.Arguments)
 				}
-				record, err := orgRecords.GetMcpServer(
-					ctx, syntax.DID(conn.OrgID), syntax.RecordKey(serverName),
-				)
-				if err != nil || record.NangoKey != conn.ProviderConfigKey {
-					continue
-				}
-				return callConnectedTool(ctx, nangoClient, conn, toolName, params.Arguments)
 			}
-			// Not one of the caller's connections: fall through to the
+			// Not one of the caller's connected servers: fall through to the
 			// normal dispatch, which will report the tool as not found.
 			return next(ctx, method, req)
 		}
 	}
 }
 
-// callConnectedTool opens a session to conn's MCP server, calls toolName on
-// it, and closes the session.
+// callConnectedTool opens a session to server, calls toolName on it, and
+// closes the session.
 func callConnectedTool(
 	ctx context.Context,
-	nangoClient NangoClient,
-	conn nango.Connection,
+	server connectedServer,
 	toolName string,
 	arguments any,
 ) (mcp.Result, error) {
 	ctx = downstreamContext(ctx)
-	session, err := connectToServer(ctx, nangoClient, conn)
+	d, err := server.resolve(ctx)
+	if err != nil {
+		return nil, err
+	}
+	session, err := connectToServer(ctx, d)
 	if err != nil {
 		return nil, err
 	}
