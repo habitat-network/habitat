@@ -29,7 +29,7 @@
     "@tiptap/starter-kit": "^3.28.0",
     "@tiptap/y-tiptap": "^3.0.7",
     "api": "workspace:*",
-    "drizzle-orm": "0.45.2",
+    "drizzle-orm": "0.45.3",
     "internal": "workspace:*",
     "lib0": "^0.2.117",
     "lucide-react": "catalog:",
