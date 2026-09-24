@@ -28,6 +28,7 @@ There is no `funnel`/Tailscale binary anymore — local-dev public reachability 
 Identity & org:
 - `hive` — identity enrollment/minting and DID management for orgs (did:web-based, org-owned identities); also signs habitat-issued service-auth JWTs
 - `org` — organization membership, admin roles, invites
+- `emaildomain` — email-domain → org mappings and email → DID provisioning for Google work-email sign-in (first sign-in becomes org admin); see `identity.EmailResolver`
 - `identity` — serves DID docs and host→DID mapping over HTTP
 - `instance` — instance-admin login/settings server (embedded HTML templates)
 

@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ],
+      "env": {}
+    },
     "habitat": {
       "type": "http",
       "url": "https://pear.habitat.network/mcp"
