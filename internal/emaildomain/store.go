@@ -88,6 +88,20 @@ func (s *Store) GetEmail(ctx context.Context, did syntax.DID) (Email, bool, erro
 	return row.Email, true, nil
 }
 
+// GetOrgDID returns the org did was provisioned into via email sign-in; ok
+// is false for any DID not provisioned that way.
+func (s *Store) GetOrgDID(ctx context.Context, did syntax.DID) (syntax.DID, bool, error) {
+	var row memberEmail
+	err := s.db.WithContext(ctx).Where("did = ?", did).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("get provisioned org: %w", err)
+	}
+	return row.OrgDID, true, nil
+}
+
 // GetLoginMethod returns the login method of the org did was provisioned
 // into via email sign-in; ok is false for any DID not provisioned that way.
 // If the org has several mapped domains, any one's method is returned —

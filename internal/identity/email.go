@@ -13,7 +13,6 @@ import (
 
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
 const (
@@ -25,29 +24,32 @@ const (
 )
 
 // EmailResolver resolves a work email to the habitat identity provisioned
-// for it, minting one and enrolling it in the email domain's org on first
-// sight (see emaildomain.Store.CreateDomainMapping).
+// for it, minting one on first sight (see
+// emaildomain.Store.CreateDomainMapping). Minting only reserves a DID and
+// records the email->DID mapping; it does NOT add the identity to the org.
+// That only happens once the user actually completes sign-in with that
+// email (see org.LoginRouter.Exchange) — otherwise resolving a mistyped or
+// unowned email (e.g. while an OAuth client is merely rendering a login
+// screen) would silently enroll a ghost member.
 type EmailResolver struct {
-	db              *gorm.DB
-	emailStore      *emaildomain.Store
-	hive            hive.Hive
-	opensocialStore *opensocial.Store
+	db         *gorm.DB
+	emailStore *emaildomain.Store
+	hive       hive.Hive
 }
 
 func NewEmailResolver(
 	db *gorm.DB,
 	emailStore *emaildomain.Store,
 	h hive.Hive,
-	opensocialStore *opensocial.Store,
 ) *EmailResolver {
-	return &EmailResolver{db: db, emailStore: emailStore, hive: h, opensocialStore: opensocialStore}
+	return &EmailResolver{db: db, emailStore: emailStore, hive: h}
 }
 
 // ResolveEmailIdentity returns the identity provisioned for email, minting
-// and enrolling one (admin if it's the org's first member, member
-// otherwise) if email's domain is mapped to an org and email hasn't been
-// seen before. It returns identity.ErrDIDNotFound if the domain isn't
-// mapped.
+// one if email's domain is mapped to an org and email hasn't been seen
+// before. It returns identity.ErrDIDNotFound if the domain isn't mapped.
+// Minting alone does not add the identity to the org; see EmailResolver's
+// doc comment.
 func (r *EmailResolver) ResolveEmailIdentity(
 	ctx context.Context,
 	email emaildomain.Email,
@@ -74,9 +76,6 @@ func (r *EmailResolver) ResolveEmailIdentity(
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		ident, err := mintMemberIdentity(ctx, r.hive.WithTx(tx), email, orgLabel)
 		if err != nil {
-			return err
-		}
-		if err := r.opensocialStore.WithTx(tx).ProvisionMember(ctx, orgDID, ident.DID); err != nil {
 			return err
 		}
 		if err := r.emailStore.WithTx(tx).Provision(ctx, email, orgDID, ident.DID); err != nil {
