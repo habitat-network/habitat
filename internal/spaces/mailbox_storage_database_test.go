@@ -171,7 +171,7 @@ func TestMailboxStorageRestoresLegacyBlobReferenceOnIdenticalRetry(t *testing.T)
 		writes := len(notifier.Writes)
 		// Retain the record and blob, but simulate the empty metadata tables
 		// created when upgrading a provider that did not track upload ownership.
-		require.NoError(t, database.Exec("DELETE FROM space_blob_refs").Error)
+		require.NoError(t, database.Exec("DELETE FROM blob_refs").Error)
 		require.NoError(t, database.Exec("DELETE FROM blob_uploads").Error)
 		reopened := spacestest.NewTestStore(
 			t,
@@ -192,7 +192,7 @@ func TestMailboxStorageRestoresLegacyBlobReferenceOnIdenticalRetry(t *testing.T)
 			spaces.ErrBlobNotFound,
 			"an existing record must not imply upload ownership",
 		)
-		referenced, err := reopened.SpaceReferencesBlob(t.Context(), space, blobCID)
+		referenced, err := reopened.BlobReferenced(t.Context(), space, blobCID)
 		require.NoError(t, err)
 		require.False(t, referenced)
 		// The authenticated upload path registers the owner after receiving bytes.
@@ -221,7 +221,7 @@ func TestMailboxStorageRestoresLegacyBlobReferenceOnIdenticalRetry(t *testing.T)
 		)
 		require.NoError(t, err)
 		require.Equal(t, recordCID, retryCID)
-		referenced, err = reopened.SpaceReferencesBlob(t.Context(), space, blobCID)
+		referenced, err = reopened.BlobReferenced(t.Context(), space, blobCID)
 		require.NoError(t, err)
 		require.True(
 			t,

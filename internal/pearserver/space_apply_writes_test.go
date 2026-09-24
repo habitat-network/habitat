@@ -168,7 +168,7 @@ func TestApplyWritesRollbackRemovesBlobAuthorization(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, client.Procedure(ts.Server.ApplyWrites, input, &rejected))
 	c, err := cid.Parse(blob.Cid)
 	require.NoError(t, err)
-	referenced, err := ts.SpaceStore.SpaceReferencesBlob(t.Context(), space, c)
+	referenced, err := ts.SpaceStore.BlobReferenced(t.Context(), space, c)
 	require.NoError(t, err)
 	require.False(t, referenced, "rollback must revoke the first record's live blob reference")
 	_, err = ts.SpaceStore.GetRecord(t.Context(), space, owner, "email.atmos.messageState", "first")

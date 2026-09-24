@@ -43,7 +43,7 @@ func (p *PearServer) GetBlob(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "failed to parse cid", err)
 		return
 	}
-	referenced, err := p.spacesStore.SpaceReferencesBlob(ctx, spaceURI, c)
+	referenced, err := p.spacesStore.BlobReferenced(ctx, spaceURI, c)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("check blob reference: %w", err))
 		return

@@ -99,7 +99,7 @@ func TestSpaceBlobRecordReferenceRollback(t *testing.T) {
 	require.NoError(
 		t,
 		ts.DB.Callback().Create().Before("gorm:create").Register("comail-fault", func(tx *gorm.DB) {
-			if tx.Statement.Table == "space_blob_refs" {
+			if tx.Statement.Table == "blob_refs" {
 				_ = tx.AddError(injected)
 			}
 		}),
@@ -110,7 +110,7 @@ func TestSpaceBlobRecordReferenceRollback(t *testing.T) {
 	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
 	c, err := cid.Parse(blob.Cid)
 	require.NoError(t, err)
-	referenced, err := ts.SpaceStore.SpaceReferencesBlob(t.Context(), space, c)
+	referenced, err := ts.SpaceStore.BlobReferenced(t.Context(), space, c)
 	require.NoError(t, err)
 	require.False(t, referenced)
 	require.NoError(t, ts.DB.Callback().Create().Remove("comail-fault"))
@@ -119,11 +119,11 @@ func TestSpaceBlobRecordReferenceRollback(t *testing.T) {
 	_, retryCID, err := ts.SpaceStore.PutRecord(t.Context(), space, owner, groupTp, "retry", value)
 	require.NoError(t, err)
 	require.Equal(t, firstCID, retryCID)
-	referenced, err = ts.SpaceStore.SpaceReferencesBlob(t.Context(), space, c)
+	referenced, err = ts.SpaceStore.BlobReferenced(t.Context(), space, c)
 	require.NoError(t, err)
 	require.True(t, referenced)
 	require.NoError(t, ts.SpaceStore.DeleteSpace(t.Context(), space))
-	referenced, err = ts.SpaceStore.SpaceReferencesBlob(t.Context(), space, c)
+	referenced, err = ts.SpaceStore.BlobReferenced(t.Context(), space, c)
 	require.NoError(t, err)
 	require.False(t, referenced)
 }

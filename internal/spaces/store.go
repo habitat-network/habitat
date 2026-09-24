@@ -111,7 +111,10 @@ type Store interface {
 	) ([]habitat_syntax.SpaceURI, error)
 	CheckSpaceExists(ctx context.Context, uri habitat_syntax.SpaceURI) (bool, error)
 	RegisterBlobUpload(ctx context.Context, repo syntax.DID, c cid.Cid) error
-	SpaceReferencesBlob(ctx context.Context, space habitat_syntax.SpaceURI, c cid.Cid) (bool, error)
+	// BlobReferenced reports whether a live record in the exact Space references
+	// a blob uploaded by that record's repo. Legacy references alone do not grant
+	// read access. The caller must separately authorize the Space reader.
+	BlobReferenced(ctx context.Context, space habitat_syntax.SpaceURI, c cid.Cid) (bool, error)
 	ApplyCreates(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -279,7 +282,7 @@ func NewStore(
 		&spaceRecord{},
 		&spaceRepo{},
 		&blobUpload{},
-		&spaceBlobRef{},
+		&blobRef{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
@@ -619,7 +622,7 @@ func (s *store) PutRecord(
 			if newCidStr == existing.Cid {
 				// if the new cid is the same as the previous one, we don't update the rev
 				skipped = true
-				return replaceSpaceBlobRefs(tx, spaceURI, repo, collection, rkey, blobCIDs)
+				return replaceBlobRefs(tx, spaceURI, repo, collection, rkey, blobCIDs)
 			}
 			// otherwise, remove the prev element from hash
 			h.Remove(spacecommit.RecordElement(collection, rkey, existing.Cid))
@@ -641,7 +644,7 @@ func (s *store) PutRecord(
 		}).Error; err != nil {
 			return err
 		}
-		return replaceSpaceBlobRefs(tx, spaceURI, repo, collection, rkey, blobCIDs)
+		return replaceBlobRefs(tx, spaceURI, repo, collection, rkey, blobCIDs)
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
@@ -807,7 +810,7 @@ func (s *store) RepoSnapshot(
 func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
 	// everything after this point is idempotent — use a transaction
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("space = ?", uri).Delete(&spaceBlobRef{}).Error; err != nil {
+		if err := tx.Where("space = ?", uri).Delete(&blobRef{}).Error; err != nil {
 			return err
 		}
 		// Drop the records for this space
@@ -999,7 +1002,7 @@ func (s *store) DeleteRecord(
 			}).Error; err != nil {
 			return fmt.Errorf("delete record: %w", err)
 		}
-		if err := replaceSpaceBlobRefs(
+		if err := replaceBlobRefs(
 			tx,
 			uri,
 			repo,

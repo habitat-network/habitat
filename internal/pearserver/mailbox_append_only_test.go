@@ -75,7 +75,7 @@ func TestMailboxAppendOnlyPreservesBlobAuthorization(t *testing.T) {
 	}{{original, true}, {replacement, false}} {
 		parsed, err := cid.Parse(check.blob.Cid)
 		require.NoError(t, err)
-		authorized, err := ts.SpaceStore.SpaceReferencesBlob(t.Context(), space, parsed)
+		authorized, err := ts.SpaceStore.BlobReferenced(t.Context(), space, parsed)
 		require.NoError(t, err)
 		require.Equal(t, check.want, authorized)
 	}

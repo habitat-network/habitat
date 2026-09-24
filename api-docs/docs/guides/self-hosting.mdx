@@ -48,6 +48,20 @@ By default, Pear stores its data in SQLite on a Docker volume. It generates its 
 
 To use Postgres instead of SQLite, set `HABITAT_DB=postgres://user:password@host:5432/dbname` in `.env`. Pear always connects with `client_encoding=UTF8`, but creating the database with `ENCODING 'UTF8'` is recommended. Behind PgBouncer or another transaction-mode pooler, add `default_query_exec_mode=simple_protocol` to the connection string.
 
+## Upgrading blob authorization
+
+The storage update that adds `blob_uploads` starts with no upload-ownership rows. Existing records and blob references do not prove which DID uploaded the bytes. Until the record owner's DID uploads the original bytes again, `network.habitat.space.getBlob` returns `BlobNotFound` for that blob. There is no automatic ownership backfill.
+
+Before upgrading a host with existing blob records, back up its database and blob store. Inventory live records containing blobs, including each record's Space, owner DID, collection, key, and blob CID. Use the live records as the source: a host may not have a complete `blob_refs` table yet. Confirm that the owner can still access the original bytes and obtain an OAuth token for that DID. Defer the upgrade if required owners or bytes are unavailable, unless temporary unreadability is an accepted part of the rollout.
+
+After upgrading, for each owner DID:
+
+1. Upload the original bytes through `network.habitat.repo.uploadBlob` with that DID's OAuth token. Service auth and Space credentials cannot upload blobs. Check that the returned CID matches the CID in the record; a different CID does not repair the old reference.
+2. Where a live record has no reference row, retry `network.habitat.space.putRecord` with the same Space, repo, collection, key, and record value. Verify that the submitted value has the existing record CID before retrying. An identical retry restores the reference without advancing the repo head. `applyWrites` cannot repair an existing key.
+3. Read each CID through `network.habitat.space.getBlob` in its exact Space with a reader credential. Compare the returned bytes with the originals. Keep the inventory until every required read succeeds.
+
+If an upload fails or returns a different CID, stop that record's recovery and retain the backup. Do not infer upload ownership from an old record or insert ownership rows based only on its blob reference.
+
 ## Full reference
 
 For all configuration options, upgrades, backups, and building from source, see the [Pear self-hosting README](https://github.com/habitat-network/habitat/tree/main/build/debian/pear). The copy at a given release tag matches that release.

@@ -13,21 +13,19 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// Blob bytes are globally deduplicated. Upload ownership and live references
-// are independent authorization facts; a known CID is never proof of ownership.
-// Legacy records do not establish upload ownership. Their owners must upload
-// the bytes again and retry the record to establish these authorization facts.
+// Deduplicated blob bytes do not prove which repo uploaded them.
 type blobUpload struct {
 	Repo syntax.DID `gorm:"primaryKey"`
 	CID  string     `gorm:"primaryKey;column:cid"`
 }
 
-type spaceBlobRef struct {
+// Match PR #947's table and key so existing references remain usable.
+type blobRef struct {
+	Cid        string                  `gorm:"primaryKey"`
 	Space      habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	Repo       syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
 	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
-	CID        string                  `gorm:"primaryKey;column:cid"`
 }
 
 func (s *store) RegisterBlobUpload(ctx context.Context, repo syntax.DID, c cid.Cid) error {
@@ -35,14 +33,18 @@ func (s *store) RegisterBlobUpload(ctx context.Context, repo syntax.DID, c cid.C
 		Create(&blobUpload{Repo: repo, CID: c.String()}).Error
 }
 
-func (s *store) SpaceReferencesBlob(
+func (s *store) BlobReferenced(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 	c cid.Cid,
 ) (bool, error) {
 	var count int64
-	err := s.db.WithContext(ctx).Model(&spaceBlobRef{}).
-		Where("space = ? AND cid = ?", space, c.String()).Count(&count).Error
+	err := s.db.WithContext(ctx).Model(&blobRef{}).
+		Joins("JOIN blob_uploads ON blob_uploads.repo = blob_refs.repo AND blob_uploads.cid = blob_refs.cid").
+		Joins(`JOIN space_records ON space_records.space = blob_refs.space
+			AND space_records.repo = blob_refs.repo AND space_records.collection = blob_refs.collection
+			AND space_records.rkey = blob_refs.rkey AND space_records.deleted_at IS NULL`).
+		Where("blob_refs.space = ? AND blob_refs.cid = ?", space, c.String()).Count(&count).Error
 	return count > 0, err
 }
 
@@ -80,7 +82,7 @@ func requireBlobUploads(tx *gorm.DB, repo syntax.DID, cids []string) error {
 	return nil
 }
 
-func replaceSpaceBlobRefs(
+func replaceBlobRefs(
 	tx *gorm.DB,
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
@@ -89,16 +91,16 @@ func replaceSpaceBlobRefs(
 	cids []string,
 ) error {
 	if err := tx.Where("space = ? AND repo = ? AND collection = ? AND rkey = ?", space, repo, collection, rkey).
-		Delete(&spaceBlobRef{}).
+		Delete(&blobRef{}).
 		Error; err != nil {
 		return err
 	}
 	if len(cids) == 0 {
 		return nil
 	}
-	refs := make([]spaceBlobRef, len(cids))
+	refs := make([]blobRef, len(cids))
 	for i, c := range cids {
-		refs[i] = spaceBlobRef{Space: space, Repo: repo, Collection: collection, Rkey: rkey, CID: c}
+		refs[i] = blobRef{Space: space, Repo: repo, Collection: collection, Rkey: rkey, Cid: c}
 	}
 	return tx.Create(&refs).Error
 }
