@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
@@ -121,19 +120,6 @@ type OAuthSession struct {
 	ExpiresAt time.Time
 }
 
-// DynamicClient is a client registered via RFC 7591 Dynamic Client
-// Registration (see register.go). It stores the same client metadata shape
-// used for atproto Client ID Metadata Document clients, so GetClient can hand
-// either kind back as the same *client type. Registration exists for OAuth
-// clients — notably generic MCP clients — that don't support resolving
-// client_id as a fetchable metadata-document URL.
-type DynamicClient struct {
-	ClientID string `gorm:"primaryKey"`
-	Metadata []byte // JSON-encoded oauth.ClientMetadata
-	// GORM auto-managed
-	CreatedAt time.Time
-}
-
 type ConnectedApp struct {
 	Subject  string `gorm:"primaryKey,uniqueIndex:idx_connected_app"` // user DID
 	ClientID string `gorm:"primaryKey,uniqueIndex:idx_connected_app"` // client_id URL
@@ -143,12 +129,24 @@ type ConnectedApp struct {
 	UpdatedAt time.Time
 }
 
+// RegisteredClient is an OAuth client registered through RFC 7591 dynamic
+// client registration (the MCP endpoints; see HandleMCPRegister). Clients
+// authenticated via an atproto client-id metadata document are never stored
+// here — they're resolved live by GetClient instead.
+type RegisteredClient struct {
+	ClientID     string `gorm:"primaryKey"`
+	ClientName   string
+	RedirectURIs []byte // JSON []string
+	GrantTypes   []byte // JSON []string
+	CreatedAt    time.Time
+}
+
 func newStore(
 	db *gorm.DB,
 	approvedJwtBearerClients ApprovedClientStore,
 	clientMeta *clientmetadata.Resolver,
 ) (*store, error) {
-	err := db.AutoMigrate(&OAuthRequest{}, &OAuthSession{}, &ConnectedApp{}, &DynamicClient{})
+	err := db.AutoMigrate(&OAuthRequest{}, &OAuthSession{}, &ConnectedApp{}, &RegisteredClient{})
 	if err != nil {
 		return nil, err
 	}
@@ -231,46 +229,41 @@ func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
 	return nil
 }
 
-// GetClient implements fosite.Storage. Dynamically registered clients (see
-// CreateDynamicClient) are checked first since their client_id is an opaque
-// identifier, not a fetchable URL; any other id falls back to resolving an
-// atproto Client ID Metadata Document.
+// GetClient implements fosite.Storage. It first checks for a dynamically
+// registered client (RFC 7591, used by the MCP endpoints), then falls back to
+// resolving id as an atproto client-id metadata document URL.
 func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error) {
 	ctx, span := tracer.Start(ctx, "GetClient")
 	defer span.End()
 	span.SetAttributes(attribute.String("client_id", id))
 
-	var dynamic DynamicClient
-	err := s.db.WithContext(ctx).First(&dynamic, "client_id = ?", id).Error
+	var row RegisteredClient
+	err := s.db.WithContext(ctx).First(&row, "client_id = ?", id).Error
 	switch {
 	case err == nil:
-		var metadata oauth.ClientMetadata
-		if err := json.Unmarshal(dynamic.Metadata, &metadata); err != nil {
-			return nil, fmt.Errorf("failed to decode dynamic client metadata: %w", err)
+		dc := &dynamicClient{RegisteredClient: &row}
+		if err := json.Unmarshal(row.RedirectURIs, &dc.redirectURIs); err != nil {
+			return nil, fmt.Errorf("decode redirect uris: %w", err)
 		}
-		return &client{&metadata}, nil
-	case errors.Is(err, gorm.ErrRecordNotFound):
-		metadata, err := s.clientMeta.FetchMetadata(ctx, id)
-		if err != nil {
-			return nil, err
+		if err := json.Unmarshal(row.GrantTypes, &dc.grantTypes); err != nil {
+			return nil, fmt.Errorf("decode grant types: %w", err)
 		}
-		return &client{metadata}, nil
-	default:
+		return dc, nil
+	case !errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, err
 	}
+
+	metadata, err := s.clientMeta.FetchMetadata(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &client{metadata}, nil
 }
 
-// CreateDynamicClient persists a client registered via RFC 7591 Dynamic
-// Client Registration (see register.go).
-func (s *store) CreateDynamicClient(ctx context.Context, metadata *oauth.ClientMetadata) error {
-	encoded, err := json.Marshal(metadata)
-	if err != nil {
-		return fmt.Errorf("failed to encode client metadata: %w", err)
-	}
-	return s.db.WithContext(ctx).Create(&DynamicClient{
-		ClientID: metadata.ClientID,
-		Metadata: encoded,
-	}).Error
+// createRegisteredClient persists a client registered through RFC 7591
+// dynamic client registration.
+func (s *store) createRegisteredClient(ctx context.Context, c *RegisteredClient) error {
+	return s.db.WithContext(ctx).Create(c).Error
 }
 
 // GetPublicKey implements rfc7523.RFC7523KeyStorage. issuer is the "iss"

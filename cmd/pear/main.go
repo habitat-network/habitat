@@ -333,6 +333,18 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 	loginRouter.OpensocialStore = opensocialStore
 
+	// The MCP endpoints sign users in through this same loginRouter (see
+	// OAuthServer.HandleMCPAuthorizeSubmit): whichever login method a user's
+	// org configures (PDS, Google, or password) is what an MCP client's login
+	// runs too, landing back at the one /oauth-callback those providers are
+	// registered with. Identity is resolved through pear's own resolveIdentity
+	// endpoint (see api-docs/docs/space-proxy/getting-started.mdx), which
+	// already rewrites pear-hosted accounts' PDS pointer to pear itself — so
+	// those accounts redirect to pear's own atproto OAuth server, and remote
+	// accounts resolve exactly the way any other client following that doc
+	// would see them.
+	mcpOrigin := "https://" + domain
+
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,
 		loginRouter,
@@ -416,7 +428,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
-	mcpServer := mcpserver.New(oauthServer, spacesStore, permStore, "https://"+domain)
+	mcpServer := mcpserver.New(
+		oauthServer,
+		spacesStore,
+		permStore,
+		mcpOrigin,
+		oauthServer.MCPIssuer(),
+	)
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,
@@ -523,15 +541,21 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsent)
 	mux.HandleFunc("/oauth/opensocial", oauthServer.HandleOpensocial)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
-	mux.HandleFunc("/oauth/register", oauthServer.HandleRegister)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
 
-	// MCP (Model Context Protocol) server. Its OAuth surface is the same
-	// broker above: MCP clients register via /oauth/register (RFC 7591,
-	// since most can't publish a Client ID Metadata Document) and then use
-	// the same /oauth/authorize -> PDS -> /oauth/token flow as any other
-	// Habitat OAuth client.
+	// MCP (Model Context Protocol) server. Its endpoints match what MCP
+	// clients expect (dynamic client registration, no PAR) but share
+	// oauthServer's provider, storage, and sign-in with the atproto endpoints
+	// above — see internal/oauthserver/mcp.go.
+	mux.HandleFunc(oauthserver.MCPMetadataPath, oauthServer.HandleMCPMetadata)
+	mux.HandleFunc(oauthserver.MCPRegisterPath, oauthServer.HandleMCPRegister).Methods("POST")
+	mux.HandleFunc(oauthserver.MCPAuthorizePath, oauthServer.HandleMCPAuthorize).Methods("GET")
+	mux.HandleFunc(oauthserver.MCPAuthorizeSubmitPath, oauthServer.HandleMCPAuthorizeSubmit).
+		Methods("POST")
+	// MCP-issued tokens share the atproto endpoints' token handler (see
+	// OAuthServer.HandleToken); it tells the two kinds of client apart itself.
+	mux.HandleFunc(oauthserver.MCPTokenPath, oauthServer.HandleToken).Methods("POST")
 	mux.Handle(
 		mcpserver.ProtectedResourceMetadataPath,
 		mcpServer.ProtectedResourceMetadataHandler(),
