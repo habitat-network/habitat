@@ -553,6 +553,54 @@ func TestGetRecord_NotFound(t *testing.T) {
 	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
 }
 
+func TestGetRecords(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	bob := syntax.DID("did:plc:bob")
+
+	_, _, err = s.PutRecord(
+		t.Context(), uri, alice, coll, "self",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"name": "Alice"}),
+	)
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(
+		t.Context(), uri, bob, coll, "self",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"name": "Bob"}),
+	)
+	require.NoError(t, err)
+	// owner never writes a record in coll.
+
+	records, err := s.GetRecords(t.Context(), []habitat_syntax.SpaceRecordURI{
+		habitat_syntax.ConstructSpaceRecordURI(uri, alice, coll, "self"),
+		habitat_syntax.ConstructSpaceRecordURI(uri, bob, coll, "self"),
+		habitat_syntax.ConstructSpaceRecordURI(uri, owner, coll, "self"),
+	})
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+
+	byOwner := make(map[syntax.DID]spaces.Record, len(records))
+	for _, rec := range records {
+		byOwner[rec.Owner] = rec
+		require.Equal(t, uri, rec.Space)
+	}
+	require.Equal(t, "Alice", byOwner[alice].Value["name"])
+	require.Equal(t, "Bob", byOwner[bob].Value["name"])
+	_, ok := byOwner[owner]
+	require.False(t, ok)
+}
+
+func TestGetRecords_Empty(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	records, err := s.GetRecords(t.Context(), nil)
+	require.NoError(t, err)
+	require.Empty(t, records)
+}
+
 func TestListRecords(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 

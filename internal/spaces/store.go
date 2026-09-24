@@ -78,6 +78,10 @@ type RepoInfo struct {
 
 // Record is a single record within a space
 type Record struct {
+	// Space is only populated by methods that can return records from more
+	// than one space in a single call (e.g. GetRecords); it's the zero value
+	// elsewhere, since the caller already supplies the space in that case.
+	Space      habitat_syntax.SpaceURI
 	Owner      syntax.DID
 	Collection syntax.NSID
 	Rkey       syntax.RecordKey
@@ -153,6 +157,15 @@ type Store interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) (*Record, error)
+	// GetRecords batch-fetches the records identified by uris, in one query.
+	// A uri with no matching record is simply absent from the result (not an
+	// error); the result order is not guaranteed to match uris. uris may span
+	// different spaces and collections, so each returned Record carries its
+	// Space.
+	GetRecords(
+		ctx context.Context,
+		uris []habitat_syntax.SpaceRecordURI,
+	) ([]Record, error)
 	ListRecords(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -648,6 +661,58 @@ func (s *store) GetRecord(
 		UpdatedAt:  row.UpdatedAt,
 		Cid:        cid.MustParse(row.Cid),
 	}, nil
+}
+
+func (s *store) GetRecords(
+	ctx context.Context,
+	uris []habitat_syntax.SpaceRecordURI,
+) ([]Record, error) {
+	if len(uris) == 0 {
+		return nil, nil
+	}
+
+	conds := make([]string, len(uris))
+	args := make([]any, 0, len(uris)*4)
+	for i, uri := range uris {
+		conds[i] = "(space = ? AND repo = ? AND collection = ? AND rkey = ?)"
+		args = append(args, uri.SpaceURI(), uri.Repo(), uri.Collection(), uri.Rkey())
+	}
+	where := strings.Join(conds, " OR ")
+
+	var rows []spaceRecord
+	if err := s.db.WithContext(ctx).Where(where, args...).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	records := make([]Record, 0, len(rows))
+	for _, row := range rows {
+		value, err := atdata.UnmarshalCBOR(row.Value)
+		if err != nil {
+			// A record that can no longer be decoded (e.g. written before
+			// write-time validation existed) shouldn't take down the whole
+			// batch; skip it and keep going.
+			slog.WarnContext(
+				ctx, "skipping undecodable record in batch get",
+				"space", row.Space,
+				"repo", row.Repo,
+				"collection", row.Collection,
+				"rkey", row.Rkey,
+				"err", err,
+			)
+			continue
+		}
+		records = append(records, Record{
+			Space:      row.Space,
+			Owner:      row.Repo,
+			Collection: row.Collection,
+			Rkey:       row.Rkey,
+			Value:      value,
+			Rev:        string(row.Rev),
+			UpdatedAt:  row.UpdatedAt,
+			Cid:        cid.MustParse(row.Cid),
+		})
+	}
+	return records, nil
 }
 
 func (s *store) ListRecords(
