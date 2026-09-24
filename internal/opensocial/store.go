@@ -677,7 +677,10 @@ func (s *Store) GetMemberProfiles(
 	orgDID syntax.DID,
 	memberDIDs []syntax.DID,
 ) (map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile, error) {
-	profiles := make(map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile, len(memberDIDs))
+	profiles := make(
+		map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile,
+		len(memberDIDs),
+	)
 	for _, memberDID := range memberDIDs {
 		profile, err := s.GetMemberProfile(ctx, orgDID, memberDID)
 		if err != nil {
@@ -708,7 +711,13 @@ func (s *Store) SeedMemberProfile(
 		spacesStoreTx := s.spacesStore.WithTx(tx)
 		membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self")
 		rkey := syntax.RecordKey(memberDID)
-		_, err := spacesStoreTx.GetRecord(ctx, membersSpace, memberDID, MemberProfileCollection, rkey)
+		_, err := spacesStoreTx.GetRecord(
+			ctx,
+			membersSpace,
+			memberDID,
+			MemberProfileCollection,
+			rkey,
+		)
 		if err == nil {
 			// Already set (either self-configured or seeded by a concurrent
 			// sign-in); leave it alone.

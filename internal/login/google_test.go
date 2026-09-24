@@ -65,7 +65,12 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	idToken := makeIDToken(clientID, "user@gmail.com", "Test User", "https://example.com/avatar.png")
+	idToken := makeIDToken(
+		clientID,
+		"user@gmail.com",
+		"Test User",
+		"https://example.com/avatar.png",
+	)
 
 	tokenServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -118,7 +123,12 @@ func TestVerifyGoogleIDToken(t *testing.T) {
 	clientID := "my-client-id.apps.googleusercontent.com"
 
 	t.Run("valid token returns email", func(t *testing.T) {
-		token := makeIDToken(clientID, "user@gmail.com", "Test User", "https://example.com/avatar.png")
+		token := makeIDToken(
+			clientID,
+			"user@gmail.com",
+			"Test User",
+			"https://example.com/avatar.png",
+		)
 		claims, err := verifyGoogleIDToken(token, clientID)
 		require.NoError(t, err)
 		require.Equal(t, "user@gmail.com", claims.Email)
