@@ -173,4 +173,9 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+
+	t.Run("invalid token is rejected even for discovery", func(t *testing.T) {
+		_, err := connectAs(t, ctx, httpServer.URL, "invalid")
+		require.Error(t, err)
+	})
 }

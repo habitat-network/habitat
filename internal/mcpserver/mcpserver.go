@@ -116,8 +116,9 @@ var unauthenticatedMethods = map[string]bool{
 }
 
 // allowUnauthenticatedDiscovery routes single JSON-RPC requests for
-// unauthenticatedMethods, and any non-POST request, straight to open; everything
-// else (including batches and unparseable bodies) goes to authed.
+// unauthenticatedMethods that carry no Authorization header, and any non-POST
+// request, straight to open; everything else (including batches and
+// unparseable bodies) goes to authed.
 func allowUnauthenticatedDiscovery(open, authed http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -125,6 +126,12 @@ func allowUnauthenticatedDiscovery(open, authed http.Handler) http.Handler {
 			// data. Clients open a GET stream right after initialize, and a 401
 			// there would be read as "authentication required" at connect time.
 			open.ServeHTTP(w, r)
+			return
+		}
+		if r.Header.Get("Authorization") != "" {
+			// A client that sends a token gets it checked, so tools/list can
+			// depend on the caller and an expired token is reported as one.
+			authed.ServeHTTP(w, r)
 			return
 		}
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxDiscoveryBodyBytes))
