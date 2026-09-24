@@ -38,12 +38,15 @@ func buildAuthServerMetadata(issuer string) oauth.AuthServerMetadata {
 func buildMCPAuthServerMetadata(issuer string) map[string]any {
 	mcpIssuer := issuer + MCPIssuerPath
 	return map[string]any{
-		"issuer":                                         mcpIssuer,
-		"authorization_endpoint":                         issuer + MCPAuthorizePath,
-		"token_endpoint":                                 issuer + MCPTokenPath,
-		"registration_endpoint":                          issuer + MCPRegisterPath,
-		"response_types_supported":                       []string{"code"},
-		"grant_types_supported":                          []string{"authorization_code", "refresh_token"},
+		"issuer":                   mcpIssuer,
+		"authorization_endpoint":   issuer + MCPAuthorizePath,
+		"token_endpoint":           issuer + MCPTokenPath,
+		"registration_endpoint":    issuer + MCPRegisterPath,
+		"response_types_supported": []string{"code"},
+		"grant_types_supported": []string{
+			"authorization_code",
+			"refresh_token",
+		},
 		"code_challenge_methods_supported":               []string{"S256"},
 		"token_endpoint_auth_methods_supported":          []string{"none"},
 		"authorization_response_iss_parameter_supported": true,

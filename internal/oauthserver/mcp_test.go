@@ -88,12 +88,19 @@ func setupMCPTest(t *testing.T) *mcpTestServer {
 
 func (ts *mcpTestServer) register(t *testing.T) string {
 	t.Helper()
-	body, err := json.Marshal(map[string]any{"redirect_uris": []string{mcpTestRedirect}, "client_name": "Test MCP"})
+	body, err := json.Marshal(
+		map[string]any{"redirect_uris": []string{mcpTestRedirect}, "client_name": "Test MCP"},
+	)
 	require.NoError(t, err)
-	resp, err := ts.client.Post(ts.http.URL+MCPRegisterPath, "application/json", bytes.NewReader(body))
+	resp, err := ts.client.Post(
+		ts.http.URL+MCPRegisterPath,
+		"application/json",
+		bytes.NewReader(body),
+	)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 	var out struct {
 		ClientID string `json:"client_id"`
 	}
@@ -117,7 +124,9 @@ func mcpAuthorizeQuery(origin, clientID string) url.Values {
 
 func (ts *mcpTestServer) startAuthorize(t *testing.T, clientID string) {
 	t.Helper()
-	resp, err := ts.client.Get(ts.http.URL + MCPAuthorizePath + "?" + mcpAuthorizeQuery(mcpTestOrigin, clientID).Encode())
+	resp, err := ts.client.Get(
+		ts.http.URL + MCPAuthorizePath + "?" + mcpAuthorizeQuery(mcpTestOrigin, clientID).Encode(),
+	)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
@@ -130,7 +139,11 @@ func (ts *mcpTestServer) submitHandle(t *testing.T, handle string) (int, map[str
 	t.Helper()
 	body, err := json.Marshal(map[string]string{"handle": handle})
 	require.NoError(t, err)
-	resp, err := ts.client.Post(ts.http.URL+MCPAuthorizeSubmitPath, "application/json", bytes.NewReader(body))
+	resp, err := ts.client.Post(
+		ts.http.URL+MCPAuthorizeSubmitPath,
+		"application/json",
+		bytes.NewReader(body),
+	)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	var out map[string]string
@@ -144,7 +157,9 @@ func (ts *mcpTestServer) submitHandle(t *testing.T, handle string) (int, map[str
 // The redirect HandleMCPAuthorizeSubmit returns points at the passthrough
 // login provider's own test server, which immediately redirects again to
 // this server's /oauth-callback — hence the two hops.
-func (ts *mcpTestServer) authorize(t *testing.T, clientID string) *http.Response {
+// authorize runs the MCP authorize flow through to the final redirect back to
+// the client and returns that redirect's location.
+func (ts *mcpTestServer) authorize(t *testing.T, clientID string) *url.URL {
 	t.Helper()
 	ts.startAuthorize(t, clientID)
 	status, out := ts.submitHandle(t, mcpTestDID)
@@ -157,8 +172,11 @@ func (ts *mcpTestServer) authorize(t *testing.T, clientID string) *http.Response
 	require.NoError(t, err)
 	resp, err = ts.client.Get(loc.String())
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = resp.Body.Close() })
-	return resp
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+	loc, err = resp.Location()
+	require.NoError(t, err)
+	return loc
 }
 
 func (ts *mcpTestServer) token(t *testing.T, form url.Values) (int, map[string]any) {
@@ -175,10 +193,7 @@ func TestMCPOAuthFullFlow(t *testing.T) {
 	ts := setupMCPTest(t)
 	clientID := ts.register(t)
 
-	resp := ts.authorize(t, clientID)
-	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
-	loc, err := resp.Location()
-	require.NoError(t, err)
+	loc := ts.authorize(t, clientID)
 	require.Equal(t, mcpTestRedirect, loc.Scheme+"://"+loc.Host+loc.Path)
 	require.Equal(t, "client-state-123", loc.Query().Get("state"))
 	require.Equal(t, ts.MCPIssuer(), loc.Query().Get("iss"))
@@ -224,12 +239,17 @@ func TestMCPOAuthFullFlow(t *testing.T) {
 func TestMCPOAuthWrongPKCEVerifierRejected(t *testing.T) {
 	ts := setupMCPTest(t)
 	clientID := ts.register(t)
-	resp := ts.authorize(t, clientID)
-	loc, err := resp.Location()
-	require.NoError(t, err)
+	loc := ts.authorize(t, clientID)
 	status, _ := ts.token(t, url.Values{
-		"grant_type": {"authorization_code"}, "code": {loc.Query().Get("code")}, "client_id": {clientID},
-		"redirect_uri": {mcpTestRedirect}, "code_verifier": {"a-different-verifier-a-different-verifier-1234567"},
+		"grant_type": {
+			"authorization_code",
+		},
+		"code":      {loc.Query().Get("code")},
+		"client_id": {clientID},
+		"redirect_uri": {
+			mcpTestRedirect,
+		},
+		"code_verifier": {"a-different-verifier-a-different-verifier-1234567"},
 	})
 	require.NotEqual(t, http.StatusOK, status)
 }
@@ -239,7 +259,10 @@ func TestMCPOAuthWrongPKCEVerifierRejected(t *testing.T) {
 // to the client's own redirect_uri with error query params (same status as
 // success), so the two are told apart by where the redirect points, not by
 // status code.
-func (ts *mcpTestServer) authorizeOutcome(t *testing.T, q url.Values) (toPage bool, errorCode string) {
+func (ts *mcpTestServer) authorizeOutcome(
+	t *testing.T,
+	q url.Values,
+) (toPage bool, errorCode string) {
 	t.Helper()
 	resp, err := ts.client.Get(ts.http.URL + MCPAuthorizePath + "?" + q.Encode())
 	require.NoError(t, err)
@@ -318,7 +341,11 @@ func TestMCPOAuthRegisterValidation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			b, err := json.Marshal(body)
 			require.NoError(t, err)
-			resp, err := ts.client.Post(ts.http.URL+MCPRegisterPath, "application/json", bytes.NewReader(b))
+			resp, err := ts.client.Post(
+				ts.http.URL+MCPRegisterPath,
+				"application/json",
+				bytes.NewReader(b),
+			)
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 			require.Equal(t, http.StatusBadRequest, resp.StatusCode)

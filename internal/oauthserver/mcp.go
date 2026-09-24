@@ -109,6 +109,9 @@ func (o *OAuthServer) HandleMCPRegister(w http.ResponseWriter, r *http.Request) 
 		httpx.WriteServerError(ctx, w, fmt.Errorf("register client: %w", err))
 		return
 	}
+	// Headers are frozen at WriteHeader, so the content type WriteJSON sets
+	// would be dropped; set it first.
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	httpx.WriteJSON(ctx, w, map[string]any{
 		"client_id":                  clientID,
@@ -163,16 +166,28 @@ func (o *OAuthServer) HandleMCPAuthorize(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if resource := r.Form.Get("resource"); resource != "" && resource != o.mcpResource() {
-		o.provider.WriteAuthorizeError(ctx, w, ar,
-			fosite.ErrInvalidRequest.WithHint("The 'resource' parameter does not identify this MCP server."))
+		o.provider.WriteAuthorizeError(
+			ctx,
+			w,
+			ar,
+			fosite.ErrInvalidRequest.WithHint(
+				"The 'resource' parameter does not identify this MCP server.",
+			),
+		)
 		return
 	}
 	// fosite only validates PKCE when generating the authorize *response*
 	// (finishAuthorize, after the user signs in), which is too late to tell an
 	// MCP client its request was malformed. Check it eagerly here instead.
 	if r.Form.Get("code_challenge") == "" || r.Form.Get("code_challenge_method") != "S256" {
-		o.provider.WriteAuthorizeError(ctx, w, ar,
-			fosite.ErrInvalidRequest.WithHint("PKCE with the S256 code challenge method is required."))
+		o.provider.WriteAuthorizeError(
+			ctx,
+			w,
+			ar,
+			fosite.ErrInvalidRequest.WithHint(
+				"PKCE with the S256 code challenge method is required.",
+			),
+		)
 		return
 	}
 	ar.SetSession(newSession())

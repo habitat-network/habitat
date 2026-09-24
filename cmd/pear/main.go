@@ -428,7 +428,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
-	mcpServer := mcpserver.New(oauthServer, spacesStore, permStore, mcpOrigin, oauthServer.MCPIssuer())
+	mcpServer := mcpserver.New(
+		oauthServer,
+		spacesStore,
+		permStore,
+		mcpOrigin,
+		oauthServer.MCPIssuer(),
+	)
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,
@@ -545,7 +551,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc(oauthserver.MCPMetadataPath, oauthServer.HandleMCPMetadata)
 	mux.HandleFunc(oauthserver.MCPRegisterPath, oauthServer.HandleMCPRegister).Methods("POST")
 	mux.HandleFunc(oauthserver.MCPAuthorizePath, oauthServer.HandleMCPAuthorize).Methods("GET")
-	mux.HandleFunc(oauthserver.MCPAuthorizeSubmitPath, oauthServer.HandleMCPAuthorizeSubmit).Methods("POST")
+	mux.HandleFunc(oauthserver.MCPAuthorizeSubmitPath, oauthServer.HandleMCPAuthorizeSubmit).
+		Methods("POST")
 	// MCP-issued tokens share the atproto endpoints' token handler (see
 	// OAuthServer.HandleToken); it tells the two kinds of client apart itself.
 	mux.HandleFunc(oauthserver.MCPTokenPath, oauthServer.HandleToken).Methods("POST")

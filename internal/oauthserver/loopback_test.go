@@ -31,15 +31,28 @@ func TestNormalizeLoopbackRedirect(t *testing.T) {
 	secretBytes, err := encrypt.ParseKey(key)
 	require.NoError(t, err)
 	oauthSrv, err := NewOAuthServer(
-		secretBytes, &org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
-		pdsclient.NewDummyDirectory("http://pds.url"), dbtestutil.NewDB(t), noop.Meter{}, testStore(t),
-		"https://habitat.example", NewJWTBearerStore(), testOpensocialStore(t),
+		secretBytes,
+		&org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
+		pdsclient.NewDummyDirectory(
+			"http://pds.url",
+		),
+		dbtestutil.NewDB(t),
+		noop.Meter{},
+		testStore(t),
+		"https://habitat.example",
+		NewJWTBearerStore(),
+		testOpensocialStore(t),
 		nil,
 	)
 	require.NoError(t, err)
 
 	// Mirrors Claude Code's client metadata: portless localhost + 127.0.0.1.
-	registerTestClient(t, oauthSrv, "native", []string{"http://localhost/callback", "http://127.0.0.1/callback"})
+	registerTestClient(
+		t,
+		oauthSrv,
+		"native",
+		[]string{"http://localhost/callback", "http://127.0.0.1/callback"},
+	)
 	registerTestClient(t, oauthSrv, "exact", []string{"http://localhost:3000/cb"})
 
 	form := url.Values{"client_id": {"native"}, "redirect_uri": {"http://localhost:56393/callback"}}

@@ -100,7 +100,13 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	srv := New(fakeTokens{}, spacesStore, permStore, "https://habitat.example", "https://habitat.example/mcp")
+	srv := New(
+		fakeTokens{},
+		spacesStore,
+		permStore,
+		"https://habitat.example",
+		"https://habitat.example/mcp",
+	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
 
