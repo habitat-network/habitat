@@ -669,27 +669,38 @@ func (s *Store) GetMemberProfile(
 	return profile, nil
 }
 
-// GetMemberProfiles returns the community.opensocial.memberProfile records
-// for memberDIDs within orgDID's members space, keyed by DID. Members with no
-// profile record are omitted from the result.
+// GetMemberProfiles batch-fetches the community.opensocial.memberProfile
+// records for memberDIDs within orgDID's members space, in a single query
+// (see spaces.Store.GetRecords), keyed by DID. Members with no profile record
+// are simply absent from the result.
 func (s *Store) GetMemberProfiles(
 	ctx context.Context,
 	orgDID syntax.DID,
 	memberDIDs []syntax.DID,
 ) (map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile, error) {
+	refs := make([]spaces.RecordRef, len(memberDIDs))
+	for i, memberDID := range memberDIDs {
+		refs[i] = spaces.RecordRef{Owner: memberDID, Rkey: syntax.RecordKey(memberDID)}
+	}
+	records, err := s.spacesStore.GetRecords(
+		ctx,
+		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
+		MemberProfileCollection,
+		refs,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get member profile records: %w", err)
+	}
 	profiles := make(
 		map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile,
-		len(memberDIDs),
+		len(records),
 	)
-	for _, memberDID := range memberDIDs {
-		profile, err := s.GetMemberProfile(ctx, orgDID, memberDID)
-		if err != nil {
-			return nil, fmt.Errorf("get member profile for %s: %w", memberDID, err)
+	for _, record := range records {
+		var profile opensocial_api.CommunityOpensocialMemberProfile
+		if err := decodeRecordValue(record.Value, &profile); err != nil {
+			return nil, fmt.Errorf("decode member profile record for %s: %w", record.Owner, err)
 		}
-		if profile.UpdatedAt == "" {
-			continue
-		}
-		profiles[memberDID] = profile
+		profiles[record.Owner] = profile
 	}
 	return profiles, nil
 }

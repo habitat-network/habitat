@@ -27,7 +27,7 @@ type Main = {
   /**
    * URL of the member's avatar image.
    */
-  avatarUrl?: string
+  avatarUrl?: l.UriString
   updatedAt: l.DatetimeString
 }
 
@@ -41,9 +41,7 @@ const main = /*#__PURE__*/ l.record<'any', Main>(
     displayName: /*#__PURE__*/ l.optional(
       /*#__PURE__*/ l.string({ maxLength: 256 }),
     ),
-    bio: /*#__PURE__*/ l.optional(
-      /*#__PURE__*/ l.string({ maxLength: 2048 }),
-    ),
+    bio: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ maxLength: 2048 })),
     avatarUrl: /*#__PURE__*/ l.optional(
       /*#__PURE__*/ l.string({ format: 'uri', maxLength: 2048 }),
     ),

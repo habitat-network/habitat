@@ -88,6 +88,13 @@ type Record struct {
 	UpdatedAt  time.Time
 }
 
+// RecordRef identifies a single record within a space/collection, for use
+// with GetRecords.
+type RecordRef struct {
+	Owner syntax.DID
+	Rkey  syntax.RecordKey
+}
+
 // Store defines the persistence interface for spaces
 type Store interface {
 	// Space operations
@@ -153,6 +160,16 @@ type Store interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) (*Record, error)
+	// GetRecords batch-fetches the records identified by refs within a single
+	// space/collection, in one query. Refs with no matching record are simply
+	// absent from the result (not an error); the result order is not
+	// guaranteed to match refs.
+	GetRecords(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		collection syntax.NSID,
+		refs []RecordRef,
+	) ([]Record, error)
 	ListRecords(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -648,6 +665,60 @@ func (s *store) GetRecord(
 		UpdatedAt:  row.UpdatedAt,
 		Cid:        cid.MustParse(row.Cid),
 	}, nil
+}
+
+func (s *store) GetRecords(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	collection syntax.NSID,
+	refs []RecordRef,
+) ([]Record, error) {
+	if len(refs) == 0 {
+		return nil, nil
+	}
+
+	conds := make([]string, len(refs))
+	args := make([]any, 0, len(refs)*2+2)
+	args = append(args, uri, collection)
+	for i, ref := range refs {
+		conds[i] = "(repo = ? AND rkey = ?)"
+		args = append(args, ref.Owner, ref.Rkey)
+	}
+	where := "space = ? AND collection = ? AND (" + strings.Join(conds, " OR ") + ")"
+
+	var rows []spaceRecord
+	if err := s.db.WithContext(ctx).Where(where, args...).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	records := make([]Record, 0, len(rows))
+	for _, row := range rows {
+		value, err := atdata.UnmarshalCBOR(row.Value)
+		if err != nil {
+			// A record that can no longer be decoded (e.g. written before
+			// write-time validation existed) shouldn't take down the whole
+			// batch; skip it and keep going.
+			slog.WarnContext(
+				ctx, "skipping undecodable record in batch get",
+				"space", uri,
+				"repo", row.Repo,
+				"collection", row.Collection,
+				"rkey", row.Rkey,
+				"err", err,
+			)
+			continue
+		}
+		records = append(records, Record{
+			Owner:      row.Repo,
+			Collection: row.Collection,
+			Rkey:       row.Rkey,
+			Value:      value,
+			Rev:        string(row.Rev),
+			UpdatedAt:  row.UpdatedAt,
+			Cid:        cid.MustParse(row.Cid),
+		})
+	}
+	return records, nil
 }
 
 func (s *store) ListRecords(

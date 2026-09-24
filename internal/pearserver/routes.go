@@ -21,6 +21,7 @@ func (p *PearServer) registerRoutes() {
 
 	// Opensocial
 	p.router.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", p.CreateOrg)
+	p.router.HandleFunc("/xrpc/network.habitat.opensocial.getProfiles", p.GetProfiles)
 	p.router.HandleFunc("/xrpc/community.opensocial.updateProfile", p.UpdateProfile)
 	p.router.HandleFunc("/xrpc/community.opensocial.uploadImage", p.UploadImage)
 	p.router.HandleFunc("/xrpc/community.opensocial.createInvite", p.CreateInvite)
