@@ -85,7 +85,10 @@ func (d *OverrideDirectory) LookupEmail(ctx context.Context, email emaildomain.E
 
 // LookupIdentifier resolves an identifier string as an at-identifier (DID or
 // handle) or, failing that, as a work email. It returns
-// identity.ErrInvalidHandle for input that is neither.
+// identity.ErrInvalidHandle for input that is neither, identity.ErrHandleNotFound
+// for an at-identifier the base directory can't resolve, and
+// identity.ErrDIDNotFound for a valid email whose domain isn't mapped (surfaced
+// from LookupEmail).
 func (d *OverrideDirectory) LookupIdentifier(ctx context.Context, identifier string) (*identity.Identity, error) {
 	if atid, err := syntax.ParseAtIdentifier(identifier); err == nil {
 		return d.Lookup(ctx, atid)
@@ -104,11 +107,15 @@ func (d *OverrideDirectory) applyOverride(ctx context.Context, ident *identity.I
 	if utils.SupportsSpaces(ctx, d.httpClient, ident) {
 		return ident
 	}
+	keys := make(map[string]identity.VerificationMethod, len(ident.Keys))
+	for k, v := range ident.Keys {
+		keys[k] = v
+	}
 	return &identity.Identity{
 		DID:         ident.DID,
 		Handle:      ident.Handle,
-		AlsoKnownAs: ident.AlsoKnownAs,
-		Keys:        ident.Keys,
+		AlsoKnownAs: append([]string(nil), ident.AlsoKnownAs...),
+		Keys:        keys,
 		Services: map[string]identity.ServiceEndpoint{
 			"atproto_pds": {
 				Type: "AtprotoPersonalDataServer",

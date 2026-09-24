@@ -31,6 +31,7 @@ func TestOverrideDirectoryOverridesPDS(t *testing.T) {
 		AlsoKnownAs: []string{"at://alice.example.com"},
 		Services: map[string]identity.ServiceEndpoint{
 			"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: pds.URL},
+			"habitat":     {Type: "HabitatServer", URL: "https://other.example.com"},
 		},
 	})
 
@@ -177,4 +178,14 @@ func TestOverrideDirectoryPurge(t *testing.T) {
 	atid, err := syntax.ParseAtIdentifier("alice.example.com")
 	require.NoError(t, err)
 	require.NoError(t, dir.Purge(t.Context(), atid))
+}
+
+func TestOverrideDirectoryPassesThroughErrors(t *testing.T) {
+	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+
+	_, err := dir.LookupHandle(t.Context(), syntax.Handle("alice.example.com"))
+	require.ErrorIs(t, err, identity.ErrHandleNotFound)
+
+	_, err = dir.LookupDID(t.Context(), syntax.DID("did:web:alice.example.com"))
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
