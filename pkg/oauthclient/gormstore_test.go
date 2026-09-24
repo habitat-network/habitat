@@ -154,7 +154,13 @@ func TestStore_CustomTableNames(t *testing.T) {
 	custom, err := NewGormStore(db, WithTableNames("custom_sessions", "custom_auth_requests"))
 	require.NoError(t, err)
 
-	require.NoError(t, custom.SaveSession(ctx, oauth.ClientSessionData{AccountDID: "did:plc:test", SessionID: "s"}))
+	require.NoError(
+		t,
+		custom.SaveSession(
+			ctx,
+			oauth.ClientSessionData{AccountDID: "did:plc:test", SessionID: "s"},
+		),
+	)
 	require.NoError(t, custom.SaveAuthRequestInfo(ctx, oauth.AuthRequestData{State: "st"}))
 
 	_, err = custom.GetSession(ctx, "did:plc:test", "s")
