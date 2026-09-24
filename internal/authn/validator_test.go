@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/db/testutil"
@@ -55,8 +54,6 @@ func TestValidator(t *testing.T) {
 		nil,
 		os.Store,
 		nil,
-		nil,
-		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)
 

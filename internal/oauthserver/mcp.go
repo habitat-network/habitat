@@ -5,9 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -22,12 +20,16 @@ import (
 const scopeMCP = "mcp"
 
 // Paths, relative to the origin, of the MCP-shaped endpoints OAuthServer
-// serves. They mirror the atproto endpoints (HandleAuthorize, HandleToken,
-// etc.) but match the interface MCP clients expect: RFC 7591 dynamic client
-// registration instead of client-id metadata documents, no PAR, and PKCE is
-// mandatory. Both sets of endpoints share the same fosite.OAuth2Provider and
-// storage, so a token issued by either is valid everywhere: see
-// OAuthServer.ValidateRaw.
+// serves. They match the interface MCP clients expect — RFC 7591 dynamic
+// client registration instead of client-id metadata documents, no PAR, and
+// mandatory PKCE — but share the atproto endpoints' fosite.OAuth2Provider,
+// storage, sign-in (org.LoginRouter), and callback (HandleCallback): once the
+// client is identified and the user is prompted for their handle
+// (HandleMCPAuthorize, HandleMCPAuthorizeSubmit), the rest of the flow is the
+// same pipeline atproto clients go through, and PDS/Google logins both
+// endpoint sets initiate land back at the one /oauth-callback the login
+// providers are registered with. See issuerFor and OAuthServer.ValidateRaw
+// for how a single token type serves both.
 const (
 	MCPMetadataPath  = "/.well-known/oauth-authorization-server/mcp"
 	MCPRegisterPath  = "/mcp/oauth/register"
@@ -36,9 +38,7 @@ const (
 	// for the handle prompt; it POSTs the handle to MCPAuthorizeSubmitPath.
 	MCPAuthorizePagePath   = "/ui/login/mcp"
 	MCPAuthorizeSubmitPath = "/mcp/oauth/authorize/submit"
-	MCPCallbackPath        = "/mcp/oauth/callback"
 	MCPTokenPath           = "/mcp/oauth/token"
-	MCPClientMetadataPath  = "/mcp/oauth/client-metadata.json"
 	// MCPIssuerPath and MCPResourcePath are the paths of the MCP issuer and
 	// resource, relative to the origin.
 	MCPIssuerPath   = "/mcp"
@@ -55,13 +55,6 @@ func (o *OAuthServer) mcpResource() string { return o.issuer + MCPResourcePath }
 // endpoints.
 func (o *OAuthServer) HandleMCPMetadata(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(r.Context(), w, buildMCPAuthServerMetadata(o.issuer))
-}
-
-// HandleMCPClientMetadata serves the atproto client metadata document that
-// identifies this server to users' PDSes (the client_id URL) during the MCP
-// handle-prompt login.
-func (o *OAuthServer) HandleMCPClientMetadata(w http.ResponseWriter, r *http.Request) {
-	httpx.WriteJSON(r.Context(), w, o.mcpClientMetadata)
 }
 
 // mcpRegisterRequest is the RFC 7591 registration request. Fields this server
@@ -150,12 +143,20 @@ func validateRedirectURI(raw string) error {
 	return nil
 }
 
-// HandleMCPAuthorize validates the client's authorization request and
-// redirects the browser to the pear-pages handle prompt (MCPAuthorizePagePath),
-// the same way HandleAuthorize redirects to its own disambiguation page. That
-// page POSTs the entered handle back to HandleMCPAuthorizeSubmit as JSON.
+// HandleMCPAuthorize validates the client's authorization request — PKCE and
+// scope are enforced by the shared fosite config (see NewOAuthServer), only
+// the "resource" parameter (RFC 8707) is MCP-specific — and redirects the
+// browser to the pear-pages handle prompt (MCPAuthorizePagePath), storing the
+// pending request under the same request-key cookie HandleAuthorize uses so
+// the shared HandleCallback can pick it up once the user signs in. That page
+// POSTs the entered handle back to HandleMCPAuthorizeSubmit.
 func (o *OAuthServer) HandleMCPAuthorize(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	session, err := o.sessionStore.Get(r, sessionName)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get cookie: %w", err))
+		return
+	}
 	ar, err := o.provider.NewAuthorizeRequest(ctx, r)
 	if err != nil {
 		o.provider.WriteAuthorizeError(ctx, w, ar, err)
@@ -166,19 +167,27 @@ func (o *OAuthServer) HandleMCPAuthorize(w http.ResponseWriter, r *http.Request)
 			fosite.ErrInvalidRequest.WithHint("The 'resource' parameter does not identify this MCP server."))
 		return
 	}
+	// fosite only validates PKCE when generating the authorize *response*
+	// (finishAuthorize, after the user signs in), which is too late to tell an
+	// MCP client its request was malformed. Check it eagerly here instead.
 	if r.Form.Get("code_challenge") == "" || r.Form.Get("code_challenge_method") != "S256" {
 		o.provider.WriteAuthorizeError(ctx, w, ar,
 			fosite.ErrInvalidRequest.WithHint("PKCE with the S256 code challenge method is required."))
 		return
 	}
-	requestID, err := randomToken(24)
+	ar.SetSession(newSession())
+	requestKey, err := randomToken(24)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("generate request id: %w", err))
 		return
 	}
-	ar.SetSession(newSession())
-	if err := o.storage.CreatePARSession(ctx, requestID, ar); err != nil {
+	if err := o.storage.CreatePARSession(ctx, requestKey, ar); err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("save request: %w", err))
+		return
+	}
+	session.Values[requestKeyCookie] = requestKey
+	if err := session.Save(r, w); err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
 		return
 	}
 	clientName := ""
@@ -186,7 +195,6 @@ func (o *OAuthServer) HandleMCPAuthorize(w http.ResponseWriter, r *http.Request)
 		clientName = c.displayName()
 	}
 	page := url.Values{
-		"request_id":  {requestID},
 		"client_name": {clientName},
 		"login_hint":  {r.Form.Get("login_hint")},
 	}
@@ -196,14 +204,30 @@ func (o *OAuthServer) HandleMCPAuthorize(w http.ResponseWriter, r *http.Request)
 // mcpAuthorizeSubmitRequest is the JSON body the pear-pages handle prompt
 // POSTs to HandleMCPAuthorizeSubmit.
 type mcpAuthorizeSubmitRequest struct {
-	RequestID string `json:"requestId"`
-	Handle    string `json:"handle"`
+	Handle string `json:"handle"`
 }
 
-// HandleMCPAuthorizeSubmit starts the atproto login for the handle submitted
-// from MCPAuthorizePagePath, and returns the URL to redirect the browser to.
+// HandleMCPAuthorizeSubmit resolves the handle submitted from
+// MCPAuthorizePagePath to a DID and starts that DID's sign-in through
+// o.loginRouter — the same routing HandleAuthorize uses, so an MCP client
+// signs a user in exactly the way the org they belong to requires (PDS,
+// Google, or password). The pending request is found via the request-key
+// cookie HandleMCPAuthorize set; the provider's opaque flow state is stashed
+// back into that same cookie for the shared HandleCallback to pick up once
+// the login completes.
 func (o *OAuthServer) HandleMCPAuthorizeSubmit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	session, err := o.sessionStore.Get(r, sessionName)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get cookie: %w", err))
+		return
+	}
+	requestKey, _ := session.Values[requestKeyCookie].(string)
+	if _, err := o.storage.GetPARSession(ctx, requestKey); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "unknown or expired authorization request", err)
+		return
+	}
+
 	var req mcpAuthorizeSubmitRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "invalid request body", err)
@@ -214,81 +238,33 @@ func (o *OAuthServer) HandleMCPAuthorizeSubmit(w http.ResponseWriter, r *http.Re
 		httpx.WriteError(ctx, w, "InvalidRequest", "Enter your handle.", http.StatusBadRequest)
 		return
 	}
-	if _, err := o.storage.GetPARSession(ctx, req.RequestID); err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "unknown or expired authorization request", err)
-		return
-	}
-	redirect, state, err := o.mcpBroker.Start(ctx, handle)
-	if err != nil {
-		slog.WarnContext(ctx, "mcp oauth: failed to start atproto login", "handle", handle, "err", err)
+	did, err := o.resolveLoginHint(ctx, handle)
+	if err != nil || did == "" {
 		httpx.WriteError(
 			ctx, w, "InvalidRequest", "Couldn't sign in with that handle. Check it and try again.",
 			http.StatusBadRequest,
 		)
 		return
 	}
-	if err := o.storage.RekeyRequest(ctx, req.RequestID, state); err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("save login state: %w", err))
+	if err := o.storage.UpdatePARSessionSubject(ctx, requestKey, did); err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to update request subject: %w", err))
+		return
+	}
+
+	redirect, providerState, err := o.loginRouter.Authorize(ctx, did)
+	if err != nil {
+		httpx.WriteError(
+			ctx, w, "InvalidRequest", "Couldn't sign in with that handle. Check it and try again.",
+			http.StatusBadRequest,
+		)
+		return
+	}
+	session.Values[providerStateCookie] = providerState
+	if err := session.Save(r, w); err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
 		return
 	}
 	httpx.WriteJSON(ctx, w, map[string]string{"redirect": redirect})
-}
-
-// HandleMCPCallback receives the browser back from the user's PDS, completes
-// the atproto login, and redirects to the MCP client with an authorization
-// code.
-func (o *OAuthServer) HandleMCPCallback(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	query := r.URL.Query()
-	state := query.Get("state")
-	ar, err := o.storage.GetPARSession(ctx, state)
-	if err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "unknown or expired login", err)
-		return
-	}
-	login, err := o.mcpBroker.Finish(ctx, query)
-	if err != nil {
-		if delErr := o.storage.DeletePARSession(ctx, state); delErr != nil {
-			slog.WarnContext(ctx, "mcp oauth: delete pending request", "err", delErr)
-		}
-		if errors.Is(err, ErrLoginDenied) {
-			o.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrAccessDenied.WithHint("The login was not approved."))
-			return
-		}
-		httpx.WriteServerError(ctx, w, fmt.Errorf("complete atproto login: %w", err))
-		return
-	}
-
-	ar.SetSession(&session{
-		Subject:  login.DID.String(),
-		ClientID: ar.GetClient().GetID(),
-		Scopes:   ar.GetRequestedScopes(),
-	})
-	o.finishAuthorize(ctx, w, state, ar, o.MCPIssuer())
-}
-
-// HandleMCPToken serves the MCP token endpoint (authorization_code and
-// refresh_token grants). It shares OAuthServer's fosite.OAuth2Provider and
-// storage with the atproto endpoints, so tokens minted here validate there
-// and vice versa; the only difference is that MCP tokens are advertised as
-// plain bearer tokens rather than the DPoP type atproto clients require (see
-// HandleToken).
-func (o *OAuthServer) HandleMCPToken(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	req, err := o.provider.NewAccessRequest(ctx, r, newSession())
-	if err != nil {
-		logError(ctx, err)
-		o.provider.WriteAccessError(ctx, w, req, err)
-		return
-	}
-	resp, err := o.provider.NewAccessResponse(ctx, req)
-	if err != nil {
-		logError(ctx, err)
-		o.provider.WriteAccessError(ctx, w, req, err)
-		return
-	}
-	resp.SetTokenType("Bearer")
-	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
 func writeMCPOAuthError(ctx context.Context, w http.ResponseWriter, code, description string) {

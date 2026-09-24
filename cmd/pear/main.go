@@ -23,9 +23,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
-	indigooauth "github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bluesky-social/indigo/atproto/identity/apidir"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -65,7 +63,6 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/webui"
-	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
 
@@ -336,34 +333,17 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 	loginRouter.OpensocialStore = opensocialStore
 
-	// The MCP endpoints have their own broker for the atproto login their handle
-	// prompt runs (see OAuthServer.HandleMCPAuthorizeSubmit): it prompts for a
-	// handle and runs atproto OAuth against that account's PDS with the indigo
-	// client. Identity is resolved through pear's own resolveIdentity endpoint
-	// (see api-docs/docs/space-proxy/getting-started.mdx), which already
-	// rewrites pear-hosted accounts' PDS pointer to pear itself — so those
-	// accounts redirect to pear's own atproto OAuth server, and remote accounts
-	// resolve exactly the way any other client following that doc would see
-	// them.
+	// The MCP endpoints sign users in through this same loginRouter (see
+	// OAuthServer.HandleMCPAuthorizeSubmit): whichever login method a user's
+	// org configures (PDS, Google, or password) is what an MCP client's login
+	// runs too, landing back at the one /oauth-callback those providers are
+	// registered with. Identity is resolved through pear's own resolveIdentity
+	// endpoint (see api-docs/docs/space-proxy/getting-started.mdx), which
+	// already rewrites pear-hosted accounts' PDS pointer to pear itself — so
+	// those accounts redirect to pear's own atproto OAuth server, and remote
+	// accounts resolve exactly the way any other client following that doc
+	// would see them.
 	mcpOrigin := "https://" + domain
-	mcpIdentityDir := identity.NewCacheDirectory(
-		apidir.NewAPIDirectory(mcpOrigin), 100_000, time.Hour, time.Minute, time.Hour,
-	)
-	mcpAuthStore, err := oauthclient.NewGormStore(
-		db.WithContext(startupCtx),
-		oauthclient.WithTableNames("mcp_client_sessions", "mcp_client_auth_requests"),
-	)
-	if err != nil {
-		return fmt.Errorf("setup mcp oauth client store: %w", err)
-	}
-	mcpAtprotoClient := indigooauth.NewPublicConfig(
-		mcpOrigin+oauthserver.MCPClientMetadataPath,
-		mcpOrigin+oauthserver.MCPCallbackPath,
-		[]string{"atproto"},
-	)
-	mcpBroker := oauthserver.NewIndigoBroker(
-		mcpAtprotoClient, mcpAuthStore, mcpIdentityDir, httpx.NewClient(),
-	)
 
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,
@@ -379,8 +359,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		),
 		opensocialStore,
 		emailResolver,
-		mcpBroker,
-		mcpAtprotoClient.ClientMetadata(),
 	)
 	if err != nil {
 		return fmt.Errorf("setup oauth server: %w", err)
@@ -560,14 +538,17 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
 
-	// MCP (Model Context Protocol) server and its own OAuth server.
+	// MCP (Model Context Protocol) server. Its endpoints match what MCP
+	// clients expect (dynamic client registration, no PAR) but share
+	// oauthServer's provider, storage, and sign-in with the atproto endpoints
+	// above — see internal/oauthserver/mcp.go.
 	mux.HandleFunc(oauthserver.MCPMetadataPath, oauthServer.HandleMCPMetadata)
 	mux.HandleFunc(oauthserver.MCPRegisterPath, oauthServer.HandleMCPRegister).Methods("POST")
 	mux.HandleFunc(oauthserver.MCPAuthorizePath, oauthServer.HandleMCPAuthorize).Methods("GET")
 	mux.HandleFunc(oauthserver.MCPAuthorizeSubmitPath, oauthServer.HandleMCPAuthorizeSubmit).Methods("POST")
-	mux.HandleFunc(oauthserver.MCPCallbackPath, oauthServer.HandleMCPCallback)
-	mux.HandleFunc(oauthserver.MCPTokenPath, oauthServer.HandleMCPToken).Methods("POST")
-	mux.HandleFunc(oauthserver.MCPClientMetadataPath, oauthServer.HandleMCPClientMetadata)
+	// MCP-issued tokens share the atproto endpoints' token handler (see
+	// OAuthServer.HandleToken); it tells the two kinds of client apart itself.
+	mux.HandleFunc(oauthserver.MCPTokenPath, oauthServer.HandleToken).Methods("POST")
 	mux.Handle(
 		mcpserver.ProtectedResourceMetadataPath,
 		mcpServer.ProtectedResourceMetadataHandler(),

@@ -266,14 +266,6 @@ func (s *store) createRegisteredClient(ctx context.Context, c *RegisteredClient)
 	return s.db.WithContext(ctx).Create(c).Error
 }
 
-// RekeyRequest moves a pending request row from its temporary key to a new
-// one. The MCP authorize flow uses this to move a pending request from its
-// form id to the atproto login's state token, which is how the callback
-// finds it again.
-func (s *store) RekeyRequest(ctx context.Context, from, to string) error {
-	return s.db.WithContext(ctx).Model(&OAuthRequest{}).Where("key = ?", from).Update("key", to).Error
-}
-
 // GetPublicKey implements rfc7523.RFC7523KeyStorage. issuer is the "iss"
 // claim of the JWT bearer assertion, expected to be a client ID (client
 // metadata URL) present in the hardcoded jwtBearerAllowedClients allow-list.

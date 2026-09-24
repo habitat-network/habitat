@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
@@ -35,7 +34,7 @@ func TestNormalizeLoopbackRedirect(t *testing.T) {
 		secretBytes, &org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
 		pdsclient.NewDummyDirectory("http://pds.url"), dbtestutil.NewDB(t), noop.Meter{}, testStore(t),
 		"https://habitat.example", NewJWTBearerStore(), testOpensocialStore(t),
-		nil, testBroker(t), oauth.ClientMetadata{},
+		nil,
 	)
 	require.NoError(t, err)
 

@@ -6,12 +6,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
@@ -25,16 +24,19 @@ const (
 	mcpTestOrigin   = "https://habitat.example"
 	mcpTestRedirect = "http://127.0.0.1:9/callback"
 	mcpTestVerifier = "test-verifier-test-verifier-test-verifier-1234567"
-	mcpTestDID      = syntax.DID("did:web:alice.example")
+	// mcpTestDID is the DID the dummy PDS always issues tokens for (see
+	// pdsclient.DummyOAuthClient.ExchangeCode); the handle prompt is given
+	// this DID directly as the "handle" to sign in with.
+	mcpTestDID = "did:web:example.did.com"
 )
 
-// mcpTestServer wires an OAuthServer's MCP-shaped endpoints onto an
-// httptest.Server, mirroring how cmd/pear/main.go mounts them.
+// mcpTestServer wires an OAuthServer's MCP-shaped endpoints, plus the shared
+// /oauth-callback and /oauth/token endpoints the MCP sign-in flow lands on,
+// onto an httptest.Server, mirroring how cmd/pear/main.go mounts them.
 type mcpTestServer struct {
 	*OAuthServer
 	http   *httptest.Server
 	client *http.Client
-	broker *fakeBroker
 }
 
 func setupMCPTest(t *testing.T) *mcpTestServer {
@@ -43,21 +45,19 @@ func setupMCPTest(t *testing.T) *mcpTestServer {
 	require.NoError(t, err)
 	secret, err := encrypt.ParseKey(key)
 	require.NoError(t, err)
-	broker := &fakeBroker{did: mcpTestDID}
-	orgStore := testStore(t)
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	pds := login_testutil.NewPassthroughProvider(t)
 	srv, err := NewOAuthServer(
 		secret,
-		&org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t), OrgStore: orgStore},
-		pdsclient.NewDummyDirectory("http://pds.url"),
+		&org.LoginRouter{Pds: pds},
+		dummyDir,
 		dbtestutil.NewDB(t),
 		noop.Meter{},
-		orgStore,
+		testStore(t),
 		mcpTestOrigin,
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
-		broker,
-		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)
 
@@ -66,17 +66,23 @@ func setupMCPTest(t *testing.T) *mcpTestServer {
 	mux.HandleFunc(MCPRegisterPath, srv.HandleMCPRegister)
 	mux.HandleFunc(MCPAuthorizePath, srv.HandleMCPAuthorize)
 	mux.HandleFunc(MCPAuthorizeSubmitPath, srv.HandleMCPAuthorizeSubmit)
-	mux.HandleFunc(MCPCallbackPath, srv.HandleMCPCallback)
-	mux.HandleFunc(MCPTokenPath, srv.HandleMCPToken)
-	httpServer := httptest.NewServer(mux)
+	mux.HandleFunc(MCPTokenPath, srv.HandleToken)
+	mux.HandleFunc("/oauth-callback", srv.HandleCallback)
+	httpServer := httptest.NewTLSServer(mux)
 	t.Cleanup(httpServer.Close)
+	pds.RedirectURI = httpServer.URL + "/oauth-callback"
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	client := httpServer.Client()
+	client.Jar = jar
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	return &mcpTestServer{
 		OAuthServer: srv,
 		http:        httpServer,
-		broker:      broker,
-		client: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		}},
+		client:      client,
 	}
 }
 
@@ -109,7 +115,7 @@ func mcpAuthorizeQuery(origin, clientID string) url.Values {
 	}
 }
 
-func (ts *mcpTestServer) startAuthorize(t *testing.T, clientID string) string {
+func (ts *mcpTestServer) startAuthorize(t *testing.T, clientID string) {
 	t.Helper()
 	resp, err := ts.client.Get(ts.http.URL + MCPAuthorizePath + "?" + mcpAuthorizeQuery(mcpTestOrigin, clientID).Encode())
 	require.NoError(t, err)
@@ -118,14 +124,11 @@ func (ts *mcpTestServer) startAuthorize(t *testing.T, clientID string) string {
 	loc, err := resp.Location()
 	require.NoError(t, err)
 	require.Equal(t, MCPAuthorizePagePath, loc.Path)
-	requestID := loc.Query().Get("request_id")
-	require.NotEmpty(t, requestID)
-	return requestID
 }
 
-func (ts *mcpTestServer) submitHandle(t *testing.T, requestID, handle string) (int, map[string]string) {
+func (ts *mcpTestServer) submitHandle(t *testing.T, handle string) (int, map[string]string) {
 	t.Helper()
-	body, err := json.Marshal(map[string]string{"requestId": requestID, "handle": handle})
+	body, err := json.Marshal(map[string]string{"handle": handle})
 	require.NoError(t, err)
 	resp, err := ts.client.Post(ts.http.URL+MCPAuthorizeSubmitPath, "application/json", bytes.NewReader(body))
 	require.NoError(t, err)
@@ -135,17 +138,24 @@ func (ts *mcpTestServer) submitHandle(t *testing.T, requestID, handle string) (i
 	return resp.StatusCode, out
 }
 
-func (ts *mcpTestServer) authorize(t *testing.T, clientID string) {
+// authorize drives the flow from the client's initial authorize request
+// through the handle prompt and the (fake) PDS login, and returns the
+// response that redirects back to the MCP client with an authorization code.
+// The redirect HandleMCPAuthorizeSubmit returns points at the passthrough
+// login provider's own test server, which immediately redirects again to
+// this server's /oauth-callback — hence the two hops.
+func (ts *mcpTestServer) authorize(t *testing.T, clientID string) *http.Response {
 	t.Helper()
-	requestID := ts.startAuthorize(t, clientID)
-	status, out := ts.submitHandle(t, requestID, "@alice.example")
+	ts.startAuthorize(t, clientID)
+	status, out := ts.submitHandle(t, mcpTestDID)
 	require.Equal(t, http.StatusOK, status, out)
-	require.Equal(t, "https://pds.example/authorize?request_uri=urn:x", out["redirect"])
-}
-
-func (ts *mcpTestServer) callback(t *testing.T, q url.Values) *http.Response {
-	t.Helper()
-	resp, err := ts.client.Get(ts.http.URL + MCPCallbackPath + "?" + q.Encode())
+	resp, err := ts.client.Get(out["redirect"])
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+	loc, err := resp.Location()
+	require.NoError(t, err)
+	resp, err = ts.client.Get(loc.String())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = resp.Body.Close() })
 	return resp
@@ -164,10 +174,8 @@ func (ts *mcpTestServer) token(t *testing.T, form url.Values) (int, map[string]a
 func TestMCPOAuthFullFlow(t *testing.T) {
 	ts := setupMCPTest(t)
 	clientID := ts.register(t)
-	ts.authorize(t, clientID)
-	require.Equal(t, []string{"alice.example"}, ts.broker.identifiers, "leading @ is trimmed")
 
-	resp := ts.callback(t, url.Values{"state": {"atproto-state-1"}, "code": {"pds-code"}, "iss": {"https://pds.example"}})
+	resp := ts.authorize(t, clientID)
 	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 	loc, err := resp.Location()
 	require.NoError(t, err)
@@ -191,7 +199,7 @@ func TestMCPOAuthFullFlow(t *testing.T) {
 	cred, ok, err := ts.ValidateRaw(t.Context(), access)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, mcpTestDID, cred.Subject)
+	require.Equal(t, mcpTestDID, cred.Subject.String())
 
 	t.Run("refresh token grant issues a valid token", func(t *testing.T) {
 		status, tok := ts.token(t, url.Values{
@@ -201,7 +209,7 @@ func TestMCPOAuthFullFlow(t *testing.T) {
 		cred, ok, err := ts.ValidateRaw(t.Context(), tok["access_token"].(string))
 		require.NoError(t, err)
 		require.True(t, ok)
-		require.Equal(t, mcpTestDID, cred.Subject)
+		require.Equal(t, mcpTestDID, cred.Subject.String())
 	})
 
 	t.Run("authorization code is single use", func(t *testing.T) {
@@ -216,25 +224,14 @@ func TestMCPOAuthFullFlow(t *testing.T) {
 func TestMCPOAuthWrongPKCEVerifierRejected(t *testing.T) {
 	ts := setupMCPTest(t)
 	clientID := ts.register(t)
-	ts.authorize(t, clientID)
-	loc, err := ts.callback(t, url.Values{"state": {"atproto-state-1"}, "code": {"c"}, "iss": {"x"}}).Location()
+	resp := ts.authorize(t, clientID)
+	loc, err := resp.Location()
 	require.NoError(t, err)
 	status, _ := ts.token(t, url.Values{
 		"grant_type": {"authorization_code"}, "code": {loc.Query().Get("code")}, "client_id": {clientID},
 		"redirect_uri": {mcpTestRedirect}, "code_verifier": {"a-different-verifier-a-different-verifier-1234567"},
 	})
 	require.NotEqual(t, http.StatusOK, status)
-}
-
-func TestMCPOAuthDeniedLoginRedirectsWithError(t *testing.T) {
-	ts := setupMCPTest(t)
-	ts.authorize(t, ts.register(t))
-	resp := ts.callback(t, url.Values{"state": {"atproto-state-1"}, "error": {"access_denied"}})
-	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
-	loc, err := resp.Location()
-	require.NoError(t, err)
-	require.Equal(t, "access_denied", loc.Query().Get("error"))
-	require.Equal(t, "client-state-123", loc.Query().Get("state"))
 }
 
 // authorizeOutcome is either the pear-pages redirect for a valid request, or
@@ -300,17 +297,13 @@ func TestMCPOAuthAuthorizeValidation(t *testing.T) {
 
 func TestMCPOAuthHandlePromptErrors(t *testing.T) {
 	ts := setupMCPTest(t)
-	requestID := ts.startAuthorize(t, ts.register(t))
+	ts.startAuthorize(t, ts.register(t))
 
-	ts.broker.failStart = true
-	status, out := ts.submitHandle(t, requestID, "nobody.example")
+	status, out := ts.submitHandle(t, "not a valid handle or did")
 	require.Equal(t, http.StatusBadRequest, status)
 	require.Contains(t, out["message"], "sign in with that handle")
 
-	status, _ = ts.submitHandle(t, "bogus-request-id", "a.example")
-	require.Equal(t, http.StatusBadRequest, status)
-
-	status, _ = ts.submitHandle(t, requestID, "")
+	status, _ = ts.submitHandle(t, "")
 	require.Equal(t, http.StatusBadRequest, status, "an empty handle is rejected")
 }
 
@@ -348,38 +341,4 @@ func TestMCPOAuthMetadata(t *testing.T) {
 	require.Equal(t, mcpTestOrigin+MCPRegisterPath, md["registration_endpoint"])
 	require.Equal(t, mcpTestOrigin+MCPAuthorizePath, md["authorization_endpoint"])
 	require.NotContains(t, md, "scopes_supported", "clients shouldn't be told to request a scope")
-}
-
-// TestMCPTokensInterchangeableWithAtprotoEndpoints proves that a single
-// OAuthServer's MCP and atproto endpoint sets share one provider and
-// storage: a token minted through the MCP token endpoint validates the same
-// way a token minted through the atproto /oauth/token endpoint would, and
-// both are introspected by the same ValidateRaw.
-func TestMCPTokensInterchangeableWithAtprotoEndpoints(t *testing.T) {
-	ts := setupMCPTest(t)
-
-	atprotoMux := http.NewServeMux()
-	atprotoMux.HandleFunc("/authorize", ts.HandleAuthorize)
-	atprotoMux.HandleFunc("/oauth-callback", ts.HandleCallback)
-	atprotoMux.HandleFunc("/token", ts.HandleToken)
-	atprotoServer := httptest.NewTLSServer(atprotoMux)
-	t.Cleanup(atprotoServer.Close)
-
-	clientID := ts.register(t)
-	ts.authorize(t, clientID)
-	resp := ts.callback(t, url.Values{"state": {"atproto-state-1"}, "code": {"c"}, "iss": {"i"}})
-	loc, err := resp.Location()
-	require.NoError(t, err)
-	status, tok := ts.token(t, url.Values{
-		"grant_type": {"authorization_code"}, "code": {loc.Query().Get("code")}, "client_id": {clientID},
-		"redirect_uri": {mcpTestRedirect}, "code_verifier": {mcpTestVerifier},
-	})
-	require.Equal(t, http.StatusOK, status, tok)
-
-	// A token minted by the MCP token endpoint validates via the same
-	// OAuthServer.ValidateRaw the atproto endpoints' Validate uses.
-	credInfo, ok, err := ts.ValidateRaw(t.Context(), tok["access_token"].(string))
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, mcpTestDID, credInfo.Subject)
 }

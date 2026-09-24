@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -83,13 +82,6 @@ type OAuthServer struct {
 
 	// emailResolver, if set, lets login hints be work emails.
 	emailResolver EmailIdentityResolver
-
-	// mcpBroker runs the atproto login the MCP endpoints' handle prompt uses
-	// (see HandleMCPAuthorizeSubmit). mcpClientMetadata is this server's own
-	// client identity when it acts as an atproto OAuth client against a user's
-	// PDS during that login.
-	mcpBroker         Broker
-	mcpClientMetadata oauth.ClientMetadata
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -111,6 +103,10 @@ type OAuthServer struct {
 //     URL (used to validate the "aud" claim of JWT Bearer assertions) are built
 //   - emailResolver: resolves work-email login hints; nil disables them
 //
+// loginRouter also drives the sign-in step for the MCP endpoints' handle
+// prompt (see HandleMCPAuthorizeSubmit): both endpoint sets authenticate the
+// user the same way, through whichever login method their org configures.
+//
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
 	secret []byte,
@@ -123,8 +119,6 @@ func NewOAuthServer(
 	approvedJwtBearerClients ApprovedClientStore,
 	opensocialStore *opensocial.Store,
 	emailResolver EmailIdentityResolver,
-	mcpBroker Broker,
-	mcpClientMetadata oauth.ClientMetadata,
 ) (*OAuthServer, error) {
 	config := &fosite.Config{
 		GlobalSecret:               secret,
@@ -186,16 +180,14 @@ func NewOAuthServer(
 			compose.RFC7523AssertionGrantFactory,
 			compose.PushedAuthorizeHandlerFactory,
 		),
-		loginRouter:       loginRouter,
-		sessionStore:      cookieStore,
-		directory:         directory,
-		storage:           storage,
-		orgStore:          orgStore,
-		issuer:            issuer,
-		opensocialStore:   opensocialStore,
-		emailResolver:     emailResolver,
-		mcpBroker:         mcpBroker,
-		mcpClientMetadata: mcpClientMetadata,
+		loginRouter:     loginRouter,
+		sessionStore:    cookieStore,
+		directory:       directory,
+		storage:         storage,
+		orgStore:        orgStore,
+		issuer:          issuer,
+		opensocialStore: opensocialStore,
+		emailResolver:   emailResolver,
 	}, nil
 }
 
@@ -464,12 +456,26 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Nothing for the user to approve: finish the flow immediately instead of
 	// bouncing through the consent page.
 	if len(requester.GetRequestedScopes()) == 0 {
-		o.finishAuthorize(ctx, w, requestKey, requester, o.issuer)
+		o.finishAuthorize(ctx, w, requestKey, requester, o.issuerFor(requester.GetClient()))
 		return
 	}
 
 	http.Redirect(w, r, consentPath, http.StatusSeeOther)
 	o.metrics.callbackSuccess()
+}
+
+// issuerFor returns the "iss" this server should identify itself as for an
+// authorize response, which depends on which endpoint set the client
+// belongs to: a client dynamically registered through the MCP endpoints
+// (see HandleMCPRegister) gets the MCP issuer, everything else (atproto
+// client-id metadata and JWT-bearer allow-listed clients) gets the atproto
+// one. The two endpoint sets otherwise share this exact same authorize/token
+// pipeline — see HandleCallback and HandleToken.
+func (o *OAuthServer) issuerFor(client fosite.Client) string {
+	if _, ok := client.(*dynamicClient); ok {
+		return o.MCPIssuer()
+	}
+	return o.issuer
 }
 
 // HandleToken processes OAuth 2.0 token requests from the client.
@@ -542,11 +548,16 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.SetExtra("sub", req.GetSession().GetSubject())
 	// The atproto OAuth client requires DPoP-bound tokens and rejects any
-	// token_type other than "DPoP". Habitat does not yet enforce DPoP
-	// server-side (tokens remain bearer tokens in practice), but we advertise
-	// the DPoP token type so atproto clients accept the response.
+	// token_type other than "DPoP"; MCP clients expect plain bearer tokens.
+	// Habitat does not yet enforce DPoP server-side (tokens remain bearer
+	// tokens in practice either way), but we advertise the type each client
+	// kind expects.
 	// TODO: implement real DPoP proof validation and key binding.
-	resp.SetTokenType("DPoP")
+	tokenType := "DPoP"
+	if _, ok := req.GetClient().(*dynamicClient); ok {
+		tokenType = "Bearer"
+	}
+	resp.SetTokenType(tokenType)
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
@@ -584,7 +595,7 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	o.finishAuthorize(ctx, w, requestKey, requester, o.issuer)
+	o.finishAuthorize(ctx, w, requestKey, requester, o.issuerFor(requester.GetClient()))
 }
 
 // finishAuthorize grants the requester's requested scopes and writes the

@@ -10,14 +10,15 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 
 // MCP OAuth handle prompt. pear's MCP authorization endpoint
-// (internal/mcpoauth) redirects here once it has validated the client's
-// request, carrying that request's id and the requesting client's name as
-// search params. Submitting posts the handle back to
-// /mcp/oauth/authorize/submit, which starts the standard atproto OAuth flow
-// against that account's PDS and returns the URL to send the browser to next.
+// (internal/oauthserver, OAuthServer.HandleMCPAuthorize) redirects here once
+// it has validated the client's request, carrying the requesting client's
+// name as search params, and identifies the pending request itself via a
+// cookie (not a param here). Submitting posts the handle back to
+// /mcp/oauth/authorize/submit, which signs the user in the same way the
+// regular Habitat login flow does and returns the URL to send the browser to
+// next.
 export const Route = createFileRoute("/login/mcp")({
   validateSearch: z.object({
-    request_id: z.string().default(""),
     client_name: z.string().default(""),
     login_hint: z.string().default(""),
   }),
@@ -27,8 +28,7 @@ export const Route = createFileRoute("/login/mcp")({
 type FormValues = { handle: string };
 
 function McpLoginPage() {
-  const { request_id: requestId, client_name: clientName, login_hint: loginHint } =
-    Route.useSearch();
+  const { client_name: clientName, login_hint: loginHint } = Route.useSearch();
 
   const {
     register,
@@ -42,7 +42,7 @@ function McpLoginPage() {
       const res = await fetch("/mcp/oauth/authorize/submit", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ requestId, handle }),
+        body: JSON.stringify({ handle }),
       });
       const body = (await res.json()) as {
         redirect?: string;
