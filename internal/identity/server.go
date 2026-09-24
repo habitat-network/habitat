@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/did"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -41,12 +42,33 @@ type Server struct {
 	pdsForwarding *forwarding.PDSForwarding
 	domain        string
 	httpClient    *http.Client
+	// emailResolver, if set, lets identifiers that aren't handles/DIDs
+	// resolve as work emails (see EmailResolver).
+	emailResolver *EmailResolver
 }
 
 func WithClient(client *http.Client) utils.Opt[Server] {
 	return func(s *Server) {
 		s.httpClient = client
 	}
+}
+
+// WithEmailResolver lets resolveIdentity/resolveHandle accept a work email in
+// place of a handle, resolving it (and minting on first sight) via r.
+func WithEmailResolver(r *EmailResolver) utils.Opt[Server] {
+	return func(s *Server) {
+		s.emailResolver = r
+	}
+}
+
+// parseEmail reports whether identifier should resolve as a work email:
+// email resolution is configured and identifier parses as one.
+func (s *Server) parseEmail(identifier string) (emaildomain.Email, bool) {
+	if s.emailResolver == nil {
+		return "", false
+	}
+	email, err := emaildomain.ParseEmail(identifier)
+	return email, err == nil
 }
 
 // NewServer constructs the hive HTTP server. The validator is required to
@@ -205,12 +227,20 @@ func (s *Server) ResolveHandle(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: handle", nil)
 		return
 	}
+	var ident *identity.Identity
 	handle, err := syntax.ParseHandle(handleStr)
-	if err != nil {
+	if err == nil {
+		ident, err = s.directory.LookupHandle(ctx, handle)
+	} else if email, ok := s.parseEmail(handleStr); ok {
+		ident, err = s.emailResolver.ResolveEmailIdentity(ctx, email)
+		if errors.Is(err, identity.ErrDIDNotFound) {
+			// an email whose domain isn't mapped reads as an unknown handle
+			err = identity.ErrHandleNotFound
+		}
+	} else {
 		httpx.WriteInvalidRequest(ctx, w, "invalid handle", err)
 		return
 	}
-	ident, err := s.directory.LookupHandle(ctx, handle)
 	if errors.Is(err, identity.ErrHandleNotFound) {
 		httpx.WriteError(ctx, w, "HandleNotFound", "handle not found", http.StatusNotFound)
 		return
@@ -232,12 +262,16 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: identifier", nil)
 		return
 	}
+	var ident *identity.Identity
 	atid, err := syntax.ParseAtIdentifier(identifier)
-	if err != nil {
+	if err == nil {
+		ident, err = s.directory.Lookup(ctx, atid)
+	} else if email, ok := s.parseEmail(identifier); ok {
+		ident, err = s.emailResolver.ResolveEmailIdentity(ctx, email)
+	} else {
 		httpx.WriteInvalidRequest(ctx, w, "invalid identifier", err)
 		return
 	}
-	ident, err := s.directory.Lookup(ctx, atid)
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		httpx.WriteError(ctx, w, "DidNotFound", "DID not found", http.StatusNotFound)
 		return

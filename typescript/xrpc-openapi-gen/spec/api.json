@@ -2221,6 +2221,125 @@
         }
       }
     },
+    "/network.habitat.emaildomain.createOrg": {
+      "post": {
+        "tags": [
+          "network.habitat.emaildomain"
+        ],
+        "summary": "network.habitat.emaildomain.createOrg",
+        "description": "Create a new opensocial-backed org mapped to an email domain. The org starts with no members: the first user to sign in with a Google-verified email at the domain becomes its admin, and later ones become members. Does not require authentication.",
+        "operationId": "network.habitat.emaildomain.createOrg",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "handle",
+                  "domain"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "description": "Subdomain handle for the org (alphanumeric, 1-50 chars)."
+                  },
+                  "domain": {
+                    "type": "string",
+                    "description": "Email domain whose users sign in to this org, e.g. \"acme.com\"."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "org"
+                  ],
+                  "properties": {
+                    "org": {
+                      "type": "string",
+                      "description": "DID of the created org.",
+                      "format": "did"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "DomainTaken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.groups.addMember": {
       "post": {
         "tags": [
@@ -9646,6 +9765,9 @@
     },
     {
       "name": "network.habitat.docs"
+    },
+    {
+      "name": "network.habitat.emaildomain"
     },
     {
       "name": "network.habitat.group"

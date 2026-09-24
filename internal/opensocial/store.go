@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/habitat-network/habitat/api/habitat"
@@ -66,131 +67,14 @@ func NewStore(
 func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (string, error) {
 	var orgDID syntax.DID
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		orgID, err := s.hive.WithTx(tx).MintOrgIdentity(ctx, handle)
+		orgID, err := s.createOrgShell(ctx, tx, handle)
 		if err != nil {
-			return fmt.Errorf("mint org identity: %w", err)
+			return err
 		}
-		spacesStoreTx := s.spacesStore.WithTx(tx)
-		aboutSpace, err := spacesStoreTx.
-			CreateSpace(ctx, orgID.DID, AboutSpaceType, "self")
-		if err != nil {
-			return fmt.Errorf("create profile space: %w", err)
-		}
-		recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialProfile{
-			Name:      handle,
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		})
-		if err != nil {
-			return fmt.Errorf("marshal profile record: %w", err)
-		}
-		if _, _, err = spacesStoreTx.PutRecord(
-			ctx, aboutSpace, orgID.DID, "community.opensocial.profile", "self",
-			recordBytes,
+		if err := putMembership(
+			ctx, s.spacesStore.WithTx(tx), orgID.DID, creator, []string{AdminRoleRkey},
 		); err != nil {
-			return fmt.Errorf("put profile record: %w", err)
-		}
-		membersSpace, err := spacesStoreTx.CreateSpace(
-			ctx, orgID.DID, MembersSpaceType, "self",
-		)
-		if err != nil {
-			return fmt.Errorf("create members space: %w", err)
-		}
-		recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialRole{
-			Name:      "Admin",
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		})
-		if err != nil {
-			return fmt.Errorf("marshal role record: %w", err)
-		}
-		if _, _, err = spacesStoreTx.PutRecord(
-			ctx, membersSpace, orgID.DID, "community.opensocial.role",
-			AdminRoleRkey,
-			recordBytes,
-		); err != nil {
-			return fmt.Errorf("put role record: %w", err)
-		}
-		recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialRole{
-			Name:      "Member",
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		})
-		if err != nil {
-			return fmt.Errorf("marshal role record: %w", err)
-		}
-		if _, _, err = spacesStoreTx.PutRecord(
-			ctx, membersSpace, orgID.DID, "community.opensocial.role",
-			MemberRoleRkey,
-			recordBytes,
-		); err != nil {
-			return fmt.Errorf("put role record: %w", err)
-		}
-		recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialMembership{
-			Roles:     []string{AdminRoleRkey},
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		})
-		if err != nil {
-			return fmt.Errorf("marshal membership record: %w", err)
-		}
-		if _, _, err = spacesStoreTx.PutRecord(
-			ctx, membersSpace, orgID.DID, "community.opensocial.membership",
-			syntax.RecordKey(creator),
-			recordBytes,
-		); err != nil {
-			return fmt.Errorf("put membership record: %w", err)
-		}
-		recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
-			Roles:     []string{MemberRoleRkey, AdminRoleRkey},
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		})
-		if err != nil {
-			return fmt.Errorf("marshal access record: %w", err)
-		}
-		if _, _, err = spacesStoreTx.PutRecord(
-			ctx, membersSpace, orgID.DID, "community.opensocial.access", "self",
-			recordBytes,
-		); err != nil {
-			return fmt.Errorf("put access record: %w", err)
-		}
-		recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
-			Roles:     []string{MemberRoleRkey, AdminRoleRkey},
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		})
-		if err != nil {
-			return fmt.Errorf("marshal access record: %w", err)
-		}
-		if _, _, err = spacesStoreTx.PutRecord(
-			ctx, aboutSpace, orgID.DID, "community.opensocial.access", "self",
-			recordBytes,
-		); err != nil {
-			return fmt.Errorf("put access record: %w", err)
-		}
-		// The admin role starts out bound to every standardized action, and
-		// able to assign/eject either built-in role; the member role starts
-		// with no actions bound. Communities can rebind both via
-		// updatePermissions once they hold the community.configure action.
-		permissionsBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialPermissions{
-			Bindings: []opensocial_api.CommunityOpensocialPermissionsActionBinding{
-				{Action: string(ActionInvite), Roles: []string{AdminRoleRkey}},
-				{Action: string(ActionEject), Roles: []string{AdminRoleRkey}},
-				{Action: string(ActionRoleAssign), Roles: []string{AdminRoleRkey}},
-				{Action: string(ActionSpaceCreate), Roles: []string{AdminRoleRkey}},
-				{Action: string(ActionSpaceConfigure), Roles: []string{AdminRoleRkey}},
-				{Action: string(ActionSpaceDelete), Roles: []string{AdminRoleRkey}},
-				{Action: string(ActionCommunityConfigure), Roles: []string{AdminRoleRkey}},
-				{Action: string(ActionMcpConfigure), Roles: []string{AdminRoleRkey}},
-			},
-			Assignable: []opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
-				{Role: AdminRoleRkey, Roles: []string{AdminRoleRkey, MemberRoleRkey}},
-			},
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		})
-		if err != nil {
-			return fmt.Errorf("marshal permissions record: %w", err)
-		}
-		if _, _, err = spacesStoreTx.PutRecord(
-			ctx, membersSpace, orgID.DID, PermissionsCollection, "self",
-			permissionsBytes,
-		); err != nil {
-			return fmt.Errorf("put permissions record: %w", err)
+			return err
 		}
 		orgDID = orgID.DID
 		return nil
@@ -198,6 +82,187 @@ func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 		return "", fmt.Errorf("new org: %w", err)
 	}
 	return orgDID.String(), nil
+}
+
+// NewOrgWithoutCreator creates an org's spaces, built-in roles, access, and
+// permissions records exactly like NewOrg, but writes no initial membership
+// — used when the org will be populated by domain-based auto-provisioning
+// (see ProvisionMember) rather than by an existing DID creating it directly.
+func (s *Store) NewOrgWithoutCreator(ctx context.Context, handle string) (string, error) {
+	var orgDID syntax.DID
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		orgID, err := s.createOrgShell(ctx, tx, handle)
+		if err != nil {
+			return err
+		}
+		orgDID = orgID.DID
+		return nil
+	}); err != nil {
+		return "", fmt.Errorf("new org without creator: %w", err)
+	}
+	return orgDID.String(), nil
+}
+
+// WithTx returns a copy of the store whose writes run on tx, so callers can
+// compose its operations with other stores' writes in one transaction.
+func (s *Store) WithTx(tx *gorm.DB) *Store {
+	return &Store{
+		db:          tx,
+		spacesStore: s.spacesStore.WithTx(tx),
+		blobStore:   s.blobStore,
+		hive:        s.hive.WithTx(tx),
+	}
+}
+
+// createOrgShell mints the org identity and writes its about/members spaces,
+// profile, built-in roles, access, and permissions records within tx — every
+// part of org creation except its initial membership.
+func (s *Store) createOrgShell(
+	ctx context.Context,
+	tx *gorm.DB,
+	handle string,
+) (*identity.Identity, error) {
+	orgID, err := s.hive.WithTx(tx).MintOrgIdentity(ctx, handle)
+	if err != nil {
+		return nil, fmt.Errorf("mint org identity: %w", err)
+	}
+	spacesStoreTx := s.spacesStore.WithTx(tx)
+	aboutSpace, err := spacesStoreTx.
+		CreateSpace(ctx, orgID.DID, AboutSpaceType, "self")
+	if err != nil {
+		return nil, fmt.Errorf("create profile space: %w", err)
+	}
+	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialProfile{
+		Name:      handle,
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal profile record: %w", err)
+	}
+	if _, _, err = spacesStoreTx.PutRecord(
+		ctx, aboutSpace, orgID.DID, "community.opensocial.profile", "self",
+		recordBytes,
+	); err != nil {
+		return nil, fmt.Errorf("put profile record: %w", err)
+	}
+	membersSpace, err := spacesStoreTx.CreateSpace(
+		ctx, orgID.DID, MembersSpaceType, "self",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create members space: %w", err)
+	}
+	recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialRole{
+		Name:      "Admin",
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal role record: %w", err)
+	}
+	if _, _, err = spacesStoreTx.PutRecord(
+		ctx, membersSpace, orgID.DID, "community.opensocial.role",
+		AdminRoleRkey,
+		recordBytes,
+	); err != nil {
+		return nil, fmt.Errorf("put role record: %w", err)
+	}
+	recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialRole{
+		Name:      "Member",
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal role record: %w", err)
+	}
+	if _, _, err = spacesStoreTx.PutRecord(
+		ctx, membersSpace, orgID.DID, "community.opensocial.role",
+		MemberRoleRkey,
+		recordBytes,
+	); err != nil {
+		return nil, fmt.Errorf("put role record: %w", err)
+	}
+	recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
+		Roles:     []string{MemberRoleRkey, AdminRoleRkey},
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal access record: %w", err)
+	}
+	if _, _, err = spacesStoreTx.PutRecord(
+		ctx, membersSpace, orgID.DID, "community.opensocial.access", "self",
+		recordBytes,
+	); err != nil {
+		return nil, fmt.Errorf("put access record: %w", err)
+	}
+	recordBytes, err = spaces.MarshalRecord(opensocial_api.CommunityOpensocialAccess{
+		Roles:     []string{MemberRoleRkey, AdminRoleRkey},
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal access record: %w", err)
+	}
+	if _, _, err = spacesStoreTx.PutRecord(
+		ctx, aboutSpace, orgID.DID, "community.opensocial.access", "self",
+		recordBytes,
+	); err != nil {
+		return nil, fmt.Errorf("put access record: %w", err)
+	}
+	// The admin role starts out bound to every standardized action, and
+	// able to assign/eject either built-in role; the member role starts
+	// with no actions bound. Communities can rebind both via
+	// updatePermissions once they hold the community.configure action.
+	permissionsBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialPermissions{
+		Bindings: []opensocial_api.CommunityOpensocialPermissionsActionBinding{
+			{Action: string(ActionInvite), Roles: []string{AdminRoleRkey}},
+			{Action: string(ActionEject), Roles: []string{AdminRoleRkey}},
+			{Action: string(ActionRoleAssign), Roles: []string{AdminRoleRkey}},
+			{Action: string(ActionSpaceCreate), Roles: []string{AdminRoleRkey}},
+			{Action: string(ActionSpaceConfigure), Roles: []string{AdminRoleRkey}},
+			{Action: string(ActionSpaceDelete), Roles: []string{AdminRoleRkey}},
+			{Action: string(ActionCommunityConfigure), Roles: []string{AdminRoleRkey}},
+			{Action: string(ActionMcpConfigure), Roles: []string{AdminRoleRkey}},
+		},
+		Assignable: []opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
+			{Role: AdminRoleRkey, Roles: []string{AdminRoleRkey, MemberRoleRkey}},
+		},
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal permissions record: %w", err)
+	}
+	if _, _, err = spacesStoreTx.PutRecord(
+		ctx, membersSpace, orgID.DID, PermissionsCollection, "self",
+		permissionsBytes,
+	); err != nil {
+		return nil, fmt.Errorf("put permissions record: %w", err)
+	}
+	return orgID, nil
+}
+
+// putMembership writes member's community.opensocial.membership record,
+// authored by the org, into the org's members space.
+func putMembership(
+	ctx context.Context,
+	spacesStore spaces.Store,
+	orgDID, member syntax.DID,
+	roles []string,
+) error {
+	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialMembership{
+		Roles:     roles,
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal membership record: %w", err)
+	}
+	if _, _, err = spacesStore.PutRecord(
+		ctx,
+		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
+		orgDID,
+		MembershipCollection,
+		syntax.RecordKey(member),
+		recordBytes,
+	); err != nil {
+		return fmt.Errorf("put membership record: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) CreateSpace(
