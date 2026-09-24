@@ -383,7 +383,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	simpleStore := simplespace.NewStore(db, spacesStore, permStore)
 
 	// Store for org-configured MCP servers and per-user Nango connections.
-	nangoClient := nango.NewClient(cmd.String(fNangoSecretKey), httpx.NewClient())
+	nangoSecretKey := cmd.String(fNangoSecretKey)
+	if nangoSecretKey == "" {
+		slog.WarnContext(ctx, "nango secret key not set; MCP server configuration calls will fail")
+	}
+	nangoClient := nango.NewClient(nangoSecretKey, httpx.NewClient())
 	mcpGatewayStore, err := mcpgateway.NewStore(
 		nangoClient,
 		opensocialStore,
@@ -429,7 +433,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
-	mcpServer := mcpserver.New(oauthServer, spacesStore, permStore, nangoClient, opensocialStore, "https://"+domain)
+	mcpServer := mcpserver.New(
+		oauthServer,
+		spacesStore,
+		permStore,
+		nangoClient,
+		opensocialStore,
+		"https://"+domain,
+	)
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,

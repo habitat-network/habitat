@@ -43,7 +43,8 @@ func (p *PearServer) AddServer(w http.ResponseWriter, r *http.Request) {
 	id, sessionToken, err := p.mcpGatewayStore.BeginAddServer(
 		ctx, org, credInfo.Subject, input.Name, input.Description,
 	)
-	if errors.Is(err, mcpgateway.ErrInvalidServerName) || errors.Is(err, mcpgateway.ErrServerNameTaken) {
+	if errors.Is(err, mcpgateway.ErrInvalidServerName) ||
+		errors.Is(err, mcpgateway.ErrServerNameTaken) {
 		httpx.WriteInvalidRequest(ctx, w, "begin add mcp server", err)
 		return
 	} else if err != nil {

@@ -139,10 +139,9 @@ func getFlags() []cli.Flag {
 			Sources: getSources(fBlobBucket),
 		},
 		&cli.StringFlag{
-			Name:     fNangoSecretKey,
-			Usage:    "Secret key for the Nango environment brokering MCP server OAuth connections",
-			Required: true,
-			Sources:  getSources(fNangoSecretKey),
+			Name:    fNangoSecretKey,
+			Usage:   "Secret key for the Nango environment brokering MCP server OAuth connections. If unset, MCP server configuration is unavailable.",
+			Sources: getSources(fNangoSecretKey),
 		},
 	}
 }

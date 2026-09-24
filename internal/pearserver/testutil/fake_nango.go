@@ -73,7 +73,10 @@ func (f *FakeNangoClient) ListConnections(
 	return conns, nil
 }
 
-func (f *FakeNangoClient) DeleteConnection(ctx context.Context, connectionID, providerConfigKey string) error {
+func (f *FakeNangoClient) DeleteConnection(
+	ctx context.Context,
+	connectionID, providerConfigKey string,
+) error {
 	if f.Connections[connectionID].ProviderConfigKey != providerConfigKey {
 		return errors.New("connection not found")
 	}

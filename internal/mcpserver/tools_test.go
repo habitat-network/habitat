@@ -135,7 +135,14 @@ func TestMCPServerToolsList_MergesConnectedServerTools(t *testing.T) {
 	orgRecords := newFakeOrgMcpServerStore()
 	orgRecords.add(orgID, "cloudflare", "nango-key-1")
 
-	srv := New(fakeTokens{}, spacesStore, permStore, nangoClient, orgRecords, "https://habitat.example")
+	srv := New(
+		fakeTokens{},
+		spacesStore,
+		permStore,
+		nangoClient,
+		orgRecords,
+		"https://habitat.example",
+	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
 
@@ -168,7 +175,14 @@ func TestMCPServerToolsList_SkipsUnreachableConnectedServer(t *testing.T) {
 	orgRecords := newFakeOrgMcpServerStore()
 	orgRecords.add(orgID, "cloudflare", "nango-key-1")
 
-	srv := New(fakeTokens{}, spacesStore, permStore, nangoClient, orgRecords, "https://habitat.example")
+	srv := New(
+		fakeTokens{},
+		spacesStore,
+		permStore,
+		nangoClient,
+		orgRecords,
+		"https://habitat.example",
+	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
 
@@ -199,7 +213,12 @@ func TestMCPServerToolsList_SkipsConnectionWithNoMatchingRecord(t *testing.T) {
 	// No matching org record registered (e.g. it was since removed).
 
 	srv := New(
-		fakeTokens{}, spacesStore, permStore, nangoClient, newFakeOrgMcpServerStore(), "https://habitat.example",
+		fakeTokens{},
+		spacesStore,
+		permStore,
+		nangoClient,
+		newFakeOrgMcpServerStore(),
+		"https://habitat.example",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
@@ -230,7 +249,14 @@ func TestMCPServerToolsCall_ProxiesToConnectedServer(t *testing.T) {
 	orgRecords := newFakeOrgMcpServerStore()
 	orgRecords.add(orgID, "cloudflare", "nango-key-1")
 
-	srv := New(fakeTokens{}, spacesStore, permStore, nangoClient, orgRecords, "https://habitat.example")
+	srv := New(
+		fakeTokens{},
+		spacesStore,
+		permStore,
+		nangoClient,
+		orgRecords,
+		"https://habitat.example",
+	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
 

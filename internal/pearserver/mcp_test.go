@@ -68,7 +68,11 @@ func TestServer_AddServer(t *testing.T) {
 		var completeOut habitat.NetworkHabitatMcpCompleteAddServerOutput
 		code = client.Procedure(
 			ts.Server.CompleteAddServer,
-			habitat.NetworkHabitatMcpCompleteAddServerInput{Org: orgDID, Id: addOut.Id, Name: "Linear"},
+			habitat.NetworkHabitatMcpCompleteAddServerInput{
+				Org:  orgDID,
+				Id:   addOut.Id,
+				Name: "Linear",
+			},
 			&completeOut,
 		)
 		require.Equal(t, http.StatusOK, code)
@@ -95,7 +99,11 @@ func TestServer_AddServer(t *testing.T) {
 		var completeOut habitat.NetworkHabitatMcpCompleteAddServerOutput
 		code = client.Procedure(
 			ts.Server.CompleteAddServer,
-			habitat.NetworkHabitatMcpCompleteAddServerInput{Org: orgDID, Id: addOut.Id, Name: "Linear"},
+			habitat.NetworkHabitatMcpCompleteAddServerInput{
+				Org:  orgDID,
+				Id:   addOut.Id,
+				Name: "Linear",
+			},
 			&completeOut,
 		)
 		require.Equal(t, http.StatusBadRequest, code)
@@ -152,7 +160,11 @@ func TestServer_ListServersAndAuthorize(t *testing.T) {
 		var completeOut habitat.NetworkHabitatMcpCompleteAddServerOutput
 		code = client.Procedure(
 			adminTS.Server.CompleteAddServer,
-			habitat.NetworkHabitatMcpCompleteAddServerInput{Org: orgDID, Id: addOut.Id, Name: "Linear"},
+			habitat.NetworkHabitatMcpCompleteAddServerInput{
+				Org:  orgDID,
+				Id:   addOut.Id,
+				Name: "Linear",
+			},
 			&completeOut,
 		)
 		require.Equal(t, http.StatusOK, code)
@@ -235,7 +247,11 @@ func TestServer_RemoveServer(t *testing.T) {
 		var completeOut habitat.NetworkHabitatMcpCompleteAddServerOutput
 		code = client.Procedure(
 			ts.Server.CompleteAddServer,
-			habitat.NetworkHabitatMcpCompleteAddServerInput{Org: orgDID, Id: addOut.Id, Name: "Linear"},
+			habitat.NetworkHabitatMcpCompleteAddServerInput{
+				Org:  orgDID,
+				Id:   addOut.Id,
+				Name: "Linear",
+			},
 			&completeOut,
 		)
 		require.Equal(t, http.StatusOK, code)

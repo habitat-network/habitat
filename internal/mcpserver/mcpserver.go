@@ -34,14 +34,21 @@ type NangoClient interface {
 	ListConnections(ctx context.Context, endUserID string) ([]nango.Connection, error)
 	// GetConnection fetches a Connection's live details, including
 	// credentials, from Nango.
-	GetConnection(ctx context.Context, connectionID, providerConfigKey string) (*nango.ConnectionDetails, error)
+	GetConnection(
+		ctx context.Context,
+		connectionID, providerConfigKey string,
+	) (*nango.ConnectionDetails, error)
 }
 
 // OrgMcpServerStore is the subset of opensocial.Store needed to resolve a
 // Nango connection's provider_config_key back to the org-chosen server name
 // (see internal/mcpgateway) that namespaces its tools.
 type OrgMcpServerStore interface {
-	GetMcpServer(ctx context.Context, orgDID syntax.DID, id syntax.RecordKey) (*opensocial.McpServer, error)
+	GetMcpServer(
+		ctx context.Context,
+		orgDID syntax.DID,
+		id syntax.RecordKey,
+	) (*opensocial.McpServer, error)
 	ListMcpServers(ctx context.Context, orgDID syntax.DID) ([]*opensocial.McpServer, error)
 }
 

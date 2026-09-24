@@ -100,7 +100,11 @@ type NangoClient interface {
 	// CreateConnectSession starts a Nango Connect session scoped to the
 	// Integration identified by uniqueKey, returning a session token for
 	// the frontend's Nango Connect UI.
-	CreateConnectSession(ctx context.Context, uniqueKey string, endUserID, orgID string) (string, error)
+	CreateConnectSession(
+		ctx context.Context,
+		uniqueKey string,
+		endUserID, orgID string,
+	) (string, error)
 	// ListConnections lists the MCP connections tagged with endUserID.
 	ListConnections(ctx context.Context, endUserID string) ([]nango.Connection, error)
 	// DeleteConnection deletes a Nango Connection.
@@ -166,7 +170,12 @@ type Store interface {
 		id syntax.RecordKey,
 	) (sessionToken string, err error)
 	// DisconnectServer deletes did's Nango connection to orgID's MCP server id.
-	DisconnectServer(ctx context.Context, did syntax.DID, orgID syntax.DID, id syntax.RecordKey) error
+	DisconnectServer(
+		ctx context.Context,
+		did syntax.DID,
+		orgID syntax.DID,
+		id syntax.RecordKey,
+	) error
 }
 
 type store struct {
@@ -324,7 +333,11 @@ func (s *store) DisconnectServer(
 	}
 	for _, conn := range connections {
 		if conn.ProviderConfigKey == server.NangoKey {
-			if err := s.nango.DeleteConnection(ctx, conn.ConnectionID, server.NangoKey); err != nil {
+			if err := s.nango.DeleteConnection(
+				ctx,
+				conn.ConnectionID,
+				server.NangoKey,
+			); err != nil {
 				return fmt.Errorf("delete nango connection: %w", err)
 			}
 			return nil

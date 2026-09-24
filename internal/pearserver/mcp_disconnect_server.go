@@ -42,7 +42,12 @@ func (p *PearServer) DisconnectServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := p.mcpGatewayStore.DisconnectServer(ctx, credInfo.Subject, org, syntax.RecordKey(input.Id))
+	err := p.mcpGatewayStore.DisconnectServer(
+		ctx,
+		credInfo.Subject,
+		org,
+		syntax.RecordKey(input.Id),
+	)
 	if errors.Is(err, mcpgateway.ErrNotConnected) {
 		httpx.WriteError(ctx, w, "NotFound", "not connected to mcp server", http.StatusNotFound)
 		return

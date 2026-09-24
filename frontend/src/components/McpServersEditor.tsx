@@ -367,8 +367,7 @@ function RemoveServerButton({
           <DialogTitle>Remove "{name}"?</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Every member's stored credential for this server will be deleted
-          too.
+          Every member's stored credential for this server will be deleted too.
         </p>
         <FieldError errors={error ? [{ message: error.message }] : []} />
         <DialogFooter>

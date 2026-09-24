@@ -156,7 +156,10 @@ func connectToServer(
 // tools/list response, namespaced by server name. A server that can't be
 // reached, or resolved back to a name, is skipped rather than failing the
 // whole listing.
-func mergeConnectedToolsMiddleware(nangoClient NangoClient, orgRecords OrgMcpServerStore) mcp.Middleware {
+func mergeConnectedToolsMiddleware(
+	nangoClient NangoClient,
+	orgRecords OrgMcpServerStore,
+) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			result, err := next(ctx, method, req)
@@ -230,7 +233,10 @@ func listToolsForConnection(
 // (see namespaceTool) straight through to the connected server that owns
 // it, using the caller's own Nango-held credentials. A call for a
 // non-namespaced tool is left to this server's own dispatch.
-func proxyConnectedToolCallMiddleware(nangoClient NangoClient, orgRecords OrgMcpServerStore) mcp.Middleware {
+func proxyConnectedToolCallMiddleware(
+	nangoClient NangoClient,
+	orgRecords OrgMcpServerStore,
+) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			if method != "tools/call" {
@@ -263,19 +269,36 @@ func proxyConnectedToolCallMiddleware(nangoClient NangoClient, orgRecords OrgMcp
 				if err != nil || record.NangoKey != conn.ProviderConfigKey {
 					continue
 				}
-				session, err := connectToServer(ctx, nangoClient, conn)
-				if err != nil {
-					return nil, err
-				}
-				defer func() { _ = session.Close() }()
-				return session.CallTool(ctx, &mcp.CallToolParams{
-					Name:      toolName,
-					Arguments: params.Arguments,
-				})
+				return callConnectedTool(ctx, nangoClient, conn, toolName, params.Arguments)
 			}
 			// Not one of the caller's connections: fall through to the
 			// normal dispatch, which will report the tool as not found.
 			return next(ctx, method, req)
 		}
 	}
+}
+
+// callConnectedTool opens a session to conn's MCP server, calls toolName on
+// it, and closes the session.
+func callConnectedTool(
+	ctx context.Context,
+	nangoClient NangoClient,
+	conn nango.Connection,
+	toolName string,
+	arguments any,
+) (mcp.Result, error) {
+	session, err := connectToServer(ctx, nangoClient, conn)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = session.Close() }()
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      toolName,
+		Arguments: arguments,
+	})
+	if err != nil {
+		// Avoid returning a typed-nil *CallToolResult as a non-nil mcp.Result.
+		return nil, err
+	}
+	return res, nil
 }

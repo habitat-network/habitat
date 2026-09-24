@@ -90,7 +90,10 @@ func (f *fakeNangoClient) ListConnections(
 	return conns, nil
 }
 
-func (f *fakeNangoClient) DeleteConnection(ctx context.Context, connectionID, providerConfigKey string) error {
+func (f *fakeNangoClient) DeleteConnection(
+	ctx context.Context,
+	connectionID, providerConfigKey string,
+) error {
 	if f.connections[connectionID].ProviderConfigKey != providerConfigKey {
 		return errors.New("connection not found")
 	}
@@ -120,7 +123,12 @@ func newTestOrg(t *testing.T, records OrgMcpServerStore) syntax.DID {
 // addServer drives the full BeginAddServer -> connect -> CompleteAddServer
 // flow, as the frontend would, and returns the resulting server.
 func addServer(
-	t *testing.T, s Store, nangoClient *fakeNangoClient, org syntax.DID, did syntax.DID, name, description string,
+	t *testing.T,
+	s Store,
+	nangoClient *fakeNangoClient,
+	org syntax.DID,
+	did syntax.DID,
+	name, description string,
 ) *opensocial.McpServer {
 	t.Helper()
 	id, sessionToken, err := s.BeginAddServer(t.Context(), org, did, name, description)

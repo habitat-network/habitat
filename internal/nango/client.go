@@ -142,7 +142,10 @@ type ConnectionDetails struct {
 
 // GetConnection fetches a Connection's live details, including its
 // credentials, from Nango.
-func (c *Client) GetConnection(ctx context.Context, connectionID, providerConfigKey string) (*ConnectionDetails, error) {
+func (c *Client) GetConnection(
+	ctx context.Context,
+	connectionID, providerConfigKey string,
+) (*ConnectionDetails, error) {
 	path := "/connection/" + connectionID + "?provider_config_key=" + providerConfigKey
 	body, err := c.do(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -169,7 +172,10 @@ func (c *Client) GetConnection(ctx context.Context, connectionID, providerConfig
 }
 
 // DeleteConnection deletes a Nango Connection, revoking its stored credentials.
-func (c *Client) DeleteConnection(ctx context.Context, connectionID, providerConfigKey string) error {
+func (c *Client) DeleteConnection(
+	ctx context.Context,
+	connectionID, providerConfigKey string,
+) error {
 	path := "/connection/" + connectionID + "?provider_config_key=" + providerConfigKey
 	_, err := c.do(ctx, http.MethodDelete, path, nil)
 	return err

@@ -5,7 +5,8 @@ import { network } from "api";
 import { pearAgent } from "./pearAgent";
 
 export type McpServer = network.habitat.mcp.defs.Server;
-export type McpServerWithStatus = network.habitat.mcp.listServers.ServerWithStatus;
+export type McpServerWithStatus =
+  network.habitat.mcp.listServers.ServerWithStatus;
 
 // orgMcpServersQueryOptions lists the MCP servers configured for org, along
 // with whether the caller has connected their own credential to each one.

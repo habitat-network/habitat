@@ -221,6 +221,11 @@ func verifyGoogleIDToken(idToken, clientID string) (googleIDTokenClaims, error) 
 	if err := validator.Validate(claims); err != nil {
 		return googleIDTokenClaims{}, fmt.Errorf("validate id token claims: %w", err)
 	}
+	// Google issues ID tokens under two issuer spellings, so this can't use
+	// jwt.WithIssuer, which accepts only one.
+	if claims.Issuer != "https://accounts.google.com" && claims.Issuer != "accounts.google.com" {
+		return googleIDTokenClaims{}, fmt.Errorf("unexpected id token issuer: %s", claims.Issuer)
+	}
 	if !claims.EmailVerified {
 		return googleIDTokenClaims{}, fmt.Errorf("google email not verified")
 	}
