@@ -145,6 +145,7 @@ func TestMCPServerToolsList_MergesConnectedServerTools(t *testing.T) {
 		orgRecords,
 		nil,
 		"https://habitat.example",
+		"https://habitat.example/mcp",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
@@ -186,6 +187,7 @@ func TestMCPServerToolsList_SkipsUnreachableConnectedServer(t *testing.T) {
 		orgRecords,
 		nil,
 		"https://habitat.example",
+		"https://habitat.example/mcp",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
@@ -224,6 +226,7 @@ func TestMCPServerToolsList_SkipsConnectionWithNoMatchingRecord(t *testing.T) {
 		newFakeOrgMcpServerStore(),
 		nil,
 		"https://habitat.example",
+		"https://habitat.example/mcp",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
@@ -262,6 +265,7 @@ func TestMCPServerToolsCall_ProxiesToConnectedServer(t *testing.T) {
 		orgRecords,
 		nil,
 		"https://habitat.example",
+		"https://habitat.example/mcp",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
@@ -285,6 +289,7 @@ func TestMCPServerToolsCall_UnknownNamespacedToolFallsThrough(t *testing.T) {
 		fakeTokens{}, spacesStore, permStore, newFakeNangoClient(), newFakeOrgMcpServerStore(),
 		nil,
 		"https://habitat.example",
+		"https://habitat.example/mcp",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
@@ -365,6 +370,7 @@ func TestMCPServerTools_ManualServer(t *testing.T) {
 		newFakeOrgMcpServerStore(),
 		manual,
 		"https://habitat.example",
+		"https://habitat.example/mcp",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()

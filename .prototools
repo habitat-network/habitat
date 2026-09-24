@@ -1,4 +1,4 @@
-proto= "0.62.2"
+proto= "0.62.3"
 go = "1.27.1"
 golangci-lint = "2.13.1"
 moon = "2.5.5"

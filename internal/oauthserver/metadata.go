@@ -4,43 +4,52 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 )
 
-// authServerMetadata extends indigo's atproto-focused AuthServerMetadata with
-// the registration_endpoint field (RFC 7591), which that struct omits.
-// Dynamic client registration is what lets generic OAuth/MCP clients — which
-// don't support atproto's Client ID Metadata Document convention — obtain a
-// client_id usable against this same authorization server.
-type authServerMetadata struct {
-	oauth.AuthServerMetadata
-	RegistrationEndpoint string `json:"registration_endpoint,omitempty"`
-}
-
 // buildAuthServerMetadata assembles the authorization-server metadata document
 // for the given issuer origin. The advertised capabilities describe the target
 // atproto-compliant surface; PAR and DPoP enforcement are wired up in later
 // phases.
-func buildAuthServerMetadata(issuer string) authServerMetadata {
-	return authServerMetadata{
-		AuthServerMetadata: oauth.AuthServerMetadata{
-			Issuer:                             issuer,
-			AuthorizationEndpoint:              issuer + "/oauth/authorize",
-			TokenEndpoint:                      issuer + "/oauth/token",
-			PushedAuthorizationRequestEndpoint: issuer + "/oauth/par",
-			ResponseTypesSupported:             []string{"code"},
-			GrantTypesSupported: []string{
-				"authorization_code",
-				"refresh_token",
-				"urn:ietf:params:oauth:grant-type:jwt-bearer",
-			},
-			CodeChallengeMethodsSupported:              []string{"S256"},
-			TokenEndpointAuthMethodsSupoorted:          []string{"none", "private_key_jwt"},
-			TokenEndpointAuthSigningAlgValuesSupported: []string{"ES256"},
-			ScopesSupported:                            []string{"atproto"},
-			DPoPSigningAlgValuesSupported:              []string{"ES256"},
-			AuthorizationReponseISSParameterSupported:  true,
-			RequirePushedAuthorizationRequests:         true,
-			ClientIDMetadataDocumentSupported:          true,
+func buildAuthServerMetadata(issuer string) oauth.AuthServerMetadata {
+	return oauth.AuthServerMetadata{
+		Issuer:                             issuer,
+		AuthorizationEndpoint:              issuer + "/oauth/authorize",
+		TokenEndpoint:                      issuer + "/oauth/token",
+		PushedAuthorizationRequestEndpoint: issuer + "/oauth/par",
+		ResponseTypesSupported:             []string{"code"},
+		GrantTypesSupported: []string{
+			"authorization_code",
+			"refresh_token",
+			"urn:ietf:params:oauth:grant-type:jwt-bearer",
 		},
-		RegistrationEndpoint: issuer + "/oauth/register",
+		CodeChallengeMethodsSupported:              []string{"S256"},
+		TokenEndpointAuthMethodsSupoorted:          []string{"none", "private_key_jwt"},
+		TokenEndpointAuthSigningAlgValuesSupported: []string{"ES256"},
+		ScopesSupported:                            []string{"atproto"},
+		DPoPSigningAlgValuesSupported:              []string{"ES256"},
+		AuthorizationReponseISSParameterSupported:  true,
+		RequirePushedAuthorizationRequests:         true,
+		ClientIDMetadataDocumentSupported:          true,
+	}
+}
+
+// buildMCPAuthServerMetadata assembles the RFC 8414 authorization-server
+// metadata document for the MCP endpoints. Unlike buildAuthServerMetadata,
+// this advertises dynamic client registration instead of client-id metadata
+// documents, and mandatory PKCE instead of PAR.
+func buildMCPAuthServerMetadata(issuer string) map[string]any {
+	mcpIssuer := issuer + MCPIssuerPath
+	return map[string]any{
+		"issuer":                   mcpIssuer,
+		"authorization_endpoint":   issuer + MCPAuthorizePath,
+		"token_endpoint":           issuer + MCPTokenPath,
+		"registration_endpoint":    issuer + MCPRegisterPath,
+		"response_types_supported": []string{"code"},
+		"grant_types_supported": []string{
+			"authorization_code",
+			"refresh_token",
+		},
+		"code_challenge_methods_supported":               []string{"S256"},
+		"token_endpoint_auth_methods_supported":          []string{"none"},
+		"authorization_response_iss_parameter_supported": true,
 	}
 }
 
