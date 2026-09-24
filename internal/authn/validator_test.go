@@ -55,6 +55,7 @@ func TestValidator(t *testing.T) {
 		nil,
 		os.Store,
 		nil,
+		nil,
 		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)

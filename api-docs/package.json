@@ -18,9 +18,11 @@
   "dependencies": {
     "@docusaurus/core": "3.10.2",
     "@docusaurus/faster": "^3.10.2",
+    "@docusaurus/plugin-client-redirects": "3.10.2",
     "@docusaurus/preset-classic": "3.10.2",
     "@mdx-js/react": "^3.1.1",
     "clsx": "catalog:",
+    "docusaurus-plugin-llms": "^0.6.0",
     "docusaurus-plugin-openapi-docs": "5.2.0",
     "docusaurus-theme-openapi-docs": "5.2.0",
     "prism-react-renderer": "^2.4.1",

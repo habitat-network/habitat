@@ -12,10 +12,13 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/simplespace"
@@ -29,16 +32,18 @@ import (
 type TestServer struct {
 	Server *pearserver.PearServer
 
-	Validator       authn.RequestValidator
-	PermStore       perms.Store
-	SpaceStore      spaces.Store
-	OpenSocialStore *opensocial.Store
-	SimpleStore     *simplespace.Store
-	NotifyStore     notify.Store
-	Hive            hive.Hive
-	HostKey         atcrypto.PrivateKey
-	DB              *gorm.DB
-	FGA             fgastore.Store
+	Validator        authn.RequestValidator
+	PermStore        perms.Store
+	SpaceStore       spaces.Store
+	OpenSocialStore  *opensocial.Store
+	SimpleStore      *simplespace.Store
+	NotifyStore      notify.Store
+	Hive             hive.Hive
+	HostKey          atcrypto.PrivateKey
+	DB               *gorm.DB
+	FGA              fgastore.Store
+	PDSForwarding    *forwarding.PDSForwarding
+	EmailDomainStore *emaildomain.Store
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -80,6 +85,12 @@ func WithNotifyStore(store notify.Store) utils.Opt[TestServer] {
 func WithFGA(fga fgastore.Store) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.FGA = fga
+	}
+}
+
+func WithPDSForwarding(f *forwarding.PDSForwarding) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.PDSForwarding = f
 	}
 }
 
@@ -137,6 +148,23 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	ts.OpenSocialStore = os
 	ts.SimpleStore = ss
 
+	if ts.PDSForwarding == nil {
+		// Default forwarding points nowhere; getSession's remote-identity path
+		// forwards to a caller's real PDS, which tests exercise by injecting
+		// their own forwarding via WithPDSForwarding. The credential store is
+		// fully unused on that path.
+		ts.PDSForwarding = forwarding.NewPDSForwarding(
+			nil,
+			ts.Validator,
+			pdsclient.NewDummyClientFactory("http://127.0.0.1:1"),
+			pdsclient.NewDummyDirectory("http://127.0.0.1:1"),
+		)
+	}
+
+	emailDomainStore, err := emaildomain.NewStore(ts.DB)
+	require.NoError(t, err)
+	ts.EmailDomainStore = emailDomainStore
+
 	ts.Server = pearserver.New(
 		"pear.example.com",
 		ts.Validator,
@@ -149,6 +177,8 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ss,
 		ts.NotifyStore,
 		clientmetadata.NewResolver(),
+		ts.PDSForwarding,
+		emailDomainStore,
 	)
 	ts.PermStore = ps
 	return &ts

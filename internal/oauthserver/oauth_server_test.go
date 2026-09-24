@@ -104,6 +104,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
+			nil,
 			testBroker(t),
 			oauth.ClientMetadata{},
 		)
@@ -129,6 +130,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		nil,
 		testBroker(t),
 		oauth.ClientMetadata{},
 	)
@@ -231,6 +233,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		nil,
 		testBroker(t),
 		oauth.ClientMetadata{},
 	)
@@ -343,6 +346,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		nil,
 		testBroker(t),
 		oauth.ClientMetadata{},
 	)
@@ -559,6 +563,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		nil,
 		testBroker(t),
 		oauth.ClientMetadata{},
 	)
@@ -697,6 +702,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		nil,
 		testBroker(t),
 		oauth.ClientMetadata{},
 	)
@@ -900,6 +906,7 @@ func TestValidate(t *testing.T) {
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
+			nil,
 			testBroker(t),
 			oauth.ClientMetadata{},
 		)
@@ -1019,6 +1026,7 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
+			nil,
 			testBroker(t),
 			oauth.ClientMetadata{},
 		)
@@ -1127,6 +1135,7 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		nil,
 		testBroker(t),
 		oauth.ClientMetadata{},
 	)
@@ -1300,6 +1309,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		nil,
 		testBroker(t),
 		oauth.ClientMetadata{},
 	)
@@ -1425,6 +1435,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		opensocialStore,
+		nil,
 		testBroker(t),
 		oauth.ClientMetadata{},
 	)
@@ -1572,6 +1583,7 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		opensocialStore,
+		nil,
 		testBroker(t),
 		oauth.ClientMetadata{},
 	)
@@ -1675,6 +1687,7 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		nil,
 		testBroker(t),
 		oauth.ClientMetadata{},
 	)

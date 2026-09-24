@@ -73,6 +73,9 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/com.atproto.space.getSpaceCredential", p.GetSpaceCredential)
 	p.router.HandleFunc("/xrpc/com.atproto.space.registerNotify", p.RegisterNotify)
 	p.router.HandleFunc("/xrpc/com.atproto.repo.uploadBlob", p.UploadBlob)
+
+	// com.atproto.server aliases
+	p.router.HandleFunc("/xrpc/com.atproto.server.getSession", p.GetSession)
 	p.router.HandleFunc("/xrpc/com.atproto.simplespace.createSpace", p.CreateSpace)
 	p.router.HandleFunc("/xrpc/com.atproto.simplespace.putMember", p.AddMember)
 	p.router.HandleFunc("/xrpc/com.atproto.simplespace.removeMember", p.RemoveMember)

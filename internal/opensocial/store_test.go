@@ -2,10 +2,12 @@ package opensocial_test
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/opensocial"
@@ -330,4 +332,67 @@ func TestStore(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
+}
+
+func TestStoreNewOrgWithoutCreator(t *testing.T) {
+	s := opensocial_testutil.NewTestStore(t)
+	orgDIDStr, err := s.NewOrgWithoutCreator(t.Context(), "acme")
+	require.NoError(t, err)
+	org := syntax.DID(orgDIDStr)
+
+	isOrg, err := s.IsOrg(t.Context(), org)
+	require.NoError(t, err)
+	require.True(t, isOrg)
+
+	// Same bootstrap records as NewOrg...
+	aboutSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.AboutSpaceType, "self")
+	_, err = s.SpaceStore.GetRecord(
+		t.Context(),
+		aboutSpace,
+		org,
+		opensocial.ProfileCollection,
+		"self",
+	)
+	require.NoError(t, err)
+	membersSpace := habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
+	for _, rkey := range []syntax.RecordKey{opensocial.AdminRoleRkey, opensocial.MemberRoleRkey} {
+		_, err = s.SpaceStore.GetRecord(
+			t.Context(),
+			membersSpace,
+			org,
+			"community.opensocial.role",
+			rkey,
+		)
+		require.NoError(t, err)
+	}
+	_, err = s.SpaceStore.GetRecord(
+		t.Context(),
+		membersSpace,
+		org,
+		opensocial.PermissionsCollection,
+		"self",
+	)
+	require.NoError(t, err)
+
+	// ...but nobody is a member yet.
+	membershipNSID := syntax.NSID(opensocial.MembershipCollection)
+	memberships, err := s.SpaceStore.ListRecords(t.Context(), membersSpace, org, &membershipNSID)
+	require.NoError(t, err)
+	require.Empty(t, memberships)
+}
+
+func TestStoreWithTxRollsBack(t *testing.T) {
+	s := opensocial_testutil.NewTestStore(t)
+	var orgDIDStr string
+	err := s.DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		orgDIDStr, err = s.WithTx(tx).NewOrgWithoutCreator(t.Context(), "acme")
+		require.NoError(t, err)
+		return errors.New("roll back")
+	})
+	require.Error(t, err)
+
+	isOrg, err := s.IsOrg(t.Context(), syntax.DID(orgDIDStr))
+	require.NoError(t, err)
+	require.False(t, isOrg)
 }

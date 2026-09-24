@@ -55,6 +55,7 @@ func setupMCPTest(t *testing.T) *mcpTestServer {
 		mcpTestOrigin,
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		nil,
 		broker,
 		oauth.ClientMetadata{},
 	)

@@ -1,0 +1,80 @@
+---
+id: agents
+slug: /building/agents
+sidebar_label: Coding agents
+sidebar_position: 6
+---
+
+## Machine-readable documentation
+
+Point an agent at these directly:
+
+- [`llms.txt`](pathname:///llms.txt) — an index of this documentation.
+- [`llms-full.txt`](pathname:///llms-full.txt) — the full prose in one file.
+- [`openapi.json`](pathname:///openapi.json) — the OpenAPI specification
+  for every XRPC endpoint.
+- Any single page as markdown — append `.md` to its URL, e.g.
+  `https://api.habitat.network/building/permissions.md`.
+
+## Working with coding agents
+
+If you build an app that reads or writes data stored in Habitat, using a
+coding agent — Claude Code, Cursor, or similar — give it this context up
+front. Copy the block below into your
+project's `CLAUDE.md`, `AGENTS.md`, or equivalent.
+
+## Template
+
+````md
+# Building on Habitat
+
+This project uses Habitat, a data ownership layer for organizations built
+on AT Protocol primitives.
+
+## Key facts
+
+- Habitat's hosted instance is `https://pear.habitat.network`. XRPC
+  endpoints live under `/xrpc/<nsid>`, e.g.
+  `https://pear.habitat.network/xrpc/network.habitat.space.getRecord`.
+- Authentication is standard AT Protocol OAuth. The app OAuths with
+  Habitat; Habitat brokers to user's identity provider.
+- For use-cases where users bring their own AT Protocol account,
+  Habitat acts as the [identity resolver](https://atproto.com/specs/did)
+  (see also the [atproto identity guide](https://atproto.com/guides/identity)).
+  It rewrites the `#atproto_pds` entry in a resolved DID document to point at itself, 
+  so standard atproto clients route through it without Habitat-specific code.
+- Data is AT Protocol records and blobs, stored in per-identity
+  repositories and addressed by collection NSID plus record key.
+- A space groups records across repositories and is the unit that
+  permissions are granted against.
+
+## Which APIs to use
+
+For permissioned data, use only these namespaces:
+
+- `network.habitat.space.*` — records, blobs, and repo operations within a
+  space. This is the primary surface.
+- `community.opensocial.*` — community membership, invites, profiles, and
+  spaces.
+- `network.habitat.opensocial.createOrg` — creating an organization.
+
+## Documentation
+
+- Index for agents: https://api.habitat.network/llms.txt
+- Full prose: https://api.habitat.network/llms-full.txt
+- OpenAPI spec: https://api.habitat.network/openapi.json
+- HTTP reference: https://api.habitat.network/docs/api
+
+## Conventions
+
+- Never invent lexicon names. Every valid NSID appears in the OpenAPI
+  spec; check there before writing a record, and prefer the namespaces
+  listed above.
+- Use the regular atproto API client (e.g. `@atproto/api`) rather than
+  hand-rolled fetch calls. 
+- To use the Habitat Space Proxy until atproto spaces are part of reference PDS'es, 
+  use the npm package `@habitat-network/habitat` which provides an identity resolver
+  to route space requests through Habitat.
+- **Do not use anything that references cliques**. Cliques are a deprecated
+  permissioning primitive.
+````

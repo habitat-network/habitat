@@ -34,6 +34,7 @@ import (
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/did"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
@@ -266,10 +267,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup org store: %w", err)
 	}
 
+	emailDomainStore, err := emaildomain.NewStore(db.WithContext(startupCtx))
+	if err != nil {
+		return fmt.Errorf("setup email domain store: %w", err)
+	}
+
 	loginRouter := &org.LoginRouter{
-		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
-		Password: passwordProvider,
-		OrgStore: orgStore,
+		Pds:        login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
+		Password:   passwordProvider,
+		OrgStore:   orgStore,
+		EmailStore: emailDomainStore,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
@@ -324,6 +331,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup opensocial store: %w", err)
 	}
+	emailResolver := habitat_identity.NewEmailResolver(
+		db.WithContext(startupCtx), emailDomainStore, hive,
+	)
+	loginRouter.OpensocialStore = opensocialStore
 
 	// The MCP endpoints have their own broker for the atproto login their handle
 	// prompt runs (see OAuthServer.HandleMCPAuthorizeSubmit): it prompts for a
@@ -367,6 +378,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			cmd.StringSlice(fBuiltinApps)...,
 		),
 		opensocialStore,
+		emailResolver,
 		mcpBroker,
 		mcpAtprotoClient.ClientMetadata(),
 	)
@@ -402,6 +414,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	simpleStore := simplespace.NewStore(db, spacesStore, permStore)
 
+	pdsForwarding := forwarding.NewPDSForwarding(
+		pdsCredStore,
+		validator,
+		pdsClientFactory,
+		defaultDir,
+	)
+
 	// Consolidated server owning the opensocial, simplespace, relationship,
 	// spaces, and registerNotify handler routes.
 	pearApp := pearserver.New(
@@ -416,6 +435,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		simpleStore,
 		notifyStore,
 		clientmetadata.NewResolver(),
+		pdsForwarding,
+		emailDomainStore,
 	)
 
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))
@@ -454,6 +475,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	// Server for opensocial community routes
 	mux.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", pearApp.CreateOrg)
+	mux.HandleFunc("/xrpc/network.habitat.emaildomain.createOrg", pearApp.CreateEmailDomainOrg)
 	mux.PathPrefix("/xrpc/community.opensocial.").Handler(pearApp)
 	// Server-side client-metadata proxy for the management frontend
 	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
@@ -468,16 +490,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup p2p server: %w", err)
 	}
-	pdsForwarding := forwarding.NewPDSForwarding(
-		pdsCredStore,
-		validator,
-		pdsClientFactory,
-		defaultDir,
-	)
 
 	idServer, err := habitat_identity.NewServer(
 		hive, validator, orgStore, pdsForwarding, domain,
 		habitat_identity.WithClient(httpx.NewClient()),
+		habitat_identity.WithEmailResolver(emailResolver),
 	)
 	if err != nil {
 		return fmt.Errorf("setup hive server: %w", err)
