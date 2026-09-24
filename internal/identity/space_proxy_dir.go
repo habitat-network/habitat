@@ -12,27 +12,27 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-// OverrideDirectory resolves identities through a base directory and returns
+// SpaceProxyDirectory resolves identities through a base directory and returns
 // each one with its DID document overridden so its #atproto_pds service points
 // at this habitat instance — unless the identity's real PDS already implements
 // the atproto spaces protocol. It also resolves work emails (minting an
 // identity on first sight) when an EmailResolver is configured.
-type OverrideDirectory struct {
+type SpaceProxyDirectory struct {
 	base          identity.Directory
 	emailResolver *EmailResolver
 	domain        string
 	httpClient    *http.Client
 }
 
-// NewOverrideDirectory constructs an OverrideDirectory over base, redirecting
+// NewSpaceProxyDirectory constructs an SpaceProxyDirectory over base, redirecting
 // identities whose real PDS doesn't support spaces to serve from this habitat
 // instance.
-func NewOverrideDirectory(
+func NewSpaceProxyDirectory(
 	base identity.Directory,
 	domain string,
-	opts ...utils.Opt[OverrideDirectory],
-) *OverrideDirectory {
-	dir := utils.ResolveOptions(OverrideDirectory{
+	opts ...utils.Opt[SpaceProxyDirectory],
+) *SpaceProxyDirectory {
+	dir := utils.ResolveOptions(SpaceProxyDirectory{
 		base:       base,
 		domain:     domain,
 		httpClient: httpx.NewClient(),
@@ -42,8 +42,8 @@ func NewOverrideDirectory(
 
 // WithClient sets the HTTP client used to probe whether an identity's PDS
 // supports the atproto spaces protocol.
-func WithClient(client *http.Client) utils.Opt[OverrideDirectory] {
-	return func(d *OverrideDirectory) {
+func WithClient(client *http.Client) utils.Opt[SpaceProxyDirectory] {
+	return func(d *SpaceProxyDirectory) {
 		d.httpClient = client
 	}
 }
@@ -51,14 +51,14 @@ func WithClient(client *http.Client) utils.Opt[OverrideDirectory] {
 // WithEmailResolver lets the directory resolve a work email in place of a
 // handle, minting an identity on first sight (see EmailResolver). Without it,
 // email identifiers are rejected.
-func WithEmailResolver(r *EmailResolver) utils.Opt[OverrideDirectory] {
-	return func(d *OverrideDirectory) {
+func WithEmailResolver(r *EmailResolver) utils.Opt[SpaceProxyDirectory] {
+	return func(d *SpaceProxyDirectory) {
 		d.emailResolver = r
 	}
 }
 
 // LookupDID implements identity.Directory.
-func (d *OverrideDirectory) LookupDID(
+func (d *SpaceProxyDirectory) LookupDID(
 	ctx context.Context,
 	did syntax.DID,
 ) (*identity.Identity, error) {
@@ -70,7 +70,7 @@ func (d *OverrideDirectory) LookupDID(
 }
 
 // LookupHandle implements identity.Directory.
-func (d *OverrideDirectory) LookupHandle(
+func (d *SpaceProxyDirectory) LookupHandle(
 	ctx context.Context,
 	handle syntax.Handle,
 ) (*identity.Identity, error) {
@@ -82,7 +82,7 @@ func (d *OverrideDirectory) LookupHandle(
 }
 
 // Lookup implements identity.Directory.
-func (d *OverrideDirectory) Lookup(
+func (d *SpaceProxyDirectory) Lookup(
 	ctx context.Context,
 	atid syntax.AtIdentifier,
 ) (*identity.Identity, error) {
@@ -94,7 +94,7 @@ func (d *OverrideDirectory) Lookup(
 }
 
 // Purge implements identity.Directory.
-func (d *OverrideDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
+func (d *SpaceProxyDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 	return d.base.Purge(ctx, atid)
 }
 
@@ -102,7 +102,7 @@ func (d *OverrideDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier)
 // applies the DID override to whatever it returns. It returns
 // identity.ErrInvalidHandle when no EmailResolver is configured and
 // identity.ErrDIDNotFound when the email's domain isn't mapped.
-func (d *OverrideDirectory) LookupEmail(
+func (d *SpaceProxyDirectory) LookupEmail(
 	ctx context.Context,
 	email emaildomain.Email,
 ) (*identity.Identity, error) {
@@ -122,7 +122,7 @@ func (d *OverrideDirectory) LookupEmail(
 // when no EmailResolver is configured; identity.ErrHandleNotFound for an
 // at-identifier the base directory can't resolve; and identity.ErrDIDNotFound
 // for a valid email whose domain isn't mapped (surfaced from LookupEmail).
-func (d *OverrideDirectory) LookupIdentifier(
+func (d *SpaceProxyDirectory) LookupIdentifier(
 	ctx context.Context,
 	identifier string,
 ) (*identity.Identity, error) {
@@ -139,7 +139,7 @@ func (d *OverrideDirectory) LookupIdentifier(
 // points at this habitat instance when the identity's real PDS doesn't support
 // the spaces protocol. A fresh identity is returned rather than mutating the
 // base directory's — possibly cached — one.
-func (d *OverrideDirectory) applyOverride(
+func (d *SpaceProxyDirectory) applyOverride(
 	ctx context.Context,
 	ident *identity.Identity,
 ) *identity.Identity {

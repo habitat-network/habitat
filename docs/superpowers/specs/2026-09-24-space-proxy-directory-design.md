@@ -1,11 +1,11 @@
-# OverrideDirectory design
+# SpaceProxyDirectory design
 
 Date: 2026-09-24
 
 ## Summary
 
 Extract the DID-override and email-resolution logic currently embedded in
-`internal/identity/server.go` into a new `OverrideDirectory` type that
+`internal/identity/server.go` into a new `SpaceProxyDirectory` type that
 implements indigo's `identity.Directory` interface. The identity server's
 resolve handlers are then reduced to thin lookups against that directory plus
 HTTP error mapping.
@@ -42,10 +42,10 @@ handle/at-identifier). Therefore:
 
 ## Architecture
 
-New type `OverrideDirectory` in a new file `internal/identity/override_dir.go`.
+New type `SpaceProxyDirectory` in a new file `internal/identity/space_proxy_dir.go`.
 
 ```go
-type OverrideDirectory struct {
+type SpaceProxyDirectory struct {
     base          identity.Directory // the existing WrappedDirectory chain
     emailResolver *EmailResolver     // optional
     domain        string             // habitat service domain, e.g. "pear.domain"
@@ -56,14 +56,14 @@ type OverrideDirectory struct {
 Constructor mirrors the existing option style:
 
 ```go
-func NewOverrideDirectory(
+func NewSpaceProxyDirectory(
     base identity.Directory,
     domain string,
-    opts ...utils.Opt[OverrideDirectory],
-) *OverrideDirectory
+    opts ...utils.Opt[SpaceProxyDirectory],
+) *SpaceProxyDirectory
 ```
 
-`WithClient` and `WithEmailResolver` become `utils.Opt[OverrideDirectory]` (no
+`WithClient` and `WithEmailResolver` become `utils.Opt[SpaceProxyDirectory]` (no
 change to their exported names or call sites).
 
 ### Interface methods
@@ -87,7 +87,7 @@ change to their exported names or call sites).
 ### DID override
 
 ```go
-func (d *OverrideDirectory) applyOverride(ctx context.Context, ident *identity.Identity) *identity.Identity
+func (d *SpaceProxyDirectory) applyOverride(ctx context.Context, ident *identity.Identity) *identity.Identity
 ```
 
 - If `utils.SupportsSpaces(ctx, d.httpClient, ident)` → return `ident` unchanged.
@@ -107,13 +107,13 @@ JSON, which the tests compare order-insensitively).
 
 ## Server changes (`internal/identity/server.go`)
 
-- `Server` field `directory` becomes `*OverrideDirectory`.
+- `Server` field `directory` becomes `*SpaceProxyDirectory`.
 - Drop the `parseEmail` helper, the `overriddenDidDoc` method, and the
   `emailResolver`, `domain`, and `httpClient` fields (now owned by the
   directory).
 - `NewServer` constructs
-  `NewOverrideDirectory(NewWrappedDirectory(hive, identity.DefaultDirectory()), domain, opts...)`.
-  Its `opts` parameter type changes to `...utils.Opt[OverrideDirectory]`
+  `NewSpaceProxyDirectory(NewWrappedDirectory(hive, identity.DefaultDirectory()), domain, opts...)`.
+  Its `opts` parameter type changes to `...utils.Opt[SpaceProxyDirectory]`
   (call sites in `cmd/pear` and the integration test pass no-arg or the same
   named option functions, so they compile unchanged).
 - `GetServiceAuth`, `ServeDIDDoc`, `ServeHandle` are unchanged (they use
@@ -151,7 +151,7 @@ Changed (internal only):
 
 ## Testing
 
-New `internal/identity/override_dir_test.go`:
+New `internal/identity/space_proxy_dir_test.go`:
 
 - Override applied when the PDS does not support spaces: mock identity with a
   404 PDS → returned identity's `DIDDocument()` has `#atproto_pds` pointing at
@@ -165,7 +165,7 @@ New `internal/identity/override_dir_test.go`:
 - `Purge` delegates to the base directory.
 
 Updated fixtures: `server_test.go` `testResolveServer` and `email_test.go`
-`emailServer` wrap their current directory in `NewOverrideDirectory` with the
+`emailServer` wrap their current directory in `NewSpaceProxyDirectory` with the
 client/resolver options. Existing handler assertions must pass unchanged.
 
 ## Verification

@@ -1,14 +1,14 @@
-# OverrideDirectory Implementation Plan
+# SpaceProxyDirectory Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Extract the DID-override and email-resolution logic out of `internal/identity/server.go` into a new `OverrideDirectory` implementing indigo's `identity.Directory`, reducing the server's resolve handlers to thin lookups plus HTTP error mapping.
+**Goal:** Extract the DID-override and email-resolution logic out of `internal/identity/server.go` into a new `SpaceProxyDirectory` implementing indigo's `identity.Directory`, reducing the server's resolve handlers to thin lookups plus HTTP error mapping.
 
-**Architecture:** A new `OverrideDirectory` wraps the existing `WrappedDirectory` (hive → public atproto directory). Every lookup delegates to the wrapped directory and then rewrites the returned identity's `Services` so `#atproto_pds` points at this habitat instance — unless the real PDS supports spaces. Email resolution lives on non-interface methods (`LookupEmail`, `LookupIdentifier`) because indigo's `Directory` interface only accepts handles/DIDs/at-identifiers, none of which can represent an email. The server keeps only param parsing, error-to-HTTP mapping, and serialization of `ident.DIDDocument()`.
+**Architecture:** A new `SpaceProxyDirectory` wraps the existing `WrappedDirectory` (hive → public atproto directory). Every lookup delegates to the wrapped directory and then rewrites the returned identity's `Services` so `#atproto_pds` points at this habitat instance — unless the real PDS supports spaces. Email resolution lives on non-interface methods (`LookupEmail`, `LookupIdentifier`) because indigo's `Directory` interface only accepts handles/DIDs/at-identifiers, none of which can represent an email. The server keeps only param parsing, error-to-HTTP mapping, and serialization of `ident.DIDDocument()`.
 
 **Tech Stack:** Go 1.26/1.27, indigo `atproto/identity` (v0.0.0-20260818202247), testify, moon/golangci-lint (proto-managed).
 
-**Design doc:** `docs/superpowers/specs/2026-09-24-override-directory-design.md`
+**Design doc:** `docs/superpowers/specs/2026-09-24-space-proxy-directory-design.md`
 
 ---
 
@@ -16,27 +16,27 @@
 
 | File | Responsibility | Change |
 | --- | --- | --- |
-| `internal/identity/override_dir.go` | New `OverrideDirectory` type: constructor, `identity.Directory` interface methods, `LookupEmail`/`LookupIdentifier`, `applyOverride` | **Create** |
-| `internal/identity/override_dir_test.go` | Unit tests for `OverrideDirectory` | **Create** |
-| `internal/identity/server.go` | `Server` rewritten to serve lookups through `OverrideDirectory`; removes `parseEmail`, `overriddenDidDoc`, and the `emailResolver`/`domain`/`httpClient` fields | **Modify** |
-| `internal/identity/server_test.go` | `testResolveServer` fixture wraps its mock directory in `NewOverrideDirectory` | **Modify** |
-| `internal/identity/email_test.go` | `emailServer` fixture wraps its directory in `NewOverrideDirectory`; `TestResolveIdentityEmailDisabled` disables email via the directory | **Modify** |
+| `internal/identity/space_proxy_dir.go` | New `SpaceProxyDirectory` type: constructor, `identity.Directory` interface methods, `LookupEmail`/`LookupIdentifier`, `applyOverride` | **Create** |
+| `internal/identity/space_proxy_dir_test.go` | Unit tests for `SpaceProxyDirectory` | **Create** |
+| `internal/identity/server.go` | `Server` rewritten to serve lookups through `SpaceProxyDirectory`; removes `parseEmail`, `overriddenDidDoc`, and the `emailResolver`/`domain`/`httpClient` fields | **Modify** |
+| `internal/identity/server_test.go` | `testResolveServer` fixture wraps its mock directory in `NewSpaceProxyDirectory` | **Modify** |
+| `internal/identity/email_test.go` | `emailServer` fixture wraps its directory in `NewSpaceProxyDirectory`; `TestResolveIdentityEmailDisabled` disables email via the directory | **Modify** |
 
 `cmd/pear/main.go` and `integration/org_mint_identity_test.go` compile unchanged.
 
 ---
 
-## Task 1: Add `OverrideDirectory` with DID override and email/identifier lookups
+## Task 1: Add `SpaceProxyDirectory` with DID override and email/identifier lookups
 
-Add the new type and its tests. The server is untouched in this task. To avoid a name collision (the server still owns `WithClient`/`WithEmailResolver` in this task), `NewOverrideDirectory` takes no option funcs yet; tests configure the unexported `httpClient`/`emailResolver` fields directly (same package).
+Add the new type and its tests. The server is untouched in this task. To avoid a name collision (the server still owns `WithClient`/`WithEmailResolver` in this task), `NewSpaceProxyDirectory` takes no option funcs yet; tests configure the unexported `httpClient`/`emailResolver` fields directly (same package).
 
 **Files:**
-- Create: `internal/identity/override_dir.go`
-- Create: `internal/identity/override_dir_test.go`
+- Create: `internal/identity/space_proxy_dir.go`
+- Create: `internal/identity/space_proxy_dir_test.go`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `internal/identity/override_dir_test.go`:
+Create `internal/identity/space_proxy_dir_test.go`:
 
 ```go
 package identity
@@ -62,7 +62,7 @@ func unsupportedPDS(t *testing.T) *httptest.Server {
 	return pds
 }
 
-func TestOverrideDirectoryOverridesPDS(t *testing.T) {
+func TestSpaceProxyDirectoryOverridesPDS(t *testing.T) {
 	pds := unsupportedPDS(t)
 
 	base := identity.NewMockDirectory()
@@ -75,7 +75,7 @@ func TestOverrideDirectoryOverridesPDS(t *testing.T) {
 		},
 	})
 
-	dir := NewOverrideDirectory(base, "pear.domain")
+	dir := NewSpaceProxyDirectory(base, "pear.domain")
 	dir.httpClient = pds.Client()
 
 	ident, err := dir.LookupDID(t.Context(), syntax.DID("did:web:alice.example.com"))
@@ -93,7 +93,7 @@ func TestOverrideDirectoryOverridesPDS(t *testing.T) {
 	require.Equal(t, pds.URL, original.PDSEndpoint())
 }
 
-func TestOverrideDirectoryKeepsRealPDS(t *testing.T) {
+func TestSpaceProxyDirectoryKeepsRealPDS(t *testing.T) {
 	pds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -109,7 +109,7 @@ func TestOverrideDirectoryKeepsRealPDS(t *testing.T) {
 		},
 	})
 
-	dir := NewOverrideDirectory(base, "pear.domain")
+	dir := NewSpaceProxyDirectory(base, "pear.domain")
 	dir.httpClient = pds.Client()
 
 	ident, err := dir.LookupHandle(t.Context(), syntax.Handle("alice.example.com"))
@@ -118,7 +118,7 @@ func TestOverrideDirectoryKeepsRealPDS(t *testing.T) {
 	require.Equal(t, "https://other.example.com", ident.GetServiceEndpoint("habitat"))
 }
 
-func TestOverrideDirectoryLookupResolvesHandleDID(t *testing.T) {
+func TestSpaceProxyDirectoryLookupResolvesHandleDID(t *testing.T) {
 	base := identity.NewMockDirectory()
 	base.Insert(identity.Identity{
 		DID:    syntax.DID("did:web:alice.example.com"),
@@ -127,7 +127,7 @@ func TestOverrideDirectoryLookupResolvesHandleDID(t *testing.T) {
 			"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: "https://pds.example.com"},
 		},
 	})
-	dir := NewOverrideDirectory(base, "pear.domain")
+	dir := NewSpaceProxyDirectory(base, "pear.domain")
 	dir.httpClient = &http.Client{Transport: noNetworkTransport{}}
 
 	atid, err := syntax.ParseAtIdentifier("alice.example.com")
@@ -138,7 +138,7 @@ func TestOverrideDirectoryLookupResolvesHandleDID(t *testing.T) {
 	require.Equal(t, "https://pear.domain", ident.PDSEndpoint())
 }
 
-func TestOverrideDirectoryLookupIdentifierDID(t *testing.T) {
+func TestSpaceProxyDirectoryLookupIdentifierDID(t *testing.T) {
 	base := identity.NewMockDirectory()
 	base.Insert(identity.Identity{
 		DID:    syntax.DID("did:web:alice.example.com"),
@@ -147,7 +147,7 @@ func TestOverrideDirectoryLookupIdentifierDID(t *testing.T) {
 			"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: "https://pds.example.com"},
 		},
 	})
-	dir := NewOverrideDirectory(base, "pear.domain")
+	dir := NewSpaceProxyDirectory(base, "pear.domain")
 	dir.httpClient = &http.Client{Transport: noNetworkTransport{}}
 
 	ident, err := dir.LookupIdentifier(t.Context(), "did:web:alice.example.com")
@@ -156,23 +156,23 @@ func TestOverrideDirectoryLookupIdentifierDID(t *testing.T) {
 	require.Equal(t, "https://pear.domain", ident.PDSEndpoint())
 }
 
-func TestOverrideDirectoryLookupIdentifierUnknownHandle(t *testing.T) {
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+func TestSpaceProxyDirectoryLookupIdentifierUnknownHandle(t *testing.T) {
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 
 	_, err := dir.LookupIdentifier(t.Context(), "nobody.example.com")
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)
 }
 
-func TestOverrideDirectoryLookupIdentifierInvalid(t *testing.T) {
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+func TestSpaceProxyDirectoryLookupIdentifierInvalid(t *testing.T) {
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 
 	_, err := dir.LookupIdentifier(t.Context(), "not an identifier")
 	require.ErrorIs(t, err, identity.ErrInvalidHandle)
 }
 
-func TestOverrideDirectoryLookupEmailMintsAndOverrides(t *testing.T) {
+func TestSpaceProxyDirectoryLookupEmailMintsAndOverrides(t *testing.T) {
 	f := newEmailFixture(t)
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 	dir.httpClient = &http.Client{Transport: noNetworkTransport{}}
 	dir.emailResolver = f.resolver
 
@@ -184,9 +184,9 @@ func TestOverrideDirectoryLookupEmailMintsAndOverrides(t *testing.T) {
 	require.Equal(t, 0, f.memberships(t))
 }
 
-func TestOverrideDirectoryLookupIdentifierEmail(t *testing.T) {
+func TestSpaceProxyDirectoryLookupIdentifierEmail(t *testing.T) {
 	f := newEmailFixture(t)
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 	dir.httpClient = &http.Client{Transport: noNetworkTransport{}}
 	dir.emailResolver = f.resolver
 
@@ -196,24 +196,24 @@ func TestOverrideDirectoryLookupIdentifierEmail(t *testing.T) {
 	require.Equal(t, "https://pear.domain", ident.PDSEndpoint())
 }
 
-func TestOverrideDirectoryLookupEmailUnknownDomain(t *testing.T) {
+func TestSpaceProxyDirectoryLookupEmailUnknownDomain(t *testing.T) {
 	f := newEmailFixture(t)
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 	dir.emailResolver = f.resolver
 
 	_, err := dir.LookupEmail(t.Context(), "alice@other.com")
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
 
-func TestOverrideDirectoryLookupEmailDisabled(t *testing.T) {
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+func TestSpaceProxyDirectoryLookupEmailDisabled(t *testing.T) {
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 
 	_, err := dir.LookupEmail(t.Context(), "alice@acme.com")
 	require.ErrorIs(t, err, identity.ErrInvalidHandle)
 }
 
-func TestOverrideDirectoryPurge(t *testing.T) {
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+func TestSpaceProxyDirectoryPurge(t *testing.T) {
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 
 	atid, err := syntax.ParseAtIdentifier("alice.example.com")
 	require.NoError(t, err)
@@ -225,13 +225,13 @@ Note: `noNetworkTransport` (from `email_test.go`) fails every request, so `Suppo
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `go test ./internal/identity/ -run TestOverrideDirectory -v`
+Run: `go test ./internal/identity/ -run TestSpaceProxyDirectory -v`
 
-Expected: FAIL — `undefined: NewOverrideDirectory`.
+Expected: FAIL — `undefined: NewSpaceProxyDirectory`.
 
-- [ ] **Step 3: Implement `OverrideDirectory`**
+- [ ] **Step 3: Implement `SpaceProxyDirectory`**
 
-Create `internal/identity/override_dir.go`:
+Create `internal/identity/space_proxy_dir.go`:
 
 ```go
 package identity
@@ -247,24 +247,24 @@ import (
 	"github.com/habitat-network/habitat/internal/httpx"
 )
 
-// OverrideDirectory resolves identities through a base directory and returns
+// SpaceProxyDirectory resolves identities through a base directory and returns
 // each one with its DID document overridden so its #atproto_pds service points
 // at this habitat instance — unless the identity's real PDS already implements
 // the atproto spaces protocol. It also resolves work emails (minting an
 // identity on first sight) when an EmailResolver is configured.
-type OverrideDirectory struct {
+type SpaceProxyDirectory struct {
 	base          identity.Directory
 	emailResolver *EmailResolver
 	domain        string
 	httpClient    *http.Client
 }
 
-// NewOverrideDirectory constructs an OverrideDirectory over base. Identities
+// NewSpaceProxyDirectory constructs an SpaceProxyDirectory over base. Identities
 // whose real PDS doesn't support spaces get their #atproto_pds redirected to
 // "https://" + domain. httpClient defaults to a fresh httpx client and is used
 // to probe PDS spaces support.
-func NewOverrideDirectory(base identity.Directory, domain string) *OverrideDirectory {
-	return &OverrideDirectory{
+func NewSpaceProxyDirectory(base identity.Directory, domain string) *SpaceProxyDirectory {
+	return &SpaceProxyDirectory{
 		base:       base,
 		domain:     domain,
 		httpClient: httpx.NewClient(),
@@ -272,7 +272,7 @@ func NewOverrideDirectory(base identity.Directory, domain string) *OverrideDirec
 }
 
 // LookupDID implements identity.Directory.
-func (d *OverrideDirectory) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
+func (d *SpaceProxyDirectory) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
 	ident, err := d.base.LookupDID(ctx, did)
 	if err != nil {
 		return nil, err
@@ -281,7 +281,7 @@ func (d *OverrideDirectory) LookupDID(ctx context.Context, did syntax.DID) (*ide
 }
 
 // LookupHandle implements identity.Directory.
-func (d *OverrideDirectory) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
+func (d *SpaceProxyDirectory) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
 	ident, err := d.base.LookupHandle(ctx, handle)
 	if err != nil {
 		return nil, err
@@ -290,7 +290,7 @@ func (d *OverrideDirectory) LookupHandle(ctx context.Context, handle syntax.Hand
 }
 
 // Lookup implements identity.Directory.
-func (d *OverrideDirectory) Lookup(ctx context.Context, atid syntax.AtIdentifier) (*identity.Identity, error) {
+func (d *SpaceProxyDirectory) Lookup(ctx context.Context, atid syntax.AtIdentifier) (*identity.Identity, error) {
 	ident, err := d.base.Lookup(ctx, atid)
 	if err != nil {
 		return nil, err
@@ -299,7 +299,7 @@ func (d *OverrideDirectory) Lookup(ctx context.Context, atid syntax.AtIdentifier
 }
 
 // Purge implements identity.Directory.
-func (d *OverrideDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
+func (d *SpaceProxyDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 	return d.base.Purge(ctx, atid)
 }
 
@@ -307,7 +307,7 @@ func (d *OverrideDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier)
 // applies the DID override to whatever it returns. It returns
 // identity.ErrInvalidHandle when no EmailResolver is configured and
 // identity.ErrDIDNotFound when the email's domain isn't mapped.
-func (d *OverrideDirectory) LookupEmail(ctx context.Context, email emaildomain.Email) (*identity.Identity, error) {
+func (d *SpaceProxyDirectory) LookupEmail(ctx context.Context, email emaildomain.Email) (*identity.Identity, error) {
 	if d.emailResolver == nil {
 		return nil, identity.ErrInvalidHandle
 	}
@@ -321,7 +321,7 @@ func (d *OverrideDirectory) LookupEmail(ctx context.Context, email emaildomain.E
 // LookupIdentifier resolves an identifier string as an at-identifier (DID or
 // handle) or, failing that, as a work email. It returns
 // identity.ErrInvalidHandle for input that is neither.
-func (d *OverrideDirectory) LookupIdentifier(ctx context.Context, identifier string) (*identity.Identity, error) {
+func (d *SpaceProxyDirectory) LookupIdentifier(ctx context.Context, identifier string) (*identity.Identity, error) {
 	if atid, err := syntax.ParseAtIdentifier(identifier); err == nil {
 		return d.Lookup(ctx, atid)
 	}
@@ -335,7 +335,7 @@ func (d *OverrideDirectory) LookupIdentifier(ctx context.Context, identifier str
 // points at this habitat instance when the identity's real PDS doesn't support
 // the spaces protocol. A fresh identity is returned rather than mutating the
 // base directory's — possibly cached — one.
-func (d *OverrideDirectory) applyOverride(ctx context.Context, ident *identity.Identity) *identity.Identity {
+func (d *SpaceProxyDirectory) applyOverride(ctx context.Context, ident *identity.Identity) *identity.Identity {
 	if utils.SupportsSpaces(ctx, d.httpClient, ident) {
 		return ident
 	}
@@ -362,9 +362,9 @@ Note: this references `utils.SupportsSpaces`, so add the import:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `go test ./internal/identity/ -run TestOverrideDirectory -v`
+Run: `go test ./internal/identity/ -run TestSpaceProxyDirectory -v`
 
-Expected: PASS (all `TestOverrideDirectory*` tests).
+Expected: PASS (all `TestSpaceProxyDirectory*` tests).
 
 - [ ] **Step 5: Run the full package tests (regression check)**
 
@@ -375,26 +375,26 @@ Expected: PASS (server/email tests unaffected).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add internal/identity/override_dir.go internal/identity/override_dir_test.go
-git commit -m "feat(identity): add OverrideDirectory with DID override and email lookups"
+git add internal/identity/space_proxy_dir.go internal/identity/space_proxy_dir_test.go
+git commit -m "feat(identity): add SpaceProxyDirectory with DID override and email lookups"
 ```
 
 ---
 
-## Task 2: Rewire the server through `OverrideDirectory`
+## Task 2: Rewire the server through `SpaceProxyDirectory`
 
-Move `WithClient`/`WithEmailResolver` onto `OverrideDirectory`, delete the duplicated server logic (`parseEmail`, `overriddenDidDoc`, and the `emailResolver`/`domain`/`httpClient` fields), and make the resolve handlers thin lookups. This task is atomic: the option functions and `Server.directory` type both flip in one change so the package stays green.
+Move `WithClient`/`WithEmailResolver` onto `SpaceProxyDirectory`, delete the duplicated server logic (`parseEmail`, `overriddenDidDoc`, and the `emailResolver`/`domain`/`httpClient` fields), and make the resolve handlers thin lookups. This task is atomic: the option functions and `Server.directory` type both flip in one change so the package stays green.
 
 **Files:**
-- Modify: `internal/identity/override_dir.go` (constructor gains `opts`, imports gain `utils`... `utils` is added in Step 1 via the `applyOverride` note; adjust the constructor and add the option functions)
+- Modify: `internal/identity/space_proxy_dir.go` (constructor gains `opts`, imports gain `utils`... `utils` is added in Step 1 via the `applyOverride` note; adjust the constructor and add the option functions)
 - Modify: `internal/identity/server.go`
 - Modify: `internal/identity/server_test.go` (`testResolveServer`)
 - Modify: `internal/identity/email_test.go` (`emailServer`, `TestResolveIdentityEmailDisabled`)
-- Test: `internal/identity/server_test.go`, `internal/identity/email_test.go`, `internal/identity/override_dir_test.go`
+- Test: `internal/identity/server_test.go`, `internal/identity/email_test.go`, `internal/identity/space_proxy_dir_test.go`
 
-- [ ] **Step 1: Update `OverrideDirectory` to take options**
+- [ ] **Step 1: Update `SpaceProxyDirectory` to take options**
 
-Edit `internal/identity/override_dir.go`:
+Edit `internal/identity/space_proxy_dir.go`:
 
 - Add the `utils` import (also used by `applyOverride`):
 
@@ -402,18 +402,18 @@ Edit `internal/identity/override_dir.go`:
 	"github.com/habitat-network/habitat/internal/utils"
 ```
 
-- Replace the constructor `NewOverrideDirectory(base identity.Directory, domain string)` with an options-taking version, and append the two option functions after `LookupEmail` (or near the constructor — order is cosmetic):
+- Replace the constructor `NewSpaceProxyDirectory(base identity.Directory, domain string)` with an options-taking version, and append the two option functions after `LookupEmail` (or near the constructor — order is cosmetic):
 
 ```go
-// NewOverrideDirectory constructs an OverrideDirectory over base, redirecting
+// NewSpaceProxyDirectory constructs an SpaceProxyDirectory over base, redirecting
 // identities whose real PDS doesn't support spaces to serve from this habitat
 // instance.
-func NewOverrideDirectory(
+func NewSpaceProxyDirectory(
 	base identity.Directory,
 	domain string,
-	opts ...utils.Opt[OverrideDirectory],
-) *OverrideDirectory {
-	dir := utils.ResolveOptions(OverrideDirectory{
+	opts ...utils.Opt[SpaceProxyDirectory],
+) *SpaceProxyDirectory {
+	dir := utils.ResolveOptions(SpaceProxyDirectory{
 		base:       base,
 		domain:     domain,
 		httpClient: httpx.NewClient(),
@@ -423,8 +423,8 @@ func NewOverrideDirectory(
 
 // WithClient sets the HTTP client used to probe whether an identity's PDS
 // supports the atproto spaces protocol.
-func WithClient(client *http.Client) utils.Opt[OverrideDirectory] {
-	return func(d *OverrideDirectory) {
+func WithClient(client *http.Client) utils.Opt[SpaceProxyDirectory] {
+	return func(d *SpaceProxyDirectory) {
 		d.httpClient = client
 	}
 }
@@ -432,8 +432,8 @@ func WithClient(client *http.Client) utils.Opt[OverrideDirectory] {
 // WithEmailResolver lets the directory resolve a work email in place of a
 // handle, minting an identity on first sight (see EmailResolver). Without it,
 // email identifiers are rejected.
-func WithEmailResolver(r *EmailResolver) utils.Opt[OverrideDirectory] {
-	return func(d *OverrideDirectory) {
+func WithEmailResolver(r *EmailResolver) utils.Opt[SpaceProxyDirectory] {
+	return func(d *SpaceProxyDirectory) {
 		d.emailResolver = r
 	}
 }
@@ -480,7 +480,7 @@ func effectiveHost(r *http.Request) string {
 // Does not serve the MintIdentity endpoint.
 type Server struct {
 	hive          hive.Hive
-	directory     *OverrideDirectory
+	directory     *SpaceProxyDirectory
 	validator     authn.RequestValidator
 	orgStore      org.Store
 	pdsForwarding *forwarding.PDSForwarding
@@ -497,9 +497,9 @@ func NewServer(
 	orgStore org.Store,
 	pdsForwarding *forwarding.PDSForwarding,
 	domain string,
-	opts ...utils.Opt[OverrideDirectory],
+	opts ...utils.Opt[SpaceProxyDirectory],
 ) (*Server, error) {
-	directory := NewOverrideDirectory(
+	directory := NewSpaceProxyDirectory(
 		NewWrappedDirectory(hive, identity.DefaultDirectory()),
 		domain,
 		opts...,
@@ -729,7 +729,7 @@ func testResolveServer(t *testing.T) *Server {
 		},
 	})
 	return &Server{
-		directory: NewOverrideDirectory(dir, "pear.domain", WithClient(pds.Client())),
+		directory: NewSpaceProxyDirectory(dir, "pear.domain", WithClient(pds.Client())),
 	}
 }
 ```
@@ -744,7 +744,7 @@ In `internal/identity/email_test.go`, replace `emailServer` with:
 func emailServer(f emailFixture, opts ...func(*Server)) *Server {
 	s := &Server{
 		hive: f.hive,
-		directory: NewOverrideDirectory(
+		directory: NewSpaceProxyDirectory(
 			NewWrappedDirectory(f.hive, identity.NewMockDirectory()),
 			"pear.domain",
 			WithClient(&http.Client{Transport: noNetworkTransport{}}),
@@ -786,8 +786,8 @@ Expected: PASS (all existing server/email/wrapped-dir/override tests).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add internal/identity/override_dir.go internal/identity/server.go internal/identity/server_test.go internal/identity/email_test.go
-git commit -m "refactor(identity): serve identity resolution through OverrideDirectory"
+git add internal/identity/space_proxy_dir.go internal/identity/server.go internal/identity/server_test.go internal/identity/email_test.go
+git commit -m "refactor(identity): serve identity resolution through SpaceProxyDirectory"
 ```
 
 ---
@@ -833,6 +833,6 @@ git commit -m "chore(identity): lint fixes"
 
 ## Self-Review Notes
 
-- **Spec coverage:** The spec's OverrideDirectory (.go), email/identifier methods, applyOverride copy-semantics, server rewiring, and test updates all map to Tasks 1–2; Task 3 covers the spec's verification section (`go test`, lint, build, integration module).
+- **Spec coverage:** The spec's SpaceProxyDirectory (.go), email/identifier methods, applyOverride copy-semantics, server rewiring, and test updates all map to Tasks 1–2; Task 3 covers the spec's verification section (`go test`, lint, build, integration module).
 - **Behavioral parity:** Error mappings preserved — `ResolveHandle` maps unmapped email domains to `HandleNotFound` and rejects DIDs with 400; `ResolveIdentity` keeps `DidNotFound` vs `HandleNotFound` distinction; disabled resolver still yields 400. The override document (single `#atproto_pds` service, keys + alsoKnownAs preserved) is byte-equivalent in intent.
-- **Type consistency:** `LookupDID`/`LookupHandle`/`Lookup`/`Purge` satisfy `identity.Directory`; `NewOverrideDirectory` returns `*OverrideDirectory` with `utils.Opt[OverrideDirectory]` options; `Server.directory` is `*OverrideDirectory`. `identity.ErrInvalidHandle`, `identity.ErrDIDNotFound`, `identity.ErrHandleNotFound` are indigo sentinels referenced consistently throughout.
+- **Type consistency:** `LookupDID`/`LookupHandle`/`Lookup`/`Purge` satisfy `identity.Directory`; `NewSpaceProxyDirectory` returns `*SpaceProxyDirectory` with `utils.Opt[SpaceProxyDirectory]` options; `Server.directory` is `*SpaceProxyDirectory`. `identity.ErrInvalidHandle`, `identity.ErrDIDNotFound`, `identity.ErrHandleNotFound` are indigo sentinels referenced consistently throughout.

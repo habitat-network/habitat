@@ -21,7 +21,7 @@ func unsupportedPDS(t *testing.T) *httptest.Server {
 	return pds
 }
 
-func TestOverrideDirectoryOverridesPDS(t *testing.T) {
+func TestSpaceProxyDirectoryOverridesPDS(t *testing.T) {
 	pds := unsupportedPDS(t)
 
 	base := identity.NewMockDirectory()
@@ -35,7 +35,7 @@ func TestOverrideDirectoryOverridesPDS(t *testing.T) {
 		},
 	})
 
-	dir := NewOverrideDirectory(base, "pear.domain")
+	dir := NewSpaceProxyDirectory(base, "pear.domain")
 	dir.httpClient = pds.Client()
 
 	ident, err := dir.LookupDID(t.Context(), syntax.DID("did:web:alice.example.com"))
@@ -53,7 +53,7 @@ func TestOverrideDirectoryOverridesPDS(t *testing.T) {
 	require.Equal(t, pds.URL, original.PDSEndpoint())
 }
 
-func TestOverrideDirectoryKeepsRealPDS(t *testing.T) {
+func TestSpaceProxyDirectoryKeepsRealPDS(t *testing.T) {
 	pds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -69,7 +69,7 @@ func TestOverrideDirectoryKeepsRealPDS(t *testing.T) {
 		},
 	})
 
-	dir := NewOverrideDirectory(base, "pear.domain")
+	dir := NewSpaceProxyDirectory(base, "pear.domain")
 	dir.httpClient = pds.Client()
 
 	ident, err := dir.LookupHandle(t.Context(), syntax.Handle("alice.example.com"))
@@ -78,7 +78,7 @@ func TestOverrideDirectoryKeepsRealPDS(t *testing.T) {
 	require.Equal(t, "https://other.example.com", ident.GetServiceEndpoint("habitat"))
 }
 
-func TestOverrideDirectoryLookupResolvesHandleDID(t *testing.T) {
+func TestSpaceProxyDirectoryLookupResolvesHandleDID(t *testing.T) {
 	base := identity.NewMockDirectory()
 	base.Insert(identity.Identity{
 		DID:    syntax.DID("did:web:alice.example.com"),
@@ -87,7 +87,7 @@ func TestOverrideDirectoryLookupResolvesHandleDID(t *testing.T) {
 			"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: "https://pds.example.com"},
 		},
 	})
-	dir := NewOverrideDirectory(base, "pear.domain")
+	dir := NewSpaceProxyDirectory(base, "pear.domain")
 	dir.httpClient = &http.Client{Transport: noNetworkTransport{}}
 
 	atid, err := syntax.ParseAtIdentifier("alice.example.com")
@@ -98,7 +98,7 @@ func TestOverrideDirectoryLookupResolvesHandleDID(t *testing.T) {
 	require.Equal(t, "https://pear.domain", ident.PDSEndpoint())
 }
 
-func TestOverrideDirectoryLookupIdentifierDID(t *testing.T) {
+func TestSpaceProxyDirectoryLookupIdentifierDID(t *testing.T) {
 	base := identity.NewMockDirectory()
 	base.Insert(identity.Identity{
 		DID:    syntax.DID("did:web:alice.example.com"),
@@ -107,7 +107,7 @@ func TestOverrideDirectoryLookupIdentifierDID(t *testing.T) {
 			"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: "https://pds.example.com"},
 		},
 	})
-	dir := NewOverrideDirectory(base, "pear.domain")
+	dir := NewSpaceProxyDirectory(base, "pear.domain")
 	dir.httpClient = &http.Client{Transport: noNetworkTransport{}}
 
 	ident, err := dir.LookupIdentifier(t.Context(), "did:web:alice.example.com")
@@ -116,23 +116,23 @@ func TestOverrideDirectoryLookupIdentifierDID(t *testing.T) {
 	require.Equal(t, "https://pear.domain", ident.PDSEndpoint())
 }
 
-func TestOverrideDirectoryLookupIdentifierUnknownHandle(t *testing.T) {
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+func TestSpaceProxyDirectoryLookupIdentifierUnknownHandle(t *testing.T) {
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 
 	_, err := dir.LookupIdentifier(t.Context(), "nobody.example.com")
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)
 }
 
-func TestOverrideDirectoryLookupIdentifierInvalid(t *testing.T) {
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+func TestSpaceProxyDirectoryLookupIdentifierInvalid(t *testing.T) {
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 
 	_, err := dir.LookupIdentifier(t.Context(), "not an identifier")
 	require.ErrorIs(t, err, identity.ErrInvalidHandle)
 }
 
-func TestOverrideDirectoryLookupEmailMintsAndOverrides(t *testing.T) {
+func TestSpaceProxyDirectoryLookupEmailMintsAndOverrides(t *testing.T) {
 	f := newEmailFixture(t)
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 	dir.httpClient = &http.Client{Transport: noNetworkTransport{}}
 	dir.emailResolver = f.resolver
 
@@ -144,9 +144,9 @@ func TestOverrideDirectoryLookupEmailMintsAndOverrides(t *testing.T) {
 	require.Equal(t, 0, f.memberships(t))
 }
 
-func TestOverrideDirectoryLookupIdentifierEmail(t *testing.T) {
+func TestSpaceProxyDirectoryLookupIdentifierEmail(t *testing.T) {
 	f := newEmailFixture(t)
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 	dir.httpClient = &http.Client{Transport: noNetworkTransport{}}
 	dir.emailResolver = f.resolver
 
@@ -156,32 +156,32 @@ func TestOverrideDirectoryLookupIdentifierEmail(t *testing.T) {
 	require.Equal(t, "https://pear.domain", ident.PDSEndpoint())
 }
 
-func TestOverrideDirectoryLookupEmailUnknownDomain(t *testing.T) {
+func TestSpaceProxyDirectoryLookupEmailUnknownDomain(t *testing.T) {
 	f := newEmailFixture(t)
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 	dir.emailResolver = f.resolver
 
 	_, err := dir.LookupEmail(t.Context(), "alice@other.com")
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
 
-func TestOverrideDirectoryLookupEmailDisabled(t *testing.T) {
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+func TestSpaceProxyDirectoryLookupEmailDisabled(t *testing.T) {
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 
 	_, err := dir.LookupEmail(t.Context(), "alice@acme.com")
 	require.ErrorIs(t, err, identity.ErrInvalidHandle)
 }
 
-func TestOverrideDirectoryPurge(t *testing.T) {
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+func TestSpaceProxyDirectoryPurge(t *testing.T) {
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 
 	atid, err := syntax.ParseAtIdentifier("alice.example.com")
 	require.NoError(t, err)
 	require.NoError(t, dir.Purge(t.Context(), atid))
 }
 
-func TestOverrideDirectoryPassesThroughErrors(t *testing.T) {
-	dir := NewOverrideDirectory(identity.NewMockDirectory(), "pear.domain")
+func TestSpaceProxyDirectoryPassesThroughErrors(t *testing.T) {
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 
 	_, err := dir.LookupHandle(t.Context(), syntax.Handle("alice.example.com"))
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)

@@ -34,7 +34,7 @@ func effectiveHost(r *http.Request) string {
 // Does not serve the MintIdentity endpoint.
 type Server struct {
 	hive          hive.Hive
-	directory     *OverrideDirectory
+	directory     *SpaceProxyDirectory
 	validator     authn.RequestValidator
 	orgStore      org.Store
 	pdsForwarding *forwarding.PDSForwarding
@@ -51,9 +51,9 @@ func NewServer(
 	orgStore org.Store,
 	pdsForwarding *forwarding.PDSForwarding,
 	domain string,
-	opts ...utils.Opt[OverrideDirectory],
+	opts ...utils.Opt[SpaceProxyDirectory],
 ) (*Server, error) {
-	directory := NewOverrideDirectory(
+	directory := NewSpaceProxyDirectory(
 		NewWrappedDirectory(hive, identity.DefaultDirectory()),
 		domain,
 		opts...,

@@ -163,7 +163,7 @@ func TestEmailResolverConcurrentSameEmail(t *testing.T) {
 	require.Equal(t, 0, f.memberships(t))
 }
 
-// noNetworkTransport fails every request, so OverrideDirectory.applyOverride's
+// noNetworkTransport fails every request, so SpaceProxyDirectory.applyOverride's
 // spaces probe of a minted identity's PDS reads as "unsupported" without real
 // network.
 type noNetworkTransport struct{}
@@ -175,7 +175,7 @@ func (noNetworkTransport) RoundTrip(*http.Request) (*http.Response, error) {
 func emailServer(f emailFixture, opts ...func(*Server)) *Server {
 	s := &Server{
 		hive: f.hive,
-		directory: NewOverrideDirectory(
+		directory: NewSpaceProxyDirectory(
 			NewWrappedDirectory(f.hive, identity.NewMockDirectory()),
 			"pear.domain",
 			WithClient(&http.Client{Transport: noNetworkTransport{}}),

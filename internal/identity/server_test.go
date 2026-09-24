@@ -38,7 +38,7 @@ func testResolveServer(t *testing.T) *Server {
 		},
 	})
 	return &Server{
-		directory: NewOverrideDirectory(dir, "pear.domain", WithClient(pds.Client())),
+		directory: NewSpaceProxyDirectory(dir, "pear.domain", WithClient(pds.Client())),
 	}
 }
 
