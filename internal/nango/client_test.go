@@ -151,3 +151,28 @@ func TestClientErrorResponse(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "400")
 }
+
+func TestClientEscapesKeys(t *testing.T) {
+	var gotPaths, gotKeys []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPaths = append(gotPaths, r.URL.EscapedPath())
+		gotKeys = append(gotKeys, r.URL.Query().Get("provider_config_key"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("test-secret", srv.Client())
+	c.baseURL = srv.URL
+
+	key := "did:web:example.com%3A8080:my-server&x=y"
+	require.NoError(t, c.DeleteIntegration(t.Context(), key))
+	require.NoError(t, c.DeleteConnection(t.Context(), "conn/1", key))
+	require.Equal(t, "/integrations/"+url.PathEscape(key), gotPaths[0])
+	require.Equal(t, "/connection/conn%2F1", gotPaths[1])
+	require.Equal(t, key, gotKeys[1])
+}
+
+func TestClientNotConfigured(t *testing.T) {
+	c := NewClient("", nil)
+	_, err := c.ListConnections(t.Context(), "did:plc:alice")
+	require.ErrorIs(t, err, ErrNotConfigured)
+}

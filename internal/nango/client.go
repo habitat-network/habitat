@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,6 +28,11 @@ const mcpGenericProvider = "mcp-generic"
 // connection, so they can be told apart from any other kind of connection
 // (e.g. a future non-MCP integration) sharing the same Nango environment.
 const connectionTypeTag = "mcp"
+
+// ErrNotConfigured is returned by every Client call when no Nango secret key
+// was configured, so callers fail fast instead of sending an unauthenticated
+// request.
+var ErrNotConfigured = errors.New("nango secret key not configured")
 
 // Client is a client for Nango's backend HTTP API.
 type Client struct {
@@ -56,7 +62,7 @@ func (c *Client) CreateIntegration(ctx context.Context, uniqueKey string) error 
 
 // DeleteIntegration deletes a Nango Integration.
 func (c *Client) DeleteIntegration(ctx context.Context, uniqueKey string) error {
-	_, err := c.do(ctx, http.MethodDelete, "/integrations/"+uniqueKey, nil)
+	_, err := c.do(ctx, http.MethodDelete, "/integrations/"+url.PathEscape(uniqueKey), nil)
 	return err
 }
 
@@ -146,7 +152,7 @@ func (c *Client) GetConnection(
 	ctx context.Context,
 	connectionID, providerConfigKey string,
 ) (*ConnectionDetails, error) {
-	path := "/connection/" + connectionID + "?provider_config_key=" + providerConfigKey
+	path := connectionPath(connectionID, providerConfigKey)
 	body, err := c.do(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
@@ -176,12 +182,23 @@ func (c *Client) DeleteConnection(
 	ctx context.Context,
 	connectionID, providerConfigKey string,
 ) error {
-	path := "/connection/" + connectionID + "?provider_config_key=" + providerConfigKey
+	path := connectionPath(connectionID, providerConfigKey)
 	_, err := c.do(ctx, http.MethodDelete, path, nil)
 	return err
 }
 
+// connectionPath builds the /connection/{id} path for a Connection,
+// escaping both parts: provider config keys embed an org DID, which
+// contains ':' and may contain '%'.
+func connectionPath(connectionID, providerConfigKey string) string {
+	q := url.Values{"provider_config_key": {providerConfigKey}}
+	return "/connection/" + url.PathEscape(connectionID) + "?" + q.Encode()
+}
+
 func (c *Client) do(ctx context.Context, method, path string, body any) ([]byte, error) {
+	if c.secretKey == "" {
+		return nil, ErrNotConfigured
+	}
 	var reqBody io.Reader
 	if body != nil {
 		encoded, err := json.Marshal(body)

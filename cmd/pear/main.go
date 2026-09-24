@@ -385,7 +385,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Store for org-configured MCP servers and per-user Nango connections.
 	nangoSecretKey := cmd.String(fNangoSecretKey)
 	if nangoSecretKey == "" {
-		slog.WarnContext(ctx, "nango secret key not set; MCP server configuration calls will fail")
+		slog.WarnContext(ctx, "nango secret key not set; MCP server configuration is disabled")
 	}
 	nangoClient := nango.NewClient(nangoSecretKey, httpx.NewClient())
 	mcpGatewayStore, err := mcpgateway.NewStore(

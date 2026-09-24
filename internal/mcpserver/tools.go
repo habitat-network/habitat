@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -176,7 +177,10 @@ func mergeConnectedToolsMiddleware(
 			}
 
 			connections, err := nangoClient.ListConnections(ctx, extra.TokenInfo.UserID)
-			if err != nil {
+			if errors.Is(err, nango.ErrNotConfigured) {
+				// Pear logs once at startup when Nango is unset.
+				return result, nil
+			} else if err != nil {
 				slog.WarnContext(ctx, "mcp: listing nango connections for tools/list", "err", err)
 				return result, nil
 			}
