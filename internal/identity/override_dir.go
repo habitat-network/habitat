@@ -106,10 +106,10 @@ func (d *OverrideDirectory) LookupEmail(ctx context.Context, email emaildomain.E
 
 // LookupIdentifier resolves an identifier string as an at-identifier (DID or
 // handle) or, failing that, as a work email. It returns
-// identity.ErrInvalidHandle for input that is neither, identity.ErrHandleNotFound
-// for an at-identifier the base directory can't resolve, and
-// identity.ErrDIDNotFound for a valid email whose domain isn't mapped (surfaced
-// from LookupEmail).
+// identity.ErrInvalidHandle for input that is neither, or for a valid email
+// when no EmailResolver is configured; identity.ErrHandleNotFound for an
+// at-identifier the base directory can't resolve; and identity.ErrDIDNotFound
+// for a valid email whose domain isn't mapped (surfaced from LookupEmail).
 func (d *OverrideDirectory) LookupIdentifier(ctx context.Context, identifier string) (*identity.Identity, error) {
 	if atid, err := syntax.ParseAtIdentifier(identifier); err == nil {
 		return d.Lookup(ctx, atid)
