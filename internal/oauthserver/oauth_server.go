@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -72,6 +73,13 @@ type OAuthServer struct {
 	// issuer origin (https URL, no path) the discovery metadata is built from.
 	issuer          string
 	opensocialStore *opensocial.Store
+
+	// mcpBroker runs the atproto login the MCP endpoints' handle prompt uses
+	// (see HandleMCPAuthorizeSubmit). mcpClientMetadata is this server's own
+	// client identity when it acts as an atproto OAuth client against a user's
+	// PDS during that login.
+	mcpBroker         Broker
+	mcpClientMetadata oauth.ClientMetadata
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -103,6 +111,8 @@ func NewOAuthServer(
 	issuer string,
 	approvedJwtBearerClients ApprovedClientStore,
 	opensocialStore *opensocial.Store,
+	mcpBroker Broker,
+	mcpClientMetadata oauth.ClientMetadata,
 ) (*OAuthServer, error) {
 	config := &fosite.Config{
 		GlobalSecret:               secret,
@@ -114,6 +124,11 @@ func NewOAuthServer(
 		// claim of the assertion (checked against jwtBearerAllowedClients),
 		// so a separate client_id/secret on the token request isn't required.
 		GrantTypeJWTBearerCanSkipClientAuth: true,
+		// Every client this server issues tokens to is public (atproto
+		// client-id metadata clients and RFC 7591-registered MCP clients
+		// alike), so PKCE is mandatory across both endpoint sets.
+		EnforcePKCE:                 true,
+		EnforcePKCEForPublicClients: true,
 	}
 
 	privateKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), secret)
@@ -159,13 +174,15 @@ func NewOAuthServer(
 			compose.RFC7523AssertionGrantFactory,
 			compose.PushedAuthorizeHandlerFactory,
 		),
-		loginRouter:     loginRouter,
-		sessionStore:    cookieStore,
-		directory:       directory,
-		storage:         storage,
-		orgStore:        orgStore,
-		issuer:          issuer,
-		opensocialStore: opensocialStore,
+		loginRouter:       loginRouter,
+		sessionStore:      cookieStore,
+		directory:         directory,
+		storage:           storage,
+		orgStore:          orgStore,
+		issuer:            issuer,
+		opensocialStore:   opensocialStore,
+		mcpBroker:         mcpBroker,
+		mcpClientMetadata: mcpClientMetadata,
 	}, nil
 }
 
@@ -421,7 +438,7 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Nothing for the user to approve: finish the flow immediately instead of
 	// bouncing through the consent page.
 	if len(requester.GetRequestedScopes()) == 0 {
-		o.finishAuthorize(ctx, w, requestKey, requester)
+		o.finishAuthorize(ctx, w, requestKey, requester, o.issuer)
 		return
 	}
 
@@ -526,46 +543,33 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodGet {
-		c, _ := requester.GetClient().(*client)
-		var clientName, clientURI, logoURI, tosURI, policyURI string
-		if c.ClientName != nil {
-			clientName = *c.ClientName
-		}
-		if c.ClientURI != nil {
-			clientURI = *c.ClientURI
-		}
-		if c.LogoURI != nil {
-			logoURI = *c.LogoURI
-		}
-		if c.TosURI != nil {
-			tosURI = *c.TosURI
-		}
-		if c.PolicyURI != nil {
-			policyURI = *c.PolicyURI
-		}
+		c, _ := requester.GetClient().(clientDisplay)
 		httpx.WriteJSON(ctx, w, map[string]any{
 			"scopes":     requester.GetRequestedScopes(),
-			"clientId":   c.ClientID,
-			"clientName": clientName,
-			"clientUri":  clientURI,
-			"logoUri":    logoURI,
-			"tosUri":     tosURI,
-			"policyUri":  policyURI,
+			"clientId":   requester.GetClient().GetID(),
+			"clientName": c.displayName(),
+			"clientUri":  c.displayURI(),
+			"logoUri":    c.logoURI(),
+			"tosUri":     c.tosURI(),
+			"policyUri":  c.policyURI(),
 		})
 		return
 	}
-	o.finishAuthorize(ctx, w, requestKey, requester)
+	o.finishAuthorize(ctx, w, requestKey, requester, o.issuer)
 }
 
 // finishAuthorize grants the requester's requested scopes and writes the
 // fosite authorize response, redirecting the user agent back to the client
 // application with an authorization code. It deletes the underlying PAR
-// session, since the authorization request is now complete.
+// session, since the authorization request is now complete. issuer is the
+// "iss" parameter added to the response (RFC 9207): the atproto endpoints
+// pass o.issuer, the MCP endpoints o.MCPIssuer().
 func (o *OAuthServer) finishAuthorize(
 	ctx context.Context,
 	w http.ResponseWriter,
 	requestKey string,
 	requester fosite.AuthorizeRequester,
+	issuer string,
 ) {
 	if err := o.storage.DeletePARSession(ctx, requestKey); err != nil {
 		o.metrics.callbackErr(ctx, err, "delete_request")
@@ -594,7 +598,7 @@ func (o *OAuthServer) finishAuthorize(
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to create response: %w", err))
 		return
 	}
-	resp.AddParameter("iss", o.issuer)
+	resp.AddParameter("iss", issuer)
 	o.provider.WriteAuthorizeResponse(ctx, w, requester, resp)
 	o.metrics.callbackSuccess()
 }
@@ -740,23 +744,13 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 			continue
 		}
 
-		c := fositeClient.(*client)
-		var clientName, clientURI, logoURI string
-		if c.ClientName != nil {
-			clientName = *c.ClientName
-		}
-		if c.ClientURI != nil {
-			clientURI = *c.ClientURI
-		}
-		if c.LogoURI != nil {
-			logoURI = *c.LogoURI
-		}
+		c, _ := fositeClient.(clientDisplay)
 		output.Apps = append(output.Apps, habitat.NetworkHabitatListConnectedAppsApp{
 			ClientID:  row.ClientID,
-			ClientUri: clientURI,
+			ClientUri: c.displayURI(),
 			LastUsed:  row.UpdatedAt.Format(time.RFC3339Nano),
-			Name:      clientName,
-			LogoUri:   logoURI,
+			Name:      c.displayName(),
+			LogoUri:   c.logoURI(),
 		})
 	}
 	httpx.WriteJSON(ctx, w, output)
@@ -783,22 +777,12 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		c, _ := requester.GetClient().(*client)
-		var clientName, clientURI, logoURI string
-		if c.ClientName != nil {
-			clientName = *c.ClientName
-		}
-		if c.ClientURI != nil {
-			clientURI = *c.ClientURI
-		}
-		if c.LogoURI != nil {
-			logoURI = *c.LogoURI
-		}
+		c, _ := requester.GetClient().(clientDisplay)
 		httpx.WriteJSON(ctx, w, map[string]any{
 			"orgProfile": profile,
-			"clientName": clientName,
-			"clientUri":  clientURI,
-			"logoUri":    logoURI,
+			"clientName": c.displayName(),
+			"clientUri":  c.displayURI(),
+			"logoUri":    c.logoURI(),
 		})
 		return
 	}

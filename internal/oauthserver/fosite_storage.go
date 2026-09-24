@@ -2,6 +2,7 @@ package oauthserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -128,12 +129,24 @@ type ConnectedApp struct {
 	UpdatedAt time.Time
 }
 
+// RegisteredClient is an OAuth client registered through RFC 7591 dynamic
+// client registration (the MCP endpoints; see HandleMCPRegister). Clients
+// authenticated via an atproto client-id metadata document are never stored
+// here — they're resolved live by GetClient instead.
+type RegisteredClient struct {
+	ClientID     string `gorm:"primaryKey"`
+	ClientName   string
+	RedirectURIs []byte // JSON []string
+	GrantTypes   []byte // JSON []string
+	CreatedAt    time.Time
+}
+
 func newStore(
 	db *gorm.DB,
 	approvedJwtBearerClients ApprovedClientStore,
 	clientMeta *clientmetadata.Resolver,
 ) (*store, error) {
-	err := db.AutoMigrate(&OAuthRequest{}, &OAuthSession{}, &ConnectedApp{})
+	err := db.AutoMigrate(&OAuthRequest{}, &OAuthSession{}, &ConnectedApp{}, &RegisteredClient{})
 	if err != nil {
 		return nil, err
 	}
@@ -216,16 +229,49 @@ func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
 	return nil
 }
 
-// GetClient implements fosite.Storage.
+// GetClient implements fosite.Storage. It first checks for a dynamically
+// registered client (RFC 7591, used by the MCP endpoints), then falls back to
+// resolving id as an atproto client-id metadata document URL.
 func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error) {
 	ctx, span := tracer.Start(ctx, "GetClient")
 	defer span.End()
 	span.SetAttributes(attribute.String("client_id", id))
+
+	var row RegisteredClient
+	err := s.db.WithContext(ctx).First(&row, "client_id = ?", id).Error
+	switch {
+	case err == nil:
+		dc := &dynamicClient{RegisteredClient: &row}
+		if err := json.Unmarshal(row.RedirectURIs, &dc.redirectURIs); err != nil {
+			return nil, fmt.Errorf("decode redirect uris: %w", err)
+		}
+		if err := json.Unmarshal(row.GrantTypes, &dc.grantTypes); err != nil {
+			return nil, fmt.Errorf("decode grant types: %w", err)
+		}
+		return dc, nil
+	case !errors.Is(err, gorm.ErrRecordNotFound):
+		return nil, err
+	}
+
 	metadata, err := s.clientMeta.FetchMetadata(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	return &client{metadata}, nil
+}
+
+// createRegisteredClient persists a client registered through RFC 7591
+// dynamic client registration.
+func (s *store) createRegisteredClient(ctx context.Context, c *RegisteredClient) error {
+	return s.db.WithContext(ctx).Create(c).Error
+}
+
+// RekeyRequest moves a pending request row from its temporary key to a new
+// one. The MCP authorize flow uses this to move a pending request from its
+// form id to the atproto login's state token, which is how the callback
+// finds it again.
+func (s *store) RekeyRequest(ctx context.Context, from, to string) error {
+	return s.db.WithContext(ctx).Model(&OAuthRequest{}).Where("key = ?", from).Update("key", to).Error
 }
 
 // GetPublicKey implements rfc7523.RFC7523KeyStorage. issuer is the "iss"

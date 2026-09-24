@@ -1,4 +1,4 @@
-package mcpoauth
+package oauthserver
 
 import (
 	"context"
@@ -24,9 +24,10 @@ type Login struct {
 	State string
 }
 
-// Broker runs the atproto OAuth flow that proves which account the user is.
-// The MCP authorization server delegates to it for the user's PDS, so an
-// account hosted by pear and one hosted elsewhere go through the same code.
+// Broker runs the atproto OAuth flow that proves which account the user is,
+// for the MCP endpoints' handle-prompt login (see HandleMCPAuthorizeSubmit).
+// An account hosted by pear and one hosted elsewhere go through the same
+// code.
 type Broker interface {
 	// Start begins atproto OAuth for the account named by identifier (a handle
 	// or DID). It returns the URL to send the user's browser to and the state

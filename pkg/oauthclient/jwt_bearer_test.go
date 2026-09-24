@@ -130,6 +130,8 @@ func setupJWTBearerTestServer(
 		jwtBearerIssuer,
 		oauthserver.NewJWTBearerStore(approvedClientIDs...),
 		opensocial_testutil.NewTestStore(t).Store,
+		nil,
+		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)
 

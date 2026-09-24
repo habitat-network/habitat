@@ -42,7 +42,6 @@ import (
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
-	"github.com/habitat-network/habitat/internal/mcpoauth"
 	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
@@ -326,6 +325,35 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup opensocial store: %w", err)
 	}
 
+	// The MCP endpoints have their own broker for the atproto login their handle
+	// prompt runs (see OAuthServer.HandleMCPAuthorizeSubmit): it prompts for a
+	// handle and runs atproto OAuth against that account's PDS with the indigo
+	// client. Identity is resolved through pear's own resolveIdentity endpoint
+	// (see api-docs/docs/space-proxy/getting-started.mdx), which already
+	// rewrites pear-hosted accounts' PDS pointer to pear itself — so those
+	// accounts redirect to pear's own atproto OAuth server, and remote accounts
+	// resolve exactly the way any other client following that doc would see
+	// them.
+	mcpOrigin := "https://" + domain
+	mcpIdentityDir := identity.NewCacheDirectory(
+		apidir.NewAPIDirectory(mcpOrigin), 100_000, time.Hour, time.Minute, time.Hour,
+	)
+	mcpAuthStore, err := oauthclient.NewGormStore(
+		db.WithContext(startupCtx),
+		oauthclient.WithTableNames("mcp_client_sessions", "mcp_client_auth_requests"),
+	)
+	if err != nil {
+		return fmt.Errorf("setup mcp oauth client store: %w", err)
+	}
+	mcpAtprotoClient := indigooauth.NewPublicConfig(
+		mcpOrigin+oauthserver.MCPClientMetadataPath,
+		mcpOrigin+oauthserver.MCPCallbackPath,
+		[]string{"atproto"},
+	)
+	mcpBroker := oauthserver.NewIndigoBroker(
+		mcpAtprotoClient, mcpAuthStore, mcpIdentityDir, httpx.NewClient(),
+	)
+
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,
 		loginRouter,
@@ -339,6 +367,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			cmd.StringSlice(fBuiltinApps)...,
 		),
 		opensocialStore,
+		mcpBroker,
+		mcpAtprotoClient.ClientMetadata(),
 	)
 	if err != nil {
 		return fmt.Errorf("setup oauth server: %w", err)
@@ -399,40 +429,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
-	// The MCP endpoint has its own OAuth server: it prompts for a handle and runs
-	// atproto OAuth against that account's PDS with the indigo client. Identity
-	// is resolved through pear's own resolveIdentity endpoint (see
-	// api-docs/docs/space-proxy/getting-started.mdx), which already rewrites
-	// pear-hosted accounts' PDS pointer to pear itself — so those accounts
-	// redirect to pear's own atproto OAuth server, and remote accounts resolve
-	// exactly the way any other client following that doc would see them.
-	mcpOrigin := "https://" + domain
-	mcpIdentityDir := identity.NewCacheDirectory(
-		apidir.NewAPIDirectory(mcpOrigin), 100_000, time.Hour, time.Minute, time.Hour,
-	)
-	mcpAuthStore, err := oauthclient.NewGormStore(
-		db.WithContext(startupCtx),
-		oauthclient.WithTableNames("mcp_client_sessions", "mcp_client_auth_requests"),
-	)
-	if err != nil {
-		return fmt.Errorf("setup mcp oauth client store: %w", err)
-	}
-	mcpAtprotoClient := indigooauth.NewPublicConfig(
-		mcpOrigin+mcpoauth.ClientMetadataPath,
-		mcpOrigin+mcpoauth.CallbackPath,
-		[]string{"atproto"},
-	)
-	mcpOAuth, err := mcpoauth.New(
-		oauthSecret,
-		db.WithContext(startupCtx),
-		mcpoauth.NewIndigoBroker(mcpAtprotoClient, mcpAuthStore, mcpIdentityDir, httpx.NewClient()),
-		mcpAtprotoClient.ClientMetadata(),
-		mcpOrigin,
-	)
-	if err != nil {
-		return fmt.Errorf("setup mcp oauth server: %w", err)
-	}
-	mcpServer := mcpserver.New(mcpOAuth, spacesStore, permStore, mcpOrigin, mcpOAuth.Issuer())
+	mcpServer := mcpserver.New(oauthServer, spacesStore, permStore, mcpOrigin, oauthServer.MCPIssuer())
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,
@@ -547,13 +544,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
 
 	// MCP (Model Context Protocol) server and its own OAuth server.
-	mux.HandleFunc(mcpoauth.MetadataPath, mcpOAuth.HandleMetadata)
-	mux.HandleFunc(mcpoauth.RegisterPath, mcpOAuth.HandleRegister).Methods("POST")
-	mux.HandleFunc(mcpoauth.AuthorizePath, mcpOAuth.HandleAuthorize).Methods("GET")
-	mux.HandleFunc(mcpoauth.AuthorizeSubmitPath, mcpOAuth.HandleAuthorizeSubmit).Methods("POST")
-	mux.HandleFunc(mcpoauth.CallbackPath, mcpOAuth.HandleCallback)
-	mux.HandleFunc(mcpoauth.TokenPath, mcpOAuth.HandleToken).Methods("POST")
-	mux.HandleFunc(mcpoauth.ClientMetadataPath, mcpOAuth.HandleClientMetadata)
+	mux.HandleFunc(oauthserver.MCPMetadataPath, oauthServer.HandleMCPMetadata)
+	mux.HandleFunc(oauthserver.MCPRegisterPath, oauthServer.HandleMCPRegister).Methods("POST")
+	mux.HandleFunc(oauthserver.MCPAuthorizePath, oauthServer.HandleMCPAuthorize).Methods("GET")
+	mux.HandleFunc(oauthserver.MCPAuthorizeSubmitPath, oauthServer.HandleMCPAuthorizeSubmit).Methods("POST")
+	mux.HandleFunc(oauthserver.MCPCallbackPath, oauthServer.HandleMCPCallback)
+	mux.HandleFunc(oauthserver.MCPTokenPath, oauthServer.HandleMCPToken).Methods("POST")
+	mux.HandleFunc(oauthserver.MCPClientMetadataPath, oauthServer.HandleMCPClientMetadata)
 	mux.Handle(
 		mcpserver.ProtectedResourceMetadataPath,
 		mcpServer.ProtectedResourceMetadataHandler(),

@@ -65,6 +65,37 @@ func testOpensocialStore(t *testing.T) *opensocial.Store {
 	return opensocial_testutil.NewTestStore(t).Store
 }
 
+// fakeBroker is a Broker fake standing in for the MCP endpoints' atproto
+// login: Start hands back a fixed state, and Finish resolves it to a fixed
+// DID unless the callback carries an error.
+type fakeBroker struct {
+	did         syntax.DID
+	identifiers []string
+	failStart   bool
+}
+
+func (b *fakeBroker) Start(_ context.Context, identifier string) (string, string, error) {
+	if b.failStart {
+		return "", "", errors.New("no such account")
+	}
+	b.identifiers = append(b.identifiers, identifier)
+	return "https://pds.example/authorize?request_uri=urn:x", "atproto-state-1", nil
+}
+
+func (b *fakeBroker) Finish(_ context.Context, q url.Values) (Login, error) {
+	if q.Get("error") != "" {
+		return Login{}, ErrLoginDenied
+	}
+	return Login{DID: b.did, State: q.Get("state")}, nil
+}
+
+// testBroker returns a Broker for tests that don't exercise the MCP
+// endpoints' login flow directly.
+func testBroker(t *testing.T) Broker {
+	t.Helper()
+	return &fakeBroker{did: "did:web:alice.example"}
+}
+
 func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
@@ -73,6 +104,8 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
+			testBroker(t),
+			oauth.ClientMetadata{},
 		)
 		require.Error(t, err)
 	})
@@ -96,6 +129,8 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		testBroker(t),
+		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)
 
@@ -196,6 +231,8 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		testBroker(t),
+		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)
 
@@ -306,6 +343,8 @@ func TestOAuthServerE2E(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		testBroker(t),
+		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 
@@ -520,6 +559,8 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		testBroker(t),
+		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 
@@ -656,6 +697,8 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		testBroker(t),
+		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)
 
@@ -857,6 +900,8 @@ func TestValidate(t *testing.T) {
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
+			testBroker(t),
+			oauth.ClientMetadata{},
 		)
 		require.NoError(t, srvErr)
 		return s, p
@@ -974,6 +1019,8 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
+			testBroker(t),
+			oauth.ClientMetadata{},
 		)
 		require.NoError(t, srvErr)
 		return s, p
@@ -1080,6 +1127,8 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		testBroker(t),
+		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)
 
@@ -1251,6 +1300,8 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		testBroker(t),
+		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)
 
@@ -1374,6 +1425,8 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		opensocialStore,
+		testBroker(t),
+		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)
 
@@ -1519,6 +1572,8 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		opensocialStore,
+		testBroker(t),
+		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)
 
@@ -1620,6 +1675,8 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 		"https://habitat.example",
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
+		testBroker(t),
+		oauth.ClientMetadata{},
 	)
 	require.NoError(t, err)
 

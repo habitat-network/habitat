@@ -31,6 +31,25 @@ func buildAuthServerMetadata(issuer string) oauth.AuthServerMetadata {
 	}
 }
 
+// buildMCPAuthServerMetadata assembles the RFC 8414 authorization-server
+// metadata document for the MCP endpoints. Unlike buildAuthServerMetadata,
+// this advertises dynamic client registration instead of client-id metadata
+// documents, and mandatory PKCE instead of PAR.
+func buildMCPAuthServerMetadata(issuer string) map[string]any {
+	mcpIssuer := issuer + MCPIssuerPath
+	return map[string]any{
+		"issuer":                                         mcpIssuer,
+		"authorization_endpoint":                         issuer + MCPAuthorizePath,
+		"token_endpoint":                                 issuer + MCPTokenPath,
+		"registration_endpoint":                          issuer + MCPRegisterPath,
+		"response_types_supported":                       []string{"code"},
+		"grant_types_supported":                          []string{"authorization_code", "refresh_token"},
+		"code_challenge_methods_supported":               []string{"S256"},
+		"token_endpoint_auth_methods_supported":          []string{"none"},
+		"authorization_response_iss_parameter_supported": true,
+	}
+}
+
 // protectedResourceMetadata is the RFC 9728 protected-resource metadata
 // document. We emit our own type rather than indigo's oauth.ProtectedResourceMetadata
 // because that struct omits the required `resource` field: the atproto OAuth

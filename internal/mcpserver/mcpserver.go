@@ -1,8 +1,8 @@
 // Package mcpserver exposes pear's data over the Model Context Protocol
 // (MCP, see https://modelcontextprotocol.io), authenticated with tokens from
-// its own OAuth authorization server (internal/mcpoauth). An MCP client
-// discovers that authorization server via RFC 9728 protected resource
-// metadata.
+// internal/oauthserver's MCP-shaped endpoints (see OAuthServer.HandleMCPAuthorize
+// and friends). An MCP client discovers that authorization server via RFC 9728
+// protected resource metadata.
 package mcpserver
 
 import (
@@ -28,7 +28,7 @@ const ProtectedResourceMetadataPath = "/.well-known/oauth-protected-resource/mcp
 const Path = "/mcp"
 
 // Server exposes pear's data as an MCP server over streamable HTTP, guarded
-// by bearer tokens issued by internal/mcpoauth.
+// by bearer tokens issued by internal/oauthserver.
 type Server struct {
 	origin     string
 	authServer string
@@ -39,13 +39,13 @@ type Server struct {
 // handler.
 //
 //   - tokens validates bearer tokens presented to the MCP endpoint (in
-//     production, *mcpoauth.Server).
+//     production, *oauthserver.OAuthServer).
 //   - spacesStore and permStore back the "get_record" tool: permStore checks
 //     the caller holds at least a reader role on the record's space before
 //     spacesStore returns the record.
 //   - origin is this server's public origin (an https URL with no path), used
 //     to build the resource identifier in the protected resource metadata.
-//   - authServer is the issuer of the authorization server (internal/mcpoauth)
+//   - authServer is the issuer of the authorization server (internal/oauthserver)
 //     that issues tokens for this resource.
 func New(
 	tokens authn.RawMethod,
@@ -97,7 +97,7 @@ func (s *Server) ProtectedResourceMetadataHandler() http.Handler {
 	})
 }
 
-// verifyToken adapts an authn.RawMethod (internal/mcpoauth's bearer-token
+// verifyToken adapts an authn.RawMethod (internal/oauthserver's bearer-token
 // validation) to the go-sdk's auth.TokenVerifier shape.
 func verifyToken(tokens authn.RawMethod) auth.TokenVerifier {
 	return func(ctx context.Context, token string, _ *http.Request) (*auth.TokenInfo, error) {

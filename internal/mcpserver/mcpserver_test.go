@@ -20,7 +20,7 @@ import (
 )
 
 // fakeTokens is an authn.RawMethod fake standing in for
-// mcpoauth.Server: a token validates as the DID equal to the token
+// oauthserver.OAuthServer: a token validates as the DID equal to the token
 // string itself, and any other token (including empty) is invalid.
 type fakeTokens struct{}
 
