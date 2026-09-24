@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
 type LoginRouter struct {
@@ -20,6 +21,11 @@ type LoginRouter struct {
 	// EmailStore, if set, routes DIDs provisioned via email-domain sign-in
 	// (see identity.EmailResolver) through their domain's login method.
 	EmailStore *emaildomain.Store
+	// OpensocialStore, if set, is used to add an email-provisioned DID to
+	// its org once it completes sign-in (see Exchange). identity.
+	// EmailResolver mints such a DID without joining it to the org, so a
+	// mistyped or unowned email never becomes a ghost member.
+	OpensocialStore *opensocial.Store
 }
 
 func (r *LoginRouter) getProvider(org Org) login.Provider {
@@ -74,6 +80,28 @@ func (r *LoginRouter) emailLogin(
 	return provider, email, true, nil
 }
 
+// provisionEmailMember adds did to its org now that it has verified its
+// provisioned email via sign-in, minting the org's admin membership on the
+// first such sign-in and a plain membership otherwise (see
+// opensocial.Store.ProvisionMember). It's a no-op if OpensocialStore isn't
+// set.
+func (r *LoginRouter) provisionEmailMember(ctx context.Context, did syntax.DID) error {
+	if r.OpensocialStore == nil {
+		return nil
+	}
+	orgDID, ok, err := r.EmailStore.GetOrgDID(ctx, did)
+	if err != nil {
+		return fmt.Errorf("get provisioned org: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("no org provisioned for %s", did)
+	}
+	if err := r.OpensocialStore.ProvisionMember(ctx, orgDID, did); err != nil {
+		return fmt.Errorf("provision member: %w", err)
+	}
+	return nil
+}
+
 func (r *LoginRouter) Authorize(
 	ctx context.Context,
 	did syntax.DID,
@@ -126,7 +154,7 @@ func (r *LoginRouter) Exchange(
 		if !strings.EqualFold(loginID, string(email)) {
 			return fmt.Errorf("login id mismatch: %s != %s", email, loginID)
 		}
-		return nil
+		return r.provisionEmailMember(ctx, did)
 	}
 
 	// org login (requires admin)

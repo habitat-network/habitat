@@ -329,8 +329,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup opensocial store: %w", err)
 	}
 	emailResolver := habitat_identity.NewEmailResolver(
-		db.WithContext(startupCtx), emailDomainStore, hive, opensocialStore,
+		db.WithContext(startupCtx), emailDomainStore, hive,
 	)
+	loginRouter.OpensocialStore = opensocialStore
 
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,

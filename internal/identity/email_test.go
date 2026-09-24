@@ -48,7 +48,7 @@ func newEmailFixture(t *testing.T) emailFixture {
 		t.Context(), "acme.com", org, emaildomain.LoginMethodGoogle,
 	))
 	return emailFixture{
-		resolver:   NewEmailResolver(db, emailStore, h, osStore.Store),
+		resolver:   NewEmailResolver(db, emailStore, h),
 		emailStore: emailStore,
 		opensocial: osStore,
 		hive:       h,
@@ -69,7 +69,11 @@ func (f emailFixture) memberships(t *testing.T) int {
 	return len(records)
 }
 
-func TestEmailResolverFirstSignInBecomesAdmin(t *testing.T) {
+// Minting an identity must not, by itself, enroll it in the org: org
+// membership is only granted once the user actually completes sign-in with
+// that email (see org.LoginRouter.Exchange), so a mistyped or unowned email
+// never becomes a ghost member.
+func TestEmailResolverMintsWithoutOrgMembership(t *testing.T) {
 	f := newEmailFixture(t)
 	ident, err := f.resolver.ResolveEmailIdentity(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
@@ -77,7 +81,8 @@ func TestEmailResolverFirstSignInBecomesAdmin(t *testing.T) {
 
 	roles, err := f.opensocial.GetUserRoles(t.Context(), f.org, ident.DID)
 	require.NoError(t, err)
-	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+	require.Empty(t, roles)
+	require.Equal(t, 0, f.memberships(t))
 
 	did, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
@@ -89,17 +94,14 @@ func TestEmailResolverFirstSignInBecomesAdmin(t *testing.T) {
 	require.Equal(t, ident.DID, served.DID)
 }
 
-func TestEmailResolverLaterSignInsAreMembers(t *testing.T) {
+func TestEmailResolverDistinctEmailsGetDistinctIdentities(t *testing.T) {
 	f := newEmailFixture(t)
 	alice, err := f.resolver.ResolveEmailIdentity(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
 	bob, err := f.resolver.ResolveEmailIdentity(t.Context(), "bob@acme.com")
 	require.NoError(t, err)
 	require.NotEqual(t, alice.DID, bob.DID)
-
-	roles, err := f.opensocial.GetUserRoles(t.Context(), f.org, bob.DID)
-	require.NoError(t, err)
-	require.Equal(t, []string{opensocial.MemberRoleRkey}, roles)
+	require.Equal(t, 0, f.memberships(t))
 }
 
 func TestEmailResolverReturningMember(t *testing.T) {
@@ -113,7 +115,7 @@ func TestEmailResolverReturningMember(t *testing.T) {
 	again, err := f.resolver.ResolveEmailIdentity(t.Context(), email)
 	require.NoError(t, err)
 	require.Equal(t, first.DID, again.DID)
-	require.Equal(t, 1, f.memberships(t))
+	require.Equal(t, 0, f.memberships(t))
 }
 
 func TestEmailResolverUnknownDomain(t *testing.T) {
@@ -152,8 +154,13 @@ func TestEmailResolverConcurrentSameEmail(t *testing.T) {
 	require.NoError(t, errs[0])
 	require.NoError(t, errs[1])
 	require.Equal(t, results[0].DID, results[1].DID)
-	// The losing attempt rolled back its membership write.
-	require.Equal(t, 1, f.memberships(t))
+	// The losing attempt rolled back its email->DID mapping write, leaving a
+	// single mapping and no org membership (minting never grants one).
+	did, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, results[0].DID, did)
+	require.Equal(t, 0, f.memberships(t))
 }
 
 // noNetworkTransport fails every request, so overriddenDidDoc's spaces probe
@@ -188,9 +195,10 @@ func TestResolveIdentityEmail(t *testing.T) {
 	)
 	require.Equal(t, http.StatusOK, code)
 	require.Equal(t, "alice.acme.example.com", out.Handle)
+	// Resolving the identity alone must not enroll it in the org.
 	roles, err := f.opensocial.GetUserRoles(t.Context(), f.org, syntax.DID(out.Did))
 	require.NoError(t, err)
-	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+	require.Empty(t, roles)
 }
 
 func TestResolveHandleEmail(t *testing.T) {
