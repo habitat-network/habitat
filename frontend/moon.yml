@@ -12,8 +12,6 @@ tasks:
     deps:
       - pear:dev
       - root:caddy
-      - search:dev
-      - home:dev
   docker-build:
     deps:
       - target: build
