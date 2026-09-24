@@ -58,7 +58,10 @@ func WithEmailResolver(r *EmailResolver) utils.Opt[OverrideDirectory] {
 }
 
 // LookupDID implements identity.Directory.
-func (d *OverrideDirectory) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
+func (d *OverrideDirectory) LookupDID(
+	ctx context.Context,
+	did syntax.DID,
+) (*identity.Identity, error) {
 	ident, err := d.base.LookupDID(ctx, did)
 	if err != nil {
 		return nil, err
@@ -67,7 +70,10 @@ func (d *OverrideDirectory) LookupDID(ctx context.Context, did syntax.DID) (*ide
 }
 
 // LookupHandle implements identity.Directory.
-func (d *OverrideDirectory) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
+func (d *OverrideDirectory) LookupHandle(
+	ctx context.Context,
+	handle syntax.Handle,
+) (*identity.Identity, error) {
 	ident, err := d.base.LookupHandle(ctx, handle)
 	if err != nil {
 		return nil, err
@@ -76,7 +82,10 @@ func (d *OverrideDirectory) LookupHandle(ctx context.Context, handle syntax.Hand
 }
 
 // Lookup implements identity.Directory.
-func (d *OverrideDirectory) Lookup(ctx context.Context, atid syntax.AtIdentifier) (*identity.Identity, error) {
+func (d *OverrideDirectory) Lookup(
+	ctx context.Context,
+	atid syntax.AtIdentifier,
+) (*identity.Identity, error) {
 	ident, err := d.base.Lookup(ctx, atid)
 	if err != nil {
 		return nil, err
@@ -93,7 +102,10 @@ func (d *OverrideDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier)
 // applies the DID override to whatever it returns. It returns
 // identity.ErrInvalidHandle when no EmailResolver is configured and
 // identity.ErrDIDNotFound when the email's domain isn't mapped.
-func (d *OverrideDirectory) LookupEmail(ctx context.Context, email emaildomain.Email) (*identity.Identity, error) {
+func (d *OverrideDirectory) LookupEmail(
+	ctx context.Context,
+	email emaildomain.Email,
+) (*identity.Identity, error) {
 	if d.emailResolver == nil {
 		return nil, identity.ErrInvalidHandle
 	}
@@ -110,7 +122,10 @@ func (d *OverrideDirectory) LookupEmail(ctx context.Context, email emaildomain.E
 // when no EmailResolver is configured; identity.ErrHandleNotFound for an
 // at-identifier the base directory can't resolve; and identity.ErrDIDNotFound
 // for a valid email whose domain isn't mapped (surfaced from LookupEmail).
-func (d *OverrideDirectory) LookupIdentifier(ctx context.Context, identifier string) (*identity.Identity, error) {
+func (d *OverrideDirectory) LookupIdentifier(
+	ctx context.Context,
+	identifier string,
+) (*identity.Identity, error) {
 	if atid, err := syntax.ParseAtIdentifier(identifier); err == nil {
 		return d.Lookup(ctx, atid)
 	}
@@ -124,7 +139,10 @@ func (d *OverrideDirectory) LookupIdentifier(ctx context.Context, identifier str
 // points at this habitat instance when the identity's real PDS doesn't support
 // the spaces protocol. A fresh identity is returned rather than mutating the
 // base directory's — possibly cached — one.
-func (d *OverrideDirectory) applyOverride(ctx context.Context, ident *identity.Identity) *identity.Identity {
+func (d *OverrideDirectory) applyOverride(
+	ctx context.Context,
+	ident *identity.Identity,
+) *identity.Identity {
 	if utils.SupportsSpaces(ctx, d.httpClient, ident) {
 		return ident
 	}
