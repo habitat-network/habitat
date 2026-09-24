@@ -163,8 +163,9 @@ func TestEmailResolverConcurrentSameEmail(t *testing.T) {
 	require.Equal(t, 0, f.memberships(t))
 }
 
-// noNetworkTransport fails every request, so overriddenDidDoc's spaces probe
-// of a minted identity's PDS reads as "unsupported" without real network.
+// noNetworkTransport fails every request, so OverrideDirectory.applyOverride's
+// spaces probe of a minted identity's PDS reads as "unsupported" without real
+// network.
 type noNetworkTransport struct{}
 
 func (noNetworkTransport) RoundTrip(*http.Request) (*http.Response, error) {
