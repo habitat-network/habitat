@@ -12,7 +12,7 @@ HTTP error mapping.
 
 ## Background
 
-`internal/identity/server.go` currently mixes HTTP handling with two lookuplogic concerns:
+`internal/identity/server.go` currently mixes HTTP handling with two lookup-logic concerns:
 
 - `overriddenDidDoc` rewrites a resolved identity's DID document so its
   `#atproto_pds` service points at this habitat instance, unless the
@@ -100,9 +100,10 @@ base directory: indigo's `CacheDirectory` serves cached pointers, and mutating
 `Services` in place would poison the cache for other consumers of the same
 directory chain.
 
-`ident.DIDDocument()` on the overridden identity produces byte-for-byte the
-same document today's `overriddenDidDoc` returns (single `#atproto_pds`
-service, keys and alsoKnownAs preserved).
+`ident.DIDDocument()` on the overridden identity produces the same document
+today's `overriddenDidDoc` returns (single `#atproto_pds` service, same keys
+and alsoKnownAs; the only difference is field ordering within the emitted
+JSON, which the tests compare order-insensitively).
 
 ## Server changes (`internal/identity/server.go`)
 
