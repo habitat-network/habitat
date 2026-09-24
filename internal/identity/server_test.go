@@ -16,7 +16,7 @@ import (
 
 // testResolveServer builds a Server resolving a single mock identity whose
 // "PDS" is a local test server that doesn't implement the spaces protocol (a
-// bare 404), so overriddenDidDoc always takes the "redirect to this habitat
+// bare 404), so the override always takes the "redirect to this habitat
 // instance" branch these tests assert on.
 func testResolveServer(t *testing.T) *Server {
 	t.Helper()
@@ -37,7 +37,9 @@ func testResolveServer(t *testing.T) *Server {
 			},
 		},
 	})
-	return &Server{directory: dir, domain: "pear.domain", httpClient: pds.Client()}
+	return &Server{
+		directory: NewOverrideDirectory(dir, "pear.domain", WithClient(pds.Client())),
+	}
 }
 
 func TestResolveDID(t *testing.T) {

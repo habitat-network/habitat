@@ -1,7 +1,6 @@
 package identity
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/did"
-	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -36,64 +34,37 @@ func effectiveHost(r *http.Request) string {
 // Does not serve the MintIdentity endpoint.
 type Server struct {
 	hive          hive.Hive
-	directory     identity.Directory
+	directory     *OverrideDirectory
 	validator     authn.RequestValidator
 	orgStore      org.Store
 	pdsForwarding *forwarding.PDSForwarding
-	domain        string
-	httpClient    *http.Client
-	// emailResolver, if set, lets identifiers that aren't handles/DIDs
-	// resolve as work emails (see EmailResolver).
-	emailResolver *EmailResolver
-}
-
-func WithClient(client *http.Client) utils.Opt[Server] {
-	return func(s *Server) {
-		s.httpClient = client
-	}
-}
-
-// WithEmailResolver lets resolveIdentity/resolveHandle accept a work email in
-// place of a handle, resolving it (and minting on first sight) via r.
-func WithEmailResolver(r *EmailResolver) utils.Opt[Server] {
-	return func(s *Server) {
-		s.emailResolver = r
-	}
-}
-
-// parseEmail reports whether identifier should resolve as a work email:
-// email resolution is configured and identifier parses as one.
-func (s *Server) parseEmail(identifier string) (emaildomain.Email, bool) {
-	if s.emailResolver == nil {
-		return "", false
-	}
-	email, err := emaildomain.ParseEmail(identifier)
-	return email, err == nil
 }
 
 // NewServer constructs the hive HTTP server. The validator is required to
 // authenticate the caller for endpoints that mint things using the identity's
-// signing key (e.g. com.atproto.server.getServiceAuth). httpClient is used to
-// probe whether an externally-resolved identity's PDS supports the atproto
-// spaces protocol.
+// signing key (e.g. com.atproto.server.getServiceAuth). Options configure the
+// identity resolution directory, which serves DID docs with their PDS
+// redirected here except when the identity's real PDS supports spaces.
 func NewServer(
 	hive hive.Hive,
 	validator authn.RequestValidator,
 	orgStore org.Store,
 	pdsForwarding *forwarding.PDSForwarding,
 	domain string,
-	opts ...utils.Opt[Server],
+	opts ...utils.Opt[OverrideDirectory],
 ) (*Server, error) {
-	server := utils.ResolveOptions(Server{
+	directory := NewOverrideDirectory(
+		NewWrappedDirectory(hive, identity.DefaultDirectory()),
+		domain,
+		opts...,
+	)
+	return &Server{
 		hive:          hive,
-		directory:     NewWrappedDirectory(hive, identity.DefaultDirectory()),
+		directory:     directory,
 		validator:     validator,
 		orgStore:      orgStore,
 		pdsForwarding: pdsForwarding,
-		domain:        domain,
-		httpClient:    httpx.NewClient(),
-	}, opts)
-	return &server, nil
+	}, nil
 }
 
 // GetServiceAuth implements com.atproto.server.getServiceAuth for habitat-hosted
@@ -215,7 +186,7 @@ func (s *Server) ResolveDID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(ctx, w, atproto.IdentityResolveDid_Output{
-		DidDoc: s.overriddenDidDoc(ctx, ident),
+		DidDoc: ident.DIDDocument(),
 	})
 }
 
@@ -227,22 +198,22 @@ func (s *Server) ResolveHandle(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: handle", nil)
 		return
 	}
-	var ident *identity.Identity
-	handle, err := syntax.ParseHandle(handleStr)
-	if err == nil {
-		ident, err = s.directory.LookupHandle(ctx, handle)
-	} else if email, ok := s.parseEmail(handleStr); ok {
-		ident, err = s.emailResolver.ResolveEmailIdentity(ctx, email)
-		if errors.Is(err, identity.ErrDIDNotFound) {
-			// an email whose domain isn't mapped reads as an unknown handle
-			err = identity.ErrHandleNotFound
-		}
-	} else {
-		httpx.WriteInvalidRequest(ctx, w, "invalid handle", err)
+	// resolveHandle takes a handle; a DID reads as an invalid handle.
+	if _, err := syntax.ParseDID(handleStr); err == nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid handle", nil)
 		return
+	}
+	ident, err := s.directory.LookupIdentifier(ctx, handleStr)
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		// an email whose domain isn't mapped reads as an unknown handle
+		err = identity.ErrHandleNotFound
 	}
 	if errors.Is(err, identity.ErrHandleNotFound) {
 		httpx.WriteError(ctx, w, "HandleNotFound", "handle not found", http.StatusNotFound)
+		return
+	}
+	if errors.Is(err, identity.ErrInvalidHandle) {
+		httpx.WriteInvalidRequest(ctx, w, "invalid handle", err)
 		return
 	}
 	if err != nil {
@@ -262,22 +233,17 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: identifier", nil)
 		return
 	}
-	var ident *identity.Identity
-	atid, err := syntax.ParseAtIdentifier(identifier)
-	if err == nil {
-		ident, err = s.directory.Lookup(ctx, atid)
-	} else if email, ok := s.parseEmail(identifier); ok {
-		ident, err = s.emailResolver.ResolveEmailIdentity(ctx, email)
-	} else {
-		httpx.WriteInvalidRequest(ctx, w, "invalid identifier", err)
-		return
-	}
+	ident, err := s.directory.LookupIdentifier(ctx, identifier)
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		httpx.WriteError(ctx, w, "DidNotFound", "DID not found", http.StatusNotFound)
 		return
 	}
 	if errors.Is(err, identity.ErrHandleNotFound) {
 		httpx.WriteError(ctx, w, "HandleNotFound", "handle not found", http.StatusNotFound)
+		return
+	}
+	if errors.Is(err, identity.ErrInvalidHandle) {
+		httpx.WriteInvalidRequest(ctx, w, "invalid identifier", err)
 		return
 	}
 	if err != nil {
@@ -287,32 +253,6 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(ctx, w, atproto.IdentityDefs_IdentityInfo{
 		Did:    ident.DID.String(),
 		Handle: ident.Handle.String(),
-		DidDoc: s.overriddenDidDoc(ctx, ident),
+		DidDoc: ident.DIDDocument(),
 	})
-}
-
-// overriddenDidDoc returns ident's DID document, redirecting its PDS service
-// to this habitat instance except when the identity's real PDS can be talked
-// to directly: an identity hive doesn't manage (not an org member whose repo
-// is served here) whose real PDS already implements the atproto spaces
-// protocol. Any other identity — a hive-managed one, or an externally-resolved
-// one whose PDS doesn't support spaces — gets redirected here, either because
-// this instance really is its PDS, or so it can proxy the spaces protocol on
-// the real PDS's behalf.
-func (s *Server) overriddenDidDoc(
-	ctx context.Context,
-	ident *identity.Identity,
-) identity.DIDDocument {
-	if utils.SupportsSpaces(ctx, s.httpClient, ident) {
-		return ident.DIDDocument()
-	}
-	b := did.New(ident.DID).AlsoKnownAs(ident.AlsoKnownAs...)
-	for k, vm := range ident.Keys {
-		b.VerificationMethod(
-			k,
-			vm.Type,
-			vm.PublicKeyMultibase,
-		)
-	}
-	return b.ATProtoPDS("https://" + s.domain).Build().DIDDocument()
 }

@@ -173,11 +173,13 @@ func (noNetworkTransport) RoundTrip(*http.Request) (*http.Response, error) {
 
 func emailServer(f emailFixture, opts ...func(*Server)) *Server {
 	s := &Server{
-		hive:          f.hive,
-		directory:     NewWrappedDirectory(f.hive, identity.NewMockDirectory()),
-		domain:        "pear.domain",
-		httpClient:    &http.Client{Transport: noNetworkTransport{}},
-		emailResolver: f.resolver,
+		hive: f.hive,
+		directory: NewOverrideDirectory(
+			NewWrappedDirectory(f.hive, identity.NewMockDirectory()),
+			"pear.domain",
+			WithClient(&http.Client{Transport: noNetworkTransport{}}),
+			WithEmailResolver(f.resolver),
+		),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -229,7 +231,7 @@ func TestResolveIdentityEmailUnknownDomain(t *testing.T) {
 
 func TestResolveIdentityEmailDisabled(t *testing.T) {
 	f := newEmailFixture(t)
-	s := emailServer(f, func(s *Server) { s.emailResolver = nil })
+	s := emailServer(f, func(s *Server) { s.directory.emailResolver = nil })
 	var out struct{}
 	code := httpx_testutil.NewTestXRPCClient(t).Query(
 		s.ResolveIdentity,

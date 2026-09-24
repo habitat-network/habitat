@@ -24,15 +24,36 @@ type OverrideDirectory struct {
 	httpClient    *http.Client
 }
 
-// NewOverrideDirectory constructs an OverrideDirectory over base. Identities
-// whose real PDS doesn't support spaces get their #atproto_pds redirected to
-// "https://" + domain. httpClient defaults to a fresh httpx client and is used
-// to probe PDS spaces support.
-func NewOverrideDirectory(base identity.Directory, domain string) *OverrideDirectory {
-	return &OverrideDirectory{
+// NewOverrideDirectory constructs an OverrideDirectory over base, redirecting
+// identities whose real PDS doesn't support spaces to serve from this habitat
+// instance.
+func NewOverrideDirectory(
+	base identity.Directory,
+	domain string,
+	opts ...utils.Opt[OverrideDirectory],
+) *OverrideDirectory {
+	dir := utils.ResolveOptions(OverrideDirectory{
 		base:       base,
 		domain:     domain,
 		httpClient: httpx.NewClient(),
+	}, opts)
+	return &dir
+}
+
+// WithClient sets the HTTP client used to probe whether an identity's PDS
+// supports the atproto spaces protocol.
+func WithClient(client *http.Client) utils.Opt[OverrideDirectory] {
+	return func(d *OverrideDirectory) {
+		d.httpClient = client
+	}
+}
+
+// WithEmailResolver lets the directory resolve a work email in place of a
+// handle, minting an identity on first sight (see EmailResolver). Without it,
+// email identifiers are rejected.
+func WithEmailResolver(r *EmailResolver) utils.Opt[OverrideDirectory] {
+	return func(d *OverrideDirectory) {
+		d.emailResolver = r
 	}
 }
 
