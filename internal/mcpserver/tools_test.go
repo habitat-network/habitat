@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.opentelemetry.io/otel/trace"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -288,4 +289,22 @@ func TestMCPServerToolsCall_UnknownNamespacedToolFallsThrough(t *testing.T) {
 
 	_, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "unknown-server:ping"})
 	require.Error(t, err)
+}
+
+func TestDownstreamContext(t *testing.T) {
+	type key struct{}
+	spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: trace.TraceID{1},
+		SpanID:  trace.SpanID{1},
+	})
+	parent, cancel := context.WithCancel(
+		trace.ContextWithSpanContext(context.WithValue(t.Context(), key{}, "v"), spanCtx),
+	)
+	ctx := downstreamContext(parent)
+
+	require.Nil(t, ctx.Value(key{}))
+	require.Equal(t, spanCtx, trace.SpanContextFromContext(ctx))
+	cancel()
+	<-ctx.Done()
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
 }

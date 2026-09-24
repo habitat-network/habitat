@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.opentelemetry.io/otel/trace"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -217,6 +218,7 @@ func mergeConnectedToolsMiddleware(
 func listToolsForConnection(
 	ctx context.Context, nangoClient NangoClient, conn nango.Connection,
 ) ([]*mcp.Tool, error) {
+	ctx = downstreamContext(ctx)
 	session, err := connectToServer(ctx, nangoClient, conn)
 	if err != nil {
 		return nil, err
@@ -291,6 +293,7 @@ func callConnectedTool(
 	toolName string,
 	arguments any,
 ) (mcp.Result, error) {
+	ctx = downstreamContext(ctx)
 	session, err := connectToServer(ctx, nangoClient, conn)
 	if err != nil {
 		return nil, err
@@ -306,3 +309,19 @@ func callConnectedTool(
 	}
 	return res, nil
 }
+
+// downstreamContext returns a context with ctx's deadline, cancellation and
+// trace span but none of its other values. ctx belongs to an inbound request
+// on this server, and the go-sdk keeps that request's negotiated MCP protocol
+// version in its values; a client session to a connected server opened with
+// it would send that version instead of negotiating its own, which a
+// stateful server rejects.
+func downstreamContext(ctx context.Context) context.Context {
+	return trace.ContextWithSpan(valuelessContext{ctx}, trace.SpanFromContext(ctx))
+}
+
+// valuelessContext hides its parent's values while keeping its deadline and
+// cancellation.
+type valuelessContext struct{ context.Context }
+
+func (valuelessContext) Value(any) any { return nil }
