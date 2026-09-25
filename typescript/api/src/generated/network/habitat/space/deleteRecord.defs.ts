@@ -32,9 +32,10 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Delete a record in a permissioned space, or ensure it doesn't exist. Requires auth, implemented by PDS. */
+/** Delete a record in a permissioned space, or ensure it doesn't exist. Protected mailbox records cannot be deleted; append a logical tombstone instead. Requires auth, implemented by PDS. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceNotFound',
+  'ImmutableRecord',
 ])
 
 export { main }

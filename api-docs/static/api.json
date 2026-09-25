@@ -6667,13 +6667,157 @@
         }
       }
     },
+    "/network.habitat.space.applyWrites": {
+      "post": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.applyWrites",
+        "description": "Atomically create records in one authenticated member repository within one Space. A collision with any existing or deleted record key rejects the entire batch. Schema validation, updates, and deletes are not supported.",
+        "operationId": "network.habitat.space.applyWrites",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space",
+                  "repo",
+                  "writes"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "format": "at-uri"
+                  },
+                  "repo": {
+                    "type": "string",
+                    "format": "did"
+                  },
+                  "validate": {
+                    "type": "boolean",
+                    "description": "Schema validation is not supported. Omit this field or set it to false."
+                  },
+                  "writes": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/network.habitat.space.applyWrites.create"
+                    },
+                    "maxItems": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "results"
+                  ],
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.space.applyWrites.result"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "RecordAlreadyExists"
+                        },
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "NotSupported"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "BlobNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.deleteRecord": {
       "post": {
         "tags": [
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.deleteRecord",
-        "description": "Delete a record in a permissioned space, or ensure it doesn't exist. Requires auth, implemented by PDS.",
+        "description": "Delete a record in a permissioned space, or ensure it doesn't exist. Protected mailbox records cannot be deleted; append a logical tombstone instead. Requires auth, implemented by PDS.",
         "operationId": "network.habitat.space.deleteRecord",
         "security": [
           {
@@ -6755,6 +6899,9 @@
                         },
                         {
                           "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "ImmutableRecord"
                         }
                       ]
                     },
@@ -8373,7 +8520,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.putRecord",
-        "description": "Write a record in a permissioned space, creating or updating it as needed. Requires auth, implemented by PDS.",
+        "description": "Write a record in a permissioned space, creating or updating it as needed. Protected mailbox records accept new keys and identical retries only. Any referenced blobs must have been uploaded by the authenticated member. Requires auth, implemented by PDS.",
         "operationId": "network.habitat.space.putRecord",
         "security": [
           {
@@ -8482,6 +8629,12 @@
                         },
                         {
                           "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "BlobNotFound"
+                        },
+                        {
+                          "const": "RecordAlreadyExists"
                         }
                       ]
                     },
@@ -9541,6 +9694,46 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "network.habitat.space.applyWrites.create": {
+        "type": "object",
+        "required": [
+          "action",
+          "collection",
+          "rkey",
+          "value"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "collection": {
+            "type": "string",
+            "format": "nsid"
+          },
+          "rkey": {
+            "type": "string",
+            "format": "record-key"
+          },
+          "value": {}
+        }
+      },
+      "network.habitat.space.applyWrites.result": {
+        "type": "object",
+        "required": [
+          "uri",
+          "cid"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "at-uri"
+          },
+          "cid": {
+            "type": "string",
+            "format": "cid"
           }
         }
       },

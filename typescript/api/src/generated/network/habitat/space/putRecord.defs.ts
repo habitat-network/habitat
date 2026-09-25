@@ -42,9 +42,11 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Write a record in a permissioned space, creating or updating it as needed. Requires auth, implemented by PDS. */
+/** Write a record in a permissioned space, creating or updating it as needed. Protected mailbox records accept new keys and identical retries only. Any referenced blobs must have been uploaded by the authenticated member. Requires auth, implemented by PDS. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceNotFound',
+  'BlobNotFound',
+  'RecordAlreadyExists',
 ])
 
 export { main }
