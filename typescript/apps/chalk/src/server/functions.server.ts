@@ -1,7 +1,8 @@
 import { redirect } from "@tanstack/react-router";
-import { SpaceRef, type DidString } from "@atproto/syntax";
+import { SpaceRef, ensureValidDid, type DidString } from "@atproto/syntax";
 import { useAppSession } from "./session";
-import type { SapClient } from "./sapClient";
+import { SapClient, exchangeCallbackCode } from "./sapClient";
+import { upsertConnectedOrg, type Db } from "../db";
 import { commentsSpaceUri } from "./comments.server";
 
 // Server-only helpers, kept out of functions.ts so that file can stay
@@ -128,6 +129,60 @@ export async function requireSession(): Promise<{
     throw redirect({ to: "/login" });
   }
   return { did: session.data.did, currentOrg: session.data.currentOrg };
+}
+
+// completeLogin finishes sign-in after sap redirects the browser to
+// /session/callback: it redeems sap's single-use code for the DID that
+// actually completed PDS OAuth and only then writes it into the session
+// cookie. The DID never comes from the browser — the callback URL is
+// attacker-controllable, so trusting a DID from it would let anyone sign in
+// as anyone. Throws (leaving the session untouched) if the code is forged,
+// expired, or already redeemed.
+export async function completeLogin(env: Env, code: string): Promise<void> {
+  const did = await exchangeCallbackCode(env, code);
+  const session = await useAppSession();
+  await session.update({ did });
+  // Best-effort: confirm sap has fully discovered this member's spaces
+  // right away rather than waiting on its periodic re-crawl. A hiccup
+  // here shouldn't block sign-in — sap's own periodic recrawlLoop is the
+  // fallback if this doesn't get through.
+  try {
+    await new SapClient(env, did).recrawl();
+  } catch (err) {
+    console.error("[completeLogin] recrawl", err);
+  }
+}
+
+// completeOrgConnect finishes the org-connect flow after sap redirects the
+// browser to /session/org-callback. Like completeLogin, the org DID comes
+// from redeeming sap's single-use code — proof that an admin of that org
+// just completed its OAuth — never from the callback URL. It then verifies
+// the connection actually works (a member who wasn't really an admin never
+// reaches here — pear's HandleOpensocial already checked that before
+// completing PDS login) by reading the org's own profile, and records the
+// connection. Returns null on failure instead of throwing, so the route can
+// render a plain error state.
+export async function completeOrgConnect(
+  env: Env,
+  db: Db,
+  code: string,
+): Promise<{ orgDid: string; orgName: string } | null> {
+  const { did } = await requireSession();
+  let orgDid: string;
+  try {
+    orgDid = await exchangeCallbackCode(env, code);
+    ensureValidDid(orgDid);
+  } catch (err) {
+    console.error("[completeOrgConnect] exchange", err);
+    return null;
+  }
+  const orgName = await fetchOrgName(
+    new SapClient(env, did),
+    orgDid as DidString,
+  );
+  if (orgName === null) return null;
+  await upsertConnectedOrg(db, { memberDid: did, orgDid, orgName });
+  return { orgDid, orgName };
 }
 
 // clearSession drops the member DID from the session cookie, ending the

@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -116,15 +119,93 @@ func TestRedirectToReturnToRedirectsAndClearsPending(t *testing.T) {
 	handled := srv.redirectToReturnTo(w, req, testDID)
 	require.True(t, handled)
 	require.Equal(t, http.StatusSeeOther, w.Code)
-	require.Equal(
-		t,
-		"https://app.example.com/callback?did=did%3Aplc%3Atestreturnto",
-		w.Header().Get("Location"),
-	)
+
+	// The redirect must carry an opaque code, never the DID itself: the DID
+	// in a URL is forgeable, the code is only minted here after a completed
+	// OAuth callback.
+	loc, err := url.Parse(w.Header().Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, "https://app.example.com/callback", loc.Scheme+"://"+loc.Host+loc.Path)
+	require.Empty(t, loc.Query().Get("did"))
+	require.NotContains(t, loc.RawQuery, "testreturnto")
+	code := loc.Query().Get("code")
+	require.NotEmpty(t, code)
 
 	srv.mu.Lock()
-	defer srv.mu.Unlock()
 	require.Empty(t, srv.pendingReturnTo)
+	srv.mu.Unlock()
+
+	// End to end: the code exchanges for the DID exactly once.
+	w = exchangeCode(t, srv, code)
+	require.Equal(t, http.StatusOK, w.Code)
+	var body struct {
+		DID string `json:"did"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Equal(t, testDID, body.DID)
+
+	w = exchangeCode(t, srv, code)
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// exchangeCode POSTs code to srv's /session/exchange handler.
+func exchangeCode(t *testing.T, srv *server, code string) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"code": code})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/session/exchange", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.handleExchangeCode(w, req)
+	return w
+}
+
+func TestHandleExchangeCodeRejectsInvalidCodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		setup func(srv *server) string // returns the code to exchange
+		want  int
+	}{
+		{
+			name:  "unknown code",
+			setup: func(*server) string { return "forged" },
+			want:  http.StatusNotFound,
+		},
+		{
+			name:  "empty code",
+			setup: func(*server) string { return "" },
+			want:  http.StatusBadRequest,
+		},
+		{
+			name: "expired code",
+			setup: func(srv *server) string {
+				code, err := srv.issueCode("did:plc:expired")
+				require.NoError(t, err)
+				srv.now = func() time.Time { return time.Now().Add(callbackCodeTTL + time.Second) }
+				return code
+			},
+			want: http.StatusNotFound,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			srv := newTestServer(t)
+			w := exchangeCode(t, srv, tt.setup(srv))
+			require.Equal(t, tt.want, w.Code)
+		})
+	}
+}
+
+func TestHandleExchangeCodeRejectsMalformedBody(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	req := httptest.NewRequest(http.MethodPost, "/session/exchange", strings.NewReader("{not json"))
+	w := httptest.NewRecorder()
+	srv.handleExchangeCode(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestHandleListSessions(t *testing.T) {

@@ -3,38 +3,25 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
-  fetchOrgName,
+  completeOrgConnect,
   requireSession,
   setCurrentOrg,
 } from "@/server/functions.server";
-import { getDb, upsertConnectedOrg } from "@/db";
-import { SapClient } from "@/server/sapClient";
+import { getDb } from "@/db";
 import { Button } from "internal/components/ui";
-import { ensureValidDid } from "@atproto/syntax";
 
-// connectOrgFn verifies the connection actually works (a member who wasn't
-// really an admin never reaches here — pear's HandleOpensocial already
-// checked that before completing PDS login) by reading the org's own
-// profile, records the connection, and returns the name to show. Returns
-// null on failure instead of throwing, so the route can render a plain
-// error state.
+// connectOrgFn redeems sap's single-use code for the org DID, verifies and
+// records the connection, and returns the org to show (see
+// completeOrgConnect). It takes the code, not an org DID: this server
+// function is callable directly by anyone, so the org DID must come from
+// sap. Returns null on failure instead of throwing, so the route can render
+// a plain error state.
 const connectOrgFn = createServerFn({ method: "POST" })
-  .validator(({ orgDid }: { orgDid: string }) => {
-    ensureValidDid(orgDid);
-    return { orgDid };
-  })
-  .handler(async ({ data }): Promise<{ orgName: string } | null> => {
-    const { did } = await requireSession();
-    const client = new SapClient(env, did);
-    const orgName = await fetchOrgName(client, data.orgDid);
-    if (orgName === null) return null;
-    await upsertConnectedOrg(getDb(env), {
-      memberDid: did,
-      orgDid: data.orgDid,
-      orgName,
-    });
-    return { orgName };
-  });
+  .validator((input: { code: string }) => input)
+  .handler(
+    async ({ data }): Promise<{ orgDid: string; orgName: string } | null> =>
+      completeOrgConnect(env, getDb(env), data.code),
+  );
 
 const setCurrentOrgFn = createServerFn({ method: "POST" })
   .validator((input: { orgDid: string }) => input)
@@ -45,19 +32,22 @@ const setCurrentOrgFn = createServerFn({ method: "POST" })
 
 export const Route = createFileRoute("/session/org-callback")({
   validateSearch: z.object({
-    did: z.string().optional(),
+    code: z.string().optional(),
   }),
-  loaderDeps: ({ search }) => ({ did: search.did }),
+  loaderDeps: ({ search }) => ({ code: search.code }),
+  // The code is single-use, so never re-run the loader for the same URL —
+  // a second exchange would fail and flip a successful connect to an error.
+  staleTime: Infinity,
   loader: async ({ deps }) => {
-    if (!deps.did) return { orgDid: undefined, result: null };
-    const result = await connectOrgFn({ data: { orgDid: deps.did } });
-    return { orgDid: deps.did, result };
+    if (!deps.code) return { missing: true, result: null };
+    const result = await connectOrgFn({ data: { code: deps.code } });
+    return { missing: false, result };
   },
   component() {
-    const { orgDid, result } = Route.useLoaderData();
+    const { missing, result } = Route.useLoaderData();
     const navigate = Route.useNavigate();
 
-    if (!orgDid) {
+    if (missing) {
       return <p>Missing org — please try connecting again from /orgs.</p>;
     }
     if (!result) {
@@ -73,7 +63,7 @@ export const Route = createFileRoute("/session/org-callback")({
         <p>Successfully approved Chalk with {result.orgName}</p>
         <Button
           onClick={async () => {
-            await setCurrentOrgFn({ data: { orgDid } });
+            await setCurrentOrgFn({ data: { orgDid: result.orgDid } });
             navigate({ to: "/" });
           }}
         >

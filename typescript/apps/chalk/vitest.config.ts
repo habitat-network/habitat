@@ -29,6 +29,13 @@ const migrations = await readD1Migrations(
 );
 
 export default defineConfig({
+  // Same as vite.config.ts: tests that render routes through the worker
+  // entry pull in `internal`, which resolves @habitat-network/habitat to its
+  // source via internal's tsconfig `paths` (the package's own `exports`
+  // point at a dist/ that isn't built locally).
+  resolve: {
+    tsconfigPaths: true,
+  },
   test: {
     setupFiles: ["./test/applyMigrations.ts"],
   },

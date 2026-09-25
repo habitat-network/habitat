@@ -210,9 +210,9 @@ export const switchToPersonal = createServerFn({ method: "POST" }).handler(
 
 // startOrgConnect asks sap to begin the opensocial admin sign-in flow for
 // orgDid, telling it to redirect the browser back to chalk's
-// /session/org-callback (with the resolved DID — always orgDid itself,
-// since handleAddSession resolves whatever identifier it's given) once
-// that flow completes. Returns the URL the browser should be sent to next.
+// /session/org-callback (with a single-use code redeemable for the resolved
+// DID — always orgDid itself, since handleAddSession resolves whatever
+// identifier it's given) once that flow completes. Returns the URL the browser should be sent to next.
 // Mirrors startLogin (sapClient.ts) exactly, but with a DID instead of a
 // handle and a different return_to.
 export const startOrgConnect = createServerFn({ method: "POST" })

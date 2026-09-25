@@ -16,8 +16,9 @@ export function sapAuthHeaders(env: Env): Record<string, string> {
 }
 
 // startLogin asks sap to begin an atproto OAuth flow for handle, telling it
-// to redirect the browser back to chalk's /session/callback (with the
-// resolved DID) once the PDS OAuth handshake completes. Returns the
+// to redirect the browser back to chalk's /session/callback (with a
+// single-use code, redeemable via exchangeCallbackCode for the DID that
+// completed OAuth) once the PDS OAuth handshake completes. Returns the
 // PDS-authorize URL the browser should be sent to next.
 export async function startLogin(
   env: Env,
@@ -46,6 +47,35 @@ export async function startLogin(
   }
   const { redirect_url } = (await res.json()) as { redirect_url: string };
   return redirect_url;
+}
+
+// exchangeCallbackCode redeems the single-use code sap appended to a
+// return_to URL (cmd/sap/server.go's redirectToReturnTo) for the DID that
+// actually completed OAuth, over sap's internal port. The callback URL
+// itself is attacker-controllable, so this is the only trustworthy source
+// of that DID. Throws if sap doesn't recognise the code — forged, already
+// redeemed, or expired.
+export async function exchangeCallbackCode(
+  env: Env,
+  code: string,
+): Promise<string> {
+  if (!env.CHALK_SAP_INTERNAL_URL)
+    throw new Error("CHALK_SAP_INTERNAL_URL is not set");
+  const res = await fetch(`${env.CHALK_SAP_INTERNAL_URL}/session/exchange`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...sapAuthHeaders(env),
+    },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `failed to exchange callback code (${res.status}): ${await res.text()}`,
+    );
+  }
+  const { did } = (await res.json()) as { did: string };
+  return did;
 }
 
 // querySpace runs an XRPC query against a space's own host without acting as

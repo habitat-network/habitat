@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -49,7 +51,22 @@ type server struct {
 
 	mu              sync.Mutex
 	pendingReturnTo map[string]string // DID string -> return_to URL
-	clientMetadata  ConfiguredClientMetadata
+	// pendingCodes holds the single-use codes redirectToReturnTo hands the
+	// caller's return_to in place of the DID, until handleExchangeCode
+	// redeems them (see issueCode).
+	pendingCodes   map[string]pendingCode
+	now            func() time.Time // overridable in tests to expire codes
+	clientMetadata ConfiguredClientMetadata
+}
+
+// callbackCodeTTL bounds how long a code minted by issueCode stays
+// redeemable. The caller's callback page exchanges it immediately after the
+// redirect, so this only needs to cover one browser round trip.
+const callbackCodeTTL = time.Minute
+
+type pendingCode struct {
+	did     string
+	expires time.Time
 }
 
 // endpoint is sap's own public base URL (the same value passed as
@@ -73,6 +90,8 @@ func NewSapServer(
 		outboxPongWait:   defaultOutboxPongWait,
 		outboxWriteWait:  defaultOutboxWriteWait,
 		pendingReturnTo:  make(map[string]string),
+		pendingCodes:     make(map[string]pendingCode),
+		now:              time.Now,
 		clientMetadata:   clientMetadata,
 	}
 }
@@ -292,7 +311,11 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 // redirectToReturnTo pops any pending return_to for did and, if present,
-// redirects r's response there with the DID appended as a query param.
+// redirects r's response there with a single-use code (see issueCode)
+// appended as a query param. The DID itself is deliberately not put in the
+// URL: anyone can craft a return_to URL with an arbitrary DID, so the caller
+// must redeem the code over the internal port (handleExchangeCode) to learn
+// which DID actually completed OAuth.
 // Returns true if it wrote a response (caller must not write another one).
 func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did string) bool {
 	s.mu.Lock()
@@ -304,9 +327,59 @@ func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did 
 	if !ok {
 		return false
 	}
-	target := fmt.Sprintf("%s?did=%s", returnTo, url.QueryEscape(did))
+	code, err := s.issueCode(did)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("issue callback code: %s", err), http.StatusInternalServerError)
+		return true
+	}
+	target := fmt.Sprintf("%s?code=%s", returnTo, url.QueryEscape(code))
 	http.Redirect(w, r, target, http.StatusSeeOther)
 	return true
+}
+
+// issueCode mints a random, single-use code redeemable for did via
+// handleExchangeCode within callbackCodeTTL.
+func (s *server) issueCode(did string) (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	code := base64.RawURLEncoding.EncodeToString(buf)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Opportunistically drop expired codes that were never redeemed so an
+	// abandoned callback doesn't leak an entry forever.
+	now := s.now()
+	for c, p := range s.pendingCodes {
+		if now.After(p.expires) {
+			delete(s.pendingCodes, c)
+		}
+	}
+	s.pendingCodes[code] = pendingCode{did: did, expires: now.Add(callbackCodeTTL)}
+	return code, nil
+}
+
+// handleExchangeCode redeems a code minted by redirectToReturnTo for the DID
+// that completed OAuth. The code is consumed on first use, whether or not it
+// has expired, so it can never be redeemed twice.
+func (s *server) handleExchangeCode(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
+		http.Error(w, "invalid JSON body: code is required", http.StatusBadRequest)
+		return
+	}
+
+	s.mu.Lock()
+	p, ok := s.pendingCodes[req.Code]
+	delete(s.pendingCodes, req.Code)
+	s.mu.Unlock()
+	if !ok || s.now().After(p.expires) {
+		http.Error(w, "unknown or expired code", http.StatusNotFound)
+		return
+	}
+	httpx.WriteJSON(r.Context(), w, map[string]string{"did": p.did})
 }
 
 // handleProxy forwards an XRPC request to pear on behalf of a managed org,
