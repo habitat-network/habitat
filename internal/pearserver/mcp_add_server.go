@@ -8,6 +8,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
 
@@ -30,7 +31,7 @@ func (p *PearServer) AddServer(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if input.Name == "" {
+	if input.Name == "" || input.Url == "" || input.AuthType == "" {
 		httpx.WriteInvalidRequest(ctx, w, "missing required fields", nil)
 		return
 	}
@@ -38,19 +39,23 @@ func (p *PearServer) AddServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, sessionToken, err := p.mcpGatewayStore.BeginAddServer(
-		ctx, org, credInfo.Subject, input.Name, input.Description,
+	server, err := p.mcpGatewayStore.AddServer(
+		ctx,
+		org,
+		input.Name,
+		input.Description,
+		input.Url,
+		mcpgateway.AuthType(input.AuthType),
 	)
 	if isMcpConfigError(err) {
-		httpx.WriteInvalidRequest(ctx, w, "begin add mcp server", err)
+		httpx.WriteInvalidRequest(ctx, w, "add mcp server", err)
 		return
 	} else if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("begin add mcp server: %w", err))
+		httpx.WriteServerError(ctx, w, fmt.Errorf("add mcp server: %w", err))
 		return
 	}
 
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatMcpAddServerOutput{
-		Id:           string(id),
-		SessionToken: sessionToken,
+		Server: mcpServerToAPI(server),
 	})
 }

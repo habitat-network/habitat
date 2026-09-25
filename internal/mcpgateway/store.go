@@ -1,20 +1,19 @@
 // Package mcpgateway lets org admins configure MCP (Model Context Protocol)
 // servers for their org, and lets org members opt in to authorizing with
-// those servers. A server uses one of two AuthTypes:
+// those servers. An admin adds a server by entering its name, description,
+// URL and AuthType, which are written as a network.habitat.mcp.server record
+// in the org's opensocial members space (see internal/opensocial). Nobody
+// signs in while adding it.
 //
-// Either way, configuration lives as network.habitat.mcp.server records in
-// the org's opensocial members space (see internal/opensocial).
-//
-//   - AuthTypeOAuth: authorization is brokered entirely through Nango
+//   - AuthTypeOAuth: each member later connects with StartAuthorization,
+//     which is brokered entirely through Nango
 //     (https://nango.dev/docs/guides/auth/mcp-auth) via its mcp-generic
-//     connector, which asks the adding admin for the server's URL and
-//     discovers/registers with its authorization server per the MCP
-//     authorization spec. This package stores no credentials; it records
-//     the org's chosen name/description and the admin's URL, and asks Nango
-//     whether a given user is connected.
-//   - AuthTypeManual: an admin enters the URL of a server that needs no
-//     auth once for the whole org, and every member is connected
-//     automatically.
+//     connector with the server's URL pre-filled. The connector
+//     discovers/registers with the server's authorization server per the
+//     MCP authorization spec. This package stores no credentials; it asks
+//     Nango whether a given user is connected.
+//   - AuthTypeManual: the server needs no auth, and every member is
+//     connected automatically.
 //
 // A server's name doubles as its ID and, in internal/mcpserver, the
 // namespace its tools are exposed under, so it's restricted to a limited
@@ -168,39 +167,15 @@ type ServerUpdate struct {
 
 // Store manages MCP server configuration and per-user Nango connections for orgs.
 type Store interface {
-	// BeginAddServer starts configuring a new MCP server: it registers a
-	// Nango Integration for it and opens a Connect session for did (the
-	// admin doing the adding), returning the new server's ID (equal to
-	// name) and a session token for the frontend's Nango Connect UI. No org
-	// record is written yet; call CompleteAddServer once Nango reports
-	// success, or CancelAddServer if the admin abandons it. name must match
-	// validateServerName and be unused within orgID.
-	BeginAddServer(
-		ctx context.Context,
-		orgID syntax.DID,
-		did syntax.DID,
-		name, description string,
-	) (id syntax.RecordKey, sessionToken string, err error)
-	// CompleteAddServer writes the org record for a server previously
-	// started with BeginAddServer, once the admin has completed
-	// authorization in Nango's Connect UI.
-	CompleteAddServer(
-		ctx context.Context,
-		orgID syntax.DID,
-		did syntax.DID,
-		id syntax.RecordKey,
-		name, description string,
-	) (*Server, error)
-	// CancelAddServer abandons an in-progress BeginAddServer flow, deleting
-	// its Nango Integration.
-	CancelAddServer(ctx context.Context, orgID syntax.DID, id syntax.RecordKey) error
-	// AddManualServer configures a new manual MCP server for orgID, reached
-	// at serverURL without auth. name must match validateServerName and be
-	// unused within orgID.
-	AddManualServer(
+	// AddServer adds an MCP server to orgID, reached at serverURL, by
+	// writing its record. For an OAuth server it also registers a Nango
+	// Integration, which members then connect to with StartAuthorization.
+	// name must match validateServerName and be unused within orgID.
+	AddServer(
 		ctx context.Context,
 		orgID syntax.DID,
 		name, description, serverURL string,
+		authType AuthType,
 	) (*Server, error)
 	// UpdateServer updates an existing org MCP server. It returns
 	// opensocial.ErrMcpServerNotFound if there's no such server.
@@ -284,85 +259,11 @@ func (s *store) getOAuth(
 	return server, nil
 }
 
-func (s *store) BeginAddServer(
-	ctx context.Context,
-	orgID syntax.DID,
-	did syntax.DID,
-	name, description string,
-) (syntax.RecordKey, string, error) {
-	if err := validateServerName(name); err != nil {
-		return "", "", err
-	}
-	id := syntax.RecordKey(name)
-	if err := s.checkNameFree(ctx, orgID, id); err != nil {
-		return "", "", err
-	}
-
-	nangoKey := NangoKeyFor(orgID, id)
-	if err := s.nango.CreateIntegration(ctx, nangoKey); err != nil {
-		return "", "", fmt.Errorf("create nango integration: %w", err)
-	}
-	token, err := s.nango.CreateConnectSession(ctx, nangoKey, did.String(), orgID.String(), "")
-	if err != nil {
-		_ = s.nango.DeleteIntegration(ctx, nangoKey)
-		return "", "", fmt.Errorf("create nango connect session: %w", err)
-	}
-	return id, token, nil
-}
-
-func (s *store) CompleteAddServer(
-	ctx context.Context,
-	orgID syntax.DID,
-	did syntax.DID,
-	id syntax.RecordKey,
-	name, description string,
-) (*Server, error) {
-	nangoKey := NangoKeyFor(orgID, id)
-	connections, err := s.nango.ListConnections(ctx, did.String())
-	if err != nil {
-		return nil, fmt.Errorf("list nango connections: %w", err)
-	}
-	var adminConn *nango.Connection
-	for _, conn := range connections {
-		if conn.ProviderConfigKey == nangoKey {
-			adminConn = &conn
-			break
-		}
-	}
-	if adminConn == nil {
-		return nil, fmt.Errorf("no nango connection found for server %q", id)
-	}
-	// Record the URL the admin entered, so members connecting later don't
-	// have to enter it again (see StartAuthorization).
-	details, err := s.nango.GetConnection(ctx, adminConn.ConnectionID, nangoKey)
-	if err != nil {
-		return nil, fmt.Errorf("get nango connection: %w", err)
-	}
-	server, err := s.records.PutMcpServer(ctx, orgID, &opensocial.McpServer{
-		ID:          id,
-		Name:        name,
-		Description: description,
-		AuthType:    string(AuthTypeOAuth),
-		NangoKey:    nangoKey,
-		ServerURL:   details.MCPServerURL,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return serverFromRecord(server), nil
-}
-
-func (s *store) CancelAddServer(ctx context.Context, orgID syntax.DID, id syntax.RecordKey) error {
-	if err := s.nango.DeleteIntegration(ctx, NangoKeyFor(orgID, id)); err != nil {
-		return fmt.Errorf("delete nango integration: %w", err)
-	}
-	return nil
-}
-
-func (s *store) AddManualServer(
+func (s *store) AddServer(
 	ctx context.Context,
 	orgID syntax.DID,
 	name, description, serverURL string,
+	authType AuthType,
 ) (*Server, error) {
 	if err := validateServerName(name); err != nil {
 		return nil, err
@@ -370,18 +271,32 @@ func (s *store) AddManualServer(
 	if err := validateServerURL(serverURL); err != nil {
 		return nil, err
 	}
+	if authType != AuthTypeOAuth && authType != AuthTypeManual {
+		return nil, fmt.Errorf("%w: %q", ErrInvalidAuthType, authType)
+	}
 	id := syntax.RecordKey(name)
 	if err := s.checkNameFree(ctx, orgID, id); err != nil {
 		return nil, err
 	}
-	server, err := s.records.PutMcpServer(ctx, orgID, &opensocial.McpServer{
+
+	record := &opensocial.McpServer{
 		ID:          id,
 		Name:        name,
 		Description: description,
-		AuthType:    string(AuthTypeManual),
+		AuthType:    string(authType),
 		ServerURL:   serverURL,
-	})
+	}
+	if authType == AuthTypeOAuth {
+		record.NangoKey = NangoKeyFor(orgID, id)
+		if err := s.nango.CreateIntegration(ctx, record.NangoKey); err != nil {
+			return nil, fmt.Errorf("create nango integration: %w", err)
+		}
+	}
+	server, err := s.records.PutMcpServer(ctx, orgID, record)
 	if err != nil {
+		if record.NangoKey != "" {
+			_ = s.nango.DeleteIntegration(ctx, record.NangoKey)
+		}
 		return nil, err
 	}
 	return serverFromRecord(server), nil
