@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -53,10 +56,12 @@ type server struct {
 	// handleAddSession started, keyed by the DID it resolved to, until
 	// handleOAuthCallback completes that flow.
 	pendingLogins map[string]pendingLogin
-	// completedLogins holds each finished login's one-time code (see
-	// redirectToReturnTo) until the caller redeems it via handleRedeemLogin.
-	completedLogins map[string]completedLogin
-	clientMetadata  ConfiguredClientMetadata
+	// loginCodeKey signs the login codes redirectToReturnTo hands out, so
+	// handleRedeemLogin can verify them without sap keeping any record of
+	// completed logins. Generated per process: a code only has to survive
+	// the one redirect round-trip, and pendingLogins is per-process anyway.
+	loginCodeKey   []byte
+	clientMetadata ConfiguredClientMetadata
 }
 
 // pendingLogin is what a caller of /session/add asked sap to carry through
@@ -67,12 +72,12 @@ type pendingLogin struct {
 	state    string
 }
 
-// completedLogin is the result of a finished OAuth flow, held under a
-// one-time code until the caller redeems it.
-type completedLogin struct {
-	did     string
-	state   string
-	expires time.Time
+// loginCode is the signed payload of a login code: the result of a finished
+// OAuth flow, carried to the caller's return_to and back to sap to redeem.
+type loginCode struct {
+	DID     string `json:"did"`
+	State   string `json:"state"`
+	Expires int64  `json:"exp"` // unix seconds
 }
 
 // loginCodeTTL bounds how long a completed login's code can be redeemed:
@@ -101,7 +106,7 @@ func NewSapServer(
 		outboxPongWait:   defaultOutboxPongWait,
 		outboxWriteWait:  defaultOutboxWriteWait,
 		pendingLogins:    make(map[string]pendingLogin),
-		completedLogins:  make(map[string]completedLogin),
+		loginCodeKey:     newLoginCodeKey(),
 		clientMetadata:   clientMetadata,
 	}
 }
@@ -329,10 +334,10 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 // redirectToReturnTo pops any pending login for did and, if present,
-// redirects r's response to its return_to with a one-time code appended as a
-// query param. The DID itself is deliberately not in the URL: the caller
-// must trade the code for it over sap's internal port (handleRedeemLogin),
-// so a return_to URL someone crafts by hand can't claim to be any DID.
+// redirects r's response to its return_to with a signed login code appended
+// as a query param. The caller must trade the code for the DID over sap's
+// internal port (handleRedeemLogin), which checks sap's signature on it, so a
+// return_to URL someone crafts by hand can't claim to be any DID.
 // Returns true if it wrote a response (caller must not write another one).
 func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did string) bool {
 	s.mu.Lock()
@@ -350,14 +355,15 @@ func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did 
 		http.Error(w, fmt.Sprintf("parse return_to: %s", err), http.StatusInternalServerError)
 		return true
 	}
-	code := rand.Text()
-	s.mu.Lock()
-	s.completedLogins[code] = completedLogin{
-		did:     did,
-		state:   pending.state,
-		expires: time.Now().Add(loginCodeTTL),
+	code, err := s.signLoginCode(loginCode{
+		DID:     did,
+		State:   pending.state,
+		Expires: time.Now().Add(loginCodeTTL).Unix(),
+	})
+	if err != nil {
+		http.Error(w, fmt.Sprintf("sign login code: %s", err), http.StatusInternalServerError)
+		return true
 	}
-	s.mu.Unlock()
 
 	q := target.Query()
 	q.Set("code", code)
@@ -366,9 +372,12 @@ func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did 
 	return true
 }
 
-// handleRedeemLogin trades a one-time login code (from redirectToReturnTo)
-// for the DID whose OAuth flow completed and the state its caller passed to
-// /session/add. Each code works once, and only until loginCodeTTL passes.
+// handleRedeemLogin trades a login code (from redirectToReturnTo) for the
+// DID whose OAuth flow completed and the state its caller passed to
+// /session/add, if the code's signature checks out and it hasn't expired.
+// sap keeps no record of redeemed codes, so a code can be redeemed more than
+// once within loginCodeTTL: the caller is expected to accept each state only
+// once (chalk clears its login nonce the first time it sees it).
 func (s *server) handleRedeemLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -382,27 +391,66 @@ func (s *server) handleRedeemLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now()
-	s.mu.Lock()
-	login, ok := s.completedLogins[req.Code]
-	delete(s.completedLogins, req.Code)
-	// Sweep other expired codes while holding the lock, so codes nobody
-	// redeems don't accumulate.
-	for code, l := range s.completedLogins {
-		if now.After(l.expires) {
-			delete(s.completedLogins, code)
-		}
-	}
-	s.mu.Unlock()
-	if !ok || now.After(login.expires) {
-		http.Error(w, "unknown or expired login code", http.StatusNotFound)
+	login, err := s.verifyLoginCode(req.Code, time.Now())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid login code: %s", err), http.StatusNotFound)
 		return
 	}
 
 	httpx.WriteJSON(r.Context(), w, map[string]string{
-		"did":   login.did,
-		"state": login.state,
+		"did":   login.DID,
+		"state": login.State,
 	})
+}
+
+// newLoginCodeKey returns a fresh random key for signing login codes.
+func newLoginCodeKey() []byte {
+	key := make([]byte, 32)
+	// crypto/rand.Read never returns an error (it panics instead if the
+	// system's randomness source fails).
+	_, _ = rand.Read(key)
+	return key
+}
+
+// signLoginCode encodes code as base64url(JSON) + "." + base64url(HMAC-SHA256).
+func (s *server) signLoginCode(code loginCode) (string, error) {
+	payload, err := json.Marshal(code)
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(payload)
+	return encoded + "." + base64.RawURLEncoding.EncodeToString(s.loginCodeMAC(encoded)), nil
+}
+
+// verifyLoginCode checks a code signLoginCode produced: its signature, then
+// that it hasn't expired as of now.
+func (s *server) verifyLoginCode(code string, now time.Time) (loginCode, error) {
+	encoded, sig, ok := strings.Cut(code, ".")
+	if !ok {
+		return loginCode{}, fmt.Errorf("malformed code")
+	}
+	gotMAC, err := base64.RawURLEncoding.DecodeString(sig)
+	if err != nil || !hmac.Equal(gotMAC, s.loginCodeMAC(encoded)) {
+		return loginCode{}, fmt.Errorf("bad signature")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil {
+		return loginCode{}, fmt.Errorf("malformed payload: %w", err)
+	}
+	var login loginCode
+	if err := json.Unmarshal(payload, &login); err != nil {
+		return loginCode{}, fmt.Errorf("malformed payload: %w", err)
+	}
+	if now.Unix() > login.Expires {
+		return loginCode{}, fmt.Errorf("expired")
+	}
+	return login, nil
+}
+
+func (s *server) loginCodeMAC(encoded string) []byte {
+	mac := hmac.New(sha256.New, s.loginCodeKey)
+	mac.Write([]byte(encoded))
+	return mac.Sum(nil)
 }
 
 // handleProxy forwards an XRPC request to pear on behalf of a managed org,

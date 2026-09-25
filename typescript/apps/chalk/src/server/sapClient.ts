@@ -17,7 +17,7 @@ export function sapAuthHeaders(env: Env): Record<string, string> {
 
 // startLogin asks sap to begin an atproto OAuth flow for handle, telling it
 // to redirect the browser back to chalk's /session/callback (with a
-// one-time code to trade for the resolved DID via redeemLogin) once the PDS
+// signed code to trade for the resolved DID via redeemLogin) once the PDS
 // OAuth handshake completes. state is carried through opaquely and handed
 // back by redeemLogin. Returns the PDS-authorize URL the browser should be
 // sent to next.
@@ -52,11 +52,13 @@ export async function startLogin(
   return redirect_url;
 }
 
-// redeemLogin trades the one-time code sap appended to a login's return_to
-// for the DID whose OAuth flow actually completed, plus the state startLogin
-// passed in. This is the only way chalk learns who logged in: the code is
-// single-use and only redeemable over sap's internal (authenticated) port,
-// so nothing in the callback URL itself is trusted.
+// redeemLogin trades the signed code sap appended to a login's return_to for
+// the DID whose OAuth flow actually completed, plus the state startLogin
+// passed in. This is the only way chalk learns who logged in: sap checks its
+// own signature and expiry on the code over its internal (authenticated)
+// port, so nothing in the callback URL itself is trusted. sap doesn't track
+// redemptions, so it's the state check (consumeLoginNonce) that makes each
+// login usable once.
 export async function redeemLogin(
   env: Env,
   code: string,

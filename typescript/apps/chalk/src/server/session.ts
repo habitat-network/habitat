@@ -7,7 +7,7 @@ export interface ChalkSessionData {
   currentOrg?: string;
   // A random nonce for the sap login flow this browser most recently
   // started (see beginLogin in functions.server.ts). sap hands it back only
-  // when chalk redeems the flow's one-time code, so a callback is only
+  // when chalk redeems the flow's login code, so a callback is only
   // accepted in the browser that started the login.
   loginNonce?: string;
 }

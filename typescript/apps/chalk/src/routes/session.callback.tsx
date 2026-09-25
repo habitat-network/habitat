@@ -14,7 +14,7 @@ import { SapClient, redeemLogin } from "@/server/sapClient";
 // RPC stub reaches the client.
 //
 // This server function is reachable by anyone, so it takes nothing it
-// trusts from its caller: the DID comes from sap (redeeming the one-time
+// trusts from its caller: the DID comes from sap (redeeming the signed
 // code sap put on the callback URL), and the login must have been started
 // from this same browser (consumeLoginNonce).
 const completeLoginFn = createServerFn({ method: "POST" })
@@ -39,7 +39,7 @@ const completeLoginFn = createServerFn({ method: "POST" })
 
 // sap redirects the browser here (as this route's URL is what chalk told
 // sap's /session/add to use as return_to) once the PDS OAuth handshake
-// completes, with a one-time code to redeem for the member DID.
+// completes, with a signed code to redeem for the member DID.
 export const Route = createFileRoute("/session/callback")({
   validateSearch: z.object({
     code: z.string().optional(),

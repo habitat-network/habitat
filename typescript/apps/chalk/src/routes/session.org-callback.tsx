@@ -20,7 +20,7 @@ import { ensureValidDid } from "@atproto/syntax";
 // null if that read fails, so the route can render a plain error state; a
 // bad or reused code throws instead.
 //
-// The org DID comes from sap (redeeming the one-time code on the callback
+// The org DID comes from sap (redeeming the signed code on the callback
 // URL), never from the caller, and the flow must have been started from
 // this same browser (consumeLoginNonce) — otherwise anyone could record any
 // org as connected without completing its admin sign-in.

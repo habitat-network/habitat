@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -106,7 +108,17 @@ func TestHandleAddSessionStoresReturnToForResolvedDID(t *testing.T) {
 	}, srv.pendingLogins[testDID.String()])
 }
 
-func TestRedirectToReturnToRedirectsWithCodeNotDID(t *testing.T) {
+func redeem(t *testing.T, srv *server, code string) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"code": code})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/session/redeem", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.handleRedeemLogin(w, req)
+	return w
+}
+
+func TestRedirectToReturnToRedirectsWithRedeemableCode(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
@@ -136,56 +148,56 @@ func TestRedirectToReturnToRedirectsWithCodeNotDID(t *testing.T) {
 
 	srv.mu.Lock()
 	require.Empty(t, srv.pendingLogins)
-	require.Equal(t, testDID, srv.completedLogins[code].did)
-	require.Equal(t, "nonce123", srv.completedLogins[code].state)
-	srv.mu.Unlock()
-}
-
-func redeem(t *testing.T, srv *server, code string) *httptest.ResponseRecorder {
-	t.Helper()
-	body, err := json.Marshal(map[string]string{"code": code})
-	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, "/session/redeem", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-	srv.handleRedeemLogin(w, req)
-	return w
-}
-
-func TestHandleRedeemLoginReturnsDIDOnce(t *testing.T) {
-	t.Parallel()
-
-	srv := newTestServer(t)
-	srv.mu.Lock()
-	srv.completedLogins["code1"] = completedLogin{
-		did:     "did:plc:alice",
-		state:   "nonce123",
-		expires: time.Now().Add(time.Minute),
-	}
 	srv.mu.Unlock()
 
-	w := redeem(t, srv, "code1")
-	require.Equal(t, http.StatusOK, w.Code)
+	rw := redeem(t, srv, code)
+	require.Equal(t, http.StatusOK, rw.Code)
 	var resp map[string]string
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	require.Equal(t, map[string]string{"did": "did:plc:alice", "state": "nonce123"}, resp)
-
-	// A code can only be redeemed once.
-	require.Equal(t, http.StatusNotFound, redeem(t, srv, "code1").Code)
+	require.NoError(t, json.Unmarshal(rw.Body.Bytes(), &resp))
+	require.Equal(t, map[string]string{"did": testDID, "state": "nonce123"}, resp)
 }
 
-func TestHandleRedeemLoginRejectsUnknownOrExpiredCode(t *testing.T) {
+func TestHandleRedeemLoginRejectsForgedOrExpiredCode(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	srv.mu.Lock()
-	srv.completedLogins["expired"] = completedLogin{
-		did:     "did:plc:alice",
-		expires: time.Now().Add(-time.Second),
-	}
-	srv.mu.Unlock()
 
-	require.Equal(t, http.StatusNotFound, redeem(t, srv, "unknown").Code)
-	require.Equal(t, http.StatusNotFound, redeem(t, srv, "expired").Code)
+	expired, err := srv.signLoginCode(loginCode{
+		DID:     "did:plc:alice",
+		Expires: time.Now().Add(-time.Second).Unix(),
+	})
+	require.NoError(t, err)
+
+	// Same payload shape, signed by a different sap (a different key).
+	other := newTestServer(t)
+	forged, err := other.signLoginCode(loginCode{
+		DID:     "did:plc:alice",
+		Expires: time.Now().Add(time.Minute).Unix(),
+	})
+	require.NoError(t, err)
+
+	// A valid code with its payload swapped for another DID's.
+	valid, err := srv.signLoginCode(loginCode{
+		DID:     "did:plc:alice",
+		Expires: time.Now().Add(time.Minute).Unix(),
+	})
+	require.NoError(t, err)
+	_, sig, _ := strings.Cut(valid, ".")
+	evePayload, err := json.Marshal(loginCode{
+		DID:     "did:plc:eve",
+		Expires: time.Now().Add(time.Minute).Unix(),
+	})
+	require.NoError(t, err)
+	tampered := base64.RawURLEncoding.EncodeToString(evePayload) + "." + sig
+
+	for name, code := range map[string]string{
+		"garbage":  "not-a-code",
+		"expired":  expired,
+		"forged":   forged,
+		"tampered": tampered,
+	} {
+		require.Equal(t, http.StatusNotFound, redeem(t, srv, code).Code, name)
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/session/redeem", http.NoBody)
 	w := httptest.NewRecorder()
