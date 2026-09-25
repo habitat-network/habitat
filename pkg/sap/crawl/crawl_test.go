@@ -150,7 +150,7 @@ func TestCrawlerBackfillsSession(t *testing.T) {
 	base, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:sessiondid", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -186,7 +186,7 @@ func TestCrawlerDeduplicatesConcurrentRuns(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:sessiondid", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -222,7 +222,7 @@ func TestCrawlerRunCompleteThenRestart(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -260,7 +260,7 @@ func TestCrawlerRestartResetsErroredCrawl(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -319,7 +319,7 @@ func TestCrawlerEnumerateReposError(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -351,7 +351,7 @@ func TestCrawlerNotifyRegistration(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	rec := &recorder{}
 	nr := &fakeNotifyRegistrar{}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
@@ -405,7 +405,7 @@ func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
 	base := mustParseURL(t, srv.URL)
 	fc := fakeClients{base: base}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
-	c, err := New(db_testutil.NewDB(t), app, rec, fc, rec, nil, nil, nil)
+	c, err := New(db_testutil.NewUnmigratedDB(t), app, rec, fc, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	require.NoError(t, c.enumerateRepos(t.Context(), space))
@@ -440,7 +440,7 @@ func TestCrawlerTrackSpace(t *testing.T) {
 	rec := &recorder{}
 	nr := &fakeNotifyRegistrar{}
 	base := mustParseURL(t, srv.URL)
-	c, err := New(db_testutil.NewDB(t), nil, rec, fakeClients{base: base}, rec, nr, nil, nil)
+	c, err := New(db_testutil.NewUnmigratedDB(t), nil, rec, fakeClients{base: base}, rec, nr, nil, nil)
 	require.NoError(t, err)
 
 	require.NoError(t, c.TrackSpace(t.Context(), space, "did:web:bob", "sess1"))

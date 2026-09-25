@@ -36,8 +36,67 @@ tasks:
     options:
       internal: false
       runInCI: true
+  # Go data migrations, which can use pear's stores (see migrations/README.md):
+  #   moon run pear:migration-create -- <name> go
   migration-create:
     command: goose create
     env:
       GOOSE_MIGRATION_DIR: migrations
     preset: utility
+  # Dumps the DDL of pear's GORM models, per dialect, for Atlas to diff the
+  # schema migrations against (see atlas.hcl).
+  schema-dump:
+    script: 'mkdir -p .atlas && go run ./schema postgres > .atlas/postgres.sql && go run ./schema sqlite > .atlas/sqlite.sql'
+    inputs:
+    - /internal/**/*.go
+    - schema/**/*
+    outputs:
+    - .atlas/postgres.sql
+    - .atlas/sqlite.sql
+  # Writes a schema migration per dialect for the difference between the GORM
+  # models and the existing migrations:
+  #   moon run pear:migration-diff -- <name>
+  # Replaying the Postgres migrations needs Docker; set ATLAS_POSTGRES_DEV_URL
+  # to a scratch database to use a local server instead.
+  migration-diff:
+    command: bash
+    args:
+    - -c
+    - 'atlas migrate diff --env sqlite "$1" && atlas migrate diff --env postgres "$1"'
+    - migration-diff
+    deps:
+    - schema-dump
+    preset: utility
+    options:
+      shell: false
+  # Rewrites atlas.sum after a schema migration is edited by hand.
+  migration-hash:
+    script: 'atlas migrate hash --env sqlite && atlas migrate hash --env postgres'
+    preset: utility
+  # Fails if a schema migration was edited without rehashing, or if the GORM
+  # models have changed without a matching schema migration.
+  migration-check:
+    script: |
+      set -e
+      for env in sqlite postgres; do
+        atlas migrate validate --env "$env"
+        drift="$(atlas schema diff --env "$env" \
+          --from "file://../../internal/db/schema/$env?format=goose" \
+          --to "file://.atlas/$env.sql" \
+          --format '{{ sql . "  " }}')"
+        if [ -n "$drift" ]; then
+          echo "The $env schema migrations don't match pear's GORM models. Run moon run pear:migration-diff -- <name> to add a migration for:" >&2
+          echo "$drift" >&2
+          exit 1
+        fi
+      done
+    deps:
+    - schema-dump
+    inputs:
+    - /internal/**/*.go
+    - /internal/db/schema/**/*
+    - schema/**/*
+    - atlas.hcl
+    options:
+      runInCI: true
+      cache: false

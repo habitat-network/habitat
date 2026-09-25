@@ -3,7 +3,6 @@ package clique
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"time"
 
@@ -51,10 +50,6 @@ type store struct {
 var _ Store = &store{}
 
 func NewStore(db *gorm.DB) (*store, error) {
-	err := db.AutoMigrate(&cliqueMember{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to migrate clique_members table: %w", err)
-	}
 	return &store{db: db}, nil
 }
 
@@ -240,3 +235,10 @@ func isFollower(ctx context.Context, requester syntax.DID, subject syntax.DID) (
 	return slices.Contains(followers, requester), nil
 }
 */
+
+// Models returns the GORM models this package persists. Their tables are
+// created by the schema migrations in internal/db/schema, which Atlas
+// generates from these models.
+func Models() []any {
+	return []any{&cliqueMember{}}
+}

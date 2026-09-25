@@ -100,12 +100,6 @@ var ErrCollectionLevelNotSupported = errors.New("collection-level permissions ar
 // - Specific NSIDs: "network.habitat.collection"
 // - Specific records: "network.habitat.collection.recordKey"
 func NewStore(db *gorm.DB, cliqueStore clique.Store) (*store, error) {
-	// AutoMigrate will create the table with all indexes defined in the Permission struct
-	err := db.AutoMigrate(&permission{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to migrate permissions table: %w", err)
-	}
-
 	return &store{db: db, cliqueStore: cliqueStore}, nil
 }
 
@@ -392,4 +386,11 @@ func toPermission(p permission) (Permission, error) {
 		Collection: syntax.NSID(p.Collection),
 		Rkey:       syntax.RecordKey(p.Rkey),
 	}, nil
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by the schema migrations in internal/db/schema, which Atlas
+// generates from these models.
+func Models() []any {
+	return []any{&permission{}}
 }

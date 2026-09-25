@@ -24,10 +24,6 @@ func NewPDSCredentialStore(
 	if encryptionKey == nil {
 		return nil, fmt.Errorf("encryption key is required")
 	}
-	// Run migrations
-	if err := db.AutoMigrate(&pdsCredentialsModel{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
 	return &pdsCredentialStore{
 		db:            db,
 		encryptionKey: encryptionKey,
@@ -136,4 +132,11 @@ func (p *pdsCredentialStore) UpsertCredentials(
 		return fmt.Errorf("failed to save user credentials: %w", err)
 	}
 	return nil
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by the schema migrations in internal/db/schema, which Atlas
+// generates from these models.
+func Models() []any {
+	return []any{&pdsCredentialsModel{}}
 }

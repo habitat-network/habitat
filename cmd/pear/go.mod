@@ -3,6 +3,7 @@ module github.com/habitat-network/habitat/cmd/pear
 go 1.26.3
 
 require (
+	ariga.io/atlas-provider-gorm v0.6.1
 	github.com/alexedwards/argon2id v1.0.0
 	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
 	github.com/gorilla/handlers v1.5.2
@@ -17,10 +18,25 @@ require (
 )
 
 require (
+	ariga.io/atlas v0.36.2-0.20250806044935-5bb51a0a956e // indirect
+	cel.dev/expr v0.25.2 // indirect
+	cloud.google.com/go v0.123.0 // indirect
+	cloud.google.com/go/auth v0.22.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
+	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	cloud.google.com/go/iam v1.5.3 // indirect
+	cloud.google.com/go/longrunning v0.8.0 // indirect
+	cloud.google.com/go/monitoring v1.24.3 // indirect
+	cloud.google.com/go/spanner v1.88.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
+	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.6.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.33.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/alecthomas/kong v1.9.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -30,14 +46,33 @@ require (
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
+	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/go-sql-driver/mysql v1.10.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
+	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
+	github.com/golang-sql/sqlexp v0.1.0 // indirect
+	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/s2a-go v0.1.9 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.19 // indirect
 	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
+	github.com/googleapis/go-gorm-spanner v1.8.6 // indirect
+	github.com/googleapis/go-sql-spanner v1.17.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/pgx/v5 v5.10.0 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
+	github.com/mattn/go-sqlite3 v1.14.28 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
+	github.com/microsoft/go-mssqldb v1.10.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.2.0 // indirect
 	github.com/moby/moby/api v1.55.0 // indirect
@@ -49,20 +84,35 @@ require (
 	github.com/moby/term v0.5.2 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/sethvargo/go-retry v0.4.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.6 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.7.0 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/whyrusleeping/cbor-gen v0.3.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	go.opencensus.io v0.24.0 // indirect
+	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.44.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	golang.org/x/mod v0.38.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
+	golang.org/x/tools v0.48.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/api v0.291.0 // indirect
+	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7 // indirect
+	gorm.io/driver/mysql v1.5.7 // indirect
+	gorm.io/driver/postgres v1.5.11 // indirect
+	gorm.io/driver/sqlite v1.5.7 // indirect
+	gorm.io/driver/sqlserver v1.5.4 // indirect
+	gorm.io/gorm v1.30.1 // indirect
 )
 
 require (

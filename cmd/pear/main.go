@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"embed"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -68,11 +67,8 @@ import (
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
 
-	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
+	"github.com/habitat-network/habitat/cmd/pear/migrations"
 )
-
-//go:embed migrations/*.go migrations/*.sql
-var embedMigrations embed.FS
 
 func main() {
 	cmd := &cli.Command{
@@ -118,7 +114,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	slog.InfoContext(startupCtx, "running with flags", "flags", cmd.FlagNames())
 
-	db, err := db.New(cmd.String(fDB), db.WithMigrations(embedMigrations))
+	db, err := db.New(cmd.String(fDB))
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
 	}
@@ -315,6 +311,15 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 	if err != nil {
 		return fmt.Errorf("setup spaces store: %w", err)
+	}
+
+	// Migrations run once the components they may use are built. None of the
+	// stores above query their tables while being constructed.
+	if err := migrations.Run(startupCtx, migrations.Deps{
+		DB:     db,
+		Spaces: spacesStore,
+	}); err != nil {
+		return fmt.Errorf("migrate database: %w", err)
 	}
 
 	blobBucket, err := blob.OpenBucket(startupCtx, cmd.String(fBlobBucket))

@@ -47,10 +47,6 @@ type store struct {
 type idTemplate func(handleInternal, opaqueID, signingPublicKey string) *identity.Identity
 
 func newStore(db *gorm.DB, template idTemplate) (*store, error) {
-	err := db.AutoMigrate(&ident{})
-	if err != nil {
-		return nil, err
-	}
 	return &store{
 		db:       db,
 		template: template,
@@ -133,4 +129,11 @@ func (s *store) getIdentityByID(ctx context.Context, opaqueID string) (*identity
 		return nil, result.Error
 	}
 	return s.template(id.Handle, id.OpaqueID, id.SigningPublicKey), nil
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by the schema migrations in internal/db/schema, which Atlas
+// generates from these models.
+func Models() []any {
+	return []any{&ident{}}
 }

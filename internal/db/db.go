@@ -2,12 +2,10 @@ package db
 
 import (
 	"fmt"
-	"io/fs"
 	"net/url"
 	"strings"
 
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/pressly/goose/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -22,14 +20,7 @@ var (
 )
 
 type config struct {
-	migrations fs.FS
 	gormConfig *gorm.Config
-}
-
-func WithMigrations(migrations fs.FS) utils.Opt[config] {
-	return func(o *config) {
-		o.migrations = migrations
-	}
 }
 
 func WithGORMConfig(cfg *gorm.Config) utils.Opt[config] {
@@ -73,20 +64,6 @@ func New(dsn string, opts ...utils.Opt[config]) (db *gorm.DB, err error) {
 	}
 	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
 		return nil, err
-	}
-	if cfg.migrations != nil {
-		sqlDB, err := db.DB()
-		if err != nil {
-			return nil, err
-		}
-		goose.SetBaseFS(cfg.migrations)
-		if err := goose.SetDialect(string(ParseDialect(dsn))); err != nil {
-			return nil, err
-		}
-		if err := goose.Up(sqlDB, "migrations"); err != nil {
-			return nil, err
-		}
-
 	}
 
 	return db, nil
