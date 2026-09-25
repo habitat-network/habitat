@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -162,33 +161,30 @@ func TestHandleRedeemLoginRejectsForgedOrExpiredCode(t *testing.T) {
 
 	srv := newTestServer(t)
 
-	expired, err := srv.signLoginCode(loginCode{
+	expired, err := srv.sealLoginCode(loginCode{
 		DID:     "did:plc:alice",
 		Expires: time.Now().Add(-time.Second).Unix(),
 	})
 	require.NoError(t, err)
 
-	// Same payload shape, signed by a different sap (a different key).
+	// Same payload shape, sealed by a different sap (a different key).
 	other := newTestServer(t)
-	forged, err := other.signLoginCode(loginCode{
+	forged, err := other.sealLoginCode(loginCode{
 		DID:     "did:plc:alice",
 		Expires: time.Now().Add(time.Minute).Unix(),
 	})
 	require.NoError(t, err)
 
-	// A valid code with its payload swapped for another DID's.
-	valid, err := srv.signLoginCode(loginCode{
+	// A valid code with one byte flipped.
+	valid, err := srv.sealLoginCode(loginCode{
 		DID:     "did:plc:alice",
 		Expires: time.Now().Add(time.Minute).Unix(),
 	})
 	require.NoError(t, err)
-	_, sig, _ := strings.Cut(valid, ".")
-	evePayload, err := json.Marshal(loginCode{
-		DID:     "did:plc:eve",
-		Expires: time.Now().Add(time.Minute).Unix(),
-	})
+	raw, err := base64.RawURLEncoding.DecodeString(valid)
 	require.NoError(t, err)
-	tampered := base64.RawURLEncoding.EncodeToString(evePayload) + "." + sig
+	raw[len(raw)-1] ^= 0x01
+	tampered := base64.RawURLEncoding.EncodeToString(raw)
 
 	for name, code := range map[string]string{
 		"garbage":  "not-a-code",

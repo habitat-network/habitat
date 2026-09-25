@@ -39,7 +39,7 @@ const completeLoginFn = createServerFn({ method: "POST" })
 
 // sap redirects the browser here (as this route's URL is what chalk told
 // sap's /session/add to use as return_to) once the PDS OAuth handshake
-// completes, with a signed code to redeem for the member DID.
+// completes, with a sealed code to redeem for the member DID.
 export const Route = createFileRoute("/session/callback")({
   validateSearch: z.object({
     code: z.string().optional(),

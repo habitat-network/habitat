@@ -2,11 +2,8 @@ package main
 
 import (
 	"bytes"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,6 +18,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/pkg/sap"
 )
@@ -56,9 +54,9 @@ type server struct {
 	// handleAddSession started, keyed by the DID it resolved to, until
 	// handleOAuthCallback completes that flow.
 	pendingLogins map[string]pendingLogin
-	// loginCodeKey signs the login codes redirectToReturnTo hands out, so
-	// handleRedeemLogin can verify them without sap keeping any record of
-	// completed logins. Generated per process: a code only has to survive
+	// loginCodeKey encrypts (and authenticates) the login codes
+	// redirectToReturnTo hands out, so handleRedeemLogin can verify them
+	// without sap keeping any record of completed logins. Generated per process: a code only has to survive
 	// the one redirect round-trip, and pendingLogins is per-process anyway.
 	loginCodeKey   []byte
 	clientMetadata ConfiguredClientMetadata
@@ -72,7 +70,7 @@ type pendingLogin struct {
 	state    string
 }
 
-// loginCode is the signed payload of a login code: the result of a finished
+// loginCode is the encrypted payload of a login code: the result of a finished
 // OAuth flow, carried to the caller's return_to and back to sap to redeem.
 type loginCode struct {
 	DID     string `json:"did"`
@@ -334,9 +332,9 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 // redirectToReturnTo pops any pending login for did and, if present,
-// redirects r's response to its return_to with a signed login code appended
+// redirects r's response to its return_to with a sealed login code appended
 // as a query param. The caller must trade the code for the DID over sap's
-// internal port (handleRedeemLogin), which checks sap's signature on it, so a
+// internal port (handleRedeemLogin), which only sap's key can open, so a
 // return_to URL someone crafts by hand can't claim to be any DID.
 // Returns true if it wrote a response (caller must not write another one).
 func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did string) bool {
@@ -355,13 +353,13 @@ func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did 
 		http.Error(w, fmt.Sprintf("parse return_to: %s", err), http.StatusInternalServerError)
 		return true
 	}
-	code, err := s.signLoginCode(loginCode{
+	code, err := s.sealLoginCode(loginCode{
 		DID:     did,
 		State:   pending.state,
 		Expires: time.Now().Add(loginCodeTTL).Unix(),
 	})
 	if err != nil {
-		http.Error(w, fmt.Sprintf("sign login code: %s", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("seal login code: %s", err), http.StatusInternalServerError)
 		return true
 	}
 
@@ -391,7 +389,7 @@ func (s *server) handleRedeemLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	login, err := s.verifyLoginCode(req.Code, time.Now())
+	login, err := s.openLoginCode(req.Code, time.Now())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("invalid login code: %s", err), http.StatusNotFound)
 		return
@@ -403,7 +401,7 @@ func (s *server) handleRedeemLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// newLoginCodeKey returns a fresh random key for signing login codes.
+// newLoginCodeKey returns a fresh random key for encrypting login codes.
 func newLoginCodeKey() []byte {
 	key := make([]byte, 32)
 	// crypto/rand.Read never returns an error (it panics instead if the
@@ -412,45 +410,24 @@ func newLoginCodeKey() []byte {
 	return key
 }
 
-// signLoginCode encodes code as base64url(JSON) + "." + base64url(HMAC-SHA256).
-func (s *server) signLoginCode(code loginCode) (string, error) {
-	payload, err := json.Marshal(code)
-	if err != nil {
-		return "", err
-	}
-	encoded := base64.RawURLEncoding.EncodeToString(payload)
-	return encoded + "." + base64.RawURLEncoding.EncodeToString(s.loginCodeMAC(encoded)), nil
+// sealLoginCode seals code with encrypt.EncryptCBOR. secretbox authenticates
+// as well as encrypts, so only sap (holding loginCodeKey) can mint a code
+// that openLoginCode accepts.
+func (s *server) sealLoginCode(code loginCode) (string, error) {
+	return encrypt.EncryptCBOR(code, s.loginCodeKey)
 }
 
-// verifyLoginCode checks a code signLoginCode produced: its signature, then
-// that it hasn't expired as of now.
-func (s *server) verifyLoginCode(code string, now time.Time) (loginCode, error) {
-	encoded, sig, ok := strings.Cut(code, ".")
-	if !ok {
-		return loginCode{}, fmt.Errorf("malformed code")
-	}
-	gotMAC, err := base64.RawURLEncoding.DecodeString(sig)
-	if err != nil || !hmac.Equal(gotMAC, s.loginCodeMAC(encoded)) {
-		return loginCode{}, fmt.Errorf("bad signature")
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(encoded)
-	if err != nil {
-		return loginCode{}, fmt.Errorf("malformed payload: %w", err)
-	}
+// openLoginCode opens a code sealLoginCode produced, then checks that it
+// hasn't expired as of now.
+func (s *server) openLoginCode(code string, now time.Time) (loginCode, error) {
 	var login loginCode
-	if err := json.Unmarshal(payload, &login); err != nil {
-		return loginCode{}, fmt.Errorf("malformed payload: %w", err)
+	if err := encrypt.DecryptCBOR(code, s.loginCodeKey, &login); err != nil {
+		return loginCode{}, err
 	}
 	if now.Unix() > login.Expires {
 		return loginCode{}, fmt.Errorf("expired")
 	}
 	return login, nil
-}
-
-func (s *server) loginCodeMAC(encoded string) []byte {
-	mac := hmac.New(sha256.New, s.loginCodeKey)
-	mac.Write([]byte(encoded))
-	return mac.Sum(nil)
 }
 
 // handleProxy forwards an XRPC request to pear on behalf of a managed org,
