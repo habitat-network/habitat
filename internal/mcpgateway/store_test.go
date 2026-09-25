@@ -150,107 +150,113 @@ func newTestMember(t *testing.T, records OrgMcpServerStore, org syntax.DID) synt
 	return did
 }
 
-// addServer drives the full BeginAddServer -> connect -> CompleteAddServer
-// flow, as the frontend would, and returns the resulting server.
+// addServer adds an OAuth server via Store.AddServer and returns it.
 func addServer(
 	t *testing.T,
 	s Store,
-	nangoClient *fakeNangoClient,
 	org syntax.DID,
-	did syntax.DID,
 	name, description string,
 ) *Server {
 	t.Helper()
-	id, sessionToken, err := s.BeginAddServer(t.Context(), org, did, name, description)
-	require.NoError(t, err)
-	require.NotEmpty(t, sessionToken)
-	nangoKey := NangoKeyFor(org, id)
-	require.True(t, nangoClient.integrations[nangoKey])
-
-	nangoClient.connect("conn-"+string(id), nangoKey, did.String())
-
-	server, err := s.CompleteAddServer(t.Context(), org, did, id, name, description)
+	server, err := s.AddServer(
+		t.Context(),
+		org,
+		name,
+		description,
+		"https://mcp.example.com/mcp",
+		AuthTypeOAuth,
+	)
 	require.NoError(t, err)
 	return server
 }
 
-func TestStoreBeginAddServer_CreatesIntegrationAndSession(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
-	org := newTestOrg(t, records)
-	did := syntax.DID("did:plc:admin")
-
-	id, sessionToken, err := s.BeginAddServer(t.Context(), org, did, "linear", "")
-	require.NoError(t, err)
-	require.NotEmpty(t, id)
-	require.NotEmpty(t, sessionToken)
-	require.True(t, nangoClient.integrations[NangoKeyFor(org, id)])
-
-	// No record exists yet: begin alone doesn't write one.
-	servers, err := records.ListMcpServers(t.Context(), org)
-	require.NoError(t, err)
-	require.Empty(t, servers)
+// connectMember simulates member completing the Nango Connect UI for
+// server, as the frontend's StartAuthorization flow would.
+func connectMember(
+	nangoClient *fakeNangoClient,
+	org syntax.DID,
+	server *Server,
+	member syntax.DID,
+) {
+	nangoClient.connect("conn-"+string(server.ID), NangoKeyFor(org, server.ID), member.String())
 }
 
-func TestStoreCompleteAddServer_RequiresNangoConnection(t *testing.T) {
-	s, _, records := newTestStore(t)
-	org := newTestOrg(t, records)
-	did := syntax.DID("did:plc:admin")
-
-	id, _, err := s.BeginAddServer(t.Context(), org, did, "linear", "")
-	require.NoError(t, err)
-
-	_, err = s.CompleteAddServer(t.Context(), org, did, id, "linear", "")
-	require.Error(t, err)
-}
-
-func TestStoreCompleteAddServer_WritesRecord(t *testing.T) {
+func TestStoreAddServer_CreatesIntegration(t *testing.T) {
 	s, nangoClient, records := newTestStore(t)
 	org := newTestOrg(t, records)
-	did := syntax.DID("did:plc:admin")
 
-	server := addServer(t, s, nangoClient, org, did, "linear", "desc")
+	server, err := s.AddServer(
+		t.Context(), org, "linear", "desc", "https://mcp.example.com/mcp", AuthTypeOAuth,
+	)
+	require.NoError(t, err)
 	require.Equal(t, "linear", server.Name)
 	require.Equal(t, "desc", server.Description)
+	require.Equal(t, AuthTypeOAuth, server.AuthType)
+	require.True(t, nangoClient.integrations[NangoKeyFor(org, server.ID)])
 
+	// No one is signed in yet, but the record already exists.
 	all, err := records.ListMcpServers(t.Context(), org)
 	require.NoError(t, err)
 	require.Len(t, all, 1)
-	require.Equal(t, server.ID, all[0].ID)
-	// The URL the admin entered in Nango is recorded for members to reuse.
-	require.Equal(t, fakeServerURL("conn-linear"), all[0].ServerURL)
+	require.Equal(t, "https://mcp.example.com/mcp", all[0].ServerURL)
+}
+
+func TestStoreAddServer_RejectsInvalidName(t *testing.T) {
+	s, _, records := newTestStore(t)
+	org := newTestOrg(t, records)
+
+	_, err := s.AddServer(
+		t.Context(), org, "not a valid name!", "", "https://a.example", AuthTypeOAuth,
+	)
+	require.ErrorIs(t, err, ErrInvalidServerName)
+}
+
+func TestStoreAddServer_RejectsInvalidURL(t *testing.T) {
+	s, _, records := newTestStore(t)
+	org := newTestOrg(t, records)
+
+	_, err := s.AddServer(t.Context(), org, "srv", "", "ftp://a.example", AuthTypeOAuth)
+	require.ErrorIs(t, err, ErrInvalidServerURL)
+}
+
+func TestStoreAddServer_RejectsInvalidAuthType(t *testing.T) {
+	s, _, records := newTestStore(t)
+	org := newTestOrg(t, records)
+
+	_, err := s.AddServer(t.Context(), org, "srv", "", "https://a.example", AuthType("bogus"))
+	require.ErrorIs(t, err, ErrInvalidAuthType)
+}
+
+func TestStoreAddServer_RejectsDuplicateName(t *testing.T) {
+	s, _, records := newTestStore(t)
+	org := newTestOrg(t, records)
+
+	addServer(t, s, org, "linear", "")
+
+	_, err := s.AddServer(t.Context(), org, "linear", "", "https://a.example", AuthTypeOAuth)
+	require.ErrorIs(t, err, ErrServerNameTaken)
+
+	_, err = s.AddServer(t.Context(), org, "linear", "", "https://a.example", AuthTypeManual)
+	require.ErrorIs(t, err, ErrServerNameTaken)
 }
 
 func TestStoreStartAuthorization_PrefillsServerURL(t *testing.T) {
 	s, nangoClient, records := newTestStore(t)
 	org := newTestOrg(t, records)
 
-	server := addServer(t, s, nangoClient, org, "did:plc:admin", "linear", "")
+	server := addServer(t, s, org, "linear", "")
 	_, err := s.StartAuthorization(t.Context(), "did:plc:member", org, server.ID)
 	require.NoError(t, err)
-	require.Equal(t, fakeServerURL("conn-linear"), nangoClient.lastSessionServerURL)
-}
-
-func TestStoreCancelAddServer_DeletesIntegration(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
-	org := newTestOrg(t, records)
-	did := syntax.DID("did:plc:admin")
-
-	id, _, err := s.BeginAddServer(t.Context(), org, did, "linear", "")
-	require.NoError(t, err)
-	require.True(t, nangoClient.integrations[NangoKeyFor(org, id)])
-
-	require.NoError(t, s.CancelAddServer(t.Context(), org, id))
-	require.False(t, nangoClient.integrations[NangoKeyFor(org, id)])
+	require.Equal(t, "https://mcp.example.com/mcp", nangoClient.lastSessionServerURL)
 }
 
 func TestStoreListServers_ScopedPerOrg(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
+	s, _, records := newTestStore(t)
 	orgA := newTestOrg(t, records)
 	orgB := newTestOrg(t, records)
-	did := syntax.DID("did:plc:admin")
 
-	server := addServer(t, s, nangoClient, orgA, did, "server-a", "")
-	addServer(t, s, nangoClient, orgB, did, "server-b", "")
+	server := addServer(t, s, orgA, "server-a", "")
+	addServer(t, s, orgB, "server-b", "")
 
 	servers, err := s.ListServers(t.Context(), orgA, syntax.DID("did:plc:user"))
 	require.NoError(t, err)
@@ -259,11 +265,10 @@ func TestStoreListServers_ScopedPerOrg(t *testing.T) {
 }
 
 func TestStoreUpdateServer(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
+	s, _, records := newTestStore(t)
 	org := newTestOrg(t, records)
-	did := syntax.DID("did:plc:admin")
 
-	server := addServer(t, s, nangoClient, org, did, "server", "desc")
+	server := addServer(t, s, org, "server", "desc")
 
 	newDescription := "updated description"
 	updated, err := s.UpdateServer(
@@ -274,32 +279,12 @@ func TestStoreUpdateServer(t *testing.T) {
 	require.Equal(t, "updated description", updated.Description)
 }
 
-func TestStoreBeginAddServer_RejectsInvalidName(t *testing.T) {
-	s, _, records := newTestStore(t)
-	org := newTestOrg(t, records)
-	did := syntax.DID("did:plc:admin")
-
-	_, _, err := s.BeginAddServer(t.Context(), org, did, "not a valid name!", "")
-	require.ErrorIs(t, err, ErrInvalidServerName)
-}
-
-func TestStoreBeginAddServer_RejectsDuplicateName(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
-	org := newTestOrg(t, records)
-	did := syntax.DID("did:plc:admin")
-
-	addServer(t, s, nangoClient, org, did, "linear", "")
-
-	_, _, err := s.BeginAddServer(t.Context(), org, did, "linear", "")
-	require.ErrorIs(t, err, ErrServerNameTaken)
-}
-
 func TestStoreRemoveServer_DeletesIntegration(t *testing.T) {
 	s, nangoClient, records := newTestStore(t)
 	org := newTestOrg(t, records)
 	did := syntax.DID("did:plc:user")
 
-	server := addServer(t, s, nangoClient, org, did, "linear", "")
+	server := addServer(t, s, org, "linear", "")
 
 	require.NoError(t, s.RemoveServer(t.Context(), org, server.ID))
 
@@ -312,10 +297,9 @@ func TestStoreRemoveServer_DeletesIntegration(t *testing.T) {
 func TestStoreListServers_ReflectsNangoConnections(t *testing.T) {
 	s, nangoClient, records := newTestStore(t)
 	org := newTestOrg(t, records)
-	admin := syntax.DID("did:plc:admin")
 	member := syntax.DID("did:plc:member")
 
-	server := addServer(t, s, nangoClient, org, admin, "linear", "")
+	server := addServer(t, s, org, "linear", "")
 
 	servers, err := s.ListServers(t.Context(), org, member)
 	require.NoError(t, err)
@@ -328,7 +312,7 @@ func TestStoreListServers_ReflectsNangoConnections(t *testing.T) {
 
 	// The Nango Connect UI reports success directly to the frontend, which
 	// simply refetches; there's nothing for the gateway to record.
-	nangoClient.connect("conn-member", NangoKeyFor(org, server.ID), member.String())
+	connectMember(nangoClient, org, server, member)
 
 	servers, err = s.ListServers(t.Context(), org, member)
 	require.NoError(t, err)
@@ -340,7 +324,8 @@ func TestStoreDisconnectServer(t *testing.T) {
 	org := newTestOrg(t, records)
 	did := syntax.DID("did:plc:user")
 
-	server := addServer(t, s, nangoClient, org, did, "linear", "")
+	server := addServer(t, s, org, "linear", "")
+	connectMember(nangoClient, org, server, did)
 
 	require.NoError(t, s.DisconnectServer(t.Context(), did, org, server.ID))
 	require.NotContains(t, nangoClient.connections, "conn-"+string(server.ID))
@@ -354,8 +339,8 @@ func TestStoreAddManualServer(t *testing.T) {
 	org := newTestOrg(t, records)
 	member := syntax.DID("did:plc:member")
 
-	server, err := s.AddManualServer(
-		t.Context(), org, "docs", "internal docs", "https://mcp.example.com/mcp",
+	server, err := s.AddServer(
+		t.Context(), org, "docs", "internal docs", "https://mcp.example.com/mcp", AuthTypeManual,
 	)
 	require.NoError(t, err)
 	require.Equal(t, AuthTypeManual, server.AuthType)
@@ -373,33 +358,19 @@ func TestStoreAddManualServer(t *testing.T) {
 	require.ErrorIs(t, s.DisconnectServer(t.Context(), member, org, server.ID), ErrManualServer)
 }
 
-func TestStoreAddManualServer_Validates(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
-	org := newTestOrg(t, records)
-
-	_, err := s.AddManualServer(t.Context(), org, "bad name", "", "https://a.example")
-	require.ErrorIs(t, err, ErrInvalidServerName)
-	_, err = s.AddManualServer(t.Context(), org, "srv", "", "ftp://a.example")
-	require.ErrorIs(t, err, ErrInvalidServerURL)
-	_, err = s.AddManualServer(t.Context(), org, "srv", "", "/relative")
-	require.ErrorIs(t, err, ErrInvalidServerURL)
-
-	// Names are unique across both auth types.
-	addServer(t, s, nangoClient, org, "did:plc:admin", "linear", "")
-	_, err = s.AddManualServer(t.Context(), org, "linear", "", "https://a.example")
-	require.ErrorIs(t, err, ErrServerNameTaken)
-	_, err = s.AddManualServer(t.Context(), org, "docs", "", "https://a.example")
-	require.NoError(t, err)
-	_, _, err = s.BeginAddServer(t.Context(), org, "did:plc:admin", "docs", "")
-	require.ErrorIs(t, err, ErrServerNameTaken)
-}
-
 func TestStoreUpdateManualServer(t *testing.T) {
-	s, nangoClient, records := newTestStore(t)
+	s, _, records := newTestStore(t)
 	org := newTestOrg(t, records)
 	creator := newTestMember(t, records, org)
 
-	_, err := s.AddManualServer(t.Context(), org, "docs", "old", "https://old.example/mcp")
+	_, err := s.AddServer(
+		t.Context(),
+		org,
+		"docs",
+		"old",
+		"https://old.example/mcp",
+		AuthTypeManual,
+	)
 	require.NoError(t, err)
 
 	newURL := "https://new.example/mcp"
@@ -422,7 +393,7 @@ func TestStoreUpdateManualServer(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidServerURL)
 
 	// URL doesn't apply to OAuth servers.
-	oauth := addServer(t, s, nangoClient, org, "did:plc:admin", "linear", "")
+	oauth := addServer(t, s, org, "linear", "")
 	_, err = s.UpdateServer(t.Context(), org, oauth.ID, ServerUpdate{URL: &newURL})
 	require.Error(t, err)
 }
@@ -431,7 +402,7 @@ func TestStoreRemoveManualServer(t *testing.T) {
 	s, _, records := newTestStore(t)
 	org := newTestOrg(t, records)
 
-	_, err := s.AddManualServer(t.Context(), org, "docs", "", "https://a.example")
+	_, err := s.AddServer(t.Context(), org, "docs", "", "https://a.example", AuthTypeManual)
 	require.NoError(t, err)
 	require.NoError(t, s.RemoveServer(t.Context(), org, "docs"))
 
@@ -445,7 +416,7 @@ func TestStoreListManualServersForMember_OnlyMemberOrgs(t *testing.T) {
 	s, _, records := newTestStore(t)
 	org := newTestOrg(t, records)
 
-	_, err := s.AddManualServer(t.Context(), org, "docs", "", "https://a.example")
+	_, err := s.AddServer(t.Context(), org, "docs", "", "https://a.example", AuthTypeManual)
 	require.NoError(t, err)
 
 	manual, err := s.ListManualServersForMember(t.Context(), newTestMember(t, records, org))
