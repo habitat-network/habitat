@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -41,7 +42,31 @@ func newTestServer(t *testing.T) *server {
 	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp, Directory: oauthApp.Dir})
 	require.NoError(t, err)
 
-	return NewSapServer(s, oauthApp, "https://example.com", ConfiguredClientMetadata{})
+	return NewSapServer(s, oauthApp, "https://example.com", ConfiguredClientMetadata{}, testLoginCodeKey(t))
+}
+
+// testLoginCodeKey returns a fresh random login code key, so servers built
+// by separate newTestServer calls can't open each other's codes.
+func testLoginCodeKey(t *testing.T) []byte {
+	t.Helper()
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	require.NoError(t, err)
+	return key
+}
+
+func TestDeriveLoginCodeKeyIsStableAndSecretSpecific(t *testing.T) {
+	t.Parallel()
+
+	a, err := deriveLoginCodeKey([]byte("secret-a"))
+	require.NoError(t, err)
+	require.Len(t, a, 32)
+	again, err := deriveLoginCodeKey([]byte("secret-a"))
+	require.NoError(t, err)
+	require.Equal(t, a, again)
+	b, err := deriveLoginCodeKey([]byte("secret-b"))
+	require.NoError(t, err)
+	require.NotEqual(t, a, b)
 }
 
 func TestHandleAddSessionWithoutReturnToUnaffected(t *testing.T) {

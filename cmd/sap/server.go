@@ -2,7 +2,8 @@ package main
 
 import (
 	"bytes"
-	"crypto/rand"
+	"crypto/hkdf"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
@@ -56,8 +57,8 @@ type server struct {
 	pendingLogins map[string]pendingLogin
 	// loginCodeKey encrypts (and authenticates) the login codes
 	// redirectToReturnTo hands out, so handleRedeemLogin can verify them
-	// without sap keeping any record of completed logins. Generated per process: a code only has to survive
-	// the one redirect round-trip, and pendingLogins is per-process anyway.
+	// without sap keeping any record of completed logins. Derived from sap's
+	// --secret (see deriveLoginCodeKey), so codes stay valid across restarts.
 	loginCodeKey   []byte
 	clientMetadata ConfiguredClientMetadata
 }
@@ -92,6 +93,7 @@ func NewSapServer(
 	oauthClient *oauth.ClientApp,
 	endpoint string,
 	clientMetadata ConfiguredClientMetadata,
+	loginCodeKey []byte,
 ) *server {
 	return &server{
 		sap:         sapInstance,
@@ -104,7 +106,7 @@ func NewSapServer(
 		outboxPongWait:   defaultOutboxPongWait,
 		outboxWriteWait:  defaultOutboxWriteWait,
 		pendingLogins:    make(map[string]pendingLogin),
-		loginCodeKey:     newLoginCodeKey(),
+		loginCodeKey:     loginCodeKey,
 		clientMetadata:   clientMetadata,
 	}
 }
@@ -401,13 +403,12 @@ func (s *server) handleRedeemLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// newLoginCodeKey returns a fresh random key for encrypting login codes.
-func newLoginCodeKey() []byte {
-	key := make([]byte, 32)
-	// crypto/rand.Read never returns an error (it panics instead if the
-	// system's randomness source fails).
-	_, _ = rand.Read(key)
-	return key
+// deriveLoginCodeKey derives the 32-byte key login codes are sealed with
+// from sap's own secret key material (--secret), via HKDF with a label
+// specific to this use, so it's stable across restarts without a separate
+// secret to configure, and never reuses the OAuth signing key directly.
+func deriveLoginCodeKey(secret []byte) ([]byte, error) {
+	return hkdf.Key(sha256.New, secret, nil, "sap login code", 32)
 }
 
 // sealLoginCode seals code with encrypt.EncryptCBOR. secretbox authenticates

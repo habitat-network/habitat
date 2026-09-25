@@ -124,7 +124,11 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		clientMetadata.URI = endpoint
 	}
 
-	server := NewSapServer(s, oauthApp, endpoint, clientMetadata)
+	loginCodeKey, err := deriveLoginCodeKey(secret.Bytes())
+	if err != nil {
+		return fmt.Errorf("derive login code key: %w", err)
+	}
+	server := NewSapServer(s, oauthApp, endpoint, clientMetadata, loginCodeKey)
 
 	// The OAuth endpoints (callback and client metadata) must be publicly
 	// reachable since the user's PDS redirects to them, so they are served on
