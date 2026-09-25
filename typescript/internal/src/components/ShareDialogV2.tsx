@@ -16,11 +16,11 @@ import {
 import { UserAvatar } from "./UserAvatar";
 import { GroupCombobox, type GroupView } from "./GroupCombobox";
 import { SpaceRef } from "@atproto/syntax";
-import { AuthManager } from "../authManager";
 import { resolveDidToHandle, resolveHandleToDid } from "../atprotoDirectory";
 import { network } from "api";
 import {
   xrpc,
+  type Agent,
   type AtUriString,
   type DidString,
   type NsidString,
@@ -64,7 +64,7 @@ function ownerDid(spaceUri: string): string {
 // to network.habitat.group spaces.
 async function loadShareState(
   spaceUri: string,
-  authManager: AuthManager,
+  authManager: Agent,
 ): Promise<ShareState> {
   const userDids = new Set<string>();
   const groupSpaces = new Set<string>();
@@ -129,7 +129,7 @@ async function loadShareState(
 // repeating the space/repo/collection params.
 async function xrpcSpaceListRecords(
   spaceUri: string,
-  authManager: AuthManager,
+  authManager: Agent,
   collection: string,
 ): Promise<network.habitat.space.listRecords.$OutputBody["records"]> {
   const rsp = await xrpc(authManager, network.habitat.space.listRecords.main, {
@@ -144,7 +144,7 @@ async function xrpcSpaceListRecords(
 
 interface ShareDialogV2Props {
   spaceUri: string;
-  authManager: AuthManager;
+  authManager: Agent;
   // Role granted to newly added users and groups. Defaults to "reader".
   relation?: Relation;
   // Custom trigger element; defaults to a "Share" button. Must be a single

@@ -10,8 +10,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { network } from "api";
-import { xrpc } from "@atproto/lex";
-import { AuthManager } from "../authManager";
+import { xrpc, type Agent } from "@atproto/lex";
 
 export type GroupView = network.habitat.groups.defs.GroupView;
 
@@ -24,7 +23,7 @@ function homeProxyHeader(): Headers {
 }
 
 interface GroupComboboxProps {
-  authManager: AuthManager;
+  authManager: Agent;
   value: GroupView | null;
   onValueChange: (value: GroupView | null) => void;
   placeholder?: string;

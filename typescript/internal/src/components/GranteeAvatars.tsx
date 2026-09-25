@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { network } from "api";
-import { xrpc } from "@atproto/lex";
+import { xrpc, type Agent } from "@atproto/lex";
 import { AvatarGroup, AvatarGroupCount, Spinner } from "./ui";
 import { UserAvatar } from "./UserAvatar";
-import { AuthManager } from "../authManager";
 import { useActors } from "../hooks/useActors";
 
 type Grantee = Exclude<
@@ -14,7 +13,7 @@ type Grantee = Exclude<
 interface GranteeAvatarProps {
   uri: string;
   grantees: Grantee[] | undefined;
-  authManager: AuthManager;
+  authManager: Agent;
   max?: number;
   size?: "sm" | "lg" | "default";
 }
