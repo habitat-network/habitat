@@ -124,7 +124,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		clientMetadata.URI = endpoint
 	}
 
-	server := NewSapServer(s, oauthApp, endpoint, clientMetadata)
+	server := NewSapServer(s, oauthApp, endpoint, clientMetadata, cmd.String(fIdentityResolver))
 
 	// The OAuth endpoints (callback and client metadata) must be publicly
 	// reachable since the user's PDS redirects to them, so they are served on

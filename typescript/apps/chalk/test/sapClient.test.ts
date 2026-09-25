@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
-import { SapClient, getSpaceBlob, startLogin } from "../src/server/sapClient";
+import {
+  EmailDomainNotFoundError,
+  SapClient,
+  getSpaceBlob,
+  startLogin,
+} from "../src/server/sapClient";
 
 const testEnv = {
   CHALK_SAP_INTERNAL_URL: "http://sap-internal.test",
@@ -51,6 +56,30 @@ describe("startLogin", () => {
       handle: "did:web:org.example",
       return_to: "https://chalk.test/session/org-callback",
     });
+  });
+
+  it("throws EmailDomainNotFoundError when sap can't resolve an email", async () => {
+    server.use(
+      http.post(
+        "http://sap-internal.test/session/add",
+        () => new HttpResponse("email not found", { status: 404 }),
+      ),
+    );
+    await expect(startLogin(testEnv, "bob@gmail.com")).rejects.toBeInstanceOf(
+      EmailDomainNotFoundError,
+    );
+  });
+
+  it("throws a generic error for other failures", async () => {
+    server.use(
+      http.post(
+        "http://sap-internal.test/session/add",
+        () => new HttpResponse("boom", { status: 500 }),
+      ),
+    );
+    const err = await startLogin(testEnv, "alice.test").catch((e) => e);
+    expect(err).not.toBeInstanceOf(EmailDomainNotFoundError);
+    expect(err.message).toBe("failed to start login (500): boom");
   });
 });
 

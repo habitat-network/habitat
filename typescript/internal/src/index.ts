@@ -1,5 +1,9 @@
 // Components
 export { default as AuthForm } from "./AuthForm";
+export {
+  default as SignInForm,
+  EMAIL_DOMAIN_NOT_FOUND_MESSAGE,
+} from "./SignInForm";
 export { UserAvatar } from "./components/UserAvatar";
 export type { UserAvatarProps } from "./components/UserAvatar";
 export { UserDisplayName } from "./components/UserDisplayName";
