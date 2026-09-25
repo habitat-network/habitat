@@ -332,6 +332,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		db.WithContext(startupCtx), emailDomainStore, hive,
 	)
 	loginRouter.OpensocialStore = opensocialStore
+	// Email identities are only minted once sign-in verifies the email, never
+	// on resolution (see identity.EmailResolver).
+	loginRouter.EmailProvisioner = emailResolver
 
 	// The MCP endpoints sign users in through this same loginRouter (see
 	// OAuthServer.HandleMCPAuthorizeSubmit): whichever login method a user's

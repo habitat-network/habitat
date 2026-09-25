@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/did"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -205,7 +206,7 @@ func (s *Server) ResolveHandle(w http.ResponseWriter, r *http.Request) {
 	}
 	ident, err := s.directory.LookupIdentifier(ctx, handleStr)
 	if errors.Is(err, identity.ErrDIDNotFound) {
-		// an email whose domain isn't mapped reads as an unknown handle
+		// an email with no provisioned identity reads as an unknown handle
 		err = identity.ErrHandleNotFound
 	}
 	if errors.Is(err, identity.ErrHandleNotFound) {
@@ -234,6 +235,16 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ident, err := s.directory.LookupIdentifier(ctx, identifier)
+	if errors.Is(err, emaildomain.ErrEmailNotProvisioned) {
+		// Distinguished from DidNotFound so sign-in clients know the email's
+		// domain does support sign-in: they should start OAuth with the email
+		// as the login hint, and pear mints its identity once sign-in
+		// completes.
+		httpx.WriteError(
+			ctx, w, "EmailNotProvisioned", "email has not signed in yet", http.StatusNotFound,
+		)
+		return
+	}
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		httpx.WriteError(ctx, w, "DidNotFound", "DID not found", http.StatusNotFound)
 		return

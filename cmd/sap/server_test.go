@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -488,4 +489,113 @@ func TestHandleTrackSpaceRejectsUnparsableSpace(t *testing.T) {
 
 	srv.handleTrackSpace(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// pearRewriteTransport routes every request to server, whatever host it was
+// addressed to, so indigo's resolver (which insists on port-less https URLs)
+// can talk to an httptest server standing in for https://pear.example.
+type pearRewriteTransport struct{ server *httptest.Server }
+
+func (rt pearRewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	u, err := url.Parse(rt.server.URL + req.URL.RequestURI())
+	if err != nil {
+		return nil, err
+	}
+	req.URL = u
+	return rt.server.Client().Transport.RoundTrip(req)
+}
+
+// An email that has never signed in has no DID to start StartAuthFlow with:
+// sap must start the flow against the Habitat instance's auth server with the
+// email as the login hint (the instance only mints its identity once sign-in
+// verifies it), and stash return_to by the flow's OAuth state.
+func TestHandleAddSessionUnprovisionedEmail(t *testing.T) {
+	t.Parallel()
+
+	const issuer = "https://pear.example"
+	var loginHints []string
+	pear := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/xrpc/com.atproto.identity.resolveIdentity":
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"EmailNotProvisioned"}`))
+		case "/.well-known/oauth-protected-resource":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"resource": issuer, "authorization_servers": []string{issuer},
+			})
+		case "/.well-known/oauth-authorization-server":
+			_ = json.NewEncoder(w).Encode(oauth.AuthServerMetadata{
+				Issuer:                             issuer,
+				AuthorizationEndpoint:              issuer + "/oauth/authorize",
+				TokenEndpoint:                      issuer + "/oauth/token",
+				PushedAuthorizationRequestEndpoint: issuer + "/oauth/par",
+				ResponseTypesSupported:             []string{"code"},
+				GrantTypesSupported: []string{
+					"authorization_code",
+					"refresh_token",
+				},
+				CodeChallengeMethodsSupported:              []string{"S256"},
+				TokenEndpointAuthMethodsSupoorted:          []string{"none", "private_key_jwt"},
+				TokenEndpointAuthSigningAlgValuesSupported: []string{"ES256"},
+				ScopesSupported:                            []string{"atproto"},
+				DPoPSigningAlgValuesSupported:              []string{"ES256"},
+				AuthorizationReponseISSParameterSupported:  true,
+				RequirePushedAuthorizationRequests:         true,
+				ClientIDMetadataDocumentSupported:          true,
+			})
+		case "/oauth/par":
+			require.NoError(t, r.ParseForm())
+			loginHints = append(loginHints, r.PostForm.Get("login_hint"))
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"request_uri":"urn:test:request","expires_in":60}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(pear.Close)
+
+	srv := newTestServer(t)
+	srv.identityResolverURL = issuer
+	client := &http.Client{Transport: pearRewriteTransport{server: pear}}
+	srv.httpClient = client
+	srv.oauthClient.Resolver.Client = client
+	srv.oauthClient.Client = client
+
+	w := postAddSession(t, srv, "Bob@acme.com")
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var out struct {
+		RedirectURL string `json:"redirect_url"`
+	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	redirect, err := url.Parse(out.RedirectURL)
+	require.NoError(t, err)
+	require.Equal(t, issuer+"/oauth/authorize", redirect.Scheme+"://"+redirect.Host+redirect.Path)
+	require.Equal(t, "urn:test:request", redirect.Query().Get("request_uri"))
+	require.Equal(t, []string{"bob@acme.com"}, loginHints)
+
+	// return_to comes back on the callback keyed by the flow's state.
+	srv.mu.Lock()
+	require.Len(t, srv.pendingReturnTo, 1)
+	var state string
+	for k := range srv.pendingReturnTo {
+		state = k
+	}
+	srv.mu.Unlock()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/oauth-callback?state="+url.QueryEscape(state),
+		http.NoBody,
+	)
+	rec := httptest.NewRecorder()
+	require.True(t, srv.redirectToReturnTo(rec, req, "did:web:bob.acme.example"))
+	require.Equal(
+		t,
+		"https://app.example.com/callback?did=did%3Aweb%3Abob.acme.example",
+		rec.Header().Get("Location"),
+	)
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	require.Empty(t, srv.pendingReturnTo)
 }

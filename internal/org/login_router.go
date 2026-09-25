@@ -22,10 +22,18 @@ type LoginRouter struct {
 	// (see identity.EmailResolver) through their domain's login method.
 	EmailStore *emaildomain.Store
 	// OpensocialStore, if set, is used to add an email-provisioned DID to
-	// its org once it completes sign-in (see Exchange). identity.
-	// EmailResolver mints such a DID without joining it to the org, so a
-	// mistyped or unowned email never becomes a ghost member.
+	// its org once it completes sign-in (see Exchange and ExchangeEmail).
 	OpensocialStore *opensocial.Store
+	// EmailProvisioner, if set, mints the identity for a work email that
+	// hasn't signed in before, once ExchangeEmail has verified its owner
+	// controls it.
+	EmailProvisioner EmailProvisioner
+}
+
+// EmailProvisioner provisions the identity for a verified work email (see
+// identity.EmailResolver.ProvisionEmailIdentity).
+type EmailProvisioner interface {
+	ProvisionEmailIdentity(ctx context.Context, email emaildomain.Email) (syntax.DID, error)
 }
 
 func (r *LoginRouter) getProvider(org Org) login.Provider {
@@ -100,6 +108,77 @@ func (r *LoginRouter) provisionEmailMember(ctx context.Context, did syntax.DID) 
 		return fmt.Errorf("provision member: %w", err)
 	}
 	return nil
+}
+
+// domainLogin returns the login provider for email's domain, for an email
+// that has no identity provisioned yet.
+func (r *LoginRouter) domainLogin(
+	ctx context.Context,
+	email emaildomain.Email,
+) (login.Provider, error) {
+	if r.EmailStore == nil {
+		return nil, fmt.Errorf("email sign-in is not configured")
+	}
+	_, method, ok, err := r.EmailStore.LookupDomain(ctx, email.Domain())
+	if err != nil {
+		return nil, fmt.Errorf("lookup email domain: %w", err)
+	}
+	if !ok {
+		return nil, fmt.Errorf("email domain %s is not set up for sign-in", email.Domain())
+	}
+	provider := r.emailProvider(method)
+	if provider == nil {
+		return nil, fmt.Errorf("unsupported login provider for %s", email.Domain())
+	}
+	return provider, nil
+}
+
+// AuthorizeEmail begins sign-in for a work email that has no identity yet,
+// through its domain's login method. No identity exists until ExchangeEmail
+// verifies the email.
+func (r *LoginRouter) AuthorizeEmail(
+	ctx context.Context,
+	email emaildomain.Email,
+) (string, []byte, error) {
+	provider, err := r.domainLogin(ctx, email)
+	if err != nil {
+		return "", nil, err
+	}
+	return provider.Authorize(ctx, string(email))
+}
+
+// ExchangeEmail completes sign-in begun by AuthorizeEmail. Only once the
+// login provider confirms the user controls email does it provision email's
+// identity (minting it if it's still new) and add it to its org. It returns
+// the provisioned DID.
+func (r *LoginRouter) ExchangeEmail(
+	ctx context.Context,
+	email emaildomain.Email,
+	query url.Values,
+	state []byte,
+) (syntax.DID, error) {
+	if r.EmailProvisioner == nil {
+		return "", fmt.Errorf("email sign-in is not configured")
+	}
+	provider, err := r.domainLogin(ctx, email)
+	if err != nil {
+		return "", err
+	}
+	loginID, err := provider.Exchange(ctx, query, state)
+	if err != nil {
+		return "", fmt.Errorf("failed to exchange code: %w", err)
+	}
+	if !strings.EqualFold(loginID, string(email)) {
+		return "", fmt.Errorf("login id mismatch: %s != %s", email, loginID)
+	}
+	did, err := r.EmailProvisioner.ProvisionEmailIdentity(ctx, email)
+	if err != nil {
+		return "", fmt.Errorf("provision email identity: %w", err)
+	}
+	if err := r.provisionEmailMember(ctx, did); err != nil {
+		return "", err
+	}
+	return did, nil
 }
 
 func (r *LoginRouter) Authorize(

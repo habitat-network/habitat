@@ -253,20 +253,20 @@ func (o *OAuthServer) HandleMCPAuthorizeSubmit(w http.ResponseWriter, r *http.Re
 		httpx.WriteError(ctx, w, "InvalidRequest", "Enter your handle.", http.StatusBadRequest)
 		return
 	}
-	did, err := o.resolveLoginHint(ctx, handle)
-	if err != nil || did == "" {
+	subject, err := o.resolveLoginHint(ctx, handle)
+	if err != nil || subject == "" {
 		httpx.WriteError(
 			ctx, w, "InvalidRequest", "Couldn't sign in with that handle. Check it and try again.",
 			http.StatusBadRequest,
 		)
 		return
 	}
-	if err := o.storage.UpdatePARSessionSubject(ctx, requestKey, did); err != nil {
+	if err := o.storage.UpdatePARSessionSubject(ctx, requestKey, subject); err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to update request subject: %w", err))
 		return
 	}
 
-	redirect, providerState, err := o.loginRouter.Authorize(ctx, did)
+	redirect, providerState, err := o.beginLogin(ctx, subject)
 	if err != nil {
 		httpx.WriteError(
 			ctx, w, "InvalidRequest", "Couldn't sign in with that handle. Check it and try again.",

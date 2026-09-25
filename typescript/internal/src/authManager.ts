@@ -13,6 +13,7 @@ export class AuthManager implements Agent {
   private session: OAuthSession | undefined;
   private onUnauthenticated: (error?: string) => void;
   private initPromise: Promise<void> | undefined;
+  private serverUrl: string;
 
   get did(): DidString | undefined {
     return this.session?.did as DidString | undefined;
@@ -30,6 +31,7 @@ export class AuthManager implements Agent {
     onUnauthenticated: (error?: string) => void,
   ) {
     this.onUnauthenticated = onUnauthenticated;
+    this.serverUrl = serverUrl;
     this.client = new BrowserOAuthClient({
       clientMetadata: clientMetadata(appName, baseUrl),
       // Resolve handles/DIDs through the habitat instance's own identity
@@ -80,12 +82,28 @@ export class AuthManager implements Agent {
     return { did: this.session.did };
   }
 
-  login(handle: string, redirectUrl?: string) {
-    return this.client.signInRedirect(handle, {
+  async login(handle: string, redirectUrl?: string) {
+    const options = {
       redirect_uri: redirectUrl
         ? oauthRedirectUriSchema.parse(redirectUrl)
         : undefined,
-    });
+    };
+    try {
+      return await this.client.signInRedirect(handle, options);
+    } catch (err) {
+      if (!hasXrpcError(err, "EmailNotProvisioned")) {
+        throw err;
+      }
+    }
+    // A work email at a domain set up for sign-in that has never signed in
+    // has no identity yet: the habitat instance only mints one once sign-in
+    // verifies the email. With no DID to resolve, start the flow against the
+    // instance itself. The OAuth client won't forward our own login_hint, so
+    // hand the email over through the authorize endpoint's disambiguation
+    // param instead (the same one its handle prompt submits).
+    const url = await this.client.authorize(this.serverUrl, options);
+    url.searchParams.set("disambiguation", handle);
+    window.location.href = url.href;
   }
 
   logout = (error?: string) => {
@@ -125,3 +143,15 @@ export class AuthManager implements Agent {
 }
 
 export class UnauthenticatedError extends Error {}
+
+// hasXrpcError reports whether err, or anything in its cause chain, carries
+// the XRPC error code (as HabitatIdentityResolverError does). BrowserOAuthClient
+// wraps resolver failures, so the resolver's error is usually a cause.
+export function hasXrpcError(err: unknown, code: string): boolean {
+  for (let e = err; e instanceof Error; e = e.cause) {
+    if ((e as { xrpcError?: unknown }).xrpcError === code) {
+      return true;
+    }
+  }
+  return false;
+}

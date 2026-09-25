@@ -1,6 +1,7 @@
 package org_test
 
 import (
+	"context"
 	"net/url"
 	"testing"
 
@@ -211,6 +212,112 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 		_, _, err := router.Authorize(t.Context(), alice)
 		require.ErrorContains(t, err, "unsupported login provider")
 		err = router.Exchange(t.Context(), alice, url.Values{}, nil)
+		require.ErrorContains(t, err, "unsupported login provider")
+	})
+}
+
+// fakeProvisioner provisions a fixed DID per email into emailStore, recording
+// every email it was asked to provision.
+type fakeProvisioner struct {
+	emailStore *emaildomain.Store
+	orgDID     syntax.DID
+	dids       map[emaildomain.Email]syntax.DID
+	calls      []emaildomain.Email
+}
+
+func (f *fakeProvisioner) ProvisionEmailIdentity(
+	ctx context.Context,
+	email emaildomain.Email,
+) (syntax.DID, error) {
+	f.calls = append(f.calls, email)
+	did := f.dids[email]
+	if err := f.emailStore.Provision(ctx, email, f.orgDID, did); err != nil {
+		return "", err
+	}
+	return did, nil
+}
+
+func TestLoginRouterNewEmail(t *testing.T) {
+	db := db_testutil.NewDB(t)
+	emailStore, err := emaildomain.NewStore(db)
+	require.NoError(t, err)
+	osStore := opensocial_testutil.NewTestStore(t, opensocial_testutil.WithDB(db))
+	orgDIDStr, err := osStore.NewOrgWithoutCreator(t.Context(), "acme")
+	require.NoError(t, err)
+	orgDID := syntax.DID(orgDIDStr)
+	require.NoError(t, emailStore.CreateDomainMapping(
+		t.Context(), "acme.com", orgDID, emaildomain.LoginMethodGoogle,
+	))
+	alice := syntax.DID("did:web:alice.example.com")
+	bob := syntax.DID("did:web:bob.example.com")
+	newRouter := func(p *login_testutil.PassthroughProvider) (org.LoginRouter, *fakeProvisioner) {
+		prov := &fakeProvisioner{
+			emailStore: emailStore,
+			orgDID:     orgDID,
+			dids: map[emaildomain.Email]syntax.DID{
+				"alice@acme.com": alice,
+				"bob@acme.com":   bob,
+			},
+		}
+		return org.LoginRouter{
+			Google:           p,
+			EmailStore:       emailStore,
+			OpensocialStore:  osStore.Store,
+			EmailProvisioner: prov,
+		}, prov
+	}
+
+	t.Run("mismatched google email provisions nothing", func(t *testing.T) {
+		p := login_testutil.NewPassthroughProvider(t)
+		p.LoginID = "mallory@acme.com"
+		router, prov := newRouter(p)
+		_, err := router.ExchangeEmail(t.Context(), "bob@acme.com", url.Values{}, nil)
+		require.ErrorContains(t, err, "login id mismatch")
+		require.Empty(t, prov.calls)
+		_, ok, err := emailStore.GetDID(t.Context(), "bob@acme.com")
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("verified google email provisions identity and membership", func(t *testing.T) {
+		p := login_testutil.NewPassthroughProvider(t)
+		router, prov := newRouter(p)
+		_, state, err := router.AuthorizeEmail(t.Context(), "alice@acme.com")
+		require.NoError(t, err)
+		// The email is passed as Google's login_hint, and nothing is minted
+		// just by starting sign-in.
+		require.Equal(t, "alice@acme.com", p.LoginID)
+		require.Empty(t, prov.calls)
+
+		p.LoginID = "Alice@Acme.com"
+		did, err := router.ExchangeEmail(t.Context(), "alice@acme.com", url.Values{}, state)
+		require.NoError(t, err)
+		require.Equal(t, alice, did)
+		require.Equal(t, []emaildomain.Email{"alice@acme.com"}, prov.calls)
+
+		roles, err := osStore.GetUserRoles(t.Context(), orgDID, alice)
+		require.NoError(t, err)
+		require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+	})
+
+	t.Run("unmapped domain", func(t *testing.T) {
+		router, prov := newRouter(login_testutil.NewPassthroughProvider(t))
+		_, _, err := router.AuthorizeEmail(t.Context(), "alice@other.com")
+		require.ErrorContains(t, err, "not set up for sign-in")
+		_, err = router.ExchangeEmail(t.Context(), "alice@other.com", url.Values{}, nil)
+		require.ErrorContains(t, err, "not set up for sign-in")
+		require.Empty(t, prov.calls)
+	})
+
+	t.Run("not configured", func(t *testing.T) {
+		router := org.LoginRouter{Google: login_testutil.NewPassthroughProvider(t)}
+		_, _, err := router.AuthorizeEmail(t.Context(), "alice@acme.com")
+		require.ErrorContains(t, err, "not configured")
+		_, err = router.ExchangeEmail(t.Context(), "alice@acme.com", url.Values{}, nil)
+		require.ErrorContains(t, err, "not configured")
+
+		router = org.LoginRouter{EmailStore: emailStore, EmailProvisioner: &fakeProvisioner{}}
+		_, _, err = router.AuthorizeEmail(t.Context(), "alice@acme.com")
 		require.ErrorContains(t, err, "unsupported login provider")
 	})
 }

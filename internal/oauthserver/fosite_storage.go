@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/ory/fosite"
@@ -39,6 +38,8 @@ type OAuthRequest struct {
 	ClientID string `gorm:"size:1024"`
 	// Subject is the resolved DID this flow authenticates. Empty until the login
 	// hint is resolved (at PAR time) or the handle is resolved (at authorize time).
+	// Until sign-in completes it may instead hold a pending work email with no
+	// identity yet (see pendingEmailSubject).
 	Subject             string    `gorm:"size:255"`
 	Scopes              string    `gorm:"size:512"` // space-separated
 	CodeChallenge       string    `gorm:"size:255"`
@@ -209,7 +210,7 @@ func (s *store) GetPARSession(
 func (s *store) UpdatePARSessionSubject(
 	ctx context.Context,
 	requestURI string,
-	subject syntax.DID,
+	subject string,
 ) error {
 	return s.db.WithContext(ctx).
 		Model(&OAuthRequest{}).

@@ -99,12 +99,17 @@ var (
 	// or can be provisioned for an email, i.e. its domain isn't mapped to
 	// an org.
 	errEmailNotFound = errors.New("no identity for email")
+	// errEmailNotProvisioned is returned by resolveEmail when an email's
+	// domain is mapped to an org but the email has never signed in, so it
+	// has no identity yet. The Habitat instance mints one only once sign-in
+	// verifies the email (see startEmailAuthFlow).
+	errEmailNotProvisioned = errors.New("email has no identity yet")
 )
 
 // resolveEmail resolves a work email to the DID provisioned for it through
 // the identity resolver's com.atproto.identity.resolveIdentity, which a
-// Habitat instance extends to accept work emails (minting an identity on first
-// sight). indigo's apidir can't be used for this: its Lookup only takes an
+// Habitat instance extends to accept work emails. Resolution never mints an
+// identity. indigo's apidir can't be used for this: its Lookup only takes an
 // at-identifier.
 func (s *server) resolveEmail(ctx context.Context, email emaildomain.Email) (syntax.DID, error) {
 	if s.identityResolverURL == "" {
@@ -122,6 +127,13 @@ func (s *server) resolveEmail(ctx context.Context, email emaildomain.Email) (syn
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
+		var body struct {
+			Error string `json:"error"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err == nil &&
+			body.Error == "EmailNotProvisioned" {
+			return "", errEmailNotProvisioned
+		}
 		return "", errEmailNotFound
 	}
 	if resp.StatusCode != http.StatusOK {
@@ -162,6 +174,9 @@ func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
 	if email, err := emaildomain.ParseEmail(req.Handle); err == nil {
 		did, err := s.resolveEmail(r.Context(), email)
 		switch {
+		case errors.Is(err, errEmailNotProvisioned):
+			s.addEmailSession(w, r, email, req.ReturnTo)
+			return
 		case errors.Is(err, errEmailSignInUnsupported):
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -197,13 +212,74 @@ func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("start auth flow: %s", err), http.StatusInternalServerError)
 		return
 	}
+	writeAuthRedirect(w, r, redirectURL)
+}
 
+// writeAuthRedirect sends the caller to redirectURL to sign in: as JSON for a
+// POST, otherwise as a redirect.
+func writeAuthRedirect(w http.ResponseWriter, r *http.Request, redirectURL string) {
 	if r.Method == http.MethodPost {
 		httpx.WriteJSON(r.Context(), w, map[string]string{"redirect_url": redirectURL})
 		return
 	}
 	w.Header().Set("Location", redirectURL)
 	w.WriteHeader(http.StatusSeeOther)
+}
+
+// addEmailSession is handleAddSession for a work email with no identity yet.
+// There's no DID to hand StartAuthFlow, so it starts the flow against the
+// identity resolver's auth server directly, passing the email as the login
+// hint; that Habitat instance mints the email's identity once sign-in
+// verifies it. return_to is stashed by the flow's OAuth state, since the DID
+// isn't known until the callback.
+func (s *server) addEmailSession(
+	w http.ResponseWriter,
+	r *http.Request,
+	email emaildomain.Email,
+	returnTo string,
+) {
+	redirectURL, state, err := s.startEmailAuthFlow(r.Context(), email)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("start auth flow: %s", err), http.StatusBadGateway)
+		return
+	}
+	if returnTo != "" {
+		s.mu.Lock()
+		s.pendingReturnTo[state] = returnTo
+		s.mu.Unlock()
+	}
+	writeAuthRedirect(w, r, redirectURL)
+}
+
+// startEmailAuthFlow is oauth.ClientApp.StartAuthFlow with email as the
+// login hint, against the identity resolver's auth server. It returns the
+// authorization URL and the flow's OAuth state.
+func (s *server) startEmailAuthFlow(
+	ctx context.Context,
+	email emaildomain.Email,
+) (string, string, error) {
+	resolver := s.oauthClient.Resolver
+	authserverURL, err := resolver.ResolveAuthServerURL(ctx, s.identityResolverURL)
+	if err != nil {
+		return "", "", fmt.Errorf("resolving auth server: %w", err)
+	}
+	meta, err := resolver.ResolveAuthServerMetadata(ctx, authserverURL)
+	if err != nil {
+		return "", "", fmt.Errorf("fetching auth server metadata: %w", err)
+	}
+	info, err := s.oauthClient.SendAuthRequest(
+		ctx, meta, s.oauthClient.Config.Scopes, string(email),
+	)
+	if err != nil {
+		return "", "", fmt.Errorf("auth request failed: %w", err)
+	}
+	if err := s.oauthClient.Store.SaveAuthRequestInfo(ctx, *info); err != nil {
+		return "", "", fmt.Errorf("save auth request: %w", err)
+	}
+	params := url.Values{}
+	params.Set("client_id", s.oauthClient.Config.ClientID)
+	params.Set("request_uri", info.RequestURI)
+	return fmt.Sprintf("%s?%s", meta.AuthorizationEndpoint, params.Encode()), info.State, nil
 }
 
 func (s *server) handleListSessions(w http.ResponseWriter, r *http.Request) {
@@ -375,14 +451,19 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// redirectToReturnTo pops any pending return_to for did and, if present,
-// redirects r's response there with the DID appended as a query param.
-// Returns true if it wrote a response (caller must not write another one).
+// redirectToReturnTo pops any pending return_to for did (or, for an email
+// sign-in, for the callback's OAuth state; see addEmailSession) and, if
+// present, redirects r's response there with the DID appended as a query
+// param. Returns true if it wrote a response (caller must not write another
+// one).
 func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did string) bool {
 	s.mu.Lock()
 	returnTo, ok := s.pendingReturnTo[did]
 	if ok {
 		delete(s.pendingReturnTo, did)
+	} else if state := r.URL.Query().Get("state"); state != "" {
+		returnTo, ok = s.pendingReturnTo[state]
+		delete(s.pendingReturnTo, state)
 	}
 	s.mu.Unlock()
 	if !ok {

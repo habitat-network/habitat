@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/emaildomain"
@@ -24,13 +25,16 @@ const (
 )
 
 // EmailResolver resolves a work email to the habitat identity provisioned
-// for it, minting one on first sight (see
-// emaildomain.Store.CreateDomainMapping). Minting only reserves a DID and
-// records the email->DID mapping; it does NOT add the identity to the org.
-// That only happens once the user actually completes sign-in with that
-// email (see org.LoginRouter.Exchange) — otherwise resolving a mistyped or
-// unowned email (e.g. while an OAuth client is merely rendering a login
-// screen) would silently enroll a ghost member.
+// for it (see emaildomain.Store.CreateDomainMapping). Resolution is
+// read-only: an identity is only minted by ProvisionEmailIdentity, which
+// callers must invoke only once the email's owner has proven they control it
+// (see org.LoginRouter.ExchangeEmail). Otherwise anyone could mint unlimited
+// identities under a mapped domain just by typing (or scripting) emails into
+// a resolver or sign-in form.
+//
+// Provisioning reserves a DID and records the email->DID mapping; it does NOT
+// add the identity to the org. That's left to the sign-in flow (see
+// org.LoginRouter).
 type EmailResolver struct {
 	db         *gorm.DB
 	emailStore *emaildomain.Store
@@ -45,11 +49,10 @@ func NewEmailResolver(
 	return &EmailResolver{db: db, emailStore: emailStore, hive: h}
 }
 
-// ResolveEmailIdentity returns the identity provisioned for email, minting
-// one if email's domain is mapped to an org and email hasn't been seen
-// before. It returns identity.ErrDIDNotFound if the domain isn't mapped.
-// Minting alone does not add the identity to the org; see EmailResolver's
-// doc comment.
+// ResolveEmailIdentity returns the identity already provisioned for email.
+// It never mints: it returns emaildomain.ErrEmailNotProvisioned if email's
+// domain is mapped to an org but email hasn't completed sign-in yet, and
+// identity.ErrDIDNotFound if the domain isn't mapped.
 func (r *EmailResolver) ResolveEmailIdentity(
 	ctx context.Context,
 	email emaildomain.Email,
@@ -57,22 +60,49 @@ func (r *EmailResolver) ResolveEmailIdentity(
 	if ident, ok, err := r.lookupProvisioned(ctx, email); err != nil || ok {
 		return ident, err
 	}
-	orgDID, _, ok, err := r.emailStore.LookupDomain(ctx, email.Domain())
+	_, _, ok, err := r.emailStore.LookupDomain(ctx, email.Domain())
 	if err != nil {
 		return nil, fmt.Errorf("lookup email domain: %w", err)
 	}
 	if !ok {
 		return nil, identity.ErrDIDNotFound
 	}
+	return nil, emaildomain.ErrEmailNotProvisioned
+}
+
+// ProvisionEmailIdentity returns the DID provisioned for email, minting one
+// if email's domain is mapped to an org and email hasn't been seen before.
+// It returns identity.ErrDIDNotFound if the domain isn't mapped.
+//
+// Only call this once the caller has verified that the user controls email
+// (e.g. after Google confirmed it); see EmailResolver's doc comment.
+// Provisioning alone does not add the identity to the org.
+func (r *EmailResolver) ProvisionEmailIdentity(
+	ctx context.Context,
+	email emaildomain.Email,
+) (syntax.DID, error) {
+	if ident, ok, err := r.lookupProvisioned(ctx, email); err != nil || ok {
+		if err != nil {
+			return "", err
+		}
+		return ident.DID, nil
+	}
+	orgDID, _, ok, err := r.emailStore.LookupDomain(ctx, email.Domain())
+	if err != nil {
+		return "", fmt.Errorf("lookup email domain: %w", err)
+	}
+	if !ok {
+		return "", identity.ErrDIDNotFound
+	}
 	orgIdent, err := r.hive.LookupDID(ctx, orgDID)
 	if err != nil {
-		return nil, fmt.Errorf("lookup org identity: %w", err)
+		return "", fmt.Errorf("lookup org identity: %w", err)
 	}
 	// Org handles are a single label minted as "<label>.<memberDomain>";
 	// members are minted beneath it, e.g. "alice.acme.<memberDomain>".
 	orgLabel, _, _ := strings.Cut(orgIdent.Handle.String(), ".")
 
-	var minted *identity.Identity
+	var minted syntax.DID
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		ident, err := mintMemberIdentity(ctx, r.hive.WithTx(tx), email, orgLabel)
 		if err != nil {
@@ -81,7 +111,7 @@ func (r *EmailResolver) ResolveEmailIdentity(
 		if err := r.emailStore.WithTx(tx).Provision(ctx, email, orgDID, ident.DID); err != nil {
 			return err
 		}
-		minted = ident
+		minted = ident.DID
 		return nil
 	})
 	if errors.Is(err, emaildomain.ErrEmailProvisioned) {
@@ -89,15 +119,15 @@ func (r *EmailResolver) ResolveEmailIdentity(
 		// back, so return theirs.
 		ident, ok, err := r.lookupProvisioned(ctx, email)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		if !ok {
-			return nil, fmt.Errorf("email %s provisioned concurrently but not found", email)
+			return "", fmt.Errorf("email %s provisioned concurrently but not found", email)
 		}
-		return ident, nil
+		return ident.DID, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("provision %s: %w", email, err)
+		return "", fmt.Errorf("provision %s: %w", email, err)
 	}
 	return minted, nil
 }

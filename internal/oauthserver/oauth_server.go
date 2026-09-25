@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -52,8 +53,16 @@ const (
 	providerStateCookie = "provider_state"
 )
 
+// pendingEmailSubjectPrefix marks an authorization request's subject as a
+// work email with no identity yet (see resolveLoginHint). Its DID is only
+// minted once sign-in verifies the email (see completeLogin), which then
+// replaces the subject with that DID.
+const pendingEmailSubjectPrefix = "email:"
+
 // EmailIdentityResolver resolves a work email typed as a login hint to the
-// identity provisioned for it (see identity.EmailResolver).
+// identity already provisioned for it (see identity.EmailResolver). It must
+// not mint one: it returns emaildomain.ErrEmailNotProvisioned for an email at
+// a mapped domain that hasn't signed in yet.
 type EmailIdentityResolver interface {
 	ResolveEmailIdentity(ctx context.Context, email emaildomain.Email) (*identity.Identity, error)
 }
@@ -225,8 +234,8 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	if requester == nil {
 		return
 	}
-	did := syntax.DID(requester.GetSession().GetSubject())
-	if did == "" {
+	subject := requester.GetSession().GetSubject()
+	if subject == "" {
 		if err := session.Save(r, w); err != nil {
 			o.metrics.authorizeErr(ctx, err, "save_cookie")
 			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
@@ -235,11 +244,15 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, disambiguationPath, http.StatusSeeOther)
 		return
 	}
-	isOpensocialOrg, err := o.opensocialStore.IsOrg(ctx, did)
-	if err != nil {
-		o.metrics.authorizeErr(ctx, err, "check_opensocial_org")
-		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to check opensocial org: %w", err))
-		return
+	_, isPendingEmail := parsePendingEmailSubject(subject)
+	isOpensocialOrg := false
+	if !isPendingEmail {
+		isOpensocialOrg, err = o.opensocialStore.IsOrg(ctx, syntax.DID(subject))
+		if err != nil {
+			o.metrics.authorizeErr(ctx, err, "check_opensocial_org")
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to check opensocial org: %w", err))
+			return
+		}
 	}
 	if isOpensocialOrg {
 		if err := session.Save(r, w); err != nil {
@@ -250,10 +263,7 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, opensocialPath, http.StatusSeeOther)
 		return
 	}
-	redirect, providerState, err := o.loginRouter.Authorize(
-		ctx,
-		syntax.DID(requester.GetSession().GetSubject()),
-	)
+	redirect, providerState, err := o.beginLogin(ctx, subject)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "begin_login")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to begin login: %w", err))
@@ -285,7 +295,7 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 			loginHint = r.URL.Query().Get("handle")
 		}
 		o.normalizeLoopbackRedirect(ctx, r.Form)
-		did, err := o.resolveLoginHint(ctx, loginHint)
+		subject, err := o.resolveLoginHint(ctx, loginHint)
 		if err != nil {
 			httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 			return nil, ""
@@ -296,7 +306,7 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 			return nil, ""
 		}
 		sess := newSession()
-		sess.SetSubject(did.String())
+		sess.SetSubject(subject)
 		requester.SetSession(sess)
 		// for non-par, create a fake PAR session to persist it
 		uri := requester.GetID()
@@ -310,12 +320,12 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 	}
 	requestKey, _ := cookieSession.Values[requestKeyCookie].(string)
 	if r.FormValue("disambiguation") != "" {
-		did, err := o.resolveLoginHint(ctx, r.FormValue("disambiguation"))
+		subject, err := o.resolveLoginHint(ctx, r.FormValue("disambiguation"))
 		if err != nil {
 			httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 			return nil, ""
 		}
-		if err := o.storage.UpdatePARSessionSubject(ctx, requestKey, did); err != nil {
+		if err := o.storage.UpdatePARSessionSubject(ctx, requestKey, subject); err != nil {
 			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to update PAR subject: %w", err))
 			return nil, ""
 		}
@@ -355,12 +365,12 @@ func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err == nil {
 		o.normalizeLoopbackRedirect(ctx, r.Form)
 	}
-	did, err := o.resolveLoginHint(ctx, r.FormValue("login_hint"))
+	subject, err := o.resolveLoginHint(ctx, r.FormValue("login_hint"))
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 		return
 	}
-	sess.SetSubject(did.String())
+	sess.SetSubject(subject)
 	req, err := o.provider.NewPushedAuthorizeRequest(ctx, r)
 	if err != nil {
 		o.provider.WritePushedAuthorizeError(ctx, w, req, err)
@@ -374,7 +384,14 @@ func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 	o.provider.WritePushedAuthorizeResponse(ctx, w, req, resp)
 }
 
-func (o *OAuthServer) resolveLoginHint(ctx context.Context, loginHint string) (syntax.DID, error) {
+// resolveLoginHint resolves a login hint to the subject an authorization
+// request authenticates: a DID, a pending work email (see
+// pendingEmailSubject) for an email at a mapped domain that has never signed
+// in, or "" when there's no hint to resolve. A pending email is deliberately
+// not minted an identity here — that would let anyone mint identities just by
+// starting (and abandoning) sign-ins — but only once sign-in verifies it (see
+// completeLogin).
+func (o *OAuthServer) resolveLoginHint(ctx context.Context, loginHint string) (string, error) {
 	if loginHint == "" {
 		return "", nil
 	}
@@ -383,18 +400,97 @@ func (o *OAuthServer) resolveLoginHint(ctx context.Context, loginHint string) (s
 		if err != nil {
 			return "", fmt.Errorf("failed to lookup handle: %w", err)
 		}
-		return id.DID, nil
+		return id.DID.String(), nil
 	}
-	// A work email resolves (minting on first sight) to the identity
-	// provisioned for it in its domain's org; see identity.EmailResolver.
+	// A work email resolves to the identity provisioned for it in its
+	// domain's org; see identity.EmailResolver.
 	if email, err := emaildomain.ParseEmail(loginHint); err == nil && o.emailResolver != nil {
 		id, err := o.emailResolver.ResolveEmailIdentity(ctx, email)
+		if errors.Is(err, emaildomain.ErrEmailNotProvisioned) {
+			return pendingEmailSubject(email), nil
+		}
 		if err != nil {
 			return "", fmt.Errorf("failed to resolve email: %w", err)
 		}
-		return id.DID, nil
+		return id.DID.String(), nil
 	}
 	return "", nil
+}
+
+// pendingEmailSubject is the authorization request subject for a work email
+// with no identity yet.
+func pendingEmailSubject(email emaildomain.Email) string {
+	return pendingEmailSubjectPrefix + string(email)
+}
+
+// parsePendingEmailSubject returns the work email subject holds, if it's a
+// pendingEmailSubject.
+func parsePendingEmailSubject(subject string) (emaildomain.Email, bool) {
+	rest, ok := strings.CutPrefix(subject, pendingEmailSubjectPrefix)
+	if !ok {
+		return "", false
+	}
+	email, err := emaildomain.ParseEmail(rest)
+	return email, err == nil
+}
+
+// beginLogin starts sign-in for an authorization request's subject, which is
+// either a DID or a pending work email.
+func (o *OAuthServer) beginLogin(ctx context.Context, subject string) (string, []byte, error) {
+	if email, ok := parsePendingEmailSubject(subject); ok {
+		return o.loginRouter.AuthorizeEmail(ctx, email)
+	}
+	return o.loginRouter.Authorize(ctx, syntax.DID(subject))
+}
+
+// completeLogin finishes the sign-in beginLogin started for requester, and
+// returns the request to continue the flow with. For a pending work email,
+// this is where its identity is minted (now that the login provider has
+// verified the email), and the stored request's subject becomes the minted
+// DID; the returned request is reloaded to reflect that. On failure it also
+// returns a metrics reason.
+func (o *OAuthServer) completeLogin(
+	ctx context.Context,
+	requestKey string,
+	requester fosite.AuthorizeRequester,
+	query url.Values,
+	providerState []byte,
+) (fosite.AuthorizeRequester, string, error) {
+	subject := requester.GetSession().GetSubject()
+	if email, ok := parsePendingEmailSubject(subject); ok {
+		did, err := o.loginRouter.ExchangeEmail(ctx, email, query, providerState)
+		if err != nil {
+			return nil, "complete_login", fmt.Errorf("failed to complete login: %w", err)
+		}
+		if err := o.storage.UpdatePARSessionSubject(ctx, requestKey, did.String()); err != nil {
+			return nil, "update_subject", fmt.Errorf("failed to update request subject: %w", err)
+		}
+		requester, err := o.storage.GetPARSession(ctx, requestKey)
+		if err != nil {
+			return nil, "get_request", fmt.Errorf("failed to reload request: %w", err)
+		}
+		return requester, "", nil
+	}
+
+	did := syntax.DID(subject)
+	isOpensocialOrg, err := o.opensocialStore.IsOrg(ctx, did)
+	if err != nil {
+		return nil, "check_opensocial_org", fmt.Errorf("failed to check opensocial org: %w", err)
+	}
+	if isOpensocialOrg {
+		// The org DID isn't tracked by org.Store, so loginRouter.Exchange's
+		// org/member branching doesn't apply here — the admin's membership
+		// was already verified by HandleOpensocial before this PDS login
+		// began, and the subject stays the org DID throughout.
+		if _, err := o.loginRouter.Pds.Exchange(ctx, query, providerState); err != nil {
+			return nil, "complete_login", fmt.Errorf("failed to complete login: %w", err)
+		}
+		return requester, "", nil
+	}
+	if err := o.loginRouter.Exchange(ctx, did, query, providerState); err != nil {
+		return nil, "complete_login", fmt.Errorf("failed to complete login: %w", err)
+	}
+	return requester, "", nil
 }
 
 // HandleCallback processes the OAuth callback from the user's PDS.
@@ -429,27 +525,13 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	providerState, _ := cookie.Values[providerStateCookie].([]byte)
 	cookie.Values[providerStateCookie] = nil
-	did := syntax.DID(requester.GetSession().GetSubject())
 
-	isOpensocialOrg, err := o.opensocialStore.IsOrg(ctx, did)
+	requester, reason, err := o.completeLogin(
+		ctx, requestKey, requester, r.URL.Query(), providerState,
+	)
 	if err != nil {
-		o.metrics.callbackErr(ctx, err, "check_opensocial_org")
-		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to check opensocial org: %w", err))
-		return
-	}
-	if isOpensocialOrg {
-		// The org DID isn't tracked by org.Store, so loginRouter.Exchange's
-		// org/member branching doesn't apply here — the admin's membership
-		// was already verified by HandleOpensocial before this PDS login
-		// began, and the subject stays the org DID throughout.
-		if _, err := o.loginRouter.Pds.Exchange(ctx, r.URL.Query(), providerState); err != nil {
-			o.metrics.callbackErr(ctx, err, "complete_login")
-			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
-			return
-		}
-	} else if err := o.loginRouter.Exchange(ctx, did, r.URL.Query(), providerState); err != nil {
-		o.metrics.callbackErr(ctx, err, "complete_login")
-		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
+		o.metrics.callbackErr(ctx, err, reason)
+		httpx.WriteServerError(ctx, w, err)
 		return
 	}
 

@@ -1,8 +1,10 @@
 package identity
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"sync"
 	"testing"
@@ -69,58 +71,84 @@ func (f emailFixture) memberships(t *testing.T) int {
 	return len(records)
 }
 
-// Minting an identity must not, by itself, enroll it in the org: org
-// membership is only granted once the user actually completes sign-in with
-// that email (see org.LoginRouter.Exchange), so a mistyped or unowned email
-// never becomes a ghost member.
-func TestEmailResolverMintsWithoutOrgMembership(t *testing.T) {
+// Resolving an email never mints: an email at a mapped domain that hasn't
+// signed in reads as not provisioned, and leaves no trace behind — so
+// mistyped, abandoned, or bot-entered emails can't create identities.
+func TestEmailResolverResolveDoesNotMint(t *testing.T) {
 	f := newEmailFixture(t)
-	ident, err := f.resolver.ResolveEmailIdentity(t.Context(), "alice@acme.com")
-	require.NoError(t, err)
-	require.Equal(t, syntax.Handle("alice.acme.example.com"), ident.Handle)
+	_, err := f.resolver.ResolveEmailIdentity(t.Context(), "alice@acme.com")
+	require.ErrorIs(t, err, emaildomain.ErrEmailNotProvisioned)
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 
-	roles, err := f.opensocial.GetUserRoles(t.Context(), f.org, ident.DID)
+	_, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
-	require.Empty(t, roles)
-	require.Equal(t, 0, f.memberships(t))
-
-	did, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, ident.DID, did)
-
-	served, err := f.hive.LookupDID(t.Context(), ident.DID)
-	require.NoError(t, err)
-	require.Equal(t, ident.DID, served.DID)
+	require.False(t, ok)
+	_, err = f.hive.LookupHandle(t.Context(), "alice.acme.example.com")
+	require.Error(t, err)
 }
 
-func TestEmailResolverDistinctEmailsGetDistinctIdentities(t *testing.T) {
+func TestEmailResolverResolvesProvisioned(t *testing.T) {
 	f := newEmailFixture(t)
-	alice, err := f.resolver.ResolveEmailIdentity(t.Context(), "alice@acme.com")
-	require.NoError(t, err)
-	bob, err := f.resolver.ResolveEmailIdentity(t.Context(), "bob@acme.com")
-	require.NoError(t, err)
-	require.NotEqual(t, alice.DID, bob.DID)
-	require.Equal(t, 0, f.memberships(t))
-}
-
-func TestEmailResolverReturningMember(t *testing.T) {
-	f := newEmailFixture(t)
-	first, err := f.resolver.ResolveEmailIdentity(t.Context(), "alice@acme.com")
+	did, err := f.resolver.ProvisionEmailIdentity(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
 
 	// Differently-cased input normalizes to the same email.
 	email, err := emaildomain.ParseEmail("Alice@ACME.com")
 	require.NoError(t, err)
-	again, err := f.resolver.ResolveEmailIdentity(t.Context(), email)
+	ident, err := f.resolver.ResolveEmailIdentity(t.Context(), email)
 	require.NoError(t, err)
-	require.Equal(t, first.DID, again.DID)
+	require.Equal(t, did, ident.DID)
+	require.Equal(t, syntax.Handle("alice.acme.example.com"), ident.Handle)
+}
+
+// Provisioning an identity must not, by itself, enroll it in the org: that's
+// left to the sign-in flow (see org.LoginRouter).
+func TestEmailResolverProvisionsWithoutOrgMembership(t *testing.T) {
+	f := newEmailFixture(t)
+	did, err := f.resolver.ProvisionEmailIdentity(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
+
+	roles, err := f.opensocial.GetUserRoles(t.Context(), f.org, did)
+	require.NoError(t, err)
+	require.Empty(t, roles)
 	require.Equal(t, 0, f.memberships(t))
+
+	got, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, did, got)
+
+	served, err := f.hive.LookupDID(t.Context(), did)
+	require.NoError(t, err)
+	require.Equal(t, did, served.DID)
+	require.Equal(t, syntax.Handle("alice.acme.example.com"), served.Handle)
+}
+
+func TestEmailResolverProvisionDistinctEmails(t *testing.T) {
+	f := newEmailFixture(t)
+	alice, err := f.resolver.ProvisionEmailIdentity(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
+	bob, err := f.resolver.ProvisionEmailIdentity(t.Context(), "bob@acme.com")
+	require.NoError(t, err)
+	require.NotEqual(t, alice, bob)
+}
+
+func TestEmailResolverProvisionReturningMember(t *testing.T) {
+	f := newEmailFixture(t)
+	first, err := f.resolver.ProvisionEmailIdentity(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
+	again, err := f.resolver.ProvisionEmailIdentity(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
+	require.Equal(t, first, again)
 }
 
 func TestEmailResolverUnknownDomain(t *testing.T) {
 	f := newEmailFixture(t)
 	_, err := f.resolver.ResolveEmailIdentity(t.Context(), "alice@other.com")
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
+	require.NotErrorIs(t, err, emaildomain.ErrEmailNotProvisioned)
+
+	_, err = f.resolver.ProvisionEmailIdentity(t.Context(), "alice@other.com")
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 	_, ok, err := f.emailStore.GetDID(t.Context(), "alice@other.com")
 	require.NoError(t, err)
@@ -129,12 +157,14 @@ func TestEmailResolverUnknownDomain(t *testing.T) {
 
 func TestEmailResolverHandleCollision(t *testing.T) {
 	f := newEmailFixture(t)
-	alice, err := f.resolver.ResolveEmailIdentity(t.Context(), "alice@acme.com")
+	alice, err := f.resolver.ProvisionEmailIdentity(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
 	// "a.lice" sanitizes to the same "alice" handle prefix.
-	other, err := f.resolver.ResolveEmailIdentity(t.Context(), "a.lice@acme.com")
+	otherDID, err := f.resolver.ProvisionEmailIdentity(t.Context(), "a.lice@acme.com")
 	require.NoError(t, err)
-	require.NotEqual(t, alice.DID, other.DID)
+	require.NotEqual(t, alice, otherDID)
+	other, err := f.hive.LookupDID(t.Context(), otherDID)
+	require.NoError(t, err)
 	require.Regexp(t, `^alice[0-9a-f]{8}\.acme\.example\.com$`, other.Handle.String())
 }
 
@@ -142,24 +172,24 @@ func TestEmailResolverConcurrentSameEmail(t *testing.T) {
 	f := newEmailFixture(t)
 	var (
 		wg      sync.WaitGroup
-		results [2]*identity.Identity
+		results [2]syntax.DID
 		errs    [2]error
 	)
 	for i := range 2 {
 		wg.Go(func() {
-			results[i], errs[i] = f.resolver.ResolveEmailIdentity(t.Context(), "alice@acme.com")
+			results[i], errs[i] = f.resolver.ProvisionEmailIdentity(t.Context(), "alice@acme.com")
 		})
 	}
 	wg.Wait()
 	require.NoError(t, errs[0])
 	require.NoError(t, errs[1])
-	require.Equal(t, results[0].DID, results[1].DID)
+	require.Equal(t, results[0], results[1])
 	// The losing attempt rolled back its email->DID mapping write, leaving a
-	// single mapping and no org membership (minting never grants one).
+	// single mapping and no org membership (provisioning never grants one).
 	did, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, results[0].DID, did)
+	require.Equal(t, results[0], did)
 	require.Equal(t, 0, f.memberships(t))
 }
 
@@ -190,6 +220,8 @@ func emailServer(f emailFixture, opts ...func(*Server)) *Server {
 
 func TestResolveIdentityEmail(t *testing.T) {
 	f := newEmailFixture(t)
+	did, err := f.resolver.ProvisionEmailIdentity(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
 	var out atproto.IdentityDefs_IdentityInfo
 	code := httpx_testutil.NewTestXRPCClient(t).Query(
 		emailServer(f).ResolveIdentity,
@@ -197,15 +229,36 @@ func TestResolveIdentityEmail(t *testing.T) {
 		&out,
 	)
 	require.Equal(t, http.StatusOK, code)
+	require.Equal(t, did.String(), out.Did)
 	require.Equal(t, "alice.acme.example.com", out.Handle)
-	// Resolving the identity alone must not enroll it in the org.
-	roles, err := f.opensocial.GetUserRoles(t.Context(), f.org, syntax.DID(out.Did))
+}
+
+// The public resolveIdentity endpoint is reachable before any sign-in, so it
+// must not mint an identity for an email that hasn't signed in; it tells the
+// caller so with a distinct error instead.
+func TestResolveIdentityEmailNotProvisioned(t *testing.T) {
+	f := newEmailFixture(t)
+	var out struct {
+		Error string `json:"error"`
+	}
+	req := httptest.NewRequest(
+		http.MethodGet, "/?"+url.Values{"identifier": {"alice@acme.com"}}.Encode(), http.NoBody,
+	)
+	w := httptest.NewRecorder()
+	emailServer(f).ResolveIdentity(w, req)
+	require.Equal(t, http.StatusNotFound, w.Code)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	require.Equal(t, "EmailNotProvisioned", out.Error)
+
+	_, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
-	require.Empty(t, roles)
+	require.False(t, ok)
 }
 
 func TestResolveHandleEmail(t *testing.T) {
 	f := newEmailFixture(t)
+	did, err := f.resolver.ProvisionEmailIdentity(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
 	var out atproto.IdentityResolveHandle_Output
 	code := httpx_testutil.NewTestXRPCClient(t).Query(
 		emailServer(f).ResolveHandle,
@@ -213,10 +266,21 @@ func TestResolveHandleEmail(t *testing.T) {
 		&out,
 	)
 	require.Equal(t, http.StatusOK, code)
-	did, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
-	require.NoError(t, err)
-	require.True(t, ok)
 	require.Equal(t, did.String(), out.Did)
+}
+
+func TestResolveHandleEmailNotProvisioned(t *testing.T) {
+	f := newEmailFixture(t)
+	var out struct{}
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		emailServer(f).ResolveHandle,
+		url.Values{"handle": []string{"alice@acme.com"}},
+		&out,
+	)
+	require.Equal(t, http.StatusNotFound, code)
+	_, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestResolveIdentityEmailUnknownDomain(t *testing.T) {

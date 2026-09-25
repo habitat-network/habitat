@@ -9,10 +9,19 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-var ErrInvalidEmail = errors.New("invalid email address")
+var (
+	ErrInvalidEmail = errors.New("invalid email address")
+	// ErrEmailNotProvisioned means an email's domain is mapped to an org but
+	// no identity has been provisioned for the email yet: one is only minted
+	// once its owner completes sign-in (see org.LoginRouter.ExchangeEmail).
+	// It wraps identity.ErrDIDNotFound, so callers that don't care about the
+	// distinction treat it like any other unknown identity.
+	ErrEmailNotProvisioned = fmt.Errorf("%w: email not provisioned", identity.ErrDIDNotFound)
+)
 
 // Email is a bare, lowercased email address, e.g. "alice@acme.com".
 type Email string

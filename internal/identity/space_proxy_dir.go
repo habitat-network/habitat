@@ -15,8 +15,8 @@ import (
 // SpaceProxyDirectory resolves identities through a base directory and returns
 // each one with its DID document overridden so its #atproto_pds service points
 // at this habitat instance — unless the identity's real PDS already implements
-// the atproto spaces protocol. It also resolves work emails (minting an
-// identity on first sight) when an EmailResolver is configured.
+// the atproto spaces protocol. It also resolves work emails already
+// provisioned to an identity when an EmailResolver is configured.
 type SpaceProxyDirectory struct {
 	base          identity.Directory
 	emailResolver *EmailResolver
@@ -49,7 +49,7 @@ func WithClient(client *http.Client) utils.Opt[SpaceProxyDirectory] {
 }
 
 // WithEmailResolver lets the directory resolve a work email in place of a
-// handle, minting an identity on first sight (see EmailResolver). Without it,
+// handle (see EmailResolver). Resolution never mints an identity. Without it,
 // email identifiers are rejected.
 func WithEmailResolver(r *EmailResolver) utils.Opt[SpaceProxyDirectory] {
 	return func(d *SpaceProxyDirectory) {
@@ -98,9 +98,10 @@ func (d *SpaceProxyDirectory) Purge(ctx context.Context, atid syntax.AtIdentifie
 	return d.base.Purge(ctx, atid)
 }
 
-// LookupEmail resolves a work email, minting an identity on first sight, and
-// applies the DID override to whatever it returns. It returns
-// identity.ErrInvalidHandle when no EmailResolver is configured and
+// LookupEmail resolves a work email to the identity already provisioned for
+// it and applies the DID override to it. It returns identity.ErrInvalidHandle
+// when no EmailResolver is configured, emaildomain.ErrEmailNotProvisioned
+// when the email's domain is mapped but it hasn't completed sign-in yet, and
 // identity.ErrDIDNotFound when the email's domain isn't mapped.
 func (d *SpaceProxyDirectory) LookupEmail(
 	ctx context.Context,
@@ -121,7 +122,8 @@ func (d *SpaceProxyDirectory) LookupEmail(
 // identity.ErrInvalidHandle for input that is neither, or for a valid email
 // when no EmailResolver is configured; identity.ErrHandleNotFound for an
 // at-identifier the base directory can't resolve; and identity.ErrDIDNotFound
-// for a valid email whose domain isn't mapped (surfaced from LookupEmail).
+// (or emaildomain.ErrEmailNotProvisioned, which wraps it) for a valid email
+// with no provisioned identity (surfaced from LookupEmail).
 func (d *SpaceProxyDirectory) LookupIdentifier(
 	ctx context.Context,
 	identifier string,

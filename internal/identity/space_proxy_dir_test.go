@@ -8,6 +8,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
+
+	"github.com/habitat-network/habitat/internal/emaildomain"
 )
 
 // unsupportedPDS is an httptest server that serves 404s, so SupportsSpaces
@@ -130,8 +132,10 @@ func TestSpaceProxyDirectoryLookupIdentifierInvalid(t *testing.T) {
 	require.ErrorIs(t, err, identity.ErrInvalidHandle)
 }
 
-func TestSpaceProxyDirectoryLookupEmailMintsAndOverrides(t *testing.T) {
+func TestSpaceProxyDirectoryLookupEmailOverrides(t *testing.T) {
 	f := newEmailFixture(t)
+	_, err := f.resolver.ProvisionEmailIdentity(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
 	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 	dir.httpClient = &http.Client{Transport: noNetworkTransport{}}
 	dir.emailResolver = f.resolver
@@ -140,12 +144,24 @@ func TestSpaceProxyDirectoryLookupEmailMintsAndOverrides(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, syntax.Handle("alice.acme.example.com"), ident.Handle)
 	require.Equal(t, "https://pear.domain", ident.PDSEndpoint())
-	// Minting alone must not enroll the identity in the org.
-	require.Equal(t, 0, f.memberships(t))
+}
+
+func TestSpaceProxyDirectoryLookupEmailNotProvisioned(t *testing.T) {
+	f := newEmailFixture(t)
+	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
+	dir.emailResolver = f.resolver
+
+	_, err := dir.LookupEmail(t.Context(), "alice@acme.com")
+	require.ErrorIs(t, err, emaildomain.ErrEmailNotProvisioned)
+	_, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestSpaceProxyDirectoryLookupIdentifierEmail(t *testing.T) {
 	f := newEmailFixture(t)
+	_, err := f.resolver.ProvisionEmailIdentity(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
 	dir := NewSpaceProxyDirectory(identity.NewMockDirectory(), "pear.domain")
 	dir.httpClient = &http.Client{Transport: noNetworkTransport{}}
 	dir.emailResolver = f.resolver
