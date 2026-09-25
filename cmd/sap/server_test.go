@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -60,7 +62,7 @@ func TestHandleAddSessionWithoutReturnToUnaffected(t *testing.T) {
 
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	require.Empty(t, srv.pendingReturnTo)
+	require.Empty(t, srv.pendingLogins)
 }
 
 func TestHandleAddSessionStoresReturnToForResolvedDID(t *testing.T) {
@@ -83,6 +85,7 @@ func TestHandleAddSessionStoresReturnToForResolvedDID(t *testing.T) {
 	body, err := json.Marshal(map[string]string{
 		"handle":    string(testHandle),
 		"return_to": "https://app.example.com/callback",
+		"state":     "nonce123",
 	})
 	require.NoError(t, err)
 
@@ -97,17 +100,23 @@ func TestHandleAddSessionStoresReturnToForResolvedDID(t *testing.T) {
 
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	require.Equal(t, "https://app.example.com/callback", srv.pendingReturnTo[testDID.String()])
+	require.Equal(t, pendingLogin{
+		returnTo: "https://app.example.com/callback",
+		state:    "nonce123",
+	}, srv.pendingLogins[testDID.String()])
 }
 
-func TestRedirectToReturnToRedirectsAndClearsPending(t *testing.T) {
+func TestRedirectToReturnToRedirectsWithCodeNotDID(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
 	const testDID = "did:plc:testreturnto"
 
 	srv.mu.Lock()
-	srv.pendingReturnTo[testDID] = "https://app.example.com/callback"
+	srv.pendingLogins[testDID] = pendingLogin{
+		returnTo: "https://app.example.com/callback",
+		state:    "nonce123",
+	}
 	srv.mu.Unlock()
 
 	req := httptest.NewRequest(http.MethodGet, "/oauth-callback", http.NoBody)
@@ -116,15 +125,72 @@ func TestRedirectToReturnToRedirectsAndClearsPending(t *testing.T) {
 	handled := srv.redirectToReturnTo(w, req, testDID)
 	require.True(t, handled)
 	require.Equal(t, http.StatusSeeOther, w.Code)
-	require.Equal(
-		t,
-		"https://app.example.com/callback?did=did%3Aplc%3Atestreturnto",
-		w.Header().Get("Location"),
-	)
+
+	loc, err := url.Parse(w.Header().Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, "app.example.com", loc.Host)
+	require.Equal(t, "/callback", loc.Path)
+	require.Empty(t, loc.Query().Get("did"))
+	code := loc.Query().Get("code")
+	require.NotEmpty(t, code)
 
 	srv.mu.Lock()
-	defer srv.mu.Unlock()
-	require.Empty(t, srv.pendingReturnTo)
+	require.Empty(t, srv.pendingLogins)
+	require.Equal(t, testDID, srv.completedLogins[code].did)
+	require.Equal(t, "nonce123", srv.completedLogins[code].state)
+	srv.mu.Unlock()
+}
+
+func redeem(t *testing.T, srv *server, code string) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"code": code})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/session/redeem", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.handleRedeemLogin(w, req)
+	return w
+}
+
+func TestHandleRedeemLoginReturnsDIDOnce(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	srv.mu.Lock()
+	srv.completedLogins["code1"] = completedLogin{
+		did:     "did:plc:alice",
+		state:   "nonce123",
+		expires: time.Now().Add(time.Minute),
+	}
+	srv.mu.Unlock()
+
+	w := redeem(t, srv, "code1")
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]string
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.Equal(t, map[string]string{"did": "did:plc:alice", "state": "nonce123"}, resp)
+
+	// A code can only be redeemed once.
+	require.Equal(t, http.StatusNotFound, redeem(t, srv, "code1").Code)
+}
+
+func TestHandleRedeemLoginRejectsUnknownOrExpiredCode(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	srv.mu.Lock()
+	srv.completedLogins["expired"] = completedLogin{
+		did:     "did:plc:alice",
+		expires: time.Now().Add(-time.Second),
+	}
+	srv.mu.Unlock()
+
+	require.Equal(t, http.StatusNotFound, redeem(t, srv, "unknown").Code)
+	require.Equal(t, http.StatusNotFound, redeem(t, srv, "expired").Code)
+
+	req := httptest.NewRequest(http.MethodGet, "/session/redeem", http.NoBody)
+	w := httptest.NewRecorder()
+	srv.handleRedeemLogin(w, req)
+	require.Equal(t, http.StatusMethodNotAllowed, w.Code)
 }
 
 func TestHandleListSessions(t *testing.T) {

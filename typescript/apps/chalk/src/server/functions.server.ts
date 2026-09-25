@@ -138,6 +138,29 @@ export async function clearSession(): Promise<void> {
   await session.clear();
 }
 
+// beginLogin generates a fresh nonce for a sap login flow this browser is
+// about to start and remembers it in the session cookie, replacing any
+// earlier one. Pass it to startLogin as the flow's state.
+export async function beginLogin(): Promise<string> {
+  const nonce = crypto.randomUUID();
+  const session = await useAppSession();
+  await session.update({ loginNonce: nonce });
+  return nonce;
+}
+
+// consumeLoginNonce checks state (as redeemLogin returned it) against the
+// nonce beginLogin stored for this browser, clearing it either way so it
+// can't be used twice. Throws if they don't match: the login being completed
+// wasn't started here, e.g. someone else's callback link was opened.
+export async function consumeLoginNonce(state: string): Promise<void> {
+  const session = await useAppSession();
+  const expected = session.data.loginNonce;
+  await session.update({ loginNonce: undefined });
+  if (!expected || state !== expected) {
+    throw new Error("This sign-in wasn't started from this browser.");
+  }
+}
+
 // setCurrentOrg updates which org (if any) the member is currently acting
 // as — undefined switches back to Personal mode. Mirrors the
 // setCurrentOrgFn session.org-callback.tsx sets right after a fresh OAuth

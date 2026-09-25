@@ -3,61 +3,71 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
+  consumeLoginNonce,
   fetchOrgName,
   requireSession,
-  setCurrentOrg,
 } from "@/server/functions.server";
+import { switchOrg } from "@/server/functions";
 import { getDb, upsertConnectedOrg } from "@/db";
-import { SapClient } from "@/server/sapClient";
+import { SapClient, redeemLogin } from "@/server/sapClient";
 import { Button } from "internal/components/ui";
 import { ensureValidDid } from "@atproto/syntax";
 
 // connectOrgFn verifies the connection actually works (a member who wasn't
 // really an admin never reaches here — pear's HandleOpensocial already
 // checked that before completing PDS login) by reading the org's own
-// profile, records the connection, and returns the name to show. Returns
-// null on failure instead of throwing, so the route can render a plain
-// error state.
+// profile, records the connection, and returns the name to show. The name is
+// null if that read fails, so the route can render a plain error state; a
+// bad or reused code throws instead.
+//
+// The org DID comes from sap (redeeming the one-time code on the callback
+// URL), never from the caller, and the flow must have been started from
+// this same browser (consumeLoginNonce) — otherwise anyone could record any
+// org as connected without completing its admin sign-in.
 const connectOrgFn = createServerFn({ method: "POST" })
-  .validator(({ orgDid }: { orgDid: string }) => {
-    ensureValidDid(orgDid);
-    return { orgDid };
-  })
-  .handler(async ({ data }): Promise<{ orgName: string } | null> => {
-    const { did } = await requireSession();
-    const client = new SapClient(env, did);
-    const orgName = await fetchOrgName(client, data.orgDid);
-    if (orgName === null) return null;
-    await upsertConnectedOrg(getDb(env), {
-      memberDid: did,
-      orgDid: data.orgDid,
-      orgName,
-    });
-    return { orgName };
-  });
-
-const setCurrentOrgFn = createServerFn({ method: "POST" })
-  .validator((input: { orgDid: string }) => input)
-  .handler(async ({ data }) => {
-    await requireSession();
-    await setCurrentOrg(data.orgDid);
-  });
+  .validator((input: { code: string }) => input)
+  .handler(
+    async ({ data }): Promise<{ orgDid: string; orgName: string | null }> => {
+      const { did } = await requireSession();
+      const { did: orgDid, state } = await redeemLogin(env, data.code);
+      await consumeLoginNonce(state);
+      ensureValidDid(orgDid);
+      const client = new SapClient(env, did);
+      const orgName = await fetchOrgName(client, orgDid);
+      if (orgName === null) return { orgDid, orgName: null };
+      await upsertConnectedOrg(getDb(env), {
+        memberDid: did,
+        orgDid,
+        orgName,
+      });
+      return { orgDid, orgName };
+    },
+  );
 
 export const Route = createFileRoute("/session/org-callback")({
   validateSearch: z.object({
-    did: z.string().optional(),
+    code: z.string().optional(),
   }),
-  loaderDeps: ({ search }) => ({ did: search.did }),
+  loaderDeps: ({ search }) => ({ code: search.code }),
   loader: async ({ deps }) => {
-    if (!deps.did) return { orgDid: undefined, result: null };
-    const result = await connectOrgFn({ data: { orgDid: deps.did } });
-    return { orgDid: deps.did, result };
+    if (!deps.code) return { orgDid: undefined, result: null };
+    // A bad or already-redeemed code throws; show the same plain error
+    // state as a failed connection rather than an error boundary.
+    try {
+      const { orgDid, orgName } = await connectOrgFn({
+        data: { code: deps.code },
+      });
+      return { orgDid, result: orgName === null ? null : { orgName } };
+    } catch (err) {
+      console.error("[session.org-callback] connect", err);
+      return { orgDid: "", result: null };
+    }
   },
   component() {
     const { orgDid, result } = Route.useLoaderData();
     const navigate = Route.useNavigate();
 
-    if (!orgDid) {
+    if (orgDid === undefined) {
       return <p>Missing org — please try connecting again from /orgs.</p>;
     }
     if (!result) {
@@ -73,7 +83,7 @@ export const Route = createFileRoute("/session/org-callback")({
         <p>Successfully approved Chalk with {result.orgName}</p>
         <Button
           onClick={async () => {
-            await setCurrentOrgFn({ data: { orgDid } });
+            await switchOrg({ data: { orgDid } });
             navigate({ to: "/" });
           }}
         >

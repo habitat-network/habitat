@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
@@ -47,10 +48,37 @@ type server struct {
 	outboxPongWait   time.Duration
 	outboxWriteWait  time.Duration
 
-	mu              sync.Mutex
-	pendingReturnTo map[string]string // DID string -> return_to URL
+	mu sync.Mutex
+	// pendingLogins holds the caller's return_to/state for a login
+	// handleAddSession started, keyed by the DID it resolved to, until
+	// handleOAuthCallback completes that flow.
+	pendingLogins map[string]pendingLogin
+	// completedLogins holds each finished login's one-time code (see
+	// redirectToReturnTo) until the caller redeems it via handleRedeemLogin.
+	completedLogins map[string]completedLogin
 	clientMetadata  ConfiguredClientMetadata
 }
+
+// pendingLogin is what a caller of /session/add asked sap to carry through
+// the OAuth flow: where to send the browser afterwards, and an opaque state
+// value handed back to the caller (only) when it redeems the login code.
+type pendingLogin struct {
+	returnTo string
+	state    string
+}
+
+// completedLogin is the result of a finished OAuth flow, held under a
+// one-time code until the caller redeems it.
+type completedLogin struct {
+	did     string
+	state   string
+	expires time.Time
+}
+
+// loginCodeTTL bounds how long a completed login's code can be redeemed:
+// the browser is redirected straight to the caller, which redeems it right
+// away, so this only needs to cover that one round-trip.
+const loginCodeTTL = 2 * time.Minute
 
 // endpoint is sap's own public base URL (the same value passed as
 // sap.Config.Endpoint) — it's both what sap registers with space hosts as
@@ -72,7 +100,8 @@ func NewSapServer(
 		outboxPingPeriod: defaultOutboxPingPeriod,
 		outboxPongWait:   defaultOutboxPongWait,
 		outboxWriteWait:  defaultOutboxWriteWait,
-		pendingReturnTo:  make(map[string]string),
+		pendingLogins:    make(map[string]pendingLogin),
+		completedLogins:  make(map[string]completedLogin),
 		clientMetadata:   clientMetadata,
 	}
 }
@@ -85,6 +114,10 @@ func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Handle   string `json:"handle"`
 		ReturnTo string `json:"return_to"`
+		// State is opaque to sap: it's returned only to whoever redeems the
+		// login code (see handleRedeemLogin), so the caller can check the
+		// completed login belongs to the browser that started it.
+		State string `json:"state"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
@@ -95,14 +128,18 @@ func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
 	// the OAuth state param and doesn't return the resolved DID, so when the
 	// caller wants to be redirected back we resolve the identifier to a DID
 	// ourselves (the same lookup StartAuthFlow performs internally) and stash
-	// return_to keyed by that DID for handleOAuthCallback to pick up later.
+	// return_to (and state) keyed by that DID for handleOAuthCallback to pick
+	// up later.
 	// Resolution failures here must not block the StartAuthFlow call below —
 	// they just mean the caller won't get redirected back.
 	if req.ReturnTo != "" {
 		if atid, err := syntax.ParseAtIdentifier(req.Handle); err == nil {
 			if ident, err := s.oauthClient.Dir.Lookup(r.Context(), atid); err == nil {
 				s.mu.Lock()
-				s.pendingReturnTo[ident.DID.String()] = req.ReturnTo
+				s.pendingLogins[ident.DID.String()] = pendingLogin{
+					returnTo: req.ReturnTo,
+					state:    req.State,
+				}
 				s.mu.Unlock()
 			}
 		}
@@ -291,22 +328,81 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// redirectToReturnTo pops any pending return_to for did and, if present,
-// redirects r's response there with the DID appended as a query param.
+// redirectToReturnTo pops any pending login for did and, if present,
+// redirects r's response to its return_to with a one-time code appended as a
+// query param. The DID itself is deliberately not in the URL: the caller
+// must trade the code for it over sap's internal port (handleRedeemLogin),
+// so a return_to URL someone crafts by hand can't claim to be any DID.
 // Returns true if it wrote a response (caller must not write another one).
 func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did string) bool {
 	s.mu.Lock()
-	returnTo, ok := s.pendingReturnTo[did]
+	pending, ok := s.pendingLogins[did]
 	if ok {
-		delete(s.pendingReturnTo, did)
+		delete(s.pendingLogins, did)
 	}
 	s.mu.Unlock()
 	if !ok {
 		return false
 	}
-	target := fmt.Sprintf("%s?did=%s", returnTo, url.QueryEscape(did))
-	http.Redirect(w, r, target, http.StatusSeeOther)
+
+	target, err := url.Parse(pending.returnTo)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("parse return_to: %s", err), http.StatusInternalServerError)
+		return true
+	}
+	code := rand.Text()
+	s.mu.Lock()
+	s.completedLogins[code] = completedLogin{
+		did:     did,
+		state:   pending.state,
+		expires: time.Now().Add(loginCodeTTL),
+	}
+	s.mu.Unlock()
+
+	q := target.Query()
+	q.Set("code", code)
+	target.RawQuery = q.Encode()
+	http.Redirect(w, r, target.String(), http.StatusSeeOther)
 	return true
+}
+
+// handleRedeemLogin trades a one-time login code (from redirectToReturnTo)
+// for the DID whose OAuth flow completed and the state its caller passed to
+// /session/add. Each code works once, and only until loginCodeTTL passes.
+func (s *server) handleRedeemLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	now := time.Now()
+	s.mu.Lock()
+	login, ok := s.completedLogins[req.Code]
+	delete(s.completedLogins, req.Code)
+	// Sweep other expired codes while holding the lock, so codes nobody
+	// redeems don't accumulate.
+	for code, l := range s.completedLogins {
+		if now.After(l.expires) {
+			delete(s.completedLogins, code)
+		}
+	}
+	s.mu.Unlock()
+	if !ok || now.After(login.expires) {
+		http.Error(w, "unknown or expired login code", http.StatusNotFound)
+		return
+	}
+
+	httpx.WriteJSON(r.Context(), w, map[string]string{
+		"did":   login.did,
+		"state": login.state,
+	})
 }
 
 // handleProxy forwards an XRPC request to pear on behalf of a managed org,

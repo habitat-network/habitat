@@ -16,12 +16,15 @@ export function sapAuthHeaders(env: Env): Record<string, string> {
 }
 
 // startLogin asks sap to begin an atproto OAuth flow for handle, telling it
-// to redirect the browser back to chalk's /session/callback (with the
-// resolved DID) once the PDS OAuth handshake completes. Returns the
-// PDS-authorize URL the browser should be sent to next.
+// to redirect the browser back to chalk's /session/callback (with a
+// one-time code to trade for the resolved DID via redeemLogin) once the PDS
+// OAuth handshake completes. state is carried through opaquely and handed
+// back by redeemLogin. Returns the PDS-authorize URL the browser should be
+// sent to next.
 export async function startLogin(
   env: Env,
   handle: string,
+  state: string,
   returnPath = "/session/callback",
 ): Promise<string> {
   const base = env.CHALK_BASE_URL;
@@ -37,6 +40,7 @@ export async function startLogin(
     body: JSON.stringify({
       handle,
       return_to: `${base}${returnPath}`,
+      state,
     }),
   });
   if (!res.ok) {
@@ -46,6 +50,33 @@ export async function startLogin(
   }
   const { redirect_url } = (await res.json()) as { redirect_url: string };
   return redirect_url;
+}
+
+// redeemLogin trades the one-time code sap appended to a login's return_to
+// for the DID whose OAuth flow actually completed, plus the state startLogin
+// passed in. This is the only way chalk learns who logged in: the code is
+// single-use and only redeemable over sap's internal (authenticated) port,
+// so nothing in the callback URL itself is trusted.
+export async function redeemLogin(
+  env: Env,
+  code: string,
+): Promise<{ did: string; state: string }> {
+  if (!env.CHALK_SAP_INTERNAL_URL)
+    throw new Error("CHALK_SAP_INTERNAL_URL is not set");
+  const res = await fetch(`${env.CHALK_SAP_INTERNAL_URL}/session/redeem`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...sapAuthHeaders(env),
+    },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `failed to redeem login (${res.status}): ${await res.text()}`,
+    );
+  }
+  return (await res.json()) as { did: string; state: string };
 }
 
 // querySpace runs an XRPC query against a space's own host without acting as
