@@ -8,7 +8,9 @@ import (
 
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/utils/tests"
 )
 
 func newSqlite(t *testing.T) *gorm.DB {
@@ -83,4 +85,33 @@ func TestWrapTxRunsOnTx(t *testing.T) {
 
 func TestDialectOf(t *testing.T) {
 	require.Equal(t, Sqlite, DialectOf(newSqlite(t)))
+}
+
+func TestMigrateRejectsDuplicateGoMigrationVersions(t *testing.T) {
+	noop := func() *goose.Migration {
+		return goose.NewGoMigration(20260101000000, &goose.GoFunc{}, &goose.GoFunc{})
+	}
+	require.Error(t, Migrate(t.Context(), newSqlite(t), nil, noop(), noop()))
+}
+
+func TestUnsupportedDialect(t *testing.T) {
+	db, err := gorm.Open(tests.DummyDialector{}, &gorm.Config{})
+	require.NoError(t, err)
+	require.Empty(t, DialectOf(db))
+	require.Error(t, Migrate(t.Context(), db, nil))
+	_, err = WrapTx(db, nil)
+	require.Error(t, err)
+}
+
+func TestDialectOfPostgres(t *testing.T) {
+	// pgx connects lazily, so this opens without a server.
+	db, err := gorm.Open(
+		postgres.Open("postgres://localhost:1/none"),
+		&gorm.Config{DisableAutomaticPing: true},
+	)
+	require.NoError(t, err)
+	require.Equal(t, Postgres, DialectOf(db))
+	dialect, err := gooseDialect(db)
+	require.NoError(t, err)
+	require.Equal(t, goose.DialectPostgres, dialect)
 }
