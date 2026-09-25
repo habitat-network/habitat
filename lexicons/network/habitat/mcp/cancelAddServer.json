@@ -1,0 +1,31 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.cancelAddServer",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Abandon an in-progress addServer flow, e.g. because the caller closed Nango's Connect UI without completing it. Deletes the Nango integration registered by addServer; no org record was ever written. Requires service-auth. Requires the mcp.configure action.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "org",
+            "id"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community the server would have belonged to."
+            },
+            "id": {
+              "type": "string",
+              "description": "The server identifier returned by addServer."
+            }
+          }
+        }
+      }
+    }
+  }
+}

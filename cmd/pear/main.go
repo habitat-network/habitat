@@ -41,7 +41,9 @@ import (
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/mcpserver"
+	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
@@ -392,6 +394,17 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	simpleStore := simplespace.NewStore(db, spacesStore, permStore)
 
+	// Store for org-configured MCP servers and per-user Nango connections.
+	nangoSecretKey := cmd.String(fNangoSecretKey)
+	if nangoSecretKey == "" {
+		slog.WarnContext(ctx, "nango secret key not set; MCP server configuration is disabled")
+	}
+	nangoClient := nango.NewClient(nangoSecretKey, httpx.NewClient())
+	mcpGatewayStore, err := mcpgateway.NewStore(nangoClient, opensocialStore)
+	if err != nil {
+		return fmt.Errorf("setup mcp gateway store: %w", err)
+	}
+
 	pdsForwarding := forwarding.NewPDSForwarding(
 		pdsCredStore,
 		validator,
@@ -413,6 +426,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		simpleStore,
 		notifyStore,
 		clientmetadata.NewResolver(),
+		mcpGatewayStore,
 		pdsForwarding,
 		emailDomainStore,
 	)
@@ -432,6 +446,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		oauthServer,
 		spacesStore,
 		permStore,
+		nangoClient,
+		opensocialStore,
+		mcpGatewayStore,
 		mcpOrigin,
 		oauthServer.MCPIssuer(),
 	)
@@ -463,6 +480,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.PathPrefix("/xrpc/community.opensocial.").Handler(pearApp)
 	// Server-side client-metadata proxy for the management frontend
 	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
+	// MCP gateway routes (network.habitat.mcp.*) are handled by pearApp via
+	// registerRoutes in internal/pearserver/routes.go.
+	mux.PathPrefix("/xrpc/network.habitat.mcp.").Handler(pearApp)
 
 	cliqueServer := clique.NewServer(cliqueStore, validator)
 	pearServer := pear.NewServer(

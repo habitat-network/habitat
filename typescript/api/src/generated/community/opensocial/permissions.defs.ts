@@ -79,6 +79,7 @@ type ActionBinding = {
     | 'space.configure'
     | 'space.delete'
     | 'community.configure'
+    | 'mcp.configure'
     | l.UnknownString
 
   /**
@@ -102,6 +103,7 @@ const actionBinding = /*#__PURE__*/ l.typedObject<ActionBinding>(
         'space.configure',
         'space.delete',
         'community.configure',
+        'mcp.configure',
       ]
     }>(),
     roles: /*#__PURE__*/ l.array(/*#__PURE__*/ l.string()),

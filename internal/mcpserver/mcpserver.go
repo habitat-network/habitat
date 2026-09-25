@@ -8,16 +8,56 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"log/slog"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/nango"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
+
+// NangoClient is the subset of Nango's backend API needed to reach a
+// caller's connected MCP servers. See internal/nango.Client for the concrete
+// implementation.
+type NangoClient interface {
+	// ListConnections lists the MCP connections tagged with endUserID.
+	ListConnections(ctx context.Context, endUserID string) ([]nango.Connection, error)
+	// GetConnection fetches a Connection's live details, including
+	// credentials, from Nango.
+	GetConnection(
+		ctx context.Context,
+		connectionID, providerConfigKey string,
+	) (*nango.ConnectionDetails, error)
+}
+
+// OrgMcpServerStore is the subset of opensocial.Store needed to resolve a
+// Nango connection's provider_config_key back to the org-chosen server name
+// (see internal/mcpgateway) that namespaces its tools.
+type OrgMcpServerStore interface {
+	GetMcpServer(
+		ctx context.Context,
+		orgDID syntax.DID,
+		id syntax.RecordKey,
+	) (*opensocial.McpServer, error)
+	ListMcpServers(ctx context.Context, orgDID syntax.DID) ([]*opensocial.McpServer, error)
+}
+
+// ManualServerSource lists the manually configured MCP servers (see
+// internal/mcpgateway) available to an org member, with the URL to reach
+// each.
+type ManualServerSource interface {
+	ListManualServersForMember(
+		ctx context.Context,
+		did syntax.DID,
+	) ([]*mcpgateway.ManualServer, error)
+}
 
 // ProtectedResourceMetadataPath is the well-known path (RFC 9728) advertising
 // the authorization server for the resource served at Path. Mount
@@ -43,6 +83,13 @@ type Server struct {
 //   - spacesStore and permStore back the "get_record" tool: permStore checks
 //     the caller holds at least a reader role on the record's space before
 //     spacesStore returns the record.
+//   - nangoClient and orgRecords together look up the caller's Nango
+//     connections to org-configured MCP servers, and manualServers the
+//     manually configured servers of the caller's orgs (see
+//     internal/mcpgateway): every connected server's tools are merged into
+//     this server's own tools/list response, namespaced by the server's name
+//     (see namespaceTool), and tools/call for a namespaced tool is proxied
+//     straight through to that server.
 //   - origin is this server's public origin (an https URL with no path), used
 //     to build the resource identifier in the protected resource metadata.
 //   - authServer is the issuer of the authorization server (internal/oauthserver)
@@ -51,6 +98,9 @@ func New(
 	tokens authn.RawMethod,
 	spacesStore spaces.Store,
 	permStore perms.Store,
+	nangoClient NangoClient,
+	orgRecords OrgMcpServerStore,
+	manualServers ManualServerSource,
 	origin string,
 	authServer string,
 ) *Server {
@@ -60,6 +110,10 @@ func New(
 		Name:        "get_record",
 		Description: "Get a single Habitat record by its space record URI.",
 	}, getRecordHandler(spacesStore, permStore))
+	mcpServer.AddReceivingMiddleware(
+		mergeConnectedToolsMiddleware(nangoClient, orgRecords, manualServers),
+		proxyConnectedToolCallMiddleware(nangoClient, orgRecords, manualServers),
+	)
 
 	streamable := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return mcpServer

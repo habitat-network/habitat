@@ -12,6 +12,7 @@ import (
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -38,6 +39,7 @@ type PearServer struct {
 	permStore       perms.Store
 	simpleStore     *simplespace.Store
 	notifyStore     notify.Store
+	mcpGatewayStore mcpgateway.Store
 
 	// clientMeta resolves OAuth client metadata/JWKS for verifying client
 	// attestations on getSpaceCredential.
@@ -64,6 +66,7 @@ func New(
 	simpleStore *simplespace.Store,
 	notifyStore notify.Store,
 	clientMeta *clientmetadata.Resolver,
+	mcpGatewayStore mcpgateway.Store,
 	pdsForwarding *forwarding.PDSForwarding,
 	emailDomainStore *emaildomain.Store,
 ) *PearServer {
@@ -81,6 +84,7 @@ func New(
 		simpleStore:      simpleStore,
 		notifyStore:      notifyStore,
 		clientMeta:       clientMeta,
+		mcpGatewayStore:  mcpGatewayStore,
 		pdsForwarding:    pdsForwarding,
 		emailDomainStore: emailDomainStore,
 	}

@@ -2,30 +2,45 @@ package login
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/oauth2"
 )
 
-func makeIDToken(clientID, email string) string {
-	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
-	payload := base64.RawURLEncoding.EncodeToString(
-		fmt.Appendf(
-			nil,
-			`{"iss":"https://accounts.google.com","aud":"%s","sub":"123","email":"%s","email_verified":true,"iat":1000000000,"exp":9999999999}`,
-			clientID,
-			email,
-		))
-	return header + "." + payload + ".fakesignature"
+// makeIDToken builds a Google-shaped ID token carrying claims, unsigned
+// (verifyGoogleIDToken only decodes and validates claims; it doesn't check a
+// signature — see its doc comment).
+func makeIDToken(t *testing.T, claims googleIDTokenClaims) string {
+	t.Helper()
+	token, err := jwt.NewWithClaims(jwt.SigningMethodNone, claims).
+		SignedString(jwt.UnsafeAllowNoneSignatureType)
+	require.NoError(t, err)
+	return token
+}
+
+func defaultTestClaims(clientID, email string) googleIDTokenClaims {
+	now := time.Now()
+	return googleIDTokenClaims{
+		Email:         email,
+		EmailVerified: true,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "https://accounts.google.com",
+			Audience:  jwt.ClaimStrings{clientID},
+			Subject:   "123",
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
+		},
+	}
 }
 
 func TestGoogleProvider_Authorize(t *testing.T) {
@@ -63,7 +78,7 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	idToken := makeIDToken(clientID, "user@gmail.com")
+	idToken := makeIDToken(t, defaultTestClaims(clientID, "user@gmail.com"))
 
 	tokenServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -112,25 +127,22 @@ func TestVerifyGoogleIDToken(t *testing.T) {
 	clientID := "my-client-id.apps.googleusercontent.com"
 
 	t.Run("valid token returns email", func(t *testing.T) {
-		token := makeIDToken(clientID, "user@gmail.com")
-		email, err := verifyGoogleIDToken(token, clientID)
+		token := makeIDToken(t, defaultTestClaims(clientID, "user@gmail.com"))
+		claims, err := verifyGoogleIDToken(token, clientID)
 		require.NoError(t, err)
-		require.Equal(t, "user@gmail.com", email)
+		require.Equal(t, "user@gmail.com", claims.Email)
 	})
 
 	t.Run("wrong audience rejected", func(t *testing.T) {
-		token := makeIDToken("other-client-id", "user@gmail.com")
+		token := makeIDToken(t, defaultTestClaims("other-client-id", "user@gmail.com"))
 		_, err := verifyGoogleIDToken(token, clientID)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "audience mismatch")
 	})
 
 	t.Run("unverified email rejected", func(t *testing.T) {
-		header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
-		payload := base64.RawURLEncoding.EncodeToString([]byte(
-			`{"iss":"https://accounts.google.com","aud":"my-client-id.apps.googleusercontent.com","sub":"123","email":"unverified@example.com","email_verified":false,"iat":1000000000,"exp":9999999999}`,
-		))
-		token := header + "." + payload + ".fakesig"
+		claims := defaultTestClaims(clientID, "unverified@example.com")
+		claims.EmailVerified = false
+		token := makeIDToken(t, claims)
 		_, err := verifyGoogleIDToken(token, clientID)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "email not verified")
@@ -142,13 +154,19 @@ func TestVerifyGoogleIDToken(t *testing.T) {
 	})
 
 	t.Run("expired token rejected", func(t *testing.T) {
-		header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
-		payload := base64.RawURLEncoding.EncodeToString([]byte(
-			`{"iss":"https://accounts.google.com","aud":"my-client-id.apps.googleusercontent.com","sub":"123","email":"old@example.com","email_verified":true,"iat":1000000000,"exp":1000000001}`,
-		))
-		token := header + "." + payload + ".fakesig"
+		claims := defaultTestClaims(clientID, "old@example.com")
+		claims.ExpiresAt = jwt.NewNumericDate(time.Now().Add(-time.Hour))
+		token := makeIDToken(t, claims)
 		_, err := verifyGoogleIDToken(token, clientID)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "id token expired")
+	})
+
+	t.Run("unexpected issuer rejected", func(t *testing.T) {
+		claims := defaultTestClaims(clientID, "user@gmail.com")
+		claims.Issuer = "https://evil.example.com"
+		token := makeIDToken(t, claims)
+		_, err := verifyGoogleIDToken(token, clientID)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unexpected id token issuer")
 	})
 }

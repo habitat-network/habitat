@@ -104,6 +104,9 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 		fakeTokens{},
 		spacesStore,
 		permStore,
+		newFakeNangoClient(),
+		newFakeOrgMcpServerStore(),
+		nil,
 		"https://habitat.example",
 		"https://habitat.example/mcp",
 	)

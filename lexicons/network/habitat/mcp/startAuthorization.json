@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.startAuthorization",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Begin authorizing the caller against an org-configured MCP server via Nango. Returns a Nango Connect session token for the caller's browser to use with the Nango frontend SDK's Connect UI. Requires service-auth. Callable by any org member.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "org",
+            "id"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community the server belongs to."
+            },
+            "id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "sessionToken"
+          ],
+          "properties": {
+            "sessionToken": {
+              "type": "string",
+              "description": "A Nango Connect session token, to be passed to the Nango frontend SDK's openConnectUI."
+            }
+          }
+        }
+      }
+    }
+  }
+}

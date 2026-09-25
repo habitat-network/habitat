@@ -36,6 +36,17 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/community.opensocial.assignRoles", p.AssignRoles)
 	p.router.HandleFunc("/xrpc/community.opensocial.ejectMember", p.EjectMember)
 
+	// MCP gateway
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.addServer", p.AddServer)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.addManualServer", p.AddManualServer)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.completeAddServer", p.CompleteAddServer)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.cancelAddServer", p.CancelAddServer)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.updateServer", p.UpdateServer)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.removeServer", p.RemoveServer)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.listServers", p.ListServers)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.startAuthorization", p.StartAuthorization)
+	p.router.HandleFunc("/xrpc/network.habitat.mcp.disconnectServer", p.DisconnectServer)
+
 	// Simplespace
 	p.router.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", p.CreateSpace)
 	p.router.HandleFunc("/xrpc/network.habitat.simplespace.addMember", p.AddMember)

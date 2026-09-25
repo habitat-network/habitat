@@ -1,0 +1,57 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.addManualServer",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Configure an MCP server that needs no auth for the org by hand, by its URL. The configuration is shared by every org member, who are all connected automatically. Use addServer instead for servers that support MCP OAuth. Requires service-auth. Requires the mcp.configure action.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "org",
+            "name",
+            "url"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community to configure the server for."
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Also becomes the server's ID and the namespace under which its tools are exposed. Letters, digits, hyphens, and underscores only, and must be unique within the org."
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "The server's streamable HTTP endpoint."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "server"
+          ],
+          "properties": {
+            "server": {
+              "type": "ref",
+              "ref": "network.habitat.mcp.defs#server"
+            }
+          }
+        }
+      }
+    }
+  }
+}

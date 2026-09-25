@@ -218,6 +218,7 @@ func (s *Store) createOrgShell(
 			{Action: string(ActionSpaceConfigure), Roles: []string{AdminRoleRkey}},
 			{Action: string(ActionSpaceDelete), Roles: []string{AdminRoleRkey}},
 			{Action: string(ActionCommunityConfigure), Roles: []string{AdminRoleRkey}},
+			{Action: string(ActionMcpConfigure), Roles: []string{AdminRoleRkey}},
 		},
 		Assignable: []opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
 			{Role: AdminRoleRkey, Roles: []string{AdminRoleRkey, MemberRoleRkey}},

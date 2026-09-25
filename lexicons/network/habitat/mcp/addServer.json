@@ -1,0 +1,56 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.addServer",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Begin configuring a new MCP server for the org. Registers a Nango integration for it and returns a Nango Connect session token for the caller's browser: the caller enters the server's URL and completes authorization directly in Nango's Connect UI. Call completeAddServer once that succeeds, or cancelAddServer if the caller abandons it. Requires service-auth. Requires the mcp.configure action.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "org",
+            "name"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community to configure the server for."
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Also becomes the server's record key and the namespace under which its tools are exposed. Letters, digits, hyphens, and underscores only, and must be unique within the org."
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "id",
+            "sessionToken"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The new server's identifier (equal to name). Pass this to completeAddServer or cancelAddServer."
+            },
+            "sessionToken": {
+              "type": "string",
+              "description": "A Nango Connect session token, to be passed to the Nango frontend SDK's openConnectUI."
+            }
+          }
+        }
+      }
+    }
+  }
+}

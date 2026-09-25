@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -42,6 +43,8 @@ type TestServer struct {
 	HostKey          atcrypto.PrivateKey
 	DB               *gorm.DB
 	FGA              fgastore.Store
+	McpGatewayStore  mcpgateway.Store
+	NangoClient      *FakeNangoClient
 	PDSForwarding    *forwarding.PDSForwarding
 	EmailDomainStore *emaildomain.Store
 }
@@ -79,6 +82,12 @@ func WithSpaceStore(store spaces.Store) utils.Opt[TestServer] {
 func WithNotifyStore(store notify.Store) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.NotifyStore = store
+	}
+}
+
+func WithNangoClient(client *FakeNangoClient) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.NangoClient = client
 	}
 }
 
@@ -148,6 +157,13 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	ts.OpenSocialStore = os
 	ts.SimpleStore = ss
 
+	if ts.NangoClient == nil {
+		ts.NangoClient = NewFakeNangoClient()
+	}
+	mcpGatewayStore, err := mcpgateway.NewStore(ts.NangoClient, os)
+	require.NoError(t, err)
+	ts.McpGatewayStore = mcpGatewayStore
+
 	if ts.PDSForwarding == nil {
 		// Default forwarding points nowhere; getSession's remote-identity path
 		// forwards to a caller's real PDS, which tests exercise by injecting
@@ -177,6 +193,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ss,
 		ts.NotifyStore,
 		clientmetadata.NewResolver(),
+		mcpGatewayStore,
 		ts.PDSForwarding,
 		emailDomainStore,
 	)
