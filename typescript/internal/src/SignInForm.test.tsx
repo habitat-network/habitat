@@ -25,15 +25,9 @@ function renderForm(
   return { onSubmit };
 }
 
-function choose(label: "Sign in with AT Protocol" | "Sign in with Google") {
-  fireEvent.click(screen.getByRole("button", { name: label }));
-}
-
-function submit(placeholder: string, value: string) {
-  fireEvent.change(screen.getByPlaceholderText(placeholder), {
-    target: { value },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+function submit(value: string) {
+  fireEvent.change(screen.getByRole("textbox"), { target: { value } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 }
 
 afterEach(() => {
@@ -41,53 +35,27 @@ afterEach(() => {
 });
 
 describe("SignInForm", () => {
-  it("offers AT Protocol and Google sign-in options", () => {
-    renderForm();
-    expect(
-      screen.getByRole("button", { name: "Sign in with AT Protocol" }),
-    ).toBeDefined();
-    expect(
-      screen.getByRole("button", { name: "Sign in with Google" }),
-    ).toBeDefined();
-    expect(screen.queryByRole("textbox")).toBeNull();
-  });
-
   it("signs in with an AT Protocol handle", async () => {
     const { onSubmit } = renderForm();
-    choose("Sign in with AT Protocol");
-    submit("alice.bsky.social", " bob.bsky.social ");
+    submit(" bob.bsky.social ");
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith("bob.bsky.social");
     });
   });
 
-  it("rejects an email in the AT Protocol option", async () => {
+  it("signs in with a work email", async () => {
     const { onSubmit } = renderForm();
-    choose("Sign in with AT Protocol");
-    submit("alice.bsky.social", "bob@company.com");
-    expect(
-      await screen.findByText(
-        "That looks like an email. Use Sign in with Google instead.",
-      ),
-    ).toBeDefined();
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it("signs in with a Google work email", async () => {
-    const { onSubmit } = renderForm();
-    choose("Sign in with Google");
-    submit("you@company.com", "bob@company.com");
+    submit("bob@company.com");
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith("bob@company.com");
     });
   });
 
-  it("rejects a handle in the Google option", async () => {
+  it("requires a handle or email", async () => {
     const { onSubmit } = renderForm();
-    choose("Sign in with Google");
-    submit("you@company.com", "bob.bsky.social");
+    submit("");
     expect(
-      await screen.findByText("Enter your work email, e.g. you@company.com"),
+      await screen.findByText("Handle or email is required"),
     ).toBeDefined();
     expect(onSubmit).not.toHaveBeenCalled();
   });
@@ -96,29 +64,18 @@ describe("SignInForm", () => {
     renderForm({
       onSubmit: () => Promise.reject(new Error("domain not set up")),
     });
-    choose("Sign in with Google");
-    submit("you@company.com", "bob@company.com");
+    submit("bob@company.com");
     expect(await screen.findByText("domain not set up")).toBeDefined();
   });
 
-  it("returns to the sign-in options on back", () => {
-    renderForm();
-    choose("Sign in with Google");
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(
-      screen.getByRole("button", { name: "Sign in with AT Protocol" }),
-    ).toBeDefined();
-    expect(screen.queryByRole("textbox")).toBeNull();
-  });
-
-  it("opens the AT Protocol option prefilled with a default handle", () => {
+  it("prefills a default handle", () => {
     renderForm({ defaultHandle: "alice.bsky.social" });
-    const input =
-      screen.getByPlaceholderText<HTMLInputElement>("alice.bsky.social");
-    expect(input.value).toBe("alice.bsky.social");
+    expect(screen.getByRole<HTMLInputElement>("textbox").value).toBe(
+      "alice.bsky.social",
+    );
   });
 
-  it("shows a server error on the options view", () => {
+  it("shows a server error", () => {
     renderForm({ serverError: "access denied" });
     expect(screen.getByText("access denied")).toBeDefined();
   });

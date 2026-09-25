@@ -22,12 +22,11 @@ function renderForm(login: AuthManager["login"]) {
   );
 }
 
-function signInWithGoogle(email: string) {
-  fireEvent.click(screen.getByRole("button", { name: "Sign in with Google" }));
-  fireEvent.change(screen.getByPlaceholderText("you@company.com"), {
-    target: { value: email },
+function signIn(loginHint: string) {
+  fireEvent.change(screen.getByRole("textbox"), {
+    target: { value: loginHint },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 }
 
 afterEach(() => {
@@ -38,7 +37,7 @@ describe("AuthForm", () => {
   it("signs in through the auth manager", async () => {
     const login = vi.fn().mockResolvedValue(undefined);
     renderForm(login);
-    signInWithGoogle("bob@company.com");
+    signIn("bob@company.com");
     await waitFor(() => {
       expect(login).toHaveBeenCalledWith("bob@company.com", REDIRECT_URL);
     });
@@ -57,7 +56,7 @@ describe("AuthForm", () => {
       }),
     );
     renderForm(login);
-    signInWithGoogle("bob@gmail.com");
+    signIn("bob@gmail.com");
     expect(
       await screen.findByText(EMAIL_DOMAIN_NOT_FOUND_MESSAGE),
     ).toBeDefined();
