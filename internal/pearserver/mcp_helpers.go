@@ -16,24 +16,10 @@ func mcpServerToAPI(s *mcpgateway.Server) habitat.NetworkHabitatMcpDefsServer {
 	}
 }
 
-// mcpHeadersFromAPI converts API headers to the map mcpgateway takes,
-// preserving nil (meaning "unset") for a nil slice.
-func mcpHeadersFromAPI(headers []habitat.NetworkHabitatMcpDefsHeader) map[string]string {
-	if headers == nil {
-		return nil
-	}
-	out := make(map[string]string, len(headers))
-	for _, h := range headers {
-		out[h.Name] = h.Value
-	}
-	return out
-}
-
 // isMcpConfigError reports whether err is a validation error from
 // mcpgateway that should be reported as an invalid request.
 func isMcpConfigError(err error) bool {
 	return errors.Is(err, mcpgateway.ErrInvalidServerName) ||
 		errors.Is(err, mcpgateway.ErrServerNameTaken) ||
-		errors.Is(err, mcpgateway.ErrInvalidServerURL) ||
-		errors.Is(err, mcpgateway.ErrInvalidHeaderName)
+		errors.Is(err, mcpgateway.ErrInvalidServerURL)
 }

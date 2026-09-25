@@ -360,7 +360,6 @@ func TestStoreAddManualServer(t *testing.T) {
 
 	server, err := s.AddManualServer(
 		t.Context(), org, "docs", "internal docs", "https://mcp.example.com/mcp",
-		map[string]string{"X-Api-Key": "secret"},
 	)
 	require.NoError(t, err)
 	require.Equal(t, AuthTypeManual, server.AuthType)
@@ -382,22 +381,18 @@ func TestStoreAddManualServer_Validates(t *testing.T) {
 	s, nangoClient, records := newTestStore(t)
 	org := newTestOrg(t, records)
 
-	_, err := s.AddManualServer(t.Context(), org, "bad name", "", "https://a.example", nil)
+	_, err := s.AddManualServer(t.Context(), org, "bad name", "", "https://a.example")
 	require.ErrorIs(t, err, ErrInvalidServerName)
-	_, err = s.AddManualServer(t.Context(), org, "srv", "", "ftp://a.example", nil)
+	_, err = s.AddManualServer(t.Context(), org, "srv", "", "ftp://a.example")
 	require.ErrorIs(t, err, ErrInvalidServerURL)
-	_, err = s.AddManualServer(t.Context(), org, "srv", "", "/relative", nil)
+	_, err = s.AddManualServer(t.Context(), org, "srv", "", "/relative")
 	require.ErrorIs(t, err, ErrInvalidServerURL)
-	_, err = s.AddManualServer(
-		t.Context(), org, "srv", "", "https://a.example", map[string]string{"Bad Header": "x"},
-	)
-	require.ErrorIs(t, err, ErrInvalidHeaderName)
 
 	// Names are unique across both auth types.
 	addServer(t, s, nangoClient, org, "did:plc:admin", "linear", "")
-	_, err = s.AddManualServer(t.Context(), org, "linear", "", "https://a.example", nil)
+	_, err = s.AddManualServer(t.Context(), org, "linear", "", "https://a.example")
 	require.ErrorIs(t, err, ErrServerNameTaken)
-	_, err = s.AddManualServer(t.Context(), org, "docs", "", "https://a.example", nil)
+	_, err = s.AddManualServer(t.Context(), org, "docs", "", "https://a.example")
 	require.NoError(t, err)
 	_, _, err = s.BeginAddServer(t.Context(), org, "did:plc:admin", "docs", "")
 	require.ErrorIs(t, err, ErrServerNameTaken)
@@ -408,10 +403,7 @@ func TestStoreUpdateManualServer(t *testing.T) {
 	org := newTestOrg(t, records)
 	creator := newTestMember(t, records, org)
 
-	_, err := s.AddManualServer(
-		t.Context(), org, "docs", "old", "https://old.example/mcp",
-		map[string]string{"Authorization": "Bearer old"},
-	)
+	_, err := s.AddManualServer(t.Context(), org, "docs", "old", "https://old.example/mcp")
 	require.NoError(t, err)
 
 	newURL := "https://new.example/mcp"
@@ -427,16 +419,13 @@ func TestStoreUpdateManualServer(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, manual, 1)
 	require.Equal(t, newURL, manual[0].URL)
-	require.Equal(t, map[string]string{"Authorization": "Bearer old"}, manual[0].Headers)
 
-	// An empty, non-nil Headers clears them.
-	_, err = s.UpdateServer(t.Context(), org, "docs", ServerUpdate{Headers: map[string]string{}})
-	require.NoError(t, err)
-	manual, err = s.ListManualServersForMember(t.Context(), creator)
-	require.NoError(t, err)
-	require.Empty(t, manual[0].Headers)
+	// An invalid URL is rejected.
+	badURL := "not a url"
+	_, err = s.UpdateServer(t.Context(), org, "docs", ServerUpdate{URL: &badURL})
+	require.ErrorIs(t, err, ErrInvalidServerURL)
 
-	// URL and headers don't apply to OAuth servers.
+	// URL doesn't apply to OAuth servers.
 	oauth := addServer(t, s, nangoClient, org, "did:plc:admin", "linear", "")
 	_, err = s.UpdateServer(t.Context(), org, oauth.ID, ServerUpdate{URL: &newURL})
 	require.Error(t, err)
@@ -446,7 +435,7 @@ func TestStoreRemoveManualServer(t *testing.T) {
 	s, _, records := newTestStore(t)
 	org := newTestOrg(t, records)
 
-	_, err := s.AddManualServer(t.Context(), org, "docs", "", "https://a.example", nil)
+	_, err := s.AddManualServer(t.Context(), org, "docs", "", "https://a.example")
 	require.NoError(t, err)
 	require.NoError(t, s.RemoveServer(t.Context(), org, "docs"))
 
@@ -460,7 +449,7 @@ func TestStoreListManualServersForMember_OnlyMemberOrgs(t *testing.T) {
 	s, _, records := newTestStore(t)
 	org := newTestOrg(t, records)
 
-	_, err := s.AddManualServer(t.Context(), org, "docs", "", "https://a.example", nil)
+	_, err := s.AddManualServer(t.Context(), org, "docs", "", "https://a.example")
 	require.NoError(t, err)
 
 	manual, err := s.ListManualServersForMember(t.Context(), newTestMember(t, records, org))

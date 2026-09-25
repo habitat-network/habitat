@@ -337,9 +337,6 @@ func TestServer_AddManualServer(t *testing.T) {
 				Org:  orgDID,
 				Name: "docs",
 				Url:  "https://mcp.example.com/mcp",
-				Headers: []habitat.NetworkHabitatMcpDefsHeader{
-					{Name: "X-Api-Key", Value: "secret"},
-				},
 			},
 			&addOut,
 		)

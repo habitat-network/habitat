@@ -196,7 +196,7 @@ func listConnectedServers(
 			slog.WarnContext(ctx, "mcp: listing manual servers", "err", err)
 		}
 		for _, server := range manual {
-			d := downstream{url: server.URL, headers: server.Headers}
+			d := downstream{url: server.URL}
 			out = append(out, connectedServer{
 				name:    string(server.ID),
 				resolve: func(context.Context) (downstream, error) { return d, nil },

@@ -48,9 +48,8 @@ export async function beginAddMcpServer(
   return response.body;
 }
 
-// addManualMcpServer configures an MCP server for org by hand, with its URL
-// and any static headers (or none, for servers without auth). Every org
-// member is connected to it automatically. Requires the caller to hold the
+// addManualMcpServer configures an MCP server that needs no auth for org by
+// hand, with just its URL. Every org member is connected to it automatically. Requires the caller to hold the
 // mcp.configure action.
 export async function addManualMcpServer(
   authManager: AuthManager,

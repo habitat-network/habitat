@@ -48,7 +48,6 @@ func (p *PearServer) UpdateServer(w http.ResponseWriter, r *http.Request) {
 	if input.Url != "" {
 		update.URL = &input.Url
 	}
-	update.Headers = mcpHeadersFromAPI(input.Headers)
 
 	server, err := p.mcpGatewayStore.UpdateServer(
 		ctx,

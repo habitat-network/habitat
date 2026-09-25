@@ -39,7 +39,7 @@ func (p *PearServer) AddManualServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	server, err := p.mcpGatewayStore.AddManualServer(
-		ctx, org, input.Name, input.Description, input.Url, mcpHeadersFromAPI(input.Headers),
+		ctx, org, input.Name, input.Description, input.Url,
 	)
 	if isMcpConfigError(err) {
 		httpx.WriteInvalidRequest(ctx, w, "add manual mcp server", err)

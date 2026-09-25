@@ -12,10 +12,10 @@
 //     server's own URL or credentials; it only records the org's chosen
 //     name/description for it and asks Nango whether a given user is
 //     connected.
-//   - AuthTypeManual: an admin enters the server's URL and any static
-//     headers (or none, for servers without auth) once for the whole org.
-//     These live, encrypted, in pear's own database (see
-//     ManualServerStore), and every member is connected automatically.
+//   - AuthTypeManual: an admin enters the URL of a server that needs no
+//     auth once for the whole org. It lives, encrypted, in pear's own
+//     database (see ManualServerStore), and every member is connected
+//     automatically.
 //
 // A server's name doubles as its ID and, in internal/mcpserver, the
 // namespace its tools are exposed under, so it's restricted to a limited
@@ -137,7 +137,7 @@ type NangoClient interface {
 }
 
 // Server is an org's MCP server of either AuthType, as exposed through the
-// API. It never carries a manual server's URL or headers.
+// API. It never carries a manual server's URL.
 type Server struct {
 	ID          syntax.RecordKey
 	Name        string
@@ -166,12 +166,10 @@ type ServerWithStatus struct {
 }
 
 // ServerUpdate is a partial update to an org's MCP server. Nil fields are
-// left unchanged. URL and Headers apply only to manual servers; a non-nil
-// Headers replaces all of the server's headers.
+// left unchanged. URL applies only to manual servers.
 type ServerUpdate struct {
 	Description *string
 	URL         *string
-	Headers     map[string]string
 }
 
 // Store manages MCP server configuration and per-user Nango connections for orgs.
@@ -203,13 +201,12 @@ type Store interface {
 	// its Nango Integration.
 	CancelAddServer(ctx context.Context, orgID syntax.DID, id syntax.RecordKey) error
 	// AddManualServer configures a new manual MCP server for orgID, reached
-	// at serverURL with headers sent on every request. name must match
-	// validateServerName and be unused within orgID.
+	// at serverURL without auth. name must match validateServerName and be
+	// unused within orgID.
 	AddManualServer(
 		ctx context.Context,
 		orgID syntax.DID,
 		name, description, serverURL string,
-		headers map[string]string,
 	) (*Server, error)
 	// UpdateServer updates an existing org MCP server. It returns
 	// opensocial.ErrMcpServerNotFound if there's no such server.
@@ -243,7 +240,7 @@ type Store interface {
 		id syntax.RecordKey,
 	) error
 	// ListManualServersForMember lists the manual servers of every org did
-	// belongs to, including their URLs and headers, for pear's own MCP
+	// belongs to, including their URLs, for pear's own MCP
 	// client to connect with.
 	ListManualServersForMember(ctx context.Context, did syntax.DID) ([]*ManualServer, error)
 }
@@ -377,12 +374,11 @@ func (s *store) AddManualServer(
 	ctx context.Context,
 	orgID syntax.DID,
 	name, description, serverURL string,
-	headers map[string]string,
 ) (*Server, error) {
 	if err := validateServerName(name); err != nil {
 		return nil, err
 	}
-	if err := validateManualConfig(serverURL, headers); err != nil {
+	if err := validateServerURL(serverURL); err != nil {
 		return nil, err
 	}
 	id := syntax.RecordKey(name)
@@ -394,7 +390,6 @@ func (s *store) AddManualServer(
 		ID:          id,
 		Description: description,
 		URL:         serverURL,
-		Headers:     headers,
 	}
 	if err := s.manual.Put(ctx, server); err != nil {
 		return nil, err
@@ -413,8 +408,8 @@ func (s *store) UpdateServer(
 		return nil, err
 	}
 	if manual == nil {
-		if update.URL != nil || update.Headers != nil {
-			return nil, fmt.Errorf("url and headers apply only to manual servers")
+		if update.URL != nil {
+			return nil, fmt.Errorf("url applies only to manual servers")
 		}
 		server, err := s.records.UpdateMcpServer(ctx, orgID, id, update.Description)
 		if err != nil {
@@ -429,10 +424,7 @@ func (s *store) UpdateServer(
 	if update.URL != nil {
 		manual.URL = *update.URL
 	}
-	if update.Headers != nil {
-		manual.Headers = update.Headers
-	}
-	if err := validateManualConfig(manual.URL, manual.Headers); err != nil {
+	if err := validateServerURL(manual.URL); err != nil {
 		return nil, err
 	}
 	if err := s.manual.Put(ctx, manual); err != nil {

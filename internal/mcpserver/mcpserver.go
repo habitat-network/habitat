@@ -50,8 +50,8 @@ type OrgMcpServerStore interface {
 }
 
 // ManualServerSource lists the manually configured MCP servers (see
-// internal/mcpgateway) available to an org member, with the URL and headers
-// to reach each.
+// internal/mcpgateway) available to an org member, with the URL to reach
+// each.
 type ManualServerSource interface {
 	ListManualServersForMember(
 		ctx context.Context,

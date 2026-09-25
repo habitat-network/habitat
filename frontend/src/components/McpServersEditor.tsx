@@ -49,8 +49,6 @@ const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 // How pear authenticates to a server; see mcpgateway.AuthType (Go).
 type AuthType = "oauth" | "manual";
 
-type HeaderRow = { name: string; value: string };
-
 // isUri narrows s to the lexicon's uri string format.
 function isUri(s: string): s is `${string}:${string}` {
   return URL.canParse(s);
@@ -221,7 +219,6 @@ function AddServerDialog({
   const [description, setDescription] = useState("");
   const [authType, setAuthType] = useState<AuthType>("oauth");
   const [url, setUrl] = useState("");
-  const [headers, setHeaders] = useState<HeaderRow[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Tracks the in-progress add's server ID between opening Nango's Connect UI
@@ -235,7 +232,6 @@ function AddServerDialog({
     setDescription("");
     setAuthType("oauth");
     setUrl("");
-    setHeaders([]);
     setConnecting(false);
     setError(null);
     pendingIdRef.current = null;
@@ -250,9 +246,6 @@ function AddServerDialog({
         name,
         description: description || undefined,
         url,
-        headers: headers
-          .filter((h) => h.name !== "")
-          .map((h) => ({ name: h.name, value: h.value })),
       });
       await queryClient.invalidateQueries({
         queryKey: ["mcp", "servers", org],
@@ -264,11 +257,6 @@ function AddServerDialog({
       setError(e instanceof Error ? e.message : "Failed to add server");
     }
   };
-
-  const updateHeader = (index: number, patch: Partial<HeaderRow>) =>
-    setHeaders((rows) =>
-      rows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-    );
 
   const canSubmit =
     SERVER_NAME_PATTERN.test(name) && (authType === "oauth" || isUri(url));
@@ -397,10 +385,11 @@ function AddServerDialog({
               <FieldLabel htmlFor="mcp-auth-manual">
                 <Field orientation="horizontal">
                   <FieldContent>
-                    <FieldTitle>API key or no auth</FieldTitle>
+                    <FieldTitle>No auth</FieldTitle>
                     <FieldDescription>
-                      You enter the URL and any headers once, and everyone in
-                      this community connects with them.
+                      You enter the URL once, and everyone in this community
+                      connects to it. Use this for servers that don't require
+                      sign-in.
                     </FieldDescription>
                   </FieldContent>
                   <RadioGroupItem value="manual" id="mcp-auth-manual" />
@@ -409,67 +398,19 @@ function AddServerDialog({
             </RadioGroup>
           </Field>
           {authType === "manual" ? (
-            <>
-              <Field>
-                <FieldLabel htmlFor="mcp-url">Server URL</FieldLabel>
-                <Input
-                  id="mcp-url"
-                  type="url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://mcp.example.com/mcp"
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Headers (optional)</FieldLabel>
-                {headers.map((header, i) => (
-                  <div key={i} className="flex gap-2">
-                    <Input
-                      aria-label="Header name"
-                      value={header.name}
-                      onChange={(e) =>
-                        updateHeader(i, { name: e.target.value })
-                      }
-                      placeholder="Authorization"
-                    />
-                    <Input
-                      aria-label="Header value"
-                      type="password"
-                      value={header.value}
-                      onChange={(e) =>
-                        updateHeader(i, { value: e.target.value })
-                      }
-                      placeholder="Bearer …"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setHeaders((rows) => rows.filter((_, j) => j !== i))
-                      }
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="self-start"
-                  onClick={() =>
-                    setHeaders((rows) => [...rows, { name: "", value: "" }])
-                  }
-                >
-                  Add header
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  The URL and header values are stored encrypted and can't be
-                  viewed after saving.
-                </p>
-              </Field>
-            </>
+            <Field>
+              <FieldLabel htmlFor="mcp-url">Server URL</FieldLabel>
+              <Input
+                id="mcp-url"
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://mcp.example.com/mcp"
+              />
+              <p className="text-xs text-muted-foreground">
+                The URL is stored encrypted and can't be viewed after saving.
+              </p>
+            </Field>
           ) : (
             <p className="text-xs text-muted-foreground">
               You'll enter the server's URL and connect to it in the next step.

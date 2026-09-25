@@ -4,20 +4,6 @@ package habitat
 
 import "encoding/json"
 
-// NetworkHabitatMcpDefsHeader represents a header object
-type NetworkHabitatMcpDefsHeader struct {
-	LexiconTypeID string `json:"$type"`
-	Name          string `json:"name"`
-	Value         string `json:"value"`
-}
-
-// MarshalJSON sets $type to "network.habitat.mcp.defs#header" before encoding.
-func (t NetworkHabitatMcpDefsHeader) MarshalJSON() ([]byte, error) {
-	t.LexiconTypeID = "network.habitat.mcp.defs#header"
-	type alias NetworkHabitatMcpDefsHeader
-	return json.Marshal(alias(t))
-}
-
 // NetworkHabitatMcpDefsServer represents a server object
 type NetworkHabitatMcpDefsServer struct {
 	LexiconTypeID string `json:"$type"`

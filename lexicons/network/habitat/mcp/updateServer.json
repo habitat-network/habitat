@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Update an org's configured MCP server. Its name can't be changed, since it's also the server's ID and tool namespace; remove and re-add it under a new name instead. url and headers apply only to manual servers. Requires service-auth. Requires the mcp.configure action.",
+      "description": "Update an org's configured MCP server. Its name can't be changed, since it's also the server's ID and tool namespace; remove and re-add it under a new name instead. url applies only to manual servers. Requires service-auth. Requires the mcp.configure action.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -30,15 +30,6 @@
               "type": "string",
               "format": "uri",
               "description": "Manual servers only: the server's new URL."
-            },
-            "headers": {
-              "type": "array",
-              "items": {
-                "type": "ref",
-                "ref": "network.habitat.mcp.defs#header"
-              },
-              "maxLength": 50,
-              "description": "Manual servers only: replaces all of the server's headers. Omit to leave them unchanged; pass an empty array to clear them."
             }
           }
         }

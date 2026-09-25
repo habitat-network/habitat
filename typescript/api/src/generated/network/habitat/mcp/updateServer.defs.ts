@@ -22,12 +22,6 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
     /*#__PURE__*/ l.string({ maxLength: 2000 }),
   ),
   url: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'uri' })),
-  headers: /*#__PURE__*/ l.optional(
-    /*#__PURE__*/ l.array(
-      /*#__PURE__*/ l.ref<McpDefs.Header>((() => McpDefs.header) as any),
-      { maxLength: 50 },
-    ),
-  ),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
@@ -43,7 +37,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Update an org's configured MCP server. Its name can't be changed, since it's also the server's ID and tool namespace; remove and re-add it under a new name instead. url and headers apply only to manual servers. Requires service-auth. Requires the mcp.configure action. */
+/** Update an org's configured MCP server. Its name can't be changed, since it's also the server's ID and tool namespace; remove and re-add it under a new name instead. url applies only to manual servers. Requires service-auth. Requires the mcp.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

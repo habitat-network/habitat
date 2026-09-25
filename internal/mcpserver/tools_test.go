@@ -332,32 +332,17 @@ func (f fakeManualServerSource) ListManualServersForMember(
 	return f.servers[did], nil
 }
 
-// requireHeader rejects requests to next that lack header name=value, like a
-// downstream MCP server authenticated by a static API key.
-func requireHeader(next http.Handler, name, value string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get(name) != value {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 func TestMCPServerTools_ManualServer(t *testing.T) {
 	ctx := t.Context()
 	spacesStore, permStore := setupStores(t)
 	caller := syntax.DID("did:plc:caller")
 
 	fake := newFakeMCPServer(t)
-	keyed := httptest.NewServer(requireHeader(fake.Config.Handler, "X-Api-Key", "secret"))
-	t.Cleanup(keyed.Close)
 	manual := fakeManualServerSource{servers: map[syntax.DID][]*mcpgateway.ManualServer{
 		caller: {{
-			OrgID:   "did:web:org1.example",
-			ID:      "docs",
-			URL:     keyed.URL,
-			Headers: map[string]string{"X-Api-Key": "secret"},
+			OrgID: "did:web:org1.example",
+			ID:    "docs",
+			URL:   fake.URL,
 		}},
 	}}
 

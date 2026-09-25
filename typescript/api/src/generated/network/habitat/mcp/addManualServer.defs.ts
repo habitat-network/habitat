@@ -22,12 +22,6 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
     /*#__PURE__*/ l.string({ maxLength: 2000 }),
   ),
   url: /*#__PURE__*/ l.string({ format: 'uri' }),
-  headers: /*#__PURE__*/ l.optional(
-    /*#__PURE__*/ l.array(
-      /*#__PURE__*/ l.ref<McpDefs.Header>((() => McpDefs.header) as any),
-      { maxLength: 50 },
-    ),
-  ),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
@@ -43,7 +37,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Configure an MCP server for the org by hand: its URL and any static headers (e.g. an API key), or none for servers that need no auth. The configuration is shared by every org member, who are all connected automatically; the URL and header values are stored encrypted and never returned. Use addServer instead for servers that support MCP OAuth. Requires service-auth. Requires the mcp.configure action. */
+/** Configure an MCP server that needs no auth for the org by hand, by its URL. The configuration is shared by every org member, who are all connected automatically; the URL is stored encrypted and never returned. Use addServer instead for servers that support MCP OAuth. Requires service-auth. Requires the mcp.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

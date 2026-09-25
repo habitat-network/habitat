@@ -22,7 +22,7 @@ type Server = {
   description?: string
 
   /**
-   * How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: an admin configured the server's URL and any headers once for the whole org, and every member is connected automatically.
+   * How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically.
    */
   authType: 'oauth' | 'manual' | l.UnknownString
 }
@@ -44,24 +44,3 @@ const server = /*#__PURE__*/ l.typedObject<Server>(
 )
 
 export { server }
-
-/** A static HTTP header sent on every request to a manually configured MCP server, e.g. an API key. */
-type Header = {
-  $type?: 'network.habitat.mcp.defs#header'
-  name: string
-  value: string
-}
-
-export type { Header }
-
-/** A static HTTP header sent on every request to a manually configured MCP server, e.g. an API key. */
-const header = /*#__PURE__*/ l.typedObject<Header>(
-  $nsid,
-  'header',
-  /*#__PURE__*/ l.object({
-    name: /*#__PURE__*/ l.string({ maxLength: 256 }),
-    value: /*#__PURE__*/ l.string({ maxLength: 8192 }),
-  }),
-)
-
-export { header }

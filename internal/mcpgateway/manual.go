@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"golang.org/x/net/http/httpguts"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -23,10 +22,8 @@ const (
 	// each member signs in to the server with their own account, following
 	// the MCP authorization spec.
 	AuthTypeOAuth AuthType = "oauth"
-	// AuthTypeManual servers are configured once by an org admin with a URL
-	// and optional static headers (e.g. an API key), shared by every member.
-	// This covers servers that need no auth or authenticate some other way
-	// than MCP OAuth, which Nango's connector can't handle.
+	// AuthTypeManual servers are configured once by an org admin with just a
+	// URL and need no auth, so every member shares the same connection.
 	AuthTypeManual AuthType = "manual"
 )
 
@@ -38,15 +35,10 @@ var ErrManualServerNotFound = errors.New("manual mcp server not found")
 // absolute http(s) URL.
 var ErrInvalidServerURL = errors.New("url must be an absolute http or https URL")
 
-// ErrInvalidHeaderName is returned when a manual server's header name isn't
-// a valid HTTP header field name.
-var ErrInvalidHeaderName = errors.New("invalid header name")
-
-// ManualServer is an MCP server an org admin configured by hand. Its URL and
-// headers are only ever handed to pear's own MCP client (see
-// internal/mcpserver), never back out through the API: a URL can itself be a
-// credential (some providers embed the key in it), and headers usually carry
-// one.
+// ManualServer is an MCP server an org admin configured by hand. Its URL is
+// only ever handed to pear's own MCP client (see internal/mcpserver), never
+// back out through the API: a URL can itself be a credential (some providers
+// embed the key in it).
 type ManualServer struct {
 	OrgID syntax.DID
 	// ID is the server's name, chosen once at creation. It shares a
@@ -54,28 +46,19 @@ type ManualServer struct {
 	ID          syntax.RecordKey
 	Description string
 	URL         string
-	Headers     map[string]string
 }
 
-func validateManualConfig(serverURL string, headers map[string]string) error {
+func validateServerURL(serverURL string) error {
 	u, err := url.Parse(serverURL)
 	if err != nil || !u.IsAbs() || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return ErrInvalidServerURL
-	}
-	for name, value := range headers {
-		if !httpguts.ValidHeaderFieldName(name) {
-			return fmt.Errorf("%w: %q", ErrInvalidHeaderName, name)
-		}
-		if !httpguts.ValidHeaderFieldValue(value) {
-			return fmt.Errorf("invalid value for header %q", name)
-		}
 	}
 	return nil
 }
 
 // ManualServerStore persists manually configured MCP servers. They're kept
 // in pear's own database rather than the org's members space, since their
-// config holds secrets members shouldn't be able to read.
+// URL can hold a secret members shouldn't be able to read.
 type ManualServerStore interface {
 	// Put creates or replaces a manual server.
 	Put(ctx context.Context, server *ManualServer) error
@@ -86,8 +69,8 @@ type ManualServerStore interface {
 	Delete(ctx context.Context, orgID syntax.DID, id syntax.RecordKey) error
 }
 
-// manualServerModel is a manual server's row. URL and headers are stored
-// together, encrypted, in Config.
+// manualServerModel is a manual server's row. The URL is stored encrypted in
+// Config.
 type manualServerModel struct {
 	OrgDID      string `gorm:"column:org_did;primaryKey"`
 	ID          string `gorm:"column:id;primaryKey"`
@@ -101,8 +84,7 @@ func (manualServerModel) TableName() string { return "mcp_manual_servers" }
 
 // manualServerConfig is the plaintext of manualServerModel.Config.
 type manualServerConfig struct {
-	URL     string
-	Headers map[string]string
+	URL string
 }
 
 type manualServerStore struct {
@@ -111,7 +93,7 @@ type manualServerStore struct {
 }
 
 // NewManualServerStore constructs a ManualServerStore backed by db,
-// encrypting each server's URL and headers with encryptionKey.
+// encrypting each server's URL with encryptionKey.
 func NewManualServerStore(db *gorm.DB, encryptionKey []byte) (ManualServerStore, error) {
 	if encryptionKey == nil {
 		return nil, fmt.Errorf("encryption key is required")
@@ -124,7 +106,7 @@ func NewManualServerStore(db *gorm.DB, encryptionKey []byte) (ManualServerStore,
 
 func (s *manualServerStore) Put(ctx context.Context, server *ManualServer) error {
 	config, err := encrypt.EncryptCBOR(
-		manualServerConfig{URL: server.URL, Headers: server.Headers},
+		manualServerConfig{URL: server.URL},
 		s.encryptionKey,
 	)
 	if err != nil {
@@ -152,7 +134,6 @@ func (s *manualServerStore) fromModel(m *manualServerModel) (*ManualServer, erro
 		ID:          syntax.RecordKey(m.ID),
 		Description: m.Description,
 		URL:         config.URL,
-		Headers:     config.Headers,
 	}, nil
 }
 

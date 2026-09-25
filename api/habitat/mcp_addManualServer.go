@@ -4,11 +4,10 @@ package habitat
 
 // NetworkHabitatMcpAddManualServerInput represents the input for network.habitat.mcp.addManualServer
 type NetworkHabitatMcpAddManualServerInput struct {
-	Description string                        `json:"description,omitempty"`
-	Headers     []NetworkHabitatMcpDefsHeader `json:"headers,omitempty"`
-	Name        string                        `json:"name"`
-	Org         string                        `json:"org"`
-	Url         string                        `json:"url"`
+	Description string `json:"description,omitempty"`
+	Name        string `json:"name"`
+	Org         string `json:"org"`
+	Url         string `json:"url"`
 }
 
 // NetworkHabitatMcpAddManualServerOutput represents the output for network.habitat.mcp.addManualServer
