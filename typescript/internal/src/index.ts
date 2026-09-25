@@ -52,11 +52,11 @@ export {
 } from "./components/ui/dialog";
 export { Button } from "./components/ui/button";
 export { Input } from "./components/ui/input";
-export {
-  // Managers and Sessions
-  AuthManager,
-  UnauthenticatedError,
-} from "./authManager";
+// Managers and Sessions. Type-only: AuthManager's browser OAuth client opens a
+// BroadcastChannel as soon as it loads, which breaks non-browser runtimes
+// (e.g. chalk's worker) that import this entry point. Construct one via the
+// "internal/auth" entry point instead.
+export type { AuthManager } from "./authManager";
 export {
   anonymousAgentFor,
   castRecord,

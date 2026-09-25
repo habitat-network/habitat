@@ -8,7 +8,8 @@ import {
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { reportWebVitals, AuthManager } from "internal";
+import { reportWebVitals } from "internal";
+import { AuthManager } from "internal/auth";
 import { Spinner } from "internal/components/ui";
 
 const domainUrl = new URL(import.meta.env.VITE_BASE_URL);
