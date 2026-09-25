@@ -14,12 +14,11 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 // testOAuthClient creates a test OAuth client with a valid JWK
@@ -263,8 +262,7 @@ func testPdsCredStore(
 	t *testing.T,
 	claims jwt.Claims,
 ) pdscred.PDSCredentialStore {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err, "failed to open in-memory db")
+	db := db_testutil.NewDB(t)
 	store, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err, "failed to create pds cred store")
 	// Create test key

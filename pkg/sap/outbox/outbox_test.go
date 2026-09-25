@@ -12,7 +12,7 @@ import (
 
 func TestStoreEmitPollAck(t *testing.T) {
 	t.Parallel()
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	s, err := NewStore(db, utils.NewPollNotifier())
 	require.NoError(t, err)
 

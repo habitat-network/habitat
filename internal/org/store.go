@@ -90,9 +90,6 @@ func NewStore(
 	fga fgastore.Store,
 	everyoneOrg *everyoneOrg,
 ) (Store, error) {
-	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
-		return nil, err
-	}
 	return &storeImpl{
 		db:               db,
 		hive:             hve,
@@ -445,4 +442,11 @@ func (s *storeImpl) CreateNewMemberIdentity(
 		return nil, err
 	}
 	return id, nil
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by the schema migrations in internal/db/schema, which Atlas
+// generates from these models.
+func Models() []any {
+	return []any{&organization{}, &member{}, &spentToken{}}
 }

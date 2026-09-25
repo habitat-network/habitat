@@ -36,9 +36,6 @@ type Store struct {
 }
 
 func NewStore(db *gorm.DB) (*Store, error) {
-	if err := db.AutoMigrate(&domainMapping{}, &memberEmail{}); err != nil {
-		return nil, fmt.Errorf("automigrate: %w", err)
-	}
 	return &Store{db: db}, nil
 }
 
@@ -166,4 +163,11 @@ func (s *Store) CreateDomainMapping(
 		return fmt.Errorf("create domain mapping: %w", err)
 	}
 	return nil
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by the schema migrations in internal/db/schema, which Atlas
+// generates from these models.
+func Models() []any {
+	return []any{&domainMapping{}, &memberEmail{}}
 }

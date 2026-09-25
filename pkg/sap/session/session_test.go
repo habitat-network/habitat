@@ -81,7 +81,7 @@ func newOAuthApp(t *testing.T, db *gorm.DB) *oauth.ClientApp {
 
 func TestStoreSessionsAndSpaceAccess(t *testing.T) {
 	t.Parallel()
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 
 	app := newOAuthApp(t, db)
 	require.NoError(t, app.Store.SaveSession(t.Context(), oauth.ClientSessionData{
@@ -157,7 +157,7 @@ func TestClientForSpaceUsesAccessingSessionForDelegation(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	app := newOAuthApp(t, db)
 	did := syntax.DID("did:web:member.example")
 	require.NoError(t, app.Store.SaveSession(t.Context(), oauth.ClientSessionData{
@@ -231,7 +231,7 @@ func TestClientForSpaceUsesSpaceOwnerHostNotDelegatingSessionHost(t *testing.T) 
 	}))
 	t.Cleanup(ownerSrv.Close)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	app := newOAuthApp(t, db)
 	member := syntax.DID("did:web:member.example")
 	owner := syntax.DID("did:web:owner.example")

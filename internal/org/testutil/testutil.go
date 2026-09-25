@@ -3,21 +3,18 @@ package testutil
 import (
 	"testing"
 
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func NewTestStore(t *testing.T) org.Store {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
-	require.NoError(t, err)
+	db := db_testutil.NewDB(t)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
 	passwordProvider, err := login.NewPasswordProvider(

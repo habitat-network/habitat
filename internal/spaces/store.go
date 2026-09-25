@@ -278,9 +278,6 @@ func NewStore(
 	notifier Notifier,
 	commit *spacecommit.Authority,
 ) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceRepo{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
-	}
 	return &store{
 		db:       db,
 		clock:    syntax.NewTIDClock(0),
@@ -1032,4 +1029,11 @@ func (s *store) DeleteRecord(
 		}
 		return saveRepoHash(tx, uri, repo, h, rev)
 	})
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by the schema migrations in internal/db/schema, which Atlas
+// generates from these models.
+func Models() []any {
+	return []any{&space{}, &spaceRecord{}, &spaceRepo{}}
 }

@@ -70,9 +70,6 @@ type store struct {
 var _ Store = &store{}
 
 func NewStore(db *gorm.DB) (*store, error) {
-	if err := db.AutoMigrate(&registration{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate notify tables: %w", err)
-	}
 	return &store{db: db}, nil
 }
 
@@ -131,4 +128,11 @@ func (s *store) list(query *gorm.DB) ([]Registration, error) {
 		}
 	}
 	return regs, nil
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by the schema migrations in internal/db/schema, which Atlas
+// generates from these models.
+func Models() []any {
+	return []any{&registration{}}
 }

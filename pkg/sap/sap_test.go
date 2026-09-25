@@ -97,7 +97,7 @@ func TestSap(t *testing.T) {
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
@@ -307,7 +307,7 @@ func TestSapTrackSpace(t *testing.T) {
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
@@ -401,7 +401,7 @@ func TestSapSpaceCredential(t *testing.T) {
 	sapServer := httptest.NewTLSServer(http.NewServeMux())
 	t.Cleanup(sapServer.Close)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
@@ -486,7 +486,7 @@ func TestSapRecrawl(t *testing.T) {
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(

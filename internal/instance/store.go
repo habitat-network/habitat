@@ -106,10 +106,6 @@ func NewStore(db *gorm.DB, secret []byte, domain, passwordHash string) (*storeIm
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	}
-	if err := db.AutoMigrate(&instanceSettings{}, &instanceInvite{}); err != nil {
-		return nil, err
-	}
-
 	return &storeImpl{
 		passwordHash: passwordHash,
 		secret:       secret,
@@ -330,4 +326,11 @@ func (s *storeImpl) MarkInviteUsed(ctx context.Context, token string) error {
 	return s.db.WithContext(ctx).Model(&instanceInvite{}).
 		Where("token = ?", invite.Token).
 		Update("used_at", &now).Error
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by the schema migrations in internal/db/schema, which Atlas
+// generates from these models.
+func Models() []any {
+	return []any{&instanceSettings{}, &instanceInvite{}}
 }

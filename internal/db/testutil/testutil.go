@@ -6,13 +6,27 @@ import (
 	"testing"
 
 	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/db/schema"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 // NewDB returns a gorm DB backed by a temporary SQLite file living in the
-// test's temp dir (removed automatically when the test finishes).
+// test's temp dir (removed automatically when the test finishes), with the
+// schema migrations in internal/db/schema applied.
+func NewDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	d := NewUnmigratedDB(t)
+	migrations, err := schema.Migrations(db.Sqlite)
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(t.Context(), d, migrations))
+	return d
+}
+
+// NewUnmigratedDB is like [NewDB] but applies no migrations, for stores that
+// create their own tables (e.g. pkg/sap's), whose names can collide with
+// pear's.
 //
 // The file is opened in WAL journal mode with a busy timeout, so the tests can
 // use gorm's connection pool for concurrent reads and writes without hitting
@@ -21,7 +35,7 @@ import (
 //
 // gorm logs are routed through t.Logf so they only appear when the test runs
 // verbosely or fails.
-func NewDB(t *testing.T) *gorm.DB {
+func NewUnmigratedDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
 	d, err := db.New(

@@ -43,9 +43,6 @@ func NewGoogleProvider(
 	if encryptionKey == nil {
 		return nil, fmt.Errorf("encryption key is required")
 	}
-	if err := db.AutoMigrate(&googleCredentialsModel{}); err != nil {
-		return nil, fmt.Errorf("migrate google credentials table: %w", err)
-	}
 	return &googleProvider{
 		oauthCfg: &oauth2.Config{
 			ClientID:     clientID,
@@ -233,4 +230,9 @@ func verifyGoogleIDToken(idToken, clientID string) (googleIDTokenClaims, error) 
 		return googleIDTokenClaims{}, fmt.Errorf("no email in google id token")
 	}
 	return claims, nil
+}
+
+// googleModels returns the GORM models the google login provider persists.
+func googleModels() []any {
+	return []any{&googleCredentialsModel{}}
 }
