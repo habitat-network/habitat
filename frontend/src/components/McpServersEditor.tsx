@@ -408,7 +408,7 @@ function AddServerDialog({
                 placeholder="https://mcp.example.com/mcp"
               />
               <p className="text-xs text-muted-foreground">
-                The URL is stored encrypted and can't be viewed after saving.
+                Everyone in this community can see this URL.
               </p>
             </Field>
           ) : (

@@ -10,7 +10,7 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. Authorization against the server itself is handled entirely by Nango's mcp-generic connector, which the admin fills in (including the server's URL) while adding it; members connecting later reuse serverUrl rather than entering it again. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
+/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. For an oauth server, authorization against the server itself is handled entirely by Nango's mcp-generic connector, which the admin fills in (including the server's URL) while adding it; members connecting later reuse serverUrl rather than entering it again. A manual server needs no auth: the admin enters serverUrl directly and every member is connected to it automatically. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
 type Main = {
   $type: 'network.habitat.mcp.server'
 
@@ -21,12 +21,17 @@ type Main = {
   description?: string
 
   /**
-   * The Nango integration's unique_key, globally unique across the whole Nango environment (unlike name, which is only unique within the org).
+   * How pear authenticates to the server; see network.habitat.mcp.defs#server. Absent means oauth.
    */
-  nangoKey: string
+  authType?: 'oauth' | 'manual' | l.UnknownString
 
   /**
-   * The server's URL, as the admin entered it in Nango's Connect UI while adding it. Pre-filled for members when they connect, so only the admin ever enters it.
+   * oauth servers only: the Nango integration's unique_key, globally unique across the whole Nango environment (unlike name, which is only unique within the org).
+   */
+  nangoKey?: string
+
+  /**
+   * The server's streamable HTTP endpoint. For an oauth server, as the admin entered it in Nango's Connect UI while adding it, pre-filled for members when they connect so only the admin ever enters it. For a manual server, as the admin entered it when adding it.
    */
   serverUrl?: l.UriString
   updatedAt: l.DatetimeString
@@ -34,7 +39,7 @@ type Main = {
 
 export type { Main }
 
-/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. Authorization against the server itself is handled entirely by Nango's mcp-generic connector, which the admin fills in (including the server's URL) while adding it; members connecting later reuse serverUrl rather than entering it again. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
+/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. For an oauth server, authorization against the server itself is handled entirely by Nango's mcp-generic connector, which the admin fills in (including the server's URL) while adding it; members connecting later reuse serverUrl rather than entering it again. A manual server needs no auth: the admin enters serverUrl directly and every member is connected to it automatically. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
 const main = /*#__PURE__*/ l.record<'any', Main>(
   'any',
   $nsid,
@@ -43,7 +48,10 @@ const main = /*#__PURE__*/ l.record<'any', Main>(
     description: /*#__PURE__*/ l.optional(
       /*#__PURE__*/ l.string({ maxLength: 2000 }),
     ),
-    nangoKey: /*#__PURE__*/ l.string(),
+    authType: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.string<{ knownValues: ['oauth', 'manual'] }>(),
+    ),
+    nangoKey: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
     serverUrl: /*#__PURE__*/ l.optional(
       /*#__PURE__*/ l.string({ format: 'uri' }),
     ),

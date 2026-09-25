@@ -7,9 +7,10 @@ import "encoding/json"
 // NetworkHabitatMcpServer represents a network.habitat.mcp.server record
 type NetworkHabitatMcpServer struct {
 	LexiconTypeID string `json:"$type"`
+	AuthType      string `json:"authType,omitempty"`
 	Description   string `json:"description,omitempty"`
 	Name          string `json:"name"`
-	NangoKey      string `json:"nangoKey"`
+	NangoKey      string `json:"nangoKey,omitempty"`
 	ServerUrl     string `json:"serverUrl,omitempty"`
 	UpdatedAt     string `json:"updatedAt"`
 }

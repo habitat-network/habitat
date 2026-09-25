@@ -13,7 +13,6 @@ import (
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/emaildomain"
-	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -161,9 +160,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	if ts.NangoClient == nil {
 		ts.NangoClient = NewFakeNangoClient()
 	}
-	manualMcpServers, err := mcpgateway.NewManualServerStore(ts.DB, encrypt.TestKey)
-	require.NoError(t, err)
-	mcpGatewayStore, err := mcpgateway.NewStore(ts.NangoClient, os, manualMcpServers)
+	mcpGatewayStore, err := mcpgateway.NewStore(ts.NangoClient, os)
 	require.NoError(t, err)
 	ts.McpGatewayStore = mcpGatewayStore
 

@@ -9,8 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
@@ -127,9 +125,7 @@ func newTestStore(t *testing.T) (Store, *fakeNangoClient, OrgMcpServerStore) {
 	t.Helper()
 	nangoClient := newFakeNangoClient()
 	records := opensocial_testutil.NewTestStore(t)
-	manual, err := NewManualServerStore(db_testutil.NewDB(t), encrypt.TestKey)
-	require.NoError(t, err)
-	s, err := NewStore(nangoClient, records, manual)
+	s, err := NewStore(nangoClient, records)
 	require.NoError(t, err)
 	return s, nangoClient, records
 }

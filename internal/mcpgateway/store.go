@@ -2,28 +2,27 @@
 // servers for their org, and lets org members opt in to authorizing with
 // those servers. A server uses one of two AuthTypes:
 //
-//   - AuthTypeOAuth: configuration lives as network.habitat.mcp.server
-//     records in the org's opensocial members space (see
-//     internal/opensocial); authorization is brokered entirely through
-//     Nango (https://nango.dev/docs/guides/auth/mcp-auth) via its
-//     mcp-generic connector, which asks the connecting user for the
-//     server's URL and discovers/registers with its authorization server
-//     per the MCP authorization spec. This package stores nothing of the
-//     server's own URL or credentials; it only records the org's chosen
-//     name/description for it and asks Nango whether a given user is
-//     connected.
+// Either way, configuration lives as network.habitat.mcp.server records in
+// the org's opensocial members space (see internal/opensocial).
+//
+//   - AuthTypeOAuth: authorization is brokered entirely through Nango
+//     (https://nango.dev/docs/guides/auth/mcp-auth) via its mcp-generic
+//     connector, which asks the adding admin for the server's URL and
+//     discovers/registers with its authorization server per the MCP
+//     authorization spec. This package stores no credentials; it records
+//     the org's chosen name/description and the admin's URL, and asks Nango
+//     whether a given user is connected.
 //   - AuthTypeManual: an admin enters the URL of a server that needs no
-//     auth once for the whole org. It lives, encrypted, in pear's own
-//     database (see ManualServerStore), and every member is connected
+//     auth once for the whole org, and every member is connected
 //     automatically.
 //
 // A server's name doubles as its ID and, in internal/mcpserver, the
 // namespace its tools are exposed under, so it's restricted to a limited
 // character set (see validateServerName) and unique within the org across
-// both auth types. Nango's own integration key (needed to actually talk to
-// Nango, and globally unique across the whole Nango environment, unlike
-// name) is derived deterministically from the org and name and stored on
-// the record.
+// both auth types. For OAuth servers, Nango's own integration key (needed to
+// actually talk to Nango, and globally unique across the whole Nango
+// environment, unlike name) is derived deterministically from the org and
+// name and stored on the record.
 package mcpgateway
 
 import (
@@ -86,8 +85,7 @@ type OrgMcpServerStore interface {
 	PutMcpServer(
 		ctx context.Context,
 		orgDID syntax.DID,
-		id syntax.RecordKey,
-		name, description, nangoKey, serverURL string,
+		server *opensocial.McpServer,
 	) (*opensocial.McpServer, error)
 	GetMcpServer(
 		ctx context.Context,
@@ -99,7 +97,7 @@ type OrgMcpServerStore interface {
 		ctx context.Context,
 		orgDID syntax.DID,
 		id syntax.RecordKey,
-		description *string,
+		description, serverURL *string,
 	) (*opensocial.McpServer, error)
 	RemoveMcpServer(ctx context.Context, orgDID syntax.DID, id syntax.RecordKey) error
 	// ListMemberSpaces lists the members spaces of every org user belongs
@@ -137,7 +135,7 @@ type NangoClient interface {
 }
 
 // Server is an org's MCP server of either AuthType, as exposed through the
-// API. It never carries a manual server's URL.
+// API.
 type Server struct {
 	ID          syntax.RecordKey
 	Name        string
@@ -145,16 +143,12 @@ type Server struct {
 	AuthType    AuthType
 }
 
-func serverFromOAuth(s *opensocial.McpServer) *Server {
-	return &Server{ID: s.ID, Name: s.Name, Description: s.Description, AuthType: AuthTypeOAuth}
-}
-
-func serverFromManual(s *ManualServer) *Server {
+func serverFromRecord(s *opensocial.McpServer) *Server {
 	return &Server{
 		ID:          s.ID,
-		Name:        string(s.ID),
+		Name:        s.Name,
 		Description: s.Description,
-		AuthType:    AuthTypeManual,
+		AuthType:    authTypeOf(s.AuthType),
 	}
 }
 
@@ -248,27 +242,18 @@ type Store interface {
 type store struct {
 	nango   NangoClient
 	records OrgMcpServerStore
-	manual  ManualServerStore
 }
 
 // NewStore constructs a Store. nangoClient brokers the OAuth flow and
-// connection state; records reads/writes OAuth server configuration; manual
-// reads/writes manual server configuration.
-func NewStore(
-	nangoClient NangoClient,
-	records OrgMcpServerStore,
-	manual ManualServerStore,
-) (Store, error) {
+// connection state; records reads/writes server configuration.
+func NewStore(nangoClient NangoClient, records OrgMcpServerStore) (Store, error) {
 	if nangoClient == nil {
 		return nil, fmt.Errorf("nango client is required")
 	}
 	if records == nil {
 		return nil, fmt.Errorf("org mcp server store is required")
 	}
-	if manual == nil {
-		return nil, fmt.Errorf("manual mcp server store is required")
-	}
-	return &store{nango: nangoClient, records: records, manual: manual}, nil
+	return &store{nango: nangoClient, records: records}, nil
 }
 
 // checkNameFree returns ErrServerNameTaken if orgID already has a server of
@@ -279,25 +264,24 @@ func (s *store) checkNameFree(ctx context.Context, orgID syntax.DID, id syntax.R
 	} else if !errors.Is(err, opensocial.ErrMcpServerNotFound) {
 		return fmt.Errorf("checking existing server: %w", err)
 	}
-	if _, err := s.manual.Get(ctx, orgID, id); err == nil {
-		return fmt.Errorf("%w: %q", ErrServerNameTaken, id)
-	} else if !errors.Is(err, ErrManualServerNotFound) {
-		return fmt.Errorf("checking existing manual server: %w", err)
-	}
 	return nil
 }
 
-// getManual returns orgID's manual server id, or nil if there's none.
-func (s *store) getManual(
+// getOAuth returns orgID's OAuth server id, or ErrManualServer if it's a
+// manual server.
+func (s *store) getOAuth(
 	ctx context.Context,
 	orgID syntax.DID,
 	id syntax.RecordKey,
-) (*ManualServer, error) {
-	server, err := s.manual.Get(ctx, orgID, id)
-	if errors.Is(err, ErrManualServerNotFound) {
-		return nil, nil
+) (*opensocial.McpServer, error) {
+	server, err := s.records.GetMcpServer(ctx, orgID, id)
+	if err != nil {
+		return nil, err
 	}
-	return server, err
+	if authTypeOf(server.AuthType) == AuthTypeManual {
+		return nil, ErrManualServer
+	}
+	return server, nil
 }
 
 func (s *store) BeginAddServer(
@@ -354,13 +338,18 @@ func (s *store) CompleteAddServer(
 	if err != nil {
 		return nil, fmt.Errorf("get nango connection: %w", err)
 	}
-	server, err := s.records.PutMcpServer(
-		ctx, orgID, id, name, description, nangoKey, details.MCPServerURL,
-	)
+	server, err := s.records.PutMcpServer(ctx, orgID, &opensocial.McpServer{
+		ID:          id,
+		Name:        name,
+		Description: description,
+		AuthType:    string(AuthTypeOAuth),
+		NangoKey:    nangoKey,
+		ServerURL:   details.MCPServerURL,
+	})
 	if err != nil {
 		return nil, err
 	}
-	return serverFromOAuth(server), nil
+	return serverFromRecord(server), nil
 }
 
 func (s *store) CancelAddServer(ctx context.Context, orgID syntax.DID, id syntax.RecordKey) error {
@@ -385,16 +374,17 @@ func (s *store) AddManualServer(
 	if err := s.checkNameFree(ctx, orgID, id); err != nil {
 		return nil, err
 	}
-	server := &ManualServer{
-		OrgID:       orgID,
+	server, err := s.records.PutMcpServer(ctx, orgID, &opensocial.McpServer{
 		ID:          id,
+		Name:        name,
 		Description: description,
-		URL:         serverURL,
-	}
-	if err := s.manual.Put(ctx, server); err != nil {
+		AuthType:    string(AuthTypeManual),
+		ServerURL:   serverURL,
+	})
+	if err != nil {
 		return nil, err
 	}
-	return serverFromManual(server), nil
+	return serverFromRecord(server), nil
 }
 
 func (s *store) UpdateServer(
@@ -403,48 +393,37 @@ func (s *store) UpdateServer(
 	id syntax.RecordKey,
 	update ServerUpdate,
 ) (*Server, error) {
-	manual, err := s.getManual(ctx, orgID, id)
-	if err != nil {
-		return nil, err
-	}
-	if manual == nil {
-		if update.URL != nil {
-			return nil, fmt.Errorf("url applies only to manual servers")
-		}
-		server, err := s.records.UpdateMcpServer(ctx, orgID, id, update.Description)
+	if update.URL != nil {
+		// An OAuth server's URL is whatever its Nango connections were made
+		// with, so it can't be changed here.
+		existing, err := s.records.GetMcpServer(ctx, orgID, id)
 		if err != nil {
 			return nil, err
 		}
-		return serverFromOAuth(server), nil
+		if authTypeOf(existing.AuthType) != AuthTypeManual {
+			return nil, fmt.Errorf("url applies only to manual servers")
+		}
+		if err := validateServerURL(*update.URL); err != nil {
+			return nil, err
+		}
 	}
-
-	if update.Description != nil {
-		manual.Description = *update.Description
-	}
-	if update.URL != nil {
-		manual.URL = *update.URL
-	}
-	if err := validateServerURL(manual.URL); err != nil {
+	server, err := s.records.UpdateMcpServer(ctx, orgID, id, update.Description, update.URL)
+	if err != nil {
 		return nil, err
 	}
-	if err := s.manual.Put(ctx, manual); err != nil {
-		return nil, err
-	}
-	return serverFromManual(manual), nil
+	return serverFromRecord(server), nil
 }
 
 func (s *store) RemoveServer(ctx context.Context, orgID syntax.DID, id syntax.RecordKey) error {
-	if err := s.manual.Delete(ctx, orgID, id); err == nil {
-		return nil
-	} else if !errors.Is(err, ErrManualServerNotFound) {
-		return err
-	}
 	server, err := s.records.GetMcpServer(ctx, orgID, id)
 	if err != nil {
 		return err
 	}
 	if err := s.records.RemoveMcpServer(ctx, orgID, id); err != nil {
 		return err
+	}
+	if authTypeOf(server.AuthType) == AuthTypeManual {
+		return nil
 	}
 	if err := s.nango.DeleteIntegration(ctx, server.NangoKey); err != nil {
 		return fmt.Errorf("delete nango integration: %w", err)
@@ -461,30 +440,28 @@ func (s *store) ListServers(
 	if err != nil {
 		return nil, err
 	}
-	manual, err := s.manual.List(ctx, orgID)
-	if err != nil {
-		return nil, err
-	}
 
-	out := make([]*ServerWithStatus, 0, len(servers)+len(manual))
-	if len(servers) > 0 {
+	var connected map[string]bool
+	if slices.ContainsFunc(servers, func(server *opensocial.McpServer) bool {
+		return authTypeOf(server.AuthType) == AuthTypeOAuth
+	}) {
 		connections, err := s.nango.ListConnections(ctx, did.String())
 		if err != nil {
 			return nil, fmt.Errorf("list nango connections: %w", err)
 		}
-		connected := make(map[string]bool, len(connections))
+		connected = make(map[string]bool, len(connections))
 		for _, conn := range connections {
 			connected[conn.ProviderConfigKey] = true
 		}
-		for _, server := range servers {
-			out = append(out, &ServerWithStatus{
-				Server:    serverFromOAuth(server),
-				Connected: connected[server.NangoKey],
-			})
-		}
 	}
-	for _, server := range manual {
-		out = append(out, &ServerWithStatus{Server: serverFromManual(server), Connected: true})
+
+	out := make([]*ServerWithStatus, len(servers))
+	for i, server := range servers {
+		out[i] = &ServerWithStatus{
+			Server: serverFromRecord(server),
+			Connected: authTypeOf(server.AuthType) == AuthTypeManual ||
+				connected[server.NangoKey],
+		}
 	}
 	slices.SortFunc(out, func(a, b *ServerWithStatus) int {
 		return strings.Compare(string(a.Server.ID), string(b.Server.ID))
@@ -498,12 +475,7 @@ func (s *store) StartAuthorization(
 	orgID syntax.DID,
 	id syntax.RecordKey,
 ) (string, error) {
-	if manual, err := s.getManual(ctx, orgID, id); err != nil {
-		return "", err
-	} else if manual != nil {
-		return "", ErrManualServer
-	}
-	server, err := s.records.GetMcpServer(ctx, orgID, id)
+	server, err := s.getOAuth(ctx, orgID, id)
 	if err != nil {
 		return "", err
 	}
@@ -519,12 +491,7 @@ func (s *store) StartAuthorization(
 func (s *store) DisconnectServer(
 	ctx context.Context, did syntax.DID, orgID syntax.DID, id syntax.RecordKey,
 ) error {
-	if manual, err := s.getManual(ctx, orgID, id); err != nil {
-		return err
-	} else if manual != nil {
-		return ErrManualServer
-	}
-	server, err := s.records.GetMcpServer(ctx, orgID, id)
+	server, err := s.getOAuth(ctx, orgID, id)
 	if err != nil {
 		return err
 	}
@@ -557,11 +524,22 @@ func (s *store) ListManualServersForMember(
 	}
 	var out []*ManualServer
 	for _, space := range memberSpaces {
-		servers, err := s.manual.List(ctx, space.SpaceOwner())
+		orgID := space.SpaceOwner()
+		servers, err := s.records.ListMcpServers(ctx, orgID)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, servers...)
+		for _, server := range servers {
+			if authTypeOf(server.AuthType) != AuthTypeManual {
+				continue
+			}
+			out = append(out, &ManualServer{
+				OrgID:       orgID,
+				ID:          server.ID,
+				Description: server.Description,
+				URL:         server.ServerURL,
+			})
+		}
 	}
 	return out, nil
 }

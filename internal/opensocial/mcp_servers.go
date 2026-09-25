@@ -20,8 +20,9 @@ const McpServerCollection = "network.habitat.mcp.server"
 // ErrMcpServerNotFound is returned when no MCP server matches the given ID/org.
 var ErrMcpServerNotFound = errors.New("mcp server not found")
 
-// McpServer is an MCP server configured for a community. Authorization
-// against the server itself is handled by Nango.
+// McpServer is an MCP server configured for a community. For an OAuth
+// server, authorization against the server itself is handled by Nango; a
+// manual server needs no auth.
 type McpServer struct {
 	// ID is this record's key. It's equal to Name, chosen once at creation
 	// and immutable afterward, since it also namespaces the server's tools
@@ -29,11 +30,16 @@ type McpServer struct {
 	ID          syntax.RecordKey
 	Name        string
 	Description string
-	// NangoKey is the Nango integration's unique_key. Unlike Name, it's
-	// globally unique across the whole Nango environment, not just this org.
+	// AuthType is "oauth" or "manual" (see mcpgateway.AuthType). Empty for
+	// records written before it was recorded, which are all OAuth.
+	AuthType string
+	// NangoKey is the Nango integration's unique_key, for OAuth servers only.
+	// Unlike Name, it's globally unique across the whole Nango environment,
+	// not just this org.
 	NangoKey string
-	// ServerURL is the server's URL as the admin entered it in Nango while
-	// adding it, pre-filled for members when they connect. Empty for records
+	// ServerURL is the server's streamable HTTP endpoint. For an OAuth
+	// server, it's as the admin entered it in Nango while adding it,
+	// pre-filled for members when they connect, and empty for records
 	// written before it was recorded.
 	ServerURL string
 }
@@ -43,24 +49,26 @@ func mcpServerFromRecord(rkey syntax.RecordKey, r habitat_api.NetworkHabitatMcpS
 		ID:          rkey,
 		Name:        r.Name,
 		Description: r.Description,
+		AuthType:    r.AuthType,
 		NangoKey:    r.NangoKey,
 		ServerURL:   r.ServerUrl,
 	}
 }
 
-// PutMcpServer writes an MCP server record for orgDID at the given ID,
-// creating or overwriting it. The ID is caller-chosen, not generated here.
+// PutMcpServer writes server as an MCP server record for orgDID at
+// server.ID, creating or overwriting it. The ID is caller-chosen, not
+// generated here.
 func (s *Store) PutMcpServer(
 	ctx context.Context,
 	orgDID syntax.DID,
-	id syntax.RecordKey,
-	name, description, nangoKey, serverURL string,
+	server *McpServer,
 ) (*McpServer, error) {
 	record := habitat_api.NetworkHabitatMcpServer{
-		Name:        name,
-		Description: description,
-		NangoKey:    nangoKey,
-		ServerUrl:   serverURL,
+		Name:        server.Name,
+		Description: server.Description,
+		AuthType:    server.AuthType,
+		NangoKey:    server.NangoKey,
+		ServerUrl:   server.ServerURL,
 		UpdatedAt:   time.Now().Format(time.RFC3339),
 	}
 	recordBytes, err := spaces.MarshalRecord(record)
@@ -72,18 +80,13 @@ func (s *Store) PutMcpServer(
 		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
 		orgDID,
 		McpServerCollection,
-		id,
+		server.ID,
 		recordBytes,
 	); err != nil {
 		return nil, fmt.Errorf("put mcp server record: %w", err)
 	}
-	return &McpServer{
-		ID:          id,
-		Name:        name,
-		Description: description,
-		NangoKey:    nangoKey,
-		ServerURL:   serverURL,
-	}, nil
+	out := *server
+	return &out, nil
 }
 
 // GetMcpServer fetches a single MCP server by ID, scoped to the org.
@@ -134,13 +137,14 @@ func (s *Store) ListMcpServers(ctx context.Context, orgDID syntax.DID) ([]*McpSe
 	return servers, nil
 }
 
-// UpdateMcpServer updates an existing org MCP server's description. Name and
-// NangoKey are immutable once set, since Name is this record's key.
+// UpdateMcpServer updates an existing org MCP server's description and
+// server URL; nil fields are left unchanged. Name, AuthType and NangoKey are
+// immutable once set, since Name is this record's key.
 func (s *Store) UpdateMcpServer(
 	ctx context.Context,
 	orgDID syntax.DID,
 	id syntax.RecordKey,
-	description *string,
+	description, serverURL *string,
 ) (*McpServer, error) {
 	existing, err := s.GetMcpServer(ctx, orgDID, id)
 	if err != nil {
@@ -149,9 +153,10 @@ func (s *Store) UpdateMcpServer(
 	if description != nil {
 		existing.Description = *description
 	}
-	return s.PutMcpServer(
-		ctx, orgDID, id, existing.Name, existing.Description, existing.NangoKey, existing.ServerURL,
-	)
+	if serverURL != nil {
+		existing.ServerURL = *serverURL
+	}
+	return s.PutMcpServer(ctx, orgDID, existing)
 }
 
 // RemoveMcpServer deletes an org's MCP server record.

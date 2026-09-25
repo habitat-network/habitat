@@ -37,7 +37,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Configure an MCP server that needs no auth for the org by hand, by its URL. The configuration is shared by every org member, who are all connected automatically; the URL is stored encrypted and never returned. Use addServer instead for servers that support MCP OAuth. Requires service-auth. Requires the mcp.configure action. */
+/** Configure an MCP server that needs no auth for the org by hand, by its URL. The configuration is shared by every org member, who are all connected automatically. Use addServer instead for servers that support MCP OAuth. Requires service-auth. Requires the mcp.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }
