@@ -70,19 +70,33 @@ func (c *Client) DeleteIntegration(ctx context.Context, uniqueKey string) error 
 // the Integration identified by uniqueKey, tagging it with endUserID and
 // orgID for correlation. It returns a session token for the frontend's
 // Nango Connect UI.
+//
+// If serverURL is set, it's passed as the session's default
+// mcp_server_url, which the Connect UI then hides instead of asking the
+// user for. The mcp-generic provider only takes the URL per connection
+// (there's no integration-level setting for it), so this is how a server
+// the admin already added is reused without every member re-entering it.
 func (c *Client) CreateConnectSession(
 	ctx context.Context,
 	uniqueKey string,
-	endUserID, orgID string,
+	endUserID, orgID, serverURL string,
 ) (string, error) {
-	body, err := c.do(ctx, http.MethodPost, "/connect/sessions", map[string]any{
+	req := map[string]any{
 		"allowed_integrations": []string{uniqueKey},
 		"tags": map[string]string{
 			"end_user_id":     endUserID,
 			"organization_id": orgID,
 			"type":            connectionTypeTag,
 		},
-	})
+	}
+	if serverURL != "" {
+		req["integrations_config_defaults"] = map[string]any{
+			uniqueKey: map[string]any{
+				"connection_config": map[string]string{"mcp_server_url": serverURL},
+			},
+		}
+	}
+	body, err := c.do(ctx, http.MethodPost, "/connect/sessions", req)
 	if err != nil {
 		return "", err
 	}

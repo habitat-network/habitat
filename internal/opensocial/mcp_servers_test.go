@@ -20,7 +20,7 @@ func TestMcpServers(t *testing.T) {
 
 	t.Run("PutAndListMcpServers", func(t *testing.T) {
 		id := syntax.RecordKey(uuid.NewString())
-		server, err := s.PutMcpServer(t.Context(), org, id, "Linear", "desc", "nango-key-1")
+		server, err := s.PutMcpServer(t.Context(), org, id, "Linear", "desc", "nango-key-1", "")
 		require.NoError(t, err)
 		require.Equal(t, id, server.ID)
 		require.Equal(t, "Linear", server.Name)
@@ -40,7 +40,7 @@ func TestMcpServers(t *testing.T) {
 
 	t.Run("UpdateMcpServer", func(t *testing.T) {
 		id := syntax.RecordKey(uuid.NewString())
-		_, err := s.PutMcpServer(t.Context(), org, id, "Open", "", "nango-key-2")
+		_, err := s.PutMcpServer(t.Context(), org, id, "Open", "", "nango-key-2", "")
 		require.NoError(t, err)
 
 		newDescription := "now with a description"
@@ -57,7 +57,7 @@ func TestMcpServers(t *testing.T) {
 
 	t.Run("RemoveMcpServer", func(t *testing.T) {
 		id := syntax.RecordKey(uuid.NewString())
-		_, err := s.PutMcpServer(t.Context(), org, id, "Temp", "", "nango-key-3")
+		_, err := s.PutMcpServer(t.Context(), org, id, "Temp", "", "nango-key-3", "")
 		require.NoError(t, err)
 
 		require.NoError(t, s.RemoveMcpServer(t.Context(), org, id))
@@ -75,7 +75,7 @@ func TestMcpServers(t *testing.T) {
 		otherOrg := syntax.DID(otherOrgDIDStr)
 
 		id := syntax.RecordKey(uuid.NewString())
-		_, err = s.PutMcpServer(t.Context(), org, id, "Scoped", "", "nango-key-4")
+		_, err = s.PutMcpServer(t.Context(), org, id, "Scoped", "", "nango-key-4", "")
 		require.NoError(t, err)
 
 		_, err = s.GetMcpServer(t.Context(), otherOrg, id)

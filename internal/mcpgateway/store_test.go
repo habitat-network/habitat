@@ -31,6 +31,25 @@ type fakeNangoClient struct {
 	connections          map[string]fakeConnection // connectionID -> connection
 	createIntegrationErr error
 	createSessionErr     error
+	// lastSessionServerURL is the serverURL the last CreateConnectSession
+	// call pre-filled.
+	lastSessionServerURL string
+}
+
+// fakeServerURL is the MCP server URL fakeNangoClient reports for
+// connectionID.
+func fakeServerURL(connectionID string) string {
+	return "https://mcp.example.com/" + connectionID
+}
+
+func (f *fakeNangoClient) GetConnection(
+	ctx context.Context, connectionID, providerConfigKey string,
+) (*nango.ConnectionDetails, error) {
+	conn, ok := f.connections[connectionID]
+	if !ok || conn.ProviderConfigKey != providerConfigKey {
+		return nil, errors.New("connection not found")
+	}
+	return &nango.ConnectionDetails{MCPServerURL: fakeServerURL(connectionID)}, nil
 }
 
 func newFakeNangoClient() *fakeNangoClient {
@@ -57,11 +76,12 @@ func (f *fakeNangoClient) DeleteIntegration(ctx context.Context, uniqueKey strin
 }
 
 func (f *fakeNangoClient) CreateConnectSession(
-	ctx context.Context, uniqueKey string, endUserID, orgID string,
+	ctx context.Context, uniqueKey string, endUserID, orgID, serverURL string,
 ) (string, error) {
 	if f.createSessionErr != nil {
 		return "", f.createSessionErr
 	}
+	f.lastSessionServerURL = serverURL
 	if !f.integrations[uniqueKey] {
 		return "", errors.New("unknown integration")
 	}
@@ -200,6 +220,18 @@ func TestStoreCompleteAddServer_WritesRecord(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, all, 1)
 	require.Equal(t, server.ID, all[0].ID)
+	// The URL the admin entered in Nango is recorded for members to reuse.
+	require.Equal(t, fakeServerURL("conn-linear"), all[0].ServerURL)
+}
+
+func TestStoreStartAuthorization_PrefillsServerURL(t *testing.T) {
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
+
+	server := addServer(t, s, nangoClient, org, "did:plc:admin", "linear", "")
+	_, err := s.StartAuthorization(t.Context(), "did:plc:member", org, server.ID)
+	require.NoError(t, err)
+	require.Equal(t, fakeServerURL("conn-linear"), nangoClient.lastSessionServerURL)
 }
 
 func TestStoreCancelAddServer_DeletesIntegration(t *testing.T) {

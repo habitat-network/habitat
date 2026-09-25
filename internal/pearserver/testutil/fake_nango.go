@@ -41,7 +41,7 @@ func (f *FakeNangoClient) DeleteIntegration(ctx context.Context, uniqueKey strin
 }
 
 func (f *FakeNangoClient) CreateConnectSession(
-	ctx context.Context, uniqueKey string, endUserID, orgID string,
+	ctx context.Context, uniqueKey string, endUserID, orgID, serverURL string,
 ) (string, error) {
 	if !f.Integrations[uniqueKey] {
 		return "", errors.New("unknown integration")
@@ -82,4 +82,22 @@ func (f *FakeNangoClient) DeleteConnection(
 	}
 	delete(f.Connections, connectionID)
 	return nil
+}
+
+// FakeServerURL is the MCP server URL FakeNangoClient reports for
+// connectionID.
+func FakeServerURL(connectionID string) string {
+	return "https://mcp.example.com/" + connectionID
+}
+
+// GetConnection returns connectionID's details, with a server URL from
+// FakeServerURL.
+func (f *FakeNangoClient) GetConnection(
+	ctx context.Context, connectionID, providerConfigKey string,
+) (*nango.ConnectionDetails, error) {
+	conn, ok := f.Connections[connectionID]
+	if !ok || conn.ProviderConfigKey != providerConfigKey {
+		return nil, errors.New("connection not found")
+	}
+	return &nango.ConnectionDetails{MCPServerURL: FakeServerURL(connectionID)}, nil
 }

@@ -59,9 +59,12 @@ func TestClientCreateConnectSession(t *testing.T) {
 	c := NewClient("test-secret", srv.Client())
 	c.baseURL = srv.URL
 
-	token, err := c.CreateConnectSession(t.Context(), "server-123", "did:plc:user", "did:plc:org")
+	token, err := c.CreateConnectSession(
+		t.Context(), "server-123", "did:plc:user", "did:plc:org", "",
+	)
 	require.NoError(t, err)
 	require.Equal(t, "session-token-abc", token)
+	require.NotContains(t, gotBody, "integrations_config_defaults")
 	require.Equal(t, []any{"server-123"}, gotBody["allowed_integrations"])
 	tags, ok := gotBody["tags"].(map[string]any)
 	require.True(t, ok)
@@ -175,4 +178,29 @@ func TestClientNotConfigured(t *testing.T) {
 	c := NewClient("", nil)
 	_, err := c.ListConnections(t.Context(), "did:plc:alice")
 	require.ErrorIs(t, err, ErrNotConfigured)
+}
+
+func TestClientCreateConnectSession_PrefillsServerURL(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&gotBody))
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{"token": "session-token-abc"},
+		})
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("test-secret", srv.Client())
+	c.baseURL = srv.URL
+
+	_, err := c.CreateConnectSession(
+		t.Context(), "server-123", "did:plc:user", "did:plc:org", "https://mcp.example.com/mcp",
+	)
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{
+		"server-123": map[string]any{
+			"connection_config": map[string]any{
+				"mcp_server_url": "https://mcp.example.com/mcp",
+			},
+		},
+	}, gotBody["integrations_config_defaults"])
 }

@@ -10,7 +10,7 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. Authorization against the server itself is handled entirely by Nango's mcp-generic connector, which the admin fills in (including the server's URL) while adding it. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
+/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. Authorization against the server itself is handled entirely by Nango's mcp-generic connector, which the admin fills in (including the server's URL) while adding it; members connecting later reuse serverUrl rather than entering it again. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
 type Main = {
   $type: 'network.habitat.mcp.server'
 
@@ -24,12 +24,17 @@ type Main = {
    * The Nango integration's unique_key, globally unique across the whole Nango environment (unlike name, which is only unique within the org).
    */
   nangoKey: string
+
+  /**
+   * The server's URL, as the admin entered it in Nango's Connect UI while adding it. Pre-filled for members when they connect, so only the admin ever enters it.
+   */
+  serverUrl?: l.UriString
   updatedAt: l.DatetimeString
 }
 
 export type { Main }
 
-/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. Authorization against the server itself is handled entirely by Nango's mcp-generic connector, which the admin fills in (including the server's URL) while adding it. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
+/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. Authorization against the server itself is handled entirely by Nango's mcp-generic connector, which the admin fills in (including the server's URL) while adding it; members connecting later reuse serverUrl rather than entering it again. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
 const main = /*#__PURE__*/ l.record<'any', Main>(
   'any',
   $nsid,
@@ -39,6 +44,9 @@ const main = /*#__PURE__*/ l.record<'any', Main>(
       /*#__PURE__*/ l.string({ maxLength: 2000 }),
     ),
     nangoKey: /*#__PURE__*/ l.string(),
+    serverUrl: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.string({ format: 'uri' }),
+    ),
     updatedAt: /*#__PURE__*/ l.string({ format: 'datetime' }),
   }),
 )

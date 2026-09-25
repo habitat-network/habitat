@@ -87,7 +87,7 @@ type OrgMcpServerStore interface {
 		ctx context.Context,
 		orgDID syntax.DID,
 		id syntax.RecordKey,
-		name, description, nangoKey string,
+		name, description, nangoKey, serverURL string,
 	) (*opensocial.McpServer, error)
 	GetMcpServer(
 		ctx context.Context,
@@ -118,11 +118,18 @@ type NangoClient interface {
 	// CreateConnectSession starts a Nango Connect session scoped to the
 	// Integration identified by uniqueKey, returning a session token for
 	// the frontend's Nango Connect UI.
+	// A non-empty serverURL pre-fills the session's MCP server URL.
 	CreateConnectSession(
 		ctx context.Context,
 		uniqueKey string,
-		endUserID, orgID string,
+		endUserID, orgID, serverURL string,
 	) (string, error)
+	// GetConnection fetches a Connection's live details, including the MCP
+	// server URL it was made with.
+	GetConnection(
+		ctx context.Context,
+		connectionID, providerConfigKey string,
+	) (*nango.ConnectionDetails, error)
 	// ListConnections lists the MCP connections tagged with endUserID.
 	ListConnections(ctx context.Context, endUserID string) ([]nango.Connection, error)
 	// DeleteConnection deletes a Nango Connection.
@@ -314,7 +321,7 @@ func (s *store) BeginAddServer(
 	if err := s.nango.CreateIntegration(ctx, nangoKey); err != nil {
 		return "", "", fmt.Errorf("create nango integration: %w", err)
 	}
-	token, err := s.nango.CreateConnectSession(ctx, nangoKey, did.String(), orgID.String())
+	token, err := s.nango.CreateConnectSession(ctx, nangoKey, did.String(), orgID.String(), "")
 	if err != nil {
 		_ = s.nango.DeleteIntegration(ctx, nangoKey)
 		return "", "", fmt.Errorf("create nango connect session: %w", err)
@@ -334,17 +341,25 @@ func (s *store) CompleteAddServer(
 	if err != nil {
 		return nil, fmt.Errorf("list nango connections: %w", err)
 	}
-	connected := false
+	var adminConn *nango.Connection
 	for _, conn := range connections {
 		if conn.ProviderConfigKey == nangoKey {
-			connected = true
+			adminConn = &conn
 			break
 		}
 	}
-	if !connected {
+	if adminConn == nil {
 		return nil, fmt.Errorf("no nango connection found for server %q", id)
 	}
-	server, err := s.records.PutMcpServer(ctx, orgID, id, name, description, nangoKey)
+	// Record the URL the admin entered, so members connecting later don't
+	// have to enter it again (see StartAuthorization).
+	details, err := s.nango.GetConnection(ctx, adminConn.ConnectionID, nangoKey)
+	if err != nil {
+		return nil, fmt.Errorf("get nango connection: %w", err)
+	}
+	server, err := s.records.PutMcpServer(
+		ctx, orgID, id, name, description, nangoKey, details.MCPServerURL,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -500,7 +515,9 @@ func (s *store) StartAuthorization(
 	if err != nil {
 		return "", err
 	}
-	token, err := s.nango.CreateConnectSession(ctx, server.NangoKey, did.String(), orgID.String())
+	token, err := s.nango.CreateConnectSession(
+		ctx, server.NangoKey, did.String(), orgID.String(), server.ServerURL,
+	)
 	if err != nil {
 		return "", fmt.Errorf("create nango connect session: %w", err)
 	}

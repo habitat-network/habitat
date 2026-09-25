@@ -10,6 +10,7 @@ type NetworkHabitatMcpServer struct {
 	Description   string `json:"description,omitempty"`
 	Name          string `json:"name"`
 	NangoKey      string `json:"nangoKey"`
+	ServerUrl     string `json:"serverUrl,omitempty"`
 	UpdatedAt     string `json:"updatedAt"`
 }
 
