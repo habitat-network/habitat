@@ -60,9 +60,7 @@ export default function SignInForm({
               <FieldLegend>Sign In</FieldLegend>
               <FieldGroup>
                 <Field>
-                  <FieldLabel>
-                    atproto handle or work email
-                  </FieldLabel>
+                  <FieldLabel>atproto handle or work email</FieldLabel>
                   <Input
                     {...register("loginHint", {
                       required: "Handle or email is required",
