@@ -10,8 +10,8 @@ catalogs:
       specifier: 0.0.0-spaces-alpha-20260913191958
       version: 0.0.0-spaces-alpha-20260913191958
     '@atproto/common-web':
-      specifier: 0.0.0-spaces-alpha-20260915165437
-      version: 0.0.0-spaces-alpha-20260915165437
+      specifier: 0.5.12
+      version: 0.5.12
     '@atproto/identity':
       specifier: 0.0.0-spaces-alpha-20260913191958
       version: 0.0.0-spaces-alpha-20260913191958
@@ -749,7 +749,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260913191958
       '@atproto/common-web':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260915165437
+        version: 0.5.12
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260913191958
@@ -1045,6 +1045,10 @@ packages:
     resolution: {integrity: sha512-yFIbg+mN+T+FheVcFMYvrR1X4NjRIoEYDU5oYKW1MfFsH0SD707gGhW4tFwtGHWd/VHZf0somi3Pxls81gMGvw==}
     engines: {node: '>=22'}
 
+  '@atproto/common-web@0.5.12':
+    resolution: {integrity: sha512-FumNnUOUsk68gP+jU0sXY2wY2piqFV9/qU2YaoQq/IZknhJBlLYCzjQXXCN0FCzxAZWD0YUzgydeyuRvFoAxfA==}
+    engines: {node: '>=22'}
+
   '@atproto/common@0.0.0-spaces-alpha-20260913191958':
     resolution: {integrity: sha512-+3hA6TQdRswQEfejCSOjPyWmEo82c/GZF7UvlJZv8G8Zba9jREVmp417DCyyoMa1R+Ke/Rc7ih+v3HOQ9nz0tg==}
     engines: {node: '>=22'}
@@ -1160,6 +1164,10 @@ packages:
 
   '@atproto/syntax@0.0.0-spaces-alpha-20260915165437':
     resolution: {integrity: sha512-RNSDvybPTO1XwPgVwhtc5PTLzZE0LaLdTfYR5dhFvXd8vePRquAFdrabjNyKBXTyToHgEVXcqa7Mn//9Ubh6Fw==}
+    engines: {node: '>=22'}
+
+  '@atproto/syntax@0.7.6':
+    resolution: {integrity: sha512-luKQTcWw1H1jLmYvX34ldBqNjz2orF082njmcF9fxbWTqVhsO+TpY0FHRKVPoV7dwL0Y3L16DNz1ma0LFGH25g==}
     engines: {node: '>=22'}
 
   '@atproto/xrpc@0.0.0-spaces-alpha-20260913191958':
@@ -5518,9 +5526,6 @@ packages:
 
   '@types/node@17.0.45':
     resolution: {integrity: sha512-w+tIMs3rq2afQdsPJlODhoUEKzFP1ayaoyl1CcnwtIlsVe7K7bA1NGm4s3PraqTLlXnbIN84zuBlxBWo1u9BLw==}
-
-  '@types/node@22.20.1':
-    resolution: {integrity: sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==}
 
   '@types/node@22.20.4':
     resolution: {integrity: sha512-zJRE40jpHtKqE/C4fgHrAKQLJuSpzEnP9ff9Y7YtoR3Wd2pwqzlekDeEuUQXjRd+QCYnVnNwuJYmhdk9XV8gvA==}
@@ -12268,6 +12273,13 @@ snapshots:
       '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
       zod: 3.25.76
 
+  '@atproto/common-web@0.5.12':
+    dependencies:
+      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/syntax': 0.7.6
+      zod: 3.25.76
+
   '@atproto/common@0.0.0-spaces-alpha-20260913191958':
     dependencies:
       '@atproto/common-web': 0.0.0-spaces-alpha-20260915165437
@@ -12479,6 +12491,11 @@ snapshots:
       tslib: 2.8.1
 
   '@atproto/syntax@0.0.0-spaces-alpha-20260915165437':
+    dependencies:
+      iso-datestring-validator: 2.2.2
+      tslib: 2.8.1
+
+  '@atproto/syntax@0.7.6':
     dependencies:
       iso-datestring-validator: 2.2.2
       tslib: 2.8.1
@@ -15305,7 +15322,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -17752,10 +17769,6 @@ snapshots:
 
   '@types/node@17.0.45': {}
 
-  '@types/node@22.20.1':
-    dependencies:
-      undici-types: 6.21.0
-
   '@types/node@22.20.4':
     dependencies:
       undici-types: 6.21.0
@@ -17822,7 +17835,7 @@ snapshots:
 
   '@types/set-cookie-parser@2.4.10':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
 
   '@types/sockjs@0.3.36':
     dependencies:
@@ -18565,7 +18578,7 @@ snapshots:
 
   chrome-launcher@0.15.2(supports-color@10.2.2):
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2(supports-color@10.2.2)
@@ -18576,7 +18589,7 @@ snapshots:
 
   chromium-edge-launcher@0.3.0(supports-color@10.2.2):
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2(supports-color@10.2.2)
@@ -20647,7 +20660,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
