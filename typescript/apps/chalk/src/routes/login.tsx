@@ -16,6 +16,7 @@ import {
 } from "internal/components/ui";
 import { env } from "cloudflare:workers";
 import { startLogin } from "@/server/sapClient";
+import { beginLogin } from "@/server/functions.server";
 
 // startLogin itself isn't a TanStack server function (it's a plain async
 // function in sapClient.ts, shared with functions.ts's composition root) —
@@ -24,7 +25,7 @@ import { startLogin } from "@/server/sapClient";
 const startLoginFn = createServerFn({ method: "POST" })
   .validator((input: { handle: string }) => input)
   .handler(async ({ data }) => ({
-    redirectUrl: await startLogin(env, data.handle),
+    redirectUrl: await startLogin(env, data.handle, await beginLogin()),
   }));
 
 interface LoginFormData {

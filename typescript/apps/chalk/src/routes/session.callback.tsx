@@ -3,7 +3,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { useAppSession } from "@/server/session";
-import { SapClient } from "@/server/sapClient";
+import { consumeLoginNonce } from "@/server/functions.server";
+import { SapClient, redeemLogin } from "@/server/sapClient";
 
 // beforeLoad runs in both the client and server environments (e.g. on
 // client-side navigation), so it can't call useAppSession()/useSession()
@@ -11,34 +12,43 @@ import { SapClient } from "@/server/sapClient";
 // the build's import-protection plugin rejects pulling it into the client
 // bundle. Wrap the session write in a server function instead; only its
 // RPC stub reaches the client.
-const setSessionDidFn = createServerFn({ method: "POST" })
-  .validator((input: { did: string }) => input)
+//
+// This server function is reachable by anyone, so it takes nothing it
+// trusts from its caller: the DID comes from sap (redeeming the signed
+// code sap put on the callback URL), and the login must have been started
+// from this same browser (consumeLoginNonce).
+const completeLoginFn = createServerFn({ method: "POST" })
+  .validator((input: { code: string }) => input)
   .handler(async ({ data }) => {
+    const { did, state } = await redeemLogin(env, data.code);
+    await consumeLoginNonce(state);
     const session = await useAppSession();
-    await session.update({ did: data.did });
+    // A fresh login starts in Personal mode: a currentOrg left over from
+    // whoever was signed in before must not carry over to this member.
+    await session.update({ did, currentOrg: undefined });
     // Best-effort: confirm sap has fully discovered this member's spaces
     // right away rather than waiting on its periodic re-crawl. A hiccup
     // here shouldn't block sign-in — sap's own periodic recrawlLoop is the
     // fallback if this doesn't get through.
     try {
-      await new SapClient(env, data.did).recrawl();
+      await new SapClient(env, did).recrawl();
     } catch (err) {
       console.error("[session.callback] recrawl", err);
     }
   });
 
 // sap redirects the browser here (as this route's URL is what chalk told
-// sap's /org/add to use as return_to) once the PDS OAuth handshake
-// completes, with the resolved member DID as a query param.
+// sap's /session/add to use as return_to) once the PDS OAuth handshake
+// completes, with a sealed code to redeem for the member DID.
 export const Route = createFileRoute("/session/callback")({
   validateSearch: z.object({
-    did: z.string().optional(),
+    code: z.string().optional(),
   }),
   beforeLoad: async ({ search }) => {
-    if (!search.did) {
+    if (!search.code) {
       throw redirect({ to: "/login" });
     }
-    await setSessionDidFn({ data: { did: search.did } });
+    await completeLoginFn({ data: { code: search.code } });
     throw redirect({ to: "/" });
   },
 });

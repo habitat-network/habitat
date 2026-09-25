@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/hkdf"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
@@ -17,6 +19,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/pkg/sap"
 )
@@ -47,10 +50,39 @@ type server struct {
 	outboxPongWait   time.Duration
 	outboxWriteWait  time.Duration
 
-	mu              sync.Mutex
-	pendingReturnTo map[string]string // DID string -> return_to URL
-	clientMetadata  ConfiguredClientMetadata
+	mu sync.Mutex
+	// pendingLogins holds the caller's return_to/state for a login
+	// handleAddSession started, keyed by the DID it resolved to, until
+	// handleOAuthCallback completes that flow.
+	pendingLogins map[string]pendingLogin
+	// loginCodeKey encrypts (and authenticates) the login codes
+	// redirectToReturnTo hands out, so handleRedeemLogin can verify them
+	// without sap keeping any record of completed logins. Derived from sap's
+	// --secret (see deriveLoginCodeKey), so codes stay valid across restarts.
+	loginCodeKey   []byte
+	clientMetadata ConfiguredClientMetadata
 }
+
+// pendingLogin is what a caller of /session/add asked sap to carry through
+// the OAuth flow: where to send the browser afterwards, and an opaque state
+// value handed back to the caller (only) when it redeems the login code.
+type pendingLogin struct {
+	returnTo string
+	state    string
+}
+
+// loginCode is the encrypted payload of a login code: the result of a finished
+// OAuth flow, carried to the caller's return_to and back to sap to redeem.
+type loginCode struct {
+	DID     string `json:"did"`
+	State   string `json:"state"`
+	Expires int64  `json:"exp"` // unix seconds
+}
+
+// loginCodeTTL bounds how long a completed login's code can be redeemed:
+// the browser is redirected straight to the caller, which redeems it right
+// away, so this only needs to cover that one round-trip.
+const loginCodeTTL = 2 * time.Minute
 
 // endpoint is sap's own public base URL (the same value passed as
 // sap.Config.Endpoint) — it's both what sap registers with space hosts as
@@ -61,6 +93,7 @@ func NewSapServer(
 	oauthClient *oauth.ClientApp,
 	endpoint string,
 	clientMetadata ConfiguredClientMetadata,
+	loginCodeKey []byte,
 ) *server {
 	return &server{
 		sap:         sapInstance,
@@ -72,7 +105,8 @@ func NewSapServer(
 		outboxPingPeriod: defaultOutboxPingPeriod,
 		outboxPongWait:   defaultOutboxPongWait,
 		outboxWriteWait:  defaultOutboxWriteWait,
-		pendingReturnTo:  make(map[string]string),
+		pendingLogins:    make(map[string]pendingLogin),
+		loginCodeKey:     loginCodeKey,
 		clientMetadata:   clientMetadata,
 	}
 }
@@ -85,6 +119,10 @@ func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Handle   string `json:"handle"`
 		ReturnTo string `json:"return_to"`
+		// State is opaque to sap: it's returned only to whoever redeems the
+		// login code (see handleRedeemLogin), so the caller can check the
+		// completed login belongs to the browser that started it.
+		State string `json:"state"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
@@ -95,14 +133,18 @@ func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
 	// the OAuth state param and doesn't return the resolved DID, so when the
 	// caller wants to be redirected back we resolve the identifier to a DID
 	// ourselves (the same lookup StartAuthFlow performs internally) and stash
-	// return_to keyed by that DID for handleOAuthCallback to pick up later.
+	// return_to (and state) keyed by that DID for handleOAuthCallback to pick
+	// up later.
 	// Resolution failures here must not block the StartAuthFlow call below —
 	// they just mean the caller won't get redirected back.
 	if req.ReturnTo != "" {
 		if atid, err := syntax.ParseAtIdentifier(req.Handle); err == nil {
 			if ident, err := s.oauthClient.Dir.Lookup(r.Context(), atid); err == nil {
 				s.mu.Lock()
-				s.pendingReturnTo[ident.DID.String()] = req.ReturnTo
+				s.pendingLogins[ident.DID.String()] = pendingLogin{
+					returnTo: req.ReturnTo,
+					state:    req.State,
+				}
 				s.mu.Unlock()
 			}
 		}
@@ -291,22 +333,102 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// redirectToReturnTo pops any pending return_to for did and, if present,
-// redirects r's response there with the DID appended as a query param.
+// redirectToReturnTo pops any pending login for did and, if present,
+// redirects r's response to its return_to with a sealed login code appended
+// as a query param. The caller must trade the code for the DID over sap's
+// internal port (handleRedeemLogin), which only sap's key can open, so a
+// return_to URL someone crafts by hand can't claim to be any DID.
 // Returns true if it wrote a response (caller must not write another one).
 func (s *server) redirectToReturnTo(w http.ResponseWriter, r *http.Request, did string) bool {
 	s.mu.Lock()
-	returnTo, ok := s.pendingReturnTo[did]
+	pending, ok := s.pendingLogins[did]
 	if ok {
-		delete(s.pendingReturnTo, did)
+		delete(s.pendingLogins, did)
 	}
 	s.mu.Unlock()
 	if !ok {
 		return false
 	}
-	target := fmt.Sprintf("%s?did=%s", returnTo, url.QueryEscape(did))
-	http.Redirect(w, r, target, http.StatusSeeOther)
+
+	target, err := url.Parse(pending.returnTo)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("parse return_to: %s", err), http.StatusInternalServerError)
+		return true
+	}
+	code, err := s.sealLoginCode(loginCode{
+		DID:     did,
+		State:   pending.state,
+		Expires: time.Now().Add(loginCodeTTL).Unix(),
+	})
+	if err != nil {
+		http.Error(w, fmt.Sprintf("seal login code: %s", err), http.StatusInternalServerError)
+		return true
+	}
+
+	q := target.Query()
+	q.Set("code", code)
+	target.RawQuery = q.Encode()
+	http.Redirect(w, r, target.String(), http.StatusSeeOther)
 	return true
+}
+
+// handleRedeemLogin trades a login code (from redirectToReturnTo) for the
+// DID whose OAuth flow completed and the state its caller passed to
+// /session/add, if the code's signature checks out and it hasn't expired.
+// sap keeps no record of redeemed codes, so a code can be redeemed more than
+// once within loginCodeTTL: the caller is expected to accept each state only
+// once (chalk clears its login nonce the first time it sees it).
+func (s *server) handleRedeemLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	login, err := s.openLoginCode(req.Code, time.Now())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid login code: %s", err), http.StatusNotFound)
+		return
+	}
+
+	httpx.WriteJSON(r.Context(), w, map[string]string{
+		"did":   login.DID,
+		"state": login.State,
+	})
+}
+
+// deriveLoginCodeKey derives the 32-byte key login codes are sealed with
+// from sap's own secret key material (--secret), via HKDF with a label
+// specific to this use, so it's stable across restarts without a separate
+// secret to configure, and never reuses the OAuth signing key directly.
+func deriveLoginCodeKey(secret []byte) ([]byte, error) {
+	return hkdf.Key(sha256.New, secret, nil, "sap login code", 32)
+}
+
+// sealLoginCode seals code with encrypt.EncryptCBOR. secretbox authenticates
+// as well as encrypts, so only sap (holding loginCodeKey) can mint a code
+// that openLoginCode accepts.
+func (s *server) sealLoginCode(code loginCode) (string, error) {
+	return encrypt.EncryptCBOR(code, s.loginCodeKey)
+}
+
+// openLoginCode opens a code sealLoginCode produced, then checks that it
+// hasn't expired as of now.
+func (s *server) openLoginCode(code string, now time.Time) (loginCode, error) {
+	var login loginCode
+	if err := encrypt.DecryptCBOR(code, s.loginCodeKey, &login); err != nil {
+		return loginCode{}, err
+	}
+	if now.Unix() > login.Expires {
+		return loginCode{}, fmt.Errorf("expired")
+	}
+	return login, nil
 }
 
 // handleProxy forwards an XRPC request to pear on behalf of a managed org,

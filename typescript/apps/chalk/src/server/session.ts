@@ -5,6 +5,11 @@ export interface ChalkSessionData {
   // The org DID the member is currently acting as, if any. Unset means
   // "Personal" mode — see docs/superpowers/specs/2026-09-03-chalk-org-support-design.md.
   currentOrg?: string;
+  // A random nonce for the sap login flow this browser most recently
+  // started (see beginLogin in functions.server.ts). sap hands it back only
+  // when chalk redeems the flow's login code, so a callback is only
+  // accepted in the browser that started the login.
+  loginNonce?: string;
 }
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // ~30 days

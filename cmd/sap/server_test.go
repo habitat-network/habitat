@@ -2,10 +2,14 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -38,7 +42,31 @@ func newTestServer(t *testing.T) *server {
 	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp, Directory: oauthApp.Dir})
 	require.NoError(t, err)
 
-	return NewSapServer(s, oauthApp, "https://example.com", ConfiguredClientMetadata{})
+	return NewSapServer(s, oauthApp, "https://example.com", ConfiguredClientMetadata{}, testLoginCodeKey(t))
+}
+
+// testLoginCodeKey returns a fresh random login code key, so servers built
+// by separate newTestServer calls can't open each other's codes.
+func testLoginCodeKey(t *testing.T) []byte {
+	t.Helper()
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	require.NoError(t, err)
+	return key
+}
+
+func TestDeriveLoginCodeKeyIsStableAndSecretSpecific(t *testing.T) {
+	t.Parallel()
+
+	a, err := deriveLoginCodeKey([]byte("secret-a"))
+	require.NoError(t, err)
+	require.Len(t, a, 32)
+	again, err := deriveLoginCodeKey([]byte("secret-a"))
+	require.NoError(t, err)
+	require.Equal(t, a, again)
+	b, err := deriveLoginCodeKey([]byte("secret-b"))
+	require.NoError(t, err)
+	require.NotEqual(t, a, b)
 }
 
 func TestHandleAddSessionWithoutReturnToUnaffected(t *testing.T) {
@@ -60,7 +88,7 @@ func TestHandleAddSessionWithoutReturnToUnaffected(t *testing.T) {
 
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	require.Empty(t, srv.pendingReturnTo)
+	require.Empty(t, srv.pendingLogins)
 }
 
 func TestHandleAddSessionStoresReturnToForResolvedDID(t *testing.T) {
@@ -83,6 +111,7 @@ func TestHandleAddSessionStoresReturnToForResolvedDID(t *testing.T) {
 	body, err := json.Marshal(map[string]string{
 		"handle":    string(testHandle),
 		"return_to": "https://app.example.com/callback",
+		"state":     "nonce123",
 	})
 	require.NoError(t, err)
 
@@ -97,17 +126,33 @@ func TestHandleAddSessionStoresReturnToForResolvedDID(t *testing.T) {
 
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	require.Equal(t, "https://app.example.com/callback", srv.pendingReturnTo[testDID.String()])
+	require.Equal(t, pendingLogin{
+		returnTo: "https://app.example.com/callback",
+		state:    "nonce123",
+	}, srv.pendingLogins[testDID.String()])
 }
 
-func TestRedirectToReturnToRedirectsAndClearsPending(t *testing.T) {
+func redeem(t *testing.T, srv *server, code string) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"code": code})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/session/redeem", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.handleRedeemLogin(w, req)
+	return w
+}
+
+func TestRedirectToReturnToRedirectsWithRedeemableCode(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
 	const testDID = "did:plc:testreturnto"
 
 	srv.mu.Lock()
-	srv.pendingReturnTo[testDID] = "https://app.example.com/callback"
+	srv.pendingLogins[testDID] = pendingLogin{
+		returnTo: "https://app.example.com/callback",
+		state:    "nonce123",
+	}
 	srv.mu.Unlock()
 
 	req := httptest.NewRequest(http.MethodGet, "/oauth-callback", http.NoBody)
@@ -116,15 +161,69 @@ func TestRedirectToReturnToRedirectsAndClearsPending(t *testing.T) {
 	handled := srv.redirectToReturnTo(w, req, testDID)
 	require.True(t, handled)
 	require.Equal(t, http.StatusSeeOther, w.Code)
-	require.Equal(
-		t,
-		"https://app.example.com/callback?did=did%3Aplc%3Atestreturnto",
-		w.Header().Get("Location"),
-	)
+
+	loc, err := url.Parse(w.Header().Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, "app.example.com", loc.Host)
+	require.Equal(t, "/callback", loc.Path)
+	require.Empty(t, loc.Query().Get("did"))
+	code := loc.Query().Get("code")
+	require.NotEmpty(t, code)
 
 	srv.mu.Lock()
-	defer srv.mu.Unlock()
-	require.Empty(t, srv.pendingReturnTo)
+	require.Empty(t, srv.pendingLogins)
+	srv.mu.Unlock()
+
+	rw := redeem(t, srv, code)
+	require.Equal(t, http.StatusOK, rw.Code)
+	var resp map[string]string
+	require.NoError(t, json.Unmarshal(rw.Body.Bytes(), &resp))
+	require.Equal(t, map[string]string{"did": testDID, "state": "nonce123"}, resp)
+}
+
+func TestHandleRedeemLoginRejectsForgedOrExpiredCode(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	expired, err := srv.sealLoginCode(loginCode{
+		DID:     "did:plc:alice",
+		Expires: time.Now().Add(-time.Second).Unix(),
+	})
+	require.NoError(t, err)
+
+	// Same payload shape, sealed by a different sap (a different key).
+	other := newTestServer(t)
+	forged, err := other.sealLoginCode(loginCode{
+		DID:     "did:plc:alice",
+		Expires: time.Now().Add(time.Minute).Unix(),
+	})
+	require.NoError(t, err)
+
+	// A valid code with one byte flipped.
+	valid, err := srv.sealLoginCode(loginCode{
+		DID:     "did:plc:alice",
+		Expires: time.Now().Add(time.Minute).Unix(),
+	})
+	require.NoError(t, err)
+	raw, err := base64.RawURLEncoding.DecodeString(valid)
+	require.NoError(t, err)
+	raw[len(raw)-1] ^= 0x01
+	tampered := base64.RawURLEncoding.EncodeToString(raw)
+
+	for name, code := range map[string]string{
+		"garbage":  "not-a-code",
+		"expired":  expired,
+		"forged":   forged,
+		"tampered": tampered,
+	} {
+		require.Equal(t, http.StatusNotFound, redeem(t, srv, code).Code, name)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/session/redeem", http.NoBody)
+	w := httptest.NewRecorder()
+	srv.handleRedeemLogin(w, req)
+	require.Equal(t, http.StatusMethodNotAllowed, w.Code)
 }
 
 func TestHandleListSessions(t *testing.T) {

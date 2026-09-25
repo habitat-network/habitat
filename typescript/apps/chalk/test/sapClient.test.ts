@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
-import { SapClient, getSpaceBlob, startLogin } from "../src/server/sapClient";
+import {
+  SapClient,
+  getSpaceBlob,
+  redeemLogin,
+  startLogin,
+} from "../src/server/sapClient";
 
 const testEnv = {
   CHALK_SAP_INTERNAL_URL: "http://sap-internal.test",
@@ -18,7 +23,7 @@ afterEach(() => {
 });
 
 describe("startLogin", () => {
-  it("posts handle and return_to, returns the redirect URL", async () => {
+  it("posts handle, return_to and state, returns the redirect URL", async () => {
     let body: unknown;
     server.use(
       http.post("http://sap-internal.test/session/add", async ({ request }) => {
@@ -28,11 +33,12 @@ describe("startLogin", () => {
         });
       }),
     );
-    const url = await startLogin(testEnv, "alice.test");
+    const url = await startLogin(testEnv, "alice.test", "nonce1");
     expect(url).toBe("https://pds.example/authorize");
     expect(body).toEqual({
       handle: "alice.test",
       return_to: "https://chalk.test/session/callback",
+      state: "nonce1",
     });
   });
 
@@ -46,11 +52,48 @@ describe("startLogin", () => {
         });
       }),
     );
-    await startLogin(testEnv, "did:web:org.example", "/session/org-callback");
+    await startLogin(
+      testEnv,
+      "did:web:org.example",
+      "nonce2",
+      "/session/org-callback",
+    );
     expect(body).toEqual({
       handle: "did:web:org.example",
       return_to: "https://chalk.test/session/org-callback",
+      state: "nonce2",
     });
+  });
+});
+
+describe("redeemLogin", () => {
+  it("posts the code and returns sap's did and state", async () => {
+    let body: unknown;
+    server.use(
+      http.post(
+        "http://sap-internal.test/session/redeem",
+        async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ did: "did:plc:alice", state: "nonce1" });
+        },
+      ),
+    );
+    await expect(redeemLogin(testEnv, "code1")).resolves.toEqual({
+      did: "did:plc:alice",
+      state: "nonce1",
+    });
+    expect(body).toEqual({ code: "code1" });
+  });
+
+  it("throws when sap rejects the code", async () => {
+    server.use(
+      http.post(
+        "http://sap-internal.test/session/redeem",
+        () =>
+          new HttpResponse("unknown or expired login code", { status: 404 }),
+      ),
+    );
+    await expect(redeemLogin(testEnv, "bogus")).rejects.toThrow(/404/);
   });
 });
 
@@ -99,7 +142,7 @@ describe("internal auth", () => {
         });
       }),
     );
-    await startLogin(secretEnv, "alice.test");
+    await startLogin(secretEnv, "alice.test", "nonce1");
     expect(headers?.get("Authorization")).toBe(`Basic ${btoa(":s3cret")}`);
   });
 

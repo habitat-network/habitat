@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 
-const sessionData: { did?: string } = {};
+const sessionData: { did?: string; loginNonce?: string } = {};
 vi.mock("../src/server/session", () => ({
   useAppSession: vi.fn(async () => ({
     data: sessionData,
@@ -32,6 +32,38 @@ describe("requireSession", () => {
 
   it("throws when no session DID is set", async () => {
     await expect(requireSession()).rejects.toThrow();
+  });
+});
+
+describe("beginLogin / consumeLoginNonce", () => {
+  beforeEach(() => {
+    delete sessionData.loginNonce;
+  });
+
+  it("accepts the nonce this browser started, once", async () => {
+    const { beginLogin, consumeLoginNonce } =
+      await import("../src/server/functions.server");
+    const nonce = await beginLogin();
+    expect(sessionData.loginNonce).toBe(nonce);
+    await expect(consumeLoginNonce(nonce)).resolves.toBeUndefined();
+    expect(sessionData.loginNonce).toBeUndefined();
+    // The nonce is cleared, so replaying the same state fails.
+    await expect(consumeLoginNonce(nonce)).rejects.toThrow();
+  });
+
+  it("rejects a state this browser didn't start", async () => {
+    const { beginLogin, consumeLoginNonce } =
+      await import("../src/server/functions.server");
+    await beginLogin();
+    await expect(consumeLoginNonce("someone-elses")).rejects.toThrow();
+    // A mismatch still burns the stored nonce.
+    expect(sessionData.loginNonce).toBeUndefined();
+  });
+
+  it("rejects when no login was started", async () => {
+    const { consumeLoginNonce } =
+      await import("../src/server/functions.server");
+    await expect(consumeLoginNonce("")).rejects.toThrow();
   });
 });
 

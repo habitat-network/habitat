@@ -16,6 +16,7 @@ import {
   type DocSummary,
 } from "../db";
 import {
+  beginLogin,
   clearSession,
   createDocSpace,
   docRole,
@@ -191,11 +192,23 @@ export const listMyOrgs = createServerFn({ method: "GET" }).handler(
 
 // switchOrg sets an already-connected org as the member's active org,
 // without redoing the OAuth admin-approval round-trip startOrgConnect
-// requires for a first-time connection.
+// requires for a first-time connection. In org mode sharing calls act as the
+// org's own sap session (see managementClient), so the org has to be one the
+// member actually belongs to and that an admin has already connected —
+// otherwise any signed-in member could act as any org sap holds a session
+// for.
 export const switchOrg = createServerFn({ method: "POST" })
   .validator((input: { orgDid: string }) => input)
   .handler(async ({ data }) => {
-    await requireSession();
+    const { did } = await requireSession();
+    const orgIds = await listMyOrgIds(new SapClient(env, did));
+    if (!orgIds.includes(data.orgDid as DidString)) {
+      throw new Error("You aren't a member of this org.");
+    }
+    const connected = await connectedOrgNames(getDb(env), [data.orgDid]);
+    if (!connected.has(data.orgDid)) {
+      throw new Error("This org hasn't been connected to Chalk yet.");
+    }
     await setCurrentOrg(data.orgDid);
   });
 
@@ -210,9 +223,9 @@ export const switchToPersonal = createServerFn({ method: "POST" }).handler(
 
 // startOrgConnect asks sap to begin the opensocial admin sign-in flow for
 // orgDid, telling it to redirect the browser back to chalk's
-// /session/org-callback (with the resolved DID — always orgDid itself,
-// since handleAddSession resolves whatever identifier it's given) once
-// that flow completes. Returns the URL the browser should be sent to next.
+// /session/org-callback (with a sealed code that redeems to the resolved
+// DID — always orgDid itself, since handleAddSession resolves whatever
+// identifier it's given) once that flow completes. Returns the URL the browser should be sent to next.
 // Mirrors startLogin (sapClient.ts) exactly, but with a DID instead of a
 // handle and a different return_to.
 export const startOrgConnect = createServerFn({ method: "POST" })
@@ -220,7 +233,12 @@ export const startOrgConnect = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ redirectUrl: string }> => {
     await requireSession();
     return {
-      redirectUrl: await startLogin(env, data.orgDid, "/session/org-callback"),
+      redirectUrl: await startLogin(
+        env,
+        data.orgDid,
+        await beginLogin(),
+        "/session/org-callback",
+      ),
     };
   });
 
