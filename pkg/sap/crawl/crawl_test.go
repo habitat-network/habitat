@@ -440,7 +440,16 @@ func TestCrawlerTrackSpace(t *testing.T) {
 	rec := &recorder{}
 	nr := &fakeNotifyRegistrar{}
 	base := mustParseURL(t, srv.URL)
-	c, err := New(db_testutil.NewUnmigratedDB(t), nil, rec, fakeClients{base: base}, rec, nr, nil, nil)
+	c, err := New(
+		db_testutil.NewUnmigratedDB(t),
+		nil,
+		rec,
+		fakeClients{base: base},
+		rec,
+		nr,
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 
 	require.NoError(t, c.TrackSpace(t.Context(), space, "did:web:bob", "sess1"))

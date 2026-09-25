@@ -58,7 +58,7 @@ func WrapTx(db *gorm.DB, tx *sql.Tx) (*gorm.DB, error) {
 	case Sqlite:
 		dialector = sqlite.New(sqlite.Config{Conn: tx})
 	default:
-		return nil, fmt.Errorf("unsupported dialect: %s", db.Dialector.Name())
+		return nil, fmt.Errorf("unsupported dialect: %s", db.Name())
 	}
 	wrapped, err := gorm.Open(dialector, &gorm.Config{
 		TranslateError: db.TranslateError,
@@ -73,7 +73,7 @@ func WrapTx(db *gorm.DB, tx *sql.Tx) (*gorm.DB, error) {
 // DialectOf returns the dialect of an open database, or "" if it is neither
 // Postgres nor SQLite.
 func DialectOf(db *gorm.DB) Dialect {
-	switch db.Dialector.Name() {
+	switch db.Name() {
 	case "postgres":
 		return Postgres
 	case "sqlite":
@@ -90,6 +90,6 @@ func gooseDialect(db *gorm.DB) (goose.Dialect, error) {
 	case Sqlite:
 		return goose.DialectSQLite3, nil
 	default:
-		return "", fmt.Errorf("unsupported dialect: %s", db.Dialector.Name())
+		return "", fmt.Errorf("unsupported dialect: %s", db.Name())
 	}
 }

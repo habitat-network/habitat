@@ -5,7 +5,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
 
 	"ariga.io/atlas-provider-gorm/gormschema"
@@ -58,7 +57,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "load gorm schema: %v\n", err)
 		os.Exit(1)
 	}
-	if _, err := io.WriteString(os.Stdout, stmts); err != nil {
+	if _, err := os.Stdout.WriteString(stmts); err != nil {
 		fmt.Fprintf(os.Stderr, "write schema: %v\n", err)
 		os.Exit(1)
 	}
