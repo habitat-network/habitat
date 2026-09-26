@@ -7,7 +7,7 @@ replace github.com/docker/docker/api => github.com/moby/moby/api v1.55.0
 exclude google.golang.org/genproto v0.0.0-20190626174449-989357319d63
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
+	github.com/bluesky-social/indigo v0.0.0-20260925062619-162dca49278b
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/mdelapenya/tlscert v0.2.0
 	github.com/stretchr/testify v1.12.1
@@ -78,9 +78,9 @@ require (
 	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
-	go.opentelemetry.io/otel v1.44.0 // indirect
-	go.opentelemetry.io/otel/metric v1.44.0 // indirect
-	go.opentelemetry.io/otel/trace v1.44.0 // indirect
+	go.opentelemetry.io/otel v1.45.0 // indirect
+	go.opentelemetry.io/otel/metric v1.45.0 // indirect
+	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect

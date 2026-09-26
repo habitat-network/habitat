@@ -3,13 +3,13 @@ module github.com/habitat-network/habitat/cmd/sap
 go 1.26.3
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
+	github.com/bluesky-social/indigo v0.0.0-20260925062619-162dca49278b
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v3 v3.11.0
-	go.opentelemetry.io/otel v1.44.0
+	go.opentelemetry.io/otel v1.45.0
 	golang.org/x/sync v0.22.0
 	gorm.io/gorm v1.31.2
 )
@@ -49,8 +49,8 @@ require (
 	gitlab.com/yawning/secp256k1-voi v0.0.0-20230925100816-f2616030848b // indirect
 	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/otel/metric v1.44.0 // indirect
-	go.opentelemetry.io/otel/trace v1.44.0 // indirect
+	go.opentelemetry.io/otel/metric v1.45.0 // indirect
+	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
