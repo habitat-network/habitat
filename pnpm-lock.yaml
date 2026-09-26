@@ -13,8 +13,8 @@ catalogs:
       specifier: 0.0.0-spaces-alpha-20260915165437
       version: 0.0.0-spaces-alpha-20260915165437
     '@atproto/identity':
-      specifier: 0.0.0-spaces-alpha-20260913191958
-      version: 0.0.0-spaces-alpha-20260913191958
+      specifier: 0.5.14
+      version: 0.5.14
     '@atproto/lex':
       specifier: 0.0.0-spaces-alpha-20260913191958
       version: 0.0.0-spaces-alpha-20260913191958
@@ -232,7 +232,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260913191958
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.5.14
       '@atproto/lex':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260913191958
@@ -350,7 +350,7 @@ importers:
     dependencies:
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.5.14
       '@atproto/lex-json':
         specifier: 0.0.0-spaces-alpha-20260913191958
         version: 0.0.0-spaces-alpha-20260913191958
@@ -498,7 +498,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260913191958
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.5.14
       '@atproto/lex':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260913191958
@@ -755,7 +755,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260915165437
       '@atproto/identity':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.5.14
       '@atproto/jwk-webcrypto':
         specifier: ^0.3.4
         version: 0.3.4
@@ -992,6 +992,10 @@ packages:
     resolution: {integrity: sha512-KBgUdQQ76XL/xjQbuMfVBOEa5jaragR9NPq1uMoM4iXKnW5GGcEMHMPu+WrTxYNBku0b7MhPUfCs1pKtyLBP6g==}
     engines: {node: '>=22'}
 
+  '@atproto-labs/fetch-node@0.4.0':
+    resolution: {integrity: sha512-5Yi8fz/JDGEoObRgRJuglcodB/MJeQnnoqokOGSQK5ItISObSttbGIgHE1UMU1njcwxbvKtbGMWHUCRgqML2Dw==}
+    engines: {node: '>=22'}
+
   '@atproto-labs/fetch@0.3.5':
     resolution: {integrity: sha512-iDFZEoNqfL17EVKE+uNzdUD7YF8LWhEhxeBtP6x+PNuAxoXv3ip9vLmB8nNzNxFwVn++FipfDtSiPqmziv1bdA==}
     engines: {node: '>=22'}
@@ -1048,16 +1052,20 @@ packages:
     resolution: {integrity: sha512-yFIbg+mN+T+FheVcFMYvrR1X4NjRIoEYDU5oYKW1MfFsH0SD707gGhW4tFwtGHWd/VHZf0somi3Pxls81gMGvw==}
     engines: {node: '>=22'}
 
+  '@atproto/common-web@0.5.12':
+    resolution: {integrity: sha512-FumNnUOUsk68gP+jU0sXY2wY2piqFV9/qU2YaoQq/IZknhJBlLYCzjQXXCN0FCzxAZWD0YUzgydeyuRvFoAxfA==}
+    engines: {node: '>=22'}
+
   '@atproto/common@0.0.0-spaces-alpha-20260913191958':
     resolution: {integrity: sha512-+3hA6TQdRswQEfejCSOjPyWmEo82c/GZF7UvlJZv8G8Zba9jREVmp417DCyyoMa1R+Ke/Rc7ih+v3HOQ9nz0tg==}
     engines: {node: '>=22'}
 
-  '@atproto/crypto@0.0.0-spaces-alpha-20260913191958':
-    resolution: {integrity: sha512-hjGe5gDXkwHP4FinzFBg6RaI+9LwD7t4Y2XFjVOzknBEIl5HT+DJQYNqWX7GUnQQO6A9qqiDBb/dOy3flkJksg==}
-    engines: {node: '>=22'}
-
   '@atproto/crypto@0.0.0-spaces-alpha-20260915165437':
     resolution: {integrity: sha512-nY7rucPt4jayOJWmB25rMsE8i4+rzW8FrY63OF05sfc/p+1jJqlFM6v4tep9yEtKVuK/H/4Wmnc3lTrb7cnBPg==}
+    engines: {node: '>=22'}
+
+  '@atproto/crypto@0.5.5':
+    resolution: {integrity: sha512-m33okNTaZWEXEjp9ZIDM1qIxwfrlxciL2d61BLUo4sX+j5PaHbrlePS2cMJ8o+C/9BcZJWpJXhjC9tMsgJD6/w==}
     engines: {node: '>=22'}
 
   '@atproto/did@0.0.0-spaces-alpha-20260915165437':
@@ -1068,8 +1076,8 @@ packages:
     resolution: {integrity: sha512-ibCxTPsPQtrtX+iidnE0bkMBHuoWFBdVfPFfCAlUKY6HfkqdUUxItzvQu9AMucYDhP6vJ15HLVj+QhNY2jtIvw==}
     engines: {node: '>=22'}
 
-  '@atproto/identity@0.0.0-spaces-alpha-20260913191958':
-    resolution: {integrity: sha512-azEYQXVDYStJ1W6ZRYchTJjSs9n1sx3RJ862IX3sE7yd1Bsht3/83T+mK2naU4zMuW3R+6lofpGbYePgh7LNKQ==}
+  '@atproto/identity@0.5.14':
+    resolution: {integrity: sha512-EW3k/5nDO+5e/hfjVNOtElWLIJE7x+UFL6Gl326YWLbsAd4wL3Wf46F3RPIy44BHCc0IE4G+xxow+ZckT1djcQ==}
     engines: {node: '>=22'}
 
   '@atproto/jwk-jose@0.2.4':
@@ -1163,6 +1171,10 @@ packages:
 
   '@atproto/syntax@0.0.0-spaces-alpha-20260915165437':
     resolution: {integrity: sha512-RNSDvybPTO1XwPgVwhtc5PTLzZE0LaLdTfYR5dhFvXd8vePRquAFdrabjNyKBXTyToHgEVXcqa7Mn//9Ubh6Fw==}
+    engines: {node: '>=22'}
+
+  '@atproto/syntax@0.7.6':
+    resolution: {integrity: sha512-luKQTcWw1H1jLmYvX34ldBqNjz2orF082njmcF9fxbWTqVhsO+TpY0FHRKVPoV7dwL0Y3L16DNz1ma0LFGH25g==}
     engines: {node: '>=22'}
 
   '@atproto/xrpc@0.0.0-spaces-alpha-20260913191958':
@@ -5527,9 +5539,6 @@ packages:
 
   '@types/node@17.0.45':
     resolution: {integrity: sha512-w+tIMs3rq2afQdsPJlODhoUEKzFP1ayaoyl1CcnwtIlsVe7K7bA1NGm4s3PraqTLlXnbIN84zuBlxBWo1u9BLw==}
-
-  '@types/node@22.20.1':
-    resolution: {integrity: sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==}
 
   '@types/node@22.20.4':
     resolution: {integrity: sha512-zJRE40jpHtKqE/C4fgHrAKQLJuSpzEnP9ff9Y7YtoR3Wd2pwqzlekDeEuUQXjRd+QCYnVnNwuJYmhdk9XV8gvA==}
@@ -11368,6 +11377,10 @@ packages:
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
 
+  undici@6.29.0:
+    resolution: {integrity: sha512-R+RODBqp6i2pPflGdq+xIOUkl+RNfGgHwoinecKu/JCuf2uO06cOKoDbI2P7Dn6KcswdKwrczbU6IYJ6K8X+wg==}
+    engines: {node: '>=18.17'}
+
   undici@7.29.0:
     resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
     engines: {node: '>=20.18.1'}
@@ -12242,6 +12255,15 @@ snapshots:
       '@atproto/did': 0.5.5
       zod: 3.25.76
 
+  '@atproto-labs/fetch-node@0.4.0':
+    dependencies:
+      '@atproto-labs/fetch': 0.3.6
+      '@atproto-labs/pipe': 0.2.4
+      ipaddr.js: 2.4.0
+      undici_v6: undici@6.29.0
+      undici_v7: undici@7.29.0
+      undici_v8: undici@8.10.0
+
   '@atproto-labs/fetch@0.3.5':
     dependencies:
       '@atproto-labs/pipe': 0.2.4
@@ -12322,6 +12344,13 @@ snapshots:
       '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
       zod: 3.25.76
 
+  '@atproto/common-web@0.5.12':
+    dependencies:
+      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/syntax': 0.7.6
+      zod: 3.25.76
+
   '@atproto/common@0.0.0-spaces-alpha-20260913191958':
     dependencies:
       '@atproto/common-web': 0.0.0-spaces-alpha-20260915165437
@@ -12330,13 +12359,13 @@ snapshots:
       multiformats: 13.4.2
       pino: 10.3.1
 
-  '@atproto/crypto@0.0.0-spaces-alpha-20260913191958':
+  '@atproto/crypto@0.0.0-spaces-alpha-20260915165437':
     dependencies:
       '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
       uint8arrays: 5.1.1
 
-  '@atproto/crypto@0.0.0-spaces-alpha-20260915165437':
+  '@atproto/crypto@0.5.5':
     dependencies:
       '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
@@ -12350,10 +12379,11 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
-  '@atproto/identity@0.0.0-spaces-alpha-20260913191958':
+  '@atproto/identity@0.5.14':
     dependencies:
-      '@atproto/common-web': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/crypto': 0.0.0-spaces-alpha-20260913191958
+      '@atproto-labs/fetch-node': 0.4.0
+      '@atproto/common-web': 0.5.12
+      '@atproto/crypto': 0.5.5
 
   '@atproto/jwk-jose@0.2.4':
     dependencies:
@@ -12423,7 +12453,7 @@ snapshots:
   '@atproto/lex-resolver@0.0.0-spaces-alpha-20260913191958':
     dependencies:
       '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20260915165437
-      '@atproto/crypto': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/crypto': 0.0.0-spaces-alpha-20260915165437
       '@atproto/lex-client': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-document': 0.0.0-spaces-alpha-20260913191958
@@ -12509,7 +12539,7 @@ snapshots:
       '@atproto/car': 0.0.0-spaces-alpha-20260913191958
       '@atproto/common': 0.0.0-spaces-alpha-20260913191958
       '@atproto/common-web': 0.0.0-spaces-alpha-20260915165437
-      '@atproto/crypto': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/crypto': 0.0.0-spaces-alpha-20260915165437
       '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
@@ -12533,6 +12563,11 @@ snapshots:
       tslib: 2.8.1
 
   '@atproto/syntax@0.0.0-spaces-alpha-20260915165437':
+    dependencies:
+      iso-datestring-validator: 2.2.2
+      tslib: 2.8.1
+
+  '@atproto/syntax@0.7.6':
     dependencies:
       iso-datestring-validator: 2.2.2
       tslib: 2.8.1
@@ -15359,7 +15394,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -17822,10 +17857,6 @@ snapshots:
 
   '@types/node@17.0.45': {}
 
-  '@types/node@22.20.1':
-    dependencies:
-      undici-types: 6.21.0
-
   '@types/node@22.20.4':
     dependencies:
       undici-types: 6.21.0
@@ -17892,7 +17923,7 @@ snapshots:
 
   '@types/set-cookie-parser@2.4.10':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
 
   '@types/sockjs@0.3.36':
     dependencies:
@@ -18653,7 +18684,7 @@ snapshots:
 
   chrome-launcher@0.15.2(supports-color@10.2.2):
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2(supports-color@10.2.2)
@@ -18664,7 +18695,7 @@ snapshots:
 
   chromium-edge-launcher@0.3.0(supports-color@10.2.2):
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2(supports-color@10.2.2)
@@ -20767,7 +20798,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -24608,6 +24639,8 @@ snapshots:
   undici-types@6.21.0: {}
 
   undici-types@8.9.0: {}
+
+  undici@6.29.0: {}
 
   undici@7.29.0: {}
 

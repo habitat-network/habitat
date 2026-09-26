@@ -31,7 +31,7 @@ overrides:
 catalog:
   '@atproto/api': 0.0.0-spaces-alpha-20260913191958
   '@atproto/common-web': 0.0.0-spaces-alpha-20260915165437
-  '@atproto/identity': 0.0.0-spaces-alpha-20260913191958
+  '@atproto/identity': 0.5.14
   '@atproto/lex': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lexicon': 0.0.0-spaces-alpha-20260913191958
   '@atproto/oauth-types': 0.0.0-spaces-alpha-20260913191958
