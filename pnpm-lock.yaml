@@ -16,8 +16,8 @@ catalogs:
       specifier: 0.0.0-spaces-alpha-20260913191958
       version: 0.0.0-spaces-alpha-20260913191958
     '@atproto/lex':
-      specifier: 0.0.0-spaces-alpha-20260913191958
-      version: 0.0.0-spaces-alpha-20260913191958
+      specifier: 0.3.12
+      version: 0.3.12
     '@atproto/lexicon':
       specifier: 0.0.0-spaces-alpha-20260913191958
       version: 0.0.0-spaces-alpha-20260913191958
@@ -235,7 +235,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.3.12
       '@atproto/oauth-types':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260913191958
@@ -344,7 +344,7 @@ importers:
     dependencies:
       '@atproto/lex':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.3.12
 
   typescript/apps/chalk:
     dependencies:
@@ -501,7 +501,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.3.12
       '@chainsafe/libp2p-gossipsub':
         specifier: 14.1.2
         version: 14.1.2
@@ -761,7 +761,7 @@ importers:
         version: 0.3.4
       '@atproto/lex':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.3.12
       '@atproto/oauth-client-browser':
         specifier: alpha
         version: 0.0.0-spaces-alpha-20260915165437
@@ -1032,10 +1032,6 @@ packages:
     resolution: {integrity: sha512-0M4Qz8VDNVbq3xk5Hc1Z3MPnhq+pWVFifrekyFcchGn+zcIZCCZK2SLxEFlKC7bxCXnDXOl7TbYvY2TeL31MxQ==}
     engines: {node: '>=22'}
 
-  '@atproto/car@0.0.0-spaces-alpha-20260913191958':
-    resolution: {integrity: sha512-yKawKV5Z2gyA4PmuJF3d68V2SgeeFj8yZr9zK0IRz12ZiEegJ7UXNj6CSuQ5CLQgrsftK2CYnPDgNAinmE36zQ==}
-    engines: {node: '>=22'}
-
   '@atproto/car@0.0.0-spaces-alpha-20260915165437':
     resolution: {integrity: sha512-ZXGWTstKjd8zEuCZDRPW5+Cv8FrBjv4IqdHSVyD8w2BA+cseaqj6OWgK9qO3olmF4fjwM84BFkiJRCGoRpEyFQ==}
     engines: {node: '>=22'}
@@ -1120,8 +1116,8 @@ packages:
     resolution: {integrity: sha512-mNqXSXHrHwAKHUzUOuU/gXNCpZ7P87CYujHDQrUJt1qnlZlZGRRRBQ+INYlYSJ0F4Q8bYYBB/PXIJI74HrXTWQ==}
     engines: {node: '>=22'}
 
-  '@atproto/lex@0.0.0-spaces-alpha-20260913191958':
-    resolution: {integrity: sha512-t5IVsd9hwlZc9xfI/65UKAA4uLOV02EE3QGY8qxd8psltt7hYConrwj2n+r1fY1wJW287MDsjR1M1eeP7M5iEg==}
+  '@atproto/lex@0.3.12':
+    resolution: {integrity: sha512-aJfwNXTF3o4zfSxEpMmqV65mXMuH/ixFiXpk4oRbFOfvqU2OXC7pdlFyaoTvp/iagkOqlQxtsWi6o1hsu0aO2g==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -5527,9 +5523,6 @@ packages:
 
   '@types/node@17.0.45':
     resolution: {integrity: sha512-w+tIMs3rq2afQdsPJlODhoUEKzFP1ayaoyl1CcnwtIlsVe7K7bA1NGm4s3PraqTLlXnbIN84zuBlxBWo1u9BLw==}
-
-  '@types/node@22.20.1':
-    resolution: {integrity: sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==}
 
   '@types/node@22.20.4':
     resolution: {integrity: sha512-zJRE40jpHtKqE/C4fgHrAKQLJuSpzEnP9ff9Y7YtoR3Wd2pwqzlekDeEuUQXjRd+QCYnVnNwuJYmhdk9XV8gvA==}
@@ -12294,13 +12287,6 @@ snapshots:
       tlds: 1.261.0
       zod: 3.25.76
 
-  '@atproto/car@0.0.0-spaces-alpha-20260913191958':
-    dependencies:
-      '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
-      tslib: 2.8.1
-      varint: 6.0.0
-
   '@atproto/car@0.0.0-spaces-alpha-20260915165437':
     dependencies:
       '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
@@ -12423,7 +12409,7 @@ snapshots:
   '@atproto/lex-resolver@0.0.0-spaces-alpha-20260913191958':
     dependencies:
       '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20260915165437
-      '@atproto/crypto': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/crypto': 0.0.0-spaces-alpha-20260915165437
       '@atproto/lex-client': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-document': 0.0.0-spaces-alpha-20260913191958
@@ -12439,7 +12425,7 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       tslib: 2.8.1
 
-  '@atproto/lex@0.0.0-spaces-alpha-20260913191958':
+  '@atproto/lex@0.3.12':
     dependencies:
       '@atproto/lex-builder': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-client': 0.0.0-spaces-alpha-20260913191958
@@ -12506,10 +12492,10 @@ snapshots:
 
   '@atproto/repo@0.0.0-spaces-alpha-20260913191958':
     dependencies:
-      '@atproto/car': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/car': 0.0.0-spaces-alpha-20260915165437
       '@atproto/common': 0.0.0-spaces-alpha-20260913191958
       '@atproto/common-web': 0.0.0-spaces-alpha-20260915165437
-      '@atproto/crypto': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/crypto': 0.0.0-spaces-alpha-20260915165437
       '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
@@ -15359,7 +15345,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -17822,10 +17808,6 @@ snapshots:
 
   '@types/node@17.0.45': {}
 
-  '@types/node@22.20.1':
-    dependencies:
-      undici-types: 6.21.0
-
   '@types/node@22.20.4':
     dependencies:
       undici-types: 6.21.0
@@ -17892,7 +17874,7 @@ snapshots:
 
   '@types/set-cookie-parser@2.4.10':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
 
   '@types/sockjs@0.3.36':
     dependencies:
@@ -18653,7 +18635,7 @@ snapshots:
 
   chrome-launcher@0.15.2(supports-color@10.2.2):
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2(supports-color@10.2.2)
@@ -18664,7 +18646,7 @@ snapshots:
 
   chromium-edge-launcher@0.3.0(supports-color@10.2.2):
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2(supports-color@10.2.2)
@@ -20767,7 +20749,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.6.2
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
