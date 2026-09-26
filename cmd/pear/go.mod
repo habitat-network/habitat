@@ -4,14 +4,14 @@ go 1.26.3
 
 require (
 	github.com/alexedwards/argon2id v1.0.0
-	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
+	github.com/bluesky-social/indigo v0.0.0-20260925062619-162dca49278b
 	github.com/gorilla/handlers v1.5.2
 	github.com/pressly/goose/v3 v3.27.3
 	github.com/testcontainers/testcontainers-go v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
 	github.com/urfave/cli/v3 v3.11.0
-	go.opentelemetry.io/otel v1.44.0
-	go.opentelemetry.io/otel/metric v1.44.0
+	go.opentelemetry.io/otel v1.45.0
+	go.opentelemetry.io/otel/metric v1.45.0
 	gocloud.dev v0.46.0
 	golang.org/x/sync v0.22.0
 )
@@ -58,8 +58,8 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.44.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.45.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.45.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/api v0.291.0 // indirect
@@ -87,7 +87,7 @@ require (
 	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux v0.69.0
-	go.opentelemetry.io/otel/trace v1.44.0
+	go.opentelemetry.io/otel/trace v1.45.0
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
@@ -95,6 +95,6 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260817212433-ac3dfec99bb1 // indirect
-	google.golang.org/grpc v1.83.0 // indirect
+	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
