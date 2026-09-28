@@ -81,7 +81,7 @@ func (p *PearServer) requireSpaceCreator(
 	if credInfo.Method == authn.ValidatorMethodOAuth {
 		if credInfo.Subject != org {
 			httpx.WriteUnauthorized(
-				ctx, w, "only the organization's own OAuth credential may do this",
+				ctx, w, "only the organization's own OAuth credential may do this", nil,
 			)
 			return false
 		}
