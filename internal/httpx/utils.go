@@ -76,7 +76,7 @@ func WriteInvalidClientAttestation(
 	WriteError(ctx, w, "InvalidClientAttestation", msg, http.StatusBadRequest)
 }
 
-func WriteUnauthorized(ctx context.Context, w http.ResponseWriter, msg string) {
-	slog.WarnContext(ctx, "unauthorized", "msg", msg)
+func WriteUnauthorized(ctx context.Context, w http.ResponseWriter, msg string, err error) {
+	slog.WarnContext(ctx, "unauthorized", "msg", msg, "err", err)
 	WriteError(ctx, w, "Unauthorized", msg, http.StatusUnauthorized)
 }

@@ -47,7 +47,9 @@ func openOutboxTestServer(
 
 	service, err := sap.NewServiceIdentity("https://example.com", "")
 	require.NoError(t, err)
-	server := NewSapServer(s, oauthApp, "https://example.com", service, ConfiguredClientMetadata{})
+	server := NewSapServer(
+		s, oauthApp, "https://example.com", service, ConfiguredClientMetadata{}, "",
+	)
 	if configure != nil {
 		configure(server)
 	}

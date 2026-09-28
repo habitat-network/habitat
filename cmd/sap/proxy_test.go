@@ -72,7 +72,9 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 
 	service, err := sap.NewServiceIdentity("https://example.com", "")
 	require.NoError(t, err)
-	server := NewSapServer(s, oauthApp, "https://example.com", service, ConfiguredClientMetadata{})
+	server := NewSapServer(
+		s, oauthApp, "https://example.com", service, ConfiguredClientMetadata{}, "",
+	)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/proxy/", server.handleProxy)
 	httpServer := httptest.NewServer(mux)

@@ -3,6 +3,7 @@ package opensocial
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -25,6 +26,10 @@ import (
 // yet), and the member role otherwise. This check is not race-safe: two
 // concurrent first sign-ins can both observe zero existing members and both
 // be granted admin. That's an acceptable outcome here.
+//
+// The membership grant is first-sign-in only: memberDID that already has a
+// membership record keeps it, and any roles on it, as written. The acceptance
+// record is rewritten every call (it has a fixed rkey, so this is idempotent).
 func (s *Store) ProvisionMember(ctx context.Context, orgDID, memberDID syntax.DID) error {
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		spacesStoreTx := s.spacesStore.WithTx(tx)
@@ -38,8 +43,17 @@ func (s *Store) ProvisionMember(ctx context.Context, orgDID, memberDID syntax.DI
 		if len(existing) == 0 {
 			roles = []string{AdminRoleRkey}
 		}
-		if err := putMembership(ctx, spacesStoreTx, orgDID, memberDID, roles); err != nil {
-			return err
+		// Granting membership is first-sign-in only: the email-domain flow
+		// calls this on every sign-in, and re-writing the record would revert
+		// any roles an admin has assigned since. A member who already has one
+		// keeps it untouched; only their acceptance record is refreshed below.
+		alreadyProvisioned := slices.ContainsFunc(existing, func(r spaces.Record) bool {
+			return r.Rkey == syntax.RecordKey(memberDID)
+		})
+		if !alreadyProvisioned {
+			if err := putMembership(ctx, spacesStoreTx, orgDID, memberDID, roles); err != nil {
+				return err
+			}
 		}
 		recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialAcceptance{
 			UpdatedAt: time.Now().Format(time.RFC3339),
