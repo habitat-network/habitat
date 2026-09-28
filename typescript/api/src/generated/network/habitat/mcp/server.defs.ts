@@ -10,7 +10,7 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. For an oauth server, authorization against the server itself is handled entirely by Nango's mcp-generic connector, which the admin fills in (including the server's URL) while adding it; members connecting later reuse serverUrl rather than entering it again. A manual server needs no auth: the admin enters serverUrl directly and every member is connected to it automatically. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
+/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. An admin sets name, description, serverUrl and authType when adding it. For an oauth server, each member later authorizes against it through Nango's mcp-generic connector, with serverUrl pre-filled. A manual server needs no auth, and every member is connected to it automatically. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
 type Main = {
   $type: 'network.habitat.mcp.server'
 
@@ -31,7 +31,7 @@ type Main = {
   nangoKey?: string
 
   /**
-   * The server's streamable HTTP endpoint. For an oauth server, as the admin entered it in Nango's Connect UI while adding it, pre-filled for members when they connect so only the admin ever enters it. For a manual server, as the admin entered it when adding it.
+   * The server's streamable HTTP endpoint, as the admin entered it when adding it. For an oauth server, it's pre-filled for members when they connect. Absent on some older oauth records.
    */
   serverUrl?: l.UriString
   updatedAt: l.DatetimeString
@@ -39,7 +39,7 @@ type Main = {
 
 export type { Main }
 
-/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. For an oauth server, authorization against the server itself is handled entirely by Nango's mcp-generic connector, which the admin fills in (including the server's URL) while adding it; members connecting later reuse serverUrl rather than entering it again. A manual server needs no auth: the admin enters serverUrl directly and every member is connected to it automatically. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
+/** Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. An admin sets name, description, serverUrl and authType when adding it. For an oauth server, each member later authorizes against it through Nango's mcp-generic connector, with serverUrl pre-filled. A manual server needs no auth, and every member is connected to it automatically. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools. */
 const main = /*#__PURE__*/ l.record<'any', Main>(
   'any',
   $nsid,
