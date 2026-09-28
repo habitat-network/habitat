@@ -1,14 +1,30 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { orgMembersQueryOptions } from "@/queries/opensocial";
+import {
+  orgMembersQueryOptions,
+  orgPermissionsQueryOptions,
+} from "@/queries/opensocial";
 import { orgMcpServersQueryOptions } from "@/queries/mcp";
 import { McpServersEditor } from "@/components/McpServersEditor";
+import {
+  ACTION_MCP_CONFIGURE,
+  hasOpensocialAction,
+} from "@/lib/opensocialActions";
 
 export const Route = createFileRoute("/_requireAuth/opensocial/$org/mcp")({
   loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(
-      orgMcpServersQueryOptions(params.org, context.authManager),
-    ),
+    Promise.all([
+      context.queryClient.ensureQueryData(
+        orgMcpServersQueryOptions(params.org, context.authManager),
+      ),
+      context.queryClient.ensureQueryData(
+        orgPermissionsQueryOptions(
+          params.org,
+          context.authManager,
+          context.queryClient,
+        ),
+      ),
+    ]),
   component: OrgMcpServers,
 });
 
@@ -22,16 +38,22 @@ function OrgMcpServers() {
   const { data: members = [] } = useQuery(
     orgMembersQueryOptions(org, authManager, queryClient),
   );
-  const isAdmin = members.some(
-    (m) =>
-      m.did === authManager.getAuthInfo()?.did && m.roles.includes("admin"),
+  const { data: permissions } = useQuery(
+    orgPermissionsQueryOptions(org, authManager, queryClient),
+  );
+  const userRoles =
+    members.find((m) => m.did === authManager.getAuthInfo()?.did)?.roles ?? [];
+  const canConfigureMcp = hasOpensocialAction(
+    permissions?.bindings ?? [],
+    userRoles,
+    ACTION_MCP_CONFIGURE,
   );
 
   return (
     <McpServersEditor
       org={org}
       servers={servers}
-      isAdmin={isAdmin}
+      canConfigureMcp={canConfigureMcp}
       authManager={authManager}
     />
   );
