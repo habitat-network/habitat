@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -47,6 +48,7 @@ type TestServer struct {
 	NangoClient      *FakeNangoClient
 	PDSForwarding    *forwarding.PDSForwarding
 	EmailDomainStore *emaildomain.Store
+	Directory        identity.Directory
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -100,6 +102,15 @@ func WithFGA(fga fgastore.Store) utils.Opt[TestServer] {
 func WithPDSForwarding(f *forwarding.PDSForwarding) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.PDSForwarding = f
+	}
+}
+
+// WithDirectory supplies the identity directory RegisterNotify resolves
+// service identifiers through, so a test can publish a DID document naming the
+// endpoint its syncer should be delivered to.
+func WithDirectory(dir identity.Directory) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.Directory = dir
 	}
 }
 
@@ -177,6 +188,14 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		)
 	}
 
+	if ts.Directory == nil {
+		// Empty by default: most tests never register a notify subscriber, and
+		// a resolution attempt against it should fail rather than hit the
+		// network. Tests that do register one supply their own via
+		// WithDirectory.
+		ts.Directory = identity.NewMockDirectory()
+	}
+
 	emailDomainStore, err := emaildomain.NewStore(ts.DB)
 	require.NoError(t, err)
 	ts.EmailDomainStore = emailDomainStore
@@ -184,6 +203,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	ts.Server = pearserver.New(
 		"pear.example.com",
 		ts.Validator,
+		ts.Directory,
 		ts.Hive,
 		ts.HostKey,
 		blobStore,

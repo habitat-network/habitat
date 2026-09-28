@@ -1,6 +1,9 @@
 package main
 
-import "github.com/urfave/cli/v3"
+import (
+	"github.com/habitat-network/habitat/pkg/sap"
+	"github.com/urfave/cli/v3"
+)
 
 var (
 	fDB                 = "db"
@@ -16,6 +19,8 @@ var (
 
 	fClientName = "client-name"
 	fClientURI  = "client-uri"
+
+	fServiceName = "service-name"
 
 	fOAuthScopes = "oauth-scopes"
 )
@@ -85,6 +90,15 @@ func getFlags() []cli.Flag {
 			Name:    fClientURI,
 			Usage:   "OAuth client uri",
 			Sources: cli.EnvVars("SAP_CLIENT_URI"),
+		},
+		&cli.StringFlag{
+			Name: fServiceName,
+			Usage: "Service name this instance publishes its notifyWrite service under in the " +
+				"DID document at /.well-known/did.json. Space hosts resolve the service " +
+				"identifier (did:web:<domain>#<this value>) to sap's delivery endpoint, so it " +
+				"has to match the service entry sap serves",
+			Value:   sap.DefaultServiceName,
+			Sources: cli.EnvVars("SAP_SERVICE_NAME"),
 		},
 		&cli.StringSliceFlag{
 			Name:    fOAuthScopes,

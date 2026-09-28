@@ -29,11 +29,14 @@ func TestStoreRegisterAndListForRepo(t *testing.T) {
 	future := time.Now().Add(time.Hour)
 
 	// whole-space registration
-	require.NoError(t, s.Register(t.Context(), space, "", "https://sync.example/all", future))
+	require.NoError(t, s.Register(t.Context(), space, "", "https://sync.example/all", "", future))
 	// repo-specific registration matching the write
-	require.NoError(t, s.Register(t.Context(), space, repo, "https://sync.example/alice", future))
+	require.NoError(
+		t,
+		s.Register(t.Context(), space, repo, "https://sync.example/alice", "", future),
+	)
 	// repo-specific registration for a different repo — must not match
-	require.NoError(t, s.Register(t.Context(), space, bob, "https://sync.example/bob", future))
+	require.NoError(t, s.Register(t.Context(), space, bob, "https://sync.example/bob", "", future))
 
 	regs, err := s.ListForRepo(t.Context(), space, repo)
 	require.NoError(t, err)
@@ -54,8 +57,14 @@ func TestStoreRegisterRefreshesExpiry(t *testing.T) {
 	first := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
 	second := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
 
-	require.NoError(t, s.Register(t.Context(), space, repo, "https://sync.example/alice", first))
-	require.NoError(t, s.Register(t.Context(), space, repo, "https://sync.example/alice", second))
+	require.NoError(
+		t,
+		s.Register(t.Context(), space, repo, "https://sync.example/alice", "", first),
+	)
+	require.NoError(
+		t,
+		s.Register(t.Context(), space, repo, "https://sync.example/alice", "", second),
+	)
 
 	regs, err := s.ListForRepo(t.Context(), space, repo)
 	require.NoError(t, err)
@@ -68,14 +77,17 @@ func TestStoreListForSpace(t *testing.T) {
 	future := time.Now().Add(time.Hour)
 	other := habitat_syntax.SpaceURI("at://did:plc:org/space/network.habitat.group/other")
 
-	require.NoError(t, s.Register(t.Context(), space, "", "https://sync.example/all", future))
-	require.NoError(t, s.Register(t.Context(), space, repo, "https://sync.example/alice", future))
-	require.NoError(t, s.Register(t.Context(), space, bob, "https://sync.example/bob", future))
+	require.NoError(t, s.Register(t.Context(), space, "", "https://sync.example/all", "", future))
+	require.NoError(
+		t,
+		s.Register(t.Context(), space, repo, "https://sync.example/alice", "", future),
+	)
+	require.NoError(t, s.Register(t.Context(), space, bob, "https://sync.example/bob", "", future))
 	// A registration for a different space must not be returned.
-	require.NoError(t, s.Register(t.Context(), other, "", "https://sync.example/other", future))
+	require.NoError(t, s.Register(t.Context(), other, "", "https://sync.example/other", "", future))
 	// An expired registration for the space must be excluded.
 	past := time.Now().Add(-time.Hour)
-	require.NoError(t, s.Register(t.Context(), space, "", "https://sync.example/expired", past))
+	require.NoError(t, s.Register(t.Context(), space, "", "https://sync.example/expired", "", past))
 
 	regs, err := s.ListForSpace(t.Context(), space)
 	require.NoError(t, err)
@@ -95,9 +107,85 @@ func TestStoreListForRepoExcludesExpired(t *testing.T) {
 	s := newTestStore(t)
 	past := time.Now().Add(-time.Hour)
 
-	require.NoError(t, s.Register(t.Context(), space, "", "https://sync.example/all", past))
+	require.NoError(t, s.Register(t.Context(), space, "", "https://sync.example/all", "", past))
 
 	regs, err := s.ListForRepo(t.Context(), space, repo)
 	require.NoError(t, err)
 	require.Empty(t, regs)
+}
+
+const syncerService = "did:web:sync.example.com#habitat_space_syncer"
+
+// TestStoreRegisterRecordsService covers the service-identifier path: the
+// registration keeps both the identifier it is addressed by and the endpoint it
+// resolved to.
+func TestStoreRegisterRecordsService(t *testing.T) {
+	s := newTestStore(t)
+	future := time.Now().Add(time.Hour)
+
+	require.NoError(t, s.Register(
+		t.Context(), space, "", "https://sync.example", syncerService, future,
+	))
+
+	regs, err := s.ListForRepo(t.Context(), space, repo)
+	require.NoError(t, err)
+	require.Len(t, regs, 1)
+	require.Equal(t, syncerService, regs[0].Service)
+	require.Equal(t, "https://sync.example", regs[0].Endpoint)
+	require.Equal(t, syncerService, regs[0].Audience())
+}
+
+// TestStoreReRegisteringSameEndpointAdoptsService is the migration case: a
+// subscriber that first registered through the deprecated endpoint field and
+// then re-registers the same delivery address by service identifier must land
+// on the row it already owns, so it is notified once and addressed by service
+// from then on — not registered twice and notified twice.
+func TestStoreReRegisteringSameEndpointAdoptsService(t *testing.T) {
+	s := newTestStore(t)
+	future := time.Now().Add(time.Hour)
+
+	require.NoError(t, s.Register(
+		t.Context(), space, "", "https://sync.example", "", future,
+	))
+	require.NoError(t, s.Register(
+		t.Context(), space, "", "https://sync.example", syncerService, future,
+	))
+
+	regs, err := s.ListForRepo(t.Context(), space, repo)
+	require.NoError(t, err)
+	require.Len(t, regs, 1, "expected the migration to reuse the existing registration")
+	require.Equal(t, syncerService, regs[0].Service)
+	require.Equal(t, syncerService, regs[0].Audience())
+}
+
+// TestStoreAudienceFallsBackToEndpoint pins pre-service registrations still
+// being addressed by the endpoint URL they were registered with.
+func TestStoreAudienceFallsBackToEndpoint(t *testing.T) {
+	s := newTestStore(t)
+
+	require.NoError(t, s.Register(
+		t.Context(), space, "", "https://sync.example", "",
+		time.Now().Add(time.Hour),
+	))
+
+	regs, err := s.ListForRepo(t.Context(), space, repo)
+	require.NoError(t, err)
+	require.Len(t, regs, 1)
+	require.Empty(t, regs[0].Service)
+	require.Equal(t, "https://sync.example", regs[0].Audience())
+}
+
+// TestStoreKeepsDistinctLegacyEndpoints verifies two subscribers that each
+// registered only an endpoint keep separate registrations, which the shared
+// empty service identifier must not collapse.
+func TestStoreKeepsDistinctLegacyEndpoints(t *testing.T) {
+	s := newTestStore(t)
+	future := time.Now().Add(time.Hour)
+
+	require.NoError(t, s.Register(t.Context(), space, "", "https://a.example", "", future))
+	require.NoError(t, s.Register(t.Context(), space, "", "https://b.example", "", future))
+
+	regs, err := s.ListForRepo(t.Context(), space, repo)
+	require.NoError(t, err)
+	require.Len(t, regs, 2)
 }

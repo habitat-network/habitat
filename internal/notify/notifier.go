@@ -115,7 +115,7 @@ func (d *Deliverer) fanout(
 	// ctx's cancellation while keeping its trace context.
 	deliverCtx := context.WithoutCancel(ctx)
 	for _, reg := range regs {
-		go d.deliver(deliverCtx, iss, method, reg.Endpoint, body)
+		go d.deliver(deliverCtx, iss, method, reg, body)
 	}
 }
 
@@ -123,12 +123,12 @@ func (d *Deliverer) deliver(
 	ctx context.Context,
 	iss syntax.DID,
 	method syntax.NSID,
-	endpoint string,
+	reg Registration,
 	body []byte,
 ) {
+	endpoint := reg.Endpoint
 	// The registered endpoint is a service base URL; deliver the XRPC call to
-	// <endpoint>/xrpc/<nsid> so the receiver can route and validate by method,
-	// while keeping the base endpoint as the service-auth audience.
+	// <endpoint>/xrpc/<nsid> so the receiver can route and validate by method.
 	url := endpoint + "/xrpc/" + method.String()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -142,7 +142,10 @@ func (d *Deliverer) deliver(
 			"err", err, "endpoint", endpoint, "method", method)
 		return
 	}
-	token, err := utils.ServiceAuthToken(privKey, iss, endpoint, &method, nil)
+	// The token is addressed to however the subscriber registered: the service
+	// identifier when it gave one, and otherwise the endpoint URL.
+	audience := reg.Audience()
+	token, err := utils.ServiceAuthToken(privKey, iss, audience, &method, nil)
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: sign service auth",
 			"err", err, "endpoint", endpoint, "method", method)

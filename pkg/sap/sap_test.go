@@ -96,6 +96,7 @@ func TestSap(t *testing.T) {
 	mux := http.NewServeMux()
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
+	publishSapService(t, pear, sapServer.URL)
 
 	db := db_testutil.NewDB(t)
 	store, err := oauthclient.NewGormStore(db)
@@ -306,6 +307,7 @@ func TestSapTrackSpace(t *testing.T) {
 	mux := http.NewServeMux()
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
+	publishSapService(t, pear, sapServer.URL)
 
 	db := db_testutil.NewDB(t)
 	store, err := oauthclient.NewGormStore(db)
@@ -400,6 +402,7 @@ func TestSapSpaceCredential(t *testing.T) {
 
 	sapServer := httptest.NewTLSServer(http.NewServeMux())
 	t.Cleanup(sapServer.Close)
+	publishSapService(t, pear, sapServer.URL)
 
 	db := db_testutil.NewDB(t)
 	store, err := oauthclient.NewGormStore(db)
@@ -485,6 +488,7 @@ func TestSapRecrawl(t *testing.T) {
 	mux := http.NewServeMux()
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
+	publishSapService(t, pear, sapServer.URL)
 
 	db := db_testutil.NewDB(t)
 	store, err := oauthclient.NewGormStore(db)
@@ -562,6 +566,9 @@ type pearHost struct {
 	store  spaces.Store
 	hive   hive.Hive
 	author *identity.Identity
+	// dir resolves the service identifiers sap registers under. A test
+	// publishes sap's own service here via publishSapService.
+	dir *identity.MockDirectory
 }
 
 // setupPear wires a minimal pear host: a spaces store whose notifier really
@@ -595,6 +602,11 @@ func setupPear(t *testing.T) *pearHost {
 	validator := authn_testutil.NewSuccessValidator(
 		&authn.CredentialInfo{Subject: author.DID, Org: everyone},
 	)
+	// sap registers itself by service identifier, which the host resolves
+	// through a DID document. The test server's host:port URL is not something
+	// a real did:web resolver would fetch, so the directory is a mock that
+	// tests publish sap's service into.
+	dir := identity.NewMockDirectory()
 	// The pear host serves its spaces surface through the consolidated
 	// PearServer (via its test util), sharing the member-signer store and
 	// orgHive so managed authors sign with their own hive keys.
@@ -604,6 +616,7 @@ func setupPear(t *testing.T) *pearHost {
 		pearserver_testutil.WithValidator(validator),
 		pearserver_testutil.WithHive(orgHive),
 		pearserver_testutil.WithNotifyStore(notifyStore),
+		pearserver_testutil.WithDirectory(dir),
 	)
 	pearApp := ts.Server
 
@@ -612,7 +625,25 @@ func setupPear(t *testing.T) *pearHost {
 	// subtree prefix would hide the full path from it and 404 every route.
 	mux.Handle("/", pearApp)
 
-	return &pearHost{server: server, store: spacesStore, hive: orgHive, author: author}
+	return &pearHost{
+		server: server, store: spacesStore,
+		hive: orgHive, author: author, dir: dir,
+	}
+}
+
+// publishSapService points the host's directory at sap's notify service, the
+// way sap's own DID document at /.well-known/did.json would in production. Must
+// be called before the sap instance under test starts registering.
+func publishSapService(t *testing.T, pear *pearHost, sapEndpoint string) {
+	t.Helper()
+	service, err := NewServiceIdentity(sapEndpoint, "")
+	require.NoError(t, err)
+	pear.dir.Insert(identity.Identity{
+		DID: service.DID,
+		Services: map[string]identity.ServiceEndpoint{
+			service.Name: {Type: ServiceType, URL: sapEndpoint},
+		},
+	})
 }
 
 // testDPoPKey returns a valid DPoP private key multibase so ResumeSession can

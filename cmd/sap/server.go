@@ -39,6 +39,15 @@ type server struct {
 	oauthClient     *oauth.ClientApp
 	notifyValidator *auth.ServiceAuthValidator // verifies incoming notifyWrite deliveries
 
+	// endpoint is sap's public base URL, published as the serviceEndpoint of
+	// the notify service in handleDIDDoc's DID document.
+	endpoint string
+	// service is how sap names itself to space hosts: the did:web DID it
+	// serves that document under, plus the service fragment within it. Space
+	// hosts are given service.Ref() as their notifyWrite subscriber, and
+	// address the deliveries they make to it.
+	service sap.ServiceIdentity
+
 	// outboxPingPeriod/PongWait/WriteWait configure handleOutboxChannel's
 	// liveness checks (see their defaults in websocket.go). Tests shrink
 	// these directly on a *server instance rather than a shared package
@@ -52,14 +61,15 @@ type server struct {
 	clientMetadata  ConfiguredClientMetadata
 }
 
-// endpoint is sap's own public base URL (the same value passed as
-// sap.Config.Endpoint) — it's both what sap registers with space hosts as
-// its notifyWrite delivery address, and the audience space hosts sign into
-// the service-auth JWT they deliver notifyWrite calls with.
+// NewSapServer builds sap's HTTP surface. endpoint is sap's own public base URL
+// (the same value passed as sap.Config.Endpoint) and service is the identity it
+// publishes that URL under — endpoint is what space hosts deliver to, and
+// service.Ref() is what they address the service-auth JWT to.
 func NewSapServer(
 	sapInstance *sap.Sap,
 	oauthClient *oauth.ClientApp,
 	endpoint string,
+	service sap.ServiceIdentity,
 	clientMetadata ConfiguredClientMetadata,
 ) *server {
 	return &server{
@@ -67,14 +77,58 @@ func NewSapServer(
 		oauthClient: oauthClient,
 		notifyValidator: &auth.ServiceAuthValidator{
 			Dir:      oauthClient.Dir,
-			Audience: endpoint,
+			Audience: service.Ref(),
 		},
+		endpoint:         endpoint,
+		service:          service,
 		outboxPingPeriod: defaultOutboxPingPeriod,
 		outboxPongWait:   defaultOutboxPongWait,
 		outboxWriteWait:  defaultOutboxWriteWait,
 		pendingReturnTo:  make(map[string]string),
 		clientMetadata:   clientMetadata,
 	}
+}
+
+// didDocContext is the @context of the DID document sap serves. Only the DID
+// Core context is needed: the document declares a service and no keys.
+var didDocContext = []string{"https://www.w3.org/ns/did/v1"}
+
+// didDocService is one entry of a DID document's service array.
+type didDocService struct {
+	ID              string `json:"id"`
+	Type            string `json:"type"`
+	ServiceEndpoint string `json:"serviceEndpoint"`
+}
+
+// didDoc is the DID document sap serves at /.well-known/did.json.
+type didDoc struct {
+	Context []string        `json:"@context"`
+	ID      string          `json:"id"`
+	Service []didDocService `json:"service"`
+}
+
+// handleDIDDoc serves sap's DID document, telling a space host where to deliver
+// this instance's notifyWrite calls. It declares no verification method: sap is
+// a subscriber, never a caller — a space host signs the delivery JWT with the
+// space authority's key, and verifies sap's tokens (in the other direction)
+// against the space authority's published key, so sap has nothing to sign with.
+//
+// This is served on the public listener, since space hosts resolve it over the
+// public network.
+func (s *server) handleDIDDoc(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/did+ld+json")
+	w.Header().Set("Cache-Control", "max-age=3600")
+	httpx.WriteJSON(r.Context(), w, didDoc{
+		Context: didDocContext,
+		ID:      s.service.DID.String(),
+		Service: []didDocService{{
+			// Relative form, per the DID Core spec: the fragment is read
+			// against the document's own id.
+			ID:              "#" + s.service.Name,
+			Type:            sap.ServiceType,
+			ServiceEndpoint: s.endpoint,
+		}},
+	})
 }
 
 func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {

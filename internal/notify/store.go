@@ -19,10 +19,18 @@ import (
 // registration is the GORM model for a persisted notify registration. A
 // registration keyed on an empty Repo subscribes to writes from every repo in
 // the space; a registration with a Repo subscribes to that repo only.
+//
+// Endpoint remains part of the primary key rather than Service so that a
+// subscriber which migrates from the deprecated endpoint field to service
+// lands on the row it already owns (both resolve to the same delivery
+// address) and only has its Service filled in, instead of registering twice
+// and receiving every notification twice. Service is empty on rows written
+// before subscribers were identified by service; see Registration.Audience.
 type registration struct {
 	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	Repo      syntax.DID              `gorm:"primaryKey"`
 	Endpoint  string                  `gorm:"primaryKey"`
+	Service   string
 	ExpiresAt time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -30,21 +38,41 @@ type registration struct {
 
 // Registration is the public view of a persisted notify registration.
 type Registration struct {
-	Space     habitat_syntax.SpaceURI
-	Repo      syntax.DID // empty subscribes to the whole space
-	Endpoint  string
+	Space habitat_syntax.SpaceURI
+	Repo  syntax.DID // empty subscribes to the whole space
+	// Endpoint is the resolved delivery address notifyWrite is sent to.
+	Endpoint string
+	// Service is the service identifier the subscriber registered under, or
+	// empty for a registration made through the deprecated endpoint field.
+	Service string
+	// ExpiresAt is when the registration lapses unless renewed.
 	ExpiresAt time.Time
+}
+
+// Audience is what the service-auth JWT delivering to this registration is
+// addressed to: the service identifier when the subscriber registered with
+// one, and otherwise the endpoint URL, which is how registrations predating
+// the service field are delivered to.
+func (r Registration) Audience() string {
+	if r.Service != "" {
+		return r.Service
+	}
+	return r.Endpoint
 }
 
 // Store persists syncer registrations.
 type Store interface {
 	// Register upserts a registration for (space, repo, endpoint), refreshing
-	// its expiry to expiresAt. An empty repo registers for the whole space.
+	// its expiry to expiresAt and recording service as the identifier the
+	// subscriber asked to be addressed as. An empty repo registers for the
+	// whole space; an empty service marks a registration made through the
+	// deprecated endpoint field.
 	Register(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
 		endpoint string,
+		service string,
 		expiresAt time.Time,
 	) error
 	// ListForRepo returns the unexpired registrations that should receive a
@@ -81,17 +109,22 @@ func (s *store) Register(
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
 	endpoint string,
+	service string,
 	expiresAt time.Time,
 ) error {
 	// Upsert on the (space, repo, endpoint) key so re-registering refreshes the
-	// expiry rather than accumulating duplicates.
+	// expiry rather than accumulating duplicates. Service is refreshed too: a
+	// subscriber moving off the deprecated endpoint field re-registers the
+	// same delivery address under a service identifier, and its row has to
+	// pick that up so deliveries are addressed to the service.
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "space"}, {Name: "repo"}, {Name: "endpoint"}},
-		DoUpdates: clause.AssignmentColumns([]string{"expires_at", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"service", "expires_at", "updated_at"}),
 	}).Create(&registration{
 		Space:     space,
 		Repo:      repo,
 		Endpoint:  strings.TrimRight(endpoint, "/"),
+		Service:   service,
 		ExpiresAt: expiresAt,
 	}).Error
 }
@@ -127,6 +160,7 @@ func (s *store) list(query *gorm.DB) ([]Registration, error) {
 			Space:     row.Space,
 			Repo:      row.Repo,
 			Endpoint:  row.Endpoint,
+			Service:   row.Service,
 			ExpiresAt: row.ExpiresAt,
 		}
 	}

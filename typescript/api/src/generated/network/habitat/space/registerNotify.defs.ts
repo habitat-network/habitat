@@ -17,7 +17,8 @@ export type $Params = l.InferOutput<typeof $params>
 export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'at-uri' }),
   repo: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'did' })),
-  endpoint: /*#__PURE__*/ l.string({ format: 'uri' }),
+  service: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
+  endpoint: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'uri' })),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
@@ -33,9 +34,10 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Register an endpoint to be notified of writes. On a space host, subscribes to all repos in the space; on a repo host with a `repo`, subscribes to that repo only. Authenticated with a space credential. */
+/** Register a service to be notified of writes. On a space host, subscribes to all repos in the space; on a repo host with a `repo`, subscribes to that repo only. Authenticated with a space credential. Prefer `service`: the registering service is named by its service identifier rather than a bare URL, because notifyWrite is delivered with service auth addressed to that identifier and the delivery endpoint is resolved from the service's DID document. `endpoint` is deprecated and kept only for callers that predate `service`. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceNotFound',
+  'ServiceNotResolvable',
 ])
 
 export { main }

@@ -17,6 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testEndpoint is the public base URL the test server publishes as its notify
+// service endpoint, so a space host knows where to deliver notifyWrite calls.
+const testEndpoint = "https://sap.example.com"
+
+// testService is the service identifier the test server is addressed by: the
+// did:web DID it serves its DID document under, plus the service fragment.
+const testService = "did:web:sap.example.com#habitat_space_syncer"
+
 // newTestServer wires up a sap server with a fresh in-memory-backed OAuth
 // client app, suitable for exercising handleAddSession/handleOAuthCallback
 // without any network access.
@@ -38,7 +46,10 @@ func newTestServer(t *testing.T) *server {
 	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp, Directory: oauthApp.Dir})
 	require.NoError(t, err)
 
-	return NewSapServer(s, oauthApp, "https://example.com", ConfiguredClientMetadata{})
+	service, err := sap.NewServiceIdentity(testEndpoint, "")
+	require.NoError(t, err)
+
+	return NewSapServer(s, oauthApp, testEndpoint, service, ConfiguredClientMetadata{})
 }
 
 func TestHandleAddSessionWithoutReturnToUnaffected(t *testing.T) {
@@ -330,6 +341,102 @@ func TestHandleNotifyWriteRejectsMissingOrInvalidAuth(t *testing.T) {
 	w = httptest.NewRecorder()
 	srv.handleNotifyWrite(w, req)
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// TestHandleDIDDoc pins the document a space host resolves sap's service
+// identifier against: it has to name the endpoint deliveries go to, under the
+// exact service fragment sap registers itself by.
+func TestHandleDIDDoc(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/did.json", http.NoBody)
+	w := httptest.NewRecorder()
+	srv.handleDIDDoc(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "application/did+ld+json", w.Header().Get("Content-Type"))
+
+	var doc struct {
+		Context []string `json:"@context"`
+		ID      string   `json:"id"`
+		Service []struct {
+			ID              string `json:"id"`
+			Type            string `json:"type"`
+			ServiceEndpoint string `json:"serviceEndpoint"`
+		} `json:"service"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &doc))
+
+	require.Equal(t, []string{"https://www.w3.org/ns/did/v1"}, doc.Context)
+	require.Equal(t, "did:web:sap.example.com", doc.ID)
+	require.Len(t, doc.Service, 1)
+	require.Equal(t, "#habitat_space_syncer", doc.Service[0].ID)
+	require.Equal(t, sap.ServiceType, doc.Service[0].Type)
+	require.Equal(t, testEndpoint, doc.Service[0].ServiceEndpoint)
+}
+
+// TestDIDDocResolvesToRegisteredService checks the two halves agree: the
+// identifier sap registers with space hosts must resolve, through the document
+// sap serves, back to the endpoint it publishes. If either the DID or the
+// service name drifts, registration breaks in production only.
+func TestDIDDocResolvesToRegisteredService(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/did.json", http.NoBody)
+	w := httptest.NewRecorder()
+	srv.handleDIDDoc(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var doc identity.DIDDocument
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &doc))
+
+	// A space host parses the document exactly as it would any other identity.
+	ident := identity.ParseIdentity(&doc)
+	resolved := ident.GetServiceEndpoint(srv.service.Name)
+	require.Equal(t, testEndpoint, resolved)
+	require.Equal(
+		t, testService, srv.service.Ref(),
+		"registered service identifier must match what the document publishes",
+	)
+}
+
+// TestHandleDIDDocHonorsConfiguredServiceName covers a deployment publishing
+// under a different service name, which is what the --service-name flag is for.
+func TestHandleDIDDocHonorsConfiguredServiceName(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	service, err := sap.NewServiceIdentity(testEndpoint, "atproto_space_syncer")
+	require.NoError(t, err)
+	srv.service = service
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/did.json", http.NoBody)
+	w := httptest.NewRecorder()
+	srv.handleDIDDoc(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var doc identity.DIDDocument
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &doc))
+	ident := identity.ParseIdentity(&doc)
+	require.Equal(t, testEndpoint, ident.GetServiceEndpoint("atproto_space_syncer"))
+	// The old fragment is no longer published, so a stale registration naming
+	// it would fail to resolve rather than silently keep working.
+	require.Empty(t, ident.GetServiceEndpoint("habitat_space_syncer"))
+}
+
+// TestNotifyValidatorAudienceIsServiceIdentifier pins that deliveries are
+// checked against the service identifier, not the endpoint URL, matching what
+// space hosts now sign into their notifyWrite JWTs.
+func TestNotifyValidatorAudienceIsServiceIdentifier(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	require.Equal(t, testService, srv.notifyValidator.Audience)
+	require.NotEqual(t, testEndpoint, srv.notifyValidator.Audience)
 }
 
 func TestBasicAuthMiddlewareRejectsMissingOrWrongPassword(t *testing.T) {
