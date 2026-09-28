@@ -43,7 +43,7 @@ func TestWriteRepoNotFound(t *testing.T) {
 
 func TestWriteUnauthorized(t *testing.T) {
 	w := httptest.NewRecorder()
-	WriteUnauthorized(t.Context(), w, "foo")
+	WriteUnauthorized(t.Context(), w, "foo", fmt.Errorf("bar"))
 	require.JSONEq(t, `{"error":"Unauthorized", "message":"foo"}`, w.Body.String())
 }
 
