@@ -32,107 +32,77 @@ func TestServer_AddServer(t *testing.T) {
 		var out habitat.NetworkHabitatMcpAddServerOutput
 		code := client.Procedure(
 			ts.Server.AddServer,
-			habitat.NetworkHabitatMcpAddServerInput{Org: orgDID, Name: "Server"},
+			habitat.NetworkHabitatMcpAddServerInput{
+				Org: orgDID, Name: "Server", Url: "https://mcp.example.com", AuthType: "oauth",
+			},
 			&out,
 		)
 		require.Equal(t, http.StatusUnauthorized, code)
 	})
 
-	t.Run("admin adds a server", func(t *testing.T) {
+	t.Run("rejects an invalid url", func(t *testing.T) {
 		ts := newOpenSocialServer(t, admin)
 		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
 		require.NoError(t, err)
 
-		var addOut habitat.NetworkHabitatMcpAddServerOutput
+		var out habitat.NetworkHabitatMcpAddServerOutput
 		code := client.Procedure(
 			ts.Server.AddServer,
-			habitat.NetworkHabitatMcpAddServerInput{Org: orgDID, Name: "Linear"},
-			&addOut,
-		)
-		require.Equal(t, http.StatusOK, code)
-		require.NotEmpty(t, addOut.Id)
-		require.NotEmpty(t, addOut.SessionToken)
-		require.True(t, ts.NangoClient.Integrations[nangoKey(orgDID, addOut.Id)])
-
-		// No org record exists until the caller completes authorization in
-		// Nango's Connect UI.
-		servers, err := ts.McpGatewayStore.ListServers(t.Context(), syntax.DID(orgDID), admin)
-		require.NoError(t, err)
-		require.Empty(t, servers)
-
-		// The Nango Connect UI reports success directly to the frontend
-		// (which simply refetches); the gateway learns about it by asking
-		// Nango, not by being told.
-		ts.NangoClient.Connect("conn-1", nangoKey(orgDID, addOut.Id), admin.String())
-
-		var completeOut habitat.NetworkHabitatMcpCompleteAddServerOutput
-		code = client.Procedure(
-			ts.Server.CompleteAddServer,
-			habitat.NetworkHabitatMcpCompleteAddServerInput{
-				Org:  orgDID,
-				Id:   addOut.Id,
-				Name: "Linear",
+			habitat.NetworkHabitatMcpAddServerInput{
+				Org: orgDID, Name: "docs", Url: "not a url", AuthType: "oauth",
 			},
-			&completeOut,
-		)
-		require.Equal(t, http.StatusOK, code)
-		require.Equal(t, "Linear", completeOut.Server.Name)
-
-		servers, err = ts.McpGatewayStore.ListServers(t.Context(), syntax.DID(orgDID), admin)
-		require.NoError(t, err)
-		require.Len(t, servers, 1)
-	})
-
-	t.Run("complete without a nango connection fails", func(t *testing.T) {
-		ts := newOpenSocialServer(t, admin)
-		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
-		require.NoError(t, err)
-
-		var addOut habitat.NetworkHabitatMcpAddServerOutput
-		code := client.Procedure(
-			ts.Server.AddServer,
-			habitat.NetworkHabitatMcpAddServerInput{Org: orgDID, Name: "Linear"},
-			&addOut,
-		)
-		require.Equal(t, http.StatusOK, code)
-
-		var completeOut habitat.NetworkHabitatMcpCompleteAddServerOutput
-		code = client.Procedure(
-			ts.Server.CompleteAddServer,
-			habitat.NetworkHabitatMcpCompleteAddServerInput{
-				Org:  orgDID,
-				Id:   addOut.Id,
-				Name: "Linear",
-			},
-			&completeOut,
+			&out,
 		)
 		require.Equal(t, http.StatusBadRequest, code)
 	})
-}
 
-func TestServer_CancelAddServer(t *testing.T) {
-	client := httpx_testutil.NewTestXRPCClient(t)
-	ts := newOpenSocialServer(t, admin)
-	orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
-	require.NoError(t, err)
+	t.Run("admin adds an oauth server", func(t *testing.T) {
+		ts := newOpenSocialServer(t, admin)
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
 
-	var addOut habitat.NetworkHabitatMcpAddServerOutput
-	code := client.Procedure(
-		ts.Server.AddServer,
-		habitat.NetworkHabitatMcpAddServerInput{Org: orgDID, Name: "Linear"},
-		&addOut,
-	)
-	require.Equal(t, http.StatusOK, code)
-	require.True(t, ts.NangoClient.Integrations[nangoKey(orgDID, addOut.Id)])
+		var addOut habitat.NetworkHabitatMcpAddServerOutput
+		code := client.Procedure(
+			ts.Server.AddServer,
+			habitat.NetworkHabitatMcpAddServerInput{
+				Org: orgDID, Name: "Linear", Url: "https://mcp.example.com/mcp", AuthType: "oauth",
+			},
+			&addOut,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, "Linear", addOut.Server.Name)
+		require.Equal(t, "oauth", addOut.Server.AuthType)
+		// Nobody is signed in yet, but the record and Nango integration
+		// already exist.
+		require.True(t, ts.NangoClient.Integrations[nangoKey(orgDID, addOut.Server.Id)])
 
-	var cancelOut struct{}
-	code = client.Procedure(
-		ts.Server.CancelAddServer,
-		habitat.NetworkHabitatMcpCancelAddServerInput{Org: orgDID, Id: addOut.Id},
-		&cancelOut,
-	)
-	require.Equal(t, http.StatusOK, code)
-	require.False(t, ts.NangoClient.Integrations[nangoKey(orgDID, addOut.Id)])
+		servers, err := ts.McpGatewayStore.ListServers(t.Context(), syntax.DID(orgDID), admin)
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.False(t, servers[0].Connected)
+	})
+
+	t.Run("admin adds a manual server", func(t *testing.T) {
+		ts := newOpenSocialServer(t, admin)
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
+
+		var addOut habitat.NetworkHabitatMcpAddServerOutput
+		code := client.Procedure(
+			ts.Server.AddServer,
+			habitat.NetworkHabitatMcpAddServerInput{
+				Org: orgDID, Name: "docs", Url: "https://mcp.example.com/mcp", AuthType: "manual",
+			},
+			&addOut,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, "manual", addOut.Server.AuthType)
+
+		servers, err := ts.McpGatewayStore.ListServers(t.Context(), syntax.DID(orgDID), admin)
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.True(t, servers[0].Connected)
+	})
 }
 
 func TestServer_ListServersAndAuthorize(t *testing.T) {
@@ -151,21 +121,10 @@ func TestServer_ListServersAndAuthorize(t *testing.T) {
 		var addOut habitat.NetworkHabitatMcpAddServerOutput
 		code := client.Procedure(
 			adminTS.Server.AddServer,
-			habitat.NetworkHabitatMcpAddServerInput{Org: orgDID, Name: "Linear"},
-			&addOut,
-		)
-		require.Equal(t, http.StatusOK, code)
-		adminTS.NangoClient.Connect("conn-admin", nangoKey(orgDID, addOut.Id), admin.String())
-
-		var completeOut habitat.NetworkHabitatMcpCompleteAddServerOutput
-		code = client.Procedure(
-			adminTS.Server.CompleteAddServer,
-			habitat.NetworkHabitatMcpCompleteAddServerInput{
-				Org:  orgDID,
-				Id:   addOut.Id,
-				Name: "Linear",
+			habitat.NetworkHabitatMcpAddServerInput{
+				Org: orgDID, Name: "Linear", Url: "https://mcp.example.com/mcp", AuthType: "oauth",
 			},
-			&completeOut,
+			&addOut,
 		)
 		require.Equal(t, http.StatusOK, code)
 
@@ -180,7 +139,7 @@ func TestServer_ListServersAndAuthorize(t *testing.T) {
 		var startOut habitat.NetworkHabitatMcpStartAuthorizationOutput
 		code = client.Procedure(
 			aliceTS.Server.StartAuthorization,
-			habitat.NetworkHabitatMcpStartAuthorizationInput{Org: orgDID, Id: addOut.Id},
+			habitat.NetworkHabitatMcpStartAuthorizationInput{Org: orgDID, Id: addOut.Server.Id},
 			&startOut,
 		)
 		require.Equal(t, http.StatusOK, code)
@@ -189,7 +148,11 @@ func TestServer_ListServersAndAuthorize(t *testing.T) {
 		// The Nango Connect UI reports success directly to the frontend
 		// (which simply refetches); the gateway learns about it by asking
 		// Nango, not by being told.
-		aliceTS.NangoClient.Connect("conn-alice", nangoKey(orgDID, addOut.Id), alice.String())
+		aliceTS.NangoClient.Connect(
+			"conn-alice",
+			nangoKey(orgDID, addOut.Server.Id),
+			alice.String(),
+		)
 
 		code = client.Query(
 			aliceTS.Server.ListServers, url.Values{"org": []string{orgDID}}, &listOut,
@@ -237,29 +200,18 @@ func TestServer_RemoveServer(t *testing.T) {
 		var addOut habitat.NetworkHabitatMcpAddServerOutput
 		code := client.Procedure(
 			ts.Server.AddServer,
-			habitat.NetworkHabitatMcpAddServerInput{Org: orgDID, Name: "Linear"},
+			habitat.NetworkHabitatMcpAddServerInput{
+				Org: orgDID, Name: "Linear", Url: "https://mcp.example.com/mcp", AuthType: "oauth",
+			},
 			&addOut,
 		)
 		require.Equal(t, http.StatusOK, code)
-		require.True(t, ts.NangoClient.Integrations[nangoKey(orgDID, addOut.Id)])
-		ts.NangoClient.Connect("conn-1", nangoKey(orgDID, addOut.Id), admin.String())
-
-		var completeOut habitat.NetworkHabitatMcpCompleteAddServerOutput
-		code = client.Procedure(
-			ts.Server.CompleteAddServer,
-			habitat.NetworkHabitatMcpCompleteAddServerInput{
-				Org:  orgDID,
-				Id:   addOut.Id,
-				Name: "Linear",
-			},
-			&completeOut,
-		)
-		require.Equal(t, http.StatusOK, code)
+		require.True(t, ts.NangoClient.Integrations[nangoKey(orgDID, addOut.Server.Id)])
 
 		var removeOut struct{}
 		code = client.Procedure(
 			ts.Server.RemoveServer,
-			habitat.NetworkHabitatMcpRemoveServerInput{Org: orgDID, Id: addOut.Id},
+			habitat.NetworkHabitatMcpRemoveServerInput{Org: orgDID, Id: addOut.Server.Id},
 			&removeOut,
 		)
 		require.Equal(t, http.StatusOK, code)
@@ -267,7 +219,7 @@ func TestServer_RemoveServer(t *testing.T) {
 		servers, err := ts.McpGatewayStore.ListServers(t.Context(), syntax.DID(orgDID), admin)
 		require.NoError(t, err)
 		require.Empty(t, servers)
-		require.False(t, ts.NangoClient.Integrations[nangoKey(orgDID, addOut.Id)])
+		require.False(t, ts.NangoClient.Integrations[nangoKey(orgDID, addOut.Server.Id)])
 	})
 
 	t.Run("non-admin cannot remove", func(t *testing.T) {
@@ -285,40 +237,8 @@ func TestServer_RemoveServer(t *testing.T) {
 	})
 }
 
-func TestServer_AddManualServer(t *testing.T) {
+func TestServer_ManualServer(t *testing.T) {
 	client := httpx_testutil.NewTestXRPCClient(t)
-
-	t.Run("requires mcp.configure", func(t *testing.T) {
-		ts := newOpenSocialServer(t, alice)
-		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
-		require.NoError(t, err)
-
-		var out habitat.NetworkHabitatMcpAddManualServerOutput
-		code := client.Procedure(
-			ts.Server.AddManualServer,
-			habitat.NetworkHabitatMcpAddManualServerInput{
-				Org: orgDID, Name: "docs", Url: "https://mcp.example.com",
-			},
-			&out,
-		)
-		require.Equal(t, http.StatusUnauthorized, code)
-	})
-
-	t.Run("rejects an invalid url", func(t *testing.T) {
-		ts := newOpenSocialServer(t, admin)
-		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
-		require.NoError(t, err)
-
-		var out habitat.NetworkHabitatMcpAddManualServerOutput
-		code := client.Procedure(
-			ts.Server.AddManualServer,
-			habitat.NetworkHabitatMcpAddManualServerInput{
-				Org: orgDID, Name: "docs", Url: "not a url",
-			},
-			&out,
-		)
-		require.Equal(t, http.StatusBadRequest, code)
-	})
 
 	t.Run("members see it connected, with nothing to authorize", func(t *testing.T) {
 		adminTS, aliceTS, _ := newSharedOpenSocialServers(t)
@@ -330,13 +250,14 @@ func TestServer_AddManualServer(t *testing.T) {
 			),
 		)
 
-		var addOut habitat.NetworkHabitatMcpAddManualServerOutput
+		var addOut habitat.NetworkHabitatMcpAddServerOutput
 		code := client.Procedure(
-			adminTS.Server.AddManualServer,
-			habitat.NetworkHabitatMcpAddManualServerInput{
-				Org:  orgDID,
-				Name: "docs",
-				Url:  "https://mcp.example.com/mcp",
+			adminTS.Server.AddServer,
+			habitat.NetworkHabitatMcpAddServerInput{
+				Org:      orgDID,
+				Name:     "docs",
+				Url:      "https://mcp.example.com/mcp",
+				AuthType: "manual",
 			},
 			&addOut,
 		)
