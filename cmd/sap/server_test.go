@@ -38,7 +38,7 @@ func newTestServer(t *testing.T) *server {
 	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp, Directory: oauthApp.Dir})
 	require.NoError(t, err)
 
-	return NewSapServer(s, oauthApp, "https://example.com", ConfiguredClientMetadata{})
+	return NewSapServer(s, oauthApp, "https://example.com", ConfiguredClientMetadata{}, "")
 }
 
 func TestHandleAddSessionWithoutReturnToUnaffected(t *testing.T) {
@@ -98,6 +98,112 @@ func TestHandleAddSessionStoresReturnToForResolvedDID(t *testing.T) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	require.Equal(t, "https://app.example.com/callback", srv.pendingReturnTo[testDID.String()])
+}
+
+// newTestResolver serves com.atproto.identity.resolveIdentity like a Habitat
+// instance, answering with status and body, and records the identifiers it
+// was asked to resolve.
+func newTestResolver(t *testing.T, status int, body string) (*httptest.Server, *[]string) {
+	t.Helper()
+	var identifiers []string
+	resolver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/xrpc/com.atproto.identity.resolveIdentity", r.URL.Path)
+		identifiers = append(identifiers, r.URL.Query().Get("identifier"))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(resolver.Close)
+	return resolver, &identifiers
+}
+
+func postAddSession(t *testing.T, srv *server, handle string) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{
+		"handle":    handle,
+		"return_to": "https://app.example.com/callback",
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/session/add", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.handleAddSession(w, req)
+	return w
+}
+
+func TestHandleAddSessionResolvesEmailToDID(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	const testDID = syntax.DID("did:web:bob.acme.example")
+	resolver, identifiers := newTestResolver(t, http.StatusOK, `{"did":"`+testDID.String()+`"}`)
+	srv.identityResolverURL = resolver.URL
+
+	mockDir := identity.NewMockDirectory()
+	// No Services declared, so StartAuthFlow fails fast after resolving the
+	// DID, without any network access.
+	mockDir.Insert(identity.Identity{DID: testDID, Handle: "bob.acme.example"})
+	srv.oauthClient.Dir = mockDir
+
+	w := postAddSession(t, srv, "Bob@Acme.example")
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, []string{"bob@acme.example"}, *identifiers)
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	require.Equal(t, "https://app.example.com/callback", srv.pendingReturnTo[testDID.String()])
+}
+
+func TestHandleAddSessionEmailErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		resolverStatus int // 0 means no identity resolver is configured
+		resolverBody   string
+		wantStatus     int
+	}{
+		{
+			name:       "no identity resolver",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "email domain not mapped",
+			resolverStatus: http.StatusNotFound,
+			resolverBody:   `{"error":"DidNotFound","message":"DID not found"}`,
+			wantStatus:     http.StatusNotFound,
+		},
+		{
+			name:           "resolver failure",
+			resolverStatus: http.StatusInternalServerError,
+			resolverBody:   `{"error":"InternalServerError"}`,
+			wantStatus:     http.StatusBadGateway,
+		},
+		{
+			name:           "resolver returns an invalid DID",
+			resolverStatus: http.StatusOK,
+			resolverBody:   `{"did":"not-a-did"}`,
+			wantStatus:     http.StatusBadGateway,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newTestServer(t)
+			if tt.resolverStatus != 0 {
+				resolver, _ := newTestResolver(t, tt.resolverStatus, tt.resolverBody)
+				srv.identityResolverURL = resolver.URL
+			}
+
+			w := postAddSession(t, srv, "bob@acme.example")
+
+			require.Equal(t, tt.wantStatus, w.Code)
+			srv.mu.Lock()
+			defer srv.mu.Unlock()
+			require.Empty(t, srv.pendingReturnTo)
+		})
+	}
 }
 
 func TestRedirectToReturnToRedirectsAndClearsPending(t *testing.T) {

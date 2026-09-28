@@ -54,12 +54,12 @@ function isUri(s: string): s is `${string}:${string}` {
 export function McpServersEditor({
   org,
   servers,
-  isAdmin,
+  canConfigureMcp,
   authManager,
 }: {
   org: DidString;
   servers: McpServerWithStatus[];
-  isAdmin: boolean;
+  canConfigureMcp: boolean;
   authManager: AuthManager;
 }) {
   return (
@@ -68,7 +68,9 @@ export function McpServersEditor({
         <h2 className="text-base font-semibold">
           MCP servers ({servers.length})
         </h2>
-        {isAdmin && <AddServerDialog org={org} authManager={authManager} />}
+        {canConfigureMcp && (
+          <AddServerDialog org={org} authManager={authManager} />
+        )}
       </div>
       <Table>
         <TableHeader>
@@ -95,7 +97,7 @@ export function McpServersEditor({
                 />
               </TableCell>
               <TableCell className="text-right">
-                {isAdmin && (
+                {canConfigureMcp && (
                   <RemoveServerButton
                     org={org}
                     id={server.id}

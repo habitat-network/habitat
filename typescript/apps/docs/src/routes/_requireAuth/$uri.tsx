@@ -27,7 +27,7 @@ import {
   docsListQueryOptions,
   editorProfilesQueryOptions,
 } from "@/queries/docs";
-import { ShareDialog, AuthManager } from "internal";
+import { ShareDialog, type AuthManager } from "internal";
 import {
   xrpc,
   XrpcResponseError,
