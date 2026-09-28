@@ -4,10 +4,11 @@ import Nango from "@nangohq/frontend";
 import type { AuthManager } from "internal";
 import type { DidString } from "@atproto/lex";
 import {
-  addMcpServer,
-  disconnectMcpServer,
-  removeMcpServer,
-  startMcpAuthorization,
+  addMcpServerMutationOptions,
+  disconnectMcpServerMutationOptions,
+  mcpServersQueryKey,
+  removeMcpServerMutationOptions,
+  startMcpAuthorizationMutationOptions,
   type McpServerWithStatus,
 } from "@/queries/mcp";
 import {
@@ -133,46 +134,47 @@ function ConnectionCell({
   authManager: AuthManager;
 }) {
   const queryClient = useQueryClient();
-  const [authorizing, setAuthorizing] = useState(false);
+  // Whether Nango's Connect UI is open. That lifecycle belongs to Nango's SDK
+  // rather than to a mutation, so it's tracked separately.
+  const [connectUiOpen, setConnectUiOpen] = useState(false);
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["mcp", "servers", org] });
+  const {
+    mutate: disconnect,
+    isPending: disconnecting,
+    error: disconnectError,
+  } = useMutation(disconnectMcpServerMutationOptions(authManager, org));
 
-  const { mutate: disconnect, isPending: disconnecting } = useMutation({
-    mutationFn: () => disconnectMcpServer(authManager, org, server.id),
-    onSuccess: invalidate,
-  });
+  const {
+    mutate: startAuthorization,
+    isPending: starting,
+    error: startError,
+  } = useMutation(startMcpAuthorizationMutationOptions(authManager, org));
 
-  const authorize = async () => {
-    setAuthorizing(true);
-    try {
-      const sessionToken = await startMcpAuthorization(
-        authManager,
-        org,
-        server.id,
-      );
-      const nango = new Nango();
-      const connect = nango.openConnectUI({
-        sessionToken,
-        onEvent: async (event) => {
-          if (event.type === "connect") {
-            await invalidate();
-          }
-          if (event.type === "connect" || event.type === "close") {
-            setAuthorizing(false);
-          }
-          if (event.type === "error") {
-            setAuthorizing(false);
-            toast.add({ type: "error", title: "Failed to connect" });
-          }
-        },
-      });
-      connect.open();
-    } catch {
-      setAuthorizing(false);
-      toast.add({ type: "error", title: "Failed to start authorization" });
-    }
-  };
+  const authorize = () =>
+    startAuthorization(server.id, {
+      onSuccess(sessionToken) {
+        setConnectUiOpen(true);
+        const nango = new Nango();
+        const connect = nango.openConnectUI({
+          sessionToken,
+          onEvent: async (event) => {
+            if (event.type === "connect") {
+              await queryClient.invalidateQueries({
+                queryKey: mcpServersQueryKey(org),
+              });
+            }
+            if (event.type === "connect" || event.type === "close") {
+              setConnectUiOpen(false);
+            }
+            if (event.type === "error") {
+              setConnectUiOpen(false);
+              toast.add({ type: "error", title: "Failed to connect" });
+            }
+          },
+        });
+        connect.open();
+      },
+    });
 
   if (server.authType === "manual") {
     return <Badge variant="secondary">Shared</Badge>;
@@ -180,29 +182,41 @@ function ConnectionCell({
 
   if (connected) {
     return (
-      <div className="flex items-center gap-2">
-        <Badge variant="secondary">Connected</Badge>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={disconnecting}
-          onClick={() => disconnect()}
-        >
-          Disconnect
-        </Button>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">Connected</Badge>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={disconnecting}
+            onClick={() => disconnect(server.id)}
+          >
+            {disconnecting ? "Disconnecting…" : "Disconnect"}
+          </Button>
+        </div>
+        <FieldError
+          errors={disconnectError ? [{ message: disconnectError.message }] : []}
+        />
       </div>
     );
   }
 
+  const connecting = starting || connectUiOpen;
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      disabled={authorizing}
-      onClick={() => void authorize()}
-    >
-      {authorizing ? "Connecting…" : "Connect"}
-    </Button>
+    <div className="flex flex-col gap-1">
+      <Button
+        variant="outline"
+        size="sm"
+        className="self-start"
+        disabled={connecting}
+        onClick={authorize}
+      >
+        {connecting ? "Connecting…" : "Connect"}
+      </Button>
+      <FieldError
+        errors={startError ? [{ message: startError.message }] : []}
+      />
+    </div>
   );
 }
 
@@ -218,17 +232,20 @@ function AddServerDialog({
   const [description, setDescription] = useState("");
   const [authType, setAuthType] = useState<AuthType>("oauth");
   const [url, setUrl] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const queryClient = useQueryClient();
+
+  const {
+    mutate: add,
+    isPending: adding,
+    error,
+    reset: resetMutation,
+  } = useMutation(addMcpServerMutationOptions(authManager, org));
 
   const reset = () => {
     setName("");
     setDescription("");
     setAuthType("oauth");
     setUrl("");
-    setAdding(false);
-    setError(null);
+    resetMutation();
   };
 
   const canSubmit = SERVER_NAME_PATTERN.test(name) && isUri(url);
@@ -236,26 +253,17 @@ function AddServerDialog({
   // Adding a server just writes its record; nobody signs in here. For an
   // oauth server, members (including this admin) connect afterward with the
   // "Connect" button, which drives Nango's Connect UI.
-  const submit = async () => {
+  const submit = () => {
     if (!isUri(url)) return;
-    setAdding(true);
-    setError(null);
-    try {
-      await addMcpServer(authManager, org, {
-        name,
-        description: description || undefined,
-        url,
-        authType,
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["mcp", "servers", org],
-      });
-      setOpen(false);
-      reset();
-    } catch (e) {
-      setAdding(false);
-      setError(e instanceof Error ? e.message : "Failed to add server");
-    }
+    add(
+      { name, description: description || undefined, url, authType },
+      {
+        onSuccess() {
+          setOpen(false);
+          reset();
+        },
+      },
+    );
   };
 
   return (
@@ -276,7 +284,7 @@ function AddServerDialog({
           onSubmit={(e) => {
             e.preventDefault();
             if (!canSubmit) return;
-            void submit();
+            submit();
           }}
         >
           <Field>
@@ -350,7 +358,7 @@ function AddServerDialog({
               Everyone in this community can see this URL.
             </p>
           </Field>
-          <FieldError errors={error ? [{ message: error }] : []} />
+          <FieldError errors={error ? [{ message: error.message }] : []} />
           <DialogFooter>
             <Button type="submit" disabled={adding || !canSubmit}>
               {adding ? "Adding…" : "Add server"}
@@ -374,20 +382,19 @@ function RemoveServerButton({
   authManager: AuthManager;
 }) {
   const [open, setOpen] = useState(false);
-  const queryClient = useQueryClient();
 
-  const { mutate, isPending, error } = useMutation({
-    mutationFn: () => removeMcpServer(authManager, org, id),
-    async onSuccess() {
-      await queryClient.invalidateQueries({
-        queryKey: ["mcp", "servers", org],
-      });
-      setOpen(false);
-    },
-  });
+  const { mutate, isPending, error, reset } = useMutation(
+    removeMcpServerMutationOptions(authManager, org),
+  );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
       <DialogTrigger render={<Button variant="ghost" size="sm" />}>
         Remove
       </DialogTrigger>
@@ -403,7 +410,7 @@ function RemoveServerButton({
           <Button
             variant="destructive"
             disabled={isPending}
-            onClick={() => mutate()}
+            onClick={() => mutate(id, { onSuccess: () => setOpen(false) })}
           >
             {isPending ? "Removing…" : "Remove server"}
           </Button>
