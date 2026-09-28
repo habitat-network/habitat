@@ -38,7 +38,7 @@ func (p *PearServer) requireAdmin(
 		return false
 	}
 	if !slices.Contains(roles, opensocial.AdminRoleRkey) {
-		httpx.WriteUnauthorized(ctx, w, "caller is not an admin of this community")
+		httpx.WriteUnauthorized(ctx, w, "caller is not an admin of this community", nil)
 		return false
 	}
 	return true
@@ -58,7 +58,7 @@ func (p *PearServer) requireMember(
 		return false
 	}
 	if len(roles) == 0 {
-		httpx.WriteUnauthorized(ctx, w, "caller is not a member of this community")
+		httpx.WriteUnauthorized(ctx, w, "caller is not a member of this community", nil)
 		return false
 	}
 	return true
@@ -84,6 +84,7 @@ func (p *PearServer) requireAction(
 		httpx.WriteUnauthorized(
 			ctx, w,
 			fmt.Sprintf("caller is not authorized to perform the %q action", action),
+			nil,
 		)
 		return false
 	}
