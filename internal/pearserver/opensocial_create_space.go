@@ -18,7 +18,7 @@ import (
 // a modality-specific space under the community DID, indexed with a
 // community.opensocial.space record and readable by the given roles (see
 // opensocial.Store.CreateSpace). The org itself may call this with OAuth, and
-// a member may call it with service auth — see requireSpaceCreator.
+// a member may call it with service auth — see requireSpaceAuthority.
 func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
@@ -36,7 +36,7 @@ func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if !p.requireSpaceCreator(ctx, w, org, credInfo) {
+	if !p.requireSpaceAuthority(ctx, w, org, credInfo) {
 		return
 	}
 	spaceType, ok := httpx.ParseNSIDInput(ctx, w, input.Type, "type")
