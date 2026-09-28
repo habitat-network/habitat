@@ -71,7 +71,9 @@ export function McpServersEditor({
         <h2 className="text-base font-semibold">
           MCP servers ({servers.length})
         </h2>
-        {canConfigureMcp && <AddServerDialog org={org} authManager={authManager} />}
+        {canConfigureMcp && (
+          <AddServerDialog org={org} authManager={authManager} />
+        )}
       </div>
       <Table>
         <TableHeader>
