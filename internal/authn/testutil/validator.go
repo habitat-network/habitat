@@ -22,7 +22,7 @@ func (s *validatorImpl) Validate(
 	scopes ...string,
 ) (*authn.CredentialInfo, bool) {
 	if !s.success {
-		httpx.WriteUnauthorized(r.Context(), w, "")
+		httpx.WriteUnauthorized(r.Context(), w, "", nil)
 		return nil, false
 	}
 	return s.credentialInfo, true

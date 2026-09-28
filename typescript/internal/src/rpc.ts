@@ -5,7 +5,6 @@ import {
   type NsidString,
 } from "@atproto/lex";
 import { network } from "api";
-import { AuthManager } from "./authManager";
 
 /**
  * Constructs an unauthenticated `Agent` that resolves request paths against an
@@ -32,7 +31,7 @@ export interface TypedRecord<T extends Record<string, unknown>> extends Omit<
 export const getPrivateRecord = async <
   T extends Record<string, unknown> = Record<string, unknown>,
 >(
-  authManager: AuthManager,
+  authManager: Agent,
   collection: string,
   rkey: string,
   repo: string,
@@ -60,7 +59,7 @@ export interface ListRecordsResponse<
 }
 
 export const listPrivateRecords = async <T extends Record<string, unknown>>(
-  authManager: AuthManager,
+  authManager: Agent,
   collection: string,
   limit?: number,
   cursor?: string,

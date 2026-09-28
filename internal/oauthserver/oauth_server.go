@@ -842,7 +842,7 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !slices.Contains(roles, opensocial.AdminRoleRkey) {
-		httpx.WriteUnauthorized(ctx, w, "not an admin of this org")
+		httpx.WriteUnauthorized(ctx, w, "not an admin of this org", nil)
 		return
 	}
 	redirectURL, providerState, err := o.loginRouter.Pds.Authorize(ctx, memberID.DID.String())

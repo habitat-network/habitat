@@ -125,11 +125,11 @@ func (rv *EndpointOptions) Validate(
 		if rv.space != "" {
 			if credInfo.Space != "" {
 				if rv.relation != habitat_syntax.SpaceRoleReader {
-					httpx.WriteUnauthorized(ctx, w, "space token can only read")
+					httpx.WriteUnauthorized(ctx, w, "space token can only read", nil)
 					return nil, false
 				}
 				if credInfo.Space != rv.space {
-					httpx.WriteUnauthorized(ctx, w, "space credential mismatch")
+					httpx.WriteUnauthorized(ctx, w, "space credential mismatch", nil)
 					return nil, false
 				}
 			} else if credInfo.Subject != "" {
@@ -151,6 +151,6 @@ func (rv *EndpointOptions) Validate(
 		}
 		return credInfo, true
 	}
-	httpx.WriteUnauthorized(ctx, w, "no supported auth method")
+	httpx.WriteUnauthorized(ctx, w, "no supported auth method", nil)
 	return nil, false
 }
