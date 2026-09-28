@@ -7,6 +7,8 @@ import (
 	"unicode"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	"github.com/habitat-network/habitat/internal/did"
 )
 
 const (
@@ -15,12 +17,6 @@ const (
 	// service under a different name (e.g. the permissioned-data proposal's
 	// `atproto_space_syncer`) set Config.ServiceID to it.
 	DefaultServiceName = "habitat_space_syncer"
-
-	// ServiceType is the `type` of the service entry sap publishes in its DID
-	// document. Nothing in the service-identifier resolution path checks it —
-	// resolution matches on the service fragment alone — so it is purely
-	// descriptive.
-	ServiceType = "HabitatSpaceSyncer"
 )
 
 // ServiceIdentity is how sap names itself to space hosts: the did:web DID it
@@ -44,9 +40,10 @@ func (s ServiceIdentity) Ref() string {
 // and the service name to publish it under. An empty serviceName falls back to
 // DefaultServiceName.
 //
-// The endpoint's host must be a hostname a did:web resolver can fetch: the
-// reference resolver requires a plain hostname with a real TLD, so a
-// port-bearing or .localhost endpoint will not resolve for a space host.
+// The endpoint's host must still be one a did:web resolver can fetch. did.Web
+// percent-encodes a port, per the spec, but the reference resolver additionally
+// requires a plain hostname with a real TLD — so a port-bearing or .localhost
+// endpoint produces a well-formed DID that will not resolve for a space host.
 func NewServiceIdentity(endpoint, serviceName string) (ServiceIdentity, error) {
 	if serviceName == "" {
 		serviceName = DefaultServiceName
@@ -70,9 +67,8 @@ func NewServiceIdentity(endpoint, serviceName string) (ServiceIdentity, error) {
 			"endpoint %q must be an absolute http(s) URL", endpoint,
 		)
 	}
-	did, err := syntax.ParseDID("did:web:" + u.Host)
-	if err != nil {
-		return ServiceIdentity{}, fmt.Errorf("derive did:web from %q: %w", endpoint, err)
-	}
-	return ServiceIdentity{DID: did, Name: serviceName}, nil
+	// did.Web derives the DID the same way every other habitat did:web identity
+	// does, including percent-encoding a port per the did:web spec.
+	ident := did.Web(u.Host).Build()
+	return ServiceIdentity{DID: ident.DID, Name: serviceName}, nil
 }

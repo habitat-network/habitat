@@ -19,6 +19,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/pkg/sap"
@@ -50,6 +51,9 @@ type server struct {
 	// hosts are given service.Ref() as their notifyWrite subscriber, and
 	// address the deliveries they make to it.
 	service sap.ServiceIdentity
+	// didDoc serves that document, publishing endpoint as the notify service
+	// endpoint under service's fragment.
+	didDoc http.Handler
 
 	// outboxPingPeriod/PongWait/WriteWait configure handleOutboxChannel's
 	// liveness checks (see their defaults in websocket.go). Tests shrink
@@ -90,8 +94,13 @@ func NewSapServer(
 			Dir:      oauthClient.Dir,
 			Audience: service.Ref(),
 		},
-		endpoint:         endpoint,
-		service:          service,
+		endpoint: endpoint,
+		service:  service,
+		// A syncer publishes a service endpoint and no keys, so the document is
+		// built from the same identity the service identifier names.
+		didDoc: did.NewHandler(
+			did.New(service.DID).Syncer(service.Name, endpoint).Build(),
+		),
 		outboxPingPeriod: defaultOutboxPingPeriod,
 		outboxPongWait:   defaultOutboxPongWait,
 		outboxWriteWait:  defaultOutboxWriteWait,
@@ -103,46 +112,18 @@ func NewSapServer(
 	}
 }
 
-// didDocContext is the @context of the DID document sap serves. Only the DID
-// Core context is needed: the document declares a service and no keys.
-var didDocContext = []string{"https://www.w3.org/ns/did/v1"}
-
-// didDocService is one entry of a DID document's service array.
-type didDocService struct {
-	ID              string `json:"id"`
-	Type            string `json:"type"`
-	ServiceEndpoint string `json:"serviceEndpoint"`
-}
-
-// didDoc is the DID document sap serves at /.well-known/did.json.
-type didDoc struct {
-	Context []string        `json:"@context"`
-	ID      string          `json:"id"`
-	Service []didDocService `json:"service"`
-}
-
 // handleDIDDoc serves sap's DID document, telling a space host where to deliver
-// this instance's notifyWrite calls. It declares no verification method: sap is
-// a subscriber, never a caller — a space host signs the delivery JWT with the
-// space authority's key, and verifies sap's tokens (in the other direction)
-// against the space authority's published key, so sap has nothing to sign with.
+// this instance's notifyWrite calls.
+//
+// It declares no verification method: sap is a subscriber, never a caller — a
+// space host signs the delivery JWT with the space authority's key, and verifies
+// sap's tokens (in the other direction) against the space authority's published
+// key, so sap has nothing to sign with.
 //
 // This is served on the public listener, since space hosts resolve it over the
 // public network.
 func (s *server) handleDIDDoc(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/did+ld+json")
-	w.Header().Set("Cache-Control", "max-age=3600")
-	httpx.WriteJSON(r.Context(), w, didDoc{
-		Context: didDocContext,
-		ID:      s.service.DID.String(),
-		Service: []didDocService{{
-			// Relative form, per the DID Core spec: the fragment is read
-			// against the document's own id.
-			ID:              "#" + s.service.Name,
-			Type:            sap.ServiceType,
-			ServiceEndpoint: s.endpoint,
-		}},
-	})
+	s.didDoc.ServeHTTP(w, r)
 }
 
 var (

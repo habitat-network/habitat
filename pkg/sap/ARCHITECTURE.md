@@ -73,8 +73,10 @@ AddSession(did,           session.Store ─────▶ crawl.Crawler
   identifier* — `did:web:<sap domain>#<service name>` (`sap.ServiceIdentity`)
   — rather than a bare URL: the host resolves that to sap's delivery endpoint
   through the DID document sap serves at `/.well-known/did.json`, and signs
-  each delivery's service auth to the identifier. sap declares no
-  `verificationMethod` there because it never signs as this DID; the space
+  each delivery's service auth to the identifier. That document is built with
+  `internal/did` (`did.Web(...).Syncer(...)`, served by `did.NewHandler`), the
+  same builder every habitat-hosted identity uses, and declares no
+  `verificationMethod` because sap never signs as this DID — the space
   authority signs the delivery. `--service-name` overrides the fragment, for
   deployments that already publish a different one.
 - **`outbox`** is the durable handoff to sap's consumer: the syncer emits

@@ -641,7 +641,7 @@ func publishSapService(t *testing.T, pear *pearHost, sapEndpoint string) {
 	pear.dir.Insert(identity.Identity{
 		DID: service.DID,
 		Services: map[string]identity.ServiceEndpoint{
-			service.Name: {Type: ServiceType, URL: sapEndpoint},
+			service.Name: {Type: "HabitatSpaceSyncer", URL: sapEndpoint},
 		},
 	})
 }

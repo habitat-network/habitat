@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
 	"github.com/stretchr/testify/require"
@@ -50,6 +51,22 @@ func newTestServer(t *testing.T) *server {
 	require.NoError(t, err)
 
 	return NewSapServer(s, oauthApp, testEndpoint, service, ConfiguredClientMetadata{}, "")
+}
+
+// newTestServerWithServiceName builds a test server publishing its notify
+// service under the given name, the way --service-name configures a deployment.
+func newTestServerWithServiceName(t *testing.T, name string) *server {
+	t.Helper()
+	srv := newTestServer(t)
+	service, err := sap.NewServiceIdentity(testEndpoint, name)
+	require.NoError(t, err)
+	srv.service = service
+	// The DID document is built from the service identity, so it has to be
+	// rebuilt when the identity is overridden.
+	srv.didDoc = did.NewHandler(
+		did.New(service.DID).Syncer(service.Name, testEndpoint).Build(),
+	)
+	return srv
 }
 
 func TestHandleAddSessionWithoutReturnToUnaffected(t *testing.T) {
@@ -464,23 +481,32 @@ func TestHandleDIDDoc(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "application/did+ld+json", w.Header().Get("Content-Type"))
 
+	// Decoded as a raw document, since @context is not part of indigo's type.
 	var doc struct {
 		Context []string `json:"@context"`
-		ID      string   `json:"id"`
-		Service []struct {
-			ID              string `json:"id"`
-			Type            string `json:"type"`
-			ServiceEndpoint string `json:"serviceEndpoint"`
-		} `json:"service"`
+		identity.DIDDocument
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &doc))
 
-	require.Equal(t, []string{"https://www.w3.org/ns/did/v1"}, doc.Context)
-	require.Equal(t, "did:web:sap.example.com", doc.ID)
+	// @context comes from internal/did, so sap publishes the same context as
+	// every other habitat-hosted identity.
+	require.Equal(
+		t,
+		[]string{
+			"https://www.w3.org/ns/did/v1",
+			"https://w3id.org/security/multikey/v1",
+			"https://w3id.org/security/suites/secp256k1-2019/v1",
+		},
+		doc.Context,
+	)
+	require.Equal(t, syntax.DID("did:web:sap.example.com"), doc.DID)
 	require.Len(t, doc.Service, 1)
 	require.Equal(t, "#habitat_space_syncer", doc.Service[0].ID)
-	require.Equal(t, sap.ServiceType, doc.Service[0].Type)
+	require.Equal(t, "HabitatSpaceSyncer", doc.Service[0].Type)
 	require.Equal(t, testEndpoint, doc.Service[0].ServiceEndpoint)
+	// A syncer subscribes to notifications rather than serving an account, so
+	// it has no key to publish.
+	require.Empty(t, doc.VerificationMethod)
 }
 
 // TestDIDDocResolvesToRegisteredService checks the two halves agree: the
@@ -515,10 +541,7 @@ func TestDIDDocResolvesToRegisteredService(t *testing.T) {
 func TestHandleDIDDocHonorsConfiguredServiceName(t *testing.T) {
 	t.Parallel()
 
-	srv := newTestServer(t)
-	service, err := sap.NewServiceIdentity(testEndpoint, "atproto_space_syncer")
-	require.NoError(t, err)
-	srv.service = service
+	srv := newTestServerWithServiceName(t, "atproto_space_syncer")
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/did.json", http.NoBody)
 	w := httptest.NewRecorder()

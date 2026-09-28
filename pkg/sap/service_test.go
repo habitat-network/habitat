@@ -46,6 +46,14 @@ func TestNewServiceIdentity(t *testing.T) {
 			serviceName: "",
 			wantRef:     "did:web:localhost#" + DefaultServiceName,
 		},
+		{
+			// A port is percent-encoded in the DID per the did:web spec, even
+			// though the reference resolver won't fetch it.
+			name:        "port is percent-encoded in the did",
+			endpoint:    "https://sap.example.com:8443",
+			serviceName: "",
+			wantRef:     "did:web:sap.example.com%3A8443#" + DefaultServiceName,
+		},
 	}
 
 	for _, tt := range tests {

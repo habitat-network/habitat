@@ -78,6 +78,13 @@ func (b *Builder) ATProtoSpaceHost(endpoint string) *Builder {
 	return b.Service("atproto_space_host", "AtprotoSpaceHost", endpoint)
 }
 
+// Syncer adds a space syncer service under the given fragment, without the
+// leading '#'. A syncer subscribes to write notifications rather than serving an
+// account, so it declares no verification method of its own.
+func (b *Builder) Syncer(fragment, endpoint string) *Builder {
+	return b.Service(fragment, "HabitatSpaceSyncer", endpoint)
+}
+
 // VerificationMethod adds a custom verification method under the given
 // fragment, without the leading '#'.
 func (b *Builder) VerificationMethod(fragment, typ, multibase string) *Builder {

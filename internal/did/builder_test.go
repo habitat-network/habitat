@@ -54,6 +54,29 @@ func TestBuilder_Services(t *testing.T) {
 	}, ident.Services)
 }
 
+// TestBuilder_Syncer covers the syncer service a space syncer publishes, which
+// unlike an account-backed identity declares no keys.
+func TestBuilder_Syncer(t *testing.T) {
+	ident := New(syntax.DID("did:web:sap.example.com")).
+		Syncer("habitat_space_syncer", "https://sap.example.com").
+		Build()
+
+	require.Equal(t, syntax.DID("did:web:sap.example.com"), ident.DID)
+	require.Equal(t, map[string]identity.ServiceEndpoint{
+		"habitat_space_syncer": {
+			Type: "HabitatSpaceSyncer",
+			URL:  "https://sap.example.com",
+		},
+	}, ident.Services)
+	require.Empty(t, ident.Keys, "a syncer has no keys to publish")
+}
+
+func TestBuilder_WebEncodesPort(t *testing.T) {
+	// Ports are percent-encoded in the DID but not the URL, per the did:web spec.
+	ident := Web("sap.example.com:8443").Build()
+	require.Equal(t, syntax.DID("did:web:sap.example.com%3A8443"), ident.DID)
+}
+
 func TestBuilder_Custom(t *testing.T) {
 	ident := New(syntax.DID("did:web:alice.example.com")).
 		AlsoKnownAs("at://alice.example.com").
