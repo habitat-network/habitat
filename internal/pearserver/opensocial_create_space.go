@@ -17,13 +17,12 @@ import (
 // CreateOpensocialSpace implements community.opensocial.createSpace: creates
 // a modality-specific space under the community DID, indexed with a
 // community.opensocial.space record and readable by the given roles (see
-// opensocial.Store.CreateSpace). Requires service-auth, since callers reach
-// this via Atproto-Proxy on the caller's own session rather than a
-// dedicated org session — see the chalk org-support design doc.
+// opensocial.Store.CreateSpace). The org itself may call this with OAuth, and
+// a member may call it with service auth — see requireSpaceCreator.
 func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
-		authn.WithMethods(authn.ValidatorMethodServiceAuth),
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
 	).Validate(w, r)
 	if !ok {
 		return
@@ -37,7 +36,7 @@ func (p *PearServer) CreateOpensocialSpace(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if !p.requireMember(ctx, w, org, credInfo.Subject) {
+	if !p.requireSpaceCreator(ctx, w, org, credInfo) {
 		return
 	}
 	spaceType, ok := httpx.ParseNSIDInput(ctx, w, input.Type, "type")

@@ -14,7 +14,10 @@ import (
 type ValidatorMethod int
 
 const (
-	ValidatorMethodOAuth ValidatorMethod = iota
+	// ValidatorMethodNone is the zero value, so a CredentialInfo no validator
+	// stamped reads as "unknown" rather than silently as OAuth.
+	ValidatorMethodNone ValidatorMethod = iota
+	ValidatorMethodOAuth
 	ValidatorMethodServiceAuth
 	ValidatorMethodSpaceCredential
 	ValidatorMethodDelegationToken
@@ -35,7 +38,7 @@ type SpaceRoleValidator interface {
 
 type validator struct {
 	oauth           Method
-	serviceAuth     *AtprotoServiceAuthMethod
+	serviceAuth     Method
 	spaceCredential *SpaceCredentialAuthMethod
 	delegationToken *DelegationTokenAuthMethod
 	srv             SpaceRoleValidator
@@ -43,7 +46,7 @@ type validator struct {
 
 func NewValidator(
 	oauth Method,
-	serviceAuth *AtprotoServiceAuthMethod,
+	serviceAuth Method,
 	spaceCredential *SpaceCredentialAuthMethod,
 	delegationToken *DelegationTokenAuthMethod,
 	srv SpaceRoleValidator,
@@ -116,6 +119,9 @@ func (rv *EndpointOptions) Validate(
 		if !ok {
 			return nil, false
 		}
+		stamped := *credInfo
+		stamped.Method = vm
+		credInfo = &stamped
 		if rv.space != "" {
 			if credInfo.Space != "" {
 				if rv.relation != habitat_syntax.SpaceRoleReader {

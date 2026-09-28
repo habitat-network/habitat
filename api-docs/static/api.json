@@ -265,7 +265,7 @@
           "community.opensocial.createSpace"
         ],
         "summary": "community.opensocial.createSpace",
-        "description": "Create a modality-specific space under the community DID and index it with a community.opensocial.space record. Requires service-auth. Requires the `space.create` action.",
+        "description": "Create a modality-specific space under the community DID and index it with a community.opensocial.space record. Requires service auth as a member of the community, or an OAuth credential for the community DID itself. Requires the `space.create` action.",
         "operationId": "community.opensocial.createSpace",
         "security": [
           {
@@ -3246,6 +3246,1025 @@
                       "items": {
                         "$ref": "#/components/schemas/network.habitat.listConnectedApps.app"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.addManualServer": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.addManualServer",
+        "description": "Configure an MCP server that needs no auth for the org by hand, by its URL. The configuration is shared by every org member, who are all connected automatically. Use addServer instead for servers that support MCP OAuth. Requires service-auth. Requires the mcp.configure action.",
+        "operationId": "network.habitat.mcp.addManualServer",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "name",
+                  "url"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to configure the server for.",
+                    "format": "did"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Also becomes the server's ID and the namespace under which its tools are exposed. Letters, digits, hyphens, and underscores only, and must be unique within the org.",
+                    "maxLength": 64
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "The server's streamable HTTP endpoint.",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "server"
+                  ],
+                  "properties": {
+                    "server": {
+                      "$ref": "#/components/schemas/network.habitat.mcp.defs.server"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.addServer": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.addServer",
+        "description": "Begin configuring a new MCP server for the org. Registers a Nango integration for it and returns a Nango Connect session token for the caller's browser: the caller enters the server's URL and completes authorization directly in Nango's Connect UI. Call completeAddServer once that succeeds, or cancelAddServer if the caller abandons it. Requires service-auth. Requires the mcp.configure action.",
+        "operationId": "network.habitat.mcp.addServer",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "name"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to configure the server for.",
+                    "format": "did"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Also becomes the server's record key and the namespace under which its tools are exposed. Letters, digits, hyphens, and underscores only, and must be unique within the org.",
+                    "maxLength": 64
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "sessionToken"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "The new server's identifier (equal to name). Pass this to completeAddServer or cancelAddServer."
+                    },
+                    "sessionToken": {
+                      "type": "string",
+                      "description": "A Nango Connect session token, to be passed to the Nango frontend SDK's openConnectUI."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.cancelAddServer": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.cancelAddServer",
+        "description": "Abandon an in-progress addServer flow, e.g. because the caller closed Nango's Connect UI without completing it. Deletes the Nango integration registered by addServer; no org record was ever written. Requires service-auth. Requires the mcp.configure action.",
+        "operationId": "network.habitat.mcp.cancelAddServer",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the server would have belonged to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "The server identifier returned by addServer."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.completeAddServer": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.completeAddServer",
+        "description": "Finish configuring an MCP server previously started with addServer, once the caller has completed authorization in Nango's Connect UI. Writes the server's record to the org. Requires service-auth. Requires the mcp.configure action.",
+        "operationId": "network.habitat.mcp.completeAddServer",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id",
+                  "name"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the server belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "The server identifier returned by addServer."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Must match the name passed to addServer.",
+                    "maxLength": 64
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "server"
+                  ],
+                  "properties": {
+                    "server": {
+                      "$ref": "#/components/schemas/network.habitat.mcp.defs.server"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.disconnectServer": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.disconnectServer",
+        "description": "Remove the caller's stored credential for an org-configured MCP server. Requires service-auth. Callable by any org member.",
+        "operationId": "network.habitat.mcp.disconnectServer",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the server belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.listServers": {
+      "get": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.listServers",
+        "description": "List MCP servers configured for an org, along with whether the caller has connected to each one. Requires service-auth. Callable by any org member.",
+        "operationId": "network.habitat.mcp.listServers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "org",
+            "in": "query",
+            "description": "DID of the community to list MCP servers for.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "DID of the community to list MCP servers for.",
+              "format": "did"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "servers"
+                  ],
+                  "properties": {
+                    "servers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.mcp.listServers.serverWithStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.removeServer": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.removeServer",
+        "description": "Remove an org's configured MCP server, along with any stored user credentials for it. Requires service-auth. Requires the mcp.configure action.",
+        "operationId": "network.habitat.mcp.removeServer",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the server belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.startAuthorization": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.startAuthorization",
+        "description": "Begin authorizing the caller against an org-configured MCP server via Nango. Returns a Nango Connect session token for the caller's browser to use with the Nango frontend SDK's Connect UI. Requires service-auth. Callable by any org member.",
+        "operationId": "network.habitat.mcp.startAuthorization",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the server belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "sessionToken"
+                  ],
+                  "properties": {
+                    "sessionToken": {
+                      "type": "string",
+                      "description": "A Nango Connect session token, to be passed to the Nango frontend SDK's openConnectUI."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.updateServer": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.updateServer",
+        "description": "Update an org's configured MCP server. Its name can't be changed, since it's also the server's ID and tool namespace; remove and re-add it under a new name instead. url applies only to manual servers. Requires service-auth. Requires the mcp.configure action.",
+        "operationId": "network.habitat.mcp.updateServer",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the server belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Manual servers only: the server's new URL.",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "server"
+                  ],
+                  "properties": {
+                    "server": {
+                      "$ref": "#/components/schemas/network.habitat.mcp.defs.server"
                     }
                   }
                 }
@@ -8775,7 +9794,8 @@
               "space.create",
               "space.configure",
               "space.delete",
-              "community.configure"
+              "community.configure",
+              "mcp.configure"
             ]
           },
           "roles": {
@@ -9141,6 +10161,92 @@
           "logoUri": {
             "type": "string",
             "description": "The logo URI of this app."
+          }
+        }
+      },
+      "network.habitat.mcp.defs.server": {
+        "type": "object",
+        "description": "An MCP server configured for an org.",
+        "required": [
+          "id",
+          "name",
+          "authType"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The server's identifier, unique within the org."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "authType": {
+            "type": "string",
+            "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically.",
+            "enum": [
+              "oauth",
+              "manual"
+            ]
+          }
+        }
+      },
+      "network.habitat.mcp.listServers.serverWithStatus": {
+        "type": "object",
+        "required": [
+          "server",
+          "connected"
+        ],
+        "properties": {
+          "server": {
+            "$ref": "#/components/schemas/network.habitat.mcp.defs.server"
+          },
+          "connected": {
+            "type": "boolean",
+            "description": "Whether the caller has a stored credential for this server."
+          }
+        }
+      },
+      "network.habitat.mcp.server": {
+        "type": "object",
+        "required": [
+          "name",
+          "updatedAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Also this record's key. Letters, digits, hyphens, and underscores only.",
+            "maxLength": 64
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "authType": {
+            "type": "string",
+            "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server. Absent means oauth.",
+            "enum": [
+              "oauth",
+              "manual"
+            ]
+          },
+          "nangoKey": {
+            "type": "string",
+            "description": "oauth servers only: the Nango integration's unique_key, globally unique across the whole Nango environment (unlike name, which is only unique within the org)."
+          },
+          "serverUrl": {
+            "type": "string",
+            "description": "The server's streamable HTTP endpoint. For an oauth server, as the admin entered it in Nango's Connect UI while adding it, pre-filled for members when they connect so only the admin ever enters it. For a manual server, as the admin entered it when adding it.",
+            "format": "uri"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -9783,6 +10889,9 @@
     },
     {
       "name": "network.habitat.listConnectedApps"
+    },
+    {
+      "name": "network.habitat.mcp"
     },
     {
       "name": "network.habitat.opensocial"
