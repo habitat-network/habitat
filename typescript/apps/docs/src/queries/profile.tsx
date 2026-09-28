@@ -1,5 +1,5 @@
 import { QueryClient, queryOptions } from "@tanstack/react-query";
-import { AuthManager, getProfile, getProfiles } from "internal";
+import { type AuthManager, getProfile, getProfiles } from "internal";
 
 export const profileQueryOptions = (did: string, _authManager: AuthManager) =>
   queryOptions({
