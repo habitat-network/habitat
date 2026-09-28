@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Controller, useForm } from "react-hook-form";
 import Nango from "@nangohq/frontend";
 import type { AuthManager } from "internal";
 import type { DidString } from "@atproto/lex";
@@ -46,6 +47,13 @@ const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 // How pear authenticates to a server; see mcpgateway.AuthType (Go).
 type AuthType = "oauth" | "manual";
+
+interface AddServerFormValues {
+  name: string;
+  description: string;
+  authType: AuthType;
+  url: string;
+}
 
 // isUri narrows s to the lexicon's uri string format.
 function isUri(s: string): s is `${string}:${string}` {
@@ -228,10 +236,17 @@ function AddServerDialog({
   authManager: AuthManager;
 }) {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [authType, setAuthType] = useState<AuthType>("oauth");
-  const [url, setUrl] = useState("");
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset: resetForm,
+    formState: { errors, isValid },
+  } = useForm<AddServerFormValues>({
+    mode: "onChange",
+    defaultValues: { name: "", description: "", authType: "oauth", url: "" },
+  });
 
   const {
     mutate: add,
@@ -241,19 +256,14 @@ function AddServerDialog({
   } = useMutation(addMcpServerMutationOptions(authManager, org));
 
   const reset = () => {
-    setName("");
-    setDescription("");
-    setAuthType("oauth");
-    setUrl("");
+    resetForm();
     resetMutation();
   };
-
-  const canSubmit = SERVER_NAME_PATTERN.test(name) && isUri(url);
 
   // Adding a server just writes its record; nobody signs in here. For an
   // oauth server, members (including this admin) connect afterward with the
   // "Connect" button, which drives Nango's Connect UI.
-  const submit = () => {
+  const submit = handleSubmit(({ name, description, authType, url }) => {
     if (!isUri(url)) return;
     add(
       { name, description: description || undefined, url, authType },
@@ -264,7 +274,7 @@ function AddServerDialog({
         },
       },
     );
-  };
+  });
 
   return (
     <Dialog
@@ -279,23 +289,23 @@ function AddServerDialog({
         <DialogHeader>
           <DialogTitle>Add an MCP server</DialogTitle>
         </DialogHeader>
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!canSubmit) return;
-            submit();
-          }}
-        >
+        <form className="flex flex-col gap-4" onSubmit={submit}>
           <Field>
             <FieldLabel htmlFor="mcp-name">Name</FieldLabel>
             <Input
               id="mcp-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
               placeholder="cloudflare"
               autoFocus
+              {...register("name", {
+                required: "Enter a name.",
+                pattern: {
+                  value: SERVER_NAME_PATTERN,
+                  message:
+                    "Use 1-64 letters, numbers, hyphens, or underscores.",
+                },
+              })}
             />
+            <FieldError errors={[errors.name]} />
             <p className="text-xs text-muted-foreground">
               Letters, numbers, hyphens, and underscores only. Unique within
               this community, and can't be changed later.
@@ -305,62 +315,69 @@ function AddServerDialog({
             <FieldLabel htmlFor="mcp-description">
               Description (optional)
             </FieldLabel>
-            <Input
-              id="mcp-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
+            <Input id="mcp-description" {...register("description")} />
           </Field>
           <Field>
             <FieldLabel>How members connect</FieldLabel>
-            <RadioGroup
-              value={authType}
-              onValueChange={(value) =>
-                setAuthType(value === "manual" ? "manual" : "oauth")
-              }
-            >
-              <FieldLabel htmlFor="mcp-auth-oauth">
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldTitle>Sign in with OAuth</FieldTitle>
-                    <FieldDescription>
-                      Each member signs in with their own account. Use this for
-                      servers that support MCP sign-in.
-                    </FieldDescription>
-                  </FieldContent>
-                  <RadioGroupItem value="oauth" id="mcp-auth-oauth" />
-                </Field>
-              </FieldLabel>
-              <FieldLabel htmlFor="mcp-auth-manual">
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldTitle>No auth</FieldTitle>
-                    <FieldDescription>
-                      Every member connects to it automatically. Use this for
-                      servers that don't require sign-in.
-                    </FieldDescription>
-                  </FieldContent>
-                  <RadioGroupItem value="manual" id="mcp-auth-manual" />
-                </Field>
-              </FieldLabel>
-            </RadioGroup>
+            <Controller
+              control={control}
+              name="authType"
+              render={({ field: { value, onChange } }) => (
+                <RadioGroup
+                  value={value}
+                  onValueChange={(next) =>
+                    onChange(next === "manual" ? "manual" : "oauth")
+                  }
+                >
+                  <FieldLabel htmlFor="mcp-auth-oauth">
+                    <Field orientation="horizontal">
+                      <FieldContent>
+                        <FieldTitle>Sign in with OAuth</FieldTitle>
+                        <FieldDescription>
+                          Each member signs in with their own account. Use this
+                          for servers that support MCP sign-in.
+                        </FieldDescription>
+                      </FieldContent>
+                      <RadioGroupItem value="oauth" id="mcp-auth-oauth" />
+                    </Field>
+                  </FieldLabel>
+                  <FieldLabel htmlFor="mcp-auth-manual">
+                    <Field orientation="horizontal">
+                      <FieldContent>
+                        <FieldTitle>No auth</FieldTitle>
+                        <FieldDescription>
+                          Every member connects to it automatically. Use this
+                          for servers that don't require sign-in.
+                        </FieldDescription>
+                      </FieldContent>
+                      <RadioGroupItem value="manual" id="mcp-auth-manual" />
+                    </Field>
+                  </FieldLabel>
+                </RadioGroup>
+              )}
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor="mcp-url">Server URL</FieldLabel>
             <Input
               id="mcp-url"
               type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
               placeholder="https://mcp.example.com/mcp"
+              {...register("url", {
+                required: "Enter the server's URL.",
+                validate: (value) =>
+                  isUri(value) ||
+                  "Enter a full URL, like https://mcp.example.com/mcp.",
+              })}
             />
+            <FieldError errors={[errors.url]} />
             <p className="text-xs text-muted-foreground">
               Everyone in this community can see this URL.
             </p>
           </Field>
           <FieldError errors={error ? [{ message: error.message }] : []} />
           <DialogFooter>
-            <Button type="submit" disabled={adding || !canSubmit}>
+            <Button type="submit" disabled={adding || !isValid}>
               {adding ? "Adding…" : "Add server"}
             </Button>
           </DialogFooter>
