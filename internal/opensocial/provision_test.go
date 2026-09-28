@@ -59,6 +59,41 @@ func TestStoreProvisionMember(t *testing.T) {
 	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
 }
 
+// ProvisionMember runs on every email-domain sign-in, not just the first, so
+// it must not clobber roles an admin assigned after the member joined.
+func TestStoreProvisionMemberKeepsRolesOnResignIn(t *testing.T) {
+	s := opensocial_testutil.NewTestStore(t)
+	org := newOrgWithoutCreator(t, s)
+	first := syntax.DID("did:plc:first")
+	second := syntax.DID("did:plc:second")
+
+	require.NoError(t, s.ProvisionMember(t.Context(), org, first))
+	require.NoError(t, s.ProvisionMember(t.Context(), org, second))
+
+	// The org admin promotes the first member, and gives the second an extra
+	// role on top of member.
+	require.NoError(t, s.AssignRoles(
+		t.Context(), org, first,
+		[]string{opensocial.AdminRoleRkey},
+	))
+	require.NoError(t, s.AssignRoles(
+		t.Context(), org, second,
+		[]string{opensocial.MemberRoleRkey, "moderator"},
+	))
+
+	// A later sign-in re-runs provisioning for both.
+	require.NoError(t, s.ProvisionMember(t.Context(), org, first))
+	require.NoError(t, s.ProvisionMember(t.Context(), org, second))
+
+	roles, err := s.GetUserRoles(t.Context(), org, first)
+	require.NoError(t, err)
+	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+
+	roles, err = s.GetUserRoles(t.Context(), org, second)
+	require.NoError(t, err)
+	require.Equal(t, []string{opensocial.MemberRoleRkey, "moderator"}, roles)
+}
+
 func TestStoreProvisionMemberConcurrentFirstSignIns(t *testing.T) {
 	s := opensocial_testutil.NewTestStore(t)
 	org := newOrgWithoutCreator(t, s)
