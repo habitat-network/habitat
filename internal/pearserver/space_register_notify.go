@@ -57,13 +57,13 @@ func (p *PearServer) RegisterNotify(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	service, endpoint, ok := p.resolveNotifyTarget(ctx, w, input)
+	audience, endpoint, ok := p.resolveNotifyTarget(ctx, w, input)
 	if !ok {
 		return
 	}
 	expiresAt := time.Now().Add(registrationTTL)
 	if err := p.notifyStore.Register(
-		ctx, spaceURI, repo, endpoint, service, expiresAt,
+		ctx, spaceURI, repo, audience, endpoint, expiresAt,
 	); err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("register notify: %w", err))
 		return
@@ -73,16 +73,18 @@ func (p *PearServer) RegisterNotify(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// resolveNotifyTarget works out which service a registration subscribes and
-// where its notifications get delivered, writing the error response itself
-// when neither can be determined. It returns service as the identifier to
-// address notifications to, or empty for a registration made through the
-// deprecated endpoint field.
+// resolveNotifyTarget works out what a registration is addressed by and where
+// its notifications get delivered, writing the error response itself when
+// neither can be determined.
+//
+// The audience is the service identifier when the subscriber named one, and
+// otherwise the endpoint URL it supplied, which is both the delivery address
+// and the audience for registrations predating the service field.
 func (p *PearServer) resolveNotifyTarget(
 	ctx context.Context,
 	w http.ResponseWriter,
 	input habitat.NetworkHabitatSpaceRegisterNotifyInput,
-) (service, endpoint string, ok bool) {
+) (audience, endpoint string, ok bool) {
 	if input.Service == "" {
 		if input.Endpoint == "" {
 			httpx.WriteInvalidRequest(
@@ -92,7 +94,7 @@ func (p *PearServer) resolveNotifyTarget(
 		}
 		// Deprecated path: the caller supplied the delivery address outright,
 		// so it is also what deliveries are addressed to.
-		return "", input.Endpoint, true
+		return input.Endpoint, input.Endpoint, true
 	}
 
 	did, serviceID, ok := httpx.ParseServiceRefInput(
@@ -116,11 +118,10 @@ func (p *PearServer) resolveNotifyTarget(
 		)
 		return "", "", false
 	}
-	// Both halves are persisted: the endpoint to deliver to, and the
-	// subscriber's own service string rather than what it resolved to, so the
-	// registration keeps addressing the subscriber the same way for its whole
-	// lifetime even if its DID document later changes. The store normalizes
-	// the endpoint's trailing slash.
+	// Both halves are persisted: the subscriber's own service string as the
+	// audience rather than what it resolved to, so the registration keeps
+	// addressing the subscriber the same way for its whole lifetime even if
+	// its DID document later changes.
 	return input.Service, resolved, true
 }
 

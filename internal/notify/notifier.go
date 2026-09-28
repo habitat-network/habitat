@@ -142,10 +142,10 @@ func (d *Deliverer) deliver(
 			"err", err, "endpoint", endpoint, "method", method)
 		return
 	}
-	// The token is addressed to however the subscriber registered: the service
-	// identifier when it gave one, and otherwise the endpoint URL.
-	audience := reg.Audience()
-	token, err := utils.ServiceAuthToken(privKey, iss, audience, &method, nil)
+	// The token is addressed to the audience the subscriber registered under:
+	// its service identifier, or the endpoint URL for a registration predating
+	// the service field.
+	token, err := utils.ServiceAuthToken(privKey, iss, reg.Audience, &method, nil)
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: sign service auth",
 			"err", err, "endpoint", endpoint, "method", method)

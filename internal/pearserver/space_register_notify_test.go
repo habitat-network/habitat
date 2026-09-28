@@ -96,7 +96,7 @@ func TestServerRegisterNotify(t *testing.T) {
 	require.Len(t, regs, 1)
 	// The service identifier is both what the registration is addressed by and
 	// what it was resolved to an endpoint through.
-	require.Equal(t, syncerRef, regs[0].Service)
+	require.Equal(t, syncerRef, regs[0].Audience)
 	require.Equal(t, syncerEndpoint, regs[0].Endpoint)
 	require.Empty(t, regs[0].Repo)
 }
@@ -141,8 +141,9 @@ func TestServerRegisterNotifyDeprecatedEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, regs, 1)
 	require.Equal(t, "https://legacy.example/all", regs[0].Endpoint)
-	require.Empty(t, regs[0].Service)
-	require.Equal(t, "https://legacy.example/all", regs[0].Audience())
+	// The endpoint is its own audience, which is what the audience migration
+	// writes for rows that predate the service field.
+	require.Equal(t, "https://legacy.example/all", regs[0].Audience)
 }
 
 // TestServerRegisterNotifyServiceBeatsEndpoint verifies the service identifier
@@ -168,7 +169,7 @@ func TestServerRegisterNotifyServiceBeatsEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, regs, 1)
 	require.Equal(t, syncerEndpoint, regs[0].Endpoint)
-	require.Equal(t, syncerRef, regs[0].Audience())
+	require.Equal(t, syncerRef, regs[0].Audience)
 }
 
 // TestServerRegisterNotifyRejectsNeitherTarget covers a caller that named no
@@ -298,7 +299,7 @@ func TestServerRegisterNotifyComAtprotoAlias(t *testing.T) {
 	regs, err := ts.NotifyStore.ListForRepo(t.Context(), notifySpace, alice)
 	require.NoError(t, err)
 	require.Len(t, regs, 1)
-	require.Equal(t, syncerRef, regs[0].Service)
+	require.Equal(t, syncerRef, regs[0].Audience)
 	require.Equal(t, syncerEndpoint, regs[0].Endpoint)
 }
 

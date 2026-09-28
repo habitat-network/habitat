@@ -56,8 +56,8 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 
 	future := time.Now().Add(time.Hour)
 	// One whole-space and one repo-specific registration both match this write.
-	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, "", future))
-	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, "", future))
+	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, subscriber.URL, future))
+	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, subscriber.URL, future))
 
 	signer := &fakeSigner{t: t}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
@@ -90,8 +90,8 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 
 	future := time.Now().Add(time.Hour)
 	// Both a whole-space and a repo-specific registration should be notified.
-	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, "", future))
-	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, "", future))
+	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, subscriber.URL, future))
+	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, subscriber.URL, future))
 
 	signer := &fakeSigner{t: t}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
@@ -128,7 +128,7 @@ func TestNotifierSignerErrorAbortsDelivery(t *testing.T) {
 	t.Cleanup(subscriber.Close)
 
 	future := time.Now().Add(time.Hour)
-	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, "", future))
+	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, subscriber.URL, future))
 
 	signer := &fakeSigner{err: errSign}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
@@ -154,7 +154,10 @@ func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
 	// Registration targets bob, but the write is for repo (alice).
 	require.NoError(
 		t,
-		s.Register(t.Context(), space, bob, subscriber.URL, "", time.Now().Add(time.Hour)),
+		s.Register(
+			t.Context(), space, bob,
+			subscriber.URL, subscriber.URL, time.Now().Add(time.Hour),
+		),
 	)
 
 	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{t: t})
@@ -215,7 +218,7 @@ func captureAudience(t *testing.T, register func(Store, string) error) (string, 
 func TestNotifierAddressesServiceIdentifier(t *testing.T) {
 	aud, endpoint := captureAudience(t, func(s Store, ep string) error {
 		return s.Register(
-			t.Context(), space, "", ep, syncerService, time.Now().Add(time.Hour),
+			t.Context(), space, "", syncerService, ep, time.Now().Add(time.Hour),
 		)
 	})
 	require.Equal(t, syncerService, aud)
@@ -226,7 +229,7 @@ func TestNotifierAddressesServiceIdentifier(t *testing.T) {
 // deprecated endpoint field is still delivered to, addressed by its URL.
 func TestNotifierAddressesLegacyEndpoint(t *testing.T) {
 	aud, endpoint := captureAudience(t, func(s Store, ep string) error {
-		return s.Register(t.Context(), space, "", ep, "", time.Now().Add(time.Hour))
+		return s.Register(t.Context(), space, "", ep, ep, time.Now().Add(time.Hour))
 	})
 	require.Equal(t, endpoint, aud)
 }
