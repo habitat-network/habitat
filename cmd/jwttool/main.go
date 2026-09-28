@@ -62,7 +62,11 @@ func parsePrivateKey(multibase string) (atcrypto.PrivateKey, error) {
 
 func runServiceAuth(args []string) error {
 	fs := flag.NewFlagSet("service-auth", flag.ContinueOnError)
-	keyStr := fs.String("key", "", "multibase-encoded private key (parsable by atcrypto.ParsePrivateMultibase)")
+	keyStr := fs.String(
+		"key",
+		"",
+		"multibase-encoded private key (parsable by atcrypto.ParsePrivateMultibase)",
+	)
 	issStr := fs.String("iss", "", "issuer DID (e.g. did:web:example.com)")
 	aud := fs.String("aud", "", "audience (e.g. did:web:peer.example.com or host)")
 	lxmStr := fs.String("lxm", "", "lexicon method NSID (optional)")
@@ -112,9 +116,17 @@ func runServiceAuth(args []string) error {
 
 func runSpaceCredential(args []string) error {
 	fs := flag.NewFlagSet("space-credential", flag.ContinueOnError)
-	keyStr := fs.String("key", "", "multibase-encoded private key (parsable by atcrypto.ParsePrivateMultibase)")
+	keyStr := fs.String(
+		"key",
+		"",
+		"multibase-encoded private key (parsable by atcrypto.ParsePrivateMultibase)",
+	)
 	kid := fs.String("kid", "#atproto", "key ID for the JWT header")
-	spaceStr := fs.String("space", "", "space URI (e.g. at://did:web:example.com/space/community.opensocial.about/self)")
+	spaceStr := fs.String(
+		"space",
+		"",
+		"space URI (e.g. at://did:web:example.com/space/community.opensocial.about/self)",
+	)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -141,10 +153,18 @@ func runSpaceCredential(args []string) error {
 
 func runDelegation(args []string) error {
 	fs := flag.NewFlagSet("delegation", flag.ContinueOnError)
-	keyStr := fs.String("key", "", "multibase-encoded private key (parsable by atcrypto.ParsePrivateMultibase)")
+	keyStr := fs.String(
+		"key",
+		"",
+		"multibase-encoded private key (parsable by atcrypto.ParsePrivateMultibase)",
+	)
 	issStr := fs.String("iss", "", "issuer DID (e.g. did:web:example.com)")
 	kid := fs.String("kid", "#atproto", "key ID for the JWT header")
-	spaceStr := fs.String("space", "", "space URI (e.g. at://did:web:example.com/space/community.opensocial.about/self)")
+	spaceStr := fs.String(
+		"space",
+		"",
+		"space URI (e.g. at://did:web:example.com/space/community.opensocial.about/self)",
+	)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -177,11 +197,14 @@ func runDelegation(args []string) error {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `jwttool — mint debugging JWTs from internal/utils with a multibase private key
+	fmt.Fprint(
+		os.Stderr,
+		`jwttool — mint debugging JWTs from internal/utils with a multibase private key
 
 usage:
   jwttool service-auth --key <multibase> --iss <did> --aud <aud> [--lxm <nsid>] [--ttl <duration>]
   jwttool space-credential --key <multibase> [--kid <kid>] --space <space-uri>
   jwttool delegation --key <multibase> --iss <did> [--kid <kid>] --space <space-uri>
-`)
+`,
+	)
 }
