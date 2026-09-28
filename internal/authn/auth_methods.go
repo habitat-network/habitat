@@ -13,10 +13,11 @@ type CredentialInfo struct {
 	Subject syntax.DID
 	Org     org.Org
 	Space   habitat_syntax.SpaceURI
-	// Method is the auth method that validated the request. It is stamped by
-	// EndpointOptions.Validate, which copies the credential a Method returned
-	// rather than writing through it: a Method may hold onto the credential it
-	// returns and hand the same one to later requests.
+	// Method names the auth method that produced this credential. Each Method
+	// sets it on the credential it returns, so provenance holds however the
+	// Method was reached: through EndpointOptions.Validate, or called
+	// directly — which RawMethod callers necessarily do, having no request to
+	// route through the validator.
 	Method ValidatorMethod
 }
 

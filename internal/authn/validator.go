@@ -14,8 +14,8 @@ import (
 type ValidatorMethod int
 
 const (
-	// ValidatorMethodNone is the zero value, so a CredentialInfo no validator
-	// stamped reads as "unknown" rather than silently as OAuth.
+	// ValidatorMethodNone is the zero value, so a CredentialInfo whose Method
+	// forgot to set it reads as "unknown" rather than silently as OAuth.
 	ValidatorMethodNone ValidatorMethod = iota
 	ValidatorMethodOAuth
 	ValidatorMethodServiceAuth
@@ -119,9 +119,6 @@ func (rv *EndpointOptions) Validate(
 		if !ok {
 			return nil, false
 		}
-		stamped := *credInfo
-		stamped.Method = vm
-		credInfo = &stamped
 		if rv.space != "" {
 			if credInfo.Space != "" {
 				if rv.relation != habitat_syntax.SpaceRoleReader {

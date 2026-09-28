@@ -123,7 +123,13 @@ func TestDelegationAuthMethod(t *testing.T) {
 		credInfo, ok := newTestDelegator(t, WithDirectory(dir), WithSpaceRoleValidator(store)).
 			Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
-		require.Equal(t, credInfo, &authn.CredentialInfo{Space: space})
+		require.Equal(
+			t, credInfo,
+			&authn.CredentialInfo{
+				Space:  space,
+				Method: authn.ValidatorMethodDelegationToken,
+			},
+		)
 	})
 
 	t.Run("no permission", func(t *testing.T) {
@@ -150,7 +156,13 @@ func TestDelegationAuthMethod(t *testing.T) {
 			WithHostKey(hostKey),
 		).Validate(httptest.NewRecorder(), r)
 		require.True(t, ok)
-		require.Equal(t, credInfo, &authn.CredentialInfo{Space: space})
+		require.Equal(
+			t, credInfo,
+			&authn.CredentialInfo{
+				Space:  space,
+				Method: authn.ValidatorMethodDelegationToken,
+			},
+		)
 	})
 
 	t.Run("host key no permission", func(t *testing.T) {

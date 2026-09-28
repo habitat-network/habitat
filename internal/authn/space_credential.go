@@ -63,6 +63,7 @@ func (s *SpaceCredentialAuthMethod) Validate(
 	}
 
 	return &CredentialInfo{
-		Space: space,
+		Space:  space,
+		Method: ValidatorMethodSpaceCredential,
 	}, true
 }
