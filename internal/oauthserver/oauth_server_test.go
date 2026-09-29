@@ -544,6 +544,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 			credInfo, ok := oauthServer.Validate(w, r)
 			require.True(t, ok, "failed to validate token")
 			require.Equal(t, member.DID, credInfo.Subject)
+			require.Equal(t, authn.ValidatorMethodOAuth, credInfo.Method)
 		default:
 			t.Errorf("unknown server path: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)

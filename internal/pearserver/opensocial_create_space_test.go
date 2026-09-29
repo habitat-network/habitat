@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/internal/authn"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -82,5 +83,53 @@ func TestServer_CreateOpensocialSpace(t *testing.T) {
 
 		code = client.Procedure(ts.Server.CreateOpensocialSpace, input, &out)
 		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("accepts the org's own OAuth credential", func(t *testing.T) {
+		ts := newOpenSocialServer(t, admin)
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
+
+		// An admin-approved app holds an OAuth credential for the org's
+		// identity itself, not for any member's.
+		orgTS := newOpenSocialServerAs(
+			t, ts, syntax.DID(orgDID), authn.ValidatorMethodOAuth,
+		)
+
+		client := httpx_testutil.NewTestXRPCClient(t)
+		var out opensocial_api.CommunityOpensocialCreateSpaceOutput
+		code := client.Procedure(
+			orgTS.Server.CreateOpensocialSpace,
+			opensocial_api.CommunityOpensocialCreateSpaceInput{
+				Org:  orgDID,
+				Type: "network.habitat.docs",
+			},
+			&out,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.NotEmpty(t, out.Uri)
+	})
+
+	t.Run("rejects a member's OAuth credential", func(t *testing.T) {
+		ts := newOpenSocialServer(t, admin)
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
+
+		// admin is an admin of this org, but reached it over OAuth on its own
+		// session rather than through service auth. Org spaces come from the
+		// org's credential or a member's service-auth token, so this is denied.
+		aliceTS := newOpenSocialServerAs(t, ts, admin, authn.ValidatorMethodOAuth)
+
+		client := httpx_testutil.NewTestXRPCClient(t)
+		var out opensocial_api.CommunityOpensocialCreateSpaceOutput
+		code := client.Procedure(
+			aliceTS.Server.CreateOpensocialSpace,
+			opensocial_api.CommunityOpensocialCreateSpaceInput{
+				Org:  orgDID,
+				Type: "network.habitat.docs",
+			},
+			&out,
+		)
+		require.Equal(t, http.StatusUnauthorized, code)
 	})
 }

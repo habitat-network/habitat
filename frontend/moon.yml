@@ -19,13 +19,6 @@ tasks:
           VITE_HABITAT_DOMAIN: pear.habitat
     options:
       internal: false
-  dev-all:
-    deps:
-      - target: ~:dev
-      - target: docs:dev
-    options:
-      persistent: true
-      runInCI: false
   gh-pages:
     script: "mkdir -p $projectRoot/dist/api && cp -r $workspaceRoot/api-docs/build/. $projectRoot/dist/api"
     deps:
