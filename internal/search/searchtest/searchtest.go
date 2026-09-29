@@ -91,7 +91,10 @@ func Run(t *testing.T, newIndex func(t *testing.T) search.Index) {
 		other := doc(spaceA, "2", "3kaaaaaaaaaa2", "note about cats")
 		other.Collection = "network.habitat.other"
 		other.Repo = "did:plc:someone"
-		require.NoError(t, idx.Put(ctx, doc(spaceA, "1", "3kaaaaaaaaaa2", "note about cats"), other))
+		require.NoError(
+			t,
+			idx.Put(ctx, doc(spaceA, "1", "3kaaaaaaaaaa2", "note about cats"), other),
+		)
 		spaces := []habitat_syntax.SpaceURI{spaceA}
 
 		res, err := idx.Search(ctx, search.Query{
