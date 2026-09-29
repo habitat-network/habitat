@@ -84,9 +84,13 @@ func TestServer_ApplyWrites(t *testing.T) {
 	})
 
 	t.Run("rejects an unknown write type and a missing rkey", func(t *testing.T) {
-		code, _ := apply(map[string]any{"$type": "bogus#nope", "collection": "network.habitat.note"})
+		code, _ := apply(
+			map[string]any{"$type": "bogus#nope", "collection": "network.habitat.note"},
+		)
 		require.Equal(t, http.StatusBadRequest, code)
-		code, _ = apply(habitat.NetworkHabitatSpaceApplyWritesDelete{Collection: "network.habitat.note"})
+		code, _ = apply(
+			habitat.NetworkHabitatSpaceApplyWritesDelete{Collection: "network.habitat.note"},
+		)
 		require.Equal(t, http.StatusBadRequest, code)
 	})
 

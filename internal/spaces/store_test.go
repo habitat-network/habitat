@@ -1270,7 +1270,12 @@ func TestApplyWrites(t *testing.T) {
 
 	t.Run("space not found", func(t *testing.T) {
 		s := spaces_testutil.NewTestStore(t)
-		_, err := s.ApplyWrites(t.Context(), "at://did:plc:org/space/network.habitat.group/none", alice, nil)
+		_, err := s.ApplyWrites(
+			t.Context(),
+			"at://did:plc:org/space/network.habitat.group/none",
+			alice,
+			nil,
+		)
 		require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 	})
 }
