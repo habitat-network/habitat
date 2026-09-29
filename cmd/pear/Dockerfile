@@ -61,8 +61,9 @@ COPY . /app/
 # only contains a .gitkeep, so without this the embedded /ui/ would be empty.
 COPY --from=ui /app/internal/webui/dist /app/internal/webui/dist
 
-# Build the binary
-RUN go build -o /app/bin/pear .
+# Build the binary. The search index needs SQLite's FTS5, which go-sqlite3 only
+# compiles in with this tag.
+RUN go build -tags sqlite_fts5 -o /app/bin/pear .
 
 FROM alpine:latest
 

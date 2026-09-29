@@ -34,7 +34,16 @@ models.
 moon run pear:migration-create -- <name> go
 ```
 
-Atlas ignores Go migrations, so they must not change the schema. A Go migration
+Atlas ignores Go migrations, so they must not change the schema of the GORM
+models. The one exception is objects Atlas can't express at all, such as the
+search index's SQLite FTS5 table and Postgres expression index
+(`search.FTSSchema`): they hang off the `search_documents` model's table and are
+created by a Go migration so the drift check never sees them. A Go migration
 that needs pear's components (for example the spaces store) gets them with
 `GetPearMigrationContext(ctx, tx)` instead of constructing its own. It returns
 the components pear built, already scoped to the migration's transaction.
+
+Migrations registered with `goose.AddMigrationContext` are visible to every
+goose run in the process, including OpenFGA's migrations of its own database. A
+migration that only makes sense on pear's database, like the search one, is
+returned from `goMigrations` in `migrations.go` instead.

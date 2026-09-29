@@ -25,3 +25,6 @@ formatters:
   enable: golines
 run:
   allow-parallel-runners: true
+  # See the GOFLAGS note in .moon/tasks/go.yml.
+  build-tags:
+    - sqlite_fts5

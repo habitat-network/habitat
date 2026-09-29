@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/fs"
 
+	"github.com/pressly/goose/v3"
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/db"
@@ -68,7 +69,19 @@ func Run(ctx context.Context, mc PearMigrationContext) error {
 	if err != nil {
 		return fmt.Errorf("load schema migrations: %w", err)
 	}
-	return db.Up(context.WithValue(ctx, pearMigrationContextKey{}, mc), mc.DB, sqlMigrations)
+	return db.Up(
+		context.WithValue(ctx, pearMigrationContextKey{}, mc),
+		mc.DB,
+		sqlMigrations,
+		goMigrations()...,
+	)
+}
+
+// goMigrations returns the Go migrations that only make sense on pear's
+// database. They are passed to [db.Up] rather than registered with goose's
+// global registry, which OpenFGA's own migrations of its database also read.
+func goMigrations() []*goose.Migration {
+	return []*goose.Migration{searchFTSMigration()}
 }
 
 // dialectMigrations returns the schema migrations for dialect.
