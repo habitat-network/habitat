@@ -51,7 +51,10 @@ func FetchProfiles(
 	var profiles []*bsky.ActorDefs_ProfileViewDetailed
 	for chunkStart := 0; chunkStart < len(dids); chunkStart += maxBskyProfilesPerCall {
 		chunkEnd := min(chunkStart+maxBskyProfilesPerCall, len(dids))
-		actors := xslices.Map(dids[chunkStart:chunkEnd], func(d syntax.DID) string { return d.String() })
+		actors := xslices.Map(
+			dids[chunkStart:chunkEnd],
+			func(d syntax.DID) string { return d.String() },
+		)
 		output, err := bsky.ActorGetProfiles(ctx, client, actors)
 		if err != nil {
 			return nil, err
