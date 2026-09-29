@@ -36,7 +36,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Create a modality-specific space under the community DID and index it with a community.opensocial.space record. Requires service-auth. Requires the `space.create` action. */
+/** Create a modality-specific space under the community DID and index it with a community.opensocial.space record. Requires service auth as a member of the community, or an OAuth credential for the community DID itself. Requires the `space.create` action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceAlreadyExists',
   'InvalidType',
