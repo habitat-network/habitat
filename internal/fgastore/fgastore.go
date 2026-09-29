@@ -79,6 +79,9 @@ func NewPostgres(ctx context.Context, uri string) (*FGA, error) {
 		db,
 		pgFS,
 		goose.WithTableName("fga_goose_db_version"),
+		// Only OpenFGA's own migrations belong in its version table, not pear's Go
+		// migrations registered globally with goose.
+		goose.WithDisableGlobalRegistry(true),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("fgastore migration provider: %w", err)
@@ -120,6 +123,9 @@ func NewSQLite(ctx context.Context, uri string) (*FGA, error) {
 		db,
 		sqliteFS,
 		goose.WithTableName("fga_goose_db_version"),
+		// Only OpenFGA's own migrations belong in its version table, not pear's Go
+		// migrations registered globally with goose.
+		goose.WithDisableGlobalRegistry(true),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("fgastore migration provider: %w", err)
