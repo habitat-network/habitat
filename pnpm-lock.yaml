@@ -121,7 +121,7 @@ catalogs:
 overrides:
   '@atproto/lex-builder': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
-  '@atproto/lex-client': 0.0.0-spaces-alpha-20260913191958
+  '@atproto/lex-client': 0.3.6
   '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-document': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-installer': 0.0.0-spaces-alpha-20260913191958
@@ -1092,8 +1092,8 @@ packages:
     resolution: {integrity: sha512-/uNa2G20BwVmYHgxIbzYieB1UC0eQTa+tFRBBrMI1uis2jdA0g4X/+JyhgVtbxrxPEKIlImvIJtW5dS1N5CPxg==}
     engines: {node: '>=22'}
 
-  '@atproto/lex-client@0.0.0-spaces-alpha-20260913191958':
-    resolution: {integrity: sha512-h9nZxoXy9nngDeV7zaM5fNo0sU9bvC3192Us2Ao3q21oH03d0aJlO7HEfgwe21gVTCuUB0P90sWNJU/252wqbw==}
+  '@atproto/lex-client@0.3.6':
+    resolution: {integrity: sha512-8tPDTyCdMN8qtyODl00oVcBlh26a0HeurOdtJnz9Fcq+dBuRo2XuEcxCUfvwtulOY+zghyw3zAG6fqwxUe2lvw==}
     engines: {node: '>=22'}
 
   '@atproto/lex-data@0.0.0-spaces-alpha-20260913191958':
@@ -12379,7 +12379,7 @@ snapshots:
       cborg: 4.5.8
       tslib: 2.8.1
 
-  '@atproto/lex-client@0.0.0-spaces-alpha-20260913191958':
+  '@atproto/lex-client@0.3.6':
     dependencies:
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
@@ -12418,7 +12418,7 @@ snapshots:
     dependencies:
       '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20260915165437
       '@atproto/crypto': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-client': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-client': 0.3.6
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-document': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
@@ -12436,7 +12436,7 @@ snapshots:
   '@atproto/lex@0.0.0-spaces-alpha-20260913191958':
     dependencies:
       '@atproto/lex-builder': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-client': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-client': 0.3.6
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-installer': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
