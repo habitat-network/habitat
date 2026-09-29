@@ -19,9 +19,11 @@ func seedLegacyRegistrations(t *testing.T, sqlDB *sql.DB, endpoints ...string) {
 		PRIMARY KEY (space, repo, endpoint))`)
 	require.NoError(t, err)
 	for _, ep := range endpoints {
-		_, err := sqlDB.ExecContext(ctx,
+		_, err := sqlDB.ExecContext(
+			ctx,
 			"INSERT INTO registrations (space, repo, endpoint) VALUES ('at://did:plc:org/space/network.habitat.group/s1','',?)",
-			ep)
+			ep,
+		)
 		require.NoError(t, err, "seed %s", ep)
 	}
 }
@@ -114,19 +116,25 @@ func TestNotifyRegistrationAudienceKeysOnAudience(t *testing.T) {
 	ctx := context.Background()
 	_, err := sqlDB.ExecContext(ctx, `ALTER TABLE registrations ADD audience text`)
 	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx,
-		`UPDATE registrations SET audience='did:web:sap.example#habitat_space_syncer' WHERE endpoint='https://a.example'`)
+	_, err = sqlDB.ExecContext(
+		ctx,
+		`UPDATE registrations SET audience='did:web:sap.example#habitat_space_syncer' WHERE endpoint='https://a.example'`,
+	)
 	require.NoError(t, err)
 
 	requireInTx(t, sqlDB, upNotifyRegistrationAudience)
 
 	// The service now resolves somewhere else: one row, with the new address.
-	_, err = sqlDB.ExecContext(ctx,
-		`UPDATE registrations SET endpoint='https://moved.example' WHERE audience='did:web:sap.example#habitat_space_syncer'`)
+	_, err = sqlDB.ExecContext(
+		ctx,
+		`UPDATE registrations SET endpoint='https://moved.example' WHERE audience='did:web:sap.example#habitat_space_syncer'`,
+	)
 	require.NoError(t, err)
 
-	rows, err := sqlDB.QueryContext(ctx,
-		"SELECT endpoint FROM registrations WHERE audience='did:web:sap.example#habitat_space_syncer'")
+	rows, err := sqlDB.QueryContext(
+		ctx,
+		"SELECT endpoint FROM registrations WHERE audience='did:web:sap.example#habitat_space_syncer'",
+	)
 	require.NoError(t, err)
 	defer func() { _ = rows.Close() }()
 	var endpoints []string
