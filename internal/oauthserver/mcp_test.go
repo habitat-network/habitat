@@ -51,7 +51,7 @@ func setupMCPTest(t *testing.T) *mcpTestServer {
 		secret,
 		&org.LoginRouter{Pds: pds},
 		dummyDir,
-		dbtestutil.NewDB(t),
+		dbtestutil.NewDB(t, Models()),
 		noop.Meter{},
 		testStore(t),
 		mcpTestOrigin,

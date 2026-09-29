@@ -9,9 +9,9 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/gorilla/websocket"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
+	sap_testutil "github.com/habitat-network/habitat/pkg/sap/testutil"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -27,7 +27,7 @@ func openOutboxTestServer(
 ) (*httptest.Server, *sap.Sap, *gorm.DB) {
 	t.Helper()
 
-	db := testutil.NewDB(t)
+	db := sap_testutil.NewSapDB(t)
 
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)

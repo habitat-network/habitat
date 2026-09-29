@@ -10,9 +10,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -21,7 +21,7 @@ import (
 
 func TestServer_GetSession(t *testing.T) {
 	t.Run("returns the session for a hive-hosted identity", func(t *testing.T) {
-		db := db_testutil.NewDB(t)
+		db := pear_testutil.NewPearDB(t)
 		h, err := hive.NewHive("example.com", "pear.example.com", db)
 		require.NoError(t, err)
 		ident, err := h.MintIdentity(t.Context(), "alice", "org")

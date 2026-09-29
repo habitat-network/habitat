@@ -340,9 +340,6 @@ func NewStore(
 	notifier Notifier,
 	commit *spacecommit.Authority,
 ) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
-	}
 	return &store{
 		db:       db,
 		clock:    syntax.NewTIDClock(0),
@@ -1307,4 +1304,10 @@ func (s *store) ApplyWrites(
 		s.notifier.NotifyWrite(ctx, spaceURI, repo, headRev, headHash)
 	}
 	return results, nil
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by db.Migrate.
+func Models() []any {
+	return []any{&space{}, &spaceRecord{}, &spaceRepo{}, &blobRef{}}
 }

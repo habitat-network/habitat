@@ -3,8 +3,9 @@ package pear
 import (
 	"testing"
 
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/stretchr/testify/require"
 
@@ -20,7 +21,7 @@ func TestHasPermission(t *testing.T) {
 	nonGranteeDID := syntax.DID("did:plc:nongrantee")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonGranteeDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, pear_testutil.NewPearDB(t), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
@@ -94,7 +95,7 @@ func TestAddPermissions(t *testing.T) {
 	nonOwnerDID := syntax.DID("did:plc:nonowner")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonOwnerDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, pear_testutil.NewPearDB(t), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
@@ -183,7 +184,7 @@ func TestRemovePermissions(t *testing.T) {
 	nonOwnerDID := syntax.DID("did:plc:nonowner")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonOwnerDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, pear_testutil.NewPearDB(t), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
@@ -244,7 +245,7 @@ func TestListPermissionGrants(t *testing.T) {
 	otherDID := syntax.DID("did:plc:other")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, otherDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, pear_testutil.NewPearDB(t), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")

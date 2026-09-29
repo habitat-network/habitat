@@ -66,9 +66,6 @@ type Store struct {
 }
 
 func NewStore(db *gorm.DB, oauthClient *oauth.ClientApp) (*Store, error) {
-	if err := db.AutoMigrate(&session{}, &spaceAccess{}); err != nil {
-		return nil, err
-	}
 	return &Store{db: db, oauthClient: oauthClient}, nil
 }
 
@@ -204,4 +201,10 @@ func (s *Store) DropSpace(ctx context.Context, space habitat_syntax.SpaceURI) er
 	return s.db.WithContext(ctx).
 		Where("space = ?", space).
 		Delete(&spaceAccess{}).Error
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by db.Migrate, which pkg/sap/testutil.NewSapDB calls for tests.
+func Models() []any {
+	return []any{&session{}, &spaceAccess{}}
 }

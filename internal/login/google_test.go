@@ -48,7 +48,7 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 		"client-id",
 		"client-secret",
 		"https://example.com/callback",
-		testutil.NewDB(t),
+		testutil.NewDB(t, Models()),
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 		clientID,
 		"test-secret",
 		"https://example.com/callback",
-		testutil.NewDB(t),
+		testutil.NewDB(t, Models()),
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)

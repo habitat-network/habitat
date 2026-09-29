@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.opentelemetry.io/otel/trace"
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"go.opentelemetry.io/otel/trace"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
 	"github.com/habitat-network/habitat/internal/nango"

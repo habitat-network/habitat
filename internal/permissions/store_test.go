@@ -10,7 +10,7 @@ import (
 )
 
 func newTestStore(t *testing.T) *store {
-	db := testutil.NewDB(t)
+	db := testutil.NewDB(t, Models(), clique.Models())
 	cliqueStore, err := clique.NewStore(db)
 	require.NoError(t, err)
 	store, err := NewStore(db, cliqueStore)
