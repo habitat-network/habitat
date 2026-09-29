@@ -43,9 +43,6 @@ func NewGoogleProvider(
 	if encryptionKey == nil {
 		return nil, fmt.Errorf("encryption key is required")
 	}
-	if err := db.AutoMigrate(&googleCredentialsModel{}); err != nil {
-		return nil, fmt.Errorf("migrate google credentials table: %w", err)
-	}
 	return &googleProvider{
 		oauthCfg: &oauth2.Config{
 			ClientID:     clientID,

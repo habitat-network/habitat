@@ -109,9 +109,6 @@ type link struct {
 
 // TODO: create table etc.
 func NewRepo(db *gorm.DB) (Repo, error) {
-	if err := db.AutoMigrate(&record{}, &Blob{}, &link{}); err != nil {
-		return nil, err
-	}
 
 	return &repo{
 		db: db,
@@ -532,4 +529,10 @@ func (r *repo) ListCollections(ctx context.Context, did syntax.DID) ([]Collectio
 		}
 	}
 	return md, nil
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by db.Migrate.
+func Models() []any {
+	return []any{&record{}, &Blob{}, &link{}}
 }
