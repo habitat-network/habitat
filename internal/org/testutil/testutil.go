@@ -15,7 +15,10 @@ import (
 
 func NewTestStore(t *testing.T) org.Store {
 	t.Helper()
-	database := testutil.NewPearDB(t)
+	// Only the stores this helper builds, rather than the whole pear schema:
+	// cmd/pear/testutil imports every store, and internal/oauthserver's
+	// in-package tests reach this package, so importing it here would cycle.
+	database := testutil.NewDB(t, org.Models(), hive.Models(), login.Models())
 	h, err := hive.NewHive("example.com", "pear.example.com", database)
 	require.NoError(t, err)
 	passwordProvider, err := login.NewPasswordProvider(

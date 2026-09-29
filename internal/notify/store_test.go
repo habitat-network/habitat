@@ -1,4 +1,4 @@
-package notify_test
+package notify
 
 import (
 	"testing"
@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/notify"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -18,9 +17,9 @@ var (
 	bob   = syntax.DID("did:plc:bob")
 )
 
-func newTestStore(t *testing.T) notify.Store {
+func newTestStore(t *testing.T) Store {
 	t.Helper()
-	s, err := notify.NewStore(testutil.NewPearDB(t))
+	s, err := NewStore(testutil.NewDB(t, Models()))
 	require.NoError(t, err)
 	return s
 }

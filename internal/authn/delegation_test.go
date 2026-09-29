@@ -8,8 +8,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	"github.com/habitat-network/habitat/internal/authn"
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
@@ -33,7 +33,7 @@ func newTestPermsStore(t *testing.T) (perms.Store, spaces.Store) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 
-	db := db_testutil.NewPearDB(t)
+	db := pear_testutil.NewPearDB(t)
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
 	os := opensocial_testutil.NewTestStore(
 		t,

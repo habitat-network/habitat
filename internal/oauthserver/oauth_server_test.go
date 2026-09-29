@@ -1,4 +1,4 @@
-package oauthserver_test
+package oauthserver
 
 import (
 	"context"
@@ -29,7 +29,6 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
-	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
@@ -68,11 +67,11 @@ func testOpensocialStore(t *testing.T) *opensocial.Store {
 
 func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
-		_, err := oauthserver.NewOAuthServer(
+		_, err := NewOAuthServer(
 			[]byte("not valid base64"),
 			nil, nil, nil, noop.Meter{}, testStore(t),
 			"https://habitat.example",
-			oauthserver.NewJWTBearerStore(),
+			NewJWTBearerStore(),
 			testOpensocialStore(t),
 			nil,
 		)
@@ -80,12 +79,12 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	})
 
 	// Common setup for all handler tests.
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 	secretStr, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	secret, err := encrypt.ParseKey(secretStr)
 	require.NoError(t, err)
-	oauthSrv, err := oauthserver.NewOAuthServer(
+	oauthSrv, err := NewOAuthServer(
 		secret,
 		&org.LoginRouter{
 			Pds:      login_testutil.NewPassthroughProvider(t),
@@ -96,7 +95,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
-		oauthserver.NewJWTBearerStore(),
+		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
 	)
@@ -179,7 +178,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 }
 
 func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -187,7 +186,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 
 	pds := login_testutil.NewPassthroughProvider(t)
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
 			Pds: pds,
@@ -197,7 +196,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
-		oauthserver.NewJWTBearerStore(),
+		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
 	)
@@ -288,7 +287,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 
 func TestOAuthServerE2E(t *testing.T) {
 	// setup test database
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 
 	// Generate RSA key for JWT signing
 	secret, err := encrypt.GenerateKey()
@@ -298,7 +297,7 @@ func TestOAuthServerE2E(t *testing.T) {
 
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
 			Pds: pds,
@@ -308,7 +307,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
-		oauthserver.NewJWTBearerStore(),
+		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
 	)
@@ -454,7 +453,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 
 	// hive and the org store share one db: org.WithTx swaps hive's db
 	// connection for its own transaction when minting member identities.
-	hiveDB := dbtestutil.NewPearDB(t)
+	hiveDB := dbtestutil.NewDB(t, Models(), hive.Models(), org.Models())
 	h, err := hive.NewHive(memberDomain, pearDomain, hiveDB)
 	require.NoError(t, err, "failed to create hive")
 
@@ -503,7 +502,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	require.NoError(t, err, "failed to create org with hive-served admin")
 
 	// setup test database
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 
 	// Generate RSA key for JWT signing
 	secret, err := encrypt.GenerateKey()
@@ -512,7 +511,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	pds := login_testutil.NewPassthroughProvider(t)
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
 			Pds:      pds,
@@ -523,7 +522,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		noop.Meter{},
 		orgStore,
 		"https://habitat.example",
-		oauthserver.NewJWTBearerStore(),
+		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
 	)
@@ -642,7 +641,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 }
 
 func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -650,7 +649,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 
 	pds := login_testutil.NewPassthroughProvider(t)
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
 			Pds: pds,
@@ -660,7 +659,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
-		oauthserver.NewJWTBearerStore(),
+		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
 	)
@@ -763,7 +762,7 @@ func (s *testIsMemberStore) GetOrgForDID(
 // resulting bearer access token issued by srv.
 func acquireAccessToken(
 	t *testing.T,
-	srv *oauthserver.OAuthServer,
+	srv *OAuthServer,
 	pds *login_testutil.PassthroughProvider,
 ) string {
 	t.Helper()
@@ -837,22 +836,22 @@ func acquireAccessToken(
 	return capturedToken
 }
 
-// TestValidate tests every error and success pathway of oauthserver.OAuthServer.Validate.
+// TestValidate tests every error and success pathway of OAuthServer.Validate.
 func TestValidate(t *testing.T) {
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
-	// newSrv creates an oauthserver.OAuthServer sharing the same secret and database.
+	// newSrv creates an OAuthServer sharing the same secret and database.
 	// Stateless JWT introspection means tokens issued by any server here are
 	// valid for all others created with the same secret.
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
-	newSrv := func(st org.Store) (*oauthserver.OAuthServer, *login_testutil.PassthroughProvider) {
+	newSrv := func(st org.Store) (*OAuthServer, *login_testutil.PassthroughProvider) {
 		p := login_testutil.NewPassthroughProvider(t)
-		s, srvErr := oauthserver.NewOAuthServer(
+		s, srvErr := NewOAuthServer(
 			bytes,
 			&org.LoginRouter{
 				Pds: p,
@@ -862,7 +861,7 @@ func TestValidate(t *testing.T) {
 			noop.Meter{},
 			st,
 			"https://habitat.example",
-			oauthserver.NewJWTBearerStore(),
+			NewJWTBearerStore(),
 			testOpensocialStore(t),
 			nil,
 		)
@@ -876,7 +875,7 @@ func TestValidate(t *testing.T) {
 
 	// callValidate issues a GET against a minimal HTTP server wrapping srv.Validate
 	// and returns the HTTP status code together with Validate's return values.
-	callValidate := func(srv *oauthserver.OAuthServer, bearerToken string) (status int, did *authn.CredentialInfo, ok bool, header http.Header) {
+	callValidate := func(srv *OAuthServer, bearerToken string) (status int, did *authn.CredentialInfo, ok bool, header http.Header) {
 		var (
 			mu     sync.Mutex
 			retDID *authn.CredentialInfo
@@ -961,16 +960,16 @@ func TestValidate(t *testing.T) {
 }
 
 func TestValidateWithScopeChecking(t *testing.T) {
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
-	newSrv := func(st org.Store) (*oauthserver.OAuthServer, *login_testutil.PassthroughProvider) {
+	newSrv := func(st org.Store) (*OAuthServer, *login_testutil.PassthroughProvider) {
 		p := login_testutil.NewPassthroughProvider(t)
-		s, srvErr := oauthserver.NewOAuthServer(
+		s, srvErr := NewOAuthServer(
 			bytes,
 			&org.LoginRouter{
 				Pds: p,
@@ -980,7 +979,7 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			noop.Meter{},
 			st,
 			"https://habitat.example",
-			oauthserver.NewJWTBearerStore(),
+			NewJWTBearerStore(),
 			testOpensocialStore(t),
 			nil,
 		)
@@ -1072,11 +1071,11 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 	const pdsLoginDID = "did:web:example.did.com"
 	orgStore := org_testutil.NewTestStore(t)
 
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 	loginProvider := login_testutil.NewPassthroughProvider(t)
 	loginProvider.LoginID = pdsLoginDID
 	dir := pdsclient.NewDummyDirectory("https://habitat.example")
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer, err := NewOAuthServer(
 		encrypt.TestKey,
 		&org.LoginRouter{
 			Pds:      loginProvider,
@@ -1087,7 +1086,7 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 		noop.Meter{},
 		orgStore,
 		"https://habitat.example",
-		oauthserver.NewJWTBearerStore(),
+		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
 	)
@@ -1241,7 +1240,7 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 // disambiguation page; the page (simulated here) re-issues the request with
 // a handle, and the flow completes normally.
 func TestHandleAuthorizeDisambiguation(t *testing.T) {
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -1249,7 +1248,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
 			Pds: pds,
@@ -1259,7 +1258,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
-		oauthserver.NewJWTBearerStore(),
+		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
 	)
@@ -1358,7 +1357,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 // handle, the flow completes via PDS login, and the client's app-access grant
 // is recorded once the token is issued.
 func TestHandleOpensocialSignInE2E(t *testing.T) {
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -1373,7 +1372,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 	require.NoError(t, err)
 	orgDID := syntax.DID(orgDIDStr)
 
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
 			Pds: pds,
@@ -1383,7 +1382,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
-		oauthserver.NewJWTBearerStore(),
+		NewJWTBearerStore(),
 		opensocialStore,
 		nil,
 	)
@@ -1503,7 +1502,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 // to start a PDS login when the submitted handle doesn't resolve to an admin
 // of the org, and never invokes the login provider.
 func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -1519,7 +1518,7 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 	require.NoError(t, err)
 	orgDID := syntax.DID(orgDIDStr)
 
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
 			Pds: pds,
@@ -1529,7 +1528,7 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
-		oauthserver.NewJWTBearerStore(),
+		NewJWTBearerStore(),
 		opensocialStore,
 		nil,
 	)
@@ -1615,7 +1614,7 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 // Previously those rows were serialized as zero-value apps, producing an
 // invalid empty lastUsed datetime that the lexicon validator rejects.
 func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
-	db := dbtestutil.NewPearDB(t)
+	db := dbtestutil.NewDB(t, Models())
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -1623,7 +1622,7 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 	p := login_testutil.NewPassthroughProvider(t)
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{Pds: p},
 		dummyDir,
@@ -1631,7 +1630,7 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
-		oauthserver.NewJWTBearerStore(),
+		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
 	)
@@ -1645,7 +1644,7 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 	goneClient := httptest.NewServer(http.NotFoundHandler())
 	defer goneClient.Close()
 
-	require.NoError(t, db.Create(&oauthserver.ConnectedApp{
+	require.NoError(t, db.Create(&ConnectedApp{
 		Subject:  "did:web:example.did.com",
 		ClientID: goneClient.URL + "/client-metadata.json",
 		Scopes:   "atproto",

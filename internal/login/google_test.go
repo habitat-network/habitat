@@ -1,4 +1,4 @@
-package login_test
+package login
 
 import (
 	"context"
@@ -15,13 +15,12 @@ import (
 
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/login"
 )
 
 // makeIDToken builds a Google-shaped ID token carrying claims, unsigned
 // (verifyGoogleIDToken only decodes and validates claims; it doesn't check a
 // signature — see its doc comment).
-func makeIDToken(t *testing.T, claims login.GoogleIDTokenClaims) string {
+func makeIDToken(t *testing.T, claims googleIDTokenClaims) string {
 	t.Helper()
 	token, err := jwt.NewWithClaims(jwt.SigningMethodNone, claims).
 		SignedString(jwt.UnsafeAllowNoneSignatureType)
@@ -29,9 +28,9 @@ func makeIDToken(t *testing.T, claims login.GoogleIDTokenClaims) string {
 	return token
 }
 
-func defaultTestClaims(clientID, email string) login.GoogleIDTokenClaims {
+func defaultTestClaims(clientID, email string) googleIDTokenClaims {
 	now := time.Now()
-	return login.GoogleIDTokenClaims{
+	return googleIDTokenClaims{
 		Email:         email,
 		EmailVerified: true,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -45,11 +44,11 @@ func defaultTestClaims(clientID, email string) login.GoogleIDTokenClaims {
 }
 
 func TestGoogleProvider_Authorize(t *testing.T) {
-	p, err := login.NewGoogleProvider(
+	p, err := NewGoogleProvider(
 		"client-id",
 		"client-secret",
 		"https://example.com/callback",
-		testutil.NewPearDB(t),
+		testutil.NewDB(t, Models()),
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)
@@ -62,7 +61,7 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 	require.Contains(t, redirect, "access_type=offline")
 	require.NotEmpty(t, state)
 
-	var s login.GoogleProviderState
+	var s googleProviderState
 	require.NoError(t, json.Unmarshal(state, &s))
 	require.NotEmpty(t, s.Verifier)
 	require.NotEmpty(t, s.State)
@@ -70,11 +69,11 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 
 func TestGoogleProvider_Exchange(t *testing.T) {
 	clientID := "test-client-id.apps.googleusercontent.com"
-	p, err := login.NewGoogleProvider(
+	p, err := NewGoogleProvider(
 		clientID,
 		"test-secret",
 		"https://example.com/callback",
-		testutil.NewPearDB(t),
+		testutil.NewDB(t, Models()),
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)
@@ -102,13 +101,13 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	)
 	defer tokenServer.Close()
 
-	gp := p.(*login.GoogleProvider)
-	gp.OAuthConfig().Endpoint.TokenURL = tokenServer.URL
+	gp := p.(*googleProvider)
+	gp.oauthCfg.Endpoint.TokenURL = tokenServer.URL
 
 	_, state, err := p.Authorize(t.Context(), "")
 	require.NoError(t, err)
 
-	var gs login.GoogleProviderState
+	var gs googleProviderState
 	require.NoError(t, json.Unmarshal(state, &gs))
 
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, tokenServer.Client())
@@ -129,14 +128,14 @@ func TestVerifyGoogleIDToken(t *testing.T) {
 
 	t.Run("valid token returns email", func(t *testing.T) {
 		token := makeIDToken(t, defaultTestClaims(clientID, "user@gmail.com"))
-		claims, err := login.VerifyGoogleIDToken(token, clientID)
+		claims, err := verifyGoogleIDToken(token, clientID)
 		require.NoError(t, err)
 		require.Equal(t, "user@gmail.com", claims.Email)
 	})
 
 	t.Run("wrong audience rejected", func(t *testing.T) {
 		token := makeIDToken(t, defaultTestClaims("other-client-id", "user@gmail.com"))
-		_, err := login.VerifyGoogleIDToken(token, clientID)
+		_, err := verifyGoogleIDToken(token, clientID)
 		require.Error(t, err)
 	})
 
@@ -144,13 +143,13 @@ func TestVerifyGoogleIDToken(t *testing.T) {
 		claims := defaultTestClaims(clientID, "unverified@example.com")
 		claims.EmailVerified = false
 		token := makeIDToken(t, claims)
-		_, err := login.VerifyGoogleIDToken(token, clientID)
+		_, err := verifyGoogleIDToken(token, clientID)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "email not verified")
 	})
 
 	t.Run("malformed token rejected", func(t *testing.T) {
-		_, err := login.VerifyGoogleIDToken("not.a.jwt", clientID)
+		_, err := verifyGoogleIDToken("not.a.jwt", clientID)
 		require.Error(t, err)
 	})
 
@@ -158,7 +157,7 @@ func TestVerifyGoogleIDToken(t *testing.T) {
 		claims := defaultTestClaims(clientID, "old@example.com")
 		claims.ExpiresAt = jwt.NewNumericDate(time.Now().Add(-time.Hour))
 		token := makeIDToken(t, claims)
-		_, err := login.VerifyGoogleIDToken(token, clientID)
+		_, err := verifyGoogleIDToken(token, clientID)
 		require.Error(t, err)
 	})
 
@@ -166,7 +165,7 @@ func TestVerifyGoogleIDToken(t *testing.T) {
 		claims := defaultTestClaims(clientID, "user@gmail.com")
 		claims.Issuer = "https://evil.example.com"
 		token := makeIDToken(t, claims)
-		_, err := login.VerifyGoogleIDToken(token, clientID)
+		_, err := verifyGoogleIDToken(token, clientID)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "unexpected id token issuer")
 	})

@@ -1,4 +1,4 @@
-package instance_test
+package instance
 
 import (
 	"bytes"
@@ -10,18 +10,17 @@ import (
 	"testing"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestServer(t *testing.T) (*instance.Server, instance.AdminStore, string) {
+func newTestServer(t *testing.T) (*Server, AdminStore, string) {
 	t.Helper()
 	store := newTestStore(t)
-	return instance.NewServer(store, "https://frontend.example"), store, "password"
+	return NewServer(store, "https://frontend.example"), store, "password"
 }
 
 // sessionCookie creates a new session in store and returns its cookie.
-func sessionCookie(t *testing.T, store instance.AdminStore) *http.Cookie {
+func sessionCookie(t *testing.T, store AdminStore) *http.Cookie {
 	t.Helper()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/admin/login", http.NoBody)
@@ -60,7 +59,7 @@ func TestHandleLogin_Success(t *testing.T) {
 
 	cookies := rec.Result().Cookies()
 	require.Len(t, cookies, 1)
-	require.Equal(t, instance.SessionName, cookies[0].Name)
+	require.Equal(t, sessionName, cookies[0].Name)
 	require.NotEmpty(t, cookies[0].Value)
 	require.True(t, cookies[0].HttpOnly)
 }
@@ -92,7 +91,7 @@ func TestRequireSessionAPI_FailsWithoutCookie(t *testing.T) {
 		http.NoBody,
 	)
 	rec := httptest.NewRecorder()
-	ok := server.RequireSessionAPI(rec, req)
+	ok := server.requireSessionAPI(rec, req)
 
 	require.False(t, ok)
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
@@ -104,7 +103,7 @@ func TestRequireSessionAPI_PassesWithValidCookie(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/admin", http.NoBody)
 	req.AddCookie(sessionCookie(t, store))
 	rec := httptest.NewRecorder()
-	ok := server.RequireSessionAPI(rec, req)
+	ok := server.requireSessionAPI(rec, req)
 
 	require.True(t, ok)
 }

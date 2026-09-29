@@ -1,4 +1,4 @@
-package pdscred_test
+package pdscred
 
 import (
 	"crypto/ecdsa"
@@ -9,12 +9,11 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetDpopClient_Success(t *testing.T) {
-	store, err := pdscred.NewPDSCredentialStore(testutil.NewPearDB(t), encrypt.TestKey)
+	store, err := NewPDSCredentialStore(testutil.NewDB(t, Models()), encrypt.TestKey)
 	require.NoError(t, err)
 
 	// Generate test dpop key
@@ -24,7 +23,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 	// Create test DID
 	did := syntax.DID("did:plc:test123")
 
-	err = store.UpsertCredentials(t.Context(), did, &pdscred.Credentials{
+	err = store.UpsertCredentials(t.Context(), did, &Credentials{
 		AccessToken:  "test-access-token",
 		RefreshToken: "test-refresh-token",
 		DpopKey:      dpopKey,
@@ -32,7 +31,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	// handles updates
-	err = store.UpsertCredentials(t.Context(), did, &pdscred.Credentials{
+	err = store.UpsertCredentials(t.Context(), did, &Credentials{
 		AccessToken:  "test-access-token-2",
 		RefreshToken: "test-refresh-token-2",
 		DpopKey:      dpopKey,
@@ -48,7 +47,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 }
 
 func TestGetDpopClient_NotFound(t *testing.T) {
-	store, err := pdscred.NewPDSCredentialStore(testutil.NewPearDB(t), encrypt.TestKey)
+	store, err := NewPDSCredentialStore(testutil.NewDB(t, Models()), encrypt.TestKey)
 	require.NoError(t, err)
 
 	credentials, err := store.GetCredentials(t.Context(), syntax.DID("did:plc:nonexistent"))

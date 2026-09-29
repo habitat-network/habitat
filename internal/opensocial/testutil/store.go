@@ -56,7 +56,15 @@ func NewTestStore(t *testing.T, opts ...utils.Opt[TestStore]) *TestStore {
 		BlobStore: spaces_testutil.NewTestBlobStore(t),
 	}, opts)
 	if testStore.DB == nil {
-		testStore.DB = db_testutil.NewPearDB(t)
+		// Only the stores this helper builds, rather than the whole pear schema:
+		// cmd/pear/testutil imports every store, and internal/oauthserver's
+		// in-package tests reach this package, so importing it here would cycle.
+		testStore.DB = db_testutil.NewDB(
+			t,
+			opensocial.Models(),
+			spaces.Models(),
+			hive.Models(),
+		)
 	}
 	if testStore.SpaceStore == nil {
 		testStore.SpaceStore = spaces_testutil.NewTestStore(

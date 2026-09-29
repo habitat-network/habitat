@@ -1,4 +1,4 @@
-package oauthserver_test
+package oauthserver
 
 import (
 	"encoding/json"
@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +26,7 @@ func TestHasJSONBody(t *testing.T) {
 		if tt.contentType != "" {
 			r.Header.Set("Content-Type", tt.contentType)
 		}
-		require.Equal(t, tt.want, oauthserver.HasJSONBody(r), tt.contentType)
+		require.Equal(t, tt.want, hasJSONBody(r), tt.contentType)
 	}
 }
 
@@ -35,7 +34,7 @@ func TestHasJSONBody(t *testing.T) {
 func TestPARRequestBodyFormValues(t *testing.T) {
 	raw := `{"redirect_uri":"https://pds.ls/","code_challenge":"qYS44tmxT53yZcvEDo8njG4G6KIqXmNGOxcrkz5Q1xs","code_challenge_method":"S256","state":"P9VSOQdpuVojZs15GEhV2Ne-","login_hint":"admin.acmecorp.pear.local.habitat.network","response_mode":"fragment","response_type":"code","scope":"atproto repo:*?action=create","client_id":"https://pds.ls/oauth-client-metadata.json"}`
 
-	var body oauthserver.ParRequestBody
+	var body parRequestBody
 	require.NoError(t, json.Unmarshal([]byte(raw), &body))
 
 	require.Equal(t, url.Values{
@@ -48,13 +47,13 @@ func TestPARRequestBodyFormValues(t *testing.T) {
 		"response_type":         {"code"},
 		"scope":                 {"atproto repo:*?action=create"},
 		"client_id":             {"https://pds.ls/oauth-client-metadata.json"},
-	}, body.FormValues())
+	}, body.formValues())
 }
 
 func TestTokenRequestBodyFormValues(t *testing.T) {
 	raw := `{"client_id":"https://pds.ls/oauth-client-metadata.json","grant_type":"authorization_code","redirect_uri":"https://pds.ls/","code":"ory_ac_abc","code_verifier":"verifier"}`
 
-	var body oauthserver.TokenRequestBody
+	var body tokenRequestBody
 	require.NoError(t, json.Unmarshal([]byte(raw), &body))
 
 	require.Equal(t, url.Values{
@@ -63,20 +62,20 @@ func TestTokenRequestBodyFormValues(t *testing.T) {
 		"redirect_uri":  {"https://pds.ls/"},
 		"code":          {"ory_ac_abc"},
 		"code_verifier": {"verifier"},
-	}, body.FormValues())
+	}, body.formValues())
 }
 
 func TestTokenRequestBodyFormValuesRefresh(t *testing.T) {
 	raw := `{"client_id":"abc","grant_type":"refresh_token","refresh_token":"rt"}`
 
-	var body oauthserver.TokenRequestBody
+	var body tokenRequestBody
 	require.NoError(t, json.Unmarshal([]byte(raw), &body))
 
 	require.Equal(t, url.Values{
 		"client_id":     {"abc"},
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {"rt"},
-	}, body.FormValues())
+	}, body.formValues())
 }
 
 // TestPARFormSurvivesParseMultipartForm covers the contract HandlePAR

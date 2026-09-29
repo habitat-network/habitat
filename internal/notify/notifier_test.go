@@ -1,4 +1,4 @@
-package notify_test
+package notify
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/notify"
 )
 
 var errSign = errors.New("sign failed")
@@ -59,7 +58,7 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
 
 	signer := &fakeSigner{t: t}
-	notifier := notify.NewNotifier(s, subscriber.Client(), signer)
+	notifier := NewNotifier(s, subscriber.Client(), signer)
 	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
 
 	for range 2 {
@@ -93,7 +92,7 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
 
 	signer := &fakeSigner{t: t}
-	notifier := notify.NewNotifier(s, subscriber.Client(), signer)
+	notifier := NewNotifier(s, subscriber.Client(), signer)
 	notifier.NotifySpaceDeleted(t.Context(), space)
 
 	for range 2 {
@@ -109,7 +108,7 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 func TestNotifierNoRegistrations(t *testing.T) {
 	s := newTestStore(t)
 	signer := &fakeSigner{t: t}
-	notifier := notify.NewNotifier(s, http.DefaultClient, signer)
+	notifier := NewNotifier(s, http.DefaultClient, signer)
 
 	// With no registrations, neither path should sign or deliver anything.
 	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
@@ -130,7 +129,7 @@ func TestNotifierSignerErrorAbortsDelivery(t *testing.T) {
 	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, future))
 
 	signer := &fakeSigner{err: errSign}
-	notifier := notify.NewNotifier(s, subscriber.Client(), signer)
+	notifier := NewNotifier(s, subscriber.Client(), signer)
 	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
 
 	select {
@@ -156,7 +155,7 @@ func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
 		s.Register(t.Context(), space, bob, subscriber.URL, time.Now().Add(time.Hour)),
 	)
 
-	notifier := notify.NewNotifier(s, subscriber.Client(), &fakeSigner{t: t})
+	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{t: t})
 	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
 
 	select {

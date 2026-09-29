@@ -1,4 +1,8 @@
 // Package testutil provides helpers for creating throwaway databases in tests.
+//
+// It deliberately imports no store package, so a store's own tests can use it
+// while still testing that package from the inside. For a database with the
+// whole pear schema, use cmd/pear/testutil.NewPearDB instead.
 package testutil
 
 import (
@@ -9,27 +13,14 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/habitat-network/habitat/cmd/pear/migrations"
-	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db"
-	"github.com/habitat-network/habitat/internal/emaildomain"
-	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/instance"
-	"github.com/habitat-network/habitat/internal/login"
-	"github.com/habitat-network/habitat/internal/notify"
-	"github.com/habitat-network/habitat/internal/oauthserver"
-	"github.com/habitat-network/habitat/internal/opensocial"
-	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pdscred"
-	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/repo"
-	"github.com/habitat-network/habitat/internal/spaces"
 )
 
-// NewPearDB returns a gorm DB backed by a temporary SQLite file living in the
-// test's temp dir (removed automatically when the test finishes), migrated with
-// db.Migrate for every store pear persists to. Any store a test builds will find
-// its tables already created.
+// NewDB returns a gorm DB backed by a temporary SQLite file living in the
+// test's temp dir (removed automatically when the test finishes), with tables
+// created for every model in the given sets. Pass the Models function of each
+// store the test constructs; a store's tables are no longer created by its
+// constructor.
 //
 // The file is opened in WAL journal mode with a busy timeout, so the tests can
 // use gorm's connection pool for concurrent reads and writes without hitting
@@ -38,36 +29,17 @@ import (
 //
 // gorm logs are routed through t.Logf so they only appear when the test runs
 // verbosely or fails.
-func NewPearDB(t *testing.T) *gorm.DB {
+func NewDB(t *testing.T, modelSets ...[]any) *gorm.DB {
 	t.Helper()
 	d := NewUnmigratedDB(t)
-	require.NoError(t, db.Migrate(t.Context(), d, migrations.FS, pearModels()...))
+	// No goose migrations: the tables come from the models, and pear's own
+	// migrations are applied by cmd/pear/testutil.NewPearDB.
+	require.NoError(t, db.Migrate(t.Context(), d, nil, modelSets...))
 	return d
 }
 
-// pearModels returns the models of every store pear persists to, so tests that
-// only exercise a few of them don't have to name which tables they need.
-func pearModels() [][]any {
-	return [][]any{
-		clique.Models(),
-		emaildomain.Models(),
-		hive.Models(),
-		instance.Models(),
-		login.Models(),
-		notify.Models(),
-		oauthserver.Models(),
-		opensocial.Models(),
-		org.Models(),
-		pdscred.Models(),
-		permissions.Models(),
-		repo.Models(),
-		spaces.Models(),
-	}
-}
-
-// NewUnmigratedDB is like [NewPearDB] but creates no tables, for tests whose
-// stores migrate themselves — pkg/sap, cmd/home and cmd/search share a database
-// with pear's own stores and create their own tables.
+// NewUnmigratedDB is like [NewDB] but creates no tables, for tests whose
+// stores migrate themselves.
 func NewUnmigratedDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")

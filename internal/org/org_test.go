@@ -1,4 +1,4 @@
-package org_test
+package org
 
 import (
 	"context"
@@ -13,16 +13,15 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
 
 var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 
-func newTestOrg(t *testing.T) (*org.StoreImpl, *org.OrgImpl) {
+func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 	t.Helper()
-	db := testutil.NewPearDB(t)
+	db := testutil.NewDB(t, Models(), hive.Models(), login.Models())
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
 	passwordProvider, err := login.NewPasswordProvider(
@@ -36,31 +35,31 @@ func newTestOrg(t *testing.T) (*org.StoreImpl, *org.OrgImpl) {
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 
-	st, err := org.NewStore(
+	st, err := NewStore(
 		db,
 		h,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 		"pear.example.com",
 		passwordProvider,
 		fga,
-		org.NewEveryoneOrg("pear.example.com"),
+		NewEveryoneOrg("pear.example.com"),
 	)
 	require.NoError(t, err)
-	store := st.(*org.StoreImpl)
+	store := st.(*storeImpl)
 
 	orgDid := syntax.DID("test-org")
 	signingSecret := base64.StdEncoding.EncodeToString(testSigningSecret)
-	require.NoError(t, store.DB().Create(&org.Organization{
+	require.NoError(t, store.db.Create(&organization{
 		ID:              orgDid,
 		Name:            "Test Org",
-		LoginMethod:     org.LoginMethodPassword,
+		LoginMethod:     LoginMethodPassword,
 		SigningSecret:   signingSecret,
 		HandleSubdomain: "testorg",
 	}).Error)
 
-	orgHandle, err := store.GetOrg(t.Context(), orgDid)
+	org, err := store.GetOrg(t.Context(), orgDid)
 	require.NoError(t, err)
-	orgImpl := orgHandle.(*org.OrgImpl)
+	orgImpl := org.(*orgImpl)
 
 	return store, orgImpl
 }
@@ -72,16 +71,11 @@ const (
 	testPassword     = "test-password-123"
 )
 
-func addMember(
-	t *testing.T,
-	store *org.StoreImpl,
-	orgHandle *org.OrgImpl,
-	handle string,
-) *identity.Identity {
+func addMember(t *testing.T, store *storeImpl, org *orgImpl, handle string) *identity.Identity {
 	t.Helper()
 	token, err := store.IssueIdentityToken(
 		t.Context(),
-		orgHandle.OrgID(),
+		org.orgID,
 		adminDID,
 		true,
 		time.Now().Add(time.Hour),
@@ -89,7 +83,7 @@ func addMember(
 	require.NoError(t, err)
 	id, err := store.CreateNewMemberIdentity(
 		t.Context(),
-		orgHandle.OrgID(),
+		org.orgID,
 		token,
 		handle,
 		testPasswordHash,
@@ -101,115 +95,115 @@ func addMember(
 
 func TestIsMember(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id := addMember(t, store, orgHandle, "alice")
+	id := addMember(t, store, org, "alice")
 
-	ok, err := orgHandle.IsMember(ctx, id.DID)
+	ok, err := org.IsMember(ctx, id.DID)
 	require.NoError(t, err)
 	require.True(t, ok)
 }
 
 func TestCreateNewMemberIdentityPasswordLoginIDIsDID(t *testing.T) {
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id := addMember(t, store, orgHandle, "alice")
+	id := addMember(t, store, org, "alice")
 
-	var m org.MemberRow
-	require.NoError(t, orgHandle.OrgDB().Where("did = ?", id.DID).First(&m).Error)
+	var m member
+	require.NoError(t, org.db.Where("did = ?", id.DID).First(&m).Error)
 	require.Equal(t, id.DID.String(), m.LoginID)
 }
 
 func TestAddAdmin_GetAdmins(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id := addMember(t, store, orgHandle, "alice")
-	require.NoError(t, orgHandle.AddAdmin(ctx, id.DID))
+	id := addMember(t, store, org, "alice")
+	require.NoError(t, org.AddAdmin(ctx, id.DID))
 
-	admins, err := orgHandle.GetAdmins(ctx)
+	admins, err := org.GetAdmins(ctx)
 	require.NoError(t, err)
 	require.Equal(t, []syntax.DID{id.DID}, admins)
 }
 
 func TestAddAdmin_NotMember(t *testing.T) {
 	ctx := context.Background()
-	_, orgHandle := newTestOrg(t)
+	_, org := newTestOrg(t)
 
-	err := orgHandle.AddAdmin(ctx, adminDID)
-	require.ErrorIs(t, err, org.ErrNotMember)
+	err := org.AddAdmin(ctx, adminDID)
+	require.ErrorIs(t, err, ErrNotMember)
 }
 
 func TestRemoveAdmin_LastAdmin(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id := addMember(t, store, orgHandle, "alice")
-	require.NoError(t, orgHandle.AddAdmin(ctx, id.DID))
+	id := addMember(t, store, org, "alice")
+	require.NoError(t, org.AddAdmin(ctx, id.DID))
 
-	err := orgHandle.RemoveAdmin(ctx, id.DID)
-	require.ErrorIs(t, err, org.ErrLastAdmin)
+	err := org.RemoveAdmin(ctx, id.DID)
+	require.ErrorIs(t, err, ErrLastAdmin)
 }
 
 func TestRemoveAdmin_MultipleAdmins(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id1 := addMember(t, store, orgHandle, "alice")
-	id2 := addMember(t, store, orgHandle, "bob")
-	require.NoError(t, orgHandle.AddAdmin(ctx, id1.DID))
-	require.NoError(t, orgHandle.AddAdmin(ctx, id2.DID))
+	id1 := addMember(t, store, org, "alice")
+	id2 := addMember(t, store, org, "bob")
+	require.NoError(t, org.AddAdmin(ctx, id1.DID))
+	require.NoError(t, org.AddAdmin(ctx, id2.DID))
 
-	require.NoError(t, orgHandle.RemoveAdmin(ctx, id2.DID))
+	require.NoError(t, org.RemoveAdmin(ctx, id2.DID))
 
-	admins, err := orgHandle.GetAdmins(ctx)
+	admins, err := org.GetAdmins(ctx)
 	require.NoError(t, err)
 	require.Equal(t, []syntax.DID{id1.DID}, admins)
 }
 
 func TestGetMembers(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	members, err := orgHandle.GetMembers(ctx)
+	members, err := org.GetMembers(ctx)
 	require.NoError(t, err)
 	require.Empty(t, members)
 
-	id1 := addMember(t, store, orgHandle, "alice")
-	id2 := addMember(t, store, orgHandle, "bob")
+	id1 := addMember(t, store, org, "alice")
+	id2 := addMember(t, store, org, "bob")
 
-	members, err = orgHandle.GetMembers(ctx)
+	members, err = org.GetMembers(ctx)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []syntax.DID{id1.DID, id2.DID}, members)
 }
 
 func TestRemoveMembers(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id1 := addMember(t, store, orgHandle, "alice")
-	id2 := addMember(t, store, orgHandle, "bob")
-	require.NoError(t, orgHandle.RemoveMembers(ctx, []syntax.DID{id2.DID}))
+	id1 := addMember(t, store, org, "alice")
+	id2 := addMember(t, store, org, "bob")
+	require.NoError(t, org.RemoveMembers(ctx, []syntax.DID{id2.DID}))
 
-	ok, err := orgHandle.IsMember(ctx, id1.DID)
+	ok, err := org.IsMember(ctx, id1.DID)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	ok, err = orgHandle.IsMember(ctx, id2.DID)
+	ok, err = org.IsMember(ctx, id2.DID)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
 
 func TestAddAdmin_RemovesMemberFGA(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id := addMember(t, store, orgHandle, "alice")
+	id := addMember(t, store, org, "alice")
 	memberUser := fgastore.MemberUserString(id.DID)
-	orgObj := fgastore.OrgObjectKey(orgHandle.OrgID())
+	orgObj := fgastore.OrgObjectKey(org.orgID)
 
 	// Before promotion: has member tuple, no admin tuple
-	tuples, err := orgHandle.FGA().Read(ctx, fgastore.Tuple{
+	tuples, err := org.fga.Read(ctx, fgastore.Tuple{
 		User:     memberUser,
 		Relation: fgastore.RelationMember,
 		Object:   orgObj,
@@ -217,7 +211,7 @@ func TestAddAdmin_RemovesMemberFGA(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tuples, 1)
 
-	tuples, err = orgHandle.FGA().Read(ctx, fgastore.Tuple{
+	tuples, err = org.fga.Read(ctx, fgastore.Tuple{
 		User:     memberUser,
 		Relation: fgastore.RelationAdmin,
 		Object:   orgObj,
@@ -225,10 +219,10 @@ func TestAddAdmin_RemovesMemberFGA(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, tuples)
 
-	require.NoError(t, orgHandle.AddAdmin(ctx, id.DID))
+	require.NoError(t, org.AddAdmin(ctx, id.DID))
 
 	// After promotion: has admin tuple, no member tuple
-	tuples, err = orgHandle.FGA().Read(ctx, fgastore.Tuple{
+	tuples, err = org.fga.Read(ctx, fgastore.Tuple{
 		User:     memberUser,
 		Relation: fgastore.RelationAdmin,
 		Object:   orgObj,
@@ -236,7 +230,7 @@ func TestAddAdmin_RemovesMemberFGA(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tuples, 1)
 
-	tuples, err = orgHandle.FGA().Read(ctx, fgastore.Tuple{
+	tuples, err = org.fga.Read(ctx, fgastore.Tuple{
 		User:     memberUser,
 		Relation: fgastore.RelationMember,
 		Object:   orgObj,
@@ -247,20 +241,20 @@ func TestAddAdmin_RemovesMemberFGA(t *testing.T) {
 
 func TestDowngradeAdmin(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id1 := addMember(t, store, orgHandle, "alice")
-	id2 := addMember(t, store, orgHandle, "bob")
-	require.NoError(t, orgHandle.AddAdmin(ctx, id1.DID))
-	require.NoError(t, orgHandle.AddAdmin(ctx, id2.DID))
+	id1 := addMember(t, store, org, "alice")
+	id2 := addMember(t, store, org, "bob")
+	require.NoError(t, org.AddAdmin(ctx, id1.DID))
+	require.NoError(t, org.AddAdmin(ctx, id2.DID))
 
 	memberUser := fgastore.MemberUserString(id1.DID)
-	orgObj := fgastore.OrgObjectKey(orgHandle.OrgID())
+	orgObj := fgastore.OrgObjectKey(org.orgID)
 
-	require.NoError(t, orgHandle.DowngradeAdmin(ctx, id1.DID))
+	require.NoError(t, org.DowngradeAdmin(ctx, id1.DID))
 
 	// After downgrade: has member tuple, no admin tuple
-	tuples, err := orgHandle.FGA().Read(ctx, fgastore.Tuple{
+	tuples, err := org.fga.Read(ctx, fgastore.Tuple{
 		User:     memberUser,
 		Relation: fgastore.RelationMember,
 		Object:   orgObj,
@@ -268,7 +262,7 @@ func TestDowngradeAdmin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tuples, 1)
 
-	tuples, err = orgHandle.FGA().Read(ctx, fgastore.Tuple{
+	tuples, err = org.fga.Read(ctx, fgastore.Tuple{
 		User:     memberUser,
 		Relation: fgastore.RelationAdmin,
 		Object:   orgObj,
@@ -277,47 +271,47 @@ func TestDowngradeAdmin(t *testing.T) {
 	require.Empty(t, tuples)
 
 	// DB-level verification
-	ok, err := orgHandle.IsMember(ctx, id1.DID)
+	ok, err := org.IsMember(ctx, id1.DID)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	ok, err = orgHandle.IsAdmin(ctx, id1.DID)
+	ok, err = org.IsAdmin(ctx, id1.DID)
 	require.NoError(t, err)
 	require.False(t, ok)
 
-	admins, err := orgHandle.GetAdmins(ctx)
+	admins, err := org.GetAdmins(ctx)
 	require.NoError(t, err)
 	require.Equal(t, []syntax.DID{id2.DID}, admins)
 }
 
 func TestDowngradeAdmin_LastAdmin(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id := addMember(t, store, orgHandle, "alice")
-	require.NoError(t, orgHandle.AddAdmin(ctx, id.DID))
+	id := addMember(t, store, org, "alice")
+	require.NoError(t, org.AddAdmin(ctx, id.DID))
 
-	err := orgHandle.DowngradeAdmin(ctx, id.DID)
-	require.ErrorIs(t, err, org.ErrLastAdmin)
+	err := org.DowngradeAdmin(ctx, id.DID)
+	require.ErrorIs(t, err, ErrLastAdmin)
 
 	// Still an admin
-	ok, err := orgHandle.IsAdmin(ctx, id.DID)
+	ok, err := org.IsAdmin(ctx, id.DID)
 	require.NoError(t, err)
 	require.True(t, ok)
 }
 
 func TestRemoveMembers_RemovesFGATuples(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id := addMember(t, store, orgHandle, "alice")
+	id := addMember(t, store, org, "alice")
 	memberUser := fgastore.MemberUserString(id.DID)
-	orgObj := fgastore.OrgObjectKey(orgHandle.OrgID())
+	orgObj := fgastore.OrgObjectKey(org.orgID)
 
-	require.NoError(t, orgHandle.RemoveMembers(ctx, []syntax.DID{id.DID}))
+	require.NoError(t, org.RemoveMembers(ctx, []syntax.DID{id.DID}))
 
 	// FGA member tuple should be gone
-	tuples, err := orgHandle.FGA().Read(ctx, fgastore.Tuple{
+	tuples, err := org.fga.Read(ctx, fgastore.Tuple{
 		User:     memberUser,
 		Relation: fgastore.RelationMember,
 		Object:   orgObj,
@@ -328,11 +322,11 @@ func TestRemoveMembers_RemovesFGATuples(t *testing.T) {
 
 func TestGenerateAndUseIdentityToken(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
 	token, err := store.IssueIdentityToken(
 		ctx,
-		orgHandle.OrgID(),
+		org.orgID,
 		adminDID,
 		false,
 		time.Now().Add(time.Hour),
@@ -340,51 +334,40 @@ func TestGenerateAndUseIdentityToken(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	_, err = store.CreateNewMemberIdentity(
-		ctx, orgHandle.OrgID(), token, "alice", testPasswordHash, "",
-	)
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "alice", testPasswordHash, "")
 	require.NoError(t, err)
 
-	members, err := orgHandle.GetMembers(ctx)
+	members, err := org.GetMembers(ctx)
 	require.NoError(t, err)
 	require.Len(t, members, 1)
 }
 
 func TestIdentityToken_CannotReuse(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
 	token, err := store.IssueIdentityToken(
 		ctx,
-		orgHandle.OrgID(),
+		org.orgID,
 		adminDID,
 		false,
 		time.Now().Add(time.Hour),
 	)
 	require.NoError(t, err)
 
-	_, err = store.CreateNewMemberIdentity(
-		ctx, orgHandle.OrgID(), token, "alice", testPasswordHash, "",
-	)
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "alice", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = store.CreateNewMemberIdentity(
-		ctx,
-		orgHandle.OrgID(),
-		token,
-		"bob",
-		testPasswordHash,
-		"",
-	)
-	require.ErrorIs(t, err, org.ErrInvalidToken)
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "bob", testPasswordHash, "")
+	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestMintIdentity_DuplicateHandle(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
 	token1, err := store.IssueIdentityToken(
 		ctx,
-		orgHandle.OrgID(),
+		org.orgID,
 		adminDID,
 		false,
 		time.Now().Add(time.Hour),
@@ -392,75 +375,44 @@ func TestMintIdentity_DuplicateHandle(t *testing.T) {
 	require.NoError(t, err)
 	token2, err := store.IssueIdentityToken(
 		ctx,
-		orgHandle.OrgID(),
+		org.orgID,
 		adminDID,
 		false,
 		time.Now().Add(time.Hour),
 	)
 	require.NoError(t, err)
 
-	_, err = store.CreateNewMemberIdentity(
-		ctx,
-		orgHandle.OrgID(),
-		token1,
-		"alice",
-		testPasswordHash,
-		"",
-	)
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token1, "alice", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = store.CreateNewMemberIdentity(
-		ctx,
-		orgHandle.OrgID(),
-		token2,
-		"alice",
-		testPasswordHash,
-		"",
-	)
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token2, "alice", testPasswordHash, "")
 	require.ErrorIs(t, err, hive.ErrNotCreated)
 }
 
 func TestIdentityToken_Reusable(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
 	token, err := store.IssueIdentityToken(
 		ctx,
-		orgHandle.OrgID(),
+		org.orgID,
 		adminDID,
 		true,
 		time.Now().Add(time.Hour),
 	)
 	require.NoError(t, err)
 
-	_, err = store.CreateNewMemberIdentity(
-		ctx, orgHandle.OrgID(), token, "alice", testPasswordHash, "",
-	)
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "alice", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = store.CreateNewMemberIdentity(
-		ctx,
-		orgHandle.OrgID(),
-		token,
-		"bob",
-		testPasswordHash,
-		"",
-	)
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "bob", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = store.CreateNewMemberIdentity(
-		ctx, orgHandle.OrgID(), token, "alice", testPasswordHash, "",
-	)
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "alice", testPasswordHash, "")
 	require.ErrorIs(t, err, hive.ErrNotCreated)
 }
 
 func TestIssueIdentityToken_ExpiryTooLate(t *testing.T) {
 	ctx := context.Background()
-	store, orgHandle := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	_, err := store.IssueIdentityToken(
-		ctx,
-		orgHandle.OrgID(),
-		adminDID,
-		false,
-		time.Now().AddDate(0, 1, 1),
-	)
-	require.ErrorIs(t, err, org.ErrInvalidTokenExpiry)
+	_, err := store.IssueIdentityToken(ctx, org.orgID, adminDID, false, time.Now().AddDate(0, 1, 1))
+	require.ErrorIs(t, err, ErrInvalidTokenExpiry)
 }

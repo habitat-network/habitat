@@ -3,16 +3,17 @@ package outbox
 import (
 	"testing"
 
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+
 	"github.com/stretchr/testify/require"
 
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
 func TestStoreEmitPollAck(t *testing.T) {
 	t.Parallel()
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	s, err := NewStore(db, utils.NewPollNotifier())
 	require.NoError(t, err)
 

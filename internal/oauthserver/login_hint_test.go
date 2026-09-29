@@ -1,4 +1,4 @@
-package oauthserver_test
+package oauthserver
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/emaildomain"
-	"github.com/habitat-network/habitat/internal/oauthserver"
 )
 
 // fakeEmailResolver resolves a fixed set of emails.
@@ -28,21 +27,21 @@ func (f fakeEmailResolver) ResolveEmailIdentity(
 
 func TestResolveLoginHintEmail(t *testing.T) {
 	alice := syntax.DID("did:web:alice.example.com")
-	o := oauthserver.NewLoginHintServer(
-		identity.NewMockDirectory(),
-		fakeEmailResolver{"alice@acme.com": alice},
-	)
+	o := &OAuthServer{
+		directory:     identity.NewMockDirectory(),
+		emailResolver: fakeEmailResolver{"alice@acme.com": alice},
+	}
 
-	did, err := o.ResolveLoginHint(t.Context(), "Alice@acme.com")
+	did, err := o.resolveLoginHint(t.Context(), "Alice@acme.com")
 	require.NoError(t, err)
 	require.Equal(t, alice, did)
 
-	_, err = o.ResolveLoginHint(t.Context(), "bob@other.com")
+	_, err = o.resolveLoginHint(t.Context(), "bob@other.com")
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 
 	// Without a resolver, emails keep resolving to no subject, as before.
-	o.SetEmailResolver(nil)
-	did, err = o.ResolveLoginHint(t.Context(), "alice@acme.com")
+	o.emailResolver = nil
+	did, err = o.resolveLoginHint(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
 	require.Empty(t, did)
 }

@@ -1,40 +1,35 @@
-package oauthserver_test
+package oauthserver
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/habitat-network/habitat/internal/oauthserver"
 )
 
 func TestPermissionFromScope(t *testing.T) {
 	tests := []struct {
 		name    string
 		scope   string
-		want    oauthserver.TestPermission
+		want    permission
 		wantErr bool
 	}{
 		{
 			name:  "all spaces types wildcard",
 			scope: "org:*",
-			want:  oauthserver.TestPermission{Resource: "org"},
+			want:  permission{Resource: "org"},
 		},
 		{
 			name:  "single space type",
 			scope: "org:com.example.type",
-			want:  oauthserver.TestPermission{Resource: "org", Namespace: "com.example.type"},
+			want:  permission{Resource: "org", Namespace: "com.example.type"},
 		},
 		{
 			name:  "single space with actions",
 			scope: "org:com.example.type?action=create&action=update",
-			want: oauthserver.TestPermission{
+			want: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions: []oauthserver.TestScopeAction{
-					oauthserver.ActionCreate,
-					oauthserver.ActionUpdate,
-				},
+				Actions:   []scopeAction{ActionCreate, ActionUpdate},
 			},
 		},
 		{
@@ -55,7 +50,7 @@ func TestPermissionFromScope(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := oauthserver.PermissionFromScope(tt.scope)
+			got, err := permissionFromScope(tt.scope)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -69,59 +64,59 @@ func TestPermissionFromScope(t *testing.T) {
 func TestScopeMatch(t *testing.T) {
 	tests := []struct {
 		name     string
-		granted  oauthserver.TestPermission
-		required oauthserver.TestPermission
+		granted  permission
+		required permission
 		want     bool
 	}{
 		{
 			name:     "wildcard matches any space type",
-			granted:  oauthserver.TestPermission{Resource: "org"},
-			required: oauthserver.TestPermission{Resource: "org", Namespace: "com.example.type"},
+			granted:  permission{Resource: "org"},
+			required: permission{Resource: "org", Namespace: "com.example.type"},
 			want:     true,
 		},
 		{
 			name:     "exact match",
-			granted:  oauthserver.TestPermission{Resource: "org", Namespace: "com.example.type"},
-			required: oauthserver.TestPermission{Resource: "org", Namespace: "com.example.type"},
+			granted:  permission{Resource: "org", Namespace: "com.example.type"},
+			required: permission{Resource: "org", Namespace: "com.example.type"},
 			want:     true,
 		},
 		{
 			name:     "different collection no match",
-			granted:  oauthserver.TestPermission{Resource: "org", Namespace: "com.example.type"},
-			required: oauthserver.TestPermission{Resource: "org", Namespace: "com.example.like"},
+			granted:  permission{Resource: "org", Namespace: "com.example.type"},
+			required: permission{Resource: "org", Namespace: "com.example.like"},
 			want:     false,
 		},
 		{
 			name:    "wildcard matches with action constraint",
-			granted: oauthserver.TestPermission{Resource: "org"},
-			required: oauthserver.TestPermission{
+			granted: permission{Resource: "org"},
+			required: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions:   []oauthserver.TestScopeAction{oauthserver.ActionCreate},
+				Actions:   []scopeAction{ActionCreate},
 			},
 			want: true,
 		},
 		{
 			name: "granted nil actions satisfies any action requirement",
-			granted: oauthserver.TestPermission{
+			granted: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
 			},
-			required: oauthserver.TestPermission{
+			required: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions:   []oauthserver.TestScopeAction{oauthserver.ActionCreate},
+				Actions:   []scopeAction{ActionCreate},
 			},
 			want: true,
 		},
 		{
 			name: "granted specific action satisfies actionless required",
-			granted: oauthserver.TestPermission{
+			granted: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions:   []oauthserver.TestScopeAction{oauthserver.ActionCreate},
+				Actions:   []scopeAction{ActionCreate},
 			},
-			required: oauthserver.TestPermission{
+			required: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
 			},
@@ -129,28 +124,28 @@ func TestScopeMatch(t *testing.T) {
 		},
 		{
 			name: "missing action in granted fails",
-			granted: oauthserver.TestPermission{
+			granted: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions:   []oauthserver.TestScopeAction{oauthserver.ActionCreate},
+				Actions:   []scopeAction{ActionCreate},
 			},
-			required: oauthserver.TestPermission{
+			required: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions:   []oauthserver.TestScopeAction{oauthserver.ActionUpdate},
+				Actions:   []scopeAction{ActionUpdate},
 			},
 			want: false,
 		},
 		{
 			name:     "different resource no match",
-			granted:  oauthserver.TestPermission{Resource: "repo", Namespace: "com.example.type"},
-			required: oauthserver.TestPermission{Resource: "org", Namespace: "com.example.type"},
+			granted:  permission{Resource: "repo", Namespace: "com.example.type"},
+			required: permission{Resource: "org", Namespace: "com.example.type"},
 			want:     false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := oauthserver.ScopeMatch(tt.granted, tt.required)
+			got := scopeMatch(tt.granted, tt.required)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -158,26 +153,23 @@ func TestScopeMatch(t *testing.T) {
 
 func TestScopesStrategy(t *testing.T) {
 	t.Run("wildcard satisfies single", func(t *testing.T) {
-		ok := oauthserver.ScopeStrategy([]string{"org:*"}, "org:com.example.type")
+		ok := scopeStrategy([]string{"org:*"}, "org:com.example.type")
 		require.True(t, ok)
 	})
 	t.Run("exact match", func(t *testing.T) {
-		ok := oauthserver.ScopeStrategy([]string{"org:com.example.type"}, "org:com.example.type")
+		ok := scopeStrategy([]string{"org:com.example.type"}, "org:com.example.type")
 		require.True(t, ok)
 	})
 	t.Run("missing scope", func(t *testing.T) {
-		ok := oauthserver.ScopeStrategy(
-			[]string{"org:com.example.otherType"},
-			"org:com.example.type",
-		)
+		ok := scopeStrategy([]string{"org:com.example.otherType"}, "org:com.example.type")
 		require.False(t, ok)
 	})
 	t.Run("empty granted not satisfied", func(t *testing.T) {
-		ok := oauthserver.ScopeStrategy([]string{}, "org:com.example.type")
+		ok := scopeStrategy([]string{}, "org:com.example.type")
 		require.False(t, ok)
 	})
 	t.Run("needle in multi-item haystack", func(t *testing.T) {
-		ok := oauthserver.ScopeStrategy(
+		ok := scopeStrategy(
 			[]string{"org:com.example.otherType", "org:com.example.type"},
 			"org:com.example.type",
 		)

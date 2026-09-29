@@ -9,11 +9,15 @@ import (
 
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/emaildomain"
+	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/instance"
+	"github.com/habitat-network/habitat/internal/login"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/org/testutil"
+	"github.com/habitat-network/habitat/internal/spaces"
 )
 
 func TestLoginRouter(t *testing.T) {
@@ -146,7 +150,15 @@ func TestExchange_MissingMember(t *testing.T) {
 }
 
 func TestLoginRouterEmailDomain(t *testing.T) {
-	db := db_testutil.NewPearDB(t)
+	db := db_testutil.NewDB(
+		t,
+		hive.Models(),
+		login.Models(),
+		instance.Models(),
+		emaildomain.Models(),
+		spaces.Models(),
+		opensocial.Models(),
+	)
 	emailStore, err := emaildomain.NewStore(db)
 	require.NoError(t, err)
 	osStore := opensocial_testutil.NewTestStore(t, opensocial_testutil.WithDB(db))

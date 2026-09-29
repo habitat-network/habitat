@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/atdata"
@@ -22,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -150,7 +151,7 @@ func TestCrawlerBackfillsSession(t *testing.T) {
 	base, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:sessiondid", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -186,7 +187,7 @@ func TestCrawlerDeduplicatesConcurrentRuns(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:sessiondid", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -222,7 +223,7 @@ func TestCrawlerRunCompleteThenRestart(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -260,7 +261,7 @@ func TestCrawlerRestartResetsErroredCrawl(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -319,7 +320,7 @@ func TestCrawlerEnumerateReposError(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	rec := &recorder{}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
 	c, err := New(db, app, rec, fakeClients{base: base}, rec, nil, nil, nil)
@@ -351,7 +352,7 @@ func TestCrawlerNotifyRegistration(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	rec := &recorder{}
 	nr := &fakeNotifyRegistrar{}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
@@ -405,7 +406,7 @@ func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
 	base := mustParseURL(t, srv.URL)
 	fc := fakeClients{base: base}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
-	c, err := New(db_testutil.NewUnmigratedDB(t), app, rec, fc, rec, nil, nil, nil)
+	c, err := New(db_testutil.NewDB(t, Models()), app, rec, fc, rec, nil, nil, nil)
 	require.NoError(t, err)
 
 	require.NoError(t, c.enumerateRepos(t.Context(), space))
@@ -441,7 +442,7 @@ func TestCrawlerTrackSpace(t *testing.T) {
 	nr := &fakeNotifyRegistrar{}
 	base := mustParseURL(t, srv.URL)
 	c, err := New(
-		db_testutil.NewUnmigratedDB(t), nil, rec, fakeClients{base: base}, rec, nr, nil, nil,
+		db_testutil.NewDB(t, Models()), nil, rec, fakeClients{base: base}, rec, nr, nil, nil,
 	)
 	require.NoError(t, err)
 

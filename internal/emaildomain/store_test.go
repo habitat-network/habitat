@@ -8,14 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 )
 
 // TestStore runs against one store shared by the subtests, in order: the
 // member-email subtests rely on the mapping created by "domain mapping".
 func TestStore(t *testing.T) {
-	db := db_testutil.NewPearDB(t)
+	db := pear_testutil.NewPearDB(t)
 	s, err := emaildomain.NewStore(db)
 	require.NoError(t, err)
 	org := syntax.DID("did:web:acme.example.com")

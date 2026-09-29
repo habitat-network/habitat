@@ -1,4 +1,4 @@
-package hive_test
+package hive
 
 import (
 	"context"
@@ -8,13 +8,12 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestHive(t *testing.T, memberDomain, pearDomain string) hive.Hive {
+func newTestHive(t *testing.T, memberDomain, pearDomain string) Hive {
 	t.Helper()
-	h, err := hive.NewHive(memberDomain, pearDomain, testutil.NewPearDB(t))
+	h, err := NewHive(memberDomain, pearDomain, testutil.NewDB(t, Models()))
 	require.NoError(t, err)
 	return h
 }
@@ -38,7 +37,7 @@ func TestMintIdentity_Duplicate(t *testing.T) {
 	_, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
 	_, err = h.MintIdentity(context.Background(), "alice", "org")
-	require.ErrorIs(t, err, hive.ErrNotCreated)
+	require.ErrorIs(t, err, ErrNotCreated)
 }
 
 func TestLookupHandle(t *testing.T) {

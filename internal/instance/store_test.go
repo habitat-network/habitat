@@ -1,29 +1,22 @@
-package instance_test
+package instance
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/alexedwards/argon2id"
 	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestStore(t *testing.T) *instance.StoreImpl {
+func newTestStore(t *testing.T) *storeImpl {
 	t.Helper()
 
 	hash, err := argon2id.CreateHash("password", argon2id.DefaultParams)
 	require.NoError(t, err)
 
-	store, err := instance.NewStore(
-		testutil.NewPearDB(t),
-		[]byte("random"),
-		"pear.example.com",
-		hash,
-	)
+	store, err := NewStore(testutil.NewDB(t, Models()), []byte("random"), "pear.example.com", hash)
 	require.NoError(t, err)
 	return store
 }
@@ -77,7 +70,7 @@ func TestValidateSession_TamperedCookieFails(t *testing.T) {
 	s := newTestStore(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", http.NoBody)
-	req.AddCookie(&http.Cookie{Name: instance.SessionName, Value: "not-a-valid-session-value"})
+	req.AddCookie(&http.Cookie{Name: sessionName, Value: "not-a-valid-session-value"})
 	ok, err := s.ValidateSession(req)
 	require.NoError(t, err)
 	require.False(t, ok)
@@ -86,13 +79,9 @@ func TestValidateSession_TamperedCookieFails(t *testing.T) {
 func TestNewStore_SessionCookieOptions(t *testing.T) {
 	s := newTestStore(t)
 
-	require.Equal(t, "/", s.SessionOptions().Path)
-	require.Equal(
-		t,
-		int(time.Duration(instance.SessionDuration).Seconds()),
-		s.SessionOptions().MaxAge,
-	)
-	require.True(t, s.SessionOptions().HttpOnly)
+	require.Equal(t, "/", s.sessions.Options.Path)
+	require.Equal(t, int(sessionDuration.Seconds()), s.sessions.Options.MaxAge)
+	require.True(t, s.sessions.Options.HttpOnly)
 }
 
 func TestGetSettings_DefaultsOnFirstAccess(t *testing.T) {
@@ -101,50 +90,50 @@ func TestGetSettings_DefaultsOnFirstAccess(t *testing.T) {
 	instanceName, policy, err := s.GetSettings(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, "", instanceName)
-	require.Equal(t, instance.PolicyOpen, policy)
+	require.Equal(t, policyOpen, policy)
 }
 
 func TestUpdateSettings_PersistsAndReads(t *testing.T) {
 	s := newTestStore(t)
 
-	err := s.UpdateSettings(t.Context(), "Acme Hosting", instance.PolicyInviteOnly)
+	err := s.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly)
 	require.NoError(t, err)
 
 	instanceName, policy, err := s.GetSettings(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, "Acme Hosting", instanceName)
-	require.Equal(t, instance.PolicyInviteOnly, policy)
+	require.Equal(t, policyInviteOnly, policy)
 }
 
 func TestUpdateSettings_RejectsInvalidPolicy(t *testing.T) {
 	s := newTestStore(t)
 
 	err := s.UpdateSettings(t.Context(), "Acme Hosting", "sometimes")
-	require.ErrorIs(t, err, instance.ErrInvalidPolicy)
+	require.ErrorIs(t, err, ErrInvalidPolicy)
 }
 
 func TestUpdateSettings_OmittedPolicyLeavesItUnchanged(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", instance.PolicyInviteOnly))
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly))
 
 	require.NoError(t, s.UpdateSettings(t.Context(), "New Name", ""))
 
 	instanceName, policy, err := s.GetSettings(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, "New Name", instanceName)
-	require.Equal(t, instance.PolicyInviteOnly, policy)
+	require.Equal(t, policyInviteOnly, policy)
 }
 
 func TestUpdateSettings_OmittedNameLeavesItUnchanged(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", instance.PolicyOpen))
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", policyOpen))
 
-	require.NoError(t, s.UpdateSettings(t.Context(), "", instance.PolicyInviteOnly))
+	require.NoError(t, s.UpdateSettings(t.Context(), "", policyInviteOnly))
 
 	instanceName, policy, err := s.GetSettings(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, "Acme Hosting", instanceName)
-	require.Equal(t, instance.PolicyInviteOnly, policy)
+	require.Equal(t, policyInviteOnly, policy)
 }
 
 func TestGetOrgCreationPolicy_DefaultsToOpen(t *testing.T) {
@@ -152,21 +141,21 @@ func TestGetOrgCreationPolicy_DefaultsToOpen(t *testing.T) {
 
 	policy, err := s.GetOrgCreationPolicy(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, instance.PolicyOpen, policy)
+	require.Equal(t, policyOpen, policy)
 }
 
 func TestGetOrgCreationPolicy_ReflectsUpdate(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", instance.PolicyInviteOnly))
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly))
 
 	policy, err := s.GetOrgCreationPolicy(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, instance.PolicyInviteOnly, policy)
+	require.Equal(t, policyInviteOnly, policy)
 }
 
 func TestIssueInvite_CanBeRedeemedOnce(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", instance.PolicyInviteOnly))
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly))
 
 	token, err := s.IssueInvite(t.Context())
 	require.NoError(t, err)
@@ -176,12 +165,12 @@ func TestIssueInvite_CanBeRedeemedOnce(t *testing.T) {
 	require.NoError(t, s.MarkInviteUsed(t.Context(), token))
 
 	err = s.ValidateInvite(t.Context(), token)
-	require.ErrorIs(t, err, instance.ErrInvalidInvite)
+	require.ErrorIs(t, err, ErrInvalidInvite)
 }
 
 func TestValidateInvite_DoesNotConsumeToken(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", instance.PolicyInviteOnly))
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly))
 
 	token, err := s.IssueInvite(t.Context())
 	require.NoError(t, err)
@@ -198,20 +187,20 @@ func TestRedeemInvite_UnknownTokenFails(t *testing.T) {
 	s := newTestStore(t)
 
 	err := s.ValidateInvite(t.Context(), "not-a-real-token")
-	require.ErrorIs(t, err, instance.ErrInvalidInvite)
+	require.ErrorIs(t, err, ErrInvalidInvite)
 
 	err = s.MarkInviteUsed(t.Context(), "not-a-real-token")
-	require.ErrorIs(t, err, instance.ErrInvalidInvite)
+	require.ErrorIs(t, err, ErrInvalidInvite)
 }
 
 func TestRedeemInvite_WrongSigningSecretFails(t *testing.T) {
 	s1 := newTestStore(t)
-	require.NoError(t, s1.UpdateSettings(t.Context(), "Acme Hosting", instance.PolicyInviteOnly))
+	require.NoError(t, s1.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly))
 	token, err := s1.IssueInvite(t.Context())
 	require.NoError(t, err)
 
 	// A different store (different generated signing secret) must reject it.
 	s2 := newTestStore(t)
 	err = s2.ValidateInvite(t.Context(), token)
-	require.ErrorIs(t, err, instance.ErrInvalidInvite)
+	require.ErrorIs(t, err, ErrInvalidInvite)
 }

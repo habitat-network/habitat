@@ -6,11 +6,12 @@ import (
 	"net/url"
 	"testing"
 
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/httpx"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
@@ -98,7 +99,7 @@ func setupJWTBearerTestServer(
 	approvedClientIDs ...string,
 ) (srv *oauthserver.OAuthServer, server *httptest.Server) {
 	t.Helper()
-	db := testutil.NewPearDB(t)
+	db := pear_testutil.NewPearDB(t)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)

@@ -13,9 +13,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/org"
@@ -475,7 +475,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 // this file.
 func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 	instanceStore, err := instance.NewStore(
-		testutil.NewPearDB(t),
+		pear_testutil.NewPearDB(t),
 		[]byte("key"),
 		"passhash",
 		"pear.example.com",
