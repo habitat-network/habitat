@@ -93,8 +93,7 @@ Tool versions are managed by [Proto](https://moonrepo.dev/proto) via `.prototool
 
 ```bash
 # Development
-moon :dev-all           # start all apps in dev (frontend + backend, docs)
-moon frontend:dev       # frontend only (habitat management plane) + pear backend
+moon frontend:dev       # frontend (habitat management plane) + pear:dev
 moon pear:dev           # Pear server with Air hot reload (+ ngrok, + Caddy)
 moon sap:dev            # sap sync service in dev
 
