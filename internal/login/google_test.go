@@ -78,7 +78,10 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	idToken := makeIDToken(t, defaultTestClaims(clientID, "user@gmail.com"))
+	claims := defaultTestClaims(clientID, "user@gmail.com")
+	claims.Name = "Test User"
+	claims.Picture = "https://example.com/avatar.png"
+	idToken := makeIDToken(t, claims)
 
 	tokenServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -111,9 +114,14 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	require.NoError(t, json.Unmarshal(state, &gs))
 
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, tokenServer.Client())
-	loginID, err := p.Exchange(ctx, url.Values{"code": {"auth-code"}, "state": {gs.State}}, state)
+	loginID, profile, err := p.Exchange(
+		ctx,
+		url.Values{"code": {"auth-code"}, "state": {gs.State}},
+		state,
+	)
 	require.NoError(t, err)
 	require.Equal(t, "user@gmail.com", loginID)
+	require.Equal(t, Profile{Name: "Test User", Picture: "https://example.com/avatar.png"}, profile)
 
 	creds, err := gp.GetCredentials(ctx, "user@gmail.com")
 	require.NoError(t, err)
