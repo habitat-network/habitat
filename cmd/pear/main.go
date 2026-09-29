@@ -66,7 +66,6 @@ import (
 	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
-	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/cmd/pear/migrations"
 )
@@ -115,9 +114,17 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	slog.InfoContext(startupCtx, "running with flags", "flags", cmd.FlagNames())
 
-	db, err := openAndMigrateDatabase(startupCtx, cmd.String(fDB))
+	// The gorm handle is named database so that db keeps referring to
+	// internal/db, which db.Migrate below needs.
+	database, err := db.New(cmd.String(fDB))
 	if err != nil {
-		return err
+		return fmt.Errorf("setup database: %w", err)
+	}
+	// Stores no longer migrate their own tables, so bring the database fully up
+	// to date before any store is constructed: db.Migrate creates the tables for
+	// Models, then replays cmd/pear/migrations.
+	if err := db.Migrate(startupCtx, database, migrations.FS, Models()); err != nil {
+		return fmt.Errorf("migrate database: %w", err)
 	}
 	fgaStore, err := setupFGA(startupCtx, cmd)
 	if err != nil {
@@ -135,7 +142,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	// Reuse the oauth server secret
 	instanceAdminStore, err := instance.NewStore(
-		db.WithContext(startupCtx),
+		database.WithContext(startupCtx),
 		oauthSecret,
 		fDomain,
 		passwordHash,
@@ -150,7 +157,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("load PDS encryption key: %w", err)
 	}
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(db.WithContext(startupCtx), credKey)
+	pdsCredStore, err := pdscred.NewPDSCredentialStore(database.WithContext(startupCtx), credKey)
 	if err != nil {
 		return fmt.Errorf("setup pds cred store: %w", err)
 	}
@@ -218,7 +225,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		hiveDomain = domain
 	}
 
-	hive, err := hive.NewHive(hiveDomain, domain, db.WithContext(startupCtx))
+	hive, err := hive.NewHive(hiveDomain, domain, database.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup hive (identity service for org): %w", err)
 	}
@@ -241,7 +248,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	passwordProvider, err := login.NewPasswordProvider(
-		db,
+		database,
 		cmd.String(fDomain),
 		oauthSecret,
 		hiveDir,
@@ -251,7 +258,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	everyoneOrg := org.NewEveryoneOrg(domain)
 	orgStore, err := org.NewStore(
-		db.WithContext(startupCtx),
+		database.WithContext(startupCtx),
 		hive,
 		hiveDir,
 		domain,
@@ -263,7 +270,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup org store: %w", err)
 	}
 
-	emailDomainStore, err := emaildomain.NewStore(db.WithContext(startupCtx))
+	emailDomainStore, err := emaildomain.NewStore(database.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup email domain store: %w", err)
 	}
@@ -281,7 +288,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			googleClientID,
 			googleClientSecret,
 			"https://"+domain+"/oauth-callback",
-			db.WithContext(startupCtx),
+			database.WithContext(startupCtx),
 			credKey,
 		)
 		if err != nil {
@@ -299,14 +306,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("parse space-host signing key: %w", err)
 	}
 
-	notifyStore, err := notify.NewStore(db.WithContext(startupCtx))
+	notifyStore, err := notify.NewStore(database.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup notify store: %w", err)
 	}
 	notifier := notify.NewNotifier(notifyStore, httpx.NewClient(), hive)
 
 	spacesStore, err := spaces.NewStore(
-		db.WithContext(startupCtx),
+		database.WithContext(startupCtx),
 		notifier,
 		spacecommit.NewAuthority(hostKey, hive),
 	)
@@ -322,13 +329,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	blobStore := spaces.NewBlobStore(blobBucket)
 
 	opensocialStore, err := opensocial.NewStore(
-		db.WithContext(startupCtx), spacesStore, blobStore, hive,
+		database.WithContext(startupCtx), spacesStore, blobStore, hive,
 	)
 	if err != nil {
 		return fmt.Errorf("setup opensocial store: %w", err)
 	}
 	emailResolver := habitat_identity.NewEmailResolver(
-		db.WithContext(startupCtx), emailDomainStore, hive,
+		database.WithContext(startupCtx), emailDomainStore, hive,
 	)
 	loginRouter.OpensocialStore = opensocialStore
 
@@ -349,7 +356,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		loginRouter,
 		// OAuth server needs privileged access to lookup hive-hosted identities
 		hiveDir,
-		db.WithContext(startupCtx),
+		database.WithContext(startupCtx),
 		meter,
 		orgStore,
 		"https://"+domain,
@@ -362,7 +369,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup oauth server: %w", err)
 	}
-	oauthGC := oauthserver.NewCollector(db.WithContext(startupCtx), 5*time.Minute)
+	oauthGC := oauthserver.NewCollector(database.WithContext(startupCtx), 5*time.Minute)
 
 	serviceAuth := authn.NewServiceAuthMethod(
 		everyoneOrg,
@@ -371,12 +378,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		"https://"+domain,
 	)
 
-	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
+	cliqueStore, err := clique.NewStore(database.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup clique store: %w", err)
 	}
 
-	permStore := perms.NewStore(db, spacesStore, fgaStore, opensocialStore)
+	permStore := perms.NewStore(database, spacesStore, fgaStore, opensocialStore)
 	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
 	validator := authn.NewValidator(
 		oauthServer,
@@ -389,7 +396,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
 
-	simpleStore := simplespace.NewStore(db, spacesStore, permStore)
+	simpleStore := simplespace.NewStore(database, spacesStore, permStore)
 
 	// Store for org-configured MCP servers and per-user Nango connections.
 	nangoSecretKey := cmd.String(fNangoSecretKey)
@@ -428,12 +435,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		emailDomainStore,
 	)
 
-	repo, err := repo.NewRepo(db.WithContext(startupCtx))
+	repo, err := repo.NewRepo(database.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup repo: %w", err)
 	}
 
-	permissions, err := permissions.NewStore(db, cliqueStore)
+	permissions, err := permissions.NewStore(database, cliqueStore)
 	if err != nil {
 		return fmt.Errorf("create permission store: %w", err)
 	}
@@ -669,25 +676,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		slog.ErrorContext(startupCtx, "server shut down returned an error", "err", err)
 	}
 	return err
-}
-
-// openAndMigrateDatabase opens pear's database and brings it up to date:
-// db.Migrate creates the tables for Models, then replays the migrations in
-// cmd/pear/migrations.
-//
-// It is its own function so that db names internal/db here, rather than the
-// gorm handle run shadows the package name with.
-func openAndMigrateDatabase(ctx context.Context, dsn string) (*gorm.DB, error) {
-	database, err := db.New(dsn)
-	if err != nil {
-		return nil, fmt.Errorf("setup database: %w", err)
-	}
-	// Stores no longer migrate their own tables, so do it once here, before any
-	// store is constructed.
-	if err := db.Migrate(ctx, database, migrations.FS, Models()); err != nil {
-		return nil, fmt.Errorf("migrate database: %w", err)
-	}
-	return database, nil
 }
 
 // Models returns the GORM models of every store pear persists to its database,
