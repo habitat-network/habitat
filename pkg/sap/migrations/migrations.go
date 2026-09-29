@@ -1,6 +1,8 @@
-// Package schema lists the GORM models pkg/sap's stores persist, so that the
-// server and its tests create the same tables from one list.
-package schema
+// Package migrations lists the GORM models pkg/sap's stores persist, so that
+// the server and its tests create the same tables from one list. It is named
+// for cmd/pear/migrations, which does the same for pear alongside the SQL
+// files it replays; sap has no migration files of its own.
+package migrations
 
 import (
 	"github.com/habitat-network/habitat/pkg/sap/crawl"

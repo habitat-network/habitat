@@ -30,9 +30,9 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/sap/crawl"
 	"github.com/habitat-network/habitat/pkg/sap/credential"
+	"github.com/habitat-network/habitat/pkg/sap/migrations"
 	"github.com/habitat-network/habitat/pkg/sap/outbox"
 	"github.com/habitat-network/habitat/pkg/sap/register"
-	"github.com/habitat-network/habitat/pkg/sap/schema"
 	"github.com/habitat-network/habitat/pkg/sap/session"
 	"github.com/habitat-network/habitat/pkg/sap/syncer"
 )
@@ -101,7 +101,7 @@ func New(config Config) (*Sap, error) {
 	// db.Migrate only issues DDL against the database it is handed. The
 	// `sap_` naming strategy is on config.DB, so the tables are prefixed to
 	// stay clear of a pear server's tables on the same file.
-	if err := db.Migrate(context.Background(), config.DB, nil, schema.Models()); err != nil {
+	if err := db.Migrate(context.Background(), config.DB, nil, migrations.Models()); err != nil {
 		return nil, fmt.Errorf("migrate database: %w", err)
 	}
 
