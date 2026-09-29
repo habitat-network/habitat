@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
 	"github.com/habitat-network/habitat/pkg/sap/outbox"
+	sap_testutil "github.com/habitat-network/habitat/pkg/sap/testutil"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -26,7 +26,7 @@ import (
 func newWebhookTestSap(t *testing.T) (*sap.Sap, *gorm.DB) {
 	t.Helper()
 
-	db := testutil.NewUnmigratedDB(t)
+	db := sap_testutil.NewSapDB(t)
 
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)

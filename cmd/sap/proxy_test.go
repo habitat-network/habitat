@@ -11,9 +11,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
+	sap_testutil "github.com/habitat-network/habitat/pkg/sap/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,7 +47,7 @@ func testDPoPKey(t *testing.T) string {
 func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 	t.Helper()
 
-	db := testutil.NewUnmigratedDB(t)
+	db := sap_testutil.NewSapDB(t)
 
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
