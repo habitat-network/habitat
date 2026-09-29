@@ -52,7 +52,8 @@
                         "space.create",
                         "space.configure",
                         "space.delete",
-                        "community.configure"
+                        "community.configure",
+                        "mcp.configure"
                     ],
                     "description": "The action this binding authorizes."
                 },

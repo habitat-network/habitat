@@ -10,9 +10,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"log/slog"
+
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/sessions"
-	"log/slog"
 )
 
 const (

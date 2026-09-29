@@ -119,9 +119,6 @@ func New(
 	meter metric.Meter,
 	tracer trace.Tracer,
 ) (*Crawler, error) {
-	if err := db.AutoMigrate(&crawl{}); err != nil {
-		return nil, err
-	}
 	if meter == nil {
 		meter = metricnoop.NewMeterProvider().Meter("sap")
 	}
@@ -377,4 +374,10 @@ func detachCancel(ctx context.Context) context.Context {
 		trace.ContextWithSpan(ctx, tracenoop.Span{}),
 		trace.SpanContextFromContext(ctx),
 	)
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by db.Migrate, which pkg/sap/testutil.NewSapDB calls for tests.
+func Models() []any {
+	return []any{&crawl{}}
 }

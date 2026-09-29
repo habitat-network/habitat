@@ -1,0 +1,66 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.addServer",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Add an MCP server to the org by writing its record. Nobody signs in to it yet: for an oauth server this registers a Nango integration, and each member then connects with startAuthorization; a manual server needs no auth, so every member is connected to it automatically. Requires service-auth. Requires the mcp.configure action.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "org",
+            "name",
+            "url",
+            "authType"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community to add the server to."
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Also becomes the server's record key and the namespace under which its tools are exposed. Letters, digits, hyphens, and underscores only, and must be unique within the org."
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "The server's streamable HTTP endpoint."
+            },
+            "authType": {
+              "type": "string",
+              "knownValues": [
+                "oauth",
+                "manual"
+              ],
+              "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "server"
+          ],
+          "properties": {
+            "server": {
+              "type": "ref",
+              "ref": "network.habitat.mcp.defs#server"
+            }
+          }
+        }
+      }
+    }
+  }
+}

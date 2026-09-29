@@ -26,9 +26,11 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
+	"github.com/habitat-network/habitat/internal/db"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/sap/crawl"
 	"github.com/habitat-network/habitat/pkg/sap/credential"
+	"github.com/habitat-network/habitat/pkg/sap/migrations"
 	"github.com/habitat-network/habitat/pkg/sap/outbox"
 	"github.com/habitat-network/habitat/pkg/sap/register"
 	"github.com/habitat-network/habitat/pkg/sap/session"
@@ -88,6 +90,19 @@ func New(config Config) (*Sap, error) {
 	tracer := config.Tracer
 	if tracer == nil {
 		tracer = tracenoop.NewTracerProvider().Tracer("sap")
+	}
+
+	// The stores below no longer create their own tables, so migrate here,
+	// where every one of them is wired up. Doing it in New rather than in
+	// cmd/sap means any embedder of this package gets a usable database
+	// instead of a schema-less one.
+	//
+	// The context is background because sap has no goose migrations, so
+	// db.Migrate only issues DDL against the database it is handed. The
+	// `sap_` naming strategy is on config.DB, so the tables are prefixed to
+	// stay clear of a pear server's tables on the same file.
+	if err := db.Migrate(context.Background(), config.DB, nil, migrations.Models()); err != nil {
+		return nil, fmt.Errorf("migrate database: %w", err)
 	}
 
 	sessions, err := session.NewStore(config.DB, config.OAuthClient)

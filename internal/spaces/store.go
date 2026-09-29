@@ -78,6 +78,10 @@ type RepoInfo struct {
 
 // Record is a single record within a space
 type Record struct {
+	// Space is only populated by methods that can return records from more
+	// than one space in a single call (e.g. GetRecords); it's the zero value
+	// elsewhere, since the caller already supplies the space in that case.
+	Space      habitat_syntax.SpaceURI
 	Owner      syntax.DID
 	Collection syntax.NSID
 	Rkey       syntax.RecordKey
@@ -86,13 +90,6 @@ type Record struct {
 	Prev       string
 	Cid        cid.Cid
 	UpdatedAt  time.Time
-}
-
-// RecordRef identifies a single record within a space/collection, for use
-// with GetRecords.
-type RecordRef struct {
-	Owner syntax.DID
-	Rkey  syntax.RecordKey
 }
 
 // Store defines the persistence interface for spaces
@@ -160,15 +157,14 @@ type Store interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) (*Record, error)
-	// GetRecords batch-fetches the records identified by refs within a single
-	// space/collection, in one query. Refs with no matching record are simply
-	// absent from the result (not an error); the result order is not
-	// guaranteed to match refs.
+	// GetRecords batch-fetches the records identified by uris, in one query.
+	// A uri with no matching record is simply absent from the result (not an
+	// error); the result order is not guaranteed to match uris. uris may span
+	// different spaces and collections, so each returned Record carries its
+	// Space.
 	GetRecords(
 		ctx context.Context,
-		space habitat_syntax.SpaceURI,
-		collection syntax.NSID,
-		refs []RecordRef,
+		uris []habitat_syntax.SpaceRecordURI,
 	) ([]Record, error)
 	ListRecords(
 		ctx context.Context,
@@ -194,6 +190,19 @@ type Store interface {
 		collection syntax.NSID,
 		rkey string,
 	) error
+
+	// ApplyWrites applies a batch of creates, updates, and deletes to a repo
+	// atomically: either every write lands or none does. results is parallel to
+	// writes. A create of an existing record fails with
+	// [ErrRecordAlreadyExists]; an update or delete of a missing one fails with
+	// [ErrRecordNotFound]. Each write is assigned its own revision, and the
+	// repo's syncers are notified once, with the final head.
+	ApplyWrites(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		writes []Write,
+	) ([]WriteResult, error)
 
 	// Oplog operations
 	//
@@ -235,6 +244,31 @@ type Store interface {
 	db.Store[Store]
 }
 
+// WriteAction is the kind of operation a [Write] performs.
+type WriteAction string
+
+const (
+	WriteCreate WriteAction = "create"
+	WriteUpdate WriteAction = "update"
+	WriteDelete WriteAction = "delete"
+)
+
+// Write is a single operation in an [Store.ApplyWrites] batch. Rkey may be
+// empty only for WriteCreate, in which case one is generated. Value is unused
+// by WriteDelete.
+type Write struct {
+	Action     WriteAction
+	Collection syntax.NSID
+	Rkey       syntax.RecordKey
+	Value      MarshaledRecord
+}
+
+// WriteResult is the outcome of one [Write]. Cid is nil for WriteDelete.
+type WriteResult struct {
+	URI habitat_syntax.SpaceRecordURI
+	Cid *cid.Cid
+}
+
 // Notifier is notified when a space changes so it can deliver events to
 // registered syncers. Implementations must be non-blocking and best-effort.
 type Notifier interface {
@@ -251,16 +285,17 @@ type Notifier interface {
 }
 
 var (
-	ErrSpaceNotFound      = errors.New("space not found")
-	ErrSpaceAlreadyExists = errors.New("space already exists")
-	ErrRecordNotFound     = errors.New("record not found")
-	ErrUserAlreadyMember  = errors.New("user is already a member of the space")
-	ErrNotAMember         = errors.New("user is not a member of the space")
-	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
-	ErrRepoNotFound       = errors.New("repo not found")
-	ErrRevTooFar          = errors.New("since revision is ahead of the repo head")
-	ErrRecordTooLarge     = errors.New("record too large")
-	ErrInvalidRecord      = errors.New("record does not conform to atproto data model")
+	ErrSpaceNotFound       = errors.New("space not found")
+	ErrSpaceAlreadyExists  = errors.New("space already exists")
+	ErrRecordNotFound      = errors.New("record not found")
+	ErrRecordAlreadyExists = errors.New("record already exists")
+	ErrUserAlreadyMember   = errors.New("user is already a member of the space")
+	ErrNotAMember          = errors.New("user is not a member of the space")
+	ErrCannotRemoveOrg     = errors.New("cannot remove the org from the space")
+	ErrRepoNotFound        = errors.New("repo not found")
+	ErrRevTooFar           = errors.New("since revision is ahead of the repo head")
+	ErrRecordTooLarge      = errors.New("record too large")
+	ErrInvalidRecord       = errors.New("record does not conform to atproto data model")
 )
 
 // ---- Store implementation ----
@@ -282,9 +317,6 @@ func NewStore(
 	notifier Notifier,
 	commit *spacecommit.Authority,
 ) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceRepo{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
-	}
 	return &store{
 		db:       db,
 		clock:    syntax.NewTIDClock(0),
@@ -669,22 +701,19 @@ func (s *store) GetRecord(
 
 func (s *store) GetRecords(
 	ctx context.Context,
-	uri habitat_syntax.SpaceURI,
-	collection syntax.NSID,
-	refs []RecordRef,
+	uris []habitat_syntax.SpaceRecordURI,
 ) ([]Record, error) {
-	if len(refs) == 0 {
+	if len(uris) == 0 {
 		return nil, nil
 	}
 
-	conds := make([]string, len(refs))
-	args := make([]any, 0, len(refs)*2+2)
-	args = append(args, uri, collection)
-	for i, ref := range refs {
-		conds[i] = "(repo = ? AND rkey = ?)"
-		args = append(args, ref.Owner, ref.Rkey)
+	conds := make([]string, len(uris))
+	args := make([]any, 0, len(uris)*4)
+	for i, uri := range uris {
+		conds[i] = "(space = ? AND repo = ? AND collection = ? AND rkey = ?)"
+		args = append(args, uri.SpaceURI(), uri.Repo(), uri.Collection(), uri.Rkey())
 	}
-	where := "space = ? AND collection = ? AND (" + strings.Join(conds, " OR ") + ")"
+	where := strings.Join(conds, " OR ")
 
 	var rows []spaceRecord
 	if err := s.db.WithContext(ctx).Where(where, args...).Find(&rows).Error; err != nil {
@@ -700,7 +729,7 @@ func (s *store) GetRecords(
 			// batch; skip it and keep going.
 			slog.WarnContext(
 				ctx, "skipping undecodable record in batch get",
-				"space", uri,
+				"space", row.Space,
 				"repo", row.Repo,
 				"collection", row.Collection,
 				"rkey", row.Rkey,
@@ -709,6 +738,7 @@ func (s *store) GetRecords(
 			continue
 		}
 		records = append(records, Record{
+			Space:      row.Space,
 			Owner:      row.Repo,
 			Collection: row.Collection,
 			Rkey:       row.Rkey,
@@ -1038,4 +1068,140 @@ func (s *store) DeleteRecord(
 		}
 		return saveRepoHash(tx, uri, repo, h, rev)
 	})
+}
+
+// ApplyWrites implements [Store].
+func (s *store) ApplyWrites(
+	ctx context.Context,
+	spaceURI habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	writes []Write,
+) ([]WriteResult, error) {
+	ctx, span := tracer.Start(ctx, "ApplyWrites", trace.WithAttributes(
+		attribute.String("space", spaceURI.String()),
+		attribute.String("repo", repo.String()),
+		attribute.Int("writes", len(writes)),
+	))
+	defer span.End()
+	ok, err := s.CheckSpaceExists(ctx, spaceURI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get space: %w", err)
+	} else if !ok {
+		return nil, ErrSpaceNotFound
+	}
+
+	results := make([]WriteResult, len(writes))
+	var headRev syntax.TID
+	var headHash []byte
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockRepo(tx, spaceURI, repo); err != nil {
+			return err
+		}
+		h, _, _, err := loadRepoHash(tx, spaceURI, repo)
+		if err != nil {
+			return fmt.Errorf("failed to load repo hash: %w", err)
+		}
+		var changed bool
+		for i, w := range writes {
+			rev := s.clock.Next()
+			rkey := w.Rkey
+			if rkey == "" && w.Action == WriteCreate {
+				rkey = syntax.RecordKey(rev)
+			}
+			uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, w.Collection, rkey)
+			var existing spaceRecord
+			err := tx.
+				Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+					spaceURI, repo, w.Collection, rkey).
+				First(&existing).Error
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("failed to get existing record: %w", err)
+			}
+			exists := err == nil
+
+			switch w.Action {
+			case WriteCreate, WriteUpdate:
+				if w.Action == WriteCreate && exists {
+					return fmt.Errorf("%s: %w", uri, ErrRecordAlreadyExists)
+				}
+				if w.Action == WriteUpdate && !exists {
+					return fmt.Errorf("%s: %w", uri, ErrRecordNotFound)
+				}
+				newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(w.Value)
+				if err != nil {
+					return fmt.Errorf("failed to compute cid: %w", err)
+				}
+				results[i] = WriteResult{URI: uri, Cid: &newCid}
+				if exists {
+					if existing.Cid == newCid.String() {
+						// Unchanged update: no new rev, same as PutRecord.
+						continue
+					}
+					h.Remove(spacecommit.RecordElement(w.Collection, rkey, existing.Cid))
+				}
+				h.Add(spacecommit.RecordElement(w.Collection, rkey, newCid.String()))
+				if err := tx.Save(&spaceRecord{
+					Repo:       repo,
+					Space:      spaceURI,
+					Collection: w.Collection,
+					Rkey:       rkey,
+					Value:      w.Value,
+					Rev:        rev,
+					PrevCid:    existing.Cid,
+					Cid:        newCid.String(),
+				}).Error; err != nil {
+					return fmt.Errorf("failed to save record: %w", err)
+				}
+			case WriteDelete:
+				if !exists {
+					return fmt.Errorf("%s: %w", uri, ErrRecordNotFound)
+				}
+				if err := tx.Model(&spaceRecord{}).
+					Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+						spaceURI, repo, w.Collection, rkey).
+					Updates(map[string]any{
+						"deleted_at": time.Now(),
+						"rev":        rev,
+						"prev_cid":   existing.Cid,
+					}).Error; err != nil {
+					return fmt.Errorf("delete record: %w", err)
+				}
+				h.Remove(spacecommit.RecordElement(w.Collection, rkey, existing.Cid))
+				results[i] = WriteResult{URI: uri}
+			default:
+				return fmt.Errorf("unknown write action %q", w.Action)
+			}
+			changed = true
+			headRev = rev
+		}
+		if !changed {
+			return nil
+		}
+		headHash = h.Sum()
+		// Drop the hash row entirely once the repo holds no more records.
+		var remaining int64
+		if err := tx.Model(&spaceRecord{}).
+			Where("space = ? AND repo = ?", spaceURI, repo).
+			Count(&remaining).Error; err != nil {
+			return err
+		}
+		if remaining == 0 {
+			return tx.Where("space = ? AND repo = ?", spaceURI, repo).Delete(&spaceRepo{}).Error
+		}
+		return saveRepoHash(tx, spaceURI, repo, h, headRev)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("apply writes: %w", err)
+	}
+	if headRev != "" {
+		// Best-effort: notify registered syncers that this repo advanced.
+		s.notifier.NotifyWrite(ctx, spaceURI, repo, headRev, headHash)
+	}
+	return results, nil
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by db.Migrate.
+func Models() []any {
+	return []any{&space{}, &spaceRecord{}, &spaceRepo{}}
 }

@@ -1,0 +1,50 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.server",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Declares an MCP server configured for the org. Lives in the org's `members` space, authored by the org DID. An admin sets name, description, serverUrl and authType when adding it. For an oauth server, each member later authorizes against it through Nango's mcp-generic connector, with serverUrl pre-filled. A manual server needs no auth, and every member is connected to it automatically. name is restricted to a limited character set (letters, digits, hyphens, underscores) since it also serves as this record's key and as the namespace prefix under which the pear MCP server exposes this server's tools.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": [
+          "name",
+          "updatedAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Also this record's key. Letters, digits, hyphens, and underscores only."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "authType": {
+            "type": "string",
+            "knownValues": [
+              "oauth",
+              "manual"
+            ],
+            "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server. Absent means oauth."
+          },
+          "nangoKey": {
+            "type": "string",
+            "description": "oauth servers only: the Nango integration's unique_key, globally unique across the whole Nango environment (unlike name, which is only unique within the org)."
+          },
+          "serverUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "The server's streamable HTTP endpoint, as the admin entered it when adding it. For an oauth server, it's pre-filled for members when they connect. Absent on some older oauth records."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

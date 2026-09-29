@@ -2,7 +2,6 @@ package authn
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -61,42 +60,42 @@ func (p *AtprotoServiceAuthMethod) Validate(
 	_, nsidStr, _ := strings.Cut(r.URL.Path, "/xrpc/")
 	nsid, err := syntax.ParseNSID(nsidStr)
 	if err != nil {
-		httpx.WriteUnauthorized(ctx, w, "failed to parse nsid")
+		httpx.WriteUnauthorized(ctx, w, "failed to parse nsid", err)
 		return nil, false
 	}
 	jwtToken, err := jwt.ParseSigned(token)
 	if err != nil {
-		httpx.WriteUnauthorized(ctx, w, "failed to parse token")
+		httpx.WriteUnauthorized(ctx, w, "failed to parse token", err)
 		return nil, false
 	}
 	claims := jwt.Claims{}
 	if err := jwtToken.UnsafeClaimsWithoutVerification(&claims); err != nil {
-		httpx.WriteUnauthorized(ctx, w, fmt.Sprintf("failed to parse token: %v", err))
+		httpx.WriteUnauthorized(ctx, w, "failed to parse token", err)
 		return nil, false
 	}
 	if len(claims.Audience) != 1 {
-		httpx.WriteUnauthorized(ctx, w, "invalid aud claim")
+		httpx.WriteUnauthorized(ctx, w, "invalid aud claim", nil)
 		return nil, false
 	}
 	audienceDIDStr, audienceService, found := strings.Cut(claims.Audience[0], "#")
 	audienceDID, err := syntax.ParseDID(audienceDIDStr)
 	if err != nil {
-		httpx.WriteUnauthorized(ctx, w, "invalid aud did")
+		httpx.WriteUnauthorized(ctx, w, "invalid aud did", err)
 		return nil, false
 	}
 	if !found {
 		if audienceDID != p.legacyDID {
-			httpx.WriteUnauthorized(ctx, w, "invalid aud claim")
+			httpx.WriteUnauthorized(ctx, w, "invalid aud claim", nil)
 			return nil, false
 		}
 	} else {
 		audienceID, err := p.dir.LookupDID(ctx, audienceDID)
 		if err != nil {
-			httpx.WriteUnauthorized(ctx, w, "failed to lookup audience")
+			httpx.WriteUnauthorized(ctx, w, "failed to lookup audience", err)
 			return nil, false
 		}
 		if p.serviceEndpoint != audienceID.GetServiceEndpoint(audienceService) {
-			httpx.WriteUnauthorized(ctx, w, "unexpected service endpoint")
+			httpx.WriteUnauthorized(ctx, w, "unexpected service endpoint", nil)
 			return nil, false
 		}
 	}
@@ -107,12 +106,13 @@ func (p *AtprotoServiceAuthMethod) Validate(
 	validator := &auth.ServiceAuthValidator{Dir: p.dir, Audience: claims.Audience[0]}
 	did, err := validator.Validate(r.Context(), token, &nsid)
 	if err != nil {
-		httpx.WriteUnauthorized(ctx, w, "failed to validate token")
+		httpx.WriteUnauthorized(ctx, w, "failed to validate token", err)
 		return nil, false
 	}
 	return &CredentialInfo{
 		Subject: did,
 		Org:     p.everyoneOrg,
+		Method:  ValidatorMethodServiceAuth,
 	}, true
 }
 
@@ -126,5 +126,9 @@ func (p *AtprotoServiceAuthMethod) ValidateRaw(
 	if err != nil {
 		return nil, false, err
 	}
-	return &CredentialInfo{Subject: did, Org: p.everyoneOrg}, true, nil
+	return &CredentialInfo{
+		Subject: did,
+		Org:     p.everyoneOrg,
+		Method:  ValidatorMethodServiceAuth,
+	}, true, nil
 }

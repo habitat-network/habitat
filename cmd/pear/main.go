@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"embed"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -41,7 +40,9 @@ import (
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/mcpserver"
+	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
@@ -66,11 +67,8 @@ import (
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
 
-	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
+	"github.com/habitat-network/habitat/cmd/pear/migrations"
 )
-
-//go:embed migrations/*.go migrations/*.sql
-var embedMigrations embed.FS
 
 func main() {
 	cmd := &cli.Command{
@@ -116,9 +114,17 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	slog.InfoContext(startupCtx, "running with flags", "flags", cmd.FlagNames())
 
-	db, err := db.New(cmd.String(fDB), db.WithMigrations(embedMigrations))
+	// The gorm handle is named database so that db keeps referring to
+	// internal/db, which db.Migrate below needs.
+	database, err := db.New(cmd.String(fDB))
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
+	}
+	// Stores no longer migrate their own tables, so bring the database fully up
+	// to date before any store is constructed: db.Migrate creates the tables for
+	// every store pear persists to, then replays cmd/pear/migrations.
+	if err := db.Migrate(startupCtx, database, migrations.FS, migrations.Models()); err != nil {
+		return fmt.Errorf("migrate database: %w", err)
 	}
 	fgaStore, err := setupFGA(startupCtx, cmd)
 	if err != nil {
@@ -136,7 +142,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	// Reuse the oauth server secret
 	instanceAdminStore, err := instance.NewStore(
-		db.WithContext(startupCtx),
+		database.WithContext(startupCtx),
 		oauthSecret,
 		fDomain,
 		passwordHash,
@@ -151,7 +157,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("load PDS encryption key: %w", err)
 	}
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(db.WithContext(startupCtx), credKey)
+	pdsCredStore, err := pdscred.NewPDSCredentialStore(database.WithContext(startupCtx), credKey)
 	if err != nil {
 		return fmt.Errorf("setup pds cred store: %w", err)
 	}
@@ -219,7 +225,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		hiveDomain = domain
 	}
 
-	hive, err := hive.NewHive(hiveDomain, domain, db.WithContext(startupCtx))
+	hive, err := hive.NewHive(hiveDomain, domain, database.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup hive (identity service for org): %w", err)
 	}
@@ -242,7 +248,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	passwordProvider, err := login.NewPasswordProvider(
-		db,
+		database,
 		cmd.String(fDomain),
 		oauthSecret,
 		hiveDir,
@@ -252,7 +258,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	everyoneOrg := org.NewEveryoneOrg(domain)
 	orgStore, err := org.NewStore(
-		db.WithContext(startupCtx),
+		database.WithContext(startupCtx),
 		hive,
 		hiveDir,
 		domain,
@@ -264,7 +270,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup org store: %w", err)
 	}
 
-	emailDomainStore, err := emaildomain.NewStore(db.WithContext(startupCtx))
+	emailDomainStore, err := emaildomain.NewStore(database.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup email domain store: %w", err)
 	}
@@ -282,7 +288,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			googleClientID,
 			googleClientSecret,
 			"https://"+domain+"/oauth-callback",
-			db.WithContext(startupCtx),
+			database.WithContext(startupCtx),
 			credKey,
 		)
 		if err != nil {
@@ -300,14 +306,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("parse space-host signing key: %w", err)
 	}
 
-	notifyStore, err := notify.NewStore(db.WithContext(startupCtx))
+	notifyStore, err := notify.NewStore(database.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup notify store: %w", err)
 	}
 	notifier := notify.NewNotifier(notifyStore, httpx.NewClient(), hive)
 
 	spacesStore, err := spaces.NewStore(
-		db.WithContext(startupCtx),
+		database.WithContext(startupCtx),
 		notifier,
 		spacecommit.NewAuthority(hostKey, hive),
 	)
@@ -323,22 +329,35 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	blobStore := spaces.NewBlobStore(blobBucket)
 
 	opensocialStore, err := opensocial.NewStore(
-		db.WithContext(startupCtx), spacesStore, blobStore, hive,
+		database.WithContext(startupCtx), spacesStore, blobStore, hive,
 	)
 	if err != nil {
 		return fmt.Errorf("setup opensocial store: %w", err)
 	}
 	loginRouter.OpensocialStore = opensocialStore
 	emailResolver := habitat_identity.NewEmailResolver(
-		db.WithContext(startupCtx), emailDomainStore, hive, opensocialStore,
+		database.WithContext(startupCtx), emailDomainStore, hive,
 	)
+	loginRouter.OpensocialStore = opensocialStore
+
+	// The MCP endpoints sign users in through this same loginRouter (see
+	// OAuthServer.HandleMCPAuthorizeSubmit): whichever login method a user's
+	// org configures (PDS, Google, or password) is what an MCP client's login
+	// runs too, landing back at the one /oauth-callback those providers are
+	// registered with. Identity is resolved through pear's own resolveIdentity
+	// endpoint (see api-docs/docs/space-proxy/getting-started.mdx), which
+	// already rewrites pear-hosted accounts' PDS pointer to pear itself — so
+	// those accounts redirect to pear's own atproto OAuth server, and remote
+	// accounts resolve exactly the way any other client following that doc
+	// would see them.
+	mcpOrigin := "https://" + domain
 
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,
 		loginRouter,
 		// OAuth server needs privileged access to lookup hive-hosted identities
 		hiveDir,
-		db.WithContext(startupCtx),
+		database.WithContext(startupCtx),
 		meter,
 		orgStore,
 		"https://"+domain,
@@ -351,7 +370,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup oauth server: %w", err)
 	}
-	oauthGC := oauthserver.NewCollector(db.WithContext(startupCtx), 5*time.Minute)
+	oauthGC := oauthserver.NewCollector(database.WithContext(startupCtx), 5*time.Minute)
 
 	serviceAuth := authn.NewServiceAuthMethod(
 		everyoneOrg,
@@ -360,12 +379,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		"https://"+domain,
 	)
 
-	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
+	cliqueStore, err := clique.NewStore(database.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup clique store: %w", err)
 	}
 
-	permStore := perms.NewStore(db, spacesStore, fgaStore, opensocialStore)
+	permStore := perms.NewStore(database, spacesStore, fgaStore, opensocialStore)
 	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
 	validator := authn.NewValidator(
 		oauthServer,
@@ -378,7 +397,18 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
 
-	simpleStore := simplespace.NewStore(db, spacesStore, permStore)
+	simpleStore := simplespace.NewStore(database, spacesStore, permStore)
+
+	// Store for org-configured MCP servers and per-user Nango connections.
+	nangoSecretKey := cmd.String(fNangoSecretKey)
+	if nangoSecretKey == "" {
+		slog.WarnContext(ctx, "nango secret key not set; MCP server configuration is disabled")
+	}
+	nangoClient := nango.NewClient(nangoSecretKey, httpx.NewClient())
+	mcpGatewayStore, err := mcpgateway.NewStore(nangoClient, opensocialStore)
+	if err != nil {
+		return fmt.Errorf("setup mcp gateway store: %w", err)
+	}
 
 	pdsForwarding := forwarding.NewPDSForwarding(
 		pdsCredStore,
@@ -401,22 +431,32 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		simpleStore,
 		notifyStore,
 		clientmetadata.NewResolver(),
+		mcpGatewayStore,
 		pdsForwarding,
 		emailDomainStore,
 	)
 
-	repo, err := repo.NewRepo(db.WithContext(startupCtx))
+	repo, err := repo.NewRepo(database.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup repo: %w", err)
 	}
 
-	permissions, err := permissions.NewStore(db, cliqueStore)
+	permissions, err := permissions.NewStore(database, cliqueStore)
 	if err != nil {
 		return fmt.Errorf("create permission store: %w", err)
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
-	mcpServer := mcpserver.New(oauthServer, spacesStore, permStore, "https://"+domain)
+	mcpServer := mcpserver.New(
+		oauthServer,
+		spacesStore,
+		permStore,
+		nangoClient,
+		opensocialStore,
+		mcpGatewayStore,
+		mcpOrigin,
+		oauthServer.MCPIssuer(),
+	)
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,
@@ -445,6 +485,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.PathPrefix("/xrpc/community.opensocial.").Handler(pearApp)
 	// Server-side client-metadata proxy for the management frontend
 	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
+	// MCP gateway routes (network.habitat.mcp.*) are handled by pearApp via
+	// registerRoutes in internal/pearserver/routes.go.
+	mux.PathPrefix("/xrpc/network.habitat.mcp.").Handler(pearApp)
 
 	cliqueServer := clique.NewServer(cliqueStore, validator)
 	pearServer := pear.NewServer(
@@ -523,15 +566,21 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsent)
 	mux.HandleFunc("/oauth/opensocial", oauthServer.HandleOpensocial)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
-	mux.HandleFunc("/oauth/register", oauthServer.HandleRegister)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
 
-	// MCP (Model Context Protocol) server. Its OAuth surface is the same
-	// broker above: MCP clients register via /oauth/register (RFC 7591,
-	// since most can't publish a Client ID Metadata Document) and then use
-	// the same /oauth/authorize -> PDS -> /oauth/token flow as any other
-	// Habitat OAuth client.
+	// MCP (Model Context Protocol) server. Its endpoints match what MCP
+	// clients expect (dynamic client registration, no PAR) but share
+	// oauthServer's provider, storage, and sign-in with the atproto endpoints
+	// above — see internal/oauthserver/mcp.go.
+	mux.HandleFunc(oauthserver.MCPMetadataPath, oauthServer.HandleMCPMetadata)
+	mux.HandleFunc(oauthserver.MCPRegisterPath, oauthServer.HandleMCPRegister).Methods("POST")
+	mux.HandleFunc(oauthserver.MCPAuthorizePath, oauthServer.HandleMCPAuthorize).Methods("GET")
+	mux.HandleFunc(oauthserver.MCPAuthorizeSubmitPath, oauthServer.HandleMCPAuthorizeSubmit).
+		Methods("POST")
+	// MCP-issued tokens share the atproto endpoints' token handler (see
+	// OAuthServer.HandleToken); it tells the two kinds of client apart itself.
+	mux.HandleFunc(oauthserver.MCPTokenPath, oauthServer.HandleToken).Methods("POST")
 	mux.Handle(
 		mcpserver.ProtectedResourceMetadataPath,
 		mcpServer.ProtectedResourceMetadataHandler(),

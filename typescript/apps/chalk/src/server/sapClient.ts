@@ -15,10 +15,15 @@ export function sapAuthHeaders(env: Env): Record<string, string> {
   return { Authorization: `Basic ${btoa(`:${secret}`)}` };
 }
 
-// startLogin asks sap to begin an atproto OAuth flow for handle, telling it
-// to redirect the browser back to chalk's /session/callback (with the
-// resolved DID) once the PDS OAuth handshake completes. Returns the
-// PDS-authorize URL the browser should be sent to next.
+// EmailDomainNotFoundError is thrown by startLogin when sap can't resolve a
+// work email to an identity, i.e. its domain isn't mapped to any org.
+export class EmailDomainNotFoundError extends Error {}
+
+// startLogin asks sap to begin an atproto OAuth flow for handle (a handle,
+// DID, or work email), telling it to redirect the browser back to chalk's
+// /session/callback (with the resolved DID) once the PDS OAuth handshake
+// completes. Returns the PDS-authorize URL the browser should be sent to
+// next.
 export async function startLogin(
   env: Env,
   handle: string,
@@ -39,6 +44,9 @@ export async function startLogin(
       return_to: `${base}${returnPath}`,
     }),
   });
+  if (res.status === 404) {
+    throw new EmailDomainNotFoundError(await res.text());
+  }
   if (!res.ok) {
     throw new Error(
       `failed to start login (${res.status}): ${await res.text()}`,

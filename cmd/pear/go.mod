@@ -14,6 +14,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.44.0
 	gocloud.dev v0.46.0
 	golang.org/x/sync v0.22.0
+	gorm.io/gorm v1.31.2
 )
 
 require (
@@ -32,9 +33,12 @@ require (
 	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
+	github.com/mattn/go-sqlite3 v1.14.52 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.2.0 // indirect

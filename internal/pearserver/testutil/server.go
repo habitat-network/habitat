@@ -8,14 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -42,6 +43,8 @@ type TestServer struct {
 	HostKey          atcrypto.PrivateKey
 	DB               *gorm.DB
 	FGA              fgastore.Store
+	McpGatewayStore  mcpgateway.Store
+	NangoClient      *FakeNangoClient
 	PDSForwarding    *forwarding.PDSForwarding
 	EmailDomainStore *emaildomain.Store
 }
@@ -82,6 +85,12 @@ func WithNotifyStore(store notify.Store) utils.Opt[TestServer] {
 	}
 }
 
+func WithNangoClient(client *FakeNangoClient) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.NangoClient = client
+	}
+}
+
 func WithFGA(fga fgastore.Store) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.FGA = fga
@@ -118,7 +127,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ts.FGA = fga
 	}
 	if ts.DB == nil {
-		ts.DB = db_testutil.NewDB(t)
+		ts.DB = pear_testutil.NewPearDB(t)
 	}
 	if ts.Hive == nil {
 		hiveRep, err := hive.NewHive("example.com", "pear.example.com", ts.DB)
@@ -147,6 +156,13 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 
 	ts.OpenSocialStore = os
 	ts.SimpleStore = ss
+
+	if ts.NangoClient == nil {
+		ts.NangoClient = NewFakeNangoClient()
+	}
+	mcpGatewayStore, err := mcpgateway.NewStore(ts.NangoClient, os)
+	require.NoError(t, err)
+	ts.McpGatewayStore = mcpGatewayStore
 
 	if ts.PDSForwarding == nil {
 		// Default forwarding points nowhere; getSession's remote-identity path
@@ -177,6 +193,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ss,
 		ts.NotifyStore,
 		clientmetadata.NewResolver(),
+		mcpGatewayStore,
 		ts.PDSForwarding,
 		emailDomainStore,
 	)

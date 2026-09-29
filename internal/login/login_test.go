@@ -16,7 +16,10 @@ import (
 // --- pdsProvider ---
 
 func TestPDSProvider_Authorize(t *testing.T) {
-	credStore, err := pdscred.NewPDSCredentialStore(testutil.NewDB(t), encrypt.TestKey)
+	credStore, err := pdscred.NewPDSCredentialStore(
+		testutil.NewDB(t, pdscred.Models()),
+		encrypt.TestKey,
+	)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{
 		RedirectUris: []string{"https://pds.example.com/authorize"},
@@ -45,7 +48,10 @@ func TestPDSProvider_Authorize(t *testing.T) {
 }
 
 func TestPDSProvider_Exchange(t *testing.T) {
-	credStore, err := pdscred.NewPDSCredentialStore(testutil.NewDB(t), encrypt.TestKey)
+	credStore, err := pdscred.NewPDSCredentialStore(
+		testutil.NewDB(t, pdscred.Models()),
+		encrypt.TestKey,
+	)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{
 		RedirectUris: []string{"https://pds.example.com/authorize"},

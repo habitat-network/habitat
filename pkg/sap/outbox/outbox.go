@@ -56,9 +56,6 @@ type Store struct {
 var _ Outbox = (*Store)(nil)
 
 func NewStore(db *gorm.DB, notify *utils.PollNotifier) (*Store, error) {
-	if err := db.AutoMigrate(&outboxMessage{}); err != nil {
-		return nil, err
-	}
 	return &Store{db: db, notify: notify}, nil
 }
 
@@ -116,4 +113,10 @@ func (s *Store) Ack(ctx context.Context, id uint) error {
 // Watch implements [Outbox].
 func (s *Store) Watch() <-chan struct{} {
 	return s.notify.Listen()
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by db.Migrate, which pkg/sap/testutil.NewSapDB calls for tests.
+func Models() []any {
+	return []any{&outboxMessage{}}
 }

@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.defs",
+  "defs": {
+    "server": {
+      "type": "object",
+      "description": "An MCP server configured for an org.",
+      "required": [
+        "id",
+        "name",
+        "authType"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The server's identifier, unique within the org."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "authType": {
+          "type": "string",
+          "knownValues": [
+            "oauth",
+            "manual"
+          ],
+          "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically."
+        }
+      }
+    }
+  }
+}

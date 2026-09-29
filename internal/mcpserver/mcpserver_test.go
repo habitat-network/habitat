@@ -6,9 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
-	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -54,7 +55,7 @@ func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // wires them together.
 func setupStores(t *testing.T) (spaces.Store, perms.Store) {
 	t.Helper()
-	db := dbtestutil.NewDB(t)
+	db := pear_testutil.NewPearDB(t)
 	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db))
 	osTestStore := opensocial_testutil.NewTestStore(
 		t,
@@ -100,7 +101,16 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	srv := New(fakeTokens{}, spacesStore, permStore, "https://habitat.example")
+	srv := New(
+		fakeTokens{},
+		spacesStore,
+		permStore,
+		newFakeNangoClient(),
+		newFakeOrgMcpServerStore(),
+		nil,
+		"https://habitat.example",
+		"https://habitat.example/mcp",
+	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
 

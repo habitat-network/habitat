@@ -30,6 +30,7 @@ import {
   ShieldIcon,
   KeyRoundIcon,
   PlugIcon,
+  ServerIcon,
   PaletteIcon,
 } from "lucide-react";
 
@@ -57,6 +58,7 @@ const NAV_ITEMS: {
     | "/opensocial/$org/roles"
     | "/opensocial/$org/capabilities"
     | "/opensocial/$org/apps"
+    | "/opensocial/$org/mcp"
     | "/opensocial/$org/settings";
   label: string;
   icon: typeof UsersIcon;
@@ -69,6 +71,7 @@ const NAV_ITEMS: {
     icon: KeyRoundIcon,
   },
   { to: "/opensocial/$org/apps", label: "Authorized apps", icon: PlugIcon },
+  { to: "/opensocial/$org/mcp", label: "MCP servers", icon: ServerIcon },
   { to: "/opensocial/$org/settings", label: "Branding", icon: PaletteIcon },
 ];
 

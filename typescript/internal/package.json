@@ -5,7 +5,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@11.27.0",
+  "packageManager": "pnpm@11.27.1",
   "type": "module",
   "exports": {
     ".": {
@@ -19,6 +19,10 @@
     "./components/ui": {
       "types": "./src/components/ui/index.ts",
       "import": "./src/components/ui/index.ts"
+    },
+    "./auth": {
+      "types": "./src/authManager.ts",
+      "import": "./src/authManager.ts"
     },
     "./hooks": {
       "types": "./src/hooks/index.ts",

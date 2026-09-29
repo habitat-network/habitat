@@ -34,6 +34,7 @@ func TestPermissions(t *testing.T) {
 			opensocial.ActionSpaceConfigure,
 			opensocial.ActionSpaceDelete,
 			opensocial.ActionCommunityConfigure,
+			opensocial.ActionMcpConfigure,
 		} {
 			ok, err := s.CheckAction(t.Context(), org, creator, action)
 			require.NoError(t, err)

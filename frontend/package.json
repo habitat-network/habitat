@@ -15,6 +15,7 @@
     "@atproto/lex": "catalog:",
     "@atproto/oauth-types": "catalog:",
     "@atproto/syntax": "catalog:",
+    "@nangohq/frontend": "^0.71.10",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-devtools": "catalog:",

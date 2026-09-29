@@ -54,9 +54,6 @@ func NewStore(
 	blobStore spaces.BlobStore,
 	hve hive.Hive,
 ) (*Store, error) {
-	if err := db.AutoMigrate(&inviteRow{}); err != nil {
-		return nil, fmt.Errorf("automigrate: %w", err)
-	}
 	return &Store{
 		db:          db,
 		spacesStore: spacesStore,
@@ -219,6 +216,7 @@ func (s *Store) createOrgShell(
 			{Action: string(ActionSpaceConfigure), Roles: []string{AdminRoleRkey}},
 			{Action: string(ActionSpaceDelete), Roles: []string{AdminRoleRkey}},
 			{Action: string(ActionCommunityConfigure), Roles: []string{AdminRoleRkey}},
+			{Action: string(ActionMcpConfigure), Roles: []string{AdminRoleRkey}},
 		},
 		Assignable: []opensocial_api.CommunityOpensocialPermissionsAssignableBinding{
 			{Role: AdminRoleRkey, Roles: []string{AdminRoleRkey, MemberRoleRkey}},
@@ -678,16 +676,14 @@ func (s *Store) GetMemberProfiles(
 	orgDID syntax.DID,
 	memberDIDs []syntax.DID,
 ) (map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile, error) {
-	refs := make([]spaces.RecordRef, len(memberDIDs))
+	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self")
+	uris := make([]habitat_syntax.SpaceRecordURI, len(memberDIDs))
 	for i, memberDID := range memberDIDs {
-		refs[i] = spaces.RecordRef{Owner: memberDID, Rkey: syntax.RecordKey(memberDID)}
+		uris[i] = habitat_syntax.ConstructSpaceRecordURI(
+			membersSpace, memberDID, MemberProfileCollection, syntax.RecordKey(memberDID),
+		)
 	}
-	records, err := s.spacesStore.GetRecords(
-		ctx,
-		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
-		MemberProfileCollection,
-		refs,
-	)
+	records, err := s.spacesStore.GetRecords(ctx, uris)
 	if err != nil {
 		return nil, fmt.Errorf("get member profile records: %w", err)
 	}
@@ -752,4 +748,10 @@ func (s *Store) SeedMemberProfile(
 		}
 		return nil
 	})
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by db.Migrate.
+func Models() []any {
+	return []any{&inviteRow{}}
 }

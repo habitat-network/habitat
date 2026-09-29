@@ -6,12 +6,12 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
 
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -26,7 +26,7 @@ var (
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 
-	db := db_testutil.NewDB(t)
+	db := pear_testutil.NewPearDB(t)
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
@@ -280,7 +280,7 @@ func TestDeleteSpace_RemovesFGATuples(t *testing.T) {
 }
 
 func TestDeleteSpaceTriggersNotify(t *testing.T) {
-	db := db_testutil.NewDB(t)
+	db := pear_testutil.NewPearDB(t)
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })

@@ -12,7 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/hive"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
@@ -33,7 +33,7 @@ type emailFixture struct {
 // creator-less "acme" org mapped to acme.com.
 func newEmailFixture(t *testing.T) emailFixture {
 	t.Helper()
-	db := db_testutil.NewDB(t)
+	db := pear_testutil.NewPearDB(t)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
 	osStore := opensocial_testutil.NewTestStore(
@@ -48,7 +48,7 @@ func newEmailFixture(t *testing.T) emailFixture {
 		t.Context(), "acme.com", org, emaildomain.LoginMethodGoogle,
 	))
 	return emailFixture{
-		resolver:   NewEmailResolver(db, emailStore, h, osStore.Store),
+		resolver:   NewEmailResolver(db, emailStore, h),
 		emailStore: emailStore,
 		opensocial: osStore,
 		hive:       h,
@@ -69,7 +69,11 @@ func (f emailFixture) memberships(t *testing.T) int {
 	return len(records)
 }
 
-func TestEmailResolverFirstSignInBecomesAdmin(t *testing.T) {
+// Minting an identity must not, by itself, enroll it in the org: org
+// membership is only granted once the user actually completes sign-in with
+// that email (see org.LoginRouter.Exchange), so a mistyped or unowned email
+// never becomes a ghost member.
+func TestEmailResolverMintsWithoutOrgMembership(t *testing.T) {
 	f := newEmailFixture(t)
 	ident, err := f.resolver.ResolveEmailIdentity(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
@@ -77,7 +81,8 @@ func TestEmailResolverFirstSignInBecomesAdmin(t *testing.T) {
 
 	roles, err := f.opensocial.GetUserRoles(t.Context(), f.org, ident.DID)
 	require.NoError(t, err)
-	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+	require.Empty(t, roles)
+	require.Equal(t, 0, f.memberships(t))
 
 	did, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
@@ -89,17 +94,14 @@ func TestEmailResolverFirstSignInBecomesAdmin(t *testing.T) {
 	require.Equal(t, ident.DID, served.DID)
 }
 
-func TestEmailResolverLaterSignInsAreMembers(t *testing.T) {
+func TestEmailResolverDistinctEmailsGetDistinctIdentities(t *testing.T) {
 	f := newEmailFixture(t)
 	alice, err := f.resolver.ResolveEmailIdentity(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
 	bob, err := f.resolver.ResolveEmailIdentity(t.Context(), "bob@acme.com")
 	require.NoError(t, err)
 	require.NotEqual(t, alice.DID, bob.DID)
-
-	roles, err := f.opensocial.GetUserRoles(t.Context(), f.org, bob.DID)
-	require.NoError(t, err)
-	require.Equal(t, []string{opensocial.MemberRoleRkey}, roles)
+	require.Equal(t, 0, f.memberships(t))
 }
 
 func TestEmailResolverReturningMember(t *testing.T) {
@@ -113,7 +115,7 @@ func TestEmailResolverReturningMember(t *testing.T) {
 	again, err := f.resolver.ResolveEmailIdentity(t.Context(), email)
 	require.NoError(t, err)
 	require.Equal(t, first.DID, again.DID)
-	require.Equal(t, 1, f.memberships(t))
+	require.Equal(t, 0, f.memberships(t))
 }
 
 func TestEmailResolverUnknownDomain(t *testing.T) {
@@ -152,12 +154,18 @@ func TestEmailResolverConcurrentSameEmail(t *testing.T) {
 	require.NoError(t, errs[0])
 	require.NoError(t, errs[1])
 	require.Equal(t, results[0].DID, results[1].DID)
-	// The losing attempt rolled back its membership write.
-	require.Equal(t, 1, f.memberships(t))
+	// The losing attempt rolled back its email->DID mapping write, leaving a
+	// single mapping and no org membership (minting never grants one).
+	did, ok, err := f.emailStore.GetDID(t.Context(), "alice@acme.com")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, results[0].DID, did)
+	require.Equal(t, 0, f.memberships(t))
 }
 
-// noNetworkTransport fails every request, so overriddenDidDoc's spaces probe
-// of a minted identity's PDS reads as "unsupported" without real network.
+// noNetworkTransport fails every request, so SpaceProxyDirectory.applyOverride's
+// spaces probe of a minted identity's PDS reads as "unsupported" without real
+// network.
 type noNetworkTransport struct{}
 
 func (noNetworkTransport) RoundTrip(*http.Request) (*http.Response, error) {
@@ -166,11 +174,13 @@ func (noNetworkTransport) RoundTrip(*http.Request) (*http.Response, error) {
 
 func emailServer(f emailFixture, opts ...func(*Server)) *Server {
 	s := &Server{
-		hive:          f.hive,
-		directory:     NewWrappedDirectory(f.hive, identity.NewMockDirectory()),
-		domain:        "pear.domain",
-		httpClient:    &http.Client{Transport: noNetworkTransport{}},
-		emailResolver: f.resolver,
+		hive: f.hive,
+		directory: NewSpaceProxyDirectory(
+			NewWrappedDirectory(f.hive, identity.NewMockDirectory()),
+			"pear.domain",
+			WithClient(&http.Client{Transport: noNetworkTransport{}}),
+			WithEmailResolver(f.resolver),
+		),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -188,9 +198,10 @@ func TestResolveIdentityEmail(t *testing.T) {
 	)
 	require.Equal(t, http.StatusOK, code)
 	require.Equal(t, "alice.acme.example.com", out.Handle)
+	// Resolving the identity alone must not enroll it in the org.
 	roles, err := f.opensocial.GetUserRoles(t.Context(), f.org, syntax.DID(out.Did))
 	require.NoError(t, err)
-	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+	require.Empty(t, roles)
 }
 
 func TestResolveHandleEmail(t *testing.T) {
@@ -221,7 +232,7 @@ func TestResolveIdentityEmailUnknownDomain(t *testing.T) {
 
 func TestResolveIdentityEmailDisabled(t *testing.T) {
 	f := newEmailFixture(t)
-	s := emailServer(f, func(s *Server) { s.emailResolver = nil })
+	s := emailServer(f, func(s *Server) { s.directory.emailResolver = nil })
 	var out struct{}
 	code := httpx_testutil.NewTestXRPCClient(t).Query(
 		s.ResolveIdentity,

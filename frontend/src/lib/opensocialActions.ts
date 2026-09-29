@@ -37,4 +37,29 @@ export const OPENSOCIAL_ACTIONS: {
     label: "Invite",
     hint: "Issue invites to join the community.",
   },
+  {
+    action: "mcp.configure",
+    label: "Configure MCP servers",
+    hint: "Add, update, and remove MCP servers configured for the community.",
+  },
 ];
+
+export const ACTION_MCP_CONFIGURE = "mcp.configure";
+
+// hasOpensocialAction reports whether a member holding userRoles may perform
+// action under bindings (the community.opensocial.permissions record's
+// action bindings). A member is authorized when any role they hold is bound
+// to the action. Mirrors Store.CheckAction (Go): a community with no
+// permissions record at all (surfaced here as empty bindings) falls back to
+// authorizing its admins for every action.
+export function hasOpensocialAction(
+  bindings: { action: string; roles: string[] }[],
+  userRoles: string[],
+  action: string,
+): boolean {
+  if (bindings.length === 0) {
+    return userRoles.includes("admin");
+  }
+  const binding = bindings.find((b) => b.action === action);
+  return (binding?.roles ?? []).some((role) => userRoles.includes(role));
+}
