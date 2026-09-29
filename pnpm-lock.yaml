@@ -127,7 +127,7 @@ overrides:
   '@atproto/lex-installer': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-resolver': 0.0.0-spaces-alpha-20260913191958
-  '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
+  '@atproto/lex-schema': 0.2.7
 
 importers:
 
@@ -1116,8 +1116,8 @@ packages:
     resolution: {integrity: sha512-YQWAYGZV5Zgde3ZBJKlppCAfmm06ZSg4INgvrcuA37OSm5C9kgH/FNlQZm/KeOYdXBLZxDRH0ZUUeVYYqe18eA==}
     engines: {node: '>=22'}
 
-  '@atproto/lex-schema@0.0.0-spaces-alpha-20260913191958':
-    resolution: {integrity: sha512-mNqXSXHrHwAKHUzUOuU/gXNCpZ7P87CYujHDQrUJt1qnlZlZGRRRBQ+INYlYSJ0F4Q8bYYBB/PXIJI74HrXTWQ==}
+  '@atproto/lex-schema@0.2.7':
+    resolution: {integrity: sha512-K+Ce0SyFPcP19tSo4AhLLEOYnJzKh6sVzhGuB4ZCSto9tHgaVZ3iTQT895IPviZSPjd3+XIRA/rpqWSA2wPGEg==}
     engines: {node: '>=22'}
 
   '@atproto/lex@0.0.0-spaces-alpha-20260913191958':
@@ -1163,6 +1163,10 @@ packages:
 
   '@atproto/syntax@0.0.0-spaces-alpha-20260915165437':
     resolution: {integrity: sha512-RNSDvybPTO1XwPgVwhtc5PTLzZE0LaLdTfYR5dhFvXd8vePRquAFdrabjNyKBXTyToHgEVXcqa7Mn//9Ubh6Fw==}
+    engines: {node: '>=22'}
+
+  '@atproto/syntax@0.7.6':
+    resolution: {integrity: sha512-luKQTcWw1H1jLmYvX34ldBqNjz2orF082njmcF9fxbWTqVhsO+TpY0FHRKVPoV7dwL0Y3L16DNz1ma0LFGH25g==}
     engines: {node: '>=22'}
 
   '@atproto/xrpc@0.0.0-spaces-alpha-20260913191958':
@@ -12368,7 +12372,7 @@ snapshots:
   '@atproto/lex-builder@0.0.0-spaces-alpha-20260913191958':
     dependencies:
       '@atproto/lex-document': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-schema': 0.2.7
       prettier: 3.9.9
       ts-morph: 27.0.2
       tslib: 2.8.1
@@ -12383,7 +12387,7 @@ snapshots:
     dependencies:
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-schema': 0.2.7
       tslib: 2.8.1
 
   '@atproto/lex-data@0.0.0-spaces-alpha-20260913191958':
@@ -12394,7 +12398,7 @@ snapshots:
 
   '@atproto/lex-document@0.0.0-spaces-alpha-20260913191958':
     dependencies:
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-schema': 0.2.7
       core-js: 3.50.0
       tslib: 2.8.1
 
@@ -12405,7 +12409,7 @@ snapshots:
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-document': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-resolver': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-schema': 0.2.7
       '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
       tslib: 2.8.1
 
@@ -12421,15 +12425,15 @@ snapshots:
       '@atproto/lex-client': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-document': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-schema': 0.2.7
       '@atproto/repo': 0.0.0-spaces-alpha-20260913191958
       '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
       tslib: 2.8.1
 
-  '@atproto/lex-schema@0.0.0-spaces-alpha-20260913191958':
+  '@atproto/lex-schema@0.2.7':
     dependencies:
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
+      '@atproto/syntax': 0.7.6
       '@standard-schema/spec': 1.1.0
       tslib: 2.8.1
 
@@ -12440,7 +12444,7 @@ snapshots:
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-installer': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-schema': 0.2.7
       tslib: 2.8.1
       yargs: 18.1.0
 
@@ -12527,6 +12531,11 @@ snapshots:
       tslib: 2.8.1
 
   '@atproto/syntax@0.0.0-spaces-alpha-20260915165437':
+    dependencies:
+      iso-datestring-validator: 2.2.2
+      tslib: 2.8.1
+
+  '@atproto/syntax@0.7.6':
     dependencies:
       iso-datestring-validator: 2.2.2
       tslib: 2.8.1
