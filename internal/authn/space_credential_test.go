@@ -43,6 +43,7 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, credInfo.Space.String(), "at://did:web:pear.com/space/com.test.space/abc")
 		require.Empty(t, credInfo.Subject)
+		require.Equal(t, authn.ValidatorMethodSpaceCredential, credInfo.Method)
 	})
 
 	t.Run("atproto", func(t *testing.T) {

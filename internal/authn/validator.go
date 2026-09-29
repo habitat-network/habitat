@@ -14,7 +14,10 @@ import (
 type ValidatorMethod int
 
 const (
-	ValidatorMethodOAuth ValidatorMethod = iota
+	// ValidatorMethodNone is the zero value, so a CredentialInfo whose Method
+	// forgot to set it reads as "unknown" rather than silently as OAuth.
+	ValidatorMethodNone ValidatorMethod = iota
+	ValidatorMethodOAuth
 	ValidatorMethodServiceAuth
 	ValidatorMethodSpaceCredential
 	ValidatorMethodDelegationToken
@@ -35,7 +38,7 @@ type SpaceRoleValidator interface {
 
 type validator struct {
 	oauth           Method
-	serviceAuth     *AtprotoServiceAuthMethod
+	serviceAuth     Method
 	spaceCredential *SpaceCredentialAuthMethod
 	delegationToken *DelegationTokenAuthMethod
 	srv             SpaceRoleValidator
@@ -43,7 +46,7 @@ type validator struct {
 
 func NewValidator(
 	oauth Method,
-	serviceAuth *AtprotoServiceAuthMethod,
+	serviceAuth Method,
 	spaceCredential *SpaceCredentialAuthMethod,
 	delegationToken *DelegationTokenAuthMethod,
 	srv SpaceRoleValidator,
@@ -119,11 +122,11 @@ func (rv *EndpointOptions) Validate(
 		if rv.space != "" {
 			if credInfo.Space != "" {
 				if rv.relation != habitat_syntax.SpaceRoleReader {
-					httpx.WriteUnauthorized(ctx, w, "space token can only read")
+					httpx.WriteUnauthorized(ctx, w, "space token can only read", nil)
 					return nil, false
 				}
 				if credInfo.Space != rv.space {
-					httpx.WriteUnauthorized(ctx, w, "space credential mismatch")
+					httpx.WriteUnauthorized(ctx, w, "space credential mismatch", nil)
 					return nil, false
 				}
 			} else if credInfo.Subject != "" {
@@ -145,6 +148,6 @@ func (rv *EndpointOptions) Validate(
 		}
 		return credInfo, true
 	}
-	httpx.WriteUnauthorized(ctx, w, "no supported auth method")
+	httpx.WriteUnauthorized(ctx, w, "no supported auth method", nil)
 	return nil, false
 }

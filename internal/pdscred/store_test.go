@@ -13,7 +13,7 @@ import (
 )
 
 func TestGetDpopClient_Success(t *testing.T) {
-	store, err := NewPDSCredentialStore(testutil.NewDB(t), encrypt.TestKey)
+	store, err := NewPDSCredentialStore(testutil.NewDB(t, Models()), encrypt.TestKey)
 	require.NoError(t, err)
 
 	// Generate test dpop key
@@ -47,7 +47,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 }
 
 func TestGetDpopClient_NotFound(t *testing.T) {
-	store, err := NewPDSCredentialStore(testutil.NewDB(t), encrypt.TestKey)
+	store, err := NewPDSCredentialStore(testutil.NewDB(t, Models()), encrypt.TestKey)
 	require.NoError(t, err)
 
 	credentials, err := store.GetCredentials(t.Context(), syntax.DID("did:plc:nonexistent"))

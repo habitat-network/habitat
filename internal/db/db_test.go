@@ -9,10 +9,45 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestNewRunsMigrations(t *testing.T) {
+// gadget is the model Migrate creates a table for, alongside the SQL
+// migration. Its table is distinct from anything the migrations create, so the
+// two halves of Migrate stay independently observable.
+type gadget struct {
+	ID   uint `gorm:"primaryKey"`
+	Name string
+}
+
+func TestMigrateCreatesTablesThenRunsMigrations(t *testing.T) {
 	dir := t.TempDir()
-	db, err := New("sqlite://"+dir+"/test.db", WithMigrations(fstest.MapFS{
-		"migrations/20260101000000_create_widgets.sql": &fstest.MapFile{
+	db, err := New("sqlite://" + dir + "/test.db")
+	require.NoError(t, err)
+	require.NotNil(t, db)
+
+	// The SQL migration inserts into a table the model does not own, so the
+	// row only lands if GORM created its table and goose then ran.
+	require.NoError(t, Migrate(t.Context(), db, fstest.MapFS{
+		"20260101000000_create_widgets.sql": &fstest.MapFile{
+			Data: []byte(`-- +goose Up
+INSERT INTO gadgets (name) VALUES ('from-migration');
+
+-- +goose Down
+DELETE FROM gadgets WHERE name = 'from-migration';
+`),
+		},
+	}, []any{&gadget{}}))
+
+	var got []gadget
+	require.NoError(t, db.Find(&got).Error)
+	require.Equal(t, []gadget{{ID: 1, Name: "from-migration"}}, got)
+}
+
+func TestMigrateWithoutModelsStillRunsMigrations(t *testing.T) {
+	dir := t.TempDir()
+	db, err := New("sqlite://" + dir + "/test.db")
+	require.NoError(t, err)
+
+	require.NoError(t, Migrate(t.Context(), db, fstest.MapFS{
+		"20260101000000_create_widgets.sql": &fstest.MapFile{
 			Data: []byte(`-- +goose Up
 CREATE TABLE widgets (id INTEGER PRIMARY KEY, name TEXT);
 
@@ -21,15 +56,34 @@ DROP TABLE widgets;
 `),
 		},
 	}))
-	require.NoError(t, err)
-	require.NotNil(t, db)
-
-	// The migration ran if the table it defines is queryable.
 	require.NoError(t, db.Exec("INSERT INTO widgets (name) VALUES ('a')").Error)
+}
 
-	var count int64
-	require.NoError(t, db.Table("widgets").Count(&count).Error)
-	require.Equal(t, int64(1), count)
+func TestMigrateIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	db, err := New("sqlite://" + dir + "/test.db")
+	require.NoError(t, err)
+	migrations := fstest.MapFS{
+		"20260101000000_create_widgets.sql": &fstest.MapFile{
+			Data: []byte(`-- +goose Up
+CREATE TABLE widgets (id INTEGER PRIMARY KEY, name TEXT);
+
+-- +goose Down
+DROP TABLE widgets;
+`),
+		},
+	}
+	require.NoError(t, Migrate(t.Context(), db, migrations, []any{&gadget{}}))
+	// The second pass must skip the already-applied migration, not replay it.
+	require.NoError(t, Migrate(t.Context(), db, migrations, []any{&gadget{}}))
+}
+
+func TestMigrateSkipsGooseWithoutAnFS(t *testing.T) {
+	dir := t.TempDir()
+	db, err := New("sqlite://" + dir + "/test.db")
+	require.NoError(t, err)
+	require.NoError(t, Migrate(t.Context(), db, nil, []any{&gadget{}}))
+	require.True(t, db.Migrator().HasTable(&gadget{}))
 }
 
 func TestNewWithGORMConfig(t *testing.T) {

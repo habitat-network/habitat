@@ -5,10 +5,11 @@ import (
 	"io"
 	"testing"
 
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/clique"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/stretchr/testify/require"
@@ -60,7 +61,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	}
 
 	dir := mockIdentities([]syntax.DID{"did:example:myid", "did:example:anotherid"})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, pear_testutil.NewPearDB(t), dir)
 
 	// putRecord
 	coll := syntax.NSID("my.fake.collection")
@@ -148,7 +149,7 @@ func TestListOwnRecords(t *testing.T) {
 		"someKey": "someVal",
 	}
 	dir := mockIdentities([]syntax.DID{"did:example:myid"})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, pear_testutil.NewPearDB(t), dir)
 
 	// putRecord
 	coll := syntax.NSID("my.fake.collection")
@@ -190,7 +191,7 @@ func TestListRecords(t *testing.T) {
 			"did:example:specificreader",
 		},
 	)
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, pear_testutil.NewPearDB(t), dir)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
@@ -290,7 +291,7 @@ func TestPutRecordWithGrantees(t *testing.T) {
 	nonGranteeDID := syntax.DID("did:plc:nongrantee")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, grantee1DID, grantee2DID, nonGranteeDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, pear_testutil.NewPearDB(t), dir)
 
 	val := map[string]any{"data": "secret"}
 	coll := syntax.NSID("my.fake.collection")
@@ -345,7 +346,7 @@ func TestPutRecordCrossUserUnauthorized(t *testing.T) {
 	targetDID := syntax.DID("did:plc:target")
 
 	dir := mockIdentities([]syntax.DID{callerDID, targetDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, pear_testutil.NewPearDB(t), dir)
 
 	val := map[string]any{"data": "value"}
 	validate := true
@@ -369,7 +370,7 @@ func TestCliqueFlow(t *testing.T) {
 	cDID := syntax.DID("did:example:c")
 
 	dir := mockIdentities([]syntax.DID{aDID, bDID, cDID})
-	db := testutil.NewDB(t)
+	db := pear_testutil.NewPearDB(t)
 	p := newPearForTest(t, db, dir)
 
 	cs, err := clique.NewStore(db)
@@ -489,7 +490,7 @@ func TestDescribeRepo(t *testing.T) {
 	granteeDID := syntax.DID("did:example:grantee")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, memberDID, granteeDID})
-	db := testutil.NewDB(t)
+	db := pear_testutil.NewPearDB(t)
 	p := newPearForTest(t, db, dir)
 
 	cs, err := clique.NewStore(db)
@@ -530,7 +531,7 @@ func TestDeleteRecord(t *testing.T) {
 	otherDID := syntax.DID("did:example:other")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, otherDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, pear_testutil.NewPearDB(t), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
@@ -568,7 +569,11 @@ func TestDeleteRecord(t *testing.T) {
 // TODO: eventually test permissions with blobs here
 func TestPearUploadAndGetBlob(t *testing.T) {
 	dir := mockIdentities([]syntax.DID{"did:example:alice"})
-	pear := newPearForTest(t, testutil.NewDB(t), dir)
+	pear := newPearForTest(
+		t,
+		pear_testutil.NewPearDB(t),
+		dir,
+	)
 
 	did := syntax.DID("did:example:alice")
 	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment
@@ -598,7 +603,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	carolDID := syntax.DID("did:plc:carol")
 
 	// Create a shared database for the test
-	db := testutil.NewDB(t)
+	db := pear_testutil.NewPearDB(t)
 
 	// Create pear with the shared database
 	repoStore, err := repo.NewRepo(db)
@@ -805,7 +810,7 @@ func TestGetBlobPermissionsViaRecord(t *testing.T) {
 	bobDID := syntax.DID("did:example:bob")
 	charlieDID := syntax.DID("did:example:charlie")
 	dir := mockIdentities([]syntax.DID{aliceDID, bobDID, charlieDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, pear_testutil.NewPearDB(t), dir)
 
 	// Alice uploads a blob.
 	blobData := []byte("this is my test blob")

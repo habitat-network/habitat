@@ -3,6 +3,7 @@
  */
 
 import { l } from '@atproto/lex'
+import * as McpDefs from './defs.defs.js'
 
 const $nsid = 'network.habitat.mcp.addServer'
 
@@ -20,14 +21,15 @@ export const $input = /*#__PURE__*/ l.jsonPayload({
   description: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.string({ maxLength: 2000 }),
   ),
+  url: /*#__PURE__*/ l.string({ format: 'uri' }),
+  authType: /*#__PURE__*/ l.string<{ knownValues: ['oauth', 'manual'] }>(),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
 export type $InputBody<B = l.BinaryData> = l.InferPayloadBody<typeof $input, B>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
-  id: /*#__PURE__*/ l.string(),
-  sessionToken: /*#__PURE__*/ l.string(),
+  server: /*#__PURE__*/ l.ref<McpDefs.Server>((() => McpDefs.server) as any),
 })
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
@@ -36,7 +38,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Begin configuring a new MCP server for the org. Registers a Nango integration for it and returns a Nango Connect session token for the caller's browser: the caller enters the server's URL and completes authorization directly in Nango's Connect UI. Call completeAddServer once that succeeds, or cancelAddServer if the caller abandons it. Requires service-auth. Requires the mcp.configure action. */
+/** Add an MCP server to the org by writing its record. Nobody signs in to it yet: for an oauth server this registers a Nango integration, and each member then connects with startAuthorization; a manual server needs no auth, so every member is connected to it automatically. Requires service-auth. Requires the mcp.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

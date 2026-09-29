@@ -729,7 +729,10 @@ func (o *OAuthServer) ValidateRaw(
 		return nil, false, fmt.Errorf("DID not found in JWT")
 	}
 
-	credInfo := &authn.CredentialInfo{Subject: syntax.DID(did)}
+	credInfo := &authn.CredentialInfo{
+		Subject: syntax.DID(did),
+		Method:  authn.ValidatorMethodOAuth,
+	}
 
 	org, err := o.orgStore.GetOrgForDID(ctx, syntax.DID(did))
 	if err != nil {
@@ -842,7 +845,7 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !slices.Contains(roles, opensocial.AdminRoleRkey) {
-		httpx.WriteUnauthorized(ctx, w, "not an admin of this org")
+		httpx.WriteUnauthorized(ctx, w, "not an admin of this org", nil)
 		return
 	}
 	redirectURL, providerState, err := o.loginRouter.Pds.Authorize(ctx, memberID.DID.String())

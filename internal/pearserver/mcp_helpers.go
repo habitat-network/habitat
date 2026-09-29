@@ -21,5 +21,6 @@ func mcpServerToAPI(s *mcpgateway.Server) habitat.NetworkHabitatMcpDefsServer {
 func isMcpConfigError(err error) bool {
 	return errors.Is(err, mcpgateway.ErrInvalidServerName) ||
 		errors.Is(err, mcpgateway.ErrServerNameTaken) ||
-		errors.Is(err, mcpgateway.ErrInvalidServerURL)
+		errors.Is(err, mcpgateway.ErrInvalidServerURL) ||
+		errors.Is(err, mcpgateway.ErrInvalidAuthType)
 }

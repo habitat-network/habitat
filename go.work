@@ -4,10 +4,10 @@ use (
 	.
 	./cmd/didgen
 	./cmd/home
+	./cmd/jwttool
 	./cmd/keygen
 	./cmd/lexgen
 	./cmd/pear
 	./cmd/sap
-	./cmd/search
 	./integration
 )

@@ -97,6 +97,7 @@ func TestServiceAuth(t *testing.T) {
 				require.Equal(t, tt.wantOK, ok)
 				if tt.wantOK {
 					require.Equal(t, userDID, credInfo.Subject)
+					require.Equal(t, ValidatorMethodServiceAuth, credInfo.Method)
 				} else {
 					require.Nil(t, credInfo)
 					require.Equal(t, http.StatusUnauthorized, w.Code)

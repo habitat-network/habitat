@@ -4,20 +4,22 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Begin configuring a new MCP server for the org. Registers a Nango integration for it and returns a Nango Connect session token for the caller's browser: the caller enters the server's URL and completes authorization directly in Nango's Connect UI. Call completeAddServer once that succeeds, or cancelAddServer if the caller abandons it. Requires service-auth. Requires the mcp.configure action.",
+      "description": "Add an MCP server to the org by writing its record. Nobody signs in to it yet: for an oauth server this registers a Nango integration, and each member then connects with startAuthorization; a manual server needs no auth, so every member is connected to it automatically. Requires service-auth. Requires the mcp.configure action.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "required": [
             "org",
-            "name"
+            "name",
+            "url",
+            "authType"
           ],
           "properties": {
             "org": {
               "type": "string",
               "format": "did",
-              "description": "DID of the community to configure the server for."
+              "description": "DID of the community to add the server to."
             },
             "name": {
               "type": "string",
@@ -27,6 +29,19 @@
             "description": {
               "type": "string",
               "maxLength": 2000
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "The server's streamable HTTP endpoint."
+            },
+            "authType": {
+              "type": "string",
+              "knownValues": [
+                "oauth",
+                "manual"
+              ],
+              "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server."
             }
           }
         }
@@ -36,17 +51,12 @@
         "schema": {
           "type": "object",
           "required": [
-            "id",
-            "sessionToken"
+            "server"
           ],
           "properties": {
-            "id": {
-              "type": "string",
-              "description": "The new server's identifier (equal to name). Pass this to completeAddServer or cancelAddServer."
-            },
-            "sessionToken": {
-              "type": "string",
-              "description": "A Nango Connect session token, to be passed to the Nango frontend SDK's openConnectUI."
+            "server": {
+              "type": "ref",
+              "ref": "network.habitat.mcp.defs#server"
             }
           }
         }
