@@ -5,11 +5,12 @@ package migrations
 
 import (
 	"context"
+	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 
-	"github.com/pressly/goose/v3"
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/db"
@@ -23,12 +24,11 @@ import (
 //go:embed postgres/*.sql sqlite/*.sql
 var schemaMigrations embed.FS
 
-// Deps are the pear components Go migrations can use. pear builds them before
-// running migrations, so migrations don't construct their own.
-//
-// Components write outside the migration's transaction unless the migration
-// scopes them to it with their WithTx method and [db.WrapTx].
-type Deps struct {
+// PearMigrationContext holds the pear components Go migrations can use. pear
+// builds them before running migrations, so migrations don't construct their
+// own. [Run] puts it on the context goose passes to each Go migration, which
+// reads it back with [GetPearMigrationContext].
+type PearMigrationContext struct {
 	// DB is pear's database.
 	DB *gorm.DB
 	// Spaces is nil where no spaces store has been built, such as in tests
@@ -36,21 +36,37 @@ type Deps struct {
 	Spaces spaces.Store
 }
 
-// goMigrations returns the Go migrations that use deps. Add a migration here
-// with goose.NewGoMigration; its version must not collide with any other
-// migration's. Go migrations that don't need deps can instead register
-// themselves with goose.AddMigrationContext, as goose create generates.
-func goMigrations(deps Deps) []*goose.Migration {
-	return nil
+type pearMigrationContextKey struct{}
+
+// GetPearMigrationContext returns the [PearMigrationContext] that [Run] put on
+// ctx, scoped to tx, the migration's transaction: DB and every component that
+// supports WithTx run their statements on tx, so they commit or roll back with
+// the migration.
+func GetPearMigrationContext(ctx context.Context, tx *sql.Tx) (PearMigrationContext, error) {
+	mc, ok := ctx.Value(pearMigrationContextKey{}).(PearMigrationContext)
+	if !ok {
+		return PearMigrationContext{}, errors.New("no pear migration context: run migrations with migrations.Run")
+	}
+	gormTx, err := db.WrapTx(mc.DB, tx)
+	if err != nil {
+		return PearMigrationContext{}, err
+	}
+	scoped := PearMigrationContext{DB: gormTx}
+	if mc.Spaces != nil {
+		scoped.Spaces = mc.Spaces.WithTx(gormTx)
+	}
+	return scoped, nil
 }
 
-// Run applies all of pear's pending migrations to deps.DB, in version order.
-func Run(ctx context.Context, deps Deps) error {
-	sqlMigrations, err := dialectMigrations(db.DialectOf(deps.DB))
+// Run applies all of pear's pending migrations to mc.DB, in version order. Go
+// migrations register themselves with goose.AddMigrationContext and get mc
+// from their context with [GetPearMigrationContext].
+func Run(ctx context.Context, mc PearMigrationContext) error {
+	sqlMigrations, err := dialectMigrations(db.DialectOf(mc.DB))
 	if err != nil {
 		return fmt.Errorf("load schema migrations: %w", err)
 	}
-	return db.Up(ctx, deps.DB, sqlMigrations, goMigrations(deps)...)
+	return db.Up(context.WithValue(ctx, pearMigrationContextKey{}, mc), mc.DB, sqlMigrations)
 }
 
 // dialectMigrations returns the schema migrations for dialect.

@@ -24,6 +24,6 @@ import (
 func NewPearDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	d := db_testutil.NewDB(t)
-	require.NoError(t, migrations.Run(t.Context(), migrations.Deps{DB: d}))
+	require.NoError(t, migrations.Run(t.Context(), migrations.PearMigrationContext{DB: d}))
 	return d
 }

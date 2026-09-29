@@ -35,7 +35,6 @@ moon run pear:migration-create -- <name> go
 ```
 
 Atlas ignores Go migrations, so they must not change the schema. A Go migration
-that needs pear's components (for example the spaces store) should be added to
-`goMigrations` in `migrations.go` with `goose.NewGoMigration`, and use the
-components from `Deps` instead of constructing its own. Scope a component to the
-migration's transaction with its `WithTx` method and `db.WrapTx`.
+that needs pear's components (for example the spaces store) gets them with
+`GetPearMigrationContext(ctx, tx)` instead of constructing its own. It returns
+the components pear built, already scoped to the migration's transaction.
