@@ -33,7 +33,7 @@ catalog:
   '@atproto/common-web': 0.0.0-spaces-alpha-20260915165437
   '@atproto/identity': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex': 0.0.0-spaces-alpha-20260913191958
-  '@atproto/lexicon': 0.0.0-spaces-alpha-20260913191958
+  '@atproto/lexicon': 0.7.14
   '@atproto/oauth-types': 0.0.0-spaces-alpha-20260913191958
   '@atproto/syntax': 0.0.0-spaces-alpha-20260913191958
   '@atproto/xrpc': 0.0.0-spaces-alpha-20260913191958
