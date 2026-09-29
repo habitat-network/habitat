@@ -11,8 +11,17 @@ import (
 	"github.com/habitat-network/habitat/internal/search"
 )
 
-func init() {
-	goose.AddMigrationContext(upSearchFTS, downSearchFTS)
+// searchFTSMigration returns the search full-text index migration. It is added
+// to goMigrations rather than registered globally with goose.AddMigrationContext
+// because goose's global registry is shared by every goose run in the process,
+// including OpenFGA's own migrations of its separate database, which have no
+// search_documents table for it to act on.
+func searchFTSMigration() *goose.Migration {
+	return goose.NewGoMigration(
+		20260929180100,
+		&goose.GoFunc{RunTx: upSearchFTS},
+		&goose.GoFunc{RunTx: downSearchFTS},
+	)
 }
 
 // upSearchFTS creates the full-text structures over search_documents. They

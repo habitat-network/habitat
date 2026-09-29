@@ -32,6 +32,8 @@ exclude:
     - ^internal/node # Pass-throughs
     - internal/org/public.go
     - testutil/
+    - internal/search/searchtest # Conformance tests run by the Index implementations' own tests
+    - internal/search/postgres.go # Tested against a real Postgres from cmd/pear/migrations, a separate module
     - internal/pear # Outdated will remove this package soon
     - api/
     # Each service names its GORM models in a `migrations` package, which the
