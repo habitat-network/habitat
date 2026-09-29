@@ -19,6 +19,7 @@ import (
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
+	sap_schema "github.com/habitat-network/habitat/pkg/sap/schema"
 	"github.com/urfave/cli/v3"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
@@ -56,12 +57,21 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	slog.SetDefault(log.New(log.WithLevel(cmd.String(fLogLevel))))
 
-	db, err := db.New(
+	// The handle is named database so that db still refers to internal/db,
+	// which db.Migrate below needs.
+	database, err := db.New(
 		cmd.String(fDB),
 		db.WithGORMConfig(&gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: "sap_"}}),
 	)
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
+	}
+	// The stores no longer create their own tables, so create them here, before
+	// any store is built. sap has no goose migrations, so this only creates the
+	// tables for schema.Models — which the `sap_` naming strategy on database
+	// keeps clear of a pear server's tables on the same file.
+	if err := db.Migrate(ctx, database, nil, sap_schema.Models()); err != nil {
+		return fmt.Errorf("migrate database: %w", err)
 	}
 
 	secretStr := cmd.String(fSecret)
@@ -71,7 +81,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	domain := cmd.String(fDomain)
-	store, err := oauthclient.NewGormStore(db, oauthclient.WithSingleSessionPerUser())
+	store, err := oauthclient.NewGormStore(database, oauthclient.WithSingleSessionPerUser())
 	if err != nil {
 		return fmt.Errorf("create oauth store: %w", err)
 	}
@@ -101,7 +111,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	endpoint := "https://" + domain
 
 	s, err := sap.New(sap.Config{
-		DB:          db,
+		DB:          database,
 		OAuthClient: oauthApp,
 		Directory:   oauthApp.Dir,
 		// Endpoint is the base URL sap registers with each space host as
