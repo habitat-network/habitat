@@ -34,30 +34,36 @@ func effectiveHost(r *http.Request) string {
 // Does not serve the MintIdentity endpoint.
 type Server struct {
 	hive          hive.Hive
-	directory     identity.Directory
+	directory     *SpaceProxyDirectory
 	validator     authn.RequestValidator
 	orgStore      org.Store
 	pdsForwarding *forwarding.PDSForwarding
-	domain        string
 }
 
 // NewServer constructs the hive HTTP server. The validator is required to
 // authenticate the caller for endpoints that mint things using the identity's
-// signing key (e.g. com.atproto.server.getServiceAuth).
+// signing key (e.g. com.atproto.server.getServiceAuth). Options configure the
+// identity resolution directory, which serves DID docs with their PDS
+// redirected here except when the identity's real PDS supports spaces.
 func NewServer(
 	hive hive.Hive,
 	validator authn.RequestValidator,
 	orgStore org.Store,
 	pdsForwarding *forwarding.PDSForwarding,
 	domain string,
+	opts ...utils.Opt[SpaceProxyDirectory],
 ) (*Server, error) {
+	directory := NewSpaceProxyDirectory(
+		NewWrappedDirectory(hive, identity.DefaultDirectory()),
+		domain,
+		opts...,
+	)
 	return &Server{
 		hive:          hive,
-		directory:     NewWrappedDirectory(hive, identity.DefaultDirectory()),
+		directory:     directory,
 		validator:     validator,
 		orgStore:      orgStore,
 		pdsForwarding: pdsForwarding,
-		domain:        domain,
 	}, nil
 }
 
@@ -180,7 +186,7 @@ func (s *Server) ResolveDID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(ctx, w, atproto.IdentityResolveDid_Output{
-		DidDoc: s.overriddenDidDoc(ident),
+		DidDoc: ident.DIDDocument(),
 	})
 }
 
@@ -192,14 +198,22 @@ func (s *Server) ResolveHandle(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: handle", nil)
 		return
 	}
-	handle, err := syntax.ParseHandle(handleStr)
-	if err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "invalid handle", err)
+	// resolveHandle takes a handle; a DID reads as an invalid handle.
+	if _, err := syntax.ParseDID(handleStr); err == nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid handle", nil)
 		return
 	}
-	ident, err := s.directory.LookupHandle(ctx, handle)
+	ident, err := s.directory.LookupIdentifier(ctx, handleStr)
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		// an email whose domain isn't mapped reads as an unknown handle
+		err = identity.ErrHandleNotFound
+	}
 	if errors.Is(err, identity.ErrHandleNotFound) {
 		httpx.WriteError(ctx, w, "HandleNotFound", "handle not found", http.StatusNotFound)
+		return
+	}
+	if errors.Is(err, identity.ErrInvalidHandle) {
+		httpx.WriteInvalidRequest(ctx, w, "invalid handle", err)
 		return
 	}
 	if err != nil {
@@ -219,18 +233,17 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: identifier", nil)
 		return
 	}
-	atid, err := syntax.ParseAtIdentifier(identifier)
-	if err != nil {
-		httpx.WriteInvalidRequest(ctx, w, "invalid identifier", err)
-		return
-	}
-	ident, err := s.directory.Lookup(ctx, atid)
+	ident, err := s.directory.LookupIdentifier(ctx, identifier)
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		httpx.WriteError(ctx, w, "DidNotFound", "DID not found", http.StatusNotFound)
 		return
 	}
 	if errors.Is(err, identity.ErrHandleNotFound) {
 		httpx.WriteError(ctx, w, "HandleNotFound", "handle not found", http.StatusNotFound)
+		return
+	}
+	if errors.Is(err, identity.ErrInvalidHandle) {
+		httpx.WriteInvalidRequest(ctx, w, "invalid identifier", err)
 		return
 	}
 	if err != nil {
@@ -240,18 +253,6 @@ func (s *Server) ResolveIdentity(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(ctx, w, atproto.IdentityDefs_IdentityInfo{
 		Did:    ident.DID.String(),
 		Handle: ident.Handle.String(),
-		DidDoc: s.overriddenDidDoc(ident),
+		DidDoc: ident.DIDDocument(),
 	})
-}
-
-func (s *Server) overriddenDidDoc(ident *identity.Identity) identity.DIDDocument {
-	b := did.New(ident.DID).AlsoKnownAs(ident.AlsoKnownAs...)
-	for k, vm := range ident.Keys {
-		b.VerificationMethod(
-			k,
-			vm.Type,
-			vm.PublicKeyMultibase,
-		)
-	}
-	return b.ATProtoPDS("https://" + s.domain).Build().DIDDocument()
 }

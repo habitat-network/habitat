@@ -14,20 +14,27 @@ workspace:
     - lint-check
     - format
     - format-check
+    - test
 tasks:
   build:
     deps: []
     options:
       mergeDeps: replace
   generate:
-    command: pnpx 
+    command: pnpm
     args:
-    - "@atproto/lex-cli"
-    - gen-api
-    - $projectRoot
-    - "@files(lexicons)"
+    - exec
+    - lex
+    - build
+    - --lexicons
+    - ../../lexicons
+    - --out
+    - ./src/generated
+    - --clear
+    - --index-file
+    - --defs-export
     outputs:
-    - types/
+    - src/generated/
     options:
       interactive: true
     preset: server

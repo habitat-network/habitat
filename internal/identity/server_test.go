@@ -1,16 +1,30 @@
 package identity
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
+
+	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 )
 
-func testResolveServer() *Server {
+// testResolveServer builds a Server resolving a single mock identity whose
+// "PDS" is a local test server that doesn't implement the spaces protocol (a
+// bare 404), so the override always takes the "redirect to this habitat
+// instance" branch these tests assert on.
+func testResolveServer(t *testing.T) *Server {
+	t.Helper()
+	pds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(pds.Close)
+
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:         syntax.DID("did:web:alice.example.com"),
@@ -19,25 +33,26 @@ func testResolveServer() *Server {
 		Services: map[string]identity.ServiceEndpoint{
 			"atproto": {
 				Type: "AtprotoPersonalDataServer",
-				URL:  "https://public.pds",
+				URL:  pds.URL,
 			},
 		},
 	})
-	return &Server{directory: dir, domain: "pear.domain"}
+	return &Server{
+		directory: NewSpaceProxyDirectory(dir, "pear.domain", WithClient(pds.Client())),
+	}
 }
 
 func TestResolveDID(t *testing.T) {
-	s := testResolveServer()
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/com.atproto.identity.resolveDid?did=did:web:alice.example.com",
-		http.NoBody,
+	s := testResolveServer(t)
+
+	var out json.RawMessage
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ResolveDID,
+		url.Values{"did": []string{"did:web:alice.example.com"}},
+		&out,
 	)
-	w := httptest.NewRecorder()
 
-	s.ResolveDID(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusOK, code)
 	require.JSONEq(
 		t,
 		`{
@@ -53,37 +68,35 @@ func TestResolveDID(t *testing.T) {
 				]
 			}
 		}`,
-		w.Body.String(),
+		string(out),
 	)
 }
 
 func TestResolveHandle(t *testing.T) {
-	s := testResolveServer()
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/com.atproto.identity.resolveHandle?handle=alice.example.com",
-		http.NoBody,
+	s := testResolveServer(t)
+
+	var out json.RawMessage
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ResolveHandle,
+		url.Values{"handle": []string{"alice.example.com"}},
+		&out,
 	)
-	w := httptest.NewRecorder()
 
-	s.ResolveHandle(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	require.JSONEq(t, `{"did": "did:web:alice.example.com"}`, w.Body.String())
+	require.Equal(t, http.StatusOK, code)
+	require.JSONEq(t, `{"did": "did:web:alice.example.com"}`, string(out))
 }
 
 func TestResolveIdentity(t *testing.T) {
-	s := testResolveServer()
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/com.atproto.identity.resolveIdentity?identifier=alice.example.com",
-		http.NoBody,
+	s := testResolveServer(t)
+
+	var out json.RawMessage
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ResolveIdentity,
+		url.Values{"identifier": []string{"alice.example.com"}},
+		&out,
 	)
-	w := httptest.NewRecorder()
 
-	s.ResolveIdentity(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusOK, code)
 	require.JSONEq(
 		t,
 		`{
@@ -101,21 +114,20 @@ func TestResolveIdentity(t *testing.T) {
 				]
 			}
 		}`,
-		w.Body.String(),
+		string(out),
 	)
 }
 
 func TestResolveHandleNotFound(t *testing.T) {
-	s := testResolveServer()
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/xrpc/com.atproto.identity.resolveHandle?handle=nobody.example.com",
-		http.NoBody,
+	s := testResolveServer(t)
+
+	var out json.RawMessage
+	code := httpx_testutil.NewTestXRPCClient(t).Query(
+		s.ResolveHandle,
+		url.Values{"handle": []string{"nobody.example.com"}},
+		&out,
 	)
-	w := httptest.NewRecorder()
 
-	s.ResolveHandle(w, req)
-
-	require.Equal(t, http.StatusNotFound, w.Code)
-	require.JSONEq(t, `{"error": "HandleNotFound", "message": "handle not found"}`, w.Body.String())
+	require.Equal(t, http.StatusNotFound, code)
+	require.JSONEq(t, `{"error": "HandleNotFound", "message": "handle not found"}`, string(out))
 }

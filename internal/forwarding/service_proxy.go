@@ -181,6 +181,10 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	outReq.Header.Del("DPoP")
 	// Strip Atproto-Proxy to prevent the target from attempting further proxying.
 	outReq.Header.Del("Atproto-Proxy")
+	// Habitat-Auth-Method is a client hint that the Authorization header carries
+	// an OAuth token; left in place it would make OAuthServer.CanHandle claim
+	// the newly-minted service-auth JWT above, so it must not be forwarded.
+	outReq.Header.Del("Habitat-Auth-Method")
 
 	resp, err := s.httpClient.Do(outReq)
 	if err != nil {
@@ -196,6 +200,16 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	defer func() { _ = resp.Body.Close() }()
 
 	for key, values := range resp.Header {
+		// The target service, when it's this same pear instance (any
+		// did:web:*.pear.local... org), runs the same CORS middleware the
+		// outer request already passed through — forwarding its
+		// Access-Control-*/Vary headers too would duplicate them on the
+		// response, which browsers treat as an invalid CORS response and
+		// fail the request outright rather than merging or preferring one.
+		if strings.HasPrefix(strings.ToLower(key), "access-control-") ||
+			strings.EqualFold(key, "Vary") {
+			continue
+		}
 		for _, value := range values {
 			w.Header().Add(key, value)
 		}

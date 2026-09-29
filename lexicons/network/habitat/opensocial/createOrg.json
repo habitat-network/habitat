@@ -1,0 +1,41 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.opensocial.createOrg",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Create a new opensocial-backed org: mints the org DID, bootstraps its about/members spaces (profile, admin and member roles), and grants the calling user the admin role. Requires service-auth.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "handle"
+                    ],
+                    "properties": {
+                        "handle": {
+                            "type": "string",
+                            "description": "Subdomain handle for the org (alphanumeric, 1-50 chars)."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the created org."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

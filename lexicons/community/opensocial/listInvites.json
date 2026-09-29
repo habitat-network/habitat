@@ -1,0 +1,45 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.listInvites",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List the calling user's pending invites across every community on this instance.",
+            "parameters": {
+                "type": "params",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 50
+                    },
+                    "cursor": {
+                        "type": "string"
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "invites"
+                    ],
+                    "properties": {
+                        "cursor": {
+                            "type": "string"
+                        },
+                        "invites": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "community.opensocial.defs#inviteView"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

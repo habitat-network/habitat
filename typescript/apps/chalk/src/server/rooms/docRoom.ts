@@ -4,7 +4,7 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import * as syncProtocol from "y-protocols/sync";
 import * as awarenessProtocol from "y-protocols/awareness";
-import { SapClient } from "../sapClient";
+import { SapClient, getSpaceBlob } from "../sapClient";
 import { renderDoc } from "../../render";
 import { docByUri, getDb, upsertDoc } from "../../db";
 
@@ -199,13 +199,13 @@ export class DocRoom extends DurableObject<Env> {
     await this.rememberIdentity(id);
     // A putRecord'd network.habitat.docs.crdt record carries a blob
     // *reference*, not the update's bytes inline, so the bytes have to be
-    // fetched separately via getBlob.
+    // fetched separately via getBlob. That read uses a space credential sap
+    // mints through any of its sessions with access to the space (see
+    // getSpaceBlob), not the owner's own session — sap may track none for
+    // the owner (e.g. an org that was never connected).
     const ownerDid = this.id?.ownerDid;
     if (!ownerDid) return;
-    const bytes = await new SapClient(this.env, ownerDid).getBlob(
-      id.spaceUri,
-      cid,
-    );
+    const bytes = await getSpaceBlob(this.env, id.spaceUri, cid);
     // No transaction origin: this update is already the merged/canonical
     // state as sap has it, not a specific member's edit, so onUpdate below
     // must not attribute it to (and re-flush it back into) anyone's repo —

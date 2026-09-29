@@ -1,0 +1,50 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.requestJoin",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Accept the calling user's pending invite to this community. Removes the invite from the org's invite table and writes a community.opensocial.membership record (in the org repo) and a community.opensocial.acceptance record (in the user's repo, members space). Requires service-auth.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the community whose invite to accept."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "roles"
+                    ],
+                    "properties": {
+                        "roles": {
+                            "type": "array",
+                            "description": "Record keys of the community.opensocial.role records granted to the caller.",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "InviteNotFound",
+                    "description": "The calling user has no pending invite to this community."
+                }
+            ]
+        }
+    }
+}

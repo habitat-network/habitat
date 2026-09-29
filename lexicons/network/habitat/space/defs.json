@@ -11,6 +11,10 @@
           "type": "integer",
           "description": "Commit format version, currently 1. Corresponds to the version in the ctx protocol tag (atproto-space-v1)."
         },
+        "habitatSigned": {
+          "type": "boolean",
+          "description": "True if sig was produced by the space host's key rather than the author's own key."
+        },
         "hash": {
           "type": "bytes",
           "description": "sha256 digest of the LtHash state (32 bytes)."

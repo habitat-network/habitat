@@ -2,11 +2,15 @@ import { env } from "cloudflare:test";
 import { expect, it } from "vitest";
 import { handleSapWebhook } from "../src/server/webhook";
 
-// A message with no well-formed space-record URI: processOutboxMessage
-// returns immediately without touching D1 or DOC, so these tests can focus
-// on handleSapWebhook's own HTTP-layer behavior (auth, body parsing, status
-// codes) without needing to set up a doc first.
-const IGNORED_MESSAGE = { id: 1, uri: "not-a-uri", value: {} };
+// A message addressing a record outside any space: processOutboxMessage
+// returns immediately without touching D1 or DOC (no spaceRef to resolve),
+// so these tests can focus on handleSapWebhook's own HTTP-layer behavior
+// (auth, body parsing, status codes) without needing to set up a doc first.
+const IGNORED_MESSAGE = {
+  id: 1,
+  uri: "at://did:web:alice.example/app.bsky.feed.post/rkey1",
+  value: {},
+};
 
 function post(body: unknown, url = "https://chalk.test/webhook/sap") {
   return new Request(url, {

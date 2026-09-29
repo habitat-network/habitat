@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -25,11 +26,10 @@ import (
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/org"
+	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
-	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
@@ -105,6 +105,9 @@ func TestSap(t *testing.T) {
 		sapServer.URL+"/oauth-callback",
 		[]string{},
 	)
+	attestationKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
 
 	s, err := New(Config{
@@ -312,6 +315,9 @@ func TestSapTrackSpace(t *testing.T) {
 		sapServer.URL+"/oauth-callback",
 		[]string{},
 	)
+	attestationKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
 
 	s, err := New(Config{
@@ -362,6 +368,87 @@ func TestSapTrackSpace(t *testing.T) {
 	require.Equal(t, int64(1), repoCount)
 }
 
+// TestSapSpaceCredential verifies SpaceCredential mints, through a session
+// with recorded access to the space, a credential the space's host accepts for
+// a read — here a caller other than the session itself (no DID of its own)
+// reading a record with it.
+func TestSapSpaceCredential(t *testing.T) {
+	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	pear := setupPear(t)
+	t.Cleanup(func() {
+		pear.server.CloseClientConnections()
+		pear.server.Close()
+	})
+	author := pear.author.DID
+
+	space, err := pear.store.CreateSpace(
+		t.Context(), author, "network.habitat.group", habitat_syntax.SpaceKey("cred-space"),
+	)
+	require.NoError(t, err)
+	_, _, err = pear.store.PutRecord(
+		t.Context(),
+		space,
+		author,
+		"network.habitat.test",
+		"rkey-0",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"data": "credentialed"}),
+	)
+	require.NoError(t, err)
+
+	sapServer := httptest.NewTLSServer(http.NewServeMux())
+	t.Cleanup(sapServer.Close)
+
+	db := db_testutil.NewDB(t)
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		sapServer.URL+"/client-metadata.json",
+		sapServer.URL+"/oauth-callback",
+		[]string{},
+	)
+	attestationKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
+	oauthApp := oauth.NewClientApp(&cfg, store)
+
+	s, err := New(Config{
+		DB:          db,
+		OAuthClient: oauthApp,
+		Directory:   pear.hive,
+		Endpoint:    sapServer.URL,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:              author,
+		SessionID:               "sess1",
+		HostURL:                 pear.server.URL,
+		AccessToken:             futureJWT(t),
+		DPoPPrivateKeyMultibase: testDPoPKey(t),
+	}))
+	require.NoError(t, s.TrackSpace(t.Context(), space.URI(), author, "sess1"))
+
+	cred, err := s.SpaceCredential(t.Context(), space)
+	require.NoError(t, err)
+	require.Equal(t, pear.server.URL, cred.Host)
+
+	client := &atclient.APIClient{
+		Client:  http.DefaultClient,
+		Host:    cred.Host,
+		Headers: http.Header{"Authorization": []string{"Bearer " + cred.Token}},
+	}
+	var out habitat.NetworkHabitatSpaceGetRecordOutput
+	require.NoError(t, client.Get(t.Context(), "network.habitat.space.getRecord", map[string]any{
+		"space":      space.URI().String(),
+		"repo":       author.String(),
+		"collection": "network.habitat.test",
+		"rkey":       "rkey-0",
+	}, &out))
+}
+
 // TestSapRecrawl verifies that Recrawl re-crawls a session even when a prior
 // crawl for it is stuck errored with a stale cursor — the scenario Recrawl
 // exists for, distinguishing it from a crawl.Crawler.Run resume.
@@ -407,6 +494,9 @@ func TestSapRecrawl(t *testing.T) {
 		sapServer.URL+"/oauth-callback",
 		[]string{},
 	)
+	attestationKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetClientSecret(attestationKey, "sap"))
 	oauthApp := oauth.NewClientApp(&cfg, store)
 
 	s, err := New(Config{
@@ -505,30 +595,22 @@ func setupPear(t *testing.T) *pearHost {
 	validator := authn_testutil.NewSuccessValidator(
 		&authn.CredentialInfo{Subject: author.DID, Org: everyone},
 	)
-	spacesServer := spaces_server.NewServer(
-		spacesStore,
-		validator,
-		nil, // host key: managed authors sign with their own hive keys
-		orgHive,
-		nil, // blobs: no blob handlers mounted
+	// The pear host serves its spaces surface through the consolidated
+	// PearServer (via its test util), sharing the member-signer store and
+	// orgHive so managed authors sign with their own hive keys.
+	ts := pearserver_testutil.NewTestServer(t,
+		pearserver_testutil.WithDB(db),
+		pearserver_testutil.WithSpaceStore(spacesStore),
+		pearserver_testutil.WithValidator(validator),
+		pearserver_testutil.WithHive(orgHive),
+		pearserver_testutil.WithNotifyStore(notifyStore),
 	)
-	notifyServer := notify.NewServer(notifyStore, validator)
+	pearApp := ts.Server
 
-	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
-	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
-	mux.HandleFunc("/xrpc/network.habitat.space.getDelegationToken",
-		func(w http.ResponseWriter, r *http.Request) {
-			httpx.WriteJSON(r.Context(), w,
-				habitat.NetworkHabitatSpaceGetDelegationTokenOutput{Token: "test-delegation"})
-		})
-	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
-		func(w http.ResponseWriter, r *http.Request) {
-			httpx.WriteJSON(r.Context(), w,
-				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "test-credential"})
-		})
+	// pearApp serves the full spaces read/sync surface including
+	// registerNotify. Its gorilla router must be mounted at root — a ServeMux
+	// subtree prefix would hide the full path from it and 404 every route.
+	mux.Handle("/", pearApp)
 
 	return &pearHost{server: server, store: spacesStore, hive: orgHive, author: author}
 }

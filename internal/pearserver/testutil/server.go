@@ -1,0 +1,207 @@
+package testutil
+
+import (
+	"testing"
+
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+
+	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/emaildomain"
+	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/forwarding"
+	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"github.com/habitat-network/habitat/internal/notify"
+	"github.com/habitat-network/habitat/internal/opensocial"
+	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pearserver"
+	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/simplespace"
+	"github.com/habitat-network/habitat/internal/spaces"
+	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
+	"github.com/habitat-network/habitat/internal/utils"
+)
+
+// TestServer wraps a constructed *pearserver.PearServer along with the backing
+// stores it shares, so tests can seed or inspect data directly.
+type TestServer struct {
+	Server *pearserver.PearServer
+
+	Validator        authn.RequestValidator
+	PermStore        perms.Store
+	SpaceStore       spaces.Store
+	OpenSocialStore  *opensocial.Store
+	SimpleStore      *simplespace.Store
+	NotifyStore      notify.Store
+	Hive             hive.Hive
+	HostKey          atcrypto.PrivateKey
+	DB               *gorm.DB
+	FGA              fgastore.Store
+	McpGatewayStore  mcpgateway.Store
+	NangoClient      *FakeNangoClient
+	PDSForwarding    *forwarding.PDSForwarding
+	EmailDomainStore *emaildomain.Store
+}
+
+func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.Validator = validator
+	}
+}
+
+func WithHostKey(key atcrypto.PrivateKey) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.HostKey = key
+	}
+}
+
+func WithHive(have hive.Hive) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.Hive = have
+	}
+}
+
+func WithDB(db *gorm.DB) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.DB = db
+	}
+}
+
+func WithSpaceStore(store spaces.Store) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.SpaceStore = store
+	}
+}
+
+func WithNotifyStore(store notify.Store) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.NotifyStore = store
+	}
+}
+
+func WithNangoClient(client *FakeNangoClient) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.NangoClient = client
+	}
+}
+
+func WithFGA(fga fgastore.Store) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.FGA = fga
+	}
+}
+
+func WithPDSForwarding(f *forwarding.PDSForwarding) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.PDSForwarding = f
+	}
+}
+
+// NewTestServer returns a PearServer wired with throwaway storage, along with
+// the stores backing it so tests can seed or inspect records directly. Only
+// options are applied if provided; dependencies are otherwise created fresh.
+// A generated host key is used by default so delegation-token and
+// credential-signing handlers can be exercised.
+func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
+	t.Helper()
+
+	ts := utils.ResolveOptions(TestServer{}, opts)
+	if ts.Validator == nil {
+		ts.Validator = authntest.NewSuccessValidatorWithOrg(owner, org)
+	}
+	if ts.HostKey == nil {
+		key, err := atcrypto.GeneratePrivateKeyK256()
+		require.NoError(t, err)
+		ts.HostKey = key
+	}
+	if ts.FGA == nil {
+		fga, err := fgastore.NewMemory(t.Context())
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = fga.Close() })
+		ts.FGA = fga
+	}
+	if ts.DB == nil {
+		ts.DB = db_testutil.NewDB(t)
+	}
+	if ts.Hive == nil {
+		hiveRep, err := hive.NewHive("example.com", "pear.example.com", ts.DB)
+		require.NoError(t, err)
+		ts.Hive = hiveRep
+	}
+	if ts.SpaceStore == nil {
+		ts.SpaceStore = spaces_testutil.NewTestStore(
+			t,
+			spaces_testutil.WithDB(ts.DB),
+			spaces_testutil.WithFGA(ts.FGA),
+			spaces_testutil.WithHostKey(ts.HostKey),
+		)
+	}
+	if ts.NotifyStore == nil {
+		notifyStore, err := notify.NewStore(ts.DB)
+		require.NoError(t, err)
+		ts.NotifyStore = notifyStore
+	}
+	blobStore := spaces_testutil.NewTestBlobStore(t)
+
+	os, err := opensocial.NewStore(ts.DB, ts.SpaceStore, blobStore, ts.Hive)
+	require.NoError(t, err)
+	ps := perms.NewStore(ts.DB, ts.SpaceStore, ts.FGA, os)
+	ss := simplespace.NewStore(ts.DB, ts.SpaceStore, ps)
+
+	ts.OpenSocialStore = os
+	ts.SimpleStore = ss
+
+	if ts.NangoClient == nil {
+		ts.NangoClient = NewFakeNangoClient()
+	}
+	mcpGatewayStore, err := mcpgateway.NewStore(ts.NangoClient, os)
+	require.NoError(t, err)
+	ts.McpGatewayStore = mcpGatewayStore
+
+	if ts.PDSForwarding == nil {
+		// Default forwarding points nowhere; getSession's remote-identity path
+		// forwards to a caller's real PDS, which tests exercise by injecting
+		// their own forwarding via WithPDSForwarding. The credential store is
+		// fully unused on that path.
+		ts.PDSForwarding = forwarding.NewPDSForwarding(
+			nil,
+			ts.Validator,
+			pdsclient.NewDummyClientFactory("http://127.0.0.1:1"),
+			pdsclient.NewDummyDirectory("http://127.0.0.1:1"),
+		)
+	}
+
+	emailDomainStore, err := emaildomain.NewStore(ts.DB)
+	require.NoError(t, err)
+	ts.EmailDomainStore = emailDomainStore
+
+	ts.Server = pearserver.New(
+		"pear.example.com",
+		ts.Validator,
+		ts.Hive,
+		ts.HostKey,
+		blobStore,
+		ts.SpaceStore,
+		os,
+		ps,
+		ss,
+		ts.NotifyStore,
+		clientmetadata.NewResolver(),
+		mcpGatewayStore,
+		ts.PDSForwarding,
+		emailDomainStore,
+	)
+	ts.PermStore = ps
+	return &ts
+}
+
+var (
+	org   = syntax.DID("did:plc:org")
+	owner = syntax.DID("did:plc:owner")
+)

@@ -24,12 +24,15 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/did"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
@@ -38,13 +41,16 @@ import (
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"github.com/habitat-network/habitat/internal/mcpserver"
+	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/simplespace"
-	spaces_server "github.com/habitat-network/habitat/internal/spaces/server"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
@@ -52,8 +58,8 @@ import (
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
+	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/relationship"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -260,10 +266,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup org store: %w", err)
 	}
 
+	emailDomainStore, err := emaildomain.NewStore(db.WithContext(startupCtx))
+	if err != nil {
+		return fmt.Errorf("setup email domain store: %w", err)
+	}
+
 	loginRouter := &org.LoginRouter{
-		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
-		Password: passwordProvider,
-		OrgStore: orgStore,
+		Pds:        login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
+		Password:   passwordProvider,
+		OrgStore:   orgStore,
+		EmailStore: emailDomainStore,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
@@ -282,41 +294,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		slog.InfoContext(startupCtx, "google login provider enabled")
 	}
 
-	oauthServer, err := oauthserver.NewOAuthServer(
-		oauthSecret,
-		loginRouter,
-		// OAuth server needs privileged access to lookup hive-hosted identities
-		hiveDir,
-		db.WithContext(startupCtx),
-		meter,
-		orgStore,
-		"https://"+domain,
-		oauthserver.NewJWTBearerStore(
-			cmd.StringSlice(fBuiltinApps)...,
-		),
-	)
-	if err != nil {
-		return fmt.Errorf("setup oauth server: %w", err)
-	}
-	oauthGC := oauthserver.NewCollector(db.WithContext(startupCtx), 5*time.Minute)
-
-	serviceAuth := authn.NewServiceAuthMethod(
-		everyoneOrg,
-		defaultDir,
-		fmt.Sprintf("did:web:%s#habitat", domain),
-	)
-
 	// Habitat's single host signing key signs permissioned-repo commits for repo
 	// owners on external PDSes (habitat-managed owners sign with their own hive
 	// key instead). Optional: if unset, host-signed commits are omitted.
 	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
 	if err != nil {
 		return fmt.Errorf("parse space-host signing key: %w", err)
-	}
-
-	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup clique store: %w", err)
 	}
 
 	notifyStore, err := notify.NewStore(db.WithContext(startupCtx))
@@ -341,7 +324,62 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	defer func() { _ = blobBucket.Close() }()
 	blobStore := spaces.NewBlobStore(blobBucket)
 
-	permStore := perms.NewStore(db, spacesStore, fgaStore)
+	opensocialStore, err := opensocial.NewStore(
+		db.WithContext(startupCtx), spacesStore, blobStore, hive,
+	)
+	if err != nil {
+		return fmt.Errorf("setup opensocial store: %w", err)
+	}
+	emailResolver := habitat_identity.NewEmailResolver(
+		db.WithContext(startupCtx), emailDomainStore, hive,
+	)
+	loginRouter.OpensocialStore = opensocialStore
+
+	// The MCP endpoints sign users in through this same loginRouter (see
+	// OAuthServer.HandleMCPAuthorizeSubmit): whichever login method a user's
+	// org configures (PDS, Google, or password) is what an MCP client's login
+	// runs too, landing back at the one /oauth-callback those providers are
+	// registered with. Identity is resolved through pear's own resolveIdentity
+	// endpoint (see api-docs/docs/space-proxy/getting-started.mdx), which
+	// already rewrites pear-hosted accounts' PDS pointer to pear itself — so
+	// those accounts redirect to pear's own atproto OAuth server, and remote
+	// accounts resolve exactly the way any other client following that doc
+	// would see them.
+	mcpOrigin := "https://" + domain
+
+	oauthServer, err := oauthserver.NewOAuthServer(
+		oauthSecret,
+		loginRouter,
+		// OAuth server needs privileged access to lookup hive-hosted identities
+		hiveDir,
+		db.WithContext(startupCtx),
+		meter,
+		orgStore,
+		"https://"+domain,
+		oauthserver.NewJWTBearerStore(
+			cmd.StringSlice(fBuiltinApps)...,
+		),
+		opensocialStore,
+		emailResolver,
+	)
+	if err != nil {
+		return fmt.Errorf("setup oauth server: %w", err)
+	}
+	oauthGC := oauthserver.NewCollector(db.WithContext(startupCtx), 5*time.Minute)
+
+	serviceAuth := authn.NewServiceAuthMethod(
+		everyoneOrg,
+		defaultDir,
+		syntax.DID("did:web:"+domain),
+		"https://"+domain,
+	)
+
+	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
+	if err != nil {
+		return fmt.Errorf("setup clique store: %w", err)
+	}
+
+	permStore := perms.NewStore(db, spacesStore, fgaStore, opensocialStore)
 	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
 	validator := authn.NewValidator(
 		oauthServer,
@@ -354,28 +392,43 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
 	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
 
-	// TODO: use this to validate the space credential in the spaces server
-	spacesServer := spaces_server.NewServer(
-		spacesStore,
+	simpleStore := simplespace.NewStore(db, spacesStore, permStore)
+
+	// Store for org-configured MCP servers and per-user Nango connections.
+	nangoSecretKey := cmd.String(fNangoSecretKey)
+	if nangoSecretKey == "" {
+		slog.WarnContext(ctx, "nango secret key not set; MCP server configuration is disabled")
+	}
+	nangoClient := nango.NewClient(nangoSecretKey, httpx.NewClient())
+	mcpGatewayStore, err := mcpgateway.NewStore(nangoClient, opensocialStore)
+	if err != nil {
+		return fmt.Errorf("setup mcp gateway store: %w", err)
+	}
+
+	pdsForwarding := forwarding.NewPDSForwarding(
+		pdsCredStore,
 		validator,
-		hostKey,
+		pdsClientFactory,
+		defaultDir,
+	)
+
+	// Consolidated server owning the opensocial, simplespace, relationship,
+	// spaces, and registerNotify handler routes.
+	pearApp := pearserver.New(
+		domain,
+		validator,
 		hive,
+		hostKey,
 		blobStore,
-	)
-	notifyServer := notify.NewServer(
-		notifyStore,
-		validator,
-	)
-
-	simplespaceServer := simplespace.NewServer(
-		simplespace.NewStore(db, spacesStore, permStore),
-		validator,
-	)
-
-	relationshipServer := relationship.NewServer(
-		permStore,
 		spacesStore,
-		validator,
+		opensocialStore,
+		permStore,
+		simpleStore,
+		notifyStore,
+		clientmetadata.NewResolver(),
+		mcpGatewayStore,
+		pdsForwarding,
+		emailDomainStore,
 	)
 
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))
@@ -389,6 +442,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
+	mcpServer := mcpserver.New(
+		oauthServer,
+		spacesStore,
+		permStore,
+		nangoClient,
+		opensocialStore,
+		mcpGatewayStore,
+		mcpOrigin,
+		oauthServer.MCPIssuer(),
+	)
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
 		orgStore,
@@ -411,6 +474,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.mintMemberIdentity", orgServer.MintMemberIdentity)
 	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
 
+	// Server for opensocial community routes
+	mux.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", pearApp.CreateOrg)
+	mux.HandleFunc("/xrpc/network.habitat.emaildomain.createOrg", pearApp.CreateEmailDomainOrg)
+	mux.PathPrefix("/xrpc/community.opensocial.").Handler(pearApp)
+	// Server-side client-metadata proxy for the management frontend
+	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
+	// MCP gateway routes (network.habitat.mcp.*) are handled by pearApp via
+	// registerRoutes in internal/pearserver/routes.go.
+	mux.PathPrefix("/xrpc/network.habitat.mcp.").Handler(pearApp)
+
 	cliqueServer := clique.NewServer(cliqueStore, validator)
 	pearServer := pear.NewServer(
 		pearStore,
@@ -421,14 +494,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup p2p server: %w", err)
 	}
-	pdsForwarding := forwarding.NewPDSForwarding(
-		pdsCredStore,
-		validator,
-		pdsClientFactory,
-		defaultDir,
-	)
 
-	idServer, err := habitat_identity.NewServer(hive, validator, orgStore, pdsForwarding, domain)
+	idServer, err := habitat_identity.NewServer(
+		hive, validator, orgStore, pdsForwarding, domain,
+		habitat_identity.WithClient(httpx.NewClient()),
+		habitat_identity.WithEmailResolver(emailResolver),
+	)
 	if err != nil {
 		return fmt.Errorf("setup hive server: %w", err)
 	}
@@ -488,9 +559,28 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/par", oauthServer.HandlePAR)
 	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsent)
+	mux.HandleFunc("/oauth/opensocial", oauthServer.HandleOpensocial)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
+
+	// MCP (Model Context Protocol) server. Its endpoints match what MCP
+	// clients expect (dynamic client registration, no PAR) but share
+	// oauthServer's provider, storage, and sign-in with the atproto endpoints
+	// above — see internal/oauthserver/mcp.go.
+	mux.HandleFunc(oauthserver.MCPMetadataPath, oauthServer.HandleMCPMetadata)
+	mux.HandleFunc(oauthserver.MCPRegisterPath, oauthServer.HandleMCPRegister).Methods("POST")
+	mux.HandleFunc(oauthserver.MCPAuthorizePath, oauthServer.HandleMCPAuthorize).Methods("GET")
+	mux.HandleFunc(oauthserver.MCPAuthorizeSubmitPath, oauthServer.HandleMCPAuthorizeSubmit).
+		Methods("POST")
+	// MCP-issued tokens share the atproto endpoints' token handler (see
+	// OAuthServer.HandleToken); it tells the two kinds of client apart itself.
+	mux.HandleFunc(oauthserver.MCPTokenPath, oauthServer.HandleToken).Methods("POST")
+	mux.Handle(
+		mcpserver.ProtectedResourceMetadataPath,
+		mcpServer.ProtectedResourceMetadataHandler(),
+	)
+	mux.Handle(mcpserver.Path, mcpServer.Handler())
 
 	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)
@@ -498,7 +588,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", spacesServer.UploadBlob)
+	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearApp.UploadBlob)
 
 	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
@@ -512,46 +602,18 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
 	// Spaces
-	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRepos", spacesServer.ListRepos)
-	mux.HandleFunc("/xrpc/network.habitat.space.putRecord", spacesServer.PutRecord)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRecord", spacesServer.GetRecord)
-	mux.HandleFunc("/xrpc/network.habitat.space.getBlob", spacesServer.GetBlob)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
-	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
-	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
-	mux.HandleFunc("/xrpc/network.habitat.space.getLatestCommit", spacesServer.GetLatestCommit)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRepo", spacesServer.GetRepo)
-	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
-	mux.HandleFunc("/xrpc/network.habitat.space.getDelegationToken",
-		spacesServer.GetDelegationToken)
-	mux.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential",
-		spacesServer.GetSpaceCredential)
+	mux.PathPrefix("/xrpc/network.habitat.space.").Handler(pearApp)
 
-	// Simplespaces
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", simplespaceServer.CreateSpace)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.addMember", simplespaceServer.AddMember)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.removeMember", simplespaceServer.RemoveMember)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.listMembers", simplespaceServer.ListMembers)
-	mux.HandleFunc("/xrpc/network.habitat.simplespace.deleteSpace", simplespaceServer.DeleteSpace)
+	// Simplespace
+	mux.PathPrefix("/xrpc/network.habitat.simplespace.").Handler(pearApp)
 
 	// Relationships
-	mux.HandleFunc("/xrpc/network.habitat.relationship.setUserRelation",
-		relationshipServer.SetUserRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.setSpaceRelation",
-		relationshipServer.SetSpaceRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteRelation",
-		relationshipServer.DeleteRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listRelations",
-		relationshipServer.ListRelations)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.checkUserRelation",
-		relationshipServer.CheckUserRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.checkSpaceRelation",
-		relationshipServer.CheckSpaceRelation)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.resolveRelations",
-		relationshipServer.ResolveRelations)
-	mux.HandleFunc("/xrpc/network.habitat.relationship.listRelatedSpaces",
-		relationshipServer.ListRelatedSpaces)
+	mux.PathPrefix("/xrpc/network.habitat.relationship.").Handler(pearApp)
+
+	// Proposal 0016 aliases: the official com.atproto NSIDs served by the same
+	// pearApp handlers as their network.habitat counterparts above.
+	mux.PathPrefix("/xrpc/com.atproto.space.").Handler(pearApp)
+	mux.PathPrefix("/xrpc/com.atproto.simplespace.").Handler(pearApp)
 
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
@@ -617,6 +679,10 @@ func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
 	// Share the main Postgres database for FGA when one is configured; only fall
 	// back to a separate SQLite file when the main store is SQLite.
 	if db.ParseDialect(dsn) == db.Postgres {
+		dsn, err := db.EnsureUTF8ClientEncoding(dsn)
+		if err != nil {
+			return nil, err
+		}
 		fga, err := fgastore.NewPostgres(ctx, dsn)
 		if err != nil {
 			return nil, fmt.Errorf("setup fga store with postgres: %w", err)

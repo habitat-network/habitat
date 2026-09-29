@@ -4,8 +4,10 @@ const PUBLIC_BSKY_API = "https://public.api.bsky.app";
 
 export async function searchActorsTypeahead(
   q: string,
-  limit = 8,
-  { identityResolverUrl }: { identityResolverUrl?: string } = {},
+  {
+    identityResolverUrl,
+    limit = 8,
+  }: { limit?: number; identityResolverUrl?: string } = {},
 ): Promise<Actor[]> {
   const params = new URLSearchParams({ q, limit: String(limit) });
   const [searchResp, resolveResp] = await Promise.all([
@@ -13,7 +15,7 @@ export async function searchActorsTypeahead(
       `${PUBLIC_BSKY_API}/xrpc/app.bsky.actor.searchActorsTypeahead?${params}`,
     ),
     fetch(
-      `${identityResolverUrl || "https://pear.habitat.network/xrpc/com.atproto.identity.resolveIdentity"}?identifier=${q}`,
+      `${identityResolverUrl || "https://pear.habitat.network"}/xrpc/com.atproto.identity.resolveIdentity?identifier=${q}`,
     ),
   ]);
   const searchData: { actors: Actor[] } = await searchResp.json();

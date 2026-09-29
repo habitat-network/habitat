@@ -1,6 +1,8 @@
 import { redirect } from "@tanstack/react-router";
+import { SpaceRef, type DidString } from "@atproto/syntax";
 import { useAppSession } from "./session";
 import type { SapClient } from "./sapClient";
+import { commentsSpaceUri } from "./comments.server";
 
 // Server-only helpers, kept out of functions.ts so that file can stay
 // "pure" (only createServerFn-wrapped exports) per TanStack Start's
@@ -18,14 +20,114 @@ import type { SapClient } from "./sapClient";
 export const DOCS_SPACE_TYPE = "network.habitat.docs";
 export const CRDT_COLLECTION = "network.habitat.docs.crdt";
 
+// createDocSpace creates the underlying space for a new doc, branching on
+// whether the member is in org mode (currentOrg set) or personal mode.
+// client is always scoped to the member's own DID in both cases — org mode
+// reaches the org's own createSpace endpoint via Atproto-Proxy rather than
+// resuming a separate org session (see the design doc's "Connecting an
+// org" section for why).
+export async function createDocSpace(
+  client: SapClient,
+  did: string,
+  currentOrg: string | undefined,
+): Promise<{ uri: string; ownerDid: string }> {
+  if (currentOrg) {
+    // roles is empty: access is granted via explicit spaceRelation/
+    // userRelation records (the share dialog) instead of being baked in at
+    // creation time — sharing with "the whole org" means a spaceRelation
+    // naming the org's own community.opensocial.members space as its
+    // subject (see orgMembersSpaceUri/OrgShareControl).
+    const created = await client.call<{ uri: string }>(
+      "community.opensocial.createSpace",
+      "POST",
+      { org: currentOrg, type: DOCS_SPACE_TYPE, roles: [] },
+      { atprotoProxy: `${currentOrg}#habitat` },
+    );
+    return { uri: created.uri, ownerDid: currentOrg };
+  }
+  const created = await client.call<{ uri: string }>(
+    "network.habitat.simplespace.createSpace",
+    "POST",
+    { did, type: DOCS_SPACE_TYPE },
+  );
+  return { uri: created.uri, ownerDid: did };
+}
+
+// fetchOrgName reads an org's display name off its
+// community.opensocial.profile record, via the member's own session — no
+// Atproto-Proxy needed: the about space's own community.opensocial.access
+// record already admits any member/admin role (set at org creation), so
+// pear's CheckUserHasSpaceRole grants the read directly (same mechanism
+// that makes org docs readable org-wide — see the design doc). Returns
+// null if the caller isn't a member of the org, or the read otherwise
+// fails, rather than throwing — callers show the raw DID as a fallback.
+export async function fetchOrgName(
+  client: SapClient,
+  orgDid: DidString,
+): Promise<string | null> {
+  const aboutSpace = new SpaceRef(
+    orgDid,
+    "community.opensocial.about",
+    "self",
+  ).toString();
+  try {
+    const { value } = await client.call<{ value: { name: string } }>(
+      "network.habitat.space.getRecord",
+      "GET",
+      {
+        space: aboutSpace,
+        repo: orgDid,
+        collection: "community.opensocial.profile",
+        rkey: "self",
+      },
+    );
+    return value.name;
+  } catch {
+    return null;
+  }
+}
+
+// orgMembersSpaceUri returns the URI of orgDid's own
+// community.opensocial.members space — naming this as a spaceRelation's
+// subject, with subjectRole "reader", grants the relation to every member
+// of the org (pear's CheckUserHasSpaceRole treats holding any opensocial
+// membership as holding "reader" on this space; see internal/perms/store.go).
+export function orgMembersSpaceUri(orgDid: string): string {
+  return new SpaceRef(
+    orgDid as DidString,
+    "community.opensocial.members",
+    "self",
+  ).toString();
+}
+
+// listMyOrgIds lists the DIDs of every opensocial org the member belongs
+// to — every community.opensocial.members space they hold a membership or
+// acceptance record in, same query frontend's Communities page uses
+// (frontend/src/queries/opensocial.ts's myOrgsQueryOptions).
+export async function listMyOrgIds(client: SapClient): Promise<DidString[]> {
+  const { spaces } = await client.call<{ spaces: { uri: string }[] }>(
+    "network.habitat.space.listSpaces",
+    "GET",
+    { type: "community.opensocial.members" },
+  );
+  const orgs: DidString[] = [];
+  for (const space of spaces) {
+    orgs.push(SpaceRef.parse(space.uri).spaceDid);
+  }
+  return orgs;
+}
+
 // requireSession resolves the logged-in member's DID from the session
 // cookie, throwing a redirect to /login when there isn't one.
-export async function requireSession(): Promise<{ did: string }> {
+export async function requireSession(): Promise<{
+  did: string;
+  currentOrg?: string;
+}> {
   const session = await useAppSession();
   if (!session.data.did) {
     throw redirect({ to: "/login" });
   }
-  return { did: session.data.did };
+  return { did: session.data.did, currentOrg: session.data.currentOrg };
 }
 
 // clearSession drops the member DID from the session cookie, ending the
@@ -34,6 +136,16 @@ export async function requireSession(): Promise<{ did: string }> {
 export async function clearSession(): Promise<void> {
   const session = await useAppSession();
   await session.clear();
+}
+
+// setCurrentOrg updates which org (if any) the member is currently acting
+// as — undefined switches back to Personal mode. Mirrors the
+// setCurrentOrgFn session.org-callback.tsx sets right after a fresh OAuth
+// connect; this is the same session write for the already-connected case
+// (the /orgs picker) and for switching back to Personal.
+export async function setCurrentOrg(orgDid: string | undefined): Promise<void> {
+  const session = await useAppSession();
+  await session.update({ currentOrg: orgDid });
 }
 
 // sessionDid resolves the logged-in member's DID without redirecting —
@@ -70,22 +182,20 @@ export async function hasDocAccess(
   }
 }
 
-// docRole resolves the caller's own role on a doc — "editor" if they hold
-// at least writer (also true for the owner/a manager), "viewer" if they
-// only hold reader, null otherwise. Used to keep the client-side editor
-// read-only for viewers; it is not itself an access check (hasDocAccess/
-// the WS route's forbidden response is what actually gates the doc).
+// checkRelation asks pear whether did holds relation on space. A failure
+// (including the check endpoint itself rejecting the caller) is "no" —
+// see hasDocAccess for why both outcomes mean the same thing here.
 async function checkRelation(
   client: SapClient,
   did: string,
-  docId: string,
+  space: string,
   relation: "writer" | "reader",
 ): Promise<boolean> {
   try {
     const res = await client.call<{ allowed: boolean }>(
       "network.habitat.relationship.checkUserRelation",
       "GET",
-      { subject: did, relation, space: docId },
+      { subject: did, relation, space },
     );
     return res.allowed;
   } catch {
@@ -93,12 +203,114 @@ async function checkRelation(
   }
 }
 
+// DocRole is the caller's tier on a doc: an editor can change the
+// document itself, a commenter can only add comments to it, a viewer can
+// only read. null is no access at all.
+export type DocRole = "editor" | "commenter" | "viewer";
+
+// docRole resolves the caller's own tier on a doc, from three live
+// relation checks:
+//
+//   writer on the doc space      -> editor    (also true of the owner/a manager)
+//   writer on the comments space -> commenter (what a commenter grant writes)
+//   reader on the doc space      -> viewer
+//
+// The order is load-bearing, because the two spaces inherit from each
+// other (see SPACE_RELATIONS): an editor is a comments-space writer too,
+// and a commenter is a doc-space reader too, so a lower tier's check
+// passes for everyone above it. The highest one that matches wins.
+//
+// The three checks are issued together rather than in sequence — one
+// round-trip's latency instead of up to three, and the answer is the same
+// either way.
+//
+// Used to decide what the client offers (an editable editor, a comment
+// box, neither); it is not itself the access gate — hasDocAccess and the
+// WS route's forbidden response are what actually gate the doc, and pear
+// rejects a write from someone who only holds a lower role regardless of
+// what the client renders.
 export async function docRole(
   client: SapClient,
   did: string,
   docId: string,
-): Promise<"editor" | "viewer" | null> {
-  if (await checkRelation(client, did, docId, "writer")) return "editor";
-  if (await checkRelation(client, did, docId, "reader")) return "viewer";
+): Promise<DocRole | null> {
+  const commentsSpace = commentsSpaceUri(docId);
+  const [isDocWriter, isCommentsWriter, isDocReader] = await Promise.all([
+    checkRelation(client, did, docId, "writer"),
+    commentsSpace
+      ? checkRelation(client, did, commentsSpace, "writer")
+      : Promise.resolve(false),
+    checkRelation(client, did, docId, "reader"),
+  ]);
+  if (isDocWriter) return "editor";
+  if (isCommentsWriter) return "commenter";
+  if (isDocReader) return "viewer";
   return null;
+}
+
+// A userRelation record as network.habitat.relationship.listRelations
+// returns it — only the fields the sharing paths actually read.
+export interface UserRelationView {
+  uri: string;
+  subject: string;
+  relation: string;
+}
+
+// listUserGrants lists the user grants on space — every one, or only
+// subjectDid's when given.
+//
+// A space that doesn't exist holds no grants, rather than being an error:
+// docs created before comments spaces were introduced have none, and pear
+// rejects any relationship query against a missing space as SpaceNotFound
+// (SapClient surfaces the proxied response body in the error message).
+// Without this, every sharing path that also looks at a doc's comments
+// space would fail outright for those docs.
+export async function listUserGrants(
+  client: SapClient,
+  space: string,
+  subjectDid?: string,
+): Promise<UserRelationView[]> {
+  try {
+    const { relations } = await client.call<{
+      relations: UserRelationView[];
+    }>("network.habitat.relationship.listRelations", "GET", {
+      space,
+      subjectType: "user",
+      ...(subjectDid ? { subjectDid } : {}),
+    });
+    return relations;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("SpaceNotFound")) {
+      return [];
+    }
+    throw err;
+  }
+}
+
+// deleteUserGrant removes subjectDid's own grant record on space, if they
+// hold one, returning the deleted record's URI so the caller can drop the
+// matching doc_access row without waiting on the outbox tombstone.
+//
+// deleteRelation takes the relation record's own URI rather than a
+// (did, space) pair, so the URI has to be looked up first — no separate
+// index of grant URIs is kept anywhere.
+//
+// Used both to revoke access outright and, when re-sharing, to clear the
+// grant a subject holds on the *other* of a doc's two spaces: a role
+// change within one space overwrites in place (pear's SetUserRelation
+// keys the record by subject DID and drops the other role's tuples), but
+// commenter lives on the comments space while editor and viewer live on
+// the doc space, so changing across that line would otherwise leave the
+// old grant standing alongside the new one.
+export async function deleteUserGrant(
+  client: SapClient,
+  space: string,
+  subjectDid: string,
+): Promise<string | undefined> {
+  const [relation] = await listUserGrants(client, space, subjectDid);
+  if (!relation) return undefined;
+  await client.call("network.habitat.relationship.deleteRelation", "POST", {
+    uri: relation.uri,
+  });
+  return relation.uri;
 }

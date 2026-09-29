@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,6 +19,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/pkg/sap"
 )
@@ -49,6 +52,14 @@ type server struct {
 
 	mu              sync.Mutex
 	pendingReturnTo map[string]string // DID string -> return_to URL
+	clientMetadata  ConfiguredClientMetadata
+
+	// identityResolverURL is the base URL of the identity service sap
+	// resolves identities through (the --identity-resolver flag), or empty
+	// when sap uses the public network. Only a Habitat instance resolves
+	// work emails, so email sign-in requires it.
+	identityResolverURL string
+	httpClient          *http.Client
 }
 
 // endpoint is sap's own public base URL (the same value passed as
@@ -59,6 +70,8 @@ func NewSapServer(
 	sapInstance *sap.Sap,
 	oauthClient *oauth.ClientApp,
 	endpoint string,
+	clientMetadata ConfiguredClientMetadata,
+	identityResolverURL string,
 ) *server {
 	return &server{
 		sap:         sapInstance,
@@ -71,7 +84,60 @@ func NewSapServer(
 		outboxPongWait:   defaultOutboxPongWait,
 		outboxWriteWait:  defaultOutboxWriteWait,
 		pendingReturnTo:  make(map[string]string),
+		clientMetadata:   clientMetadata,
+
+		identityResolverURL: strings.TrimSuffix(identityResolverURL, "/"),
+		httpClient:          httpx.NewClient(),
 	}
+}
+
+var (
+	// errEmailSignInUnsupported is returned by resolveEmail when sap has no
+	// identity resolver configured to resolve emails through.
+	errEmailSignInUnsupported = errors.New("email sign-in requires an identity resolver")
+	// errEmailNotFound is returned by resolveEmail when no identity exists
+	// or can be provisioned for an email, i.e. its domain isn't mapped to
+	// an org.
+	errEmailNotFound = errors.New("no identity for email")
+)
+
+// resolveEmail resolves a work email to the DID provisioned for it through
+// the identity resolver's com.atproto.identity.resolveIdentity, which a
+// Habitat instance extends to accept work emails (minting an identity on first
+// sight). indigo's apidir can't be used for this: its Lookup only takes an
+// at-identifier.
+func (s *server) resolveEmail(ctx context.Context, email emaildomain.Email) (syntax.DID, error) {
+	if s.identityResolverURL == "" {
+		return "", errEmailSignInUnsupported
+	}
+	u := s.identityResolverURL + "/xrpc/com.atproto.identity.resolveIdentity?" +
+		url.Values{"identifier": {string(email)}}.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
+	if err != nil {
+		return "", fmt.Errorf("build resolve request: %w", err)
+	}
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("resolve email: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusNotFound {
+		return "", errEmailNotFound
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("resolve email: unexpected status %d", resp.StatusCode)
+	}
+	var body struct {
+		DID string `json:"did"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return "", fmt.Errorf("decode resolved identity: %w", err)
+	}
+	did, err := syntax.ParseDID(body.DID)
+	if err != nil {
+		return "", fmt.Errorf("resolved identity has invalid DID: %w", err)
+	}
+	return did, nil
 }
 
 func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -88,6 +154,27 @@ func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// identifier is what's handed to StartAuthFlow. A work email isn't an
+	// at-identifier, so StartAuthFlow can't take it directly: resolve it to
+	// its provisioned DID first. The Habitat instance then routes that DID's
+	// sign-in through its email domain's login method (e.g. Google).
+	identifier := req.Handle
+	if email, err := emaildomain.ParseEmail(req.Handle); err == nil {
+		did, err := s.resolveEmail(r.Context(), email)
+		switch {
+		case errors.Is(err, errEmailSignInUnsupported):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		case errors.Is(err, errEmailNotFound):
+			http.Error(w, "email domain is not set up for sign-in", http.StatusNotFound)
+			return
+		case err != nil:
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		identifier = did.String()
+	}
+
 	// oauth.ClientApp.StartAuthFlow has no hook to carry caller state through
 	// the OAuth state param and doesn't return the resolved DID, so when the
 	// caller wants to be redirected back we resolve the identifier to a DID
@@ -96,7 +183,7 @@ func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
 	// Resolution failures here must not block the StartAuthFlow call below —
 	// they just mean the caller won't get redirected back.
 	if req.ReturnTo != "" {
-		if atid, err := syntax.ParseAtIdentifier(req.Handle); err == nil {
+		if atid, err := syntax.ParseAtIdentifier(identifier); err == nil {
 			if ident, err := s.oauthClient.Dir.Lookup(r.Context(), atid); err == nil {
 				s.mu.Lock()
 				s.pendingReturnTo[ident.DID.String()] = req.ReturnTo
@@ -105,7 +192,7 @@ func (s *server) handleAddSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	redirectURL, err := s.oauthClient.StartAuthFlow(r.Context(), req.Handle)
+	redirectURL, err := s.oauthClient.StartAuthFlow(r.Context(), identifier)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("start auth flow: %s", err), http.StatusInternalServerError)
 		return
@@ -166,6 +253,27 @@ func (s *server) handleTrackSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// handleSpaceCredential returns a space credential for the space query param,
+// and the space host it is valid against, via Sap.SpaceCredential — minted
+// through whichever tracked session has recorded access to the space, so a
+// caller with no session of its own for the space (e.g. chalk reading a doc's
+// blob while handling an outbox webhook) can read the space's host directly.
+func (s *server) handleSpaceCredential(w http.ResponseWriter, r *http.Request) {
+	space, ok := httpx.ParseSpaceURIInput(r.Context(), w, r.URL.Query().Get("space"), "space")
+	if !ok {
+		return
+	}
+	cred, err := s.sap.SpaceCredential(r.Context(), space)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("space credential: %s", err), http.StatusBadGateway)
+		return
+	}
+	httpx.WriteJSON(r.Context(), w, map[string]string{
+		"credential": cred.Token,
+		"host":       cred.Host,
+	})
 }
 
 // handleRecrawl retriggers a crawl for a session via Sap.Recrawl, discarding
@@ -409,9 +517,13 @@ func basicAuthMiddleware(secret string, next http.Handler) http.Handler {
 
 func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
 	metadata := s.oauthClient.Config.ClientMetadata()
-	if s.oauthClient.Config.IsConfidential() {
-		jwks := s.oauthClient.Config.PublicJWKS()
-		metadata.JWKS = &jwks
+	jwks := s.oauthClient.Config.PublicJWKS()
+	metadata.JWKS = &jwks
+	if s.clientMetadata.Name != "" {
+		metadata.ClientName = &s.clientMetadata.Name
+	}
+	if s.clientMetadata.URI != "" {
+		metadata.ClientURI = &s.clientMetadata.URI
 	}
 	httpx.WriteJSON(r.Context(), w, metadata)
 }

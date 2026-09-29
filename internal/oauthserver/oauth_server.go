@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,7 +21,10 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
@@ -37,6 +41,7 @@ const (
 
 	disambiguationPath = "/ui/login/disambiguate"
 	consentPath        = "/ui/login/consent"
+	opensocialPath     = "/ui/login/opensocial"
 
 	// requestKeyCookie holds the opaque key of the in-flight authorization
 	// request row. It is what lets the callback find the request without
@@ -46,6 +51,12 @@ const (
 	// providerStateCookie holds the opaque login-provider state for one redirect hop.
 	providerStateCookie = "provider_state"
 )
+
+// EmailIdentityResolver resolves a work email typed as a login hint to the
+// identity provisioned for it (see identity.EmailResolver).
+type EmailIdentityResolver interface {
+	ResolveEmailIdentity(ctx context.Context, email emaildomain.Email) (*identity.Identity, error)
+}
 
 // OAuthServer implements an OAuth 2.0 authorization server with AT Protocol integration.
 // It handles OAuth authorization flows, token issuance, and integrates with DPoP
@@ -66,7 +77,11 @@ type OAuthServer struct {
 	sessionStore sessions.Store
 
 	// issuer origin (https URL, no path) the discovery metadata is built from.
-	issuer string
+	issuer          string
+	opensocialStore *opensocial.Store
+
+	// emailResolver, if set, lets login hints be work emails.
+	emailResolver EmailIdentityResolver
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -86,6 +101,11 @@ type OAuthServer struct {
 //   - issuer: this server's issuer origin (an https URL with no path), from
 //     which the endpoint URLs in the discovery metadata and the token endpoint
 //     URL (used to validate the "aud" claim of JWT Bearer assertions) are built
+//   - emailResolver: resolves work-email login hints; nil disables them
+//
+// loginRouter also drives the sign-in step for the MCP endpoints' handle
+// prompt (see HandleMCPAuthorizeSubmit): both endpoint sets authenticate the
+// user the same way, through whichever login method their org configures.
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
@@ -97,6 +117,8 @@ func NewOAuthServer(
 	orgStore org.Store,
 	issuer string,
 	approvedJwtBearerClients ApprovedClientStore,
+	opensocialStore *opensocial.Store,
+	emailResolver EmailIdentityResolver,
 ) (*OAuthServer, error) {
 	config := &fosite.Config{
 		GlobalSecret:               secret,
@@ -108,6 +130,11 @@ func NewOAuthServer(
 		// claim of the assertion (checked against jwtBearerAllowedClients),
 		// so a separate client_id/secret on the token request isn't required.
 		GrantTypeJWTBearerCanSkipClientAuth: true,
+		// Every client this server issues tokens to is public (atproto
+		// client-id metadata clients and RFC 7591-registered MCP clients
+		// alike), so PKCE is mandatory across both endpoint sets.
+		EnforcePKCE:                 true,
+		EnforcePKCEForPublicClients: true,
 	}
 
 	privateKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), secret)
@@ -117,7 +144,7 @@ func NewOAuthServer(
 	strategy := compose.NewOAuth2JWTStrategy(func(ctx context.Context) (any, error) {
 		return privateKey, nil
 	}, oauth2.NewHMACSHAStrategy(&hmac.HMACStrategy{Config: config}, config), config)
-	storage, err := newStore(db, approvedJwtBearerClients)
+	storage, err := newStore(db, approvedJwtBearerClients, clientmetadata.NewResolver())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}
@@ -153,12 +180,14 @@ func NewOAuthServer(
 			compose.RFC7523AssertionGrantFactory,
 			compose.PushedAuthorizeHandlerFactory,
 		),
-		loginRouter:  loginRouter,
-		sessionStore: cookieStore,
-		directory:    directory,
-		storage:      storage,
-		orgStore:     orgStore,
-		issuer:       issuer,
+		loginRouter:     loginRouter,
+		sessionStore:    cookieStore,
+		directory:       directory,
+		storage:         storage,
+		orgStore:        orgStore,
+		issuer:          issuer,
+		opensocialStore: opensocialStore,
+		emailResolver:   emailResolver,
 	}, nil
 }
 
@@ -206,6 +235,21 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, disambiguationPath, http.StatusSeeOther)
 		return
 	}
+	isOpensocialOrg, err := o.opensocialStore.IsOrg(ctx, did)
+	if err != nil {
+		o.metrics.authorizeErr(ctx, err, "check_opensocial_org")
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to check opensocial org: %w", err))
+		return
+	}
+	if isOpensocialOrg {
+		if err := session.Save(r, w); err != nil {
+			o.metrics.authorizeErr(ctx, err, "save_cookie")
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
+			return
+		}
+		http.Redirect(w, r, opensocialPath, http.StatusSeeOther)
+		return
+	}
 	redirect, providerState, err := o.loginRouter.Authorize(
 		ctx,
 		syntax.DID(requester.GetSession().GetSubject()),
@@ -240,7 +284,8 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 		if loginHint == "" {
 			loginHint = r.URL.Query().Get("handle")
 		}
-		did, err := o.resolveLoginHint(loginHint)
+		o.normalizeLoopbackRedirect(ctx, r.Form)
+		did, err := o.resolveLoginHint(ctx, loginHint)
 		if err != nil {
 			httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 			return nil, ""
@@ -265,7 +310,7 @@ func (o *OAuthServer) retrieveAuthorizeRequest(
 	}
 	requestKey, _ := cookieSession.Values[requestKeyCookie].(string)
 	if r.FormValue("disambiguation") != "" {
-		did, err := o.resolveLoginHint(r.FormValue("disambiguation"))
+		did, err := o.resolveLoginHint(ctx, r.FormValue("disambiguation"))
 		if err != nil {
 			httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 			return nil, ""
@@ -307,7 +352,10 @@ func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 		// ParseMultipartForm call in there skip parsing the JSON body.
 		r.Form = body.formValues()
 	}
-	did, err := o.resolveLoginHint(r.FormValue("login_hint"))
+	if err := r.ParseForm(); err == nil {
+		o.normalizeLoopbackRedirect(ctx, r.Form)
+	}
+	did, err := o.resolveLoginHint(ctx, r.FormValue("login_hint"))
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to resolve login hint", err)
 		return
@@ -326,14 +374,23 @@ func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
 	o.provider.WritePushedAuthorizeResponse(ctx, w, req, resp)
 }
 
-func (o *OAuthServer) resolveLoginHint(loginHint string) (syntax.DID, error) {
+func (o *OAuthServer) resolveLoginHint(ctx context.Context, loginHint string) (syntax.DID, error) {
 	if loginHint == "" {
 		return "", nil
 	}
 	if atid, err := syntax.ParseAtIdentifier(loginHint); err == nil {
-		id, err := o.directory.Lookup(context.Background(), atid)
+		id, err := o.directory.Lookup(ctx, atid)
 		if err != nil {
 			return "", fmt.Errorf("failed to lookup handle: %w", err)
+		}
+		return id.DID, nil
+	}
+	// A work email resolves (minting on first sight) to the identity
+	// provisioned for it in its domain's org; see identity.EmailResolver.
+	if email, err := emaildomain.ParseEmail(loginHint); err == nil && o.emailResolver != nil {
+		id, err := o.emailResolver.ResolveEmailIdentity(ctx, email)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve email: %w", err)
 		}
 		return id.DID, nil
 	}
@@ -374,7 +431,23 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	cookie.Values[providerStateCookie] = nil
 	did := syntax.DID(requester.GetSession().GetSubject())
 
-	if err := o.loginRouter.Exchange(ctx, did, r.URL.Query(), providerState); err != nil {
+	isOpensocialOrg, err := o.opensocialStore.IsOrg(ctx, did)
+	if err != nil {
+		o.metrics.callbackErr(ctx, err, "check_opensocial_org")
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to check opensocial org: %w", err))
+		return
+	}
+	if isOpensocialOrg {
+		// The org DID isn't tracked by org.Store, so loginRouter.Exchange's
+		// org/member branching doesn't apply here — the admin's membership
+		// was already verified by HandleOpensocial before this PDS login
+		// began, and the subject stays the org DID throughout.
+		if _, err := o.loginRouter.Pds.Exchange(ctx, r.URL.Query(), providerState); err != nil {
+			o.metrics.callbackErr(ctx, err, "complete_login")
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
+			return
+		}
+	} else if err := o.loginRouter.Exchange(ctx, did, r.URL.Query(), providerState); err != nil {
 		o.metrics.callbackErr(ctx, err, "complete_login")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
 		return
@@ -383,12 +456,26 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Nothing for the user to approve: finish the flow immediately instead of
 	// bouncing through the consent page.
 	if len(requester.GetRequestedScopes()) == 0 {
-		o.finishAuthorize(ctx, w, requestKey, requester)
+		o.finishAuthorize(ctx, w, requestKey, requester, o.issuerFor(requester.GetClient()))
 		return
 	}
 
 	http.Redirect(w, r, consentPath, http.StatusSeeOther)
 	o.metrics.callbackSuccess()
+}
+
+// issuerFor returns the "iss" this server should identify itself as for an
+// authorize response, which depends on which endpoint set the client
+// belongs to: a client dynamically registered through the MCP endpoints
+// (see HandleMCPRegister) gets the MCP issuer, everything else (atproto
+// client-id metadata and JWT-bearer allow-listed clients) gets the atproto
+// one. The two endpoint sets otherwise share this exact same authorize/token
+// pipeline — see HandleCallback and HandleToken.
+func (o *OAuthServer) issuerFor(client fosite.Client) string {
+	if _, ok := client.(*dynamicClient); ok {
+		return o.MCPIssuer()
+	}
+	return o.issuer
 }
 
 // HandleToken processes OAuth 2.0 token requests from the client.
@@ -421,6 +508,9 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		// r.Form from it plus the URL query, rather than parsing the body.
 		r.PostForm = body.formValues()
 	}
+	if err := r.ParseForm(); err == nil {
+		o.normalizeLoopbackRedirect(ctx, r.PostForm)
+	}
 	req, err := o.provider.NewAccessRequest(ctx, r, newSession())
 	if err != nil {
 		logError(ctx, err)
@@ -436,13 +526,38 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
 	}
+	if req.GetGrantTypes().ExactOne("authorization_code") {
+		subjectDID := syntax.DID(req.GetSession().GetSubject())
+		isOpensocialOrg, err := o.opensocialStore.IsOrg(ctx, subjectDID)
+		if err != nil {
+			logError(ctx, err)
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to check opensocial org: %w", err))
+			return
+		}
+		if isOpensocialOrg {
+			clientID := req.GetClient().GetID()
+			grantedScopes := []string(req.GetGrantedScopes())
+			if err := o.opensocialStore.GrantAppAccess(
+				ctx, subjectDID, clientID, grantedScopes,
+			); err != nil {
+				logError(ctx, err)
+				httpx.WriteServerError(ctx, w, fmt.Errorf("failed to grant app access: %w", err))
+				return
+			}
+		}
+	}
 	resp.SetExtra("sub", req.GetSession().GetSubject())
 	// The atproto OAuth client requires DPoP-bound tokens and rejects any
-	// token_type other than "DPoP". Habitat does not yet enforce DPoP
-	// server-side (tokens remain bearer tokens in practice), but we advertise
-	// the DPoP token type so atproto clients accept the response.
+	// token_type other than "DPoP"; MCP clients expect plain bearer tokens.
+	// Habitat does not yet enforce DPoP server-side (tokens remain bearer
+	// tokens in practice either way), but we advertise the type each client
+	// kind expects.
 	// TODO: implement real DPoP proof validation and key binding.
-	resp.SetTokenType("DPoP")
+	tokenType := "DPoP"
+	if _, ok := req.GetClient().(*dynamicClient); ok {
+		tokenType = "Bearer"
+	}
+	resp.SetTokenType(tokenType)
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
@@ -468,37 +583,33 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodGet {
-		c, _ := requester.GetClient().(*client)
-		var clientName, clientURI, logoURI string
-		if c.ClientName != nil {
-			clientName = *c.ClientName
-		}
-		if c.ClientURI != nil {
-			clientURI = *c.ClientURI
-		}
-		if c.LogoURI != nil {
-			logoURI = *c.LogoURI
-		}
+		c, _ := requester.GetClient().(clientDisplay)
 		httpx.WriteJSON(ctx, w, map[string]any{
 			"scopes":     requester.GetRequestedScopes(),
-			"clientName": clientName,
-			"clientUri":  clientURI,
-			"logoUri":    logoURI,
+			"clientId":   requester.GetClient().GetID(),
+			"clientName": c.displayName(),
+			"clientUri":  c.displayURI(),
+			"logoUri":    c.logoURI(),
+			"tosUri":     c.tosURI(),
+			"policyUri":  c.policyURI(),
 		})
 		return
 	}
-	o.finishAuthorize(ctx, w, requestKey, requester)
+	o.finishAuthorize(ctx, w, requestKey, requester, o.issuerFor(requester.GetClient()))
 }
 
 // finishAuthorize grants the requester's requested scopes and writes the
 // fosite authorize response, redirecting the user agent back to the client
 // application with an authorization code. It deletes the underlying PAR
-// session, since the authorization request is now complete.
+// session, since the authorization request is now complete. issuer is the
+// "iss" parameter added to the response (RFC 9207): the atproto endpoints
+// pass o.issuer, the MCP endpoints o.MCPIssuer().
 func (o *OAuthServer) finishAuthorize(
 	ctx context.Context,
 	w http.ResponseWriter,
 	requestKey string,
 	requester fosite.AuthorizeRequester,
+	issuer string,
 ) {
 	if err := o.storage.DeletePARSession(ctx, requestKey); err != nil {
 		o.metrics.callbackErr(ctx, err, "delete_request")
@@ -527,7 +638,7 @@ func (o *OAuthServer) finishAuthorize(
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to create response: %w", err))
 		return
 	}
-	resp.AddParameter("iss", o.issuer)
+	resp.AddParameter("iss", issuer)
 	o.provider.WriteAuthorizeResponse(ctx, w, requester, resp)
 	o.metrics.callbackSuccess()
 }
@@ -618,7 +729,10 @@ func (o *OAuthServer) ValidateRaw(
 		return nil, false, fmt.Errorf("DID not found in JWT")
 	}
 
-	credInfo := &authn.CredentialInfo{Subject: syntax.DID(did)}
+	credInfo := &authn.CredentialInfo{
+		Subject: syntax.DID(did),
+		Method:  authn.ValidatorMethodOAuth,
+	}
 
 	org, err := o.orgStore.GetOrgForDID(ctx, syntax.DID(did))
 	if err != nil {
@@ -658,8 +772,8 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var output habitat.NetworkHabitatListConnectedAppsOutput
-	output.Apps = make([]habitat.NetworkHabitatListConnectedAppsApp, len(rows))
-	for i, row := range rows {
+	output.Apps = make([]habitat.NetworkHabitatListConnectedAppsApp, 0, len(rows))
+	for _, row := range rows {
 		fositeClient, err := o.storage.GetClient(ctx, row.ClientID)
 		if err != nil {
 			slog.WarnContext(
@@ -673,24 +787,78 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 			continue
 		}
 
-		c := fositeClient.(*client)
-		var clientName, clientURI, logoURI string
-		if c.ClientName != nil {
-			clientName = *c.ClientName
-		}
-		if c.ClientURI != nil {
-			clientURI = *c.ClientURI
-		}
-		if c.LogoURI != nil {
-			logoURI = *c.LogoURI
-		}
-		output.Apps[i] = habitat.NetworkHabitatListConnectedAppsApp{
+		c, _ := fositeClient.(clientDisplay)
+		output.Apps = append(output.Apps, habitat.NetworkHabitatListConnectedAppsApp{
 			ClientID:  row.ClientID,
-			ClientUri: clientURI,
+			ClientUri: c.displayURI(),
 			LastUsed:  row.UpdatedAt.Format(time.RFC3339Nano),
-			Name:      clientName,
-			LogoUri:   logoURI,
-		}
+			Name:      c.displayName(),
+			LogoUri:   c.logoURI(),
+		})
 	}
 	httpx.WriteJSON(ctx, w, output)
+}
+
+func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	session, err := o.sessionStore.Get(r, sessionName)
+	if err != nil {
+		o.metrics.callbackErr(ctx, err, "get_cookie")
+		httpx.WriteInvalidRequest(ctx, w, "failed to get cookie", err)
+		return
+	}
+	requester, _ := o.retrieveAuthorizeRequest(w, r, session)
+	if requester == nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to get authorize request", nil)
+		return
+	}
+	orgDID := syntax.DID(requester.GetSession().GetSubject())
+	if r.Method == http.MethodGet {
+		profile, err := o.opensocialStore.GetProfile(ctx, orgDID)
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get profile: %w", err))
+			return
+		}
+
+		c, _ := requester.GetClient().(clientDisplay)
+		httpx.WriteJSON(ctx, w, map[string]any{
+			"orgProfile": profile,
+			"clientName": c.displayName(),
+			"clientUri":  c.displayURI(),
+			"logoUri":    c.logoURI(),
+		})
+		return
+	}
+	atID, err := syntax.ParseAtIdentifier(r.FormValue("handle"))
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "invalid handle", err)
+		return
+	}
+	memberID, err := o.directory.Lookup(ctx, atID)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to resolve handle", err)
+		return
+	}
+	roles, err := o.opensocialStore.GetUserRoles(ctx, orgDID, memberID.DID)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get user roles: %w", err))
+		return
+	}
+	if !slices.Contains(roles, opensocial.AdminRoleRkey) {
+		httpx.WriteUnauthorized(ctx, w, "not an admin of this org", nil)
+		return
+	}
+	redirectURL, providerState, err := o.loginRouter.Pds.Authorize(ctx, memberID.DID.String())
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get authorize url: %w", err))
+		return
+	}
+	session.Values[providerStateCookie] = providerState
+	if err := session.Save(r, w); err != nil {
+		o.metrics.callbackErr(ctx, err, "save_cookie")
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
+		return
+	}
+
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }

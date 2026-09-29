@@ -30,12 +30,13 @@ func recordPath(collection syntax.NSID, rkey syntax.RecordKey) string {
 // CAR's first root, matching network.habitat.space.defs#signedCommit.
 func signedCommitBlock(c spacecommit.SignedCommit) ([]byte, cid.Cid, error) {
 	commit := map[string]any{
-		"ver":  int64(c.Ver),
-		"hash": atdata.Bytes(c.Hash),
-		"ikm":  atdata.Bytes(c.Ikm),
-		"sig":  atdata.Bytes(c.Sig),
-		"mac":  atdata.Bytes(c.Mac),
-		"rev":  c.Rev,
+		"ver":           int64(c.Ver),
+		"hash":          atdata.Bytes(c.Hash),
+		"ikm":           atdata.Bytes(c.Ikm),
+		"sig":           atdata.Bytes(c.Sig),
+		"mac":           atdata.Bytes(c.Mac),
+		"rev":           c.Rev,
+		"habitatSigned": c.HabitatSigned,
 	}
 	bytes, err := atdata.MarshalCBOR(commit)
 	if err != nil {

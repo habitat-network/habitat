@@ -3,17 +3,17 @@ package login
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
 	"time"
 
-	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
+
+	"github.com/habitat-network/habitat/internal/encrypt"
 )
 
 type Credentials struct {
@@ -110,22 +110,22 @@ func (p *googleProvider) Exchange(
 		return "", fmt.Errorf("no id_token in google token response")
 	}
 
-	email, err := verifyGoogleIDToken(idToken, p.oauthCfg.ClientID)
+	claims, err := verifyGoogleIDToken(idToken, p.oauthCfg.ClientID)
 	if err != nil {
 		return "", fmt.Errorf("verify google id token: %w", err)
 	}
 
-	if err := p.upsertCredentials(ctx, email, &Credentials{
+	if err := p.upsertCredentials(ctx, claims.Email, &Credentials{
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		Expiry:       token.Expiry,
 		IDToken:      idToken,
-		Email:        email,
+		Email:        claims.Email,
 	}); err != nil {
 		return "", fmt.Errorf("store google credentials: %w", err)
 	}
 
-	return email, nil
+	return claims.Email, nil
 }
 
 type googleCredentialsModel struct {
@@ -189,53 +189,48 @@ func (p *googleProvider) GetCredentials(
 	}, nil
 }
 
+// googleIDTokenLeeway is the clock-skew allowance applied to iat/exp
+// comparisons against wall-clock now.
+const googleIDTokenLeeway = 60 * time.Second
+
 type googleIDTokenClaims struct {
-	Iss           string `json:"iss"`
-	Aud           string `json:"aud"`
-	Sub           string `json:"sub"`
 	Email         string `json:"email"`
 	EmailVerified bool   `json:"email_verified"`
 	Name          string `json:"name"`
 	Picture       string `json:"picture"`
-	Iat           int64  `json:"iat"`
-	Exp           int64  `json:"exp"`
+	jwt.RegisteredClaims
 }
 
-func verifyGoogleIDToken(idToken, clientID string) (string, error) {
-	parts := strings.Split(idToken, ".")
-	if len(parts) != 3 {
-		return "", fmt.Errorf("invalid id token: expected 3 segments, got %d", len(parts))
-	}
-
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "", fmt.Errorf("decode id token payload: %w", err)
-	}
-
+// verifyGoogleIDToken decodes idToken's claims and checks them: audience,
+// expiration/issued-at (via jwt/v5's claim validator), issuer, and that the
+// email is present and verified. It does not verify the token's signature:
+// idToken comes straight from Google's token endpoint in the server-to-server
+// code exchange above (oauthCfg.Exchange, authenticated with our client
+// secret), not from a redirect or POST an untrusted party could tamper with.
+func verifyGoogleIDToken(idToken, clientID string) (googleIDTokenClaims, error) {
 	var claims googleIDTokenClaims
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return "", fmt.Errorf("parse id token claims: %w", err)
+	if _, _, err := jwt.NewParser().ParseUnverified(idToken, &claims); err != nil {
+		return googleIDTokenClaims{}, fmt.Errorf("parse id token: %w", err)
 	}
-
-	if claims.Iss != "https://accounts.google.com" && claims.Iss != "accounts.google.com" {
-		return "", fmt.Errorf("unexpected id token issuer: %s", claims.Iss)
+	validator := jwt.NewValidator(
+		jwt.WithAudience(clientID),
+		jwt.WithExpirationRequired(),
+		jwt.WithIssuedAt(),
+		jwt.WithLeeway(googleIDTokenLeeway),
+	)
+	if err := validator.Validate(claims); err != nil {
+		return googleIDTokenClaims{}, fmt.Errorf("validate id token claims: %w", err)
 	}
-	if claims.Aud != clientID {
-		return "", fmt.Errorf(
-			"id token audience mismatch: got %s, expected %s",
-			claims.Aud,
-			clientID,
-		)
-	}
-	if claims.Exp > 0 && time.Now().Unix() > claims.Exp {
-		return "", fmt.Errorf("id token expired")
+	// Google issues ID tokens under two issuer spellings, so this can't use
+	// jwt.WithIssuer, which accepts only one.
+	if claims.Issuer != "https://accounts.google.com" && claims.Issuer != "accounts.google.com" {
+		return googleIDTokenClaims{}, fmt.Errorf("unexpected id token issuer: %s", claims.Issuer)
 	}
 	if !claims.EmailVerified {
-		return "", fmt.Errorf("google email not verified")
+		return googleIDTokenClaims{}, fmt.Errorf("google email not verified")
 	}
 	if claims.Email == "" {
-		return "", fmt.Errorf("no email in google id token")
+		return googleIDTokenClaims{}, fmt.Errorf("no email in google id token")
 	}
-
-	return claims.Email, nil
+	return claims, nil
 }

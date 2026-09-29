@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { getProfiles, HabitatLogo, UserAvatar, type Actor } from "internal";
+import { HabitatLogo, UserAvatar, UserDisplayName, type Actor } from "internal";
 import {
   Table,
   TableHeader,
@@ -10,23 +10,15 @@ import {
   TableCell,
 } from "internal/components/ui";
 import { PageHeader } from "@/components/PageHeader";
+import { Route as RequireAuthRoute } from "@/routes/_requireAuth";
 import { listDocs } from "@/server/functions";
+import { useActors } from "internal/hooks";
 
-function ownerLabel(owner: Actor | undefined, ownerDid: string): string {
-  return owner?.displayName || owner?.handle || ownerDid;
-}
-
-function OwnerCell({
-  owner,
-  ownerDid,
-}: {
-  owner: Actor | undefined;
-  ownerDid: string;
-}) {
+function OwnerCell({ owner }: { owner: Actor }) {
   return (
     <div className="flex items-center gap-2">
-      <UserAvatar size="sm" actor={owner ?? { did: ownerDid }} />
-      <span>{ownerLabel(owner, ownerDid)}</span>
+      <UserAvatar size="sm" actor={owner} />
+      <UserDisplayName actor={owner} />
     </div>
   );
 }
@@ -37,14 +29,15 @@ export const Route = createFileRoute("/_requireAuth/")({
       queryKey: ["docs"],
       queryFn: () => listDocs(),
     });
+    // In org mode every doc listed belongs to the org, so an owner column
+    // would repeat the same org on every row.
+    const { currentOrg } = RequireAuthRoute.useLoaderData();
+    const showOwner = !currentOrg;
 
-    const ownerDids = [...new Set(docs.map((doc) => doc.ownerDid))];
-    const { data: owners = [] } = useQuery({
-      queryKey: ["profiles", ownerDids],
-      queryFn: () => getProfiles(ownerDids),
-      enabled: ownerDids.length > 0,
-    });
-    const ownersByDid = new Map(owners.map((owner) => [owner.did, owner]));
+    // No owner column in org mode, so no profiles to look up either.
+    const getOwner = useActors(
+      showOwner ? docs.map((doc) => doc.ownerDid) : [],
+    );
 
     return (
       <div className="flex flex-col h-full">
@@ -68,7 +61,7 @@ export const Route = createFileRoute("/_requireAuth/")({
             <TableHeader>
               <TableRow>
                 <TableHead>Document</TableHead>
-                <TableHead>Owner</TableHead>
+                {showOwner && <TableHead>Owner</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -83,12 +76,11 @@ export const Route = createFileRoute("/_requireAuth/")({
                       {doc.title}
                     </Link>
                   </TableCell>
-                  <TableCell>
-                    <OwnerCell
-                      owner={ownersByDid.get(doc.ownerDid)}
-                      ownerDid={doc.ownerDid}
-                    />
-                  </TableCell>
+                  {showOwner && (
+                    <TableCell>
+                      <OwnerCell owner={getOwner(doc.ownerDid)} />
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

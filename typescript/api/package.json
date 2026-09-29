@@ -10,14 +10,8 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@11.25.0",
+  "packageManager": "pnpm@11.27.1",
   "dependencies": {
-    "@atproto/api": "catalog:",
-    "@atproto/lexicon": "catalog:",
-    "@atproto/xrpc": "catalog:",
-    "multiformats": "catalog:"
-  },
-  "devDependencies": {
-    "@atproto/lex-cli": "^0.10.6"
+    "@atproto/lex": "catalog:"
   }
 }

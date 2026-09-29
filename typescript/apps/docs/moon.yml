@@ -1,4 +1,8 @@
 layer: application
+workspace:
+  inheritedTasks:
+    exclude:
+      - test
 tasks:
   dev:
     env:

@@ -1,7 +1,15 @@
 // Components
 export { default as AuthForm } from "./AuthForm";
+export {
+  default as SignInForm,
+  EMAIL_DOMAIN_NOT_FOUND_MESSAGE,
+} from "./SignInForm";
 export { UserAvatar } from "./components/UserAvatar";
 export type { UserAvatarProps } from "./components/UserAvatar";
+export { UserDisplayName } from "./components/UserDisplayName";
+export type { UserDisplayNameProps } from "./components/UserDisplayName";
+export { OrgAvatar } from "./components/OrgAvatar";
+export type { OrgAvatarProps } from "./components/OrgAvatar";
 export { default as UserCombobox } from "./components/UserCombobox";
 export { SingleHandleCombobox } from "./components/SingleHandleCombobox";
 export type { Actor } from "./types/Actor";
@@ -16,7 +24,13 @@ export type {
 export { default as ShareDialogV2 } from "./components/ShareDialogV2";
 export { default as GroupCombobox } from "./components/GroupCombobox";
 export type { GroupView } from "./components/GroupCombobox";
-export { resolveHandleToDid, resolveDidToHandle } from "./atprotoDirectory";
+export {
+  resolveHandleToDid,
+  resolveDidToHandle,
+  resolveSpaceHost,
+  resolveDidService,
+} from "./atprotoDirectory";
+export { createDpopProof } from "./dpop";
 export {
   SidebarGroup,
   SidebarGroupLabel,
@@ -38,25 +52,21 @@ export {
 } from "./components/ui/dialog";
 export { Button } from "./components/ui/button";
 export { Input } from "./components/ui/input";
+// Managers and Sessions. Type-only: AuthManager's browser OAuth client opens a
+// BroadcastChannel as soon as it loads, which breaks non-browser runtimes
+// (e.g. chalk's worker) that import this entry point. Construct one via the
+// "internal/auth" entry point instead.
+export type { AuthManager } from "./authManager";
 export {
-  // Managers and Sessions
-  AuthManager,
-  UnauthenticatedError,
-} from "./authManager";
-export {
-  query,
-  procedure,
+  anonymousAgentFor,
   castRecord,
   listPrivateRecords,
   getPrivateRecord,
-  XRPCError,
-} from "./habitatClient";
-export type { TypedRecord } from "./habitatClient";
+} from "./rpc";
+export type { TypedRecord, ListRecordsResponse } from "./rpc";
 export { default as GranteeAvatars } from "./components/GranteeAvatars";
 
 // Utilities
-export { parseSpaceURI, constructSpaceURI } from "./syntax";
-export type { SpaceURIParts } from "./syntax";
 export { default as clientMetadata } from "./clientMetadata";
 export { default as reportWebVitals } from "./reportWebVitals";
 export {

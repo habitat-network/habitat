@@ -1,0 +1,38 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.ejectMember",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Remove a member from the community, revoking their roles and access. Requires service-auth. Requires the `eject` action, bounded by the roles the caller may assign.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org",
+                        "member"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the community to remove the member from."
+                        },
+                        "member": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the member to remove."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "MemberNotFound",
+                    "description": "The given DID is not a member of the community."
+                }
+            ]
+        }
+    }
+}

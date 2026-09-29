@@ -1,13 +1,20 @@
 import type { AuthManager } from "internal";
-import { query } from "internal";
-import { queryOptions } from "@tanstack/react-query";
-import type {
-  CollectionView,
-  RecordView,
-} from "api/types/network/habitat/collections/defs";
+import {
+  xrpc,
+  type DidString,
+  type NsidString,
+  type SpaceRefString,
+} from "@atproto/lex";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import { com, network } from "api";
 import { homeProxyHeaders } from "./groups";
+import { spaceAgent, spaceCredentialQueryOptions } from "./spaceCredential";
 
-export type { CollectionView, RecordView };
+export type CollectionView =
+  network.habitat.collections.listCollections.$OutputBody["collections"][number];
+
+export type RecordView =
+  network.habitat.collections.listRecords.$OutputBody["records"][number];
 
 // collectionsListQueryOptions lists the collections present in the org's synced
 // data with a count of the records the calling user can see in each, as
@@ -16,12 +23,12 @@ export function collectionsListQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["collections"],
     queryFn: async (): Promise<CollectionView[]> => {
-      const { collections } = await query(
-        "network.habitat.collections.listCollections",
-        {},
-        { authManager, headers: homeProxyHeaders() },
+      const response = await xrpc(
+        authManager,
+        network.habitat.collections.listCollections.main,
+        { params: {}, headers: homeProxyHeaders() },
       );
-      return collections;
+      return response.body.collections;
     },
   });
 }
@@ -36,36 +43,48 @@ export function collectionRecordsQueryOptions(
   return queryOptions({
     queryKey: ["collection", collection],
     queryFn: async (): Promise<RecordView[]> => {
-      const { records } = await query(
-        "network.habitat.collections.listRecords",
-        { collection },
-        { authManager, headers: homeProxyHeaders() },
+      const response = await xrpc(
+        authManager,
+        network.habitat.collections.listRecords.main,
+        {
+          params: { collection: collection as NsidString },
+          headers: homeProxyHeaders(),
+        },
       );
-      return records;
+      return response.body.records;
     },
   });
 }
 
-// recordBodyQueryOptions fetches a single record's body directly from pear,
-// from the space it belongs to. The collections index never stores bodies.
+// recordBodyQueryOptions fetches a single record's body from the space it
+// belongs to, via a space credential (see spaceCredentialQueryOptions) routed
+// to that space's own resolved host. The collections index never stores
+// bodies.
 export function recordBodyQueryOptions(
   record: RecordView,
   authManager: AuthManager,
+  queryClient: QueryClient,
 ) {
   return queryOptions({
     queryKey: ["record-body", record.uri],
     queryFn: async (): Promise<unknown> => {
-      const { value } = await query(
-        "network.habitat.space.getRecord",
-        {
-          space: record.space,
-          repo: record.repo,
-          collection: record.collection,
-          rkey: record.rkey,
-        },
-        { authManager },
+      const cred = await queryClient.fetchQuery(
+        spaceCredentialQueryOptions(record.space, authManager),
       );
-      return value;
+      const response = await xrpc(
+        spaceAgent(cred),
+        com.atproto.space.getRecord.main,
+        {
+          validateResponse: false,
+          params: {
+            space: record.space as SpaceRefString,
+            repo: record.repo as DidString,
+            collection: record.collection as NsidString,
+            rkey: record.rkey,
+          },
+        },
+      );
+      return response.body.value as unknown;
     },
   });
 }

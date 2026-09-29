@@ -1,0 +1,53 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.listPendingInvites",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List all pending invites for the org, across all invitees. Requires service-auth. Requires the `invite` action.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "org"
+                ],
+                "properties": {
+                    "org": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "DID of the community to list pending invites for."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 50
+                    },
+                    "cursor": {
+                        "type": "string"
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "invites"
+                    ],
+                    "properties": {
+                        "cursor": {
+                            "type": "string"
+                        },
+                        "invites": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "community.opensocial.defs#inviteView"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

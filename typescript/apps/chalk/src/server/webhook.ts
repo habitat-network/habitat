@@ -1,5 +1,4 @@
-import { processOutboxMessage } from "./outbox";
-import type { OutboxMessage } from "./spaceUri";
+import { processOutboxMessage, type OutboxMessage } from "./outbox";
 
 // handleSapWebhook receives one outbox message POSTed by sap
 // (cmd/sap/webhook.go's webhookConsumer). sap retries a non-2xx response

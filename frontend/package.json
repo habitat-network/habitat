@@ -2,6 +2,7 @@
   "name": "frontend",
   "private": true,
   "type": "module",
+  "description": "The user interface for the Habitat web client.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --build --force && vite build",
@@ -11,6 +12,10 @@
   "dependencies": {
     "@atproto/api": "catalog:",
     "@atproto/identity": "catalog:",
+    "@atproto/lex": "catalog:",
+    "@atproto/oauth-types": "catalog:",
+    "@atproto/syntax": "catalog:",
+    "@nangohq/frontend": "^0.71.10",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-devtools": "catalog:",
@@ -42,6 +47,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-generate-file": "^0.3.1",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "wrangler": "^4.125.0"
   }
 }

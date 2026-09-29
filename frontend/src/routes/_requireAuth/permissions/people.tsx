@@ -1,21 +1,17 @@
 import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { procedure } from "internal";
-import { Permission } from "api/types/network/habitat/permissions/listPermissions";
+import { network } from "api";
 import { useState } from "react";
+import {
+  xrpc,
+  type DidString,
+  type NsidString,
+  type RecordKeyString,
+} from "@atproto/lex";
 
-// Concrete wire types matching what the server's parseGrantees expects
-interface DidGranteeObj {
-  $type: "network.habitat.grantee#didGrantee";
-  did: string;
-}
-
-interface PermissionInput {
-  grantees: DidGranteeObj[];
-  collection: string;
-  rkey?: string;
-}
+// Matches addPermission/removePermission input bodies from the generated API.
+type PermissionInput = network.habitat.permissions.addPermission.$InputBody;
 
 export const Route = createFileRoute("/_requireAuth/permissions/people")({
   async loader({ context }) {
@@ -39,7 +35,7 @@ function PeoplePermissions() {
   };
 
   const byPerson = (data.permissions ?? []).reduce<
-    Record<string, Permission[]>
+    Record<string, network.habitat.permissions.listPermissions.Permission[]>
   >((acc, perm) => {
     (acc[perm.grantee] ??= []).push(perm);
     return acc;
@@ -88,7 +84,7 @@ function PersonDetail({
   authManager,
 }: {
   person: string;
-  permissions: Permission[];
+  permissions: network.habitat.permissions.listPermissions.Permission[];
   authManager: any;
 }) {
   const queryClient = useQueryClient();
@@ -104,14 +100,21 @@ function PersonDetail({
     }) {
       const body: PermissionInput = {
         grantees: [
-          { $type: "network.habitat.grantee#didGrantee", did: person },
+          {
+            $type: "network.habitat.grantee#didGrantee",
+            did: person as DidString,
+          },
         ],
-        collection,
-        ...(rkey ? { rkey } : {}),
+        collection: collection as NsidString,
+        ...(rkey ? { rkey: rkey as RecordKeyString } : {}),
       };
-      await procedure("network.habitat.permissions.removePermission", body, {
+      await xrpc(
         authManager,
-      });
+        network.habitat.permissions.removePermission.main,
+        {
+          body,
+        },
+      );
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();
     },

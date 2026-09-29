@@ -1,16 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
-import { NetworkHabitatRepoGetRecord } from "api";
+import { network } from "api";
+import { xrpc, type Agent } from "@atproto/lex";
 import { AvatarGroup, AvatarGroupCount, Spinner } from "./ui";
 import { UserAvatar } from "./UserAvatar";
-import { query } from "../habitatClient";
-import { getProfiles } from "../bskyPublicApi";
-import { AuthManager } from "../authManager";
-import { Actor } from "@/types/Actor";
+import { useActors } from "../hooks/useActors";
+
+type Grantee = Exclude<
+  network.habitat.repo.getRecord.$OutputBody["permissions"],
+  undefined
+>[number];
 
 interface GranteeAvatarProps {
   uri: string;
-  grantees: NetworkHabitatRepoGetRecord.OutputSchema["permissions"];
-  authManager: AuthManager;
+  grantees: Grantee[] | undefined;
+  authManager: Agent;
   max?: number;
   size?: "sm" | "lg" | "default";
 }
@@ -22,24 +25,25 @@ const GranteeAvatars = ({
   max,
   size = "default",
 }: GranteeAvatarProps) => {
-  const { data: profiles, isLoading } = useQuery({
-    queryKey: ["granteeProfiles", uri],
+  // This query only resolves the DID list (clique members expanded, direct
+  // grantee DIDs kept); turning those DIDs into profiles is useActors's
+  // job, which batches and caches per DID.
+  const { data: dids = [], isLoading } = useQuery({
+    queryKey: ["granteeDids", uri],
     queryFn: async () => {
       const cliqueMemberLists = await Promise.all(
         grantees
           ?.filter((g) => "clique" in g)
           .map(async (g) => {
-            const { members } = await query(
-              "network.habitat.clique.getMembers",
-              {
-                clique: g.clique,
-              },
-              { authManager },
+            const rsp = await xrpc(
+              authManager,
+              network.habitat.clique.getMembers.main,
+              { params: { clique: g.clique } },
             );
-            return members;
+            return rsp.body.members;
           }) ?? [],
       );
-      const actors = [
+      return [
         ...new Set(
           cliqueMemberLists
             .flat()
@@ -48,9 +52,9 @@ const GranteeAvatars = ({
             ),
         ),
       ];
-      return getProfiles(actors);
     },
   });
+  const getActor = useActors(dids);
 
   if (isLoading) {
     return <Spinner />;
@@ -58,11 +62,11 @@ const GranteeAvatars = ({
 
   return (
     <AvatarGroup>
-      {profiles?.slice(0, max).map((p: Actor) => (
-        <UserAvatar size={size} actor={p} key={p.did} />
+      {dids.slice(0, max).map((did) => (
+        <UserAvatar size={size} actor={getActor(did)} key={did} />
       ))}
-      {profiles && max && profiles.length > max && (
-        <AvatarGroupCount>+{profiles.length - max}</AvatarGroupCount>
+      {max && dids.length > max && (
+        <AvatarGroupCount>+{dids.length - max}</AvatarGroupCount>
       )}
     </AvatarGroup>
   );

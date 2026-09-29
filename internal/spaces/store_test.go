@@ -400,6 +400,73 @@ func TestListRepos_SpaceNotFound(t *testing.T) {
 	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
+// TestListRepos_RemoteWrite verifies a repo registered via RegisterRemoteWrite
+// (a repo host reporting its own write, rather than a local PutRecord) shows
+// up in ListRepos with the reported rev and digest, alongside a locally
+// written repo.
+func TestListRepos_RemoteWrite(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(
+		t.Context(), uri, owner, coll, "k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}),
+	)
+	require.NoError(t, err)
+
+	digest := []byte(strings.Repeat("d", 32))
+	err = s.RegisterRemoteWrite(t.Context(), uri, alice, "3lrev", digest)
+	require.NoError(t, err)
+
+	repos, err := s.ListRepos(t.Context(), uri)
+	require.NoError(t, err)
+	require.Len(t, repos, 2)
+
+	byDID := make(map[syntax.DID]spaces.RepoInfo, len(repos))
+	for _, r := range repos {
+		byDID[r.DID] = r
+	}
+	require.Equal(t, "3lrev", byDID[alice].Rev)
+	require.Equal(t, digest, byDID[alice].Hash)
+	require.NotEqual(t, digest, byDID[owner].Hash)
+}
+
+func TestRegisterRemoteWrite_SpaceNotFound(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
+	err := s.RegisterRemoteWrite(t.Context(), uri, alice, "3lrev", []byte("hash"))
+	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
+}
+
+// TestRegisterRemoteWrite_NoLocalRecords verifies a remotely-registered repo
+// reports as holding no local records: its data lives on its own PDS, not in
+// this space's own tables, so the space host must not serve stale/empty data
+// as if it were authoritative.
+func TestRegisterRemoteWrite_NoLocalRecords(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	err = s.RegisterRemoteWrite(t.Context(), uri, alice, "3lrev", []byte(strings.Repeat("d", 32)))
+	require.NoError(t, err)
+
+	rev, hash, found, err := s.RepoHead(t.Context(), uri, alice)
+	require.NoError(t, err)
+	require.False(t, found)
+	require.Empty(t, rev)
+	require.Nil(t, hash)
+
+	commit, blocks, err := s.RepoSnapshot(t.Context(), uri, alice)
+	require.NoError(t, err)
+	require.Nil(t, commit)
+	require.Empty(t, blocks)
+}
+
 func TestPutAndGetRecord(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 
@@ -593,6 +660,54 @@ func TestGetRecord_NotFound(t *testing.T) {
 	coll := syntax.NSID("network.habitat.note")
 	_, err = s.GetRecord(t.Context(), uri, owner, coll, "nonexistent")
 	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+}
+
+func TestGetRecords(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	bob := syntax.DID("did:plc:bob")
+
+	_, _, err = s.PutRecord(
+		t.Context(), uri, alice, coll, "self",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"name": "Alice"}),
+	)
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(
+		t.Context(), uri, bob, coll, "self",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"name": "Bob"}),
+	)
+	require.NoError(t, err)
+	// owner never writes a record in coll.
+
+	records, err := s.GetRecords(t.Context(), []habitat_syntax.SpaceRecordURI{
+		habitat_syntax.ConstructSpaceRecordURI(uri, alice, coll, "self"),
+		habitat_syntax.ConstructSpaceRecordURI(uri, bob, coll, "self"),
+		habitat_syntax.ConstructSpaceRecordURI(uri, owner, coll, "self"),
+	})
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+
+	byOwner := make(map[syntax.DID]spaces.Record, len(records))
+	for _, rec := range records {
+		byOwner[rec.Owner] = rec
+		require.Equal(t, uri, rec.Space)
+	}
+	require.Equal(t, "Alice", byOwner[alice].Value["name"])
+	require.Equal(t, "Bob", byOwner[bob].Value["name"])
+	_, ok := byOwner[owner]
+	require.False(t, ok)
+}
+
+func TestGetRecords_Empty(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	records, err := s.GetRecords(t.Context(), nil)
+	require.NoError(t, err)
+	require.Empty(t, records)
 }
 
 func TestListRecords(t *testing.T) {
@@ -1145,4 +1260,131 @@ func TestRepoSnapshot_SpaceNotFound(t *testing.T) {
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
 	_, _, err := s.RepoSnapshot(t.Context(), uri, owner)
 	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
+}
+
+func TestApplyWrites(t *testing.T) {
+	coll := syntax.NSID("network.habitat.note")
+	newStore := func(t *testing.T) (spaces.Store, habitat_syntax.SpaceURI) {
+		t.Helper()
+		s := spaces_testutil.NewTestStore(t)
+		uri, err := s.CreateSpace(t.Context(), orgID, groupType, "batch")
+		require.NoError(t, err)
+		return s, uri
+	}
+	val := func(t *testing.T, text string) spaces.MarshaledRecord {
+		return spaces_testutil.MustMarshalRecord(t, map[string]any{"text": text})
+	}
+
+	t.Run("creates, updates, and deletes in one batch", func(t *testing.T) {
+		s, uri := newStore(t)
+		_, _, err := s.PutRecord(t.Context(), uri, alice, coll, "upd", val(t, "old"))
+		require.NoError(t, err)
+		_, _, err = s.PutRecord(t.Context(), uri, alice, coll, "del", val(t, "gone"))
+		require.NoError(t, err)
+
+		results, err := s.ApplyWrites(t.Context(), uri, alice, []spaces.Write{
+			{Action: spaces.WriteCreate, Collection: coll, Rkey: "new", Value: val(t, "new")},
+			{Action: spaces.WriteCreate, Collection: coll, Value: val(t, "auto")},
+			{Action: spaces.WriteUpdate, Collection: coll, Rkey: "upd", Value: val(t, "new")},
+			{Action: spaces.WriteDelete, Collection: coll, Rkey: "del"},
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 4)
+		require.NotNil(t, results[0].Cid)
+		require.NotEmpty(t, results[1].URI)
+		require.Nil(t, results[3].Cid)
+
+		rec, err := s.GetRecord(t.Context(), uri, alice, coll, "upd")
+		require.NoError(t, err)
+		require.Equal(t, map[string]any{"text": "new"}, rec.Value)
+		_, err = s.GetRecord(t.Context(), uri, alice, coll, "del")
+		require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+		recs, err := s.ListRecords(t.Context(), uri, alice, &coll)
+		require.NoError(t, err)
+		require.Len(t, recs, 3)
+	})
+
+	t.Run("keeps the repo hash consistent with individual writes", func(t *testing.T) {
+		s1, uri1 := newStore(t)
+		_, err := s1.ApplyWrites(t.Context(), uri1, alice, []spaces.Write{
+			{Action: spaces.WriteCreate, Collection: coll, Rkey: "a", Value: val(t, "a")},
+			{Action: spaces.WriteCreate, Collection: coll, Rkey: "b", Value: val(t, "b")},
+			{Action: spaces.WriteDelete, Collection: coll, Rkey: "a"},
+		})
+		require.NoError(t, err)
+
+		s2, uri2 := newStore(t)
+		_, _, err = s2.PutRecord(t.Context(), uri2, alice, coll, "b", val(t, "b"))
+		require.NoError(t, err)
+
+		_, h1, found, err := s1.RepoHead(t.Context(), uri1, alice)
+		require.NoError(t, err)
+		require.True(t, found)
+		_, h2, _, err := s2.RepoHead(t.Context(), uri2, alice)
+		require.NoError(t, err)
+		require.Equal(t, h2, h1)
+	})
+
+	t.Run("is atomic: a failing write rolls back the batch", func(t *testing.T) {
+		s, uri := newStore(t)
+		_, _, err := s.PutRecord(t.Context(), uri, alice, coll, "exists", val(t, "x"))
+		require.NoError(t, err)
+
+		_, err = s.ApplyWrites(t.Context(), uri, alice, []spaces.Write{
+			{Action: spaces.WriteCreate, Collection: coll, Rkey: "first", Value: val(t, "1")},
+			{Action: spaces.WriteCreate, Collection: coll, Rkey: "exists", Value: val(t, "2")},
+		})
+		require.ErrorIs(t, err, spaces.ErrRecordAlreadyExists)
+		_, err = s.GetRecord(t.Context(), uri, alice, coll, "first")
+		require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+	})
+
+	t.Run("update and delete of a missing record fail", func(t *testing.T) {
+		s, uri := newStore(t)
+		_, err := s.ApplyWrites(t.Context(), uri, alice, []spaces.Write{
+			{Action: spaces.WriteUpdate, Collection: coll, Rkey: "nope", Value: val(t, "x")},
+		})
+		require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+		_, err = s.ApplyWrites(t.Context(), uri, alice, []spaces.Write{
+			{Action: spaces.WriteDelete, Collection: coll, Rkey: "nope"},
+		})
+		require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+	})
+
+	t.Run("later writes see earlier writes in the batch", func(t *testing.T) {
+		s, uri := newStore(t)
+		_, err := s.ApplyWrites(t.Context(), uri, alice, []spaces.Write{
+			{Action: spaces.WriteCreate, Collection: coll, Rkey: "k", Value: val(t, "1")},
+			{Action: spaces.WriteUpdate, Collection: coll, Rkey: "k", Value: val(t, "2")},
+			{Action: spaces.WriteDelete, Collection: coll, Rkey: "k"},
+			{Action: spaces.WriteCreate, Collection: coll, Rkey: "k", Value: val(t, "3")},
+		})
+		require.NoError(t, err)
+		rec, err := s.GetRecord(t.Context(), uri, alice, coll, "k")
+		require.NoError(t, err)
+		require.Equal(t, map[string]any{"text": "3"}, rec.Value)
+	})
+
+	t.Run("deleting every record removes the repo", func(t *testing.T) {
+		s, uri := newStore(t)
+		_, err := s.ApplyWrites(t.Context(), uri, alice, []spaces.Write{
+			{Action: spaces.WriteCreate, Collection: coll, Rkey: "k", Value: val(t, "1")},
+			{Action: spaces.WriteDelete, Collection: coll, Rkey: "k"},
+		})
+		require.NoError(t, err)
+		_, _, found, err := s.RepoHead(t.Context(), uri, alice)
+		require.NoError(t, err)
+		require.False(t, found)
+	})
+
+	t.Run("space not found", func(t *testing.T) {
+		s := spaces_testutil.NewTestStore(t)
+		_, err := s.ApplyWrites(
+			t.Context(),
+			"at://did:plc:org/space/network.habitat.group/none",
+			alice,
+			nil,
+		)
+		require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
+	})
 }

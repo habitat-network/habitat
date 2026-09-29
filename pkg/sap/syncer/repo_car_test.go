@@ -99,6 +99,7 @@ func TestDecodeSignedCommit(t *testing.T) {
 	require.Nil(t, c.Ikm)
 	require.Nil(t, c.Mac)
 	require.Nil(t, c.Sig)
+	require.False(t, c.HabitatSigned)
 }
 
 func TestDecodeSignedCommitMissingHash(t *testing.T) {
@@ -150,12 +151,13 @@ func TestDecodeSignedCommitWithOptionalFields(t *testing.T) {
 	t.Parallel()
 
 	m := map[string]any{
-		"ver":  int64(spacecommit.Version),
-		"rev":  "3kzl6abcde02k",
-		"hash": atdata.Bytes([]byte{0xaa}),
-		"ikm":  atdata.Bytes([]byte{0x01}),
-		"mac":  atdata.Bytes([]byte{0x02}),
-		"sig":  atdata.Bytes([]byte{0x03}),
+		"ver":           int64(spacecommit.Version),
+		"rev":           "3kzl6abcde02k",
+		"hash":          atdata.Bytes([]byte{0xaa}),
+		"ikm":           atdata.Bytes([]byte{0x01}),
+		"mac":           atdata.Bytes([]byte{0x02}),
+		"sig":           atdata.Bytes([]byte{0x03}),
+		"habitatSigned": true,
 	}
 	b, err := atdata.MarshalCBOR(m)
 	require.NoError(t, err)
@@ -165,6 +167,7 @@ func TestDecodeSignedCommitWithOptionalFields(t *testing.T) {
 	require.Equal(t, []byte{0x01}, c.Ikm)
 	require.Equal(t, []byte{0x02}, c.Mac)
 	require.Equal(t, []byte{0x03}, c.Sig)
+	require.True(t, c.HabitatSigned)
 }
 
 func buildMinimalCAR(t *testing.T) []byte {

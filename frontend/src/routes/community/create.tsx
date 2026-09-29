@@ -9,10 +9,12 @@ import {
 } from "internal/components/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
-import { procedure, query, SingleHandleCombobox } from "internal";
-import { NetworkHabitatOrgCreate } from "api";
+import { anonymousAgentFor, SingleHandleCombobox } from "internal";
+import { network } from "api";
 import { Fragment, useEffect, useState } from "react";
 import { slugifyHandle } from "@/lib/slugifyHandle";
+import { xrpc } from "@atproto/lex";
+import { describeInstance } from "@/queries/instance";
 
 export const Route = createFileRoute("/community/create")({
   component: CreateCommunityPage,
@@ -73,12 +75,8 @@ function CreateCommunityPage() {
       return;
     }
     let cancelled = false;
-    query(
-      "network.habitat.instance.describeInstance",
-      {},
-      { unauthenticated: true, domain: customDomain },
-    )
-      .then((result: { name: string }) => {
+    describeInstance(customDomain)
+      .then((result) => {
         if (!cancelled) {
           setCustomInstanceName(result.name);
           setCustomInstanceError(null);
@@ -120,7 +118,7 @@ function CreateCommunityPage() {
     try {
       const loginId =
         values.login_method === "google" ? contactEmail : values.login_id;
-      const body: NetworkHabitatOrgCreate.InputSchema = {
+      const body: network.habitat.org.create.$InputBody = {
         admin_handle: "admin",
         contact_email: values.contact_email,
         name: values.name,
@@ -128,11 +126,12 @@ function CreateCommunityPage() {
         login_method: values.login_method,
         login_id: loginId || undefined,
       };
-      const { admin_handle } = await procedure(
-        "network.habitat.org.create",
-        body,
-        { unauthenticated: true, domain: targetDomain },
+      const response = await xrpc(
+        anonymousAgentFor(targetDomain),
+        network.habitat.org.create.main,
+        { body },
       );
+      const { admin_handle } = response.body;
       await navigate({
         to: "/oauth-login",
         search: { handle: admin_handle },

@@ -1,7 +1,16 @@
 import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { constructSpaceURI, procedure, type AuthManager } from "internal";
+import { type AuthManager } from "internal";
+import {
+  xrpc,
+  type DidString,
+  type NsidString,
+  type RecordKeyString,
+  type SpaceRefString,
+} from "@atproto/lex";
+import { com } from "api";
+import { SpaceRef, ensureValidDid, ensureValidNsid } from "@atproto/syntax";
 import {
   Button,
   Card,
@@ -34,15 +43,32 @@ import { SpacesPageLayout } from "@/components/SpacesPageLayout";
 export const Route = createFileRoute(
   "/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/",
 )({
+  params: {
+    parse: ({ spaceOwner, spaceType, ...rest }) => {
+      ensureValidDid(spaceOwner);
+      ensureValidNsid(spaceType);
+      return { ...rest, spaceOwner, spaceType };
+    },
+  },
   async loader({ context, params }) {
     const { spaceOwner, spaceType, spaceKey, recordOwner } = params;
-    const space = constructSpaceURI({ spaceOwner, spaceType, spaceKey });
+    const space = new SpaceRef(spaceOwner, spaceType, spaceKey).toString();
     const [records, commit] = await Promise.all([
       context.queryClient.fetchQuery(
-        spaceRecordsQueryOptions(space, recordOwner, context.authManager),
+        spaceRecordsQueryOptions(
+          space,
+          recordOwner,
+          context.authManager,
+          context.queryClient,
+        ),
       ),
       context.queryClient.fetchQuery(
-        spaceLatestCommitQueryOptions(space, recordOwner, context.authManager),
+        spaceLatestCommitQueryOptions(
+          space,
+          recordOwner,
+          context.authManager,
+          context.queryClient,
+        ),
       ),
     ]);
     return { records, commit };
@@ -64,7 +90,7 @@ function groupByCollection(records: SpaceRecord[]): [string, SpaceRecord[]][] {
 
 function MemberRecords() {
   const { spaceOwner, spaceType, spaceKey, recordOwner } = Route.useParams();
-  const space = constructSpaceURI({ spaceOwner, spaceType, spaceKey });
+  const space = new SpaceRef(spaceOwner, spaceType, spaceKey).toString();
   const { authManager } = Route.useRouteContext();
 
   const { records, commit } = Route.useLoaderData();
@@ -194,21 +220,34 @@ function CollectionSection({
 
   const { mutate: deleteRecord } = useMutation({
     async mutationFn(rkey: string) {
-      await procedure(
-        "network.habitat.space.deleteRecord",
-        { space, collection, rkey, repo: params.recordOwner },
-        { authManager },
-      );
+      await xrpc(authManager, com.atproto.space.deleteRecord.main, {
+        body: {
+          space: space as SpaceRefString,
+          collection: collection as NsidString,
+          rkey: rkey as RecordKeyString,
+          repo: params.recordOwner as DidString,
+        },
+      });
     },
     async onSuccess() {
       // Deleting a record moves the repo's head, so the signed commit shown
       // above the collections is stale too.
       await Promise.all([
         queryClient.invalidateQueries(
-          spaceRecordsQueryOptions(space, params.recordOwner, authManager),
+          spaceRecordsQueryOptions(
+            space,
+            params.recordOwner,
+            authManager,
+            queryClient,
+          ),
         ),
         queryClient.invalidateQueries(
-          spaceLatestCommitQueryOptions(space, params.recordOwner, authManager),
+          spaceLatestCommitQueryOptions(
+            space,
+            params.recordOwner,
+            authManager,
+            queryClient,
+          ),
         ),
       ]);
       await router.invalidate();

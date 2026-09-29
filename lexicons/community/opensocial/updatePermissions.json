@@ -1,0 +1,42 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.updatePermissions",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Replace the community's authz configuration: which roles authorize which actions, and which roles each role may assign/eject. Requires service-auth. Requires the `community.configure` action.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org",
+                        "bindings",
+                        "assignable"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the community whose permissions to update."
+                        },
+                        "bindings": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "community.opensocial.permissions#actionBinding"
+                            }
+                        },
+                        "assignable": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "community.opensocial.permissions#assignableBinding"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

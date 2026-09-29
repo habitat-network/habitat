@@ -66,11 +66,12 @@ COPY --from=build /app/bin/keygen /app/keygen
 COPY build/debian/pear/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-# /data is the persistent volume — holds the SQLite DB and auto-generated secrets
+# /data is the persistent volume — holds the SQLite DB, blobs and auto-generated secrets
 VOLUME ["/data"]
 
-# Default the DB path to the persistent volume.
+# Default the DB and blob store to the persistent volume.
 # All other flags can be set via HABITAT_* env vars (see docker-compose.yml).
-ENV HABITAT_DB=/data/repo.db
+ENV HABITAT_DB=sqlite:///data/repo.db
+ENV HABITAT_BLOB_BUCKET=file:///data/blobs
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

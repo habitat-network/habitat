@@ -1,0 +1,50 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.assignRoles",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Set a member's full role set, replacing whatever roles they previously held. Requires service-auth. Requires the `role.assign` action, bounded by the roles the caller may assign: every role being added or removed must be one the caller's own roles are permitted to assign, per the community's permissions record.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org",
+                        "member",
+                        "roles"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the community."
+                        },
+                        "member": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the member whose roles to set."
+                        },
+                        "roles": {
+                            "type": "array",
+                            "description": "Record keys of the roles the member should hold.",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "RoleNotAssignable",
+                    "description": "The caller is not permitted to assign or revoke one of the given roles."
+                },
+                {
+                    "name": "MemberNotFound",
+                    "description": "The given DID is not a member of the community."
+                }
+            ]
+        }
+    }
+}

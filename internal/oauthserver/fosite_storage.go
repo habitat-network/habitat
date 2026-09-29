@@ -2,23 +2,16 @@ package oauthserver
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
-	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
@@ -33,6 +26,7 @@ var tracer = otel.Tracer("github.com/habitat-network/habitat/internal/oauthserve
 type store struct {
 	db                       *gorm.DB
 	approvedJwtBearerClients ApprovedClientStore
+	clientMeta               *clientmetadata.Resolver
 }
 
 // OAuthRequest is the single row type backing every short-lived piece of OAuth
@@ -135,11 +129,24 @@ type ConnectedApp struct {
 	UpdatedAt time.Time
 }
 
+// RegisteredClient is an OAuth client registered through RFC 7591 dynamic
+// client registration (the MCP endpoints; see HandleMCPRegister). Clients
+// authenticated via an atproto client-id metadata document are never stored
+// here — they're resolved live by GetClient instead.
+type RegisteredClient struct {
+	ClientID     string `gorm:"primaryKey"`
+	ClientName   string
+	RedirectURIs []byte // JSON []string
+	GrantTypes   []byte // JSON []string
+	CreatedAt    time.Time
+}
+
 func newStore(
 	db *gorm.DB,
 	approvedJwtBearerClients ApprovedClientStore,
+	clientMeta *clientmetadata.Resolver,
 ) (*store, error) {
-	err := db.AutoMigrate(&OAuthRequest{}, &OAuthSession{}, &ConnectedApp{})
+	err := db.AutoMigrate(&OAuthRequest{}, &OAuthSession{}, &ConnectedApp{}, &RegisteredClient{})
 	if err != nil {
 		return nil, err
 	}
@@ -147,6 +154,7 @@ func newStore(
 	return &store{
 		db:                       db,
 		approvedJwtBearerClients: approvedJwtBearerClients,
+		clientMeta:               clientMeta,
 	}, nil
 }
 
@@ -221,58 +229,41 @@ func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
 	return nil
 }
 
-// GetClient implements fosite.Storage.
+// GetClient implements fosite.Storage. It first checks for a dynamically
+// registered client (RFC 7591, used by the MCP endpoints), then falls back to
+// resolving id as an atproto client-id metadata document URL.
 func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error) {
 	ctx, span := tracer.Start(ctx, "GetClient")
 	defer span.End()
 	span.SetAttributes(attribute.String("client_id", id))
-	metadata, err := s.fetchClientMetadata(ctx, id)
+
+	var row RegisteredClient
+	err := s.db.WithContext(ctx).First(&row, "client_id = ?", id).Error
+	switch {
+	case err == nil:
+		dc := &dynamicClient{RegisteredClient: &row}
+		if err := json.Unmarshal(row.RedirectURIs, &dc.redirectURIs); err != nil {
+			return nil, fmt.Errorf("decode redirect uris: %w", err)
+		}
+		if err := json.Unmarshal(row.GrantTypes, &dc.grantTypes); err != nil {
+			return nil, fmt.Errorf("decode grant types: %w", err)
+		}
+		return dc, nil
+	case !errors.Is(err, gorm.ErrRecordNotFound):
+		return nil, err
+	}
+
+	metadata, err := s.clientMeta.FetchMetadata(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	return &client{metadata}, nil
 }
 
-// fetchClientMetadata fetches and decodes the client metadata document
-// published at id (the client's client_id URL). See
-// https://atproto.com/specs/oauth#client-id-metadata-document.
-//
-// Localhost client_ids are the exception: nothing is fetched, the metadata is
-// derived from the client_id itself.
-func (s *store) fetchClientMetadata(
-	ctx context.Context,
-	id string,
-) (*oauth.ClientMetadata, error) {
-	parsed, err := url.Parse(id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse client id: %w", err)
-	}
-	if isLocalhostClientId(parsed) {
-		return localhostClientMetadata(id, parsed)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, id, http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-	// TODO: consider caching
-	cl := httpx.NewClient()
-	resp, err := cl.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch client metadata: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch client metadata: status %d", resp.StatusCode)
-	}
-
-	var metadata oauth.ClientMetadata
-	err = json.NewDecoder(resp.Body).Decode(&metadata)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode client metadata: %w", err)
-	}
-	return &metadata, nil
+// createRegisteredClient persists a client registered through RFC 7591
+// dynamic client registration.
+func (s *store) createRegisteredClient(ctx context.Context, c *RegisteredClient) error {
+	return s.db.WithContext(ctx).Create(c).Error
 }
 
 // GetPublicKey implements rfc7523.RFC7523KeyStorage. issuer is the "iss"
@@ -305,7 +296,7 @@ func (s *store) GetPublicKeys(
 	if !s.approvedJwtBearerClients.IsApprovedClient(issuer) {
 		return nil, fosite.ErrNotFound
 	}
-	metadata, err := s.fetchClientMetadata(ctx, issuer)
+	metadata, err := s.clientMeta.FetchMetadata(ctx, issuer)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +308,7 @@ func (s *store) GetPublicKeys(
 		if key.KeyID == nil {
 			continue
 		}
-		converted, err := atcryptoJWKtoJose(key)
+		converted, err := clientmetadata.ConvertJWK(key)
 		if err != nil {
 			continue
 		}
@@ -328,51 +319,6 @@ func (s *store) GetPublicKeys(
 	}
 	return &jose.JSONWebKeySet{
 		Keys: keys,
-	}, nil
-}
-
-// atcryptoJWKtoJose converts an atproto JWK (an EC public key, as used in
-// client metadata documents) into a go-jose JSONWebKey usable for signature
-// verification. Only the curves go-jose understands are supported; a JWT
-// client assertion is always ES256-signed, so secp256k1 keys are rejected.
-func atcryptoJWKtoJose(jwk atcrypto.JWK) (*jose.JSONWebKey, error) {
-	var curve elliptic.Curve
-	switch jwk.Curve {
-	case "P-256":
-		curve = elliptic.P256()
-	case "P-384":
-		curve = elliptic.P384()
-	case "P-521":
-		curve = elliptic.P521()
-	default:
-		return nil, fmt.Errorf("unsupported JWK curve %q", jwk.Curve)
-	}
-	if jwk.KeyType != "EC" {
-		return nil, fmt.Errorf("unsupported JWK key type %q", jwk.KeyType)
-	}
-	x, err := base64.RawURLEncoding.DecodeString(jwk.X)
-	if err != nil {
-		return nil, fmt.Errorf("invalid JWK x coordinate: %w", err)
-	}
-	y, err := base64.RawURLEncoding.DecodeString(jwk.Y)
-	if err != nil {
-		return nil, fmt.Errorf("invalid JWK y coordinate: %w", err)
-	}
-	var keyID string
-	if jwk.KeyID != nil {
-		keyID = *jwk.KeyID
-	}
-	return &jose.JSONWebKey{
-		// TODO: Go 1.26 deprecated building an ecdsa.PublicKey from raw X/Y.
-		// Switch to ecdsa.ParseUncompressedPublicKey, which also validates the
-		// point is on the curve.
-		//nolint:staticcheck // SA1019: deprecated ecdsa.PublicKey X/Y fields
-		Key: &ecdsa.PublicKey{
-			Curve: curve,
-			X:     new(big.Int).SetBytes(x),
-			Y:     new(big.Int).SetBytes(y),
-		},
-		KeyID: keyID,
 	}, nil
 }
 

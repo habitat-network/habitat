@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
-import { SapClient, startLogin } from "../src/server/sapClient";
+import {
+  EmailDomainNotFoundError,
+  SapClient,
+  getSpaceBlob,
+  startLogin,
+} from "../src/server/sapClient";
 
 const testEnv = {
   CHALK_SAP_INTERNAL_URL: "http://sap-internal.test",
@@ -34,6 +39,47 @@ describe("startLogin", () => {
       handle: "alice.test",
       return_to: "https://chalk.test/session/callback",
     });
+  });
+
+  it("posts a custom return_to path when given one", async () => {
+    let body: unknown;
+    server.use(
+      http.post("http://sap-internal.test/session/add", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({
+          redirect_url: "https://pear.example/oauth/authorize",
+        });
+      }),
+    );
+    await startLogin(testEnv, "did:web:org.example", "/session/org-callback");
+    expect(body).toEqual({
+      handle: "did:web:org.example",
+      return_to: "https://chalk.test/session/org-callback",
+    });
+  });
+
+  it("throws EmailDomainNotFoundError when sap can't resolve an email", async () => {
+    server.use(
+      http.post(
+        "http://sap-internal.test/session/add",
+        () => new HttpResponse("email not found", { status: 404 }),
+      ),
+    );
+    await expect(startLogin(testEnv, "bob@gmail.com")).rejects.toBeInstanceOf(
+      EmailDomainNotFoundError,
+    );
+  });
+
+  it("throws a generic error for other failures", async () => {
+    server.use(
+      http.post(
+        "http://sap-internal.test/session/add",
+        () => new HttpResponse("boom", { status: 500 }),
+      ),
+    );
+    const err = await startLogin(testEnv, "alice.test").catch((e) => e);
+    expect(err).not.toBeInstanceOf(EmailDomainNotFoundError);
+    expect(err.message).toBe("failed to start login (500): boom");
   });
 });
 
@@ -91,6 +137,53 @@ describe("internal auth", () => {
       client.call("network.habitat.space.listRecords", "GET", {}),
     );
     expect(headers.get("Authorization")).toBeNull();
+  });
+});
+
+describe("getSpaceBlob", () => {
+  const SPACE = "at://did:web:org.example/space/network.habitat.docs/abc";
+
+  it("reads the blob from the space host with a credential minted by sap", async () => {
+    let credentialSpace: string | null = null;
+    let blobAuth: string | null = null;
+    let blobParams: URLSearchParams | undefined;
+    server.use(
+      http.get("http://sap-internal.test/space/credential", ({ request }) => {
+        credentialSpace = new URL(request.url).searchParams.get("space");
+        return HttpResponse.json({
+          credential: "space-cred",
+          host: "https://space-host.test",
+        });
+      }),
+      http.get(
+        "https://space-host.test/xrpc/network.habitat.space.getBlob",
+        ({ request }) => {
+          blobAuth = request.headers.get("Authorization");
+          blobParams = new URL(request.url).searchParams;
+          return new HttpResponse(new Uint8Array([1, 2, 3]));
+        },
+      ),
+    );
+
+    const bytes = await getSpaceBlob(testEnv, SPACE, "bafyblob");
+
+    expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
+    expect(credentialSpace).toBe(SPACE);
+    expect(blobAuth).toBe("Bearer space-cred");
+    expect(blobParams?.get("space")).toBe(SPACE);
+    expect(blobParams?.get("cid")).toBe("bafyblob");
+  });
+
+  it("throws when sap can't mint a credential for the space", async () => {
+    server.use(
+      http.get(
+        "http://sap-internal.test/space/credential",
+        () => new HttpResponse("no session", { status: 502 }),
+      ),
+    );
+    await expect(getSpaceBlob(testEnv, SPACE, "bafyblob")).rejects.toThrow(
+      /space credential failed \(502\)/,
+    );
   });
 });
 
@@ -175,6 +268,43 @@ describe("SapClient", () => {
       space: "at://did:plc:owner/space/network.habitat.docs/abc",
     });
     expect(headers?.get("Habitat-Did")).toBe("did:plc:member1");
+  });
+
+  it("sets Atproto-Proxy when given an atprotoProxy target", async () => {
+    let headers: Headers | undefined;
+    server.use(
+      http.post(
+        "http://sap-internal.test/proxy/community.opensocial.createSpace",
+        ({ request }) => {
+          headers = request.headers;
+          return HttpResponse.json({ uri: "at://did:web:org.example/x" });
+        },
+      ),
+    );
+    const client = new SapClient(testEnv, "did:plc:member1");
+    await client.call(
+      "community.opensocial.createSpace",
+      "POST",
+      { org: "did:web:org.example", type: "network.habitat.docs" },
+      { atprotoProxy: "did:web:org.example#habitat" },
+    );
+    expect(headers?.get("Atproto-Proxy")).toBe("did:web:org.example#habitat");
+  });
+
+  it("omits Atproto-Proxy when no atprotoProxy is given", async () => {
+    let headers: Headers | undefined;
+    server.use(
+      http.get(
+        "http://sap-internal.test/proxy/network.habitat.space.listRecords",
+        ({ request }) => {
+          headers = request.headers;
+          return HttpResponse.json({ records: [] });
+        },
+      ),
+    );
+    const client = new SapClient(testEnv, "did:plc:member1");
+    await client.call("network.habitat.space.listRecords", "GET", {});
+    expect(headers?.has("Atproto-Proxy")).toBe(false);
   });
 
   it("recrawl POSTs to /session/recrawl with the Habitat-Did header", async () => {

@@ -20,7 +20,11 @@ func getBearerJwt(r *http.Request) (token *jwt.Token, err error) {
 }
 
 func getBearerToken(r *http.Request) string {
-	return strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	auth := r.Header.Get("Authorization")
+	if token, ok := strings.CutPrefix(auth, "DPoP "); ok {
+		return token
+	}
+	return strings.TrimPrefix(auth, "Bearer ")
 }
 
 func fetchIssuerKeyFunc(

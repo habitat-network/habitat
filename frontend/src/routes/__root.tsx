@@ -14,7 +14,7 @@ interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   async beforeLoad({ context }) {
-    await context.authManager.maybeExchangeCode();
+    await context.authManager.init();
   },
   async loader({ context }) {
     const authInfo = context.authManager.getAuthInfo();
@@ -47,7 +47,13 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     const { profile, org } = Route.useLoaderData();
     return (
       <div className="flex flex-col items-center w-full justify-stretch gap-4">
-        {<Header profile={profile} org={org} onLogout={authManager.logout} />}
+        {
+          <Header
+            profile={profile}
+            org={org}
+            onLogout={() => authManager.logout()}
+          />
+        }
         <div className="container px-4 flex flex-col">
           <Outlet />
         </div>

@@ -85,6 +85,7 @@ func (d *DelegationTokenAuthMethod) Validate(
 		return nil, false
 	}
 	return &CredentialInfo{
-		Space: space,
+		Space:  space,
+		Method: ValidatorMethodDelegationToken,
 	}, true
 }

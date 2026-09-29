@@ -1,12 +1,14 @@
-import { query } from "internal";
-import type { NetworkHabitatInstanceDescribeInstance } from "api";
+import { anonymousAgentFor } from "internal";
+import { xrpc } from "@atproto/lex";
+import { network } from "api";
 
-export function describeInstance(
+export async function describeInstance(
   domain: string,
-): Promise<NetworkHabitatInstanceDescribeInstance.OutputSchema> {
-  return query(
-    "network.habitat.instance.describeInstance",
-    {},
-    { unauthenticated: true, domain },
+): Promise<network.habitat.instance.describeInstance.$OutputBody> {
+  const response = await xrpc(
+    anonymousAgentFor(domain),
+    network.habitat.instance.describeInstance.main,
+    { params: {} },
   );
+  return response.body;
 }

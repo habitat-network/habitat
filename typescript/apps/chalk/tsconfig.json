@@ -11,6 +11,9 @@
   "include": ["src/**/*", "../../globals.d.ts", "worker-configuration.d.ts"],
   "references": [
     {
+      "path": "../../api"
+    },
+    {
       "path": "../../internal"
     }
   ]

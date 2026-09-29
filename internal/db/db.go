@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"io/fs"
+	"net/url"
 	"strings"
 
 	"github.com/habitat-network/habitat/internal/utils"
@@ -48,6 +49,10 @@ func New(dsn string, opts ...utils.Opt[config]) (db *gorm.DB, err error) {
 	)
 	switch ParseDialect(dsn) {
 	case Postgres:
+		dsn, err = EnsureUTF8ClientEncoding(dsn)
+		if err != nil {
+			return nil, err
+		}
 		db, err = gorm.Open(postgres.Open(dsn), cfg.gormConfig)
 		if err != nil {
 			return nil, err
@@ -85,6 +90,24 @@ func New(dsn string, opts ...utils.Opt[config]) (db *gorm.DB, err error) {
 	}
 
 	return db, nil
+}
+
+// EnsureUTF8ClientEncoding returns the Postgres URL DSN with client_encoding=UTF8
+// set, overriding any other value.
+//
+// Without it the server reports the database's own encoding (e.g. SQL_ASCII or
+// LATIN1) as client_encoding, and pgx refuses parameterized simple-protocol
+// queries, the mode required behind poolers like PgBouncer. Postgres converts
+// between the client and database encodings, so asking for UTF8 is always safe.
+func EnsureUTF8ClientEncoding(dsn string) (string, error) {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return "", fmt.Errorf("parse postgres dsn: %w", err)
+	}
+	q := u.Query()
+	q.Set("client_encoding", "UTF8")
+	u.RawQuery = q.Encode()
+	return u.String(), nil
 }
 
 func ParseDialect(dsn string) Dialect {

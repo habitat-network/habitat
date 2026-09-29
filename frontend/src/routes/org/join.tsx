@@ -9,9 +9,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { useState } from "react";
-import { procedure, SingleHandleCombobox, XRPCError } from "internal";
+import { anonymousAgentFor, SingleHandleCombobox } from "internal";
 import { useQuery } from "@tanstack/react-query";
-import { NetworkHabitatOrgGetMetadata } from "api";
+import { network } from "api";
+import { xrpc } from "@atproto/lex";
 
 export const Route = createFileRoute("/org/join")({
   validateSearch: z.object({
@@ -24,14 +25,15 @@ export const Route = createFileRoute("/org/join")({
 async function fetchOrgMetadata(
   orgId: string,
   token: string,
-): Promise<NetworkHabitatOrgGetMetadata.OutputSchema> {
+): Promise<network.habitat.org.getMetadata.$OutputBody> {
   const url = `https://${import.meta.env.VITE_HABITAT_DOMAIN}/xrpc/network.habitat.org.getMetadata?orgId=${encodeURIComponent(orgId)}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json().catch(() => undefined);
   if (!res.ok) {
-    throw new XRPCError(res.status, data);
+    const message = (data as { message?: string } | undefined)?.message;
+    throw new Error(message ?? `Request failed: ${res.status}`);
   }
   return data;
 }
@@ -52,7 +54,7 @@ function JoinPage() {
     data: metadata,
     isLoading: metadataLoading,
     error: metadataError,
-  } = useQuery<NetworkHabitatOrgGetMetadata.OutputSchema>({
+  } = useQuery<network.habitat.org.getMetadata.$OutputBody>({
     queryKey: ["orgMetadata", orgId],
     queryFn: () => fetchOrgMetadata(orgId, token),
     enabled: !!orgId && !!token,
@@ -73,18 +75,20 @@ function JoinPage() {
 
   const onSubmit = async (values: FormValues) => {
     try {
-      const res = await procedure(
-        "network.habitat.org.mintMemberIdentity",
+      const res = await xrpc(
+        anonymousAgentFor(import.meta.env.VITE_HABITAT_DOMAIN),
+        network.habitat.org.mintMemberIdentity.main,
         {
-          token,
-          orgId,
-          handle: values.handle,
-          password: loginMethod === "password" ? values.password : undefined,
-          loginID: loginMethod !== "password" ? values.loginID : undefined,
+          body: {
+            token,
+            orgId,
+            handle: values.handle,
+            password: loginMethod === "password" ? values.password : undefined,
+            loginID: loginMethod !== "password" ? values.loginID : undefined,
+          },
         },
-        { unauthenticated: true, domain: import.meta.env.VITE_HABITAT_DOMAIN },
       );
-      setResult({ handle: res.handle, did: res.did });
+      setResult({ handle: res.body.handle, did: res.body.did });
     } catch (err) {
       setError("root", {
         message: err instanceof Error ? err.message : "Unknown error",

@@ -4,7 +4,7 @@ import { DidHoverCard } from "@/components/DidHoverCard";
 import { SpacesBreadcrumb } from "@/components/SpacesBreadcrumb";
 import { SpacesTable } from "@/components/SpacesTable";
 import { SpacesPageLayout } from "@/components/SpacesPageLayout";
-import { parseSpaceURI } from "internal";
+import { SpaceRef } from "@atproto/syntax";
 
 export const Route = createFileRoute("/_requireAuth/spaces/$spaceOwner/")({
   loader: ({ context, params }) =>
@@ -19,7 +19,7 @@ function SpacesByOwner() {
   const spaces = Route.useLoaderData();
 
   const typeCount = new Set(
-    spaces.map((space) => parseSpaceURI(space.uri)?.spaceType),
+    spaces.map((space) => SpaceRef.parse(space.uri).spaceType),
   ).size;
 
   return (

@@ -93,7 +93,8 @@ function GroupDetail() {
                     ) : (
                       <Badge variant="ghost">
                         via{" "}
-                        {groupNames.get(m.viaGroup ?? "") ?? "another group"}
+                        {(m.viaGroup && groupNames.get(m.viaGroup)) ??
+                          "another group"}
                       </Badge>
                     )}
                   </TableCell>

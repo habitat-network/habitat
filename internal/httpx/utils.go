@@ -48,6 +48,11 @@ func WriteRecordNotFound(ctx context.Context, w http.ResponseWriter, err error) 
 	WriteError(ctx, w, "RecordNotFound", "" /* msg */, http.StatusNotFound)
 }
 
+func WriteRecordAlreadyExists(ctx context.Context, w http.ResponseWriter, err error) {
+	slog.WarnContext(ctx, "record already exists", "err", err)
+	WriteError(ctx, w, "RecordAlreadyExists", "" /* msg */, http.StatusConflict)
+}
+
 func WriteNotSupported(ctx context.Context, w http.ResponseWriter, msg string) {
 	slog.ErrorContext(ctx, "not supported", "msg", msg)
 	WriteError(ctx, w, "NotSupported", msg, http.StatusNotImplemented)
@@ -55,13 +60,24 @@ func WriteNotSupported(ctx context.Context, w http.ResponseWriter, msg string) {
 
 func WriteServerError(ctx context.Context, w http.ResponseWriter, err error) {
 	slog.ErrorContext(ctx, "server error", "err", err)
-	WriteError(ctx, w, "ServerError",
+	WriteError(
+		ctx, w, "ServerError",
 		err.Error(), // probably fine to leak debug details for unexpected errors
 		http.StatusInternalServerError,
 	)
 }
 
-func WriteUnauthorized(ctx context.Context, w http.ResponseWriter, msg string) {
-	slog.WarnContext(ctx, "unauthorized", "msg", msg)
+func WriteInvalidClientAttestation(
+	ctx context.Context,
+	w http.ResponseWriter,
+	msg string,
+	err error,
+) {
+	slog.WarnContext(ctx, "invalid client attestation", "err", err)
+	WriteError(ctx, w, "InvalidClientAttestation", msg, http.StatusBadRequest)
+}
+
+func WriteUnauthorized(ctx context.Context, w http.ResponseWriter, msg string, err error) {
+	slog.WarnContext(ctx, "unauthorized", "msg", msg, "err", err)
 	WriteError(ctx, w, "Unauthorized", msg, http.StatusUnauthorized)
 }

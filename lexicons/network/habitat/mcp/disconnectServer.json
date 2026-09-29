@@ -1,0 +1,30 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.mcp.disconnectServer",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Remove the caller's stored credential for an org-configured MCP server. Requires service-auth. Callable by any org member.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "org",
+            "id"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community the server belongs to."
+            },
+            "id": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

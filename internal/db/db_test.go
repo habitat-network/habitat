@@ -1,6 +1,7 @@
 package db
 
 import (
+	"net/url"
 	"testing"
 	"testing/fstest"
 
@@ -46,6 +47,53 @@ func TestNewWithoutMigrations(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, db)
 	require.Equal(t, true, db.TranslateError)
+}
+
+func TestEnsureUTF8ClientEncoding(t *testing.T) {
+	tests := []struct {
+		name  string
+		dsn   string
+		query url.Values
+	}{
+		{
+			name:  "no query",
+			dsn:   "postgres://user:pass@localhost:5432/pear",
+			query: url.Values{"client_encoding": {"UTF8"}},
+		},
+		{
+			name: "existing params and unix socket host are preserved",
+			dsn:  "postgresql://pear:p%40ss@/pear?host=/cloudsql/proj:us-west1:db&sslmode=disable",
+			query: url.Values{
+				"host":            {"/cloudsql/proj:us-west1:db"},
+				"sslmode":         {"disable"},
+				"client_encoding": {"UTF8"},
+			},
+		},
+		{
+			name:  "non-UTF8 client_encoding is overridden",
+			dsn:   "postgres://localhost/pear?client_encoding=LATIN1",
+			query: url.Values{"client_encoding": {"UTF8"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := EnsureUTF8ClientEncoding(tt.dsn)
+			require.NoError(t, err)
+			u, err := url.Parse(got)
+			require.NoError(t, err)
+			require.Equal(t, tt.query, u.Query())
+			orig, err := url.Parse(tt.dsn)
+			require.NoError(t, err)
+			require.Equal(t, orig.User.String(), u.User.String())
+			require.Equal(t, orig.Host, u.Host)
+			require.Equal(t, orig.Path, u.Path)
+		})
+	}
+}
+
+func TestEnsureUTF8ClientEncodingInvalidDSN(t *testing.T) {
+	_, err := EnsureUTF8ClientEncoding("postgres://%zz")
+	require.Error(t, err)
 }
 
 func TestDialect(t *testing.T) {

@@ -79,7 +79,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	config := oauth.NewPublicConfig(
 		"https://"+domain+"/client-metadata.json",
 		"https://"+domain+"/oauth-callback",
-		[]string{},
+		cmd.StringSlice(fOAuthScopes),
 	)
 	if err := config.SetClientSecret(secret, "sap"); err != nil {
 		return fmt.Errorf("set client secret: %w", err)
@@ -116,7 +116,15 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	server := NewSapServer(s, oauthApp, endpoint)
+	clientMetadata := ConfiguredClientMetadata{
+		Name: cmd.String(fClientName),
+		URI:  cmd.String(fClientURI),
+	}
+	if clientMetadata.URI == "" {
+		clientMetadata.URI = endpoint
+	}
+
+	server := NewSapServer(s, oauthApp, endpoint, clientMetadata, cmd.String(fIdentityResolver))
 
 	// The OAuth endpoints (callback and client metadata) must be publicly
 	// reachable since the user's PDS redirects to them, so they are served on
@@ -135,6 +143,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	internalMux.HandleFunc("/session/list", server.handleListSessions)
 	internalMux.HandleFunc("/space/track", server.handleTrackSpace)
 	internalMux.HandleFunc("/session/recrawl", server.handleRecrawl)
+	internalMux.HandleFunc("/space/credential", server.handleSpaceCredential)
 	if webhookURL == "" {
 		// The outbox is single-consumer (see outbox.Outbox.Watch): once the
 		// webhook consumer is draining it, a /channel client polling the
@@ -205,4 +214,9 @@ func serve(ctx context.Context, addr string, handler http.Handler) error {
 	go func() { _ = srv.ListenAndServe() }()
 	<-ctx.Done()
 	return srv.Shutdown(ctx)
+}
+
+type ConfiguredClientMetadata struct {
+	Name string
+	URI  string
 }

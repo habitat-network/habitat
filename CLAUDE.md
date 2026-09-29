@@ -28,6 +28,7 @@ There is no `funnel`/Tailscale binary anymore — local-dev public reachability 
 Identity & org:
 - `hive` — identity enrollment/minting and DID management for orgs (did:web-based, org-owned identities); also signs habitat-issued service-auth JWTs
 - `org` — organization membership, admin roles, invites
+- `emaildomain` — email-domain → org mappings and email → DID provisioning for Google work-email sign-in (first sign-in becomes org admin); see `identity.EmailResolver`
 - `identity` — serves DID docs and host→DID mapping over HTTP
 - `instance` — instance-admin login/settings server (embedded HTML templates)
 
@@ -92,8 +93,7 @@ Tool versions are managed by [Proto](https://moonrepo.dev/proto) via `.prototool
 
 ```bash
 # Development
-moon :dev-all           # start all apps in dev (frontend + backend, docs)
-moon frontend:dev       # frontend only (habitat management plane) + pear backend
+moon frontend:dev       # frontend (habitat management plane) + pear:dev
 moon pear:dev           # Pear server with Air hot reload (+ ngrok, + Caddy)
 moon sap:dev            # sap sync service in dev
 

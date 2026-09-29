@@ -15,11 +15,20 @@ export function sapAuthHeaders(env: Env): Record<string, string> {
   return { Authorization: `Basic ${btoa(`:${secret}`)}` };
 }
 
-// startLogin asks sap to begin an atproto OAuth flow for handle, telling it
-// to redirect the browser back to chalk's /session/callback (with the
-// resolved DID) once the PDS OAuth handshake completes. Returns the
-// PDS-authorize URL the browser should be sent to next.
-export async function startLogin(env: Env, handle: string): Promise<string> {
+// EmailDomainNotFoundError is thrown by startLogin when sap can't resolve a
+// work email to an identity, i.e. its domain isn't mapped to any org.
+export class EmailDomainNotFoundError extends Error {}
+
+// startLogin asks sap to begin an atproto OAuth flow for handle (a handle,
+// DID, or work email), telling it to redirect the browser back to chalk's
+// /session/callback (with the resolved DID) once the PDS OAuth handshake
+// completes. Returns the PDS-authorize URL the browser should be sent to
+// next.
+export async function startLogin(
+  env: Env,
+  handle: string,
+  returnPath = "/session/callback",
+): Promise<string> {
   const base = env.CHALK_BASE_URL;
   if (!base) throw new Error("CHALK_BASE_URL is not set");
   if (!env.CHALK_SAP_INTERNAL_URL)
@@ -32,9 +41,12 @@ export async function startLogin(env: Env, handle: string): Promise<string> {
     },
     body: JSON.stringify({
       handle,
-      return_to: `${base}/session/callback`,
+      return_to: `${base}${returnPath}`,
     }),
   });
+  if (res.status === 404) {
+    throw new EmailDomainNotFoundError(await res.text());
+  }
   if (!res.ok) {
     throw new Error(
       `failed to start login (${res.status}): ${await res.text()}`,
@@ -42,6 +54,62 @@ export async function startLogin(env: Env, handle: string): Promise<string> {
   }
   const { redirect_url } = (await res.json()) as { redirect_url: string };
   return redirect_url;
+}
+
+// querySpace runs an XRPC query against a space's own host without acting as
+// any particular member: sap mints a space credential (GET /space/credential)
+// through whichever of its sessions has access to the space, and the query is
+// sent with it straight to the host sap says the credential is valid against.
+// Only endpoints that accept a space credential work this way (e.g.
+// network.habitat.space.getBlob, network.habitat.relationship.listRelations).
+// It's for reads made while handling an outbox webhook, where no member is
+// signed in and the doc's owner or a record's author may have no sap session.
+// Throws on a non-2xx response from either sap or the space host.
+export async function querySpace(
+  env: Env,
+  space: string,
+  nsid: string,
+  params: Record<string, string>,
+): Promise<Response> {
+  const base = env.CHALK_SAP_INTERNAL_URL;
+  if (!base) throw new Error("CHALK_SAP_INTERNAL_URL is not set");
+  const credRes = await fetch(
+    `${base}/space/credential?${new URLSearchParams({ space }).toString()}`,
+    { headers: sapAuthHeaders(env) },
+  );
+  if (!credRes.ok) {
+    throw new Error(
+      `space credential failed (${credRes.status}): ${await credRes.text()}`,
+    );
+  }
+  const { credential, host } = (await credRes.json()) as {
+    credential: string;
+    host: string;
+  };
+  const res = await fetch(
+    `${host}/xrpc/${nsid}?${new URLSearchParams(params).toString()}`,
+    { headers: { Authorization: `Bearer ${credential}` } },
+  );
+  if (!res.ok) {
+    throw new Error(`${nsid} failed (${res.status}): ${await res.text()}`);
+  }
+  return res;
+}
+
+// getSpaceBlob fetches a blob's raw bytes from a space, addressed by its CID,
+// via querySpace. A putRecord'd record only carries a blob *reference* (a
+// $type: "blob" object with the CID under ref.$link), so reading a member's
+// Yjs update back out means dereferencing it here.
+export async function getSpaceBlob(
+  env: Env,
+  space: string,
+  cid: string,
+): Promise<Uint8Array> {
+  const res = await querySpace(env, space, "network.habitat.space.getBlob", {
+    space,
+    cid,
+  });
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 // SapClient makes authenticated pear calls as a specific member, via sap's
@@ -52,6 +120,15 @@ export class SapClient {
     private env: Env,
     private did: string,
   ) {}
+
+  // asDid returns a client for the same environment authenticated as
+  // another DID's sap session. Used where a call has to be made as
+  // somebody other than the signed-in member — creating a doc's comments
+  // space and its inheritance, which only the doc owner is a manager of
+  // (see ensureCommentsSpace).
+  asDid(did: string): SapClient {
+    return new SapClient(this.env, did);
+  }
 
   // base is a getter, not a constructor-time value: `process.env` does not
   // exist on workerd, and Cloudflare's canonical way to read bindings
@@ -67,6 +144,7 @@ export class SapClient {
     nsid: string,
     method: "GET" | "POST",
     payload: Record<string, unknown>,
+    opts?: { atprotoProxy?: string },
   ): Promise<T> {
     const base = `${this.base}/proxy/${nsid}`;
     let url = base;
@@ -75,6 +153,9 @@ export class SapClient {
       [habitatDIDHeader]: this.did,
       ...sapAuthHeaders(this.env),
     };
+    if (opts?.atprotoProxy) {
+      headers["Atproto-Proxy"] = opts.atprotoProxy;
+    }
     if (method === "GET") {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(payload)) {
@@ -122,29 +203,6 @@ export class SapClient {
       throw new Error(`uploadBlob failed (${res.status}): ${await res.text()}`);
     }
     return (await res.json()) as { blob: unknown; cid: string };
-  }
-
-  // getBlob fetches a blob's raw bytes from a space, addressed by its CID
-  // (network.habitat.space.getBlob — requires read access to the space).
-  // A putRecord'd record only carries a blob *reference* (a $type: "blob"
-  // object with the CID under ref.$link), not the bytes themselves, so
-  // reading a member's Yjs update back out means dereferencing it here.
-  async getBlob(space: string, cid: string): Promise<Uint8Array> {
-    const qs = new URLSearchParams({ space, cid });
-    const res = await fetch(
-      `${this.base}/proxy/network.habitat.space.getBlob?${qs.toString()}`,
-      {
-        method: "GET",
-        headers: {
-          [habitatDIDHeader]: this.did,
-          ...sapAuthHeaders(this.env),
-        },
-      },
-    );
-    if (!res.ok) {
-      throw new Error(`getBlob failed (${res.status}): ${await res.text()}`);
-    }
-    return new Uint8Array(await res.arrayBuffer());
   }
 
   // trackSpace asks sap to start tracking spaceUri immediately (sap's

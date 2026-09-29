@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -27,9 +29,12 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
+	"github.com/habitat-network/habitat/internal/opensocial"
+	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 	"golang.org/x/oauth2"
@@ -53,6 +58,13 @@ func testStore(t *testing.T) org.Store {
 	return s
 }
 
+// testOpensocialStore creates an opensocial.Store backed by throwaway
+// storage, with no orgs seeded.
+func testOpensocialStore(t *testing.T) *opensocial.Store {
+	t.Helper()
+	return opensocial_testutil.NewTestStore(t).Store
+}
+
 func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
@@ -60,6 +72,8 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 			nil, nil, nil, noop.Meter{}, testStore(t),
 			"https://habitat.example",
 			NewJWTBearerStore(),
+			testOpensocialStore(t),
+			nil,
 		)
 		require.Error(t, err)
 	})
@@ -82,6 +96,8 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
+		testOpensocialStore(t),
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -181,6 +197,8 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
+		testOpensocialStore(t),
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -290,6 +308,8 @@ func TestOAuthServerE2E(t *testing.T) {
 		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
+		testOpensocialStore(t),
+		nil,
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 
@@ -503,6 +523,8 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		orgStore,
 		"https://habitat.example",
 		NewJWTBearerStore(),
+		testOpensocialStore(t),
+		nil,
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 
@@ -522,6 +544,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 			credInfo, ok := oauthServer.Validate(w, r)
 			require.True(t, ok, "failed to validate token")
 			require.Equal(t, member.DID, credInfo.Subject)
+			require.Equal(t, authn.ValidatorMethodOAuth, credInfo.Method)
 		default:
 			t.Errorf("unknown server path: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -638,6 +661,8 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
+		testOpensocialStore(t),
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -838,6 +863,8 @@ func TestValidate(t *testing.T) {
 			st,
 			"https://habitat.example",
 			NewJWTBearerStore(),
+			testOpensocialStore(t),
+			nil,
 		)
 		require.NoError(t, srvErr)
 		return s, p
@@ -954,6 +981,8 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			st,
 			"https://habitat.example",
 			NewJWTBearerStore(),
+			testOpensocialStore(t),
+			nil,
 		)
 		require.NoError(t, srvErr)
 		return s, p
@@ -1059,6 +1088,8 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 		orgStore,
 		"https://habitat.example",
 		NewJWTBearerStore(),
+		testOpensocialStore(t),
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -1229,6 +1260,8 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		testStore(t),
 		"https://habitat.example",
 		NewJWTBearerStore(),
+		testOpensocialStore(t),
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -1317,4 +1350,327 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 
 	require.True(t, disambiguateVisited, "disambiguation page should have been visited")
 	require.NotEmpty(t, capturedToken, "OAuth flow should complete after disambiguation")
+}
+
+// TestHandleOpensocialSignInE2E drives the full authorization code flow for an
+// opensocial org identity: the authorize request redirects to the opensocial
+// login page instead of straight to a login provider, the admin submits their
+// handle, the flow completes via PDS login, and the client's app-access grant
+// is recorded once the token is issued.
+func TestHandleOpensocialSignInE2E(t *testing.T) {
+	db := dbtestutil.NewDB(t)
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	pds := login_testutil.NewPassthroughProvider(t)
+	opensocialStore := testOpensocialStore(t)
+
+	adminDID := syntax.DID("did:web:example.did.com") // dummyDir resolves any handle to this DID
+	orgDIDStr, err := opensocialStore.NewOrg(t.Context(), "acme", adminDID)
+	require.NoError(t, err)
+	orgDID := syntax.DID(orgDIDStr)
+
+	oauthServer, err := NewOAuthServer(
+		bytes,
+		&org.LoginRouter{
+			Pds: pds,
+		},
+		dummyDir,
+		db,
+		noop.Meter{},
+		testStore(t),
+		"https://habitat.example",
+		NewJWTBearerStore(),
+		opensocialStore,
+		nil,
+	)
+	require.NoError(t, err)
+
+	var opensocialGetVisited bool
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/authorize":
+			oauthServer.HandleAuthorize(w, r)
+		case "/oauth-callback":
+			oauthServer.HandleCallback(w, r)
+		case "/oauth/token":
+			oauthServer.HandleToken(w, r)
+		case "/ui/login/opensocial":
+			// Simulate the pear-pages opensocial login page: fetch the org
+			// profile, then submit the admin's handle.
+			getReq := httptest.NewRequest(http.MethodGet, "/oauth/opensocial", http.NoBody)
+			getReq.AddCookie(r.Cookies()[0])
+			getRec := httptest.NewRecorder()
+			oauthServer.HandleOpensocial(getRec, getReq)
+			require.Equal(t, http.StatusOK, getRec.Code)
+			opensocialGetVisited = true
+
+			postReq := httptest.NewRequest(
+				http.MethodPost,
+				"/oauth/opensocial",
+				strings.NewReader(url.Values{"handle": {"admin.example.com"}}.Encode()),
+			)
+			postReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			postReq.AddCookie(r.Cookies()[0])
+			oauthServer.HandleOpensocial(w, postReq)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	server.Client().Jar = jar
+	pds.RedirectURI = server.URL + "/oauth-callback"
+
+	verifier := oauth2.GenerateVerifier()
+	config := &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  server.URL + "/oauth/authorize",
+			TokenURL: server.URL + "/oauth/token",
+		},
+	}
+
+	var capturedToken string
+	clientApp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/client-metadata.json":
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+				ClientId:      "http://" + r.Host + "/client-metadata.json",
+				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				ResponseTypes: []string{"code"},
+				GrantTypes:    []string{"authorization_code", "refresh_token"},
+			}))
+		case "/oauth-callback":
+			ctx := context.WithValue(r.Context(), oauth2.HTTPClient, server.Client())
+			token, exchangeErr := config.Exchange(
+				ctx,
+				r.URL.Query().Get("code"),
+				oauth2.VerifierOption(verifier),
+			)
+			require.NoError(t, exchangeErr)
+			capturedToken = token.AccessToken
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+				"token": token.AccessToken,
+			}))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(clientApp.Close)
+
+	config.ClientID = clientApp.URL + "/client-metadata.json"
+	config.RedirectURL = clientApp.URL + "/oauth-callback"
+
+	authReq, err := http.NewRequest(
+		http.MethodGet,
+		config.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier))+
+			"&handle="+url.QueryEscape(orgDID.String()),
+		http.NoBody,
+	)
+	require.NoError(t, err)
+
+	result, err := server.Client().Do(authReq)
+	require.NoError(t, err)
+	respBytes, err := io.ReadAll(result.Body)
+	require.NoError(t, err)
+	require.NoError(t, result.Body.Close())
+	require.Equal(t, http.StatusOK, result.StatusCode, "authorize request failed: %s", respBytes)
+
+	require.True(
+		t,
+		opensocialGetVisited,
+		"opensocial login page should have fetched the org profile",
+	)
+	require.NotEmpty(t, capturedToken, "OAuth flow should complete after opensocial admin sign-in")
+
+	hasAccess, err := opensocialStore.CheckAppAccess(
+		t.Context(),
+		habitat_syntax.ConstructSpaceURI(orgDID, "some.space.type", "self"),
+		config.ClientID,
+	)
+	require.NoError(t, err)
+	require.True(t, hasAccess, "client should be granted app access after token issuance")
+}
+
+// TestHandleOpensocialRejectsNonAdmin verifies that HandleOpensocial refuses
+// to start a PDS login when the submitted handle doesn't resolve to an admin
+// of the org, and never invokes the login provider.
+func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
+	db := dbtestutil.NewDB(t)
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	pds := login_testutil.NewPassthroughProvider(t)
+	opensocialStore := testOpensocialStore(t)
+
+	// Org with no admins matching the DID dummyDir will resolve the submitted
+	// handle to.
+	orgDIDStr, err := opensocialStore.NewOrg(t.Context(), "acme", "did:plc:someone-else")
+	require.NoError(t, err)
+	orgDID := syntax.DID(orgDIDStr)
+
+	oauthServer, err := NewOAuthServer(
+		bytes,
+		&org.LoginRouter{
+			Pds: pds,
+		},
+		dummyDir,
+		db,
+		noop.Meter{},
+		testStore(t),
+		"https://habitat.example",
+		NewJWTBearerStore(),
+		opensocialStore,
+		nil,
+	)
+	require.NoError(t, err)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/authorize":
+			oauthServer.HandleAuthorize(w, r)
+		case "/oauth/opensocial":
+			oauthServer.HandleOpensocial(w, r)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	server.Client().Jar = jar
+
+	clientApp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/client-metadata.json":
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+				ClientId:      "http://" + r.Host + "/client-metadata.json",
+				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				ResponseTypes: []string{"code"},
+				GrantTypes:    []string{"authorization_code", "refresh_token"},
+			}))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(clientApp.Close)
+
+	verifier := oauth2.GenerateVerifier()
+	config := &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL: server.URL + "/oauth/authorize",
+		},
+		ClientID:    clientApp.URL + "/client-metadata.json",
+		RedirectURL: clientApp.URL + "/oauth-callback",
+	}
+
+	authReq, err := http.NewRequest(
+		http.MethodGet,
+		config.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier))+
+			"&handle="+url.QueryEscape(orgDID.String()),
+		http.NoBody,
+	)
+	require.NoError(t, err)
+	server.Client().CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	resp, err := server.Client().Do(authReq)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+	require.NoError(t, resp.Body.Close())
+
+	// Follow the redirect to /ui/login/opensocial's would-be page and post a
+	// handle that resolves (via dummyDir) to a DID with no role in the org.
+	postReq, err := http.NewRequest(
+		http.MethodPost,
+		server.URL+"/oauth/opensocial",
+		strings.NewReader(url.Values{"handle": {"stranger.example.com"}}.Encode()),
+	)
+	require.NoError(t, err)
+	postReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	postResp, err := server.Client().Do(postReq)
+	require.NoError(t, err)
+	require.NoError(t, postResp.Body.Close())
+	require.Equal(t, http.StatusUnauthorized, postResp.StatusCode)
+
+	require.Empty(t, pds.LoginID, "login provider should never have been invoked")
+}
+
+// TestListConnectedAppsSkipsUnresolvableClients verifies ListConnectedApps
+// omits ConnectedApp rows whose client metadata can no longer be fetched.
+// Previously those rows were serialized as zero-value apps, producing an
+// invalid empty lastUsed datetime that the lexicon validator rejects.
+func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
+	db := dbtestutil.NewDB(t)
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	p := login_testutil.NewPassthroughProvider(t)
+	oauthServer, err := NewOAuthServer(
+		bytes,
+		&org.LoginRouter{Pds: p},
+		dummyDir,
+		db,
+		noop.Meter{},
+		testStore(t),
+		"https://habitat.example",
+		NewJWTBearerStore(),
+		testOpensocialStore(t),
+		nil,
+	)
+	require.NoError(t, err)
+
+	// A live OAuth flow records a ConnectedApp row for the client app.
+	validToken := acquireAccessToken(t, oauthServer, p)
+
+	// A metadata server that 404s: FetchMetadata (and thus GetClient) errors
+	// for any ConnectedApp row referencing it.
+	goneClient := httptest.NewServer(http.NotFoundHandler())
+	defer goneClient.Close()
+
+	require.NoError(t, db.Create(&ConnectedApp{
+		Subject:  "did:web:example.did.com",
+		ClientID: goneClient.URL + "/client-metadata.json",
+		Scopes:   "atproto",
+	}).Error)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.listConnectedApps",
+		http.NoBody,
+	)
+	req.Header.Set("Authorization", "Bearer "+validToken)
+	rec := httptest.NewRecorder()
+	oauthServer.ListConnectedApps(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var output habitat.NetworkHabitatListConnectedAppsOutput
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&output))
+
+	for _, app := range output.Apps {
+		require.NotEmpty(
+			t,
+			app.LastUsed,
+			"app %q must carry a non-empty lastUsed datetime",
+			app.ClientID,
+		)
+	}
+	require.Len(t, output.Apps, 1, "unresolvable client should be omitted from the response")
 }

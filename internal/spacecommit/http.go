@@ -10,12 +10,13 @@ import (
 // responses.
 func (c SignedCommit) ToXRPC() habitat.NetworkHabitatSpaceDefsSignedCommit {
 	return habitat.NetworkHabitatSpaceDefsSignedCommit{
-		Ver:  int64(c.Ver),
-		Hash: atdata.Bytes(c.Hash),
-		Ikm:  atdata.Bytes(c.Ikm),
-		Mac:  atdata.Bytes(c.Mac),
-		Sig:  atdata.Bytes(c.Sig),
-		Rev:  c.Rev,
+		Ver:           int64(c.Ver),
+		Hash:          atdata.Bytes(c.Hash),
+		Ikm:           atdata.Bytes(c.Ikm),
+		Mac:           atdata.Bytes(c.Mac),
+		Sig:           atdata.Bytes(c.Sig),
+		Rev:           c.Rev,
+		HabitatSigned: c.HabitatSigned,
 	}
 }
 
@@ -25,11 +26,12 @@ func (c SignedCommit) ToXRPC() habitat.NetworkHabitatSpaceDefsSignedCommit {
 // in-memory form.
 func FromXRPC(c habitat.NetworkHabitatSpaceDefsSignedCommit) SignedCommit {
 	return SignedCommit{
-		Ver:  int(c.Ver),
-		Hash: c.Hash,
-		Ikm:  c.Ikm,
-		Mac:  c.Mac,
-		Sig:  c.Sig,
-		Rev:  c.Rev,
+		Ver:           int(c.Ver),
+		Hash:          c.Hash,
+		Ikm:           c.Ikm,
+		Mac:           c.Mac,
+		Sig:           c.Sig,
+		Rev:           c.Rev,
+		HabitatSigned: c.HabitatSigned,
 	}
 }

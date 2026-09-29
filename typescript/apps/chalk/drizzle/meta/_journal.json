@@ -15,6 +15,34 @@
       "when": 1787676331665,
       "tag": "0001_magical_hemingway",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788480000000,
+      "tag": "0002_org_support",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788996792013,
+      "tag": "0003_elite_doctor_faustus",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788997729014,
+      "tag": "0004_classy_ikaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789067756949,
+      "tag": "0005_tidy_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }

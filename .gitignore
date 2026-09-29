@@ -36,6 +36,7 @@ config/habitat.dev.yml
 tmp/
 
 .moon/cache
+.mcp.json
 
 # We generate key.jwk and repo.db at runtime to use in the server.
 /pear

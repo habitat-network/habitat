@@ -156,6 +156,7 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", http.NoBody)
 	r.Header.Set("Atproto-Proxy", targetDID+"#atproto_labeler")
 	r.Header.Set("DPoP", "some-dpop-proof")
+	r.Header.Set("Habitat-Auth-Method", "oauth")
 	sp(neverNext(t)).ServeHTTP(w, r)
 
 	require.Equal(t, http.StatusOK, w.Code)
@@ -169,6 +170,12 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 		t,
 		received.Header.Get("DPoP"),
 		"DPoP must be stripped (proof is bound to Habitat's endpoint)",
+	)
+	require.Empty(
+		t,
+		received.Header.Get("Habitat-Auth-Method"),
+		"Habitat-Auth-Method must be stripped, or the target's OAuthServer.CanHandle "+
+			"would misidentify the forwarded service-auth JWT as an OAuth token",
 	)
 
 	// Verify the forwarded Authorization is a service auth JWT issued by the caller.
@@ -186,6 +193,56 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, aud)
 	require.Contains(t, aud[0], targetDID)
+}
+
+// TestServiceProxyIntegration_DoesNotDuplicateCORSHeaders covers a real
+// failure mode when the proxy target is this same pear instance (any
+// did:web:*.pear.local... org): the target's own response already carries
+// Access-Control-*/Vary headers set by the same global CORS middleware the
+// outer request passed through, so blindly forwarding them would duplicate
+// each header on the final response. Browsers treat a duplicated
+// Access-Control-Allow-Origin as an invalid CORS response and fail the
+// request outright, so the proxy must drop these from the forwarded
+// response and let the outer middleware's own headers stand.
+func TestServiceProxyIntegration_DoesNotDuplicateCORSHeaders(t *testing.T) {
+	h := newTestServiceProxyHive(t)
+	callerID, err := h.MintIdentity(context.Background(), "alice", "org")
+	require.NoError(t, err)
+
+	// The target simulates another route on this same server, which the
+	// outer CORS middleware would have already run for.
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Vary", "Origin")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(target.Close)
+
+	const targetDID = "did:web:org.pear.local.habitat.network"
+	dir := identity.NewMockDirectory()
+	dir.Insert(identity.Identity{
+		DID:      syntax.DID(targetDID),
+		Services: map[string]identity.ServiceEndpoint{"habitat": {URL: target.URL}},
+	})
+
+	sp := NewServiceProxy(successValidator(callerID.DID), h, dir, nil)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/community.opensocial.updatePermissions",
+		http.NoBody,
+	)
+	r.Header.Set("Atproto-Proxy", targetDID+"#habitat")
+	// Simulate the outer CORS middleware having already set these headers
+	// on the same ResponseWriter before this middleware runs.
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Vary", "Origin")
+	sp(neverNext(t)).ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, []string{"*"}, w.Header().Values("Access-Control-Allow-Origin"))
+	require.Equal(t, []string{"Origin"}, w.Header().Values("Vary"))
 }
 
 func TestServiceProxyIntegration_RemoteDID(t *testing.T) {

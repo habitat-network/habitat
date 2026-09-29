@@ -6,7 +6,9 @@ import {
 } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { procedure, parseSpaceURI, SpaceURIParts } from "internal";
+import { xrpc, type DidString, type NsidString } from "@atproto/lex";
+import { network } from "api";
+import { SpaceRef } from "@atproto/syntax";
 import {
   Button,
   Card,
@@ -30,7 +32,7 @@ export const Route = createFileRoute("/_requireAuth/spaces/")({
 });
 
 interface SpaceTypeSummary {
-  parts: SpaceURIParts;
+  spaceType: string;
   spaceCount: number;
 }
 
@@ -39,14 +41,13 @@ interface SpaceTypeSummary {
 function summarizeByType(spaces: SpaceView[]): SpaceTypeSummary[] {
   const byType = new Map<string, SpaceTypeSummary>();
   for (const space of spaces) {
-    const parts = parseSpaceURI(space.uri);
-    if (!parts) continue;
-    const summary = byType.get(parts.spaceType) ?? {
-      parts: parts,
+    const ref = SpaceRef.parse(space.uri);
+    const summary = byType.get(ref.spaceType) ?? {
+      spaceType: ref.spaceType,
       spaceCount: 0,
     };
     summary.spaceCount += 1;
-    byType.set(parts.spaceType, summary);
+    byType.set(ref.spaceType, summary);
   }
   return [...byType.values()];
 }
@@ -78,14 +79,14 @@ function SpaceTypesList() {
           </TableHeader>
           <TableBody>
             {types.map((summary) => (
-              <TableRow key={summary.parts.spaceType}>
+              <TableRow key={summary.spaceType}>
                 <TableCell>
                   <Link
                     to="/spaces/type/$spaceType"
-                    params={{ spaceType: summary.parts.spaceType }}
+                    params={{ spaceType: summary.spaceType }}
                     className="font-mono hover:underline"
                   >
-                    {summary.parts.spaceType}
+                    {summary.spaceType}
                   </Link>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
@@ -109,12 +110,20 @@ function CreateSpaceForm() {
 
   const { mutate: createSpace, isPending } = useMutation({
     async mutationFn(type: string) {
-      const { uri } = await procedure(
-        "network.habitat.simplespace.createSpace",
-        { did: authManager.getAuthInfo()!.did, type },
-        { authManager },
+      const response = await xrpc(
+        authManager,
+        network.habitat.simplespace.createSpace.main,
+        {
+          body: {
+            did: authManager.getAuthInfo()!.did as DidString,
+            type: type as NsidString,
+          },
+          headers: {
+            "atproto-proxy": `did:web:${import.meta.env.VITE_HABITAT_DOMAIN}#habitat`,
+          },
+        },
       );
-      return uri;
+      return response.body.uri;
     },
     async onSuccess(uri) {
       setSpaceType("");
@@ -122,13 +131,15 @@ function CreateSpaceForm() {
       // the owner- and type-filtered listings, which are cached separately.
       await queryClient.invalidateQueries({ queryKey: ["listSpaces"] });
       await router.invalidate();
-      const parts = parseSpaceURI(uri);
-      if (parts) {
-        await navigate({
-          to: "/spaces/$spaceOwner/$spaceType/$spaceKey",
-          params: parts,
-        });
-      }
+      const ref = SpaceRef.parse(uri);
+      await navigate({
+        to: "/spaces/$spaceOwner/$spaceType/$spaceKey",
+        params: {
+          spaceOwner: ref.spaceDid,
+          spaceType: ref.spaceType,
+          spaceKey: ref.skey,
+        },
+      });
     },
     onError(error) {
       toast.add({ title: "Couldn't create space", description: error.message });

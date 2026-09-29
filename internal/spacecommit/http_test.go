@@ -11,12 +11,13 @@ import (
 
 func TestSignedCommitToXRPCAndFromXRPCRoundTrip(t *testing.T) {
 	c := SignedCommit{
-		Ver:  Version,
-		Hash: []byte{0x01, 0x02},
-		Ikm:  []byte{0x03, 0x04},
-		Mac:  []byte{0x05, 0x06},
-		Sig:  []byte{0x07, 0x08},
-		Rev:  "3kzl6abcde02k",
+		Ver:           Version,
+		Hash:          []byte{0x01, 0x02},
+		Ikm:           []byte{0x03, 0x04},
+		Mac:           []byte{0x05, 0x06},
+		Sig:           []byte{0x07, 0x08},
+		Rev:           "3kzl6abcde02k",
+		HabitatSigned: true,
 	}
 
 	api := c.ToXRPC()
@@ -26,6 +27,7 @@ func TestSignedCommitToXRPCAndFromXRPCRoundTrip(t *testing.T) {
 	require.Equal(t, atdata.Bytes{0x03, 0x04}, api.Ikm)
 	require.Equal(t, atdata.Bytes{0x05, 0x06}, api.Mac)
 	require.Equal(t, atdata.Bytes{0x07, 0x08}, api.Sig)
+	require.True(t, api.HabitatSigned)
 
 	got := FromXRPC(api)
 	require.Equal(t, c, got)
@@ -33,21 +35,23 @@ func TestSignedCommitToXRPCAndFromXRPCRoundTrip(t *testing.T) {
 
 func TestFromXRPC(t *testing.T) {
 	api := habitat.NetworkHabitatSpaceDefsSignedCommit{
-		Ver:  int64(Version),
-		Hash: atdata.Bytes{0xaa},
-		Ikm:  atdata.Bytes{0xbb},
-		Mac:  atdata.Bytes{0xcc},
-		Sig:  atdata.Bytes{0xdd},
-		Rev:  "3kzl6abcde02k",
+		Ver:           int64(Version),
+		Hash:          atdata.Bytes{0xaa},
+		Ikm:           atdata.Bytes{0xbb},
+		Mac:           atdata.Bytes{0xcc},
+		Sig:           atdata.Bytes{0xdd},
+		Rev:           "3kzl6abcde02k",
+		HabitatSigned: true,
 	}
 
 	got := FromXRPC(api)
 	require.Equal(t, SignedCommit{
-		Ver:  Version,
-		Hash: []byte{0xaa},
-		Ikm:  []byte{0xbb},
-		Mac:  []byte{0xcc},
-		Sig:  []byte{0xdd},
-		Rev:  "3kzl6abcde02k",
+		Ver:           Version,
+		Hash:          []byte{0xaa},
+		Ikm:           []byte{0xbb},
+		Mac:           []byte{0xcc},
+		Sig:           []byte{0xdd},
+		Rev:           "3kzl6abcde02k",
+		HabitatSigned: true,
 	}, got)
 }

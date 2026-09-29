@@ -64,11 +64,21 @@ type blobRef struct {
 // listRepoOps commit) don't rescan every record. State is the 2048-byte LtHash
 // buffer, maintained incrementally in the write path (folded in on put, out on
 // delete). Rev tracks the repo's latest write revision.
+//
+// Remote marks a row registered from an inbound notifyWrite rather than a
+// local PutRecord/DeleteRecord: the repo's records live on its own PDS, not in
+// this space's spaceRecord table, so Hash holds the reported commit digest
+// directly rather than the raw LtHash state a local write can fold into. Every
+// call site that reads local record state (RepoSnapshot, ListRepoOps,
+// RepoHead, RepoHeadCommit) must treat a Remote row as holding no local
+// records; only ListRepos, which just reports the repo set and its last-known
+// digest, reads Hash directly for such a row.
 type spaceRepo struct {
 	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	Repo      syntax.DID              `gorm:"primaryKey"`
 	Hash      []byte
 	Rev       syntax.TID
+	Remote    bool
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
 }
@@ -82,6 +92,10 @@ type RepoInfo struct {
 
 // Record is a single record within a space
 type Record struct {
+	// Space is only populated by methods that can return records from more
+	// than one space in a single call (e.g. GetRecords); it's the zero value
+	// elsewhere, since the caller already supplies the space in that case.
+	Space      habitat_syntax.SpaceURI
 	Owner      syntax.DID
 	Collection syntax.NSID
 	Rkey       syntax.RecordKey
@@ -121,6 +135,22 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 	) ([]RepoInfo, error)
 
+	// RegisterRemoteWrite records that repo advanced to rev/hash on its own
+	// PDS, without this space host holding the record data locally. It is the
+	// space-host side of an inbound notifyWrite: a repo host whose PDS
+	// implements the spaces protocol natively calls notifyWrite directly
+	// rather than writing through PutRecord, so ListRepos would otherwise
+	// never learn about it. hash is the repo's reported commit digest (not a
+	// raw LtHash state, since this host never computed it). Forwards the
+	// notification to any syncers registered for repo, same as a local write.
+	RegisterRemoteWrite(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		rev syntax.TID,
+		hash []byte,
+	) error
+
 	// Record operations
 	//
 	// PutRecord takes the record value as a [MarshaledRecord] — callers must
@@ -141,6 +171,15 @@ type Store interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) (*Record, error)
+	// GetRecords batch-fetches the records identified by uris, in one query.
+	// A uri with no matching record is simply absent from the result (not an
+	// error); the result order is not guaranteed to match uris. uris may span
+	// different spaces and collections, so each returned Record carries its
+	// Space.
+	GetRecords(
+		ctx context.Context,
+		uris []habitat_syntax.SpaceRecordURI,
+	) ([]Record, error)
 	ListRecords(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -174,6 +213,19 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		c cid.Cid,
 	) (bool, error)
+
+	// ApplyWrites applies a batch of creates, updates, and deletes to a repo
+	// atomically: either every write lands or none does. results is parallel to
+	// writes. A create of an existing record fails with
+	// [ErrRecordAlreadyExists]; an update or delete of a missing one fails with
+	// [ErrRecordNotFound]. Each write is assigned its own revision, and the
+	// repo's syncers are notified once, with the final head.
+	ApplyWrites(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		writes []Write,
+	) ([]WriteResult, error)
 
 	// Oplog operations
 	//
@@ -215,6 +267,31 @@ type Store interface {
 	db.Store[Store]
 }
 
+// WriteAction is the kind of operation a [Write] performs.
+type WriteAction string
+
+const (
+	WriteCreate WriteAction = "create"
+	WriteUpdate WriteAction = "update"
+	WriteDelete WriteAction = "delete"
+)
+
+// Write is a single operation in an [Store.ApplyWrites] batch. Rkey may be
+// empty only for WriteCreate, in which case one is generated. Value is unused
+// by WriteDelete.
+type Write struct {
+	Action     WriteAction
+	Collection syntax.NSID
+	Rkey       syntax.RecordKey
+	Value      MarshaledRecord
+}
+
+// WriteResult is the outcome of one [Write]. Cid is nil for WriteDelete.
+type WriteResult struct {
+	URI habitat_syntax.SpaceRecordURI
+	Cid *cid.Cid
+}
+
 // Notifier is notified when a space changes so it can deliver events to
 // registered syncers. Implementations must be non-blocking and best-effort.
 type Notifier interface {
@@ -231,16 +308,17 @@ type Notifier interface {
 }
 
 var (
-	ErrSpaceNotFound      = errors.New("space not found")
-	ErrSpaceAlreadyExists = errors.New("space already exists")
-	ErrRecordNotFound     = errors.New("record not found")
-	ErrUserAlreadyMember  = errors.New("user is already a member of the space")
-	ErrNotAMember         = errors.New("user is not a member of the space")
-	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
-	ErrRepoNotFound       = errors.New("repo not found")
-	ErrRevTooFar          = errors.New("since revision is ahead of the repo head")
-	ErrRecordTooLarge     = errors.New("record too large")
-	ErrInvalidRecord      = errors.New("record does not conform to atproto data model")
+	ErrSpaceNotFound       = errors.New("space not found")
+	ErrSpaceAlreadyExists  = errors.New("space already exists")
+	ErrRecordNotFound      = errors.New("record not found")
+	ErrRecordAlreadyExists = errors.New("record already exists")
+	ErrUserAlreadyMember   = errors.New("user is already a member of the space")
+	ErrNotAMember          = errors.New("user is not a member of the space")
+	ErrCannotRemoveOrg     = errors.New("cannot remove the org from the space")
+	ErrRepoNotFound        = errors.New("repo not found")
+	ErrRevTooFar           = errors.New("since revision is ahead of the repo head")
+	ErrRecordTooLarge      = errors.New("record too large")
+	ErrInvalidRecord       = errors.New("record does not conform to atproto data model")
 )
 
 // ---- Store implementation ----
@@ -390,10 +468,17 @@ func loadRepoHash(
 	if err != nil {
 		return spacecommit.LtHash{}, "", false, err
 	}
+	if row.Remote {
+		// Remote rows hold a reported digest, not a raw LtHash state this
+		// host can fold or serve records against — treat as "holds no local
+		// records" for every local-data read/write path.
+		return spacecommit.LtHash{}, "", false, nil
+	}
 	return spacecommit.Load(row.Hash), row.Rev, true, nil
 }
 
-// saveRepoHash persists a repo's LtHash state and rev.
+// saveRepoHash persists a repo's LtHash state and rev for a locally-written
+// repo.
 func saveRepoHash(
 	tx *gorm.DB,
 	space habitat_syntax.SpaceURI,
@@ -406,6 +491,25 @@ func saveRepoHash(
 		Repo:  repo,
 		Hash:  h.State(),
 		Rev:   rev,
+	}).Error
+}
+
+// saveRemoteRepoHash persists a remotely-written repo's reported commit digest
+// and rev, marking the row Remote so local-data reads know not to serve
+// records for it out of this space's own tables.
+func saveRemoteRepoHash(
+	tx *gorm.DB,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	digest []byte,
+	rev syntax.TID,
+) error {
+	return tx.Save(&spaceRepo{
+		Space:  space,
+		Repo:   repo,
+		Hash:   digest,
+		Rev:    rev,
+		Remote: true,
 	}).Error
 }
 
@@ -449,14 +553,49 @@ func (s *store) ListRepos(
 
 	repos := make([]RepoInfo, len(rows))
 	for i, row := range rows {
-		h := spacecommit.Load(row.Hash)
+		digest := row.Hash
+		if !row.Remote {
+			// Local rows store the raw LtHash state; derive the digest.
+			h := spacecommit.Load(row.Hash)
+			digest = h.Sum()
+		}
 		repos[i] = RepoInfo{
 			DID:  row.Repo,
 			Rev:  string(row.Rev),
-			Hash: h.Sum(),
+			Hash: digest,
 		}
 	}
 	return repos, nil
+}
+
+// RegisterRemoteWrite implements [Store].
+func (s *store) RegisterRemoteWrite(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	rev syntax.TID,
+	hash []byte,
+) error {
+	ok, err := s.CheckSpaceExists(ctx, uri)
+	if err != nil {
+		return fmt.Errorf("failed to get space: %w", err)
+	} else if !ok {
+		return ErrSpaceNotFound
+	}
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockRepo(tx, uri, repo); err != nil {
+			return err
+		}
+		return saveRemoteRepoHash(tx, uri, repo, hash, rev)
+	})
+	if err != nil {
+		return fmt.Errorf("register remote write: %w", err)
+	}
+
+	// Best-effort: forward to registered syncers, same as a local write.
+	s.notifier.NotifyWrite(ctx, uri, repo, rev, hash)
+	return nil
 }
 
 // ---- Record operations ----
@@ -543,28 +682,8 @@ func (s *store) PutRecord(
 
 		// Clear this record's prior blob references and set them to exactly
 		// what its new value references.
-		if err := tx.
-			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-				spaceURI, repo, collection, rkey).
-			Delete(&blobRef{}).Error; err != nil {
-			return fmt.Errorf("failed to clear blob refs: %w", err)
-		}
-		if len(blobs) > 0 {
-			refs := make([]blobRef, len(blobs))
-			for i, b := range blobs {
-				refs[i] = blobRef{
-					Cid:        b.Ref.CID().String(),
-					Space:      spaceURI,
-					Repo:       repo,
-					Collection: collection,
-					Rkey:       rkey,
-				}
-			}
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).
-				Create(&refs).
-				Error; err != nil {
-				return fmt.Errorf("failed to save blob refs: %w", err)
-			}
+		if err := setBlobRefs(tx, spaceURI, repo, collection, rkey, blobs); err != nil {
+			return err
 		}
 
 		return tx.Save(&spaceRecord{
@@ -619,6 +738,58 @@ func (s *store) GetRecord(
 		UpdatedAt:  row.UpdatedAt,
 		Cid:        cid.MustParse(row.Cid),
 	}, nil
+}
+
+func (s *store) GetRecords(
+	ctx context.Context,
+	uris []habitat_syntax.SpaceRecordURI,
+) ([]Record, error) {
+	if len(uris) == 0 {
+		return nil, nil
+	}
+
+	conds := make([]string, len(uris))
+	args := make([]any, 0, len(uris)*4)
+	for i, uri := range uris {
+		conds[i] = "(space = ? AND repo = ? AND collection = ? AND rkey = ?)"
+		args = append(args, uri.SpaceURI(), uri.Repo(), uri.Collection(), uri.Rkey())
+	}
+	where := strings.Join(conds, " OR ")
+
+	var rows []spaceRecord
+	if err := s.db.WithContext(ctx).Where(where, args...).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	records := make([]Record, 0, len(rows))
+	for _, row := range rows {
+		value, err := atdata.UnmarshalCBOR(row.Value)
+		if err != nil {
+			// A record that can no longer be decoded (e.g. written before
+			// write-time validation existed) shouldn't take down the whole
+			// batch; skip it and keep going.
+			slog.WarnContext(
+				ctx, "skipping undecodable record in batch get",
+				"space", row.Space,
+				"repo", row.Repo,
+				"collection", row.Collection,
+				"rkey", row.Rkey,
+				"err", err,
+			)
+			continue
+		}
+		records = append(records, Record{
+			Space:      row.Space,
+			Owner:      row.Repo,
+			Collection: row.Collection,
+			Rkey:       row.Rkey,
+			Value:      value,
+			Rev:        string(row.Rev),
+			UpdatedAt:  row.UpdatedAt,
+			Cid:        cid.MustParse(row.Cid),
+		})
+	}
+	return records, nil
 }
 
 func (s *store) ListRecords(
@@ -919,11 +1090,8 @@ func (s *store) DeleteRecord(
 			return fmt.Errorf("delete record: %w", err)
 		}
 		// A deleted record no longer authorizes reads of the blobs it referenced.
-		if err := tx.
-			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-				uri, repo, collection, rkey).
-			Delete(&blobRef{}).Error; err != nil {
-			return fmt.Errorf("clear blob refs: %w", err)
+		if err := setBlobRefs(tx, uri, repo, collection, syntax.RecordKey(rkey), nil); err != nil {
+			return err
 		}
 		// Fold the deleted records out of the cached LtHash.
 		h, _, _, err := loadRepoHash(tx, uri, repo)
@@ -947,6 +1115,41 @@ func (s *store) DeleteRecord(
 	})
 }
 
+// setBlobRefs replaces the blob references held by one record with blobs; nil
+// clears them, as when the record is deleted.
+func setBlobRefs(
+	tx *gorm.DB,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	blobs []atdata.Blob,
+) error {
+	if err := tx.
+		Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+			space, repo, collection, rkey).
+		Delete(&blobRef{}).Error; err != nil {
+		return fmt.Errorf("failed to clear blob refs: %w", err)
+	}
+	if len(blobs) == 0 {
+		return nil
+	}
+	refs := make([]blobRef, len(blobs))
+	for i, b := range blobs {
+		refs[i] = blobRef{
+			Cid:        b.Ref.CID().String(),
+			Space:      space,
+			Repo:       repo,
+			Collection: collection,
+			Rkey:       rkey,
+		}
+	}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&refs).Error; err != nil {
+		return fmt.Errorf("failed to save blob refs: %w", err)
+	}
+	return nil
+}
+
 // BlobReferenced implements [Store].
 func (s *store) BlobReferenced(
 	ctx context.Context,
@@ -963,4 +1166,145 @@ func (s *store) BlobReferenced(
 		return false, fmt.Errorf("check blob reference: %w", err)
 	}
 	return true, nil
+}
+
+// ApplyWrites implements [Store].
+func (s *store) ApplyWrites(
+	ctx context.Context,
+	spaceURI habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	writes []Write,
+) ([]WriteResult, error) {
+	ctx, span := tracer.Start(ctx, "ApplyWrites", trace.WithAttributes(
+		attribute.String("space", spaceURI.String()),
+		attribute.String("repo", repo.String()),
+		attribute.Int("writes", len(writes)),
+	))
+	defer span.End()
+	ok, err := s.CheckSpaceExists(ctx, spaceURI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get space: %w", err)
+	} else if !ok {
+		return nil, ErrSpaceNotFound
+	}
+
+	results := make([]WriteResult, len(writes))
+	var headRev syntax.TID
+	var headHash []byte
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockRepo(tx, spaceURI, repo); err != nil {
+			return err
+		}
+		h, _, _, err := loadRepoHash(tx, spaceURI, repo)
+		if err != nil {
+			return fmt.Errorf("failed to load repo hash: %w", err)
+		}
+		var changed bool
+		for i, w := range writes {
+			rev := s.clock.Next()
+			rkey := w.Rkey
+			if rkey == "" && w.Action == WriteCreate {
+				rkey = syntax.RecordKey(rev)
+			}
+			uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, w.Collection, rkey)
+			var existing spaceRecord
+			err := tx.
+				Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+					spaceURI, repo, w.Collection, rkey).
+				First(&existing).Error
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("failed to get existing record: %w", err)
+			}
+			exists := err == nil
+
+			switch w.Action {
+			case WriteCreate, WriteUpdate:
+				if w.Action == WriteCreate && exists {
+					return fmt.Errorf("%s: %w", uri, ErrRecordAlreadyExists)
+				}
+				if w.Action == WriteUpdate && !exists {
+					return fmt.Errorf("%s: %w", uri, ErrRecordNotFound)
+				}
+				newCid, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(w.Value)
+				if err != nil {
+					return fmt.Errorf("failed to compute cid: %w", err)
+				}
+				parsed, err := atdata.UnmarshalCBOR(w.Value)
+				if err != nil {
+					return fmt.Errorf("failed to decode record: %w", err)
+				}
+				results[i] = WriteResult{URI: uri, Cid: &newCid}
+				if exists {
+					if existing.Cid == newCid.String() {
+						// Unchanged update: no new rev, same as PutRecord.
+						continue
+					}
+					h.Remove(spacecommit.RecordElement(w.Collection, rkey, existing.Cid))
+				}
+				h.Add(spacecommit.RecordElement(w.Collection, rkey, newCid.String()))
+				if err := tx.Save(&spaceRecord{
+					Repo:       repo,
+					Space:      spaceURI,
+					Collection: w.Collection,
+					Rkey:       rkey,
+					Value:      w.Value,
+					Rev:        rev,
+					PrevCid:    existing.Cid,
+					Cid:        newCid.String(),
+				}).Error; err != nil {
+					return fmt.Errorf("failed to save record: %w", err)
+				}
+				if err := setBlobRefs(tx, spaceURI, repo, w.Collection, rkey,
+					atdata.ExtractBlobs(parsed)); err != nil {
+					return err
+				}
+			case WriteDelete:
+				if !exists {
+					return fmt.Errorf("%s: %w", uri, ErrRecordNotFound)
+				}
+				if err := tx.Model(&spaceRecord{}).
+					Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+						spaceURI, repo, w.Collection, rkey).
+					Updates(map[string]any{
+						"deleted_at": time.Now(),
+						"rev":        rev,
+						"prev_cid":   existing.Cid,
+					}).Error; err != nil {
+					return fmt.Errorf("delete record: %w", err)
+				}
+				h.Remove(spacecommit.RecordElement(w.Collection, rkey, existing.Cid))
+				if err := setBlobRefs(tx, spaceURI, repo, w.Collection, rkey, nil); err != nil {
+					return err
+				}
+				results[i] = WriteResult{URI: uri}
+			default:
+				return fmt.Errorf("unknown write action %q", w.Action)
+			}
+			changed = true
+			headRev = rev
+		}
+		if !changed {
+			return nil
+		}
+		headHash = h.Sum()
+		// Drop the hash row entirely once the repo holds no more records.
+		var remaining int64
+		if err := tx.Model(&spaceRecord{}).
+			Where("space = ? AND repo = ?", spaceURI, repo).
+			Count(&remaining).Error; err != nil {
+			return err
+		}
+		if remaining == 0 {
+			return tx.Where("space = ? AND repo = ?", spaceURI, repo).Delete(&spaceRepo{}).Error
+		}
+		return saveRepoHash(tx, spaceURI, repo, h, headRev)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("apply writes: %w", err)
+	}
+	if headRev != "" {
+		// Best-effort: notify registered syncers that this repo advanced.
+		s.notifier.NotifyWrite(ctx, spaceURI, repo, headRev, headHash)
+	}
+	return results, nil
 }

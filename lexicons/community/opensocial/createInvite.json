@@ -1,0 +1,64 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.createInvite",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Invite a user to join the community. Tracks the invite in the org's invite table; no repo records are written until the invitee accepts via requestJoin. Requires service-auth. Requires the `invite` action.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "org",
+                        "invitee"
+                    ],
+                    "properties": {
+                        "org": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the community to invite into."
+                        },
+                        "invitee": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "DID of the user to invite."
+                        },
+                        "roles": {
+                            "type": "array",
+                            "description": "Record keys of the community.opensocial.role records to grant the invitee once they accept. Defaults to no roles.",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "invite"
+                    ],
+                    "properties": {
+                        "invite": {
+                            "type": "ref",
+                            "ref": "community.opensocial.defs#inviteView"
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "AlreadyMember",
+                    "description": "The invitee is already a member of the community."
+                },
+                {
+                    "name": "InviteAlreadyExists",
+                    "description": "The invitee already has a pending invite."
+                }
+            ]
+        }
+    }
+}

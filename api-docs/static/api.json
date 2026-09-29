@@ -17,6 +17,1589 @@
     }
   ],
   "paths": {
+    "/community.opensocial.assignRoles": {
+      "post": {
+        "tags": [
+          "community.opensocial.assignRoles"
+        ],
+        "summary": "community.opensocial.assignRoles",
+        "description": "Set a member's full role set, replacing whatever roles they previously held. Requires service-auth. Requires the `role.assign` action, bounded by the roles the caller may assign: every role being added or removed must be one the caller's own roles are permitted to assign, per the community's permissions record.",
+        "operationId": "community.opensocial.assignRoles",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "member",
+                  "roles"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community.",
+                    "format": "did"
+                  },
+                  "member": {
+                    "type": "string",
+                    "description": "DID of the member whose roles to set.",
+                    "format": "did"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "RoleNotAssignable"
+                        },
+                        {
+                          "const": "MemberNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.createInvite": {
+      "post": {
+        "tags": [
+          "community.opensocial.createInvite"
+        ],
+        "summary": "community.opensocial.createInvite",
+        "description": "Invite a user to join the community. Tracks the invite in the org's invite table; no repo records are written until the invitee accepts via requestJoin. Requires service-auth. Requires the `invite` action.",
+        "operationId": "community.opensocial.createInvite",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "invitee"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to invite into.",
+                    "format": "did"
+                  },
+                  "invitee": {
+                    "type": "string",
+                    "description": "DID of the user to invite.",
+                    "format": "did"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "invite"
+                  ],
+                  "properties": {
+                    "invite": {
+                      "$ref": "#/components/schemas/community.opensocial.defs.inviteView"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "AlreadyMember"
+                        },
+                        {
+                          "const": "InviteAlreadyExists"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.createSpace": {
+      "post": {
+        "tags": [
+          "community.opensocial.createSpace"
+        ],
+        "summary": "community.opensocial.createSpace",
+        "description": "Create a modality-specific space under the community DID and index it with a community.opensocial.space record. Requires service auth as a member of the community, or an OAuth credential for the community DID itself. Requires the `space.create` action.",
+        "operationId": "community.opensocial.createSpace",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "type"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to create the space under.",
+                    "format": "did"
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "The NSID of the space's type, describing its modality.",
+                    "format": "nsid"
+                  },
+                  "skey": {
+                    "type": "string",
+                    "description": "The space key. If not provided, one will be auto-generated (TID).",
+                    "maxLength": 512
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "uri"
+                  ],
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "description": "URI of the created space.",
+                      "format": "at-uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceAlreadyExists"
+                        },
+                        {
+                          "const": "InvalidType"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.deleteRole": {
+      "post": {
+        "tags": [
+          "community.opensocial.deleteRole"
+        ],
+        "summary": "community.opensocial.deleteRole",
+        "description": "Remove a role. Members holding it keep their other roles; the role is left off any access or permissions bindings that named it. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "community.opensocial.deleteRole",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "role"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the role belongs to.",
+                    "format": "did"
+                  },
+                  "role": {
+                    "type": "string",
+                    "description": "Record key of the role to remove."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "RoleNotFound"
+                        },
+                        {
+                          "const": "CannotDeleteBuiltinRole"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.ejectMember": {
+      "post": {
+        "tags": [
+          "community.opensocial.ejectMember"
+        ],
+        "summary": "community.opensocial.ejectMember",
+        "description": "Remove a member from the community, revoking their roles and access. Requires service-auth. Requires the `eject` action, bounded by the roles the caller may assign.",
+        "operationId": "community.opensocial.ejectMember",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "member"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to remove the member from.",
+                    "format": "did"
+                  },
+                  "member": {
+                    "type": "string",
+                    "description": "DID of the member to remove.",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "MemberNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.listInvites": {
+      "get": {
+        "tags": [
+          "community.opensocial.listInvites"
+        ],
+        "summary": "community.opensocial.listInvites",
+        "description": "List the calling user's pending invites across every community on this instance.",
+        "operationId": "community.opensocial.listInvites",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "invites"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "invites": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/community.opensocial.defs.inviteView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.listPendingInvites": {
+      "get": {
+        "tags": [
+          "community.opensocial.listPendingInvites"
+        ],
+        "summary": "community.opensocial.listPendingInvites",
+        "description": "List all pending invites for the org, across all invitees. Requires service-auth. Requires the `invite` action.",
+        "operationId": "community.opensocial.listPendingInvites",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "org",
+            "in": "query",
+            "description": "DID of the community to list pending invites for.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "DID of the community to list pending invites for.",
+              "format": "did"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "invites"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "invites": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/community.opensocial.defs.inviteView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.putRole": {
+      "post": {
+        "tags": [
+          "community.opensocial.putRole"
+        ],
+        "summary": "community.opensocial.putRole",
+        "description": "Create or update a role. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "community.opensocial.putRole",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "role",
+                  "name"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the role belongs to.",
+                    "format": "did"
+                  },
+                  "role": {
+                    "type": "string",
+                    "description": "Record key for the role, e.g. \"moderator\"."
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2048
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.requestJoin": {
+      "post": {
+        "tags": [
+          "community.opensocial.requestJoin"
+        ],
+        "summary": "community.opensocial.requestJoin",
+        "description": "Accept the calling user's pending invite to this community. Removes the invite from the org's invite table and writes a community.opensocial.membership record (in the org repo) and a community.opensocial.acceptance record (in the user's repo, members space). Requires service-auth.",
+        "operationId": "community.opensocial.requestJoin",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community whose invite to accept.",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "roles"
+                  ],
+                  "properties": {
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InviteNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.revokeInvite": {
+      "post": {
+        "tags": [
+          "community.opensocial.revokeInvite"
+        ],
+        "summary": "community.opensocial.revokeInvite",
+        "description": "Retract a pending invite before it is accepted. Requires service-auth. Requires the `invite` action.",
+        "operationId": "community.opensocial.revokeInvite",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the invite belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "Id of the invite to revoke, from community.opensocial.defs#inviteView."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InviteNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.updatePermissions": {
+      "post": {
+        "tags": [
+          "community.opensocial.updatePermissions"
+        ],
+        "summary": "community.opensocial.updatePermissions",
+        "description": "Replace the community's authz configuration: which roles authorize which actions, and which roles each role may assign/eject. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "community.opensocial.updatePermissions",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "bindings",
+                  "assignable"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community whose permissions to update.",
+                    "format": "did"
+                  },
+                  "bindings": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/community.opensocial.permissions.actionBinding"
+                    }
+                  },
+                  "assignable": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/community.opensocial.permissions.assignableBinding"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.updateProfile": {
+      "post": {
+        "tags": [
+          "community.opensocial.updateProfile"
+        ],
+        "summary": "community.opensocial.updateProfile",
+        "description": "Replace the community's profile: name, description, and join policy. Avatar is set separately via uploadImage. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "community.opensocial.updateProfile",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "name"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community whose profile to update.",
+                    "format": "did"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2048
+                  },
+                  "joinPolicy": {
+                    "type": "string",
+                    "enum": [
+                      "community.opensocial.profile#open",
+                      "community.opensocial.profile#invite",
+                      "community.opensocial.profile#request"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.updateSpace": {
+      "post": {
+        "tags": [
+          "community.opensocial.updateSpace"
+        ],
+        "summary": "community.opensocial.updateSpace",
+        "description": "Replace the roles that may read a space, written into its community.opensocial.access record. Requires service-auth. Requires the `space.configure` action.",
+        "operationId": "community.opensocial.updateSpace",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space",
+                  "roles"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "URI of the space to update.",
+                    "format": "at-uri"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "InvalidSpace"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/community.opensocial.uploadImage": {
+      "post": {
+        "tags": [
+          "community.opensocial.uploadImage"
+        ],
+        "summary": "community.opensocial.uploadImage",
+        "description": "Upload an image and set it as the community's profile avatar. Requires service-auth. Requires the `community.configure` action.",
+        "operationId": "community.opensocial.uploadImage",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "*/*": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "blob"
+                  ],
+                  "properties": {
+                    "blob": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.admin.getSettings": {
       "get": {
         "tags": [
@@ -254,735 +1837,6 @@
                     },
                     "orgCreationPolicy": {
                       "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.clique.addMembers": {
-      "post": {
-        "tags": [
-          "network.habitat.clique"
-        ],
-        "summary": "network.habitat.clique.addMembers",
-        "description": "Add member(s) to a clique. The clique must be editable by the caller.",
-        "operationId": "network.habitat.clique.addMembers",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "clique",
-                  "members"
-                ],
-                "properties": {
-                  "clique": {
-                    "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                  },
-                  "members": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "did"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.clique.createClique": {
-      "post": {
-        "tags": [
-          "network.habitat.clique"
-        ],
-        "summary": "network.habitat.clique.createClique",
-        "description": "Create a clique. The clique is owned by the caller. Optionally provide members to be added to this clique.",
-        "operationId": "network.habitat.clique.createClique",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "members": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "did"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "clique"
-                  ],
-                  "properties": {
-                    "clique": {
-                      "type": "string",
-                      "description": "The habitat clique, formatted as clique:<owner did>/<clique key>"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.clique.getMembers": {
-      "get": {
-        "tags": [
-          "network.habitat.clique"
-        ],
-        "summary": "network.habitat.clique.getMembers",
-        "description": "See the member(s) to a clique. The clique must be readable by the caller.",
-        "operationId": "network.habitat.clique.getMembers",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "clique",
-            "in": "query",
-            "description": "The desired clique to query formatted as clique:<owner did>/<clique key>",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "The desired clique to query formatted as clique:<owner did>/<clique key>"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "members"
-                  ],
-                  "properties": {
-                    "members": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "format": "did"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.clique.isMember": {
-      "get": {
-        "tags": [
-          "network.habitat.clique"
-        ],
-        "summary": "network.habitat.clique.isMember",
-        "description": "See if a user belongs to a clique. The clique must be readable by the caller.",
-        "operationId": "network.habitat.clique.isMember",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "clique",
-            "in": "query",
-            "description": "The desired clique to query formatted as clique:<owner did>/<clique key>",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "The desired clique to query formatted as clique:<owner did>/<clique key>"
-            }
-          },
-          {
-            "name": "did",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "did"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "found"
-                  ],
-                  "properties": {
-                    "found": {
-                      "type": "boolean",
-                      "description": "Whether the given member is a part of the given clique."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.clique.removeMembers": {
-      "post": {
-        "tags": [
-          "network.habitat.clique"
-        ],
-        "summary": "network.habitat.clique.removeMembers",
-        "description": "Remove member(s) to a clique. The clique must be editable by the caller.",
-        "operationId": "network.habitat.clique.removeMembers",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "clique",
-                  "members"
-                ],
-                "properties": {
-                  "clique": {
-                    "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                  },
-                  "members": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "did"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.collections.listCollections": {
-      "get": {
-        "tags": [
-          "network.habitat.collections"
-        ],
-        "summary": "network.habitat.collections.listCollections",
-        "description": "List the record collections (lexicon types) present in the org's synced data, each with a count of the distinct records the calling user can see. Only collections with at least one visible record are returned. Implemented by the home server and reached via pear service proxying.",
-        "operationId": "network.habitat.collections.listCollections",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "collections"
-                  ],
-                  "properties": {
-                    "collections": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.collections.defs.collectionView"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.collections.listRecords": {
-      "get": {
-        "tags": [
-          "network.habitat.collections"
-        ],
-        "summary": "network.habitat.collections.listRecords",
-        "description": "List the records in a collection the calling user can see, each with the spaces it belongs to that the user can read. The record body is not included; fetch it on demand from pear. Implemented by the home server and reached via pear service proxying.",
-        "operationId": "network.habitat.collections.listRecords",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "collection",
-            "in": "query",
-            "description": "The NSID of the record collection to list.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "The NSID of the record collection to list.",
-              "format": "nsid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "records"
-                  ],
-                  "properties": {
-                    "records": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.collections.defs.recordView"
-                      }
                     }
                   }
                 }
@@ -1331,6 +2185,125 @@
                         },
                         {
                           "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.emaildomain.createOrg": {
+      "post": {
+        "tags": [
+          "network.habitat.emaildomain"
+        ],
+        "summary": "network.habitat.emaildomain.createOrg",
+        "description": "Create a new opensocial-backed org mapped to an email domain. The org starts with no members: the first user to sign in with a Google-verified email at the domain becomes its admin, and later ones become members. Does not require authentication.",
+        "operationId": "network.habitat.emaildomain.createOrg",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "handle",
+                  "domain"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "description": "Subdomain handle for the org (alphanumeric, 1-50 chars)."
+                  },
+                  "domain": {
+                    "type": "string",
+                    "description": "Email domain whose users sign in to this org, e.g. \"acme.com\"."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "org"
+                  ],
+                  "properties": {
+                    "org": {
+                      "type": "string",
+                      "description": "DID of the created org.",
+                      "format": "did"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "DomainTaken"
                         }
                       ]
                     },
@@ -2273,6 +3246,794 @@
                       "items": {
                         "$ref": "#/components/schemas/network.habitat.listConnectedApps.app"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.addServer": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.addServer",
+        "description": "Add an MCP server to the org by writing its record. Nobody signs in to it yet: for an oauth server this registers a Nango integration, and each member then connects with startAuthorization; a manual server needs no auth, so every member is connected to it automatically. Requires service-auth. Requires the mcp.configure action.",
+        "operationId": "network.habitat.mcp.addServer",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "name",
+                  "url",
+                  "authType"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to add the server to.",
+                    "format": "did"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Also becomes the server's record key and the namespace under which its tools are exposed. Letters, digits, hyphens, and underscores only, and must be unique within the org.",
+                    "maxLength": 64
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "The server's streamable HTTP endpoint.",
+                    "format": "uri"
+                  },
+                  "authType": {
+                    "type": "string",
+                    "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server.",
+                    "enum": [
+                      "oauth",
+                      "manual"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "server"
+                  ],
+                  "properties": {
+                    "server": {
+                      "$ref": "#/components/schemas/network.habitat.mcp.defs.server"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.disconnectServer": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.disconnectServer",
+        "description": "Remove the caller's stored credential for an org-configured MCP server. Requires service-auth. Callable by any org member.",
+        "operationId": "network.habitat.mcp.disconnectServer",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the server belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.listServers": {
+      "get": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.listServers",
+        "description": "List MCP servers configured for an org, along with whether the caller has connected to each one. Requires service-auth. Callable by any org member.",
+        "operationId": "network.habitat.mcp.listServers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "org",
+            "in": "query",
+            "description": "DID of the community to list MCP servers for.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "DID of the community to list MCP servers for.",
+              "format": "did"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "servers"
+                  ],
+                  "properties": {
+                    "servers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.mcp.listServers.serverWithStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.removeServer": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.removeServer",
+        "description": "Remove an org's configured MCP server, along with any stored user credentials for it. Requires service-auth. Requires the mcp.configure action.",
+        "operationId": "network.habitat.mcp.removeServer",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the server belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.startAuthorization": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.startAuthorization",
+        "description": "Begin authorizing the caller against an org-configured MCP server via Nango. Returns a Nango Connect session token for the caller's browser to use with the Nango frontend SDK's Connect UI. Requires service-auth. Callable by any org member.",
+        "operationId": "network.habitat.mcp.startAuthorization",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the server belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "sessionToken"
+                  ],
+                  "properties": {
+                    "sessionToken": {
+                      "type": "string",
+                      "description": "A Nango Connect session token, to be passed to the Nango frontend SDK's openConnectUI."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.mcp.updateServer": {
+      "post": {
+        "tags": [
+          "network.habitat.mcp"
+        ],
+        "summary": "network.habitat.mcp.updateServer",
+        "description": "Update an org's configured MCP server. Its name can't be changed, since it's also the server's ID and tool namespace; remove and re-add it under a new name instead. url applies only to manual servers. Requires service-auth. Requires the mcp.configure action.",
+        "operationId": "network.habitat.mcp.updateServer",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the server belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Manual servers only: the server's new URL.",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "server"
+                  ],
+                  "properties": {
+                    "server": {
+                      "$ref": "#/components/schemas/network.habitat.mcp.defs.server"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.opensocial.createOrg": {
+      "post": {
+        "tags": [
+          "network.habitat.opensocial"
+        ],
+        "summary": "network.habitat.opensocial.createOrg",
+        "description": "Create a new opensocial-backed org: mints the org DID, bootstraps its about/members spaces (profile, admin and member roles), and grants the calling user the admin role. Requires service-auth.",
+        "operationId": "network.habitat.opensocial.createOrg",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "description": "Subdomain handle for the org (alphanumeric, 1-50 chars)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "org"
+                  ],
+                  "properties": {
+                    "org": {
+                      "type": "string",
+                      "description": "DID of the created org.",
+                      "format": "did"
                     }
                   }
                 }
@@ -3637,331 +5398,6 @@
         }
       }
     },
-    "/network.habitat.permissions.addPermission": {
-      "post": {
-        "tags": [
-          "network.habitat.permissions"
-        ],
-        "summary": "network.habitat.permissions.addPermission",
-        "description": "Grant read permission to a user or a clique for a specific collection or a specific record.",
-        "operationId": "network.habitat.permissions.addPermission",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "grantees",
-                  "collection"
-                ],
-                "properties": {
-                  "grantees": {
-                    "type": "array",
-                    "items": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
-                        },
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                        }
-                      ]
-                    },
-                    "maxItems": 100
-                  },
-                  "collection": {
-                    "type": "string",
-                    "description": "The NSID of the lexicon or record to grant read permission for.",
-                    "format": "nsid"
-                  },
-                  "rkey": {
-                    "type": "string",
-                    "description": "The Record Key to grant read permissions to, if any.",
-                    "format": "record-key",
-                    "maxLength": 512
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.permissions.listPermissions": {
-      "get": {
-        "tags": [
-          "network.habitat.permissions"
-        ],
-        "summary": "network.habitat.permissions.listPermissions",
-        "description": "List read permissions visible to the authenticated user.",
-        "operationId": "network.habitat.permissions.listPermissions",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "permissions"
-                  ],
-                  "properties": {
-                    "permissions": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.permissions.listPermissions.permission"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.permissions.removePermission": {
-      "post": {
-        "tags": [
-          "network.habitat.permissions"
-        ],
-        "summary": "network.habitat.permissions.removePermission",
-        "description": "Revoke read permission from a user or a clique for a specific lexicon or record.",
-        "operationId": "network.habitat.permissions.removePermission",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "grantees",
-                  "collection"
-                ],
-                "properties": {
-                  "grantees": {
-                    "type": "array",
-                    "items": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
-                        },
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                        }
-                      ]
-                    },
-                    "maxItems": 100
-                  },
-                  "collection": {
-                    "type": "string",
-                    "description": "The NSID of the lexicon or record to grant read permission for.",
-                    "format": "nsid"
-                  },
-                  "rkey": {
-                    "type": "string",
-                    "description": "The Record Key to grant read permissions to, if any.",
-                    "format": "record-key",
-                    "maxLength": 512
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.relationship.checkSpaceRelation": {
       "get": {
         "tags": [
@@ -4981,381 +6417,6 @@
         }
       }
     },
-    "/network.habitat.repo.createRecord": {
-      "post": {
-        "tags": [
-          "network.habitat.repo"
-        ],
-        "summary": "network.habitat.repo.createRecord",
-        "description": "Create a pear repository record, creating it if it does not exist already, or updating it as needed.",
-        "operationId": "network.habitat.repo.createRecord",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "repo",
-                  "collection",
-                  "record"
-                ],
-                "properties": {
-                  "repo": {
-                    "type": "string",
-                    "description": "The handle or DID of the repo (aka, current account).",
-                    "format": "at-identifier"
-                  },
-                  "collection": {
-                    "type": "string",
-                    "description": "The NSID of the record collection.",
-                    "format": "nsid"
-                  },
-                  "rkey": {
-                    "type": "string",
-                    "description": "The Record Key.",
-                    "format": "record-key",
-                    "maxLength": 512
-                  },
-                  "validate": {
-                    "type": "boolean",
-                    "description": "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."
-                  },
-                  "record": {},
-                  "createGranteesClique": {
-                    "type": "boolean",
-                    "description": "Whether to create a clique with the given grantees. If true, all grantees must be DIDs, and the created clique ref is returned."
-                  },
-                  "grantees": {
-                    "type": "array",
-                    "items": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
-                        },
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                        }
-                      ]
-                    },
-                    "maxItems": 100
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "uri"
-                  ],
-                  "properties": {
-                    "uri": {
-                      "type": "string",
-                      "description": "The habitat-uri of the put-ed object.",
-                      "format": "uri"
-                    },
-                    "validationStatus": {
-                      "type": "string",
-                      "enum": [
-                        "valid",
-                        "unknown"
-                      ]
-                    },
-                    "clique": {
-                      "type": "string",
-                      "description": "If a clique was created, return its ref, formatted like clique:<owner did>/<clique key>"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.repo.deleteRecord": {
-      "post": {
-        "tags": [
-          "network.habitat.repo"
-        ],
-        "summary": "network.habitat.repo.deleteRecord",
-        "description": "Delete a repository record, or ensure it doesn't exist. Requires auth, implemented by PDS.",
-        "operationId": "network.habitat.repo.deleteRecord",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "repo",
-                  "collection",
-                  "rkey"
-                ],
-                "properties": {
-                  "repo": {
-                    "type": "string",
-                    "description": "The handle or DID of the repo (aka, current account).",
-                    "format": "at-identifier"
-                  },
-                  "collection": {
-                    "type": "string",
-                    "description": "The NSID of the record collection.",
-                    "format": "nsid"
-                  },
-                  "rkey": {
-                    "type": "string",
-                    "description": "The Record Key.",
-                    "format": "record-key"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.repo.describeRepo": {
-      "get": {
-        "tags": [
-          "network.habitat.repo"
-        ],
-        "summary": "network.habitat.repo.describeRepo",
-        "description": "Get information about an account and repository, including the list of collections.",
-        "operationId": "network.habitat.repo.describeRepo",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "handle",
-                    "did",
-                    "didDoc",
-                    "collections",
-                    "handleIsCorrect"
-                  ],
-                  "properties": {
-                    "handle": {
-                      "type": "string",
-                      "format": "handle"
-                    },
-                    "did": {
-                      "type": "string",
-                      "format": "did"
-                    },
-                    "didDoc": {},
-                    "collections": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.repo.describeRepo.collectionMetadata"
-                      }
-                    },
-                    "handleIsCorrect": {
-                      "type": "boolean"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.repo.getBlob": {
       "get": {
         "tags": [
@@ -5437,473 +6498,6 @@
                         },
                         {
                           "const": "RepoDeactivated"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.repo.getRecord": {
-      "get": {
-        "tags": [
-          "network.habitat.repo"
-        ],
-        "summary": "network.habitat.repo.getRecord",
-        "description": "Get a single record from the pear repository.",
-        "operationId": "network.habitat.repo.getRecord",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "repo",
-            "in": "query",
-            "description": "The handle or DID of the repo.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "The handle or DID of the repo.",
-              "format": "at-identifier"
-            }
-          },
-          {
-            "name": "collection",
-            "in": "query",
-            "description": "The NSID of the record collection.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "The NSID of the record collection.",
-              "format": "nsid"
-            }
-          },
-          {
-            "name": "rkey",
-            "in": "query",
-            "description": "The Record Key.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "The Record Key.",
-              "format": "record-key"
-            }
-          },
-          {
-            "name": "includePermissions",
-            "in": "query",
-            "description": "Whether to return the permission grants on this record as part of the response.",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Whether to return the permission grants on this record as part of the response."
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "uri",
-                    "value"
-                  ],
-                  "properties": {
-                    "uri": {
-                      "type": "string",
-                      "description": "The habitat-uri for this record.",
-                      "format": "uri"
-                    },
-                    "value": {},
-                    "permissions": {
-                      "type": "array",
-                      "items": {
-                        "oneOf": [
-                          {
-                            "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
-                          },
-                          {
-                            "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "RecordNotFound"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.repo.listRecords": {
-      "get": {
-        "tags": [
-          "network.habitat.repo"
-        ],
-        "summary": "network.habitat.repo.listRecords",
-        "description": "List records with optional filters for subjects, lexicons, and timestamps.",
-        "operationId": "network.habitat.repo.listRecords",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "subjects",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "description": "Repos (DIDs) to search from to retrieve records."
-              }
-            }
-          },
-          {
-            "name": "collection",
-            "in": "query",
-            "description": "Filter by specific lexicon.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Filter by specific lexicon.",
-              "format": "nsid"
-            }
-          },
-          {
-            "name": "includePermissions",
-            "in": "query",
-            "description": "Whether to return the permission grants on this record as part of the response.",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Whether to return the permission grants on this record as part of the response."
-            }
-          },
-          {
-            "name": "since",
-            "in": "query",
-            "description": " [UNIMPLEMENTED] Allow getting records that are strictly newer or updated since a certain time.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": " [UNIMPLEMENTED] Allow getting records that are strictly newer or updated since a certain time.",
-              "format": "date-time"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "[UNIMPLEMENTED] The number of records to return. (Default value should be 50 to be consistent with atproto API).",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "description": "[UNIMPLEMENTED] Cursor of the returned list.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "[UNIMPLEMENTED] Cursor of the returned list."
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "records"
-                  ],
-                  "properties": {
-                    "cursor": {
-                      "type": "string"
-                    },
-                    "records": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.repo.listRecords.record"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.repo.putRecord": {
-      "post": {
-        "tags": [
-          "network.habitat.repo"
-        ],
-        "summary": "network.habitat.repo.putRecord",
-        "description": "Write a pear repository record, creating it if it does not exist already, or updating it as needed.",
-        "operationId": "network.habitat.repo.putRecord",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "repo",
-                  "collection",
-                  "record"
-                ],
-                "properties": {
-                  "repo": {
-                    "type": "string",
-                    "description": "The handle or DID of the repo (aka, current account).",
-                    "format": "at-identifier"
-                  },
-                  "collection": {
-                    "type": "string",
-                    "description": "The NSID of the record collection.",
-                    "format": "nsid"
-                  },
-                  "rkey": {
-                    "type": "string",
-                    "description": "The Record Key.",
-                    "format": "record-key",
-                    "maxLength": 512
-                  },
-                  "validate": {
-                    "type": "boolean",
-                    "description": "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."
-                  },
-                  "record": {},
-                  "grantees": {
-                    "type": "array",
-                    "items": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
-                        },
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                        }
-                      ]
-                    },
-                    "maxItems": 100
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "uri"
-                  ],
-                  "properties": {
-                    "uri": {
-                      "type": "string",
-                      "description": "The habitat-uri of the put-ed object.",
-                      "format": "uri"
-                    },
-                    "validationStatus": {
-                      "type": "string",
-                      "enum": [
-                        "valid",
-                        "unknown"
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
                         }
                       ]
                     },
@@ -8730,64 +9324,306 @@
   },
   "components": {
     "schemas": {
-      "network.habitat.clique": {
+      "community.opensocial.acceptance": {
         "type": "object",
-        "description": "This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs.",
-        "properties": {}
-      },
-      "network.habitat.collections.defs.collectionView": {
-        "type": "object",
-        "description": "A record collection (lexicon type) present in the org's synced data, with a count of the records in it the calling user can see. A record scoped to more than one readable space is counted once per space, since each space holds its own version.",
         "required": [
-          "collection",
-          "recordCount"
+          "updatedAt"
         ],
         "properties": {
-          "collection": {
+          "updatedAt": {
             "type": "string",
-            "description": "The NSID of the record collection.",
-            "format": "nsid"
-          },
-          "recordCount": {
-            "type": "integer"
+            "format": "date-time"
           }
         }
       },
-      "network.habitat.collections.defs.recordView": {
+      "community.opensocial.access": {
         "type": "object",
-        "description": "A single record scoped to one space. The same repo/collection/rkey in a different space is a distinct record with its own version, so it appears as its own recordView. The record body is not included; fetch it on demand from pear using the space, repo, collection and rkey.",
         "required": [
-          "uri",
-          "space",
-          "repo",
-          "collection",
-          "rkey"
+          "roles"
+        ],
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "community.opensocial.defs.inviteView": {
+        "type": "object",
+        "description": "A pending invite to join the community, tracked in the org's invite table (not yet a repo record).",
+        "required": [
+          "id",
+          "org",
+          "invitee",
+          "roles",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Opaque id of the invite, used to revoke it."
+          },
+          "org": {
+            "type": "string",
+            "description": "DID of the community the invite is for.",
+            "format": "did"
+          },
+          "invitee": {
+            "type": "string",
+            "description": "DID of the invited user.",
+            "format": "did"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "community.opensocial.membership": {
+        "type": "object",
+        "required": [
+          "roles",
+          "updatedAt"
+        ],
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "community.opensocial.permissions": {
+        "type": "object",
+        "required": [
+          "bindings",
+          "assignable"
+        ],
+        "properties": {
+          "bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/community.opensocial.permissions.actionBinding"
+            }
+          },
+          "assignable": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/community.opensocial.permissions.assignableBinding"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "community.opensocial.permissions.actionBinding": {
+        "type": "object",
+        "required": [
+          "action",
+          "roles"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "The action this binding authorizes.",
+            "enum": [
+              "invite",
+              "eject",
+              "role.assign",
+              "space.create",
+              "space.configure",
+              "space.delete",
+              "community.configure",
+              "mcp.configure"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "community.opensocial.permissions.assignableBinding": {
+        "type": "object",
+        "required": [
+          "role",
+          "roles"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "Record key of the role this binding applies to."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "community.opensocial.profile": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The community's display name.",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "description": "A short description of the community.",
+            "maxLength": 2048
+          },
+          "avatar": {
+            "type": "string",
+            "format": "binary",
+            "maxLength": 1000000
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "community.opensocial.role": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name for the role, e.g. \"Admin\" or \"Moderator\".",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "community.opensocial.space": {
+        "type": "object",
+        "required": [
+          "uri"
         ],
         "properties": {
           "uri": {
             "type": "string",
-            "description": "The space-record URI (spaceUri/repo/collection/rkey), unique to this record in this space.",
-            "format": "uri"
+            "description": "URI of the indexed space.",
+            "format": "at-uri"
           },
-          "space": {
+          "updatedAt": {
             "type": "string",
-            "description": "URI of the space this record belongs to.",
-            "format": "uri"
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.docs.comment": {
+        "type": "object",
+        "required": [
+          "body",
+          "anchorStart",
+          "anchorEnd",
+          "createdAt"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "The comment text.",
+            "maxLength": 10000
           },
-          "repo": {
+          "anchorStart": {
             "type": "string",
-            "description": "DID of the repo the record lives in.",
-            "format": "did"
+            "format": "byte",
+            "description": "Yjs relative position (Y.encodeRelativePosition, applied to the doc's 'default' XML fragment) marking the start of the commented range. Together with anchorEnd and the document's current CRDT state, this is sufficient to resolve the exact range being commented on — an editor placing this comment needs no other context, and the position survives concurrent edits made anywhere else in the document the way a plain character offset would not.",
+            "maxLength": 512
           },
-          "collection": {
+          "anchorEnd": {
             "type": "string",
-            "description": "The NSID of the record collection.",
-            "format": "nsid"
+            "format": "byte",
+            "description": "Yjs relative position marking the end of the commented range. See anchorStart.",
+            "maxLength": 512
           },
-          "rkey": {
+          "quotedText": {
             "type": "string",
-            "description": "The record key.",
-            "format": "record-key"
+            "description": "A snapshot of the document text the anchor pointed to when the comment was created, shown as a fallback if the anchor no longer resolves to a valid range (e.g. the text was later deleted entirely).",
+            "maxLength": 2000
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the comment was written.",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.docs.commentReply": {
+        "type": "object",
+        "required": [
+          "comment",
+          "body",
+          "createdAt"
+        ],
+        "properties": {
+          "comment": {
+            "$ref": "#/components/schemas/network.habitat.docs.commentReply.commentRef"
+          },
+          "body": {
+            "type": "string",
+            "description": "The reply text.",
+            "maxLength": 10000
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the reply was written.",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.docs.commentReply.commentRef": {
+        "type": "object",
+        "description": "A URI with a content-hash fingerprint — the same shape as com.atproto.repo.strongRef, defined locally for now because lexgen doesn't generate Go bindings for com.atproto.* refs.",
+        "required": [
+          "uri",
+          "cid"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "at-uri"
+          },
+          "cid": {
+            "type": "string",
+            "format": "cid"
           }
         }
       },
@@ -8839,31 +9675,6 @@
           "content": {
             "type": "string",
             "description": "The rendered markdown content of the document."
-          }
-        }
-      },
-      "network.habitat.grantee.didGrantee": {
-        "type": "object",
-        "description": "A DID grantee",
-        "required": [
-          "did"
-        ],
-        "properties": {
-          "did": {
-            "type": "string",
-            "format": "did"
-          }
-        }
-      },
-      "network.habitat.grantee.clique": {
-        "type": "object",
-        "description": "A clique grantee in the form clique:did:plc:web:arushi/clique-key",
-        "required": [
-          "clique"
-        ],
-        "properties": {
-          "clique": {
-            "type": "string"
           }
         }
       },
@@ -9011,6 +9822,92 @@
           }
         }
       },
+      "network.habitat.mcp.defs.server": {
+        "type": "object",
+        "description": "An MCP server configured for an org.",
+        "required": [
+          "id",
+          "name",
+          "authType"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The server's identifier, unique within the org."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "authType": {
+            "type": "string",
+            "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically.",
+            "enum": [
+              "oauth",
+              "manual"
+            ]
+          }
+        }
+      },
+      "network.habitat.mcp.listServers.serverWithStatus": {
+        "type": "object",
+        "required": [
+          "server",
+          "connected"
+        ],
+        "properties": {
+          "server": {
+            "$ref": "#/components/schemas/network.habitat.mcp.defs.server"
+          },
+          "connected": {
+            "type": "boolean",
+            "description": "Whether the caller has a stored credential for this server."
+          }
+        }
+      },
+      "network.habitat.mcp.server": {
+        "type": "object",
+        "required": [
+          "name",
+          "updatedAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Also this record's key. Letters, digits, hyphens, and underscores only.",
+            "maxLength": 64
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "authType": {
+            "type": "string",
+            "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server. Absent means oauth.",
+            "enum": [
+              "oauth",
+              "manual"
+            ]
+          },
+          "nangoKey": {
+            "type": "string",
+            "description": "oauth servers only: the Nango integration's unique_key, globally unique across the whole Nango environment (unlike name, which is only unique within the org)."
+          },
+          "serverUrl": {
+            "type": "string",
+            "description": "The server's streamable HTTP endpoint, as the admin entered it when adding it. For an oauth server, it's pre-filled for members when they connect. Absent on some older oauth records.",
+            "format": "uri"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.org.getAdmins.member": {
         "type": "object",
         "required": [
@@ -9040,37 +9937,6 @@
           },
           "handle": {
             "type": "string"
-          }
-        }
-      },
-      "network.habitat.permissions.listPermissions.permission": {
-        "type": "object",
-        "required": [
-          "grantee",
-          "collection",
-          "effect"
-        ],
-        "properties": {
-          "grantee": {
-            "type": "string",
-            "description": "The grantee of the permission — either a DID or a habitat clique URI."
-          },
-          "collection": {
-            "type": "string",
-            "description": "The NSID of the collection the permission applies to.",
-            "format": "nsid"
-          },
-          "rkey": {
-            "type": "string",
-            "description": "The record key the permission applies to. Empty string means the permission covers the entire collection."
-          },
-          "effect": {
-            "type": "string",
-            "description": "Whether this permission grants or denies access.",
-            "enum": [
-              "allow",
-              "deny"
-            ]
           }
         }
       },
@@ -9326,70 +10192,6 @@
         "format": "token",
         "description": "De-emphasized display, shown at the bottom or collapsed."
       },
-      "network.habitat.repo.describeRepo.collectionMetadata": {
-        "type": "object",
-        "required": [
-          "nsid",
-          "recordCount",
-          "lastTouched",
-          "grantees"
-        ],
-        "properties": {
-          "nsid": {
-            "type": "string",
-            "description": "The NSID of this collection."
-          },
-          "recordCount": {
-            "type": "integer"
-          },
-          "lastTouched": {
-            "type": "string",
-            "description": "The last time a record in this collection was touched.",
-            "format": "date-time"
-          },
-          "grantees": {
-            "type": "array",
-            "items": {
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
-                },
-                {
-                  "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                }
-              ]
-            }
-          }
-        }
-      },
-      "network.habitat.repo.listRecords.record": {
-        "type": "object",
-        "required": [
-          "uri",
-          "value"
-        ],
-        "properties": {
-          "uri": {
-            "type": "string",
-            "description": "URI reference to the record, formatted as a habitat-uri.",
-            "format": "uri"
-          },
-          "value": {},
-          "permissions": {
-            "type": "array",
-            "items": {
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
-                },
-                {
-                  "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                }
-              ]
-            }
-          }
-        }
-      },
       "network.habitat.search.query.resultView": {
         "type": "object",
         "required": [
@@ -9486,6 +10288,26 @@
           }
         }
       },
+      "network.habitat.space.appAccess": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "Optional human-readable label for this grant, for admin display. Not used for enforcement.",
+            "maxLength": 640
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "network.habitat.space.defs.signedCommit": {
         "type": "object",
         "description": "A signed commit over the current state of a permissioned repo.",
@@ -9500,6 +10322,10 @@
         "properties": {
           "ver": {
             "type": "integer"
+          },
+          "habitatSigned": {
+            "type": "boolean",
+            "description": "True if sig was produced by the space host's key rather than the author's own key."
           },
           "hash": {
             "type": "string",
@@ -9633,19 +10459,79 @@
   },
   "tags": [
     {
+      "name": "community.opensocial.acceptance"
+    },
+    {
+      "name": "community.opensocial.access"
+    },
+    {
+      "name": "community.opensocial.assignRoles"
+    },
+    {
+      "name": "community.opensocial.createInvite"
+    },
+    {
+      "name": "community.opensocial.createSpace"
+    },
+    {
+      "name": "community.opensocial.defs"
+    },
+    {
+      "name": "community.opensocial.deleteRole"
+    },
+    {
+      "name": "community.opensocial.ejectMember"
+    },
+    {
+      "name": "community.opensocial.listInvites"
+    },
+    {
+      "name": "community.opensocial.listPendingInvites"
+    },
+    {
+      "name": "community.opensocial.membership"
+    },
+    {
+      "name": "community.opensocial.permissions"
+    },
+    {
+      "name": "community.opensocial.profile"
+    },
+    {
+      "name": "community.opensocial.putRole"
+    },
+    {
+      "name": "community.opensocial.requestJoin"
+    },
+    {
+      "name": "community.opensocial.revokeInvite"
+    },
+    {
+      "name": "community.opensocial.role"
+    },
+    {
+      "name": "community.opensocial.space"
+    },
+    {
+      "name": "community.opensocial.updatePermissions"
+    },
+    {
+      "name": "community.opensocial.updateProfile"
+    },
+    {
+      "name": "community.opensocial.updateSpace"
+    },
+    {
+      "name": "community.opensocial.uploadImage"
+    },
+    {
       "name": "network.habitat.admin"
-    },
-    {
-      "name": "network.habitat.clique"
-    },
-    {
-      "name": "network.habitat.collections"
     },
     {
       "name": "network.habitat.docs"
     },
     {
-      "name": "network.habitat.grantee"
+      "name": "network.habitat.emaildomain"
     },
     {
       "name": "network.habitat.group"
@@ -9663,10 +10549,13 @@
       "name": "network.habitat.listConnectedApps"
     },
     {
-      "name": "network.habitat.org"
+      "name": "network.habitat.mcp"
     },
     {
-      "name": "network.habitat.permissions"
+      "name": "network.habitat.opensocial"
+    },
+    {
+      "name": "network.habitat.org"
     },
     {
       "name": "network.habitat.photo"

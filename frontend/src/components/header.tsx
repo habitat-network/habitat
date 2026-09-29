@@ -1,11 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { NetworkHabitatOrgGetMetadata } from "api";
+import { network } from "api";
 import { Actor, UserAvatar } from "internal";
 import { Button } from "internal/components/ui";
 
 interface HeaderProps {
   profile?: Actor;
-  org?: NetworkHabitatOrgGetMetadata.OutputSchema;
+  org?: network.habitat.org.getMetadata.$OutputBody;
   onLogout: () => void;
 }
 
@@ -29,6 +29,11 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
               <li>
                 <Button variant="link" render={<Link to="/spaces" />}>
                   Spaces
+                </Button>
+              </li>
+              <li>
+                <Button variant="link" render={<Link to="/opensocial" />}>
+                  Organizations
                 </Button>
               </li>
               {import.meta.env.DEV && (

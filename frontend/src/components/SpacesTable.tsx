@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { parseSpaceURI } from "internal";
+import { SpaceRef } from "@atproto/syntax";
 import {
   Card,
   CardContent,
@@ -49,42 +49,46 @@ export function SpacesTable({
       </TableHeader>
       <TableBody>
         {spaces.map((space) => {
-          const parts = parseSpaceURI(space.uri);
-          if (!parts) return null;
+          const ref = SpaceRef.parse(space.uri);
+          const params = {
+            spaceOwner: ref.spaceDid,
+            spaceType: ref.spaceType,
+            spaceKey: ref.skey,
+          };
           return (
             <TableRow key={space.uri}>
               <TableCell className="font-mono">
                 <Link
                   to="/spaces/$spaceOwner/$spaceType/$spaceKey"
-                  params={parts}
+                  params={params}
                   className="hover:underline"
                 >
-                  {parts.spaceKey}
+                  {ref.skey}
                 </Link>
               </TableCell>
               {showType && (
                 <TableCell className="font-mono text-xs">
                   <Link
                     to="/spaces/$spaceOwner/$spaceType"
-                    params={parts}
+                    params={params}
                     className="hover:underline"
                   >
-                    {parts.spaceType}
+                    {ref.spaceType}
                   </Link>
                 </TableCell>
               )}
               {showOwner && (
                 <TableCell
                   className="font-mono text-xs text-muted-foreground"
-                  title={parts?.spaceOwner}
+                  title={ref.spaceDid}
                 >
-                  <DidHoverCard did={parts.spaceOwner}>
+                  <DidHoverCard did={ref.spaceDid}>
                     <Link
                       to="/spaces/$spaceOwner"
-                      params={{ spaceOwner: parts.spaceOwner }}
+                      params={{ spaceOwner: ref.spaceDid }}
                       className="hover:underline"
                     >
-                      {parts.spaceOwner}
+                      {ref.spaceDid}
                     </Link>
                   </DidHoverCard>
                 </TableCell>

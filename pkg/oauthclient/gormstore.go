@@ -21,7 +21,9 @@ type sessionRow struct {
 	UpdatedAt time.Time
 }
 
-func (sessionRow) TableName() string { return "client_sessions" }
+const defaultSessionsTable = "client_sessions"
+
+func (sessionRow) TableName() string { return defaultSessionsTable }
 
 // authRequestRow stores oauth.AuthRequestData keyed by state.
 type authRequestRow struct {
@@ -30,11 +32,15 @@ type authRequestRow struct {
 	CreatedAt time.Time
 }
 
-func (authRequestRow) TableName() string { return "client_auth_requests" }
+const defaultAuthRequestsTable = "client_auth_requests"
+
+func (authRequestRow) TableName() string { return defaultAuthRequestsTable }
 
 type gormStore struct {
 	db                *gorm.DB
 	singleSessionUser bool
+	sessionsTable     string
+	authRequestsTable string
 }
 
 // singleSessionID is the session ID used to key sessions when
@@ -52,14 +58,31 @@ func WithSingleSessionPerUser() utils.Opt[gormStore] {
 	}
 }
 
+// WithTableNames stores sessions and auth requests in the given tables instead
+// of the defaults ("client_sessions" and "client_auth_requests"), so separate
+// OAuth clients sharing a database don't share rows.
+func WithTableNames(sessions, authRequests string) utils.Opt[gormStore] {
+	return func(s *gormStore) {
+		s.sessionsTable = sessions
+		s.authRequestsTable = authRequests
+	}
+}
+
 var _ oauth.ClientAuthStore = (*gormStore)(nil)
 
 // NewGormStore creates a ClientAuthStore backed by GORM.
 func NewGormStore(db *gorm.DB, opts ...utils.Opt[gormStore]) (oauth.ClientAuthStore, error) {
-	if err := db.AutoMigrate(&sessionRow{}, &authRequestRow{}); err != nil {
-		return nil, fmt.Errorf("migrate gormstore: %w", err)
+	s := utils.ResolveOptions(gormStore{
+		db:                db,
+		sessionsTable:     defaultSessionsTable,
+		authRequestsTable: defaultAuthRequestsTable,
+	}, opts)
+	if err := db.Table(s.sessionsTable).AutoMigrate(&sessionRow{}); err != nil {
+		return nil, fmt.Errorf("migrate gormstore sessions: %w", err)
 	}
-	s := utils.ResolveOptions(gormStore{db: db}, opts)
+	if err := db.Table(s.authRequestsTable).AutoMigrate(&authRequestRow{}); err != nil {
+		return nil, fmt.Errorf("migrate gormstore auth requests: %w", err)
+	}
 	return &s, nil
 }
 
@@ -80,7 +103,7 @@ func (s *gormStore) GetSession(
 	sessionID string,
 ) (*oauth.ClientSessionData, error) {
 	var row sessionRow
-	if err := s.db.WithContext(ctx).
+	if err := s.db.WithContext(ctx).Table(s.sessionsTable).
 		Where("did = ? AND session_id = ?", did.String(), s.sessionID(sessionID)).
 		First(&row).Error; err != nil {
 		return nil, err
@@ -107,12 +130,12 @@ func (s *gormStore) SaveSession(ctx context.Context, sess oauth.ClientSessionDat
 		SessionID: s.sessionID(key.SessionID),
 		Data:      data,
 	}
-	return s.db.WithContext(ctx).Save(row).Error
+	return s.db.WithContext(ctx).Table(s.sessionsTable).Save(row).Error
 }
 
 // DeleteSession implements oauth.ClientAuthStore.
 func (s *gormStore) DeleteSession(ctx context.Context, did syntax.DID, sessionID string) error {
-	return s.db.WithContext(ctx).
+	return s.db.WithContext(ctx).Table(s.sessionsTable).
 		Where("did = ? AND session_id = ?", did.String(), s.sessionID(sessionID)).
 		Delete(&sessionRow{}).Error
 }
@@ -123,7 +146,7 @@ func (s *gormStore) GetAuthRequestInfo(
 	state string,
 ) (*oauth.AuthRequestData, error) {
 	var row authRequestRow
-	if err := s.db.WithContext(ctx).
+	if err := s.db.WithContext(ctx).Table(s.authRequestsTable).
 		Where("state = ?", state).
 		First(&row).Error; err != nil {
 		return nil, err
@@ -141,7 +164,7 @@ func (s *gormStore) SaveAuthRequestInfo(ctx context.Context, info oauth.AuthRequ
 	if err != nil {
 		return fmt.Errorf("marshal auth request: %w", err)
 	}
-	return s.db.WithContext(ctx).Create(&authRequestRow{
+	return s.db.WithContext(ctx).Table(s.authRequestsTable).Create(&authRequestRow{
 		State: info.State,
 		Data:  data,
 	}).Error
@@ -149,7 +172,7 @@ func (s *gormStore) SaveAuthRequestInfo(ctx context.Context, info oauth.AuthRequ
 
 // DeleteAuthRequestInfo implements oauth.ClientAuthStore.
 func (s *gormStore) DeleteAuthRequestInfo(ctx context.Context, state string) error {
-	return s.db.WithContext(ctx).
+	return s.db.WithContext(ctx).Table(s.authRequestsTable).
 		Where("state = ?", state).
 		Delete(&authRequestRow{}).Error
 }

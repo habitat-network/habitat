@@ -97,8 +97,13 @@ func New(config Config) (*Sap, error) {
 	// credentials mints and caches space credentials, one per space regardless
 	// of which session was used to obtain it — a space credential authorizes
 	// the space, not the member who fetched it. It asks sessions (which
-	// implements credential.Delegator) for a delegation token on demand.
-	credentials := credential.NewManager(config.Directory, httpx.NewClient(), sessions)
+	// implements credential.Delegator) for a delegation token on demand, and
+	// attests its own identity with OAuthClient's own confidential-client
+	// config — the same key/client_id it already publishes at its
+	// client-metadata.json.
+	credentials := credential.NewManager(
+		config.Directory, httpx.NewClient(), sessions, config.OAuthClient.Config,
+	)
 	ob, err := outbox.NewStore(config.DB, utils.NewPollNotifier())
 	if err != nil {
 		return nil, fmt.Errorf("create outbox store: %w", err)
@@ -229,6 +234,20 @@ func (s *Sap) AddSession(ctx context.Context, did syntax.DID, sessionID string) 
 // AddSession, it returns once the crawl is scheduled, not once it completes.
 func (s *Sap) Recrawl(ctx context.Context, did syntax.DID, sessionID string) {
 	go s.crawler.Restart(detachSpan(ctx), did, sessionID)
+}
+
+// SpaceCredential returns a space credential for space, and the space host it
+// is valid against, minted through some session on record as able to access
+// the space.
+func (s *Sap) SpaceCredential(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) (credential.Credential, error) {
+	cred, err := s.credentials.Credential(ctx, space)
+	if err != nil {
+		return credential.Credential{}, fmt.Errorf("space credential for %s: %w", space, err)
+	}
+	return cred, nil
 }
 
 // Sessions lists the DIDs of the sessions sap syncs on behalf of.

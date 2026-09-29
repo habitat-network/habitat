@@ -1,207 +1,121 @@
+import { type Agent, type DidString, type FetchHandler } from "@atproto/lex";
+import {
+  BrowserOAuthClient,
+  OAuthCallbackError,
+  oauthRedirectUriSchema,
+  type OAuthSession,
+} from "@atproto/oauth-client-browser";
+import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import clientMetadata from "./clientMetadata";
-import * as client from "openid-client";
-import { decodeJwt } from "jose";
-import { create, StoreApi } from "zustand";
-import { persist } from "zustand/middleware";
 
-const stateLocalStorageKey = "state";
+export class AuthManager implements Agent {
+  private client: BrowserOAuthClient;
+  private session: OAuthSession | undefined;
+  private onUnauthenticated: (error?: string) => void;
+  private initPromise: Promise<void> | undefined;
 
-interface AuthInfo {
-  did: string;
-  accessToken: string;
-  refreshToken: string | undefined;
-  expiresAt: number; // epoch seconds
-}
+  get did(): DidString | undefined {
+    return this.session?.did as DidString | undefined;
+  }
 
-export class AuthManager {
-  private serverDomain: string;
-  private store: StoreApi<{ authInfo: AuthInfo | undefined }> & {
-    persist: { rehydrate: () => void | Promise<void> };
-  };
-  private config: client.Configuration;
-  private onUnauthenticated: () => void;
-  private refreshPromise: Promise<void> | undefined;
+  // Implements @atproto/lex's Agent.fetchHandler so AuthManager can be passed
+  // straight to `xrpc()`.
+  fetchHandler: FetchHandler = (path, init): Promise<Response> =>
+    this.fetch(path, init.method, init.body, new Headers(init.headers));
 
   constructor(
     appName: string,
     baseUrl: string,
-    serverBaseUrl: string,
-    onUnauthenticated: () => void,
+    serverUrl: string,
+    onUnauthenticated: (error?: string) => void,
   ) {
-    const domain = new URL(baseUrl).hostname;
-    this.serverDomain = new URL(serverBaseUrl).hostname;
-
-    const client_id = clientMetadata(appName, baseUrl).client_id!;
-    this.config = new client.Configuration(
-      {
-        issuer: serverBaseUrl,
-        authorization_endpoint: `${serverBaseUrl}/oauth/authorize`,
-        token_endpoint: `${serverBaseUrl}/oauth/token`,
-      },
-      client_id,
-    );
-    this.store = create(
-      persist<{ authInfo: AuthInfo | undefined }>(
-        () => ({ authInfo: undefined }),
-        {
-          name: `auth-info-${domain}`,
-        },
-      ),
-    );
-
     this.onUnauthenticated = onUnauthenticated;
+    this.client = new BrowserOAuthClient({
+      clientMetadata: clientMetadata(appName, baseUrl),
+      // Resolve handles/DIDs through the habitat instance's own identity
+      // endpoint rather than the public network, since it also hosts
+      // identities the public network doesn't know about.
+      identityResolver: new HabitatIdentityResolver(serverUrl),
+      // Return the authorization code in the query string, not the URL fragment:
+      // fosite rejects fragment mode for this client, and the frontend uses hash
+      // routing, so callback params in the fragment would collide with the router.
+      responseMode: "query",
+    });
+  }
+
+  // Processes an OAuth callback if present in the URL, otherwise restores an
+  // existing session. The underlying client.init() must run exactly once (it
+  // consumes the single-use authorization code in the URL), but TanStack
+  // Router's root beforeLoad can invoke this multiple times concurrently
+  // (route re-evaluation, React StrictMode). Memoize the call so every
+  // caller awaits the same run instead of racing to set `this.session` from
+  // their own independent client.init() call.
+  init(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = this.doInit();
+    }
+    return this.initPromise;
+  }
+
+  private async doInit(): Promise<void> {
+    try {
+      const result = await this.client.init();
+      this.session = result?.session;
+    } catch (err) {
+      // Either the provider (or the user) rejected the auth request, or a
+      // previously persisted session could no longer be restored (e.g. an
+      // expired/revoked refresh token). Both leave us unauthenticated, so
+      // route back to login the same way any other unauthenticated state
+      // does, carrying the reason along when there is one.
+      this.onUnauthenticated(
+        err instanceof OAuthCallbackError ? err.message : undefined,
+      );
+    }
   }
 
   getAuthInfo() {
-    return this.store.getState().authInfo;
+    if (!this.session) {
+      return undefined;
+    }
+    return { did: this.session.did };
   }
 
-  loginUrl(handle: string, redirectUri: string) {
-    const state = client.randomState();
-    localStorage.setItem(stateLocalStorageKey, state);
-    return client.buildAuthorizationUrl(this.config, {
-      redirect_uri: redirectUri,
-      response_type: "code",
-      handle,
-      state,
-      scope: "atproto transition:generic",
+  login(handle: string, redirectUrl?: string) {
+    return this.client.signInRedirect(handle, {
+      redirect_uri: redirectUrl
+        ? oauthRedirectUriSchema.parse(redirectUrl)
+        : undefined,
     });
   }
 
-  logout = () => {
-    // Delete all internal state
-    this.store.setState({ authInfo: undefined });
-    // Redirect to login page
-    this.onUnauthenticated();
+  logout = (error?: string) => {
+    void this.session?.signOut();
+    this.session = undefined;
+    this.onUnauthenticated(error);
   };
 
-  async maybeExchangeCode() {
-    const url = new URL(window.location.href);
-    const oauthError = url.searchParams.get("error");
-    if (oauthError) {
-      const description =
-        url.searchParams.get("error_description") ?? oauthError;
-      if (!window.location.pathname.includes("oauth-login")) {
-        window.location.href = `/oauth-login?error=${encodeURIComponent(description)}`;
-      }
-      return false;
-    }
-    if (!url.searchParams.get("code") || !url.searchParams.get("state")) {
-      return false;
-    }
-    const state = localStorage.getItem(stateLocalStorageKey);
-    if (!state) {
-      // State is missing — the browser session was cleared or a prior exchange
-      // failed. Redirect to login so the user can retry.
-      window.location.href = `/oauth-login?error=${encodeURIComponent("Login session expired. Please try again.")}`;
-      return false;
-    }
-    const token = await client.authorizationCodeGrant(this.config, url, {
-      expectedState: state,
-    });
-    // Only remove state after a successful exchange so a failed exchange
-    // (network error, etc.) can be retried without losing the state.
-    localStorage.removeItem(stateLocalStorageKey);
-    this.setAuthState(token);
-    // Remove code and state from URL
-    url.searchParams.delete("code");
-    url.searchParams.delete("state");
-    url.searchParams.delete("scope");
-    window.history.replaceState(null, "", url.toString());
-    return true;
-  }
-
   async fetch(
-    url: string,
+    path: string,
     method: string = "GET",
-    body?: client.FetchBody,
+    body?: BodyInit | null,
     headers?: Headers,
-    options?: client.DPoPOptions,
   ) {
-    let { authInfo } = this.store.getState();
-    if (!authInfo) {
+    if (!this.session) {
       return this.handleUnauthenticated();
-    }
-    if (
-      authInfo.refreshToken &&
-      authInfo.expiresAt < Date.now() / 1000 + 5 * 60
-    ) {
-      if (!this.refreshPromise) {
-        // Use the Web Locks API to serialize refresh across tabs: only one tab
-        // acquires the lock and performs the refresh; others wait, then re-read
-        // the fresh token written to localStorage by the winner.
-        this.refreshPromise = navigator.locks
-          .request("habitat-token-refresh", async () => {
-            // Re-read after acquiring the lock — another tab may have already
-            // refreshed while we were waiting.
-            await this.store.persist.rehydrate();
-            const currentInfo = this.store.getState().authInfo;
-            if (
-              !currentInfo?.refreshToken ||
-              currentInfo.expiresAt >= Date.now() / 1000 + 5 * 60
-            ) {
-              return; // Token is already fresh; nothing to do.
-            }
-            const token = await client.refreshTokenGrant(
-              this.config,
-              currentInfo.refreshToken,
-            );
-            // Only write back if the user hasn't logged out in the meantime.
-            if (this.store.getState().authInfo) {
-              this.setAuthState(token);
-            }
-          })
-          .then(() => {})
-          .finally(() => {
-            this.refreshPromise = undefined;
-          });
-      }
-      try {
-        await this.refreshPromise;
-      } catch {
-        return this.handleUnauthenticated();
-      }
-      // get the refreshed authInfo
-      await this.store.persist.rehydrate();
-      authInfo = this.store.getState().authInfo;
-      if (!authInfo) {
-        return this.handleUnauthenticated();
-      }
     }
     if (!headers) {
       headers = new Headers();
     }
     headers.append("Habitat-Auth-Method", "oauth");
-    const response = await client.fetchProtectedResource(
-      this.config,
-      authInfo.accessToken,
-      new URL(url, `https://${this.serverDomain}`),
+    const response = await this.session.fetchHandler(path, {
       method,
       body,
       headers,
-      options,
-    );
-
+    });
     if (response.status === 401) {
       return this.handleUnauthenticated();
     }
     return response;
-  }
-
-  private setAuthState(token: client.TokenEndpointResponse) {
-    // The DID is encoded in the sub claim of the JWT
-    const decoded = decodeJwt(token.access_token);
-    if (!decoded.sub || !decoded.exp) {
-      throw new Error("Invalid token");
-    }
-    const state = {
-      did: decoded.sub,
-      accessToken: token.access_token,
-      refreshToken: token.refresh_token,
-      expiresAt: decoded.exp,
-    };
-    this.store.setState({ authInfo: state });
-    return state;
   }
 
   private handleUnauthenticated(): Response {
