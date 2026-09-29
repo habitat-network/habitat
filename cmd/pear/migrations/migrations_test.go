@@ -1,4 +1,4 @@
-package schema
+package migrations
 
 import (
 	"io/fs"
@@ -9,14 +9,14 @@ import (
 	"github.com/habitat-network/habitat/internal/db"
 )
 
-func TestMigrations(t *testing.T) {
+func TestDialectMigrations(t *testing.T) {
 	for _, dialect := range []db.Dialect{db.Postgres, db.Sqlite} {
-		migrations, err := Migrations(dialect)
+		migrations, err := dialectMigrations(dialect)
 		require.NoError(t, err)
 		files, err := fs.Glob(migrations, "*.sql")
 		require.NoError(t, err)
 		require.NotEmpty(t, files, dialect)
 	}
-	_, err := Migrations("mysql")
+	_, err := dialectMigrations("mysql")
 	require.Error(t, err)
 }

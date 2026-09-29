@@ -18,7 +18,7 @@ env "postgres" {
   src = "file://.atlas/postgres.sql"
   dev = local.postgres_dev_url
   migration {
-    dir    = "file://../../internal/db/schema/postgres"
+    dir    = "file://migrations/postgres"
     format = goose
   }
   format {
@@ -32,7 +32,7 @@ env "sqlite" {
   src = "file://.atlas/sqlite.sql"
   dev = "sqlite://dev?mode=memory"
   migration {
-    dir    = "file://../../internal/db/schema/sqlite"
+    dir    = "file://migrations/sqlite"
     format = goose
   }
   format {

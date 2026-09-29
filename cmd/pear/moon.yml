@@ -81,7 +81,7 @@ tasks:
       for env in sqlite postgres; do
         atlas migrate validate --env "$env"
         drift="$(atlas schema diff --env "$env" \
-          --from "file://../../internal/db/schema/$env?format=goose" \
+          --from "file://migrations/$env?format=goose" \
           --to "file://.atlas/$env.sql" \
           --format '{{ sql . "  " }}')"
         if [ -n "$drift" ]; then
@@ -94,7 +94,8 @@ tasks:
     - schema-dump
     inputs:
     - /internal/**/*.go
-    - /internal/db/schema/**/*
+    - migrations/postgres/*
+    - migrations/sqlite/*
     - schema/**/*
     - atlas.hcl
     options:

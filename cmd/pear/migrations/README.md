@@ -3,7 +3,7 @@
 pear applies its migrations with [goose](https://github.com/pressly/goose) at
 startup (`migrations.Run`), in version order. There are two kinds:
 
-- **Schema migrations** are SQL files in `internal/db/schema/<dialect>`, one
+- **Schema migrations** are SQL files in `cmd/pear/migrations/<dialect>`, one
   directory each for Postgres and SQLite. [Atlas](https://atlasgo.io) writes
   them by diffing the stores' GORM models (each store package's `Models()`,
   gathered by `migrations.Models` and printed by `cmd/pear/schema`) against the
