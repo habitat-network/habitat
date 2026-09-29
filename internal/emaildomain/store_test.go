@@ -15,7 +15,7 @@ import (
 // TestStore runs against one store shared by the subtests, in order: the
 // member-email subtests rely on the mapping created by "domain mapping".
 func TestStore(t *testing.T) {
-	db := db_testutil.NewDB(t, emaildomain.Models)
+	db := db_testutil.NewPearDB(t)
 	s, err := emaildomain.NewStore(db)
 	require.NoError(t, err)
 	org := syntax.DID("did:web:acme.example.com")

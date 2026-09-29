@@ -1,16 +1,18 @@
-package oauthserver
+package oauthserver_test
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/habitat-network/habitat/internal/oauthserver"
 )
 
 const testIssuer = "https://habitat.example"
 
 func TestBuildAuthServerMetadata(t *testing.T) {
-	b, err := json.Marshal(buildAuthServerMetadata(testIssuer))
+	b, err := json.Marshal(oauthserver.BuildAuthServerMetadata(testIssuer))
 	require.NoError(t, err)
 	require.JSONEq(t, `{
 		"issuer": "https://habitat.example",
@@ -35,7 +37,7 @@ func TestBuildAuthServerMetadata(t *testing.T) {
 }
 
 func TestBuildProtectedResourceMetadata(t *testing.T) {
-	b, err := json.Marshal(buildProtectedResourceMetadata(testIssuer))
+	b, err := json.Marshal(oauthserver.BuildProtectedResourceMetadata(testIssuer))
 	require.NoError(t, err)
 	require.JSONEq(
 		t,

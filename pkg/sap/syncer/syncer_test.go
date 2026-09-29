@@ -64,7 +64,7 @@ func (e *memEmitter) InTx(*gorm.DB) Emitter { return e }
 
 func newTestEngine(t *testing.T, hostURL string) (*Engine, *memEmitter, *gorm.DB) {
 	t.Helper()
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	base, err := url.Parse(hostURL)
 	require.NoError(t, err)
 	m, err := NewMetrics(nil, nil)
@@ -190,7 +190,7 @@ func TestEngineSyncRepoSinceAheadMarksDesynced(t *testing.T) {
 func TestEngineNewDefaults(t *testing.T) {
 	t.Parallel()
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	e, err := New(db, fakeClients{base: &url.URL{}}, &memEmitter{}, NewVerifier(nil), 0, m)
@@ -203,7 +203,7 @@ func TestEngineNewDefaults(t *testing.T) {
 func TestEngineWithTx(t *testing.T) {
 	t.Parallel()
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	orig, err := New(db, fakeClients{base: &url.URL{}}, &memEmitter{}, NewVerifier(nil), 1, m)
@@ -384,7 +384,7 @@ func TestEngineSettleDirtyRepo(t *testing.T) {
 func TestEngineRecoverRepoClientError(t *testing.T) {
 	t.Parallel()
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	failClient := &failClients{}
@@ -417,7 +417,7 @@ func TestEngineRecoverRepoNonOK(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	e, err := New(db, fakeClients{base: base}, &memEmitter{}, NewVerifier(nil), 1, m)
@@ -449,7 +449,7 @@ func TestEngineRecoverRepoInvalidCAR(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	e, err := New(db, fakeClients{base: base}, &memEmitter{}, NewVerifier(nil), 1, m)
@@ -825,7 +825,7 @@ func TestEngineBackoff(t *testing.T) {
 func TestEngineRunJobDispatchesToRecover(t *testing.T) {
 	t.Parallel()
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	failClient := &failClients{}
@@ -906,7 +906,7 @@ func TestEngineRecoverRepoVerifyError(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	// Use a verifier with a mock dir that returns LookupDID errors, causing
@@ -944,7 +944,7 @@ func TestEngineRecoverRepoSuccess(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	m, err := NewMetrics(nil, nil)
 	require.NoError(t, err)
 	// nil dir makes Verify use hash-only mode: no signer resolution needed.

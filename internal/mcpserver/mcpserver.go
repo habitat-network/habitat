@@ -8,9 +8,10 @@ package mcpserver
 import (
 	"context"
 	"fmt"
-	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"log/slog"
 	"net/http"
+
+	"github.com/habitat-network/habitat/internal/mcpgateway"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"

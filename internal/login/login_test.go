@@ -1,4 +1,4 @@
-package login
+package login_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ import (
 
 func TestPDSProvider_Authorize(t *testing.T) {
 	credStore, err := pdscred.NewPDSCredentialStore(
-		testutil.NewDB(t, pdscred.Models),
+		testutil.NewPearDB(t),
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)
@@ -26,7 +27,7 @@ func TestPDSProvider_Authorize(t *testing.T) {
 	}
 	client := pdsclient.NewDummyOAuthClient(t, clientMetadata)
 	defer client.Close()
-	p := NewPDSProvider(
+	p := login.NewPDSProvider(
 		client,
 		credStore,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
@@ -41,7 +42,7 @@ func TestPDSProvider_Authorize(t *testing.T) {
 	require.NotEmpty(t, state)
 
 	// state must round-trip through Exchange — verify it's valid JSON with expected fields
-	var s pdsProviderState
+	var s login.PDSProviderState
 	require.NoError(t, unmarshalProviderState(state, &s))
 	require.NotEmpty(t, s.DpopKey)
 	require.Equal(t, "dummyVerifier", s.AuthorizeState.Verifier)
@@ -49,7 +50,7 @@ func TestPDSProvider_Authorize(t *testing.T) {
 
 func TestPDSProvider_Exchange(t *testing.T) {
 	credStore, err := pdscred.NewPDSCredentialStore(
-		testutil.NewDB(t, pdscred.Models),
+		testutil.NewPearDB(t),
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)
@@ -58,7 +59,7 @@ func TestPDSProvider_Exchange(t *testing.T) {
 	}
 	client := pdsclient.NewDummyOAuthClient(t, clientMetadata)
 	defer client.Close()
-	p := NewPDSProvider(
+	p := login.NewPDSProvider(
 		client,
 		credStore,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
@@ -87,6 +88,6 @@ func TestPDSProvider_Exchange(t *testing.T) {
 }
 
 // unmarshalProviderState is a test helper to inspect the opaque pds state bytes.
-func unmarshalProviderState(b []byte, s *pdsProviderState) error {
+func unmarshalProviderState(b []byte, s *login.PDSProviderState) error {
 	return json.Unmarshal(b, s)
 }

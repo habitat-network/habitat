@@ -1,22 +1,23 @@
-package permissions
+package permissions_test
 
 import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/permissions"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
 )
 
 func TestParseGranteesFromInterface(t *testing.T) {
 	t.Run("empty input returns nil", func(t *testing.T) {
-		result, err := ParseGranteesFromInterface([]interface{}{})
+		result, err := permissions.ParseGranteesFromInterface([]interface{}{})
 		require.NoError(t, err)
 		require.Nil(t, result)
 	})
 
 	t.Run("valid did grantee", func(t *testing.T) {
-		result, err := ParseGranteesFromInterface([]interface{}{
+		result, err := permissions.ParseGranteesFromInterface([]interface{}{
 			map[string]interface{}{
 				"$type": "network.habitat.grantee#didGrantee",
 				"did":   "did:plc:abc123",
@@ -24,11 +25,11 @@ func TestParseGranteesFromInterface(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, result, 1)
-		require.Equal(t, DIDGrantee("did:plc:abc123"), result[0])
+		require.Equal(t, permissions.DIDGrantee("did:plc:abc123"), result[0])
 	})
 
 	t.Run("valid clique grantee", func(t *testing.T) {
-		result, err := ParseGranteesFromInterface([]interface{}{
+		result, err := permissions.ParseGranteesFromInterface([]interface{}{
 			map[string]interface{}{
 				"$type":  "network.habitat.grantee#clique",
 				"clique": "clique:did:plc:abc123/my-clique",
@@ -55,19 +56,19 @@ func TestParseGranteesFromInterface(t *testing.T) {
 			},
 		}
 
-		result, err := ParseGranteesFromInterface(input)
+		result, err := permissions.ParseGranteesFromInterface(input)
 		require.NoError(t, err)
 		require.Len(t, result, 3)
-		require.Equal(t, DIDGrantee("did:plc:alice"), result[0])
-		require.Equal(t, DIDGrantee("did:plc:bob"), result[1])
+		require.Equal(t, permissions.DIDGrantee("did:plc:alice"), result[0])
+		require.Equal(t, permissions.DIDGrantee("did:plc:bob"), result[1])
 		require.Equal(t, habitat_syntax.Clique("clique:did:plc:alice/team"), result[2])
 
-		constructed := ConstructInterfaceFromGrantees(result)
+		constructed := permissions.ConstructInterfaceFromGrantees(result)
 		require.Equal(t, constructed, input)
 	})
 
 	t.Run("missing $type field", func(t *testing.T) {
-		_, err := ParseGranteesFromInterface([]interface{}{
+		_, err := permissions.ParseGranteesFromInterface([]interface{}{
 			map[string]interface{}{
 				"did": "did:plc:abc123",
 			},
@@ -76,7 +77,7 @@ func TestParseGranteesFromInterface(t *testing.T) {
 	})
 
 	t.Run("unknown $type", func(t *testing.T) {
-		_, err := ParseGranteesFromInterface([]interface{}{
+		_, err := permissions.ParseGranteesFromInterface([]interface{}{
 			map[string]interface{}{
 				"$type": "network.habitat.grantee#unknown",
 				"did":   "did:plc:abc123",
@@ -86,7 +87,7 @@ func TestParseGranteesFromInterface(t *testing.T) {
 	})
 
 	t.Run("did grantee missing did field", func(t *testing.T) {
-		_, err := ParseGranteesFromInterface([]interface{}{
+		_, err := permissions.ParseGranteesFromInterface([]interface{}{
 			map[string]interface{}{
 				"$type": "network.habitat.grantee#didGrantee",
 			},
@@ -95,7 +96,7 @@ func TestParseGranteesFromInterface(t *testing.T) {
 	})
 
 	t.Run("clique grantee missing clique field", func(t *testing.T) {
-		_, err := ParseGranteesFromInterface([]interface{}{
+		_, err := permissions.ParseGranteesFromInterface([]interface{}{
 			map[string]interface{}{
 				"$type": "network.habitat.grantee#clique",
 			},
@@ -104,12 +105,12 @@ func TestParseGranteesFromInterface(t *testing.T) {
 	})
 
 	t.Run("non-map element", func(t *testing.T) {
-		_, err := ParseGranteesFromInterface([]interface{}{"not-a-map"})
+		_, err := permissions.ParseGranteesFromInterface([]interface{}{"not-a-map"})
 		require.Error(t, err)
 	})
 
 	t.Run("clique grantee with invalid clique", func(t *testing.T) {
-		_, err := ParseGranteesFromInterface([]interface{}{
+		_, err := permissions.ParseGranteesFromInterface([]interface{}{
 			map[string]interface{}{
 				"$type":  "network.habitat.grantee#clique",
 				"clique": "not-a-valid-clique",

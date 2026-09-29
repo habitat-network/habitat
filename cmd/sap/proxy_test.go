@@ -47,7 +47,7 @@ func testDPoPKey(t *testing.T) string {
 func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 	t.Helper()
 
-	db := testutil.NewDB(t)
+	db := testutil.NewUnmigratedDB(t)
 
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)

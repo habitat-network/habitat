@@ -27,7 +27,7 @@ func openOutboxTestServer(
 ) (*httptest.Server, *sap.Sap, *gorm.DB) {
 	t.Helper()
 
-	db := testutil.NewDB(t)
+	db := testutil.NewUnmigratedDB(t)
 
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)

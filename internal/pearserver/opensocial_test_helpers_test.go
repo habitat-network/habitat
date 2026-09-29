@@ -10,10 +10,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/fgastore"
-	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -37,14 +34,7 @@ func newSharedOpenSocialServers(
 	t *testing.T,
 ) (*pearserver_testutil.TestServer, *pearserver_testutil.TestServer, spaces.Store) {
 	t.Helper()
-	db := db_testutil.NewDB(
-		t,
-		hive.Models,
-		spaces.Models,
-		notify.Models,
-		opensocial.Models,
-		emaildomain.Models,
-	)
+	db := db_testutil.NewPearDB(t)
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })

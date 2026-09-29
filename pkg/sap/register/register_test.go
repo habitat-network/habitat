@@ -53,7 +53,7 @@ func TestRegistrarRegistersDueSpaces(t *testing.T) {
 	base, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestRegistrarEnsureRegisteredAlreadyTracked(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
 	require.NoError(t, err)
@@ -110,7 +110,7 @@ func TestRegistrarDropSpace(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
 	require.NoError(t, err)
@@ -131,7 +131,7 @@ func TestRegistrarDropSpace(t *testing.T) {
 func TestRegistrarDueSpacesEmpty(t *testing.T) {
 	t.Parallel()
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, "https://sap.example")
 	require.NoError(t, err)
 
@@ -153,7 +153,7 @@ func TestRegistrarDueSpacesFiltersFresh(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	space1 := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	space2 := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s2")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space1, space2}, "https://sap.example")
@@ -173,7 +173,7 @@ func TestRegistrarDueSpacesFiltersFresh(t *testing.T) {
 func TestRegistrarRun(t *testing.T) {
 	t.Parallel()
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewUnmigratedDB(t)
 	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, "https://sap.example")
 	require.NoError(t, err)
 

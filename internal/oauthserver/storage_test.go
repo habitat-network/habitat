@@ -1,4 +1,4 @@
-package oauthserver
+package oauthserver_test
 
 import (
 	"context"
@@ -10,12 +10,13 @@ import (
 
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/ory/fosite"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetClient(t *testing.T) {
-	store, err := newStore(testutil.NewDB(t, Models), nil, clientmetadata.NewResolver())
+	store, err := oauthserver.NewStore(testutil.NewPearDB(t), nil, clientmetadata.NewResolver())
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +46,7 @@ func TestGetClient(t *testing.T) {
 // localhost-metadata-synthesis behavior itself is covered by
 // clientmetadata.TestResolverFetchMetadataLocalhost.
 func TestGetClientRedirectUriPortNotMatched(t *testing.T) {
-	store, err := newStore(testutil.NewDB(t, Models), nil, clientmetadata.NewResolver())
+	store, err := oauthserver.NewStore(testutil.NewPearDB(t), nil, clientmetadata.NewResolver())
 	require.NoError(t, err)
 
 	client, err := store.GetClient(

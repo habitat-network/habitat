@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -14,7 +15,7 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
-	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
+	db "github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
@@ -262,8 +263,13 @@ func testPdsCredStore(
 	t *testing.T,
 	claims jwt.Claims,
 ) pdscred.PDSCredentialStore {
-	db := dbtestutil.NewDB(t, pdscred.Models)
-	store, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	// This file is in-package, so it can't use internal/db/testutil: that would
+	// close a cycle through internal/db/testutil -> login -> pdsclient. A
+	// throwaway pdscred-only database is all these tests need.
+	d, err := db.New("sqlite://" + filepath.Join(t.TempDir(), "test.db"))
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(t.Context(), d, nil, pdscred.Models()))
+	store, err := pdscred.NewPDSCredentialStore(d, encrypt.TestKey)
 	require.NoError(t, err, "failed to create pds cred store")
 	// Create test key
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

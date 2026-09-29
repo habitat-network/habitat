@@ -98,7 +98,7 @@ func setupJWTBearerTestServer(
 	approvedClientIDs ...string,
 ) (srv *oauthserver.OAuthServer, server *httptest.Server) {
 	t.Helper()
-	db := testutil.NewDB(t, oauthserver.Models)
+	db := testutil.NewPearDB(t)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)

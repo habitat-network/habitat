@@ -1,18 +1,19 @@
-package clique
+package clique_test
 
 import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-func newTestStore(t *testing.T) Store {
+func newTestStore(t *testing.T) clique.Store {
 	t.Helper()
-	s, err := NewStore(testutil.NewDB(t, Models))
+	s, err := clique.NewStore(testutil.NewPearDB(t))
 	require.NoError(t, err)
 	return s
 }
@@ -87,7 +88,7 @@ func TestAddMembers_CliqueNotFound(t *testing.T) {
 
 	nonexistent := habitat_syntax.ConstructClique(owner, "nonexistent-key")
 	err := s.AddMembers(t.Context(), nonexistent, []syntax.DID{bob})
-	require.ErrorIs(t, err, ErrCliqueNotFound)
+	require.ErrorIs(t, err, clique.ErrCliqueNotFound)
 }
 
 func TestIsMember_True(t *testing.T) {

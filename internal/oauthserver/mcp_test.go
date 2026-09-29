@@ -1,4 +1,4 @@
-package oauthserver
+package oauthserver_test
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
+	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,7 @@ const (
 // /oauth-callback and /oauth/token endpoints the MCP sign-in flow lands on,
 // onto an httptest.Server, mirroring how cmd/pear/main.go mounts them.
 type mcpTestServer struct {
-	*OAuthServer
+	*oauthserver.OAuthServer
 	http   *httptest.Server
 	client *http.Client
 }
@@ -47,26 +48,26 @@ func setupMCPTest(t *testing.T) *mcpTestServer {
 	require.NoError(t, err)
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 	pds := login_testutil.NewPassthroughProvider(t)
-	srv, err := NewOAuthServer(
+	srv, err := oauthserver.NewOAuthServer(
 		secret,
 		&org.LoginRouter{Pds: pds},
 		dummyDir,
-		dbtestutil.NewDB(t, Models),
+		dbtestutil.NewPearDB(t),
 		noop.Meter{},
 		testStore(t),
 		mcpTestOrigin,
-		NewJWTBearerStore(),
+		oauthserver.NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
 	)
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(MCPMetadataPath, srv.HandleMCPMetadata)
-	mux.HandleFunc(MCPRegisterPath, srv.HandleMCPRegister)
-	mux.HandleFunc(MCPAuthorizePath, srv.HandleMCPAuthorize)
-	mux.HandleFunc(MCPAuthorizeSubmitPath, srv.HandleMCPAuthorizeSubmit)
-	mux.HandleFunc(MCPTokenPath, srv.HandleToken)
+	mux.HandleFunc(oauthserver.MCPMetadataPath, srv.HandleMCPMetadata)
+	mux.HandleFunc(oauthserver.MCPRegisterPath, srv.HandleMCPRegister)
+	mux.HandleFunc(oauthserver.MCPAuthorizePath, srv.HandleMCPAuthorize)
+	mux.HandleFunc(oauthserver.MCPAuthorizeSubmitPath, srv.HandleMCPAuthorizeSubmit)
+	mux.HandleFunc(oauthserver.MCPTokenPath, srv.HandleToken)
 	mux.HandleFunc("/oauth-callback", srv.HandleCallback)
 	httpServer := httptest.NewTLSServer(mux)
 	t.Cleanup(httpServer.Close)
@@ -93,7 +94,7 @@ func (ts *mcpTestServer) register(t *testing.T) string {
 	)
 	require.NoError(t, err)
 	resp, err := ts.client.Post(
-		ts.http.URL+MCPRegisterPath,
+		ts.http.URL+oauthserver.MCPRegisterPath,
 		"application/json",
 		bytes.NewReader(body),
 	)
@@ -118,21 +119,24 @@ func mcpAuthorizeQuery(origin, clientID string) url.Values {
 		"code_challenge":        {base64.RawURLEncoding.EncodeToString(challenge[:])},
 		"code_challenge_method": {"S256"},
 		"state":                 {"client-state-123"},
-		"resource":              {origin + MCPResourcePath},
+		"resource":              {origin + oauthserver.MCPResourcePath},
 	}
 }
 
 func (ts *mcpTestServer) startAuthorize(t *testing.T, clientID string) {
 	t.Helper()
 	resp, err := ts.client.Get(
-		ts.http.URL + MCPAuthorizePath + "?" + mcpAuthorizeQuery(mcpTestOrigin, clientID).Encode(),
+		ts.http.URL + oauthserver.MCPAuthorizePath + "?" + mcpAuthorizeQuery(
+			mcpTestOrigin,
+			clientID,
+		).Encode(),
 	)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 	loc, err := resp.Location()
 	require.NoError(t, err)
-	require.Equal(t, MCPAuthorizePagePath, loc.Path)
+	require.Equal(t, oauthserver.MCPAuthorizePagePath, loc.Path)
 }
 
 func (ts *mcpTestServer) submitHandle(t *testing.T, handle string) (int, map[string]string) {
@@ -140,7 +144,7 @@ func (ts *mcpTestServer) submitHandle(t *testing.T, handle string) (int, map[str
 	body, err := json.Marshal(map[string]string{"handle": handle})
 	require.NoError(t, err)
 	resp, err := ts.client.Post(
-		ts.http.URL+MCPAuthorizeSubmitPath,
+		ts.http.URL+oauthserver.MCPAuthorizeSubmitPath,
 		"application/json",
 		bytes.NewReader(body),
 	)
@@ -181,7 +185,7 @@ func (ts *mcpTestServer) authorize(t *testing.T, clientID string) *url.URL {
 
 func (ts *mcpTestServer) token(t *testing.T, form url.Values) (int, map[string]any) {
 	t.Helper()
-	resp, err := ts.client.PostForm(ts.http.URL+MCPTokenPath, form)
+	resp, err := ts.client.PostForm(ts.http.URL+oauthserver.MCPTokenPath, form)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	var out map[string]any
@@ -264,7 +268,7 @@ func (ts *mcpTestServer) authorizeOutcome(
 	q url.Values,
 ) (toPage bool, errorCode string) {
 	t.Helper()
-	resp, err := ts.client.Get(ts.http.URL + MCPAuthorizePath + "?" + q.Encode())
+	resp, err := ts.client.Get(ts.http.URL + oauthserver.MCPAuthorizePath + "?" + q.Encode())
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 	if resp.StatusCode != http.StatusSeeOther {
@@ -272,7 +276,7 @@ func (ts *mcpTestServer) authorizeOutcome(
 	}
 	loc, err := resp.Location()
 	require.NoError(t, err)
-	if loc.Path == MCPAuthorizePagePath {
+	if loc.Path == oauthserver.MCPAuthorizePagePath {
 		return true, ""
 	}
 	return false, loc.Query().Get("error")
@@ -299,7 +303,7 @@ func TestMCPOAuthAuthorizeValidation(t *testing.T) {
 	require.Equal(t, "invalid_request", errCode)
 
 	// An unregistered redirect_uri or client_id can't be redirected to at all.
-	resp, err := ts.client.Get(ts.http.URL + MCPAuthorizePath + "?" + func() string {
+	resp, err := ts.client.Get(ts.http.URL + oauthserver.MCPAuthorizePath + "?" + func() string {
 		q := mcpAuthorizeQuery(mcpTestOrigin, clientID)
 		q.Set("redirect_uri", "http://127.0.0.1:9/other")
 		return q.Encode()
@@ -308,7 +312,7 @@ func TestMCPOAuthAuthorizeValidation(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 	require.NotEqual(t, http.StatusSeeOther, resp.StatusCode)
 
-	resp, err = ts.client.Get(ts.http.URL + MCPAuthorizePath + "?" + func() string {
+	resp, err = ts.client.Get(ts.http.URL + oauthserver.MCPAuthorizePath + "?" + func() string {
 		q := mcpAuthorizeQuery(mcpTestOrigin, clientID)
 		q.Set("client_id", "mcp-unknown")
 		return q.Encode()
@@ -342,7 +346,7 @@ func TestMCPOAuthRegisterValidation(t *testing.T) {
 			b, err := json.Marshal(body)
 			require.NoError(t, err)
 			resp, err := ts.client.Post(
-				ts.http.URL+MCPRegisterPath,
+				ts.http.URL+oauthserver.MCPRegisterPath,
 				"application/json",
 				bytes.NewReader(b),
 			)
@@ -353,19 +357,19 @@ func TestMCPOAuthRegisterValidation(t *testing.T) {
 	}
 	// Native app custom schemes and https are fine.
 	for _, uri := range []string{"cursor://anysphere.cursor/callback", "https://claude.ai/api/mcp/auth_callback"} {
-		require.NoError(t, validateRedirectURI(uri))
+		require.NoError(t, oauthserver.ValidateRedirectURI(uri))
 	}
 }
 
 func TestMCPOAuthMetadata(t *testing.T) {
 	ts := setupMCPTest(t)
-	resp, err := ts.client.Get(ts.http.URL + MCPMetadataPath)
+	resp, err := ts.client.Get(ts.http.URL + oauthserver.MCPMetadataPath)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	var md map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&md))
 	require.Equal(t, mcpTestOrigin+"/mcp", md["issuer"])
-	require.Equal(t, mcpTestOrigin+MCPRegisterPath, md["registration_endpoint"])
-	require.Equal(t, mcpTestOrigin+MCPAuthorizePath, md["authorization_endpoint"])
+	require.Equal(t, mcpTestOrigin+oauthserver.MCPRegisterPath, md["registration_endpoint"])
+	require.Equal(t, mcpTestOrigin+oauthserver.MCPAuthorizePath, md["authorization_endpoint"])
 	require.NotContains(t, md, "scopes_supported", "clients shouldn't be told to request a scope")
 }

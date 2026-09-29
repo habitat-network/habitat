@@ -1,4 +1,4 @@
-package repo
+package repo_test
 
 import (
 	"testing"
@@ -6,19 +6,20 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/repo"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRepoPutAndGetRecord(t *testing.T) {
-	repo, err := NewRepo(testutil.NewDB(t, Models))
+	r, err := repo.NewRepo(testutil.NewPearDB(t))
 	require.NoError(t, err)
 
 	collection := "test.collection"
 	key := "test-key"
 	val := map[string]any{"data": "value", "data-1": float64(123), "data-2": true}
 
-	_, err = repo.PutRecord(t.Context(), Record{
+	_, err = r.PutRecord(t.Context(), repo.Record{
 		Did:        "my-did",
 		Collection: collection,
 		Rkey:       key,
@@ -27,7 +28,7 @@ func TestRepoPutAndGetRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	// Put again to test on conflict works
-	_, err = repo.PutRecord(t.Context(), Record{
+	_, err = r.PutRecord(t.Context(), repo.Record{
 		Did:        "my-did",
 		Collection: collection,
 		Rkey:       key,
@@ -35,7 +36,7 @@ func TestRepoPutAndGetRecord(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
-	got, err := repo.GetRecord(t.Context(), "my-did", collection, key)
+	got, err := r.GetRecord(t.Context(), "my-did", collection, key)
 	require.NoError(t, err)
 
 	require.Equal(t, val, got.Value)
@@ -43,11 +44,11 @@ func TestRepoPutAndGetRecord(t *testing.T) {
 
 func TestRepoListRecords(t *testing.T) {
 	ctx := t.Context()
-	repo, err := NewRepo(testutil.NewDB(t, Models))
+	r, err := repo.NewRepo(testutil.NewPearDB(t))
 	require.NoError(t, err)
-	_, err = repo.PutRecord(
+	_, err = r.PutRecord(
 		t.Context(),
-		Record{
+		repo.Record{
 			"my-did",
 			"network.habitat.collection-1",
 			"key-1",
@@ -57,9 +58,9 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = repo.PutRecord(
+	_, err = r.PutRecord(
 		ctx,
-		Record{
+		repo.Record{
 			"my-did",
 			"network.habitat.collection-1",
 			"key-2",
@@ -69,9 +70,9 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = repo.PutRecord(
+	_, err = r.PutRecord(
 		ctx,
-		Record{
+		repo.Record{
 			"my-did",
 			"network.habitat.collection-2",
 			"key-2",
@@ -81,11 +82,11 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	records, err := repo.ListRecordsFromPermissions(ctx, nil)
+	records, err := r.ListRecordsFromPermissions(ctx, nil)
 	require.NoError(t, err)
 	require.Len(t, records, 0)
 
-	records, err = repo.ListRecordsFromPermissions(
+	records, err = r.ListRecordsFromPermissions(
 		ctx,
 		[]permissions.Permission{
 			{
@@ -106,31 +107,31 @@ func TestRepoListRecords(t *testing.T) {
 
 func TestRepoListCollections(t *testing.T) {
 	ctx := t.Context()
-	repo, err := NewRepo(testutil.NewDB(t, Models))
+	r, err := repo.NewRepo(testutil.NewPearDB(t))
 	require.NoError(t, err)
 
 	did := syntax.DID("did:plc:testuser")
 
 	// No collections yet
-	collections, err := repo.ListCollections(ctx, did)
+	collections, err := r.ListCollections(ctx, did)
 	require.NoError(t, err)
 	require.Empty(t, collections)
 
 	// Add records across two collections
-	for _, rec := range []Record{
+	for _, rec := range []repo.Record{
 		{Did: string(did), Collection: "network.habitat.alpha", Rkey: "key-1", Value: map[string]any{"x": "1"}},
 		{Did: string(did), Collection: "network.habitat.alpha", Rkey: "key-2", Value: map[string]any{"x": "2"}},
 		{Did: string(did), Collection: "network.habitat.beta", Rkey: "key-1", Value: map[string]any{"x": "3"}},
 	} {
-		_, err = repo.PutRecord(ctx, rec, nil)
+		_, err = r.PutRecord(ctx, rec, nil)
 		require.NoError(t, err)
 	}
 
-	collections, err = repo.ListCollections(ctx, did)
+	collections, err = r.ListCollections(ctx, did)
 	require.NoError(t, err)
 	require.Len(t, collections, 2)
 
-	byName := map[string]CollectionMetadata{}
+	byName := map[string]repo.CollectionMetadata{}
 	for _, c := range collections {
 		byName[c.Name] = c
 	}
@@ -140,7 +141,7 @@ func TestRepoListCollections(t *testing.T) {
 
 	otherDID := syntax.DID("did:plc:other")
 	// Records for a different DID are not included
-	_, err = repo.PutRecord(ctx, Record{
+	_, err = r.PutRecord(ctx, repo.Record{
 		Did:        otherDID.String(),
 		Collection: "network.habitat.otherCollection",
 		Rkey:       "key-1",
@@ -148,17 +149,17 @@ func TestRepoListCollections(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
-	collections, err = repo.ListCollections(ctx, did)
+	collections, err = r.ListCollections(ctx, did)
 	require.NoError(t, err)
 	require.Len(t, collections, 2)
 
-	collections, err = repo.ListCollections(ctx, otherDID)
+	collections, err = r.ListCollections(ctx, otherDID)
 	require.NoError(t, err)
 	require.Len(t, collections, 1)
 }
 
 func TestRepoUploadAndGetBlob(t *testing.T) {
-	repo, err := NewRepo(testutil.NewDB(t, Models))
+	r, err := repo.NewRepo(testutil.NewPearDB(t))
 	require.NoError(t, err)
 
 	did := "did:plc:testuser"
@@ -166,66 +167,66 @@ func TestRepoUploadAndGetBlob(t *testing.T) {
 	mimeType := "text/plain"
 
 	// Upload a blob
-	ref, err := repo.UploadBlob(t.Context(), did, data, mimeType)
+	ref, err := r.UploadBlob(t.Context(), did, data, mimeType)
 	require.NoError(t, err)
 	require.NotNil(t, ref)
 	require.Equal(t, mimeType, ref.MimeType)
 	require.Equal(t, int64(len(data)), ref.Size)
 
 	// Retrieve it by CID
-	gotMime, gotData, err := repo.GetBlob(t.Context(), did, ref.Ref.String())
+	gotMime, gotData, err := r.GetBlob(t.Context(), did, ref.Ref.String())
 	require.NoError(t, err)
 	require.Equal(t, mimeType, gotMime)
 	require.Equal(t, data, gotData)
 
 	// Upload a second blob with a different mime type
 	data2 := []byte{0x89, 0x50, 0x4E, 0x47} // fake PNG header
-	ref2, err := repo.UploadBlob(t.Context(), did, data2, "image/png")
+	ref2, err := r.UploadBlob(t.Context(), did, data2, "image/png")
 	require.NoError(t, err)
 	require.Equal(t, "image/png", ref2.MimeType)
 	require.Equal(t, int64(len(data2)), ref2.Size)
 
 	// Both blobs should be independently retrievable
-	gotMime2, gotData2, err := repo.GetBlob(t.Context(), did, ref2.Ref.String())
+	gotMime2, gotData2, err := r.GetBlob(t.Context(), did, ref2.Ref.String())
 	require.NoError(t, err)
 	require.Equal(t, "image/png", gotMime2)
 	require.Equal(t, data2, gotData2)
 
 	// Original blob is still intact
-	gotMime, gotData, err = repo.GetBlob(t.Context(), did, ref.Ref.String())
+	gotMime, gotData, err = r.GetBlob(t.Context(), did, ref.Ref.String())
 	require.NoError(t, err)
 	require.Equal(t, mimeType, gotMime)
 	require.Equal(t, data, gotData)
 
 	// Getting a non-existent blob returns an error
-	_, _, err = repo.GetBlob(
+	_, _, err = r.GetBlob(
 		t.Context(),
 		did,
 		"bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	)
-	require.ErrorIs(t, err, ErrRecordNotFound)
+	require.ErrorIs(t, err, repo.ErrRecordNotFound)
 }
 
 func TestListRecords(t *testing.T) {
 	ctx := t.Context()
-	repo, err := NewRepo(testutil.NewDB(t, Models))
+	r, err := repo.NewRepo(testutil.NewPearDB(t))
 	require.NoError(t, err)
 
 	did := "did:plc:testuser"
 	coll1 := "network.habitat.alpha"
 	coll2 := "network.habitat.beta"
 
-	for _, rec := range []Record{
+	for _, rec := range []repo.Record{
 		{Did: did, Collection: coll1, Rkey: "key-1", Value: map[string]any{"x": "1"}},
 		{Did: did, Collection: coll1, Rkey: "key-2", Value: map[string]any{"x": "2"}},
 		{Did: did, Collection: coll2, Rkey: "key-1", Value: map[string]any{"x": "3"}},
 	} {
-		_, err = repo.PutRecord(ctx, rec, nil)
+		_, err = r.PutRecord(ctx, rec, nil)
 		require.NoError(t, err)
 	}
 
 	// Returns only records in the specified collection
-	records, err := repo.ListRecords(ctx, did, coll1)
+	records, err := r.ListRecords(ctx, did, coll1)
 	require.NoError(t, err)
 	require.Len(t, records, 2)
 	for _, r := range records {
@@ -234,18 +235,18 @@ func TestListRecords(t *testing.T) {
 	}
 
 	// Returns records for the other collection
-	records, err = repo.ListRecords(ctx, did, coll2)
+	records, err = r.ListRecords(ctx, did, coll2)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.Equal(t, "key-1", records[0].Rkey)
 
 	// Returns empty for a non-existent collection
-	records, err = repo.ListRecords(ctx, did, "network.habitat.nonexistent")
+	records, err = r.ListRecords(ctx, did, "network.habitat.nonexistent")
 	require.NoError(t, err)
 	require.Empty(t, records)
 
 	// Returns empty for a different DID
-	records, err = repo.ListRecords(ctx, "did:plc:other", coll1)
+	records, err = r.ListRecords(ctx, "did:plc:other", coll1)
 	require.NoError(t, err)
 	require.Empty(t, records)
 }
@@ -256,7 +257,7 @@ func TestListRecords(t *testing.T) {
 //  2. link rows use DoNothing — putting the same blob-referencing record twice must
 //     not produce a duplicate-key error or a duplicate link row.
 func TestPutRecordOnConflict(t *testing.T) {
-	repo, err := NewRepo(testutil.NewDB(t, Models))
+	r, err := repo.NewRepo(testutil.NewPearDB(t))
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -279,22 +280,22 @@ func TestPutRecordOnConflict(t *testing.T) {
 
 	t.Run("record OnConflict UpdateAll: second put overwrites value", func(t *testing.T) {
 		first := map[string]any{"msg": "hello"}
-		_, err := repo.PutRecord(
+		_, err := r.PutRecord(
 			ctx,
-			Record{Did: did, Collection: collection, Rkey: rkey, Value: first},
+			repo.Record{Did: did, Collection: collection, Rkey: rkey, Value: first},
 			nil,
 		)
 		require.NoError(t, err)
 
 		second := map[string]any{"msg": "world"}
-		_, err = repo.PutRecord(
+		_, err = r.PutRecord(
 			ctx,
-			Record{Did: did, Collection: collection, Rkey: rkey, Value: second},
+			repo.Record{Did: did, Collection: collection, Rkey: rkey, Value: second},
 			nil,
 		)
 		require.NoError(t, err)
 
-		got, err := repo.GetRecord(ctx, did, collection, rkey)
+		got, err := r.GetRecord(ctx, did, collection, rkey)
 		require.NoError(t, err)
 		require.Equal(
 			t,
@@ -308,9 +309,9 @@ func TestPutRecordOnConflict(t *testing.T) {
 		"link OnConflict DoNothing: duplicate blob ref does not error or duplicate",
 		func(t *testing.T) {
 			// First put — inserts the record row and the link row.
-			_, err := repo.PutRecord(
+			_, err := r.PutRecord(
 				ctx,
-				Record{
+				repo.Record{
 					Did:        did,
 					Collection: collection,
 					Rkey:       rkey + "-blob",
@@ -322,9 +323,9 @@ func TestPutRecordOnConflict(t *testing.T) {
 
 			// Second put — record row conflicts (UpdateAll), link row conflicts (DoNothing).
 			// Neither should return an error.
-			_, err = repo.PutRecord(
+			_, err = r.PutRecord(
 				ctx,
-				Record{
+				repo.Record{
 					Did:        did,
 					Collection: collection,
 					Rkey:       rkey + "-blob",
@@ -335,7 +336,7 @@ func TestPutRecordOnConflict(t *testing.T) {
 			require.NoError(t, err)
 
 			// Confirm exactly one link row exists for the blob CID.
-			links, err := repo.GetBlobLinks(ctx, syntax.CID(blobCID), syntax.DID(did))
+			links, err := r.GetBlobLinks(ctx, syntax.CID(blobCID), syntax.DID(did))
 			require.NoError(t, err)
 			require.Len(t, links, 1, "DoNothing should prevent duplicate link rows")
 		},
@@ -344,7 +345,7 @@ func TestPutRecordOnConflict(t *testing.T) {
 
 func TestCreateRecord(t *testing.T) {
 	ctx := t.Context()
-	repo, err := NewRepo(testutil.NewDB(t, Models))
+	r, err := repo.NewRepo(testutil.NewPearDB(t))
 	require.NoError(t, err)
 
 	did := "did:plc:testuser"
@@ -352,39 +353,39 @@ func TestCreateRecord(t *testing.T) {
 	val := map[string]any{"msg": "hello"}
 
 	t.Run("creates a new record and returns the correct URI", func(t *testing.T) {
-		uri, err := repo.CreateRecord(
+		uri, err := r.CreateRecord(
 			ctx,
-			Record{Did: did, Collection: collection, Rkey: "rkey-1", Value: val},
+			repo.Record{Did: did, Collection: collection, Rkey: "rkey-1", Value: val},
 			nil,
 		)
 		require.NoError(t, err)
 		require.NotEmpty(t, uri)
 
-		got, err := repo.GetRecord(ctx, did, collection, "rkey-1")
+		got, err := r.GetRecord(ctx, did, collection, "rkey-1")
 		require.NoError(t, err)
 		require.Equal(t, val, got.Value)
 	})
 
 	t.Run("errors when record already exists", func(t *testing.T) {
-		_, err := repo.CreateRecord(
+		_, err := r.CreateRecord(
 			ctx,
-			Record{Did: did, Collection: collection, Rkey: "rkey-2", Value: val},
+			repo.Record{Did: did, Collection: collection, Rkey: "rkey-2", Value: val},
 			nil,
 		)
 		require.NoError(t, err)
 
-		_, err = repo.CreateRecord(
+		_, err = r.CreateRecord(
 			ctx,
-			Record{Did: did, Collection: collection, Rkey: "rkey-2", Value: val},
+			repo.Record{Did: did, Collection: collection, Rkey: "rkey-2", Value: val},
 			nil,
 		)
-		require.ErrorIs(t, err, ErrRecordAlreadyCreated)
+		require.ErrorIs(t, err, repo.ErrRecordAlreadyCreated)
 	})
 
 	t.Run("different rkeys in same collection are independent", func(t *testing.T) {
-		_, err := repo.CreateRecord(
+		_, err := r.CreateRecord(
 			ctx,
-			Record{
+			repo.Record{
 				Did:        did,
 				Collection: collection,
 				Rkey:       "rkey-a",
@@ -394,9 +395,9 @@ func TestCreateRecord(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = repo.CreateRecord(
+		_, err = r.CreateRecord(
 			ctx,
-			Record{
+			repo.Record{
 				Did:        did,
 				Collection: collection,
 				Rkey:       "rkey-b",
@@ -409,7 +410,7 @@ func TestCreateRecord(t *testing.T) {
 }
 
 func TestDeleteRecord(t *testing.T) {
-	repo, err := NewRepo(testutil.NewDB(t, Models))
+	r, err := repo.NewRepo(testutil.NewPearDB(t))
 	require.NoError(t, err)
 
 	ownerDID := syntax.DID("did:example:owner")
@@ -419,7 +420,7 @@ func TestDeleteRecord(t *testing.T) {
 	validate := true
 	val := map[string]any{"key": "val"}
 
-	_, err = repo.PutRecord(t.Context(), Record{
+	_, err = r.PutRecord(t.Context(), repo.Record{
 		Did:        string(ownerDID),
 		Collection: coll.String(),
 		Rkey:       rkey.String(),
@@ -427,12 +428,12 @@ func TestDeleteRecord(t *testing.T) {
 	}, &validate)
 	require.NoError(t, err)
 	t.Run("basic delete", func(t *testing.T) {
-		err := repo.DeleteRecord(t.Context(), ownerDID.String(), coll.String(), rkey.String())
+		err := r.DeleteRecord(t.Context(), ownerDID.String(), coll.String(), rkey.String())
 		require.NoError(t, err)
 	})
 
 	t.Run("deleting record that doesn't exist is non-error and no-op", func(t *testing.T) {
-		err := repo.DeleteRecord(t.Context(), ownerDID.String(), coll.String(), "some-key")
+		err := r.DeleteRecord(t.Context(), ownerDID.String(), coll.String(), "some-key")
 		require.NoError(t, err)
 	})
 }

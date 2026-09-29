@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"embed"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -69,11 +68,8 @@ import (
 	"gocloud.dev/blob"
 	"gorm.io/gorm"
 
-	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
+	"github.com/habitat-network/habitat/cmd/pear/migrations"
 )
-
-//go:embed migrations/*.go migrations/*.sql
-var embedMigrations embed.FS
 
 func main() {
 	cmd := &cli.Command{
@@ -119,14 +115,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	slog.InfoContext(startupCtx, "running with flags", "flags", cmd.FlagNames())
 
-	db, err := db.New(cmd.String(fDB), db.WithMigrations(embedMigrations))
+	db, err := openAndMigrateDatabase(startupCtx, cmd.String(fDB))
 	if err != nil {
-		return fmt.Errorf("setup database: %w", err)
-	}
-	// Stores no longer migrate their own tables, so create every table pear
-	// persists to up front, before any store is constructed.
-	if err := migrateDatabase(db); err != nil {
-		return fmt.Errorf("migrate database: %w", err)
+		return err
 	}
 	fgaStore, err := setupFGA(startupCtx, cmd)
 	if err != nil {
@@ -680,26 +671,47 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	return err
 }
 
-// migrateDatabase creates or updates the tables for every store pear persists
-// to database. It lives outside run so that db refers to internal/db, not the
+// openAndMigrateDatabase opens pear's database and brings it up to date:
+// db.Migrate creates the tables for Models, then replays the migrations in
+// cmd/pear/migrations.
+//
+// It is its own function so that db names internal/db here, rather than the
 // gorm handle run shadows the package name with.
-func migrateDatabase(database *gorm.DB) error {
-	return db.AutoMigrate(
-		database,
-		clique.Models,
-		emaildomain.Models,
-		hive.Models,
-		instance.Models,
-		login.Models,
-		notify.Models,
-		oauthserver.Models,
-		opensocial.Models,
-		org.Models,
-		pdscred.Models,
-		permissions.Models,
-		repo.Models,
-		spaces.Models,
-	)
+func openAndMigrateDatabase(ctx context.Context, dsn string) (*gorm.DB, error) {
+	database, err := db.New(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("setup database: %w", err)
+	}
+	// Stores no longer migrate their own tables, so do it once here, before any
+	// store is constructed.
+	if err := db.Migrate(ctx, database, migrations.FS, Models()); err != nil {
+		return nil, fmt.Errorf("migrate database: %w", err)
+	}
+	return database, nil
+}
+
+// Models returns the GORM models of every store pear persists to its database,
+// which db.Migrate creates tables for.
+func Models() []any {
+	models := make([]any, 0)
+	for _, set := range [][]any{
+		clique.Models(),
+		emaildomain.Models(),
+		hive.Models(),
+		instance.Models(),
+		login.Models(),
+		notify.Models(),
+		oauthserver.Models(),
+		opensocial.Models(),
+		org.Models(),
+		pdscred.Models(),
+		permissions.Models(),
+		repo.Models(),
+		spaces.Models(),
+	} {
+		models = append(models, set...)
+	}
+	return models
 }
 
 func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {

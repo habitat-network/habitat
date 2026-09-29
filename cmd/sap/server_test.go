@@ -23,7 +23,7 @@ import (
 func newTestServer(t *testing.T) *server {
 	t.Helper()
 
-	db := testutil.NewDB(t)
+	db := testutil.NewUnmigratedDB(t)
 
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
