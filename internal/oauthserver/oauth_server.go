@@ -729,7 +729,10 @@ func (o *OAuthServer) ValidateRaw(
 		return nil, false, fmt.Errorf("DID not found in JWT")
 	}
 
-	credInfo := &authn.CredentialInfo{Subject: syntax.DID(did)}
+	credInfo := &authn.CredentialInfo{
+		Subject: syntax.DID(did),
+		Method:  authn.ValidatorMethodOAuth,
+	}
 
 	org, err := o.orgStore.GetOrgForDID(ctx, syntax.DID(did))
 	if err != nil {
