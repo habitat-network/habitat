@@ -17,10 +17,12 @@ import (
 )
 
 // NewDB returns a gorm DB backed by a temporary SQLite file living in the
-// test's temp dir (removed automatically when the test finishes), with tables
-// created for every model in the given sets. Pass the Models function of each
-// store the test constructs; a store's tables are no longer created by its
-// constructor.
+// test's temp dir (removed automatically when the test finishes).
+//
+// Pass the Models function of each store the test constructs and their tables
+// are created; a store's tables are no longer created by its constructor. Pass
+// no models and the database has no tables, for tests whose stores migrate
+// themselves. For the whole pear schema at once, use cmd/pear/testutil.NewPearDB.
 //
 // The file is opened in WAL journal mode with a busy timeout, so the tests can
 // use gorm's connection pool for concurrent reads and writes without hitting
@@ -31,17 +33,6 @@ import (
 // verbosely or fails.
 func NewDB(t *testing.T, modelSets ...[]any) *gorm.DB {
 	t.Helper()
-	d := NewUnmigratedDB(t)
-	// No goose migrations: the tables come from the models, and pear's own
-	// migrations are applied by cmd/pear/testutil.NewPearDB.
-	require.NoError(t, db.Migrate(t.Context(), d, nil, modelSets...))
-	return d
-}
-
-// NewUnmigratedDB is like [NewDB] but creates no tables, for tests whose
-// stores migrate themselves.
-func NewUnmigratedDB(t *testing.T) *gorm.DB {
-	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
 	d, err := db.New("sqlite://" + path)
 	require.NoError(t, err)
@@ -51,6 +42,9 @@ func NewUnmigratedDB(t *testing.T) *gorm.DB {
 		ParameterizedQueries:      false,
 		Colorful:                  true,
 	})
+	// No goose migrations: the tables come from the models, and pear's own
+	// migrations are applied by cmd/pear/testutil.NewPearDB.
+	require.NoError(t, db.Migrate(t.Context(), d, nil, modelSets...))
 	return d
 }
 

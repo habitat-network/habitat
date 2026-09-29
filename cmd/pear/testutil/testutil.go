@@ -37,8 +37,9 @@ import (
 // can still use it.
 func NewPearDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	d := db_testutil.NewUnmigratedDB(t)
-	require.NoError(t, db.Migrate(t.Context(), d, migrations.FS,
+	d := db_testutil.NewDB(t)
+	require.NoError(t, db.Migrate(
+		t.Context(), d, migrations.FS,
 		clique.Models(),
 		emaildomain.Models(),
 		hive.Models(),

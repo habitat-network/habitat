@@ -22,7 +22,7 @@ import (
 // NewSapDB returns a gorm DB backed by a temporary SQLite file living in the
 // test's temp dir (removed automatically when the test finishes), migrated for
 // every store sap persists to. It is the sap counterpart to
-// db/testutil.NewPearDB.
+// cmd/pear/testutil.NewPearDB.
 //
 // sap gets its own helper rather than sharing pear's because the two schemas
 // collide: internal/notify and pkg/sap/register both claim a `registrations`

@@ -11,7 +11,7 @@ import (
 )
 
 func TestStore_SaveAndGetSession(t *testing.T) {
-	store, err := NewGormStore(testutil.NewUnmigratedDB(t))
+	store, err := NewGormStore(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	sess := oauth.ClientSessionData{
@@ -28,7 +28,7 @@ func TestStore_SaveAndGetSession(t *testing.T) {
 }
 
 func TestStore_SaveAndGetAuthRequest(t *testing.T) {
-	store, err := NewGormStore(testutil.NewUnmigratedDB(t))
+	store, err := NewGormStore(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	info := oauth.AuthRequestData{
@@ -43,7 +43,7 @@ func TestStore_SaveAndGetAuthRequest(t *testing.T) {
 }
 
 func TestStore_DeleteSession(t *testing.T) {
-	store, err := NewGormStore(testutil.NewUnmigratedDB(t))
+	store, err := NewGormStore(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	sess := oauth.ClientSessionData{
@@ -59,7 +59,7 @@ func TestStore_DeleteSession(t *testing.T) {
 }
 
 func TestStore_DeleteAuthRequest(t *testing.T) {
-	store, err := NewGormStore(testutil.NewUnmigratedDB(t))
+	store, err := NewGormStore(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	info := oauth.AuthRequestData{State: "state456"}
@@ -71,7 +71,7 @@ func TestStore_DeleteAuthRequest(t *testing.T) {
 }
 
 func TestStore_UpdateExistingSession(t *testing.T) {
-	store, err := NewGormStore(testutil.NewUnmigratedDB(t))
+	store, err := NewGormStore(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	sess := oauth.ClientSessionData{
@@ -90,7 +90,7 @@ func TestStore_UpdateExistingSession(t *testing.T) {
 }
 
 func TestStore_SingleSessionPerUser(t *testing.T) {
-	store, err := NewGormStore(testutil.NewUnmigratedDB(t), WithSingleSessionPerUser())
+	store, err := NewGormStore(testutil.NewDB(t), WithSingleSessionPerUser())
 	require.NoError(t, err)
 
 	require.NoError(t, store.SaveSession(context.Background(), oauth.ClientSessionData{
@@ -111,7 +111,7 @@ func TestStore_SingleSessionPerUser(t *testing.T) {
 }
 
 func TestStore_SingleSessionPerUser_DeleteIgnoresSessionID(t *testing.T) {
-	store, err := NewGormStore(testutil.NewUnmigratedDB(t), WithSingleSessionPerUser())
+	store, err := NewGormStore(testutil.NewDB(t), WithSingleSessionPerUser())
 	require.NoError(t, err)
 
 	require.NoError(t, store.SaveSession(context.Background(), oauth.ClientSessionData{
@@ -126,7 +126,7 @@ func TestStore_SingleSessionPerUser_DeleteIgnoresSessionID(t *testing.T) {
 }
 
 func TestStore_SingleSessionPerUser_IsolatedPerDID(t *testing.T) {
-	store, err := NewGormStore(testutil.NewUnmigratedDB(t), WithSingleSessionPerUser())
+	store, err := NewGormStore(testutil.NewDB(t), WithSingleSessionPerUser())
 	require.NoError(t, err)
 
 	require.NoError(t, store.SaveSession(context.Background(), oauth.ClientSessionData{
@@ -147,7 +147,7 @@ func TestStore_SingleSessionPerUser_IsolatedPerDID(t *testing.T) {
 }
 
 func TestStore_CustomTableNames(t *testing.T) {
-	db := testutil.NewUnmigratedDB(t)
+	db := testutil.NewDB(t)
 	ctx := context.Background()
 	defaultStore, err := NewGormStore(db)
 	require.NoError(t, err)
