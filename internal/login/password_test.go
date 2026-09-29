@@ -24,7 +24,7 @@ var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 func newTestLoginProvider(t *testing.T) *PasswordLoginProvider {
 	t.Helper()
 	provider, err := NewPasswordProvider(
-		testutil.NewDB(t),
+		testutil.NewDB(t, Models()),
 		"pear.example.com",
 		testSigningSecret,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),

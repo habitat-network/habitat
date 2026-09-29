@@ -166,8 +166,7 @@ func (s *Store) CreateDomainMapping(
 }
 
 // Models returns the GORM models this package persists. Their tables are
-// created by the schema migrations in internal/db/schema, which Atlas
-// generates from these models.
+// created by db.Migrate.
 func Models() []any {
 	return []any{&domainMapping{}, &memberEmail{}}
 }

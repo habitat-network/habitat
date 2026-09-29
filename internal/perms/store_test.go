@@ -6,7 +6,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
@@ -43,7 +43,7 @@ func newTestStoreWithOpensocial(t *testing.T) (*store, *opensocial_testutil.Test
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 
-	db := db_testutil.NewDB(t)
+	db := pear_testutil.NewPearDB(t)
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
 	os := opensocial_testutil.NewTestStore(
 		t,

@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -53,7 +54,7 @@ func TestRegistrarRegistersDueSpaces(t *testing.T) {
 	base, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
 	require.NoError(t, err)
@@ -85,7 +86,7 @@ func TestRegistrarEnsureRegisteredAlreadyTracked(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
 	require.NoError(t, err)
@@ -110,7 +111,7 @@ func TestRegistrarDropSpace(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
 	require.NoError(t, err)
@@ -131,7 +132,7 @@ func TestRegistrarDropSpace(t *testing.T) {
 func TestRegistrarDueSpacesEmpty(t *testing.T) {
 	t.Parallel()
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, "https://sap.example")
 	require.NoError(t, err)
 
@@ -153,7 +154,7 @@ func TestRegistrarDueSpacesFiltersFresh(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	space1 := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	space2 := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s2")
 	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space1, space2}, "https://sap.example")
@@ -173,7 +174,7 @@ func TestRegistrarDueSpacesFiltersFresh(t *testing.T) {
 func TestRegistrarRun(t *testing.T) {
 	t.Parallel()
 
-	db := db_testutil.NewUnmigratedDB(t)
+	db := db_testutil.NewDB(t, Models())
 	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, "https://sap.example")
 	require.NoError(t, err)
 

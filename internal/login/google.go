@@ -231,8 +231,3 @@ func verifyGoogleIDToken(idToken, clientID string) (googleIDTokenClaims, error) 
 	}
 	return claims, nil
 }
-
-// googleModels returns the GORM models the google login provider persists.
-func googleModels() []any {
-	return []any{&googleCredentialsModel{}}
-}

@@ -12,7 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/hive"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
@@ -33,7 +33,7 @@ type emailFixture struct {
 // creator-less "acme" org mapped to acme.com.
 func newEmailFixture(t *testing.T) emailFixture {
 	t.Helper()
-	db := db_testutil.NewDB(t)
+	db := pear_testutil.NewPearDB(t)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
 	osStore := opensocial_testutil.NewTestStore(

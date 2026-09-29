@@ -109,6 +109,7 @@ type link struct {
 
 // TODO: create table etc.
 func NewRepo(db *gorm.DB) (Repo, error) {
+
 	return &repo{
 		db: db,
 	}, nil
@@ -531,8 +532,7 @@ func (r *repo) ListCollections(ctx context.Context, did syntax.DID) ([]Collectio
 }
 
 // Models returns the GORM models this package persists. Their tables are
-// created by the schema migrations in internal/db/schema, which Atlas
-// generates from these models.
+// created by db.Migrate.
 func Models() []any {
 	return []any{&record{}, &Blob{}, &link{}}
 }

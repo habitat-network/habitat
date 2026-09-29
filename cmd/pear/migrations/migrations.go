@@ -5,6 +5,7 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pressly/goose/v3"
 	"gorm.io/gorm"
@@ -21,7 +22,9 @@ import (
 // scopes them to it with their WithTx method and [db.WrapTx].
 type Deps struct {
 	// DB is pear's database.
-	DB     *gorm.DB
+	DB *gorm.DB
+	// Spaces is nil where no spaces store has been built, such as in tests
+	// that only need the schema, so migrations that use it must not run there.
 	Spaces spaces.Store
 }
 
@@ -37,7 +40,7 @@ func goMigrations(deps Deps) []*goose.Migration {
 func Run(ctx context.Context, deps Deps) error {
 	sqlMigrations, err := schema.Migrations(db.DialectOf(deps.DB))
 	if err != nil {
-		return err
+		return fmt.Errorf("load schema migrations: %w", err)
 	}
-	return db.Migrate(ctx, deps.DB, sqlMigrations, goMigrations(deps)...)
+	return db.Up(ctx, deps.DB, sqlMigrations, goMigrations(deps)...)
 }

@@ -36,6 +36,16 @@ const defaultAuthRequestsTable = "client_auth_requests"
 
 func (authRequestRow) TableName() string { return defaultAuthRequestsTable }
 
+// Models returns the GORM models this package persists, under the default
+// table names. Their tables are created by db.Migrate, which
+// pkg/sap/testutil.NewSapDB calls for tests.
+//
+// NewGormStore still migrates its own tables, because WithTableNames can point
+// them somewhere other than these defaults.
+func Models() []any {
+	return []any{&sessionRow{}, &authRequestRow{}}
+}
+
 type gormStore struct {
 	db                *gorm.DB
 	singleSessionUser bool

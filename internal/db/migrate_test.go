@@ -20,7 +20,7 @@ func newSqlite(t *testing.T) *gorm.DB {
 	return db
 }
 
-func TestMigrateRunsSQLAndGoMigrations(t *testing.T) {
+func TestUpRunsSQLAndGoMigrations(t *testing.T) {
 	db := newSqlite(t)
 	sqlMigrations := fstest.MapFS{
 		"20260101000000_create_widgets.sql": &fstest.MapFile{
@@ -41,7 +41,7 @@ DROP TABLE widgets;
 		nil,
 	)
 
-	require.NoError(t, Migrate(t.Context(), db, sqlMigrations, seed))
+	require.NoError(t, Up(t.Context(), db, sqlMigrations, seed))
 
 	var count int64
 	require.NoError(t, db.Table("widgets").Count(&count).Error)
@@ -49,14 +49,14 @@ DROP TABLE widgets;
 
 	// Applied migrations are recorded, so running again is a no-op rather than
 	// a duplicate insert.
-	require.NoError(t, Migrate(t.Context(), db, sqlMigrations, seed))
+	require.NoError(t, Up(t.Context(), db, sqlMigrations, seed))
 	require.NoError(t, db.Table("widgets").Count(&count).Error)
 	require.Equal(t, int64(1), count)
 }
 
-func TestMigrateFailsOnBadMigration(t *testing.T) {
+func TestUpFailsOnBadMigration(t *testing.T) {
 	db := newSqlite(t)
-	err := Migrate(t.Context(), db, fstest.MapFS{
+	err := Up(t.Context(), db, fstest.MapFS{
 		"20260101000000_bad.sql": &fstest.MapFile{
 			Data: []byte("-- +goose Up\nNOT SQL;\n"),
 		},
@@ -87,18 +87,18 @@ func TestDialectOf(t *testing.T) {
 	require.Equal(t, Sqlite, DialectOf(newSqlite(t)))
 }
 
-func TestMigrateRejectsDuplicateGoMigrationVersions(t *testing.T) {
+func TestUpRejectsDuplicateGoMigrationVersions(t *testing.T) {
 	noop := func() *goose.Migration {
 		return goose.NewGoMigration(20260101000000, &goose.GoFunc{}, &goose.GoFunc{})
 	}
-	require.Error(t, Migrate(t.Context(), newSqlite(t), nil, noop(), noop()))
+	require.Error(t, Up(t.Context(), newSqlite(t), nil, noop(), noop()))
 }
 
 func TestUnsupportedDialect(t *testing.T) {
 	db, err := gorm.Open(tests.DummyDialector{}, &gorm.Config{})
 	require.NoError(t, err)
 	require.Empty(t, DialectOf(db))
-	require.Error(t, Migrate(t.Context(), db, nil))
+	require.Error(t, Up(t.Context(), db, nil))
 	_, err = WrapTx(db, nil)
 	require.Error(t, err)
 }

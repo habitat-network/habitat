@@ -30,6 +30,10 @@ func authTypeOf(authType string) AuthType {
 	return AuthTypeOAuth
 }
 
+// ErrInvalidAuthType is returned when adding a server with an unknown
+// AuthType.
+var ErrInvalidAuthType = errors.New("auth type must be oauth or manual")
+
 // ErrInvalidServerURL is returned when a manual server's URL isn't an
 // absolute http(s) URL.
 var ErrInvalidServerURL = errors.New("url must be an absolute http or https URL")

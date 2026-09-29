@@ -6,8 +6,9 @@ startup (`migrations.Run`), in version order. There are two kinds:
 - **Schema migrations** are SQL files in `internal/db/schema/<dialect>`, one
   directory each for Postgres and SQLite. [Atlas](https://atlasgo.io) writes
   them by diffing the stores' GORM models (each store package's `Models()`,
-  gathered in `cmd/pear/schema`) against the existing migrations. Tests get the
-  same schema from `internal/db/testutil.NewDB`.
+  gathered by `migrations.Models` and printed by `cmd/pear/schema`) against the
+  existing migrations. Tests get the same schema from
+  `cmd/pear/testutil.NewPearDB`.
 - **Go migrations** live in this package and change data rather than schema.
 
 ## Changing the schema

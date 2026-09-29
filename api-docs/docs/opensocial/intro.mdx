@@ -24,7 +24,7 @@ Organization accounts are seeded with 2 spaces and some records that encode deta
 
 ## Creating spaces
 
-Members of an org can create spaces by invoking `community.opensocial.createSpace` on the organization's PDS endpoint using service auth. Based on the `role` param included in the request, a `community.opensocial.access/self` record is seeded into the new space. That record lets the space host know which members can be granted a space credential for fetching contents of the space.
+Members of an org can create spaces by invoking `community.opensocial.createSpace` on the organization's PDS endpoint using service auth. An admin-approved app can also create spaces on the org's behalf by invoking it with an OAuth credential for the organization's own DID. Based on the `role` param included in the request, a `community.opensocial.access/self` record is seeded into the new space. That record lets the space host know which members can be granted a space credential for fetching contents of the space.
 
 Creating a space also writes a `community.opensocial.space` record into the `community.opensocial.members/self` space. This helps with discovery of the space.
 

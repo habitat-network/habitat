@@ -36,7 +36,7 @@ func TestNormalizeLoopbackRedirect(t *testing.T) {
 		pdsclient.NewDummyDirectory(
 			"http://pds.url",
 		),
-		dbtestutil.NewDB(t),
+		dbtestutil.NewDB(t, Models()),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",

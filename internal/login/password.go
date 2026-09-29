@@ -202,15 +202,3 @@ func verifyPassword(password, encodedHash string) (bool, error) {
 	}
 	return ok, err
 }
-
-// passwordModels returns the GORM models the password login provider persists.
-func passwordModels() []any {
-	return []any{&passwordEntry{}}
-}
-
-// Models returns the GORM models this package persists. Their tables are
-// created by the schema migrations in internal/db/schema, which Atlas
-// generates from these models.
-func Models() []any {
-	return append(passwordModels(), googleModels()...)
-}

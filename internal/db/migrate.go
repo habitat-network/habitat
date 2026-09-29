@@ -12,12 +12,54 @@ import (
 	"gorm.io/gorm"
 )
 
-// Migrate applies, with goose, the SQL migrations in the root of sqlMigrations
-// and the given Go migrations, in version order.
+// Migrate brings a database up to date: it first creates the tables for the
+// given models with GORM's schema inference, then applies the goose migrations
+// in migrations.
+//
+// Migrate is additive. GORM leaves existing tables in place and only adds
+// missing columns, indexes and constraints, and goose tracks applied versions
+// in its own table, so both steps are no-ops on an already-migrated database.
+//
+// It suits tests that build a few stores and want just their tables. pear
+// itself owns its schema with versioned migrations instead and calls [Up].
+//
+// Each store package's Models function returns that package's models, so a
+// caller migrates every store it builds by passing their Models functions:
+//
+//	db.Migrate(ctx, db, nil, org.Models(), spaces.Models())
+func Migrate(ctx context.Context, db *gorm.DB, migrations fs.FS, modelSets ...[]any) error {
+	if err := automigrate(db, modelSets...); err != nil {
+		return err
+	}
+	if migrations == nil {
+		return nil
+	}
+	return Up(ctx, db, migrations)
+}
+
+// automigrate creates the tables for every model in modelSets, in one GORM call.
+func automigrate(db *gorm.DB, modelSets ...[]any) error {
+	models := make([]any, 0, len(modelSets))
+	for _, set := range modelSets {
+		models = append(models, set...)
+	}
+	if len(models) == 0 {
+		return nil
+	}
+	if err := db.AutoMigrate(models...); err != nil {
+		return fmt.Errorf("automigrate: %w", err)
+	}
+	return nil
+}
+
+// Up applies, with goose, the pending SQL migrations in the root of
+// sqlMigrations and the given Go migrations, in version order.
 //
 // Go migrations registered globally with goose.AddMigrationContext are applied
-// too.
-func Migrate(
+// too. goMigrations exist for migrations that need components their caller has
+// already built, which a globally registered function has no way to reach; see
+// [WrapTx] for running such a component inside the migration's transaction.
+func Up(
 	ctx context.Context,
 	db *gorm.DB,
 	sqlMigrations fs.FS,

@@ -6,6 +6,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/network.habitat.space.listSpaces", p.ListSpaces)
 	p.router.HandleFunc("/xrpc/network.habitat.space.listRepos", p.ListRepos)
 	p.router.HandleFunc("/xrpc/network.habitat.space.putRecord", p.PutRecord)
+	p.router.HandleFunc("/xrpc/network.habitat.space.applyWrites", p.ApplyWrites)
 	p.router.HandleFunc("/xrpc/network.habitat.space.getRecord", p.GetRecord)
 	p.router.HandleFunc("/xrpc/network.habitat.space.getBlob", p.GetBlob)
 	p.router.HandleFunc("/xrpc/network.habitat.space.listRecords", p.ListRecords)
@@ -38,9 +39,6 @@ func (p *PearServer) registerRoutes() {
 
 	// MCP gateway
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.addServer", p.AddServer)
-	p.router.HandleFunc("/xrpc/network.habitat.mcp.addManualServer", p.AddManualServer)
-	p.router.HandleFunc("/xrpc/network.habitat.mcp.completeAddServer", p.CompleteAddServer)
-	p.router.HandleFunc("/xrpc/network.habitat.mcp.cancelAddServer", p.CancelAddServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.updateServer", p.UpdateServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.removeServer", p.RemoveServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.listServers", p.ListServers)
@@ -73,6 +71,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/com.atproto.space.listSpaces", p.ListSpaces)
 	p.router.HandleFunc("/xrpc/com.atproto.space.listRepos", p.ListRepos)
 	p.router.HandleFunc("/xrpc/com.atproto.space.putRecord", p.PutRecord)
+	p.router.HandleFunc("/xrpc/com.atproto.space.applyWrites", p.ApplyWrites)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getRecord", p.GetRecord)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getBlob", p.GetBlob)
 	p.router.HandleFunc("/xrpc/com.atproto.space.listRecords", p.ListRecords)
