@@ -18,7 +18,7 @@ packages:
   - website
 
 overrides:
-  '@atproto/lex-builder': 0.0.0-spaces-alpha-20260913191958
+  '@atproto/lex-builder': 0.1.16
   '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-client': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
