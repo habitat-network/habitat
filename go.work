@@ -9,6 +9,5 @@ use (
 	./cmd/lexgen
 	./cmd/pear
 	./cmd/sap
-	./cmd/search
 	./integration
 )
