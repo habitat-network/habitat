@@ -127,7 +127,14 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ts.FGA = fga
 	}
 	if ts.DB == nil {
-		ts.DB = db_testutil.NewDB(t)
+		ts.DB = db_testutil.NewDB(
+			t,
+			hive.Models,
+			spaces.Models,
+			notify.Models,
+			opensocial.Models,
+			emaildomain.Models,
+		)
 	}
 	if ts.Hive == nil {
 		hiveRep, err := hive.NewHive("example.com", "pear.example.com", ts.DB)

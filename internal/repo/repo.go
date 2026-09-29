@@ -109,9 +109,6 @@ type link struct {
 
 // TODO: create table etc.
 func NewRepo(db *gorm.DB) (Repo, error) {
-	if err := db.AutoMigrate(&record{}, &Blob{}, &link{}); err != nil {
-		return nil, err
-	}
 
 	return &repo{
 		db: db,
@@ -532,4 +529,16 @@ func (r *repo) ListCollections(ctx context.Context, did syntax.DID) ([]Collectio
 		}
 	}
 	return md, nil
+}
+
+// Models exposes this package's GORM models to db.AutoMigrate, which creates
+// their tables.
+var Models = modeler{}
+
+// modeler implements db.Modeler for this package.
+type modeler struct{}
+
+// Models returns the GORM models this package persists.
+func (modeler) Models() []any {
+	return []any{&record{}, &Blob{}, &link{}}
 }

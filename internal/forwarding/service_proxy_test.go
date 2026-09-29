@@ -28,7 +28,7 @@ func successValidator(did syntax.DID) authn.RequestValidator {
 
 func newTestServiceProxyHive(t *testing.T) hive.Hive {
 	t.Helper()
-	h, err := hive.NewHive("example.com", "pear.example.com", testutil.NewDB(t))
+	h, err := hive.NewHive("example.com", "pear.example.com", testutil.NewDB(t, hive.Models))
 	require.NoError(t, err)
 	return h
 }

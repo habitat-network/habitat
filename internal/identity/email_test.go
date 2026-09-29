@@ -18,6 +18,7 @@ import (
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
+	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -33,7 +34,13 @@ type emailFixture struct {
 // creator-less "acme" org mapped to acme.com.
 func newEmailFixture(t *testing.T) emailFixture {
 	t.Helper()
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewDB(
+		t,
+		hive.Models,
+		spaces.Models,
+		opensocial.Models,
+		emaildomain.Models,
+	)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
 	osStore := opensocial_testutil.NewTestStore(

@@ -97,7 +97,7 @@ func TestSap(t *testing.T) {
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewDB(t, hive.Models)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
@@ -307,7 +307,7 @@ func TestSapTrackSpace(t *testing.T) {
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewDB(t, hive.Models)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
@@ -401,7 +401,7 @@ func TestSapSpaceCredential(t *testing.T) {
 	sapServer := httptest.NewTLSServer(http.NewServeMux())
 	t.Cleanup(sapServer.Close)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewDB(t, hive.Models)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
@@ -486,7 +486,7 @@ func TestSapRecrawl(t *testing.T) {
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewDB(t, hive.Models)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
@@ -573,7 +573,7 @@ func setupPear(t *testing.T) *pearHost {
 	mux := http.NewServeMux()
 	server := httptest.NewTLSServer(mux)
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewDB(t, hive.Models, notify.Models)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)

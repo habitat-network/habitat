@@ -79,7 +79,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	})
 
 	// Common setup for all handler tests.
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 	secretStr, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	secret, err := encrypt.ParseKey(secretStr)
@@ -178,7 +178,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 }
 
 func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -287,7 +287,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 
 func TestOAuthServerE2E(t *testing.T) {
 	// setup test database
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 
 	// Generate RSA key for JWT signing
 	secret, err := encrypt.GenerateKey()
@@ -453,7 +453,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 
 	// hive and the org store share one db: org.WithTx swaps hive's db
 	// connection for its own transaction when minting member identities.
-	hiveDB := dbtestutil.NewDB(t)
+	hiveDB := dbtestutil.NewDB(t, Models, hive.Models, org.Models)
 	h, err := hive.NewHive(memberDomain, pearDomain, hiveDB)
 	require.NoError(t, err, "failed to create hive")
 
@@ -502,7 +502,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	require.NoError(t, err, "failed to create org with hive-served admin")
 
 	// setup test database
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 
 	// Generate RSA key for JWT signing
 	secret, err := encrypt.GenerateKey()
@@ -641,7 +641,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 }
 
 func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -838,7 +838,7 @@ func acquireAccessToken(
 
 // TestValidate tests every error and success pathway of OAuthServer.Validate.
 func TestValidate(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	require.NoError(t, err)
@@ -960,7 +960,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestValidateWithScopeChecking(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -1071,7 +1071,7 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 	const pdsLoginDID = "did:web:example.did.com"
 	orgStore := org_testutil.NewTestStore(t)
 
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 	loginProvider := login_testutil.NewPassthroughProvider(t)
 	loginProvider.LoginID = pdsLoginDID
 	dir := pdsclient.NewDummyDirectory("https://habitat.example")
@@ -1240,7 +1240,7 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 // disambiguation page; the page (simulated here) re-issues the request with
 // a handle, and the flow completes normally.
 func TestHandleAuthorizeDisambiguation(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -1357,7 +1357,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 // handle, the flow completes via PDS login, and the client's app-access grant
 // is recorded once the token is issued.
 func TestHandleOpensocialSignInE2E(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -1502,7 +1502,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 // to start a PDS login when the submitted handle doesn't resolve to an admin
 // of the org, and never invokes the login provider.
 func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -1614,7 +1614,7 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 // Previously those rows were serialized as zero-value apps, producing an
 // invalid empty lastUsed datetime that the lexicon validator rejects.
 func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, Models)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)

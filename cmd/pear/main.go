@@ -67,6 +67,7 @@ import (
 	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
+	"gorm.io/gorm"
 
 	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
 )
@@ -121,6 +122,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	db, err := db.New(cmd.String(fDB), db.WithMigrations(embedMigrations))
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
+	}
+	// Stores no longer migrate their own tables, so create every table pear
+	// persists to up front, before any store is constructed.
+	if err := migrateDatabase(db); err != nil {
+		return fmt.Errorf("migrate database: %w", err)
 	}
 	fgaStore, err := setupFGA(startupCtx, cmd)
 	if err != nil {
@@ -672,6 +678,28 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		slog.ErrorContext(startupCtx, "server shut down returned an error", "err", err)
 	}
 	return err
+}
+
+// migrateDatabase creates or updates the tables for every store pear persists
+// to database. It lives outside run so that db refers to internal/db, not the
+// gorm handle run shadows the package name with.
+func migrateDatabase(database *gorm.DB) error {
+	return db.AutoMigrate(
+		database,
+		clique.Models,
+		emaildomain.Models,
+		hive.Models,
+		instance.Models,
+		login.Models,
+		notify.Models,
+		oauthserver.Models,
+		opensocial.Models,
+		org.Models,
+		pdscred.Models,
+		permissions.Models,
+		repo.Models,
+		spaces.Models,
+	)
 }
 
 func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {

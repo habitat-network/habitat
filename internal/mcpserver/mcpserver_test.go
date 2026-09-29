@@ -10,6 +10,8 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -54,7 +56,7 @@ func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // wires them together.
 func setupStores(t *testing.T) (spaces.Store, perms.Store) {
 	t.Helper()
-	db := dbtestutil.NewDB(t)
+	db := dbtestutil.NewDB(t, spaces.Models, opensocial.Models, hive.Models)
 	spacesStore := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db))
 	osTestStore := opensocial_testutil.NewTestStore(
 		t,

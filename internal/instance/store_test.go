@@ -16,7 +16,7 @@ func newTestStore(t *testing.T) *storeImpl {
 	hash, err := argon2id.CreateHash("password", argon2id.DefaultParams)
 	require.NoError(t, err)
 
-	store, err := NewStore(testutil.NewDB(t), []byte("random"), "pear.example.com", hash)
+	store, err := NewStore(testutil.NewDB(t, Models), []byte("random"), "pear.example.com", hash)
 	require.NoError(t, err)
 	return store
 }

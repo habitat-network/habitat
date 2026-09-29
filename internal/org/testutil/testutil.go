@@ -3,6 +3,7 @@ package testutil
 import (
 	"testing"
 
+	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
@@ -16,12 +17,13 @@ import (
 
 func NewTestStore(t *testing.T) org.Store {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
-	h, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, db.AutoMigrate(database, org.Models, hive.Models, login.Models))
+	h, err := hive.NewHive("example.com", "pear.example.com", database)
 	require.NoError(t, err)
 	passwordProvider, err := login.NewPasswordProvider(
-		db,
+		database,
 		"pear.example.com",
 		[]byte("test-signing-secret-for-org-00000"),
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
@@ -30,7 +32,7 @@ func NewTestStore(t *testing.T) org.Store {
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	store, err := org.NewStore(
-		db,
+		database,
 		h,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 		"pear.example.com",

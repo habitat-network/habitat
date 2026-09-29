@@ -4,8 +4,10 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/stretchr/testify/require"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
@@ -20,7 +22,7 @@ func TestHasPermission(t *testing.T) {
 	nonGranteeDID := syntax.DID("did:plc:nongrantee")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonGranteeDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, testutil.NewDB(t, repo.Models, clique.Models, permissions.Models), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
@@ -94,7 +96,7 @@ func TestAddPermissions(t *testing.T) {
 	nonOwnerDID := syntax.DID("did:plc:nonowner")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonOwnerDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, testutil.NewDB(t, repo.Models, clique.Models, permissions.Models), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
@@ -183,7 +185,7 @@ func TestRemovePermissions(t *testing.T) {
 	nonOwnerDID := syntax.DID("did:plc:nonowner")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonOwnerDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, testutil.NewDB(t, repo.Models, clique.Models, permissions.Models), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
@@ -244,7 +246,7 @@ func TestListPermissionGrants(t *testing.T) {
 	otherDID := syntax.DID("did:plc:other")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, otherDID})
-	p := newPearForTest(t, testutil.NewDB(t), dir)
+	p := newPearForTest(t, testutil.NewDB(t, repo.Models, clique.Models, permissions.Models), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")

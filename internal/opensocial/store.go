@@ -53,9 +53,6 @@ func NewStore(
 	blobStore spaces.BlobStore,
 	hve hive.Hive,
 ) (*Store, error) {
-	if err := db.AutoMigrate(&inviteRow{}); err != nil {
-		return nil, fmt.Errorf("automigrate: %w", err)
-	}
 	return &Store{
 		db:          db,
 		spacesStore: spacesStore,
@@ -634,4 +631,16 @@ func (s *Store) GetProfile(
 		)
 	}
 	return profile, nil
+}
+
+// Models exposes this package's GORM models to db.AutoMigrate, which creates
+// their tables.
+var Models = modeler{}
+
+// modeler implements db.Modeler for this package.
+type modeler struct{}
+
+// Models returns the GORM models this package persists.
+func (modeler) Models() []any {
+	return []any{&inviteRow{}}
 }

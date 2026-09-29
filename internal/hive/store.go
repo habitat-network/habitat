@@ -47,10 +47,6 @@ type store struct {
 type idTemplate func(handleInternal, opaqueID, signingPublicKey string) *identity.Identity
 
 func newStore(db *gorm.DB, template idTemplate) (*store, error) {
-	err := db.AutoMigrate(&ident{})
-	if err != nil {
-		return nil, err
-	}
 	return &store{
 		db:       db,
 		template: template,
@@ -133,4 +129,16 @@ func (s *store) getIdentityByID(ctx context.Context, opaqueID string) (*identity
 		return nil, result.Error
 	}
 	return s.template(id.Handle, id.OpaqueID, id.SigningPublicKey), nil
+}
+
+// Models exposes this package's GORM models to db.AutoMigrate, which creates
+// their tables.
+var Models = modeler{}
+
+// modeler implements db.Modeler for this package.
+type modeler struct{}
+
+// Models returns the GORM models this package persists.
+func (modeler) Models() []any {
+	return []any{&ident{}}
 }

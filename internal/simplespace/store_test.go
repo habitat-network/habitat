@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -26,7 +28,7 @@ var (
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewDB(t, spaces.Models, opensocial.Models, hive.Models)
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
@@ -280,7 +282,7 @@ func TestDeleteSpace_RemovesFGATuples(t *testing.T) {
 }
 
 func TestDeleteSpaceTriggersNotify(t *testing.T) {
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewDB(t, spaces.Models, opensocial.Models, hive.Models)
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })

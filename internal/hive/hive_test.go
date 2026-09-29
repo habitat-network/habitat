@@ -13,7 +13,7 @@ import (
 
 func newTestHive(t *testing.T, memberDomain, pearDomain string) Hive {
 	t.Helper()
-	h, err := NewHive(memberDomain, pearDomain, testutil.NewDB(t))
+	h, err := NewHive(memberDomain, pearDomain, testutil.NewDB(t, Models))
 	require.NoError(t, err)
 	return h
 }

@@ -106,9 +106,6 @@ func NewStore(db *gorm.DB, secret []byte, domain, passwordHash string) (*storeIm
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	}
-	if err := db.AutoMigrate(&instanceSettings{}, &instanceInvite{}); err != nil {
-		return nil, err
-	}
 
 	return &storeImpl{
 		passwordHash: passwordHash,
@@ -330,4 +327,16 @@ func (s *storeImpl) MarkInviteUsed(ctx context.Context, token string) error {
 	return s.db.WithContext(ctx).Model(&instanceInvite{}).
 		Where("token = ?", invite.Token).
 		Update("used_at", &now).Error
+}
+
+// Models exposes this package's GORM models to db.AutoMigrate, which creates
+// their tables.
+var Models = modeler{}
+
+// modeler implements db.Modeler for this package.
+type modeler struct{}
+
+// Models returns the GORM models this package persists.
+func (modeler) Models() []any {
+	return []any{&instanceSettings{}, &instanceInvite{}}
 }

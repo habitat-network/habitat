@@ -12,6 +12,8 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -33,7 +35,7 @@ func newTestPermsStore(t *testing.T) (perms.Store, spaces.Store) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 
-	db := db_testutil.NewDB(t)
+	db := db_testutil.NewDB(t, spaces.Models, opensocial.Models, hive.Models)
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db), spaces_testutil.WithFGA(fga))
 	os := opensocial_testutil.NewTestStore(
 		t,

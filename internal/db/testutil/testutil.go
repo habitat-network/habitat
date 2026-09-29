@@ -12,7 +12,10 @@ import (
 )
 
 // NewDB returns a gorm DB backed by a temporary SQLite file living in the
-// test's temp dir (removed automatically when the test finishes).
+// test's temp dir (removed automatically when the test finishes), with the
+// tables of the given modelers created by [db.AutoMigrate]. Pass the
+// db.Modeler of every store the test constructs; a store's tables are no
+// longer created by its constructor.
 //
 // The file is opened in WAL journal mode with a busy timeout, so the tests can
 // use gorm's connection pool for concurrent reads and writes without hitting
@@ -21,7 +24,16 @@ import (
 //
 // gorm logs are routed through t.Logf so they only appear when the test runs
 // verbosely or fails.
-func NewDB(t *testing.T) *gorm.DB {
+func NewDB(t *testing.T, modelers ...db.Modeler) *gorm.DB {
+	t.Helper()
+	d := NewUnmigratedDB(t)
+	require.NoError(t, db.AutoMigrate(d, modelers...))
+	return d
+}
+
+// NewUnmigratedDB is like [NewDB] but creates no tables, for tests whose
+// stores migrate themselves.
+func NewUnmigratedDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
 	d, err := db.New(

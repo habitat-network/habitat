@@ -45,10 +45,6 @@ func NewPasswordProvider(
 	signingSecret []byte,
 	dir identity.Directory,
 ) (*PasswordLoginProvider, error) {
-	err := db.AutoMigrate(&passwordEntry{})
-	if err != nil {
-		return nil, err
-	}
 	return &PasswordLoginProvider{
 		db:            db,
 		pearDomain:    pearDomain,

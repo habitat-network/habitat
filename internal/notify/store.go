@@ -70,9 +70,6 @@ type store struct {
 var _ Store = &store{}
 
 func NewStore(db *gorm.DB) (*store, error) {
-	if err := db.AutoMigrate(&registration{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate notify tables: %w", err)
-	}
 	return &store{db: db}, nil
 }
 
@@ -131,4 +128,16 @@ func (s *store) list(query *gorm.DB) ([]Registration, error) {
 		}
 	}
 	return regs, nil
+}
+
+// Models exposes this package's GORM models to db.AutoMigrate, which creates
+// their tables.
+var Models = modeler{}
+
+// modeler implements db.Modeler for this package.
+type modeler struct{}
+
+// Models returns the GORM models this package persists.
+func (modeler) Models() []any {
+	return []any{&registration{}}
 }

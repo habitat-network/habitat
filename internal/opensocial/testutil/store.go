@@ -56,7 +56,12 @@ func NewTestStore(t *testing.T, opts ...utils.Opt[TestStore]) *TestStore {
 		BlobStore: spaces_testutil.NewTestBlobStore(t),
 	}, opts)
 	if testStore.DB == nil {
-		testStore.DB = db_testutil.NewDB(t)
+		testStore.DB = db_testutil.NewDB(
+			t,
+			opensocial.Models,
+			spaces.Models,
+			hive.Models,
+		)
 	}
 	if testStore.SpaceStore == nil {
 		testStore.SpaceStore = spaces_testutil.NewTestStore(

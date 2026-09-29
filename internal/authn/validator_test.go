@@ -12,10 +12,13 @@ import (
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -30,7 +33,13 @@ func TestValidator(t *testing.T) {
 	hostPubKey, err := hostKey.PublicKey()
 	require.NoError(t, err)
 	dir.Insert(*did.Web("alice").ATProtoSpaceKey(hostPubKey.Multibase()).Build())
-	db := testutil.NewDB(t)
+	db := testutil.NewDB(
+		t,
+		spaces.Models,
+		opensocial.Models,
+		hive.Models,
+		oauthserver.Models,
+	)
 
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)

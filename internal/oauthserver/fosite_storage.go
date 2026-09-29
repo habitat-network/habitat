@@ -146,10 +146,6 @@ func newStore(
 	approvedJwtBearerClients ApprovedClientStore,
 	clientMeta *clientmetadata.Resolver,
 ) (*store, error) {
-	err := db.AutoMigrate(&OAuthRequest{}, &OAuthSession{}, &ConnectedApp{}, &RegisteredClient{})
-	if err != nil {
-		return nil, err
-	}
 	// TODO: we need to add a goroutine here that cleans up expired sessions
 	return &store{
 		db:                       db,
@@ -577,4 +573,16 @@ func (s *store) RotateRefreshToken(
 // RevokeRefreshToken implements oauth2.TokenRevocationStorage.
 func (s *store) RevokeRefreshToken(_ context.Context, _ string) error {
 	return fmt.Errorf("refresh token revocation not supported")
+}
+
+// Models exposes this package's GORM models to db.AutoMigrate, which creates
+// their tables.
+var Models = modeler{}
+
+// modeler implements db.Modeler for this package.
+type modeler struct{}
+
+// Models returns the GORM models this package persists.
+func (modeler) Models() []any {
+	return []any{&OAuthRequest{}, &OAuthSession{}, &ConnectedApp{}, &RegisteredClient{}}
 }

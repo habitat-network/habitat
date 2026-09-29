@@ -13,15 +13,26 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/notify"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
+	"github.com/habitat-network/habitat/internal/spaces"
 )
 
 func TestServer_GetSession(t *testing.T) {
 	t.Run("returns the session for a hive-hosted identity", func(t *testing.T) {
-		db := db_testutil.NewDB(t)
+		db := db_testutil.NewDB(
+			t,
+			hive.Models,
+			spaces.Models,
+			notify.Models,
+			opensocial.Models,
+			emaildomain.Models,
+		)
 		h, err := hive.NewHive("example.com", "pear.example.com", db)
 		require.NoError(t, err)
 		ident, err := h.MintIdentity(t.Context(), "alice", "org")

@@ -21,8 +21,7 @@ var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 
 func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 	t.Helper()
-	db := testutil.NewDB(t)
-	require.NoError(t, db.AutoMigrate(&organization{}, &member{}, &spentToken{}))
+	db := testutil.NewDB(t, Models, hive.Models, login.Models)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
 	passwordProvider, err := login.NewPasswordProvider(

@@ -16,9 +16,11 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/db/testutil"
+	"github.com/habitat-network/habitat/internal/hive"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/instance"
-	orgpkg "github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/org"
 	orgtestutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -57,7 +59,7 @@ func (f *fakeInstancePolicy) MarkInviteUsed(ctx context.Context, token string) e
 func newTestServer(
 	t *testing.T,
 	policy instance.PolicyStore,
-) (*Server, orgpkg.Store, syntax.DID, syntax.DID) {
+) (*Server, org.Store, syntax.DID, syntax.DID) {
 	t.Helper()
 	store := orgtestutil.NewTestStore(t)
 
@@ -161,7 +163,7 @@ func TestGetMetadataViaSignedToken(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Equal(t, orgId.String(), out.OrgId)
 	require.Equal(t, "test-org", out.Name)
-	require.Equal(t, string(orgpkg.LoginMethodPassword), out.LoginMethod)
+	require.Equal(t, string(org.LoginMethodPassword), out.LoginMethod)
 }
 
 func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
@@ -190,7 +192,7 @@ func TestGetMetadataViaAuthenticatedCaller(t *testing.T) {
 	require.Equal(t, http.StatusOK, code)
 	require.Equal(t, orgId.String(), out.OrgId)
 	require.Equal(t, "test-org", out.Name)
-	require.Equal(t, string(orgpkg.LoginMethodPassword), out.LoginMethod)
+	require.Equal(t, string(org.LoginMethodPassword), out.LoginMethod)
 }
 
 func newCreateTestServer(t *testing.T) *Server {
@@ -475,7 +477,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 // this file.
 func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 	instanceStore, err := instance.NewStore(
-		testutil.NewDB(t),
+		testutil.NewDB(t, org.Models, hive.Models, login.Models, instance.Models),
 		[]byte("key"),
 		"passhash",
 		"pear.example.com",

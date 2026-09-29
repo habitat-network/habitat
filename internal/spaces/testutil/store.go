@@ -79,7 +79,7 @@ func NewTestStore(t *testing.T, opts ...Option) spaces.Store {
 
 	options := &testOptions{
 		fga:      fga,
-		db:       db_testutil.NewDB(t),
+		db:       db_testutil.NewDB(t, spaces.Models),
 		hostKey:  key,
 		signer:   noMemberSigner{},
 		notifier: &testutil.TestNotifier{},
