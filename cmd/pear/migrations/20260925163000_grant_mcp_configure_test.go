@@ -21,7 +21,7 @@ import (
 )
 
 func TestGrantMcpConfigureSqlite(t *testing.T) {
-	requireGrantMcpConfigure(t, db_testutil.NewDB(t))
+	requireGrantMcpConfigure(t, db_testutil.NewDB(t, spaces.Models()))
 }
 
 func TestGrantMcpConfigurePostgres(t *testing.T) {
@@ -42,6 +42,7 @@ func TestGrantMcpConfigurePostgres(t *testing.T) {
 	require.NoError(t, err)
 	gormDB, err := db.New(connStr)
 	require.NoError(t, err)
+	require.NoError(t, db.Migrate(ctx, gormDB, nil, spaces.Models()))
 	requireGrantMcpConfigure(t, gormDB)
 }
 
