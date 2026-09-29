@@ -22,8 +22,8 @@ catalogs:
       specifier: 0.0.0-spaces-alpha-20260913191958
       version: 0.0.0-spaces-alpha-20260913191958
     '@atproto/oauth-types':
-      specifier: 0.0.0-spaces-alpha-20260913191958
-      version: 0.0.0-spaces-alpha-20260913191958
+      specifier: 0.7.6
+      version: 0.7.6
     '@atproto/syntax':
       specifier: 0.0.0-spaces-alpha-20260913191958
       version: 0.0.0-spaces-alpha-20260913191958
@@ -238,7 +238,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260913191958
       '@atproto/oauth-types':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.7.6
       '@atproto/syntax':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20260913191958
@@ -1141,12 +1141,12 @@ packages:
     resolution: {integrity: sha512-CJpJkD0LFkwK2ou+m8nSxUx+LuLDPRmgzTXCGP3GLZPE56oMWnLk/dJ6bQ6d+Awm4FlhtimvXt21YhzgVY2jwg==}
     engines: {node: '>=22'}
 
-  '@atproto/oauth-types@0.0.0-spaces-alpha-20260913191958':
-    resolution: {integrity: sha512-o33BHGNVkvrn7I82Emc2YJ67Oq53R56hE7TKvsH9G89WdAFHd/CWbKBpy7uCjmz/COwIGjxbJj28YbnWPY9fXA==}
-    engines: {node: '>=22'}
-
   '@atproto/oauth-types@0.0.0-spaces-alpha-20260915165437':
     resolution: {integrity: sha512-Ands38dW5ibwUstPIPSsi/fbL5Usj5eWVWsd1akbGt2dEtt9eZN0Wa6Lrp77V2LNbr0FwAh8AL34AHDDlOJTdA==}
+    engines: {node: '>=22'}
+
+  '@atproto/oauth-types@0.7.6':
+    resolution: {integrity: sha512-FgFe2mJOUgJSQBxKBwLWv+lFyDxBnlqA+wfSLabCNnabtNuSO3UQI0CGI72K7/OQRQvdwkcYQMoUuw3Rqex/mg==}
     engines: {node: '>=22'}
 
   '@atproto/repo@0.0.0-spaces-alpha-20260913191958':
@@ -12486,15 +12486,15 @@ snapshots:
       multiformats: 13.4.2
       zod: 3.25.76
 
-  '@atproto/oauth-types@0.0.0-spaces-alpha-20260913191958':
+  '@atproto/oauth-types@0.0.0-spaces-alpha-20260915165437':
     dependencies:
       '@atproto/did': 0.0.0-spaces-alpha-20260915165437
       '@atproto/jwk': 0.7.4
       zod: 3.25.76
 
-  '@atproto/oauth-types@0.0.0-spaces-alpha-20260915165437':
+  '@atproto/oauth-types@0.7.6':
     dependencies:
-      '@atproto/did': 0.0.0-spaces-alpha-20260915165437
+      '@atproto/did': 0.5.5
       '@atproto/jwk': 0.7.4
       zod: 3.25.76
 
