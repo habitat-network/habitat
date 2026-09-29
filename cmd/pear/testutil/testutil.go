@@ -3,16 +3,15 @@
 package testutil
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 
 	"github.com/habitat-network/habitat/cmd/pear/migrations"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/instance"
@@ -34,18 +33,11 @@ import (
 //
 // It lives here rather than in internal/db/testutil because it imports all 13
 // pear stores, and a store's own in-package tests cannot import a package that
-// imports them.
+// imports them. internal/db/testutil itself imports no store, so those tests
+// can still use it.
 func NewPearDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "test.db")
-	d, err := db.New("sqlite://" + path)
-	require.NoError(t, err)
-	d.Logger = logger.New(testLog{t: t}, logger.Config{
-		LogLevel:                  logger.Info,
-		IgnoreRecordNotFoundError: true,
-		ParameterizedQueries:      false,
-		Colorful:                  true,
-	})
+	d := db_testutil.NewUnmigratedDB(t)
 	require.NoError(t, db.Migrate(t.Context(), d, migrations.FS,
 		clique.Models(),
 		emaildomain.Models(),
@@ -62,13 +54,4 @@ func NewPearDB(t *testing.T) *gorm.DB {
 		spaces.Models(),
 	))
 	return d
-}
-
-// testLog routes gorm's log output through t.Logf.
-type testLog struct {
-	t *testing.T
-}
-
-func (w testLog) Printf(format string, args ...any) {
-	w.t.Logf(format, args...)
 }
