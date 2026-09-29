@@ -3,7 +3,7 @@
 pear applies its migrations with [goose](https://github.com/pressly/goose) at
 startup (`migrations.Run`), in version order. There are two kinds:
 
-- **Schema migrations** are SQL files in `internal/db/schema/<dialect>`, one
+- **Schema migrations** are SQL files in `cmd/pear/migrations/<dialect>`, one
   directory each for Postgres and SQLite. [Atlas](https://atlasgo.io) writes
   them by diffing the stores' GORM models (each store package's `Models()`,
   gathered by `migrations.Models` and printed by `cmd/pear/schema`) against the
@@ -35,7 +35,6 @@ moon run pear:migration-create -- <name> go
 ```
 
 Atlas ignores Go migrations, so they must not change the schema. A Go migration
-that needs pear's components (for example the spaces store) should be added to
-`goMigrations` in `migrations.go` with `goose.NewGoMigration`, and use the
-components from `Deps` instead of constructing its own. Scope a component to the
-migration's transaction with its `WithTx` method and `db.WrapTx`.
+that needs pear's components (for example the spaces store) gets them with
+`GetPearMigrationContext(ctx, tx)` instead of constructing its own. It returns
+the components pear built, already scoped to the migration's transaction.

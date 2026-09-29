@@ -318,7 +318,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// The database is migrated once the components migrations may use are built,
 	// so they don't construct their own. None of the stores built so far query
 	// their tables while being constructed.
-	if err := migrations.Run(startupCtx, migrations.Deps{
+	if err := migrations.Run(startupCtx, migrations.PearMigrationContext{
 		DB:     database,
 		Spaces: spacesStore,
 	}); err != nil {

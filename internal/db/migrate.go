@@ -56,9 +56,9 @@ func automigrate(db *gorm.DB, modelSets ...[]any) error {
 // sqlMigrations and the given Go migrations, in version order.
 //
 // Go migrations registered globally with goose.AddMigrationContext are applied
-// too. goMigrations exist for migrations that need components their caller has
-// already built, which a globally registered function has no way to reach; see
-// [WrapTx] for running such a component inside the migration's transaction.
+// too. goose passes ctx on to every Go migration, so a caller can hand them
+// components it has already built as context values; see [WrapTx] for running
+// such a component inside the migration's transaction.
 func Up(
 	ctx context.Context,
 	db *gorm.DB,
