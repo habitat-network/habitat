@@ -122,8 +122,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	// Stores no longer migrate their own tables, so bring the database fully up
 	// to date before any store is constructed: db.Migrate creates the tables for
-	// Models, then replays cmd/pear/migrations.
-	if err := db.Migrate(startupCtx, database, migrations.FS, Models()); err != nil {
+	// every store pear persists to, then replays cmd/pear/migrations.
+	if err := db.Migrate(startupCtx, database, migrations.FS, migrations.Models()); err != nil {
 		return fmt.Errorf("migrate database: %w", err)
 	}
 	fgaStore, err := setupFGA(startupCtx, cmd)
@@ -676,30 +676,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		slog.ErrorContext(startupCtx, "server shut down returned an error", "err", err)
 	}
 	return err
-}
-
-// Models returns the GORM models of every store pear persists to its database,
-// which db.Migrate creates tables for.
-func Models() []any {
-	models := make([]any, 0)
-	for _, set := range [][]any{
-		clique.Models(),
-		emaildomain.Models(),
-		hive.Models(),
-		instance.Models(),
-		login.Models(),
-		notify.Models(),
-		oauthserver.Models(),
-		opensocial.Models(),
-		org.Models(),
-		pdscred.Models(),
-		permissions.Models(),
-		repo.Models(),
-		spaces.Models(),
-	} {
-		models = append(models, set...)
-	}
-	return models
 }
 
 func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
