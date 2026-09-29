@@ -19,7 +19,6 @@ import (
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
-	sap_schema "github.com/habitat-network/habitat/pkg/sap/schema"
 	"github.com/urfave/cli/v3"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
@@ -57,21 +56,13 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	slog.SetDefault(log.New(log.WithLevel(cmd.String(fLogLevel))))
 
-	// The handle is named database so that db still refers to internal/db,
-	// which db.Migrate below needs.
+	// sap.New migrates this handle's schema before wiring up its stores.
 	database, err := db.New(
 		cmd.String(fDB),
 		db.WithGORMConfig(&gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: "sap_"}}),
 	)
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
-	}
-	// The stores no longer create their own tables, so create them here, before
-	// any store is built. sap has no goose migrations, so this only creates the
-	// tables for schema.Models — which the `sap_` naming strategy on database
-	// keeps clear of a pear server's tables on the same file.
-	if err := db.Migrate(ctx, database, nil, sap_schema.Models()); err != nil {
-		return fmt.Errorf("migrate database: %w", err)
 	}
 
 	secretStr := cmd.String(fSecret)
