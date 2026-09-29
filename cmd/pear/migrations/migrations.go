@@ -45,7 +45,9 @@ type pearMigrationContextKey struct{}
 func GetPearMigrationContext(ctx context.Context, tx *sql.Tx) (PearMigrationContext, error) {
 	mc, ok := ctx.Value(pearMigrationContextKey{}).(PearMigrationContext)
 	if !ok {
-		return PearMigrationContext{}, errors.New("no pear migration context: run migrations with migrations.Run")
+		return PearMigrationContext{}, errors.New(
+			"no pear migration context; migrations must run with Run",
+		)
 	}
 	gormTx, err := db.WrapTx(mc.DB, tx)
 	if err != nil {
