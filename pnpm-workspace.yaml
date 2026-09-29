@@ -25,7 +25,7 @@ overrides:
   '@atproto/lex-document': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-installer': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
-  '@atproto/lex-resolver': 0.0.0-spaces-alpha-20260913191958
+  '@atproto/lex-resolver': 0.3.0
   '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
 
 catalog:
