@@ -122,7 +122,7 @@ overrides:
   '@atproto/lex-builder': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-client': 0.0.0-spaces-alpha-20260913191958
-  '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+  '@atproto/lex-data': 0.1.7
   '@atproto/lex-document': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-installer': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
@@ -1096,8 +1096,8 @@ packages:
     resolution: {integrity: sha512-h9nZxoXy9nngDeV7zaM5fNo0sU9bvC3192Us2Ao3q21oH03d0aJlO7HEfgwe21gVTCuUB0P90sWNJU/252wqbw==}
     engines: {node: '>=22'}
 
-  '@atproto/lex-data@0.0.0-spaces-alpha-20260913191958':
-    resolution: {integrity: sha512-sJZU32tRQfr/4cM4ZDtp37biPFR/b3mWXdnKbwJ3XqsoXFeXq4IAwOzW552y4YPjwzXFXGYjHCVxqFg0ZLDiaQ==}
+  '@atproto/lex-data@0.1.7':
+    resolution: {integrity: sha512-kW/dPLqo/WgCLV+XESR4JKwV6c1rZWJGOfuPupZGTjEDAKoBbKXdaEzX9/1vKQYbZ9U3j0DS/n7OFFK7wBugyQ==}
     engines: {node: '>=22'}
 
   '@atproto/lex-document@0.0.0-spaces-alpha-20260913191958':
@@ -12291,27 +12291,27 @@ snapshots:
   '@atproto/car@0.0.0-spaces-alpha-20260913191958':
     dependencies:
       '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       tslib: 2.8.1
       varint: 6.0.0
 
   '@atproto/car@0.0.0-spaces-alpha-20260915165437':
     dependencies:
       '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       tslib: 2.8.1
       varint: 6.0.0
 
   '@atproto/common-web@0.0.0-spaces-alpha-20260913191958':
     dependencies:
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
       '@atproto/syntax': 0.0.0-spaces-alpha-20260913191958
       zod: 3.25.76
 
   '@atproto/common-web@0.0.0-spaces-alpha-20260915165437':
     dependencies:
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
       '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
       zod: 3.25.76
@@ -12320,7 +12320,7 @@ snapshots:
     dependencies:
       '@atproto/common-web': 0.0.0-spaces-alpha-20260915165437
       '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       multiformats: 13.4.2
       pino: 10.3.1
 
@@ -12375,18 +12375,18 @@ snapshots:
 
   '@atproto/lex-cbor@0.0.0-spaces-alpha-20260913191958':
     dependencies:
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       cborg: 4.5.8
       tslib: 2.8.1
 
   '@atproto/lex-client@0.0.0-spaces-alpha-20260913191958':
     dependencies:
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
       tslib: 2.8.1
 
-  '@atproto/lex-data@0.0.0-spaces-alpha-20260913191958':
+  '@atproto/lex-data@0.1.7':
     dependencies:
       multiformats: 13.4.2
       tslib: 2.8.1
@@ -12402,7 +12402,7 @@ snapshots:
     dependencies:
       '@atproto/lex-builder': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       '@atproto/lex-document': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-resolver': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
@@ -12411,7 +12411,7 @@ snapshots:
 
   '@atproto/lex-json@0.0.0-spaces-alpha-20260913191958':
     dependencies:
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       tslib: 2.8.1
 
   '@atproto/lex-resolver@0.0.0-spaces-alpha-20260913191958':
@@ -12419,7 +12419,7 @@ snapshots:
       '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20260915165437
       '@atproto/crypto': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-client': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       '@atproto/lex-document': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
       '@atproto/repo': 0.0.0-spaces-alpha-20260913191958
@@ -12428,7 +12428,7 @@ snapshots:
 
   '@atproto/lex-schema@0.0.0-spaces-alpha-20260913191958':
     dependencies:
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
       '@standard-schema/spec': 1.1.0
       tslib: 2.8.1
@@ -12437,7 +12437,7 @@ snapshots:
     dependencies:
       '@atproto/lex-builder': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-client': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       '@atproto/lex-installer': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-schema': 0.0.0-spaces-alpha-20260913191958
@@ -12505,7 +12505,7 @@ snapshots:
       '@atproto/common-web': 0.0.0-spaces-alpha-20260915165437
       '@atproto/crypto': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
       zod: 3.25.76
 
@@ -12515,7 +12515,7 @@ snapshots:
       '@atproto/crypto': 0.0.0-spaces-alpha-20260915165437
       '@atproto/jwk': 0.7.4
       '@atproto/lex-cbor': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/lex-data': 0.1.7
       '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
       '@noble/hashes': 1.8.0
       jose: 5.10.0
