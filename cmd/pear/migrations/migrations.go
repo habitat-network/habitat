@@ -62,8 +62,9 @@ func GetPearMigrationContext(ctx context.Context, tx *sql.Tx) (PearMigrationCont
 }
 
 // Run applies all of pear's pending migrations to mc.DB, in version order. Go
-// migrations register themselves with goose.AddMigrationContext and get mc
-// from their context with [GetPearMigrationContext].
+// migrations either register themselves with goose.AddMigrationContext or are
+// returned from [goMigrations], and get mc from their context with
+// [GetPearMigrationContext].
 func Run(ctx context.Context, mc PearMigrationContext) error {
 	sqlMigrations, err := dialectMigrations(db.DialectOf(mc.DB))
 	if err != nil {

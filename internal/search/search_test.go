@@ -19,7 +19,7 @@ const spaceA = habitat_syntax.SpaceURI("at://did:plc:org/space/network.habitat.t
 // schema applied. It needs a build with the sqlite_fts5 tag.
 func newSQLiteIndex(t *testing.T) (search.Index, *gorm.DB) {
 	t.Helper()
-	gdb := dbtestutil.NewDB(t)
+	gdb := dbtestutil.NewDB(t, search.Models())
 	stmts, err := search.FTSSchema(db.Sqlite)
 	require.NoError(t, err)
 	for _, stmt := range stmts {
@@ -38,7 +38,7 @@ func TestSQLiteIndex(t *testing.T) {
 }
 
 func TestSQLiteIndexBackfillsExistingRows(t *testing.T) {
-	gdb := dbtestutil.NewDB(t)
+	gdb := dbtestutil.NewDB(t, search.Models())
 	require.NoError(t, gdb.Exec(
 		`INSERT INTO search_documents (uri, space, repo, collection, rev, body)
 		 VALUES ('at://x', ?, 'did:plc:user', 'network.habitat.note', '3kaaaaaaaaaa2',
