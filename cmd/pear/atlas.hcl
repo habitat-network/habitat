@@ -15,9 +15,6 @@ locals {
 }
 
 env "postgres" {
-  # The search full-text index is hand-written in its own migration, since the
-  # GORM model can't express an expression index. See migrations/README.md.
-  exclude = ["search_documents.search_documents_body_fts"]
   src = "file://.atlas/postgres.sql"
   dev = local.postgres_dev_url
   migration {

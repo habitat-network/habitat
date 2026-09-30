@@ -28,13 +28,13 @@ If you edit a generated migration by hand, rehash it with
 fails when the migrations were edited without rehashing or don't match the
 models.
 
-### Objects Atlas can't model
+### Objects GORM models can't express
 
-Some schema objects can't be expressed on a GORM model, such as the search
-index's Postgres GIN expression index (`postgres/*_search_fts.sql`). Write
-those migrations by hand, rehash, and add the objects to the `exclude` list of
-the matching env in `atlas.hcl` so the drift check and `migration-diff` leave
-them alone.
+Some schema objects hang off a model's table but can't be expressed on the
+model, such as the search index's Postgres GIN expression index. Add their DDL
+to `extraSchema` in `cmd/pear/schema/main.go`, so Atlas treats them as part of
+the desired state: `migration-diff` then generates their migration like any
+other, and the drift check expects them.
 
 The SQLite built into Atlas lacks FTS5, so it can't replay a migration that
 creates an FTS5 table. The search index's SQLite FTS5 table and triggers are
