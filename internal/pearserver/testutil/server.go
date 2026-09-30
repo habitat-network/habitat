@@ -22,6 +22,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -47,6 +48,7 @@ type TestServer struct {
 	NangoClient      *FakeNangoClient
 	PDSForwarding    *forwarding.PDSForwarding
 	EmailDomainStore *emaildomain.Store
+	SearchIndex      search.Index
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -181,6 +183,10 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	require.NoError(t, err)
 	ts.EmailDomainStore = emailDomainStore
 
+	searchIndex, err := search.New(ts.DB)
+	require.NoError(t, err)
+	ts.SearchIndex = searchIndex
+
 	ts.Server = pearserver.New(
 		"pear.example.com",
 		ts.Validator,
@@ -196,6 +202,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		mcpGatewayStore,
 		ts.PDSForwarding,
 		emailDomainStore,
+		search.NewSearcher(searchIndex, ps, ts.SpaceStore),
 	)
 	ts.PermStore = ps
 	return &ts
