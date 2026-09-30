@@ -7,6 +7,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
 
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	notify_testutil "github.com/habitat-network/habitat/internal/notify/testutil"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -1387,4 +1388,37 @@ func TestApplyWrites(t *testing.T) {
 		)
 		require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 	})
+}
+
+// TestBackfillBlobRefs pins that records written before blob references were
+// tracked get their refs rebuilt from their stored values, and that running it
+// again changes nothing.
+func TestBackfillBlobRefs(t *testing.T) {
+	d := db_testutil.NewDB(t, spaces.Models())
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(d))
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	blobCID := "bafkreihdwdcefgh4dqkjv67uzcmw37nwqfknnagwmjb44agkh4lphqzgxq"
+	_, _, err = s.PutRecord(
+		t.Context(), uri, owner, "network.habitat.note", "rkey",
+		spaces_testutil.MustMarshalRecord(t, blobValue(blobCID)),
+	)
+	require.NoError(t, err)
+	// Simulate a record written before refs were tracked.
+	require.NoError(t, d.Exec("DELETE FROM blob_refs").Error)
+
+	c, err := cid.Decode(blobCID)
+	require.NoError(t, err)
+	referenced, err := s.BlobReferenced(t.Context(), uri, c)
+	require.NoError(t, err)
+	require.False(t, referenced)
+
+	for range 2 {
+		require.NoError(t, spaces.BackfillBlobRefs(d))
+		referenced, err = s.BlobReferenced(t.Context(), uri, c)
+		require.NoError(t, err)
+		require.True(t, referenced)
+	}
 }

@@ -1147,6 +1147,33 @@ func setBlobRefs(
 	return nil
 }
 
+// BackfillBlobRefs inserts the blobRef rows for live records written before
+// blob references were tracked, so their blobs stay readable through getBlob.
+// It rebuilds each record's refs from its stored value, so it is safe to run
+// more than once.
+func BackfillBlobRefs(tx *gorm.DB) error {
+	var records []spaceRecord
+	err := tx.FindInBatches(&records, 500, func(_ *gorm.DB, _ int) error {
+		for _, r := range records {
+			parsed, err := atdata.UnmarshalCBOR(r.Value)
+			if err != nil {
+				return fmt.Errorf("decode record %s/%s/%s/%s: %w",
+					r.Space, r.Repo, r.Collection, r.Rkey, err)
+			}
+			if err := setBlobRefs(
+				tx, r.Space, r.Repo, r.Collection, r.Rkey, atdata.ExtractBlobs(parsed),
+			); err != nil {
+				return err
+			}
+		}
+		return nil
+	}).Error
+	if err != nil {
+		return fmt.Errorf("backfill blob refs: %w", err)
+	}
+	return nil
+}
+
 // BlobReferenced implements [Store].
 func (s *store) BlobReferenced(
 	ctx context.Context,
