@@ -28,22 +28,21 @@ If you edit a generated migration by hand, rehash it with
 fails when the migrations were edited without rehashing or don't match the
 models.
 
+### Objects Atlas can't model
+
+Some schema objects can't be expressed on a GORM model, such as the search
+index's SQLite FTS5 table (with its triggers) and its Postgres GIN expression
+index (`*_search_fts.sql`). Write those migrations by hand, rehash, and add the
+objects to the `exclude` list of the matching env in `atlas.hcl` so the drift
+check and `migration-diff` leave them alone.
+
 ## Go migrations
 
 ```sh
 moon run pear:migration-create -- <name> go
 ```
 
-Atlas ignores Go migrations, so they must not change the schema of the GORM
-models. The one exception is objects Atlas can't express at all, such as the
-search index's SQLite FTS5 table and Postgres expression index
-(`search.FTSSchema`): they hang off the `search_documents` model's table and are
-created by a Go migration so the drift check never sees them. A Go migration
+Atlas ignores Go migrations, so they must not change the schema. A Go migration
 that needs pear's components (for example the spaces store) gets them with
 `GetPearMigrationContext(ctx, tx)` instead of constructing its own. It returns
 the components pear built, already scoped to the migration's transaction.
-
-Migrations registered with `goose.AddMigrationContext` are visible to every
-goose run in the process, including OpenFGA's migrations of its own database. A
-migration that only makes sense on pear's database, like the search one, is
-returned from `goMigrations` in `migrations.go` instead.

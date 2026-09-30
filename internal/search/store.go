@@ -16,8 +16,9 @@ import (
 )
 
 // searchDocument is the row backing a [Document]. Its table is created by the
-// Atlas-generated schema migrations; the full-text structures on top of it are
-// created by [FTSSchema], because Atlas can't model them.
+// Atlas-generated schema migrations; the full-text structures on top of it (an
+// FTS5 table on SQLite, a GIN index on Postgres) are created by a hand-written
+// migration in cmd/pear/migrations, because Atlas can't model them.
 type searchDocument struct {
 	URI        string `gorm:"primaryKey"`
 	Space      string `gorm:"index"`
@@ -28,31 +29,15 @@ type searchDocument struct {
 }
 
 // Models returns the GORM models this package persists. Their tables are
-// created by the schema migrations in internal/db/schema, which Atlas
+// created by pear's schema migrations in cmd/pear/migrations, which Atlas
 // generates from these models.
 func Models() []any {
 	return []any{&searchDocument{}}
 }
 
-// FTSSchema returns the statements that create the full-text structures for
-// dialect on top of the search_documents table. They are idempotent. Atlas
-// can't express them (an FTS5 virtual table with triggers on SQLite, an
-// expression index on Postgres), so a Go migration applies them instead of a
-// generated schema migration. SQLite needs a build with the sqlite_fts5 tag.
-func FTSSchema(dialect db.Dialect) ([]string, error) {
-	switch dialect {
-	case db.Sqlite:
-		return sqliteFTSSchema, nil
-	case db.Postgres:
-		return postgresFTSSchema, nil
-	default:
-		return nil, fmt.Errorf("unsupported dialect: %q", dialect)
-	}
-}
-
 // New returns an Index backed by db's full-text search: FTS5 on SQLite,
-// tsvector on Postgres. The search_documents table and [FTSSchema] must
-// already be applied.
+// tsvector on Postgres. pear's migrations must already be applied, and SQLite
+// needs a build with the sqlite_fts5 tag.
 func New(gdb *gorm.DB) (Index, error) {
 	switch db.DialectOf(gdb) {
 	case db.Sqlite:

@@ -9,14 +9,6 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// postgresFTSSchema indexes search_documents.body with a GIN expression index.
-// Queries must use the same to_tsvector expression to hit it. The 'simple'
-// text search config doesn't stem or drop stop words, since orgs mix languages.
-var postgresFTSSchema = []string{
-	`CREATE INDEX IF NOT EXISTS search_documents_body_fts
-		ON search_documents USING GIN (to_tsvector('simple', body))`,
-}
-
 type postgresIndex struct {
 	db *gorm.DB
 }
@@ -44,6 +36,8 @@ func (i *postgresIndex) Search(ctx context.Context, q Query) (Result, error) {
 		return Result{}, nil
 	}
 
+	// The WHERE clause's to_tsvector expression must match the one pear's
+	// search_fts migration indexes, or Postgres can't use the index.
 	sql := `
 		SELECT d.uri, d.space, d.repo, d.collection,
 		       ts_rank(to_tsvector('simple', d.body), query) AS score,

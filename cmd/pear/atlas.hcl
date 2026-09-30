@@ -15,6 +15,9 @@ locals {
 }
 
 env "postgres" {
+  # The search full-text index is hand-written in its own migration, since the
+  # GORM model can't express an expression index. See migrations/README.md.
+  exclude = ["search_documents.search_documents_body_fts"]
   src = "file://.atlas/postgres.sql"
   dev = local.postgres_dev_url
   migration {
@@ -29,6 +32,10 @@ env "postgres" {
 }
 
 env "sqlite" {
+  # The search FTS5 table (and the shadow tables FTS5 creates for it) is
+  # hand-written in its own migration, since GORM models can't express it. See
+  # migrations/README.md.
+  exclude = ["search_documents_fts*"]
   src = "file://.atlas/sqlite.sql"
   dev = "sqlite://dev?mode=memory"
   migration {

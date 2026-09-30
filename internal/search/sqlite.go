@@ -11,33 +11,6 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// sqliteFTSSchema keeps an FTS5 index in step with search_documents. The index
-// is an external-content table: it stores only the tokens and reads text back
-// from search_documents by rowid, so the text isn't stored twice. Triggers
-// mirror every insert, update and delete of search_documents into it.
-var sqliteFTSSchema = []string{
-	`CREATE VIRTUAL TABLE IF NOT EXISTS search_documents_fts USING fts5(
-		body,
-		content='search_documents',
-		content_rowid='rowid',
-		tokenize='unicode61 remove_diacritics 2'
-	)`,
-	`CREATE TRIGGER IF NOT EXISTS search_documents_ai AFTER INSERT ON search_documents BEGIN
-		INSERT INTO search_documents_fts(rowid, body) VALUES (new.rowid, new.body);
-	END`,
-	`CREATE TRIGGER IF NOT EXISTS search_documents_ad AFTER DELETE ON search_documents BEGIN
-		INSERT INTO search_documents_fts(search_documents_fts, rowid, body)
-		VALUES ('delete', old.rowid, old.body);
-	END`,
-	`CREATE TRIGGER IF NOT EXISTS search_documents_au AFTER UPDATE ON search_documents BEGIN
-		INSERT INTO search_documents_fts(search_documents_fts, rowid, body)
-		VALUES ('delete', old.rowid, old.body);
-		INSERT INTO search_documents_fts(rowid, body) VALUES (new.rowid, new.body);
-	END`,
-	// Index rows that predate the triggers.
-	`INSERT INTO search_documents_fts(search_documents_fts) VALUES ('rebuild')`,
-}
-
 type sqliteIndex struct {
 	db *gorm.DB
 }
