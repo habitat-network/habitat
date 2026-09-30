@@ -19,6 +19,11 @@ func init() {
 // schema migration that creates the table. Databases without the spaces
 // tables (as in tests that run only a migration) have nothing to backfill.
 func upBackfillBlobRefs(ctx context.Context, tx *sql.Tx) error {
+	// goose runs globally registered Go migrations for every provider, including
+	// fgastore's own, which has no pear context and nothing to backfill.
+	if _, ok := ctx.Value(pearMigrationContextKey{}).(PearMigrationContext); !ok {
+		return nil
+	}
 	mc, err := GetPearMigrationContext(ctx, tx)
 	if err != nil {
 		return err
