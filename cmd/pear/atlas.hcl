@@ -32,10 +32,6 @@ env "postgres" {
 }
 
 env "sqlite" {
-  # The search FTS5 table (and the shadow tables FTS5 creates for it) is
-  # hand-written in its own migration, since GORM models can't express it. See
-  # migrations/README.md.
-  exclude = ["search_documents_fts*"]
   src = "file://.atlas/sqlite.sql"
   dev = "sqlite://dev?mode=memory"
   migration {

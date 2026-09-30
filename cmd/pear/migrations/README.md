@@ -31,10 +31,15 @@ models.
 ### Objects Atlas can't model
 
 Some schema objects can't be expressed on a GORM model, such as the search
-index's SQLite FTS5 table (with its triggers) and its Postgres GIN expression
-index (`*_search_fts.sql`). Write those migrations by hand, rehash, and add the
-objects to the `exclude` list of the matching env in `atlas.hcl` so the drift
-check and `migration-diff` leave them alone.
+index's Postgres GIN expression index (`postgres/*_search_fts.sql`). Write
+those migrations by hand, rehash, and add the objects to the `exclude` list of
+the matching env in `atlas.hcl` so the drift check and `migration-diff` leave
+them alone.
+
+The SQLite built into Atlas lacks FTS5, so it can't replay a migration that
+creates an FTS5 table. The search index's SQLite FTS5 table and triggers are
+therefore a Go migration (`*_search_fts_sqlite.go`) that `dialectGoMigrations`
+returns for SQLite only.
 
 ## Go migrations
 

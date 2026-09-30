@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/fs"
 
+	"github.com/pressly/goose/v3"
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/db"
@@ -61,14 +62,32 @@ func GetPearMigrationContext(ctx context.Context, tx *sql.Tx) (PearMigrationCont
 }
 
 // Run applies all of pear's pending migrations to mc.DB, in version order. Go
-// migrations register themselves with goose.AddMigrationContext and get mc
-// from their context with [GetPearMigrationContext].
+// migrations either register themselves with goose.AddMigrationContext or,
+// when they only apply to one dialect, are returned from [dialectGoMigrations].
+// They get mc from their context with [GetPearMigrationContext].
 func Run(ctx context.Context, mc PearMigrationContext) error {
-	sqlMigrations, err := dialectMigrations(db.DialectOf(mc.DB))
+	dialect := db.DialectOf(mc.DB)
+	sqlMigrations, err := dialectMigrations(dialect)
 	if err != nil {
 		return fmt.Errorf("load schema migrations: %w", err)
 	}
-	return db.Up(context.WithValue(ctx, pearMigrationContextKey{}, mc), mc.DB, sqlMigrations)
+	return db.Up(
+		context.WithValue(ctx, pearMigrationContextKey{}, mc),
+		mc.DB,
+		sqlMigrations,
+		dialectGoMigrations(dialect)...,
+	)
+}
+
+// dialectGoMigrations returns the Go migrations that only apply to dialect.
+// They're passed to [db.Up] rather than registered with goose's global
+// registry, which every goose run in the process reads, including OpenFGA's
+// migrations of its own database.
+func dialectGoMigrations(dialect db.Dialect) []*goose.Migration {
+	if dialect == db.Sqlite {
+		return []*goose.Migration{sqliteSearchFTSMigration()}
+	}
+	return nil
 }
 
 // dialectMigrations returns the schema migrations for dialect.
