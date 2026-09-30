@@ -49,6 +49,7 @@ import (
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"go.opentelemetry.io/otel/trace"
 
@@ -306,9 +307,17 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	notifier := notify.NewNotifier(notifyStore, httpx.NewClient(), hive)
 
+	// The search indexer follows space writes like any other syncer, so the
+	// spaces store notifies it alongside the registered ones.
+	searchIndex, err := search.New(database)
+	if err != nil {
+		return fmt.Errorf("setup search index: %w", err)
+	}
+	searchIndexer := search.NewIndexer(database, searchIndex)
+
 	spacesStore, err := spaces.NewStore(
 		database.WithContext(startupCtx),
-		notifier,
+		spaces.Notifiers{notifier, searchIndexer},
 		spacecommit.NewAuthority(hostKey, hive),
 	)
 	if err != nil {
@@ -650,6 +659,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	eg, egCtx := errgroup.WithContext(startupCtx)
 	eg.Go(func() error {
 		return oauthGC.Run(egCtx)
+	})
+	eg.Go(func() error {
+		return searchIndexer.Run(egCtx, spacesStore)
 	})
 	eg.Go(func() error {
 		slog.InfoContext(egCtx, "starting server", "port", port)
