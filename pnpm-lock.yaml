@@ -734,7 +734,7 @@ importers:
     devDependencies:
       '@atproto-labs/identity-resolver':
         specifier: ^0.4.5
-        version: 0.4.9
+        version: 0.4.10
       msw:
         specifier: ^2.15.0
         version: 2.15.0(@types/node@22.20.4)(typescript@7.0.2)
@@ -988,8 +988,8 @@ packages:
     resolution: {integrity: sha512-MxtkKaNWCNx0x9nlpNO8RQt+szoHXsVBWAGk2nekdBlRd2Sxuip2bXIBkZuhNCrmSblhX60TNqNRS21fHZXb7Q==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/did-resolver@0.3.9':
-    resolution: {integrity: sha512-KBgUdQQ76XL/xjQbuMfVBOEa5jaragR9NPq1uMoM4iXKnW5GGcEMHMPu+WrTxYNBku0b7MhPUfCs1pKtyLBP6g==}
+  '@atproto-labs/did-resolver@0.3.10':
+    resolution: {integrity: sha512-SPWOcJG/rsqrp2XQZQe8ctC9Y604mivZfXTrCsXbo7dXeAukYSgljPPa/7yWAlTvCbqUSNKScVEWpdCyel/nFw==}
     engines: {node: '>=22'}
 
   '@atproto-labs/fetch@0.3.5':
@@ -1004,16 +1004,16 @@ packages:
     resolution: {integrity: sha512-AZwnwQsPCZ42HiWcwKpoydO5pdnYmLCt1kRM+t6Ee2a2FQHybA4W4ZJkyS3ubj0LhqHssO1/4yQ38KgvUrC8dw==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/handle-resolver@0.4.9':
-    resolution: {integrity: sha512-I2xrVsgw0M1Gp5qAWQwX8aoq6E79PnNHuWX+mg7zMRpuazA5DWiHoJOyBZHPeEtbtYO3F8g3le7PRL8imaWljw==}
+  '@atproto-labs/handle-resolver@0.4.10':
+    resolution: {integrity: sha512-hsYYvGhi6Tv6f4Fti//i/vllVIb/wrJaOcbT3Yh7oo10VxBKAyxzVaB7mIJcho2YJ5kHd2kbCYYPWLw8pvm/bg==}
     engines: {node: '>=22'}
 
   '@atproto-labs/identity-resolver@0.0.0-spaces-alpha-20260915165437':
     resolution: {integrity: sha512-3lZ5KzwPlbPxFkAjkZ6fVLP/z1wN1dwQM55CShjxewWsmAg1FI6rnB1WZP0Q2WKB/OljB9TJMvUxRXgNDMvMgQ==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/identity-resolver@0.4.9':
-    resolution: {integrity: sha512-dVfbDHybOlDimEdUSbDfCQpMbmf25LNpffxCqSE//hLD86wiUzJQwJn2sHfskZTfwGD896wyY8musfrR3vDnOA==}
+  '@atproto-labs/identity-resolver@0.4.10':
+    resolution: {integrity: sha512-deKu7csOsM8lnIRnLa97te6ODIUx0Lm3Srxid/Ix+UYQqFKA0sIpfYmHZduAK7B+aTqiPcHjoA9Y/qpJyzgnMw==}
     engines: {node: '>=22'}
 
   '@atproto-labs/pipe@0.2.4':
@@ -1064,8 +1064,8 @@ packages:
     resolution: {integrity: sha512-qRnCJjBq66VkR93/17PJazTZhE2ngFEnVrBTh8axBts44vQtVsDF0K0e3NMGHWAtKPyplv72Mvy9FMBRiZtdIw==}
     engines: {node: '>=22'}
 
-  '@atproto/did@0.5.5':
-    resolution: {integrity: sha512-ibCxTPsPQtrtX+iidnE0bkMBHuoWFBdVfPFfCAlUKY6HfkqdUUxItzvQu9AMucYDhP6vJ15HLVj+QhNY2jtIvw==}
+  '@atproto/did@0.5.6':
+    resolution: {integrity: sha512-8bLfOnaoWBmg9S8naqzk5mG8zYAXfSKT4odB5OHcCAd1o7p6RFb0Rk9WGobEgboKtxP2CIeul6mzI5PUT4v6Gg==}
     engines: {node: '>=22'}
 
   '@atproto/identity@0.0.0-spaces-alpha-20260913191958':
@@ -12227,13 +12227,13 @@ snapshots:
       '@atproto/did': 0.0.0-spaces-alpha-20260915165437
       zod: 3.25.76
 
-  '@atproto-labs/did-resolver@0.3.9':
+  '@atproto-labs/did-resolver@0.3.10':
     dependencies:
       '@atproto-labs/fetch': 0.3.6
       '@atproto-labs/pipe': 0.2.4
       '@atproto-labs/simple-store': 0.5.1
       '@atproto-labs/simple-store-memory': 0.2.6
-      '@atproto/did': 0.5.5
+      '@atproto/did': 0.5.6
       zod: 3.25.76
 
   '@atproto-labs/fetch@0.3.5':
@@ -12251,11 +12251,11 @@ snapshots:
       '@atproto/did': 0.0.0-spaces-alpha-20260915165437
       zod: 3.25.76
 
-  '@atproto-labs/handle-resolver@0.4.9':
+  '@atproto-labs/handle-resolver@0.4.10':
     dependencies:
       '@atproto-labs/simple-store': 0.5.1
       '@atproto-labs/simple-store-memory': 0.2.6
-      '@atproto/did': 0.5.5
+      '@atproto/did': 0.5.6
       zod: 3.25.76
 
   '@atproto-labs/identity-resolver@0.0.0-spaces-alpha-20260915165437':
@@ -12263,10 +12263,10 @@ snapshots:
       '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20260915165437
       '@atproto-labs/handle-resolver': 0.0.0-spaces-alpha-20260915165437
 
-  '@atproto-labs/identity-resolver@0.4.9':
+  '@atproto-labs/identity-resolver@0.4.10':
     dependencies:
-      '@atproto-labs/did-resolver': 0.3.9
-      '@atproto-labs/handle-resolver': 0.4.9
+      '@atproto-labs/did-resolver': 0.3.10
+      '@atproto-labs/handle-resolver': 0.4.10
 
   '@atproto-labs/pipe@0.2.4': {}
 
@@ -12340,7 +12340,7 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
-  '@atproto/did@0.5.5':
+  '@atproto/did@0.5.6':
     dependencies:
       zod: 3.25.76
 
