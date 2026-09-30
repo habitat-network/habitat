@@ -31,10 +31,11 @@ const (
 )
 
 const (
-	AcceptanceCollection = "community.opensocial.acceptance"
-	InvitesCollection    = "community.opensocial.invites"
-	MembershipCollection = "community.opensocial.membership"
-	ProfileCollection    = "community.opensocial.profile"
+	AcceptanceCollection    = "community.opensocial.acceptance"
+	InvitesCollection       = "community.opensocial.invites"
+	MembershipCollection    = "community.opensocial.membership"
+	ProfileCollection       = "community.opensocial.profile"
+	MemberProfileCollection = "community.opensocial.memberProfile"
 )
 
 // Store manages opensocial communities: their profile/role/membership repo
@@ -631,6 +632,122 @@ func (s *Store) GetProfile(
 		)
 	}
 	return profile, nil
+}
+
+// GetMemberProfile returns memberDID's community.opensocial.memberProfile
+// record within orgDID's members space. Returns the zero value, no error, if
+// the member hasn't set a profile.
+func (s *Store) GetMemberProfile(
+	ctx context.Context,
+	orgDID, memberDID syntax.DID,
+) (opensocial_api.CommunityOpensocialMemberProfile, error) {
+	profileRecord, err := s.spacesStore.GetRecord(
+		ctx,
+		habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self"),
+		memberDID,
+		MemberProfileCollection,
+		syntax.RecordKey(memberDID),
+	)
+	if errors.Is(err, spaces.ErrRecordNotFound) {
+		return opensocial_api.CommunityOpensocialMemberProfile{}, nil
+	}
+	if err != nil {
+		return opensocial_api.CommunityOpensocialMemberProfile{}, fmt.Errorf(
+			"get member profile record: %w",
+			err,
+		)
+	}
+	var profile opensocial_api.CommunityOpensocialMemberProfile
+	if err := decodeRecordValue(profileRecord.Value, &profile); err != nil {
+		return opensocial_api.CommunityOpensocialMemberProfile{}, fmt.Errorf(
+			"decode member profile record: %w",
+			err,
+		)
+	}
+	return profile, nil
+}
+
+// GetMemberProfiles batch-fetches the community.opensocial.memberProfile
+// records for memberDIDs within orgDID's members space, in a single query
+// (see spaces.Store.GetRecords), keyed by DID. Members with no profile record
+// are simply absent from the result.
+func (s *Store) GetMemberProfiles(
+	ctx context.Context,
+	orgDID syntax.DID,
+	memberDIDs []syntax.DID,
+) (map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile, error) {
+	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self")
+	uris := make([]habitat_syntax.SpaceRecordURI, len(memberDIDs))
+	for i, memberDID := range memberDIDs {
+		uris[i] = habitat_syntax.ConstructSpaceRecordURI(
+			membersSpace, memberDID, MemberProfileCollection, syntax.RecordKey(memberDID),
+		)
+	}
+	records, err := s.spacesStore.GetRecords(ctx, uris)
+	if err != nil {
+		return nil, fmt.Errorf("get member profile records: %w", err)
+	}
+	profiles := make(
+		map[syntax.DID]opensocial_api.CommunityOpensocialMemberProfile,
+		len(records),
+	)
+	for _, record := range records {
+		var profile opensocial_api.CommunityOpensocialMemberProfile
+		if err := decodeRecordValue(record.Value, &profile); err != nil {
+			return nil, fmt.Errorf("decode member profile record for %s: %w", record.Owner, err)
+		}
+		profiles[record.Owner] = profile
+	}
+	return profiles, nil
+}
+
+// SeedMemberProfile writes memberDID's initial community.opensocial.memberProfile
+// record within orgDID's members space, authored by the member, if one
+// doesn't already exist. Used to pre-fill a profile from login-provider
+// account metadata (e.g. Google name/picture) on first join; it never
+// overwrites a profile the member has since customized.
+func (s *Store) SeedMemberProfile(
+	ctx context.Context,
+	orgDID, memberDID syntax.DID,
+	displayName, avatarUrl string,
+) error {
+	if displayName == "" && avatarUrl == "" {
+		return nil
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		spacesStoreTx := s.spacesStore.WithTx(tx)
+		membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self")
+		rkey := syntax.RecordKey(memberDID)
+		_, err := spacesStoreTx.GetRecord(
+			ctx,
+			membersSpace,
+			memberDID,
+			MemberProfileCollection,
+			rkey,
+		)
+		if err == nil {
+			// Already set (either self-configured or seeded by a concurrent
+			// sign-in); leave it alone.
+			return nil
+		}
+		if !errors.Is(err, spaces.ErrRecordNotFound) {
+			return fmt.Errorf("get existing member profile record: %w", err)
+		}
+		recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialMemberProfile{
+			DisplayName: displayName,
+			AvatarUrl:   avatarUrl,
+			UpdatedAt:   time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			return fmt.Errorf("marshal member profile record: %w", err)
+		}
+		if _, _, err = spacesStoreTx.PutRecord(
+			ctx, membersSpace, memberDID, MemberProfileCollection, rkey, recordBytes,
+		); err != nil {
+			return fmt.Errorf("put member profile record: %w", err)
+		}
+		return nil
+	})
 }
 
 // Models returns the GORM models this package persists. Their tables are

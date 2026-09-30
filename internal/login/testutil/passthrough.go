@@ -52,8 +52,8 @@ func (p *PassthroughProvider) Exchange(
 	ctx context.Context,
 	query url.Values,
 	state []byte,
-) (loginID string, err error) {
-	return p.LoginID, nil
+) (loginID string, profile login.Profile, err error) {
+	return p.LoginID, login.Profile{}, nil
 }
 
 var _ login.Provider = (*PassthroughProvider)(nil)

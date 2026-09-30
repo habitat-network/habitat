@@ -328,6 +328,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup opensocial store: %w", err)
 	}
+	loginRouter.OpensocialStore = opensocialStore
 
 	// The database is migrated once the components migrations may use are built,
 	// so they don't construct their own. None of the stores built so far query
