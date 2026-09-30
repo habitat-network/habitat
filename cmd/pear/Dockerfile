@@ -20,6 +20,7 @@ RUN npm install -g pnpm@11.5.1
 COPY --parents pnpm-lock.yaml pnpm-workspace.yaml package.json \
 	typescript/apps/pear-pages/package.json \
 	typescript/internal/package.json \
+	typescript/habitat/package.json \
 	typescript/api/package.json ./
 
 # The cache mount keeps pnpm's content-addressable store across builds, so a
@@ -32,7 +33,7 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 # back to 12 projects, and pnpm would silently redo the install unfiltered
 # before running vite (it verifies node_modules against the workspace first).
 COPY --parents tsconfig.options.json typescript/globals.d.ts \
-	typescript/apps/pear-pages typescript/internal typescript/api ./
+	typescript/apps/pear-pages typescript/internal typescript/habitat typescript/api ./
 
 # pear-pages consumes `internal` (and transitively `api`) from source, so those
 # do not need to be pre-built.
