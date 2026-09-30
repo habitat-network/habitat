@@ -35,7 +35,7 @@ catalog:
   '@atproto/lex': 0.0.0-spaces-alpha-20260913191958
   '@atproto/lexicon': 0.0.0-spaces-alpha-20260913191958
   '@atproto/oauth-types': 0.0.0-spaces-alpha-20260913191958
-  '@atproto/syntax': 0.0.0-spaces-alpha-20260913191958
+  '@atproto/syntax': 0.7.6
   '@atproto/xrpc': 0.0.0-spaces-alpha-20260913191958
   '@tailwindcss/typography': ^0.5.20
   '@tailwindcss/vite': ^4.3.3

@@ -25,8 +25,8 @@ catalogs:
       specifier: 0.0.0-spaces-alpha-20260913191958
       version: 0.0.0-spaces-alpha-20260913191958
     '@atproto/syntax':
-      specifier: 0.0.0-spaces-alpha-20260913191958
-      version: 0.0.0-spaces-alpha-20260913191958
+      specifier: 0.7.6
+      version: 0.7.6
     '@atproto/xrpc':
       specifier: 0.0.0-spaces-alpha-20260913191958
       version: 0.0.0-spaces-alpha-20260913191958
@@ -241,7 +241,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260913191958
       '@atproto/syntax':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.7.6
       '@nangohq/frontend':
         specifier: ^0.71.10
         version: 0.71.10(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
@@ -356,7 +356,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260913191958
       '@atproto/syntax':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.7.6
       '@posthog/react':
         specifier: ^1.10.6
         version: 1.10.6(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)
@@ -770,7 +770,7 @@ importers:
         version: 0.0.0-spaces-alpha-20260915165437
       '@atproto/syntax':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20260913191958
+        version: 0.7.6
       '@base-ui/react':
         specifier: ^1.6.0
         version: 1.7.0(@date-fns/tz@1.5.0)(@types/react@19.2.18)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1163,6 +1163,10 @@ packages:
 
   '@atproto/syntax@0.0.0-spaces-alpha-20260915165437':
     resolution: {integrity: sha512-RNSDvybPTO1XwPgVwhtc5PTLzZE0LaLdTfYR5dhFvXd8vePRquAFdrabjNyKBXTyToHgEVXcqa7Mn//9Ubh6Fw==}
+    engines: {node: '>=22'}
+
+  '@atproto/syntax@0.7.6':
+    resolution: {integrity: sha512-luKQTcWw1H1jLmYvX34ldBqNjz2orF082njmcF9fxbWTqVhsO+TpY0FHRKVPoV7dwL0Y3L16DNz1ma0LFGH25g==}
     engines: {node: '>=22'}
 
   '@atproto/xrpc@0.0.0-spaces-alpha-20260913191958':
@@ -12306,7 +12310,7 @@ snapshots:
     dependencies:
       '@atproto/lex-data': 0.0.0-spaces-alpha-20260913191958
       '@atproto/lex-json': 0.0.0-spaces-alpha-20260913191958
-      '@atproto/syntax': 0.0.0-spaces-alpha-20260913191958
+      '@atproto/syntax': 0.0.0-spaces-alpha-20260915165437
       zod: 3.25.76
 
   '@atproto/common-web@0.0.0-spaces-alpha-20260915165437':
@@ -12527,6 +12531,11 @@ snapshots:
       tslib: 2.8.1
 
   '@atproto/syntax@0.0.0-spaces-alpha-20260915165437':
+    dependencies:
+      iso-datestring-validator: 2.2.2
+      tslib: 2.8.1
+
+  '@atproto/syntax@0.7.6':
     dependencies:
       iso-datestring-validator: 2.2.2
       tslib: 2.8.1
