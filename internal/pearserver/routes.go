@@ -10,6 +10,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/network.habitat.space.getRecord", p.GetRecord)
 	p.router.HandleFunc("/xrpc/network.habitat.space.getBlob", p.GetBlob)
 	p.router.HandleFunc("/xrpc/network.habitat.space.listRecords", p.ListRecords)
+	p.router.HandleFunc("/xrpc/network.habitat.space.searchRecords", p.SearchRecords)
 	p.router.HandleFunc("/xrpc/network.habitat.space.deleteRecord", p.DeleteRecord)
 	p.router.HandleFunc("/xrpc/network.habitat.space.listRepoOps", p.ListRepoOps)
 	p.router.HandleFunc("/xrpc/network.habitat.space.getLatestCommit", p.GetLatestCommit)

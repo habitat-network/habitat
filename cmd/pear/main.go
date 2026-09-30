@@ -446,6 +446,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		mcpGatewayStore,
 		pdsForwarding,
 		emailDomainStore,
+		search.NewSearcher(searchIndex, permStore, spacesStore),
 	)
 
 	repo, err := repo.NewRepo(database.WithContext(startupCtx))
