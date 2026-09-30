@@ -32,7 +32,7 @@ type searchDocument struct {
 // created by pear's schema migrations in cmd/pear/migrations, which Atlas
 // generates from these models.
 func Models() []any {
-	return []any{&searchDocument{}}
+	return []any{&searchDocument{}, &searchCursor{}}
 }
 
 // New returns an Index backed by db's full-text search: FTS5 on SQLite,

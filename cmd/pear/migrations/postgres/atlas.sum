@@ -1,5 +1,6 @@
-h1:Ls2w1OARf7/ZaTOdCb7pVNG8telfh6SEZ/isv+qWkYc=
+h1:3byWm3kJV+ga/i1uCgSbwlqlbcFVlQD2UwgnJ4wucKg=
 20260522005939_init.sql h1:KUJYrNB1nXExOKZnn9/cDQw4vjS53DzmQZCuhaZYmNw=
 20260925150000_baseline.sql h1:dYIU2WiY1zE9g0HIcM/dIseGSXdpyPaAFy/iA8UExHA=
 20260929180000_search_documents.sql h1:k/L1OCI4g/DFdDZ8qjvg1SXq2w0oEwoa9BktbAIcWkE=
 20260929180100_search_fts.sql h1:yTdcGaxoibtOitQw0jKd9hMMgU4M3Pvxfktim+0CX5g=
+20260930193658_search_cursors.sql h1:xcIR9ZBuz2Fo73W8s1+1nvPGsnVyd1KJIXPR7eA1eR4=
