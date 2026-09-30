@@ -29,8 +29,8 @@ func downRewriteLegacySpaceUris(ctx context.Context, tx *sql.Tx) error {
 
 // rewriteSpaceURIs converts the `space` column of the spaces tables between the
 // pre-0016 format (ats://<did>/<type>/<skey>) and the current format
-// (at://<did>/space/<type>/<skey>), in place. The tables are created by GORM's
-// AutoMigrate after migrations run, so missing tables (fresh databases) are
+// (at://<did>/space/<type>/<skey>), in place. On fresh databases the tables
+// are created by the later baseline schema migration, so missing tables are
 // skipped.
 func rewriteSpaceURIs(ctx context.Context, tx *sql.Tx, toLegacy bool) error {
 	postgres, err := isPostgres(ctx, tx)

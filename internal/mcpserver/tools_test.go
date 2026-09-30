@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/habitat-network/habitat/internal/mcpgateway"
-	"go.opentelemetry.io/otel/trace"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/habitat-network/habitat/internal/mcpgateway"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/stretchr/testify/require"
 

@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+	sap_testutil "github.com/habitat-network/habitat/pkg/sap/testutil"
+
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -24,7 +27,6 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
-	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/org"
@@ -98,7 +100,7 @@ func TestSap(t *testing.T) {
 	t.Cleanup(sapServer.Close)
 	publishSapService(t, pear, sapServer.URL)
 
-	db := db_testutil.NewDB(t)
+	db := sap_testutil.NewSapDB(t)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
@@ -309,7 +311,7 @@ func TestSapTrackSpace(t *testing.T) {
 	t.Cleanup(sapServer.Close)
 	publishSapService(t, pear, sapServer.URL)
 
-	db := db_testutil.NewDB(t)
+	db := sap_testutil.NewSapDB(t)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
@@ -404,7 +406,7 @@ func TestSapSpaceCredential(t *testing.T) {
 	t.Cleanup(sapServer.Close)
 	publishSapService(t, pear, sapServer.URL)
 
-	db := db_testutil.NewDB(t)
+	db := sap_testutil.NewSapDB(t)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
@@ -490,7 +492,7 @@ func TestSapRecrawl(t *testing.T) {
 	t.Cleanup(sapServer.Close)
 	publishSapService(t, pear, sapServer.URL)
 
-	db := db_testutil.NewDB(t)
+	db := sap_testutil.NewSapDB(t)
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
@@ -580,7 +582,10 @@ func setupPear(t *testing.T) *pearHost {
 	mux := http.NewServeMux()
 	server := httptest.NewTLSServer(mux)
 
-	db := db_testutil.NewDB(t)
+	// The pear host gets its own database, separate from sap's: pkg/sap's
+	// `registrations` table and internal/notify's claim the same name with
+	// different primary keys, so they cannot coexist on one database.
+	db := pear_testutil.NewPearDB(t)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)

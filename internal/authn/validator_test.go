@@ -5,10 +5,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -30,7 +31,7 @@ func TestValidator(t *testing.T) {
 	hostPubKey, err := hostKey.PublicKey()
 	require.NoError(t, err)
 	dir.Insert(*did.Web("alice").ATProtoSpaceKey(hostPubKey.Multibase()).Build())
-	db := testutil.NewDB(t)
+	db := pear_testutil.NewPearDB(t)
 
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)

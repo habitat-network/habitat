@@ -10,6 +10,13 @@ import (
 )
 
 func TestValidate(t *testing.T) {
+	// Each Method sets CredentialInfo.Method itself, so a Method that forgets
+	// leaves it at the zero value. That value must not be OAuth: endpoints
+	// gate on it, and a service-auth credential reading as OAuth would skip
+	// the checks that credential is subject to.
+	require.Equal(t, ValidatorMethodNone, CredentialInfo{}.Method)
+	require.NotEqual(t, ValidatorMethodOAuth, ValidatorMethodNone)
+
 	r := httptest.NewRequest("GET", "/", http.NoBody)
 	w := httptest.NewRecorder()
 	r.Header.Set("Authorization", "foo")

@@ -8,12 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func successValidator(did syntax.DID) authn.RequestValidator {
 
 func newTestServiceProxyHive(t *testing.T) hive.Hive {
 	t.Helper()
-	h, err := hive.NewHive("example.com", "pear.example.com", testutil.NewDB(t))
+	h, err := hive.NewHive("example.com", "pear.example.com", pear_testutil.NewPearDB(t))
 	require.NoError(t, err)
 	return h
 }

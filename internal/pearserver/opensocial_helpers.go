@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
 )
@@ -62,6 +63,31 @@ func (p *PearServer) requireMember(
 		return false
 	}
 	return true
+}
+
+// requireSpaceAuthority validates that credInfo may create a space under org,
+// writing an appropriate error response and returning false if not. The org
+// acts through OAuth, as an admin-approved app holding a credential for the
+// org's own identity; members act through service auth, since Atproto-Proxy
+// re-signs a member's session as a service-auth token for that member's DID.
+// A member's own OAuth credential is not accepted — org spaces come from the
+// org's credential, or from a member's through the proxy.
+func (p *PearServer) requireSpaceAuthority(
+	ctx context.Context,
+	w http.ResponseWriter,
+	org syntax.DID,
+	credInfo *authn.CredentialInfo,
+) bool {
+	if credInfo.Method == authn.ValidatorMethodOAuth {
+		if credInfo.Subject != org {
+			httpx.WriteUnauthorized(
+				ctx, w, "only the organization's own OAuth credential may do this", nil,
+			)
+			return false
+		}
+		return true
+	}
+	return p.requireMember(ctx, w, org, credInfo.Subject)
 }
 
 // requireAction validates that caller is authorized to perform action in

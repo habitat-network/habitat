@@ -21,16 +21,15 @@ Habitat is building a data ownership layer for organizations, built with AT Prot
 - `pwtool` — manual debugging helper for the argon2id password hashing used by `internal/org`
 - `keygen`, `didgen`, `lexgen` — utilities for key, DID, and lexicon (Go bindings) generation
 
-There is no `funnel`/Tailscale binary anymore — local-dev public reachability (needed for PDS OAuth callbacks) is handled by `ngrok` (see Commands below).
-
 **Go packages (`internal/`)**
 
 Identity & org:
-- `hive` — identity enrollment/minting and DID management for orgs (did:web-based, org-owned identities); also signs habitat-issued service-auth JWTs
-- `org` — organization membership, admin roles, invites
+- `hive` — identity enrollment/minting and DID management for orgs (did:web-based); also signs habitat-issued service-auth JWTs
+- `org` — (DEPRECATED) use opensocial/ instead to manage orgs
 - `emaildomain` — email-domain → org mappings and email → DID provisioning for Google work-email sign-in (first sign-in becomes org admin); see `identity.EmailResolver`
 - `identity` — serves DID docs and host→DID mapping over HTTP
 - `instance` — instance-admin login/settings server (embedded HTML templates)
+- `opensocial` — partial implementation of https://tangled.org/opensocial.group/proposal/blob/main/proposal.md for interoperable atproto groups. 
 
 Auth:
 - `authn` — `Method` abstraction for authenticating inbound requests (OAuth, service-auth)
@@ -41,16 +40,15 @@ Auth:
 
 Data & permissions:
 - `pear` — permission-enforcing AT Protocol repo wrapper; historically the core abstraction, but marked for removal in favor of `internal/server` composing `internal/repo` + `internal/permissions` + `internal/spaces` directly (see exclusions in `.testcoverage.yml`) — avoid building new functionality on it
-- `repo` — AT Protocol record/blob CRUD against the local store
-- `permissions` — ACL store (grants to DIDs and cliques)
-- `clique` — user groups (`network.habitat.clique`) usable as permission grantees
+- `repo` — (DEPRECATED) replaced by `internal/spaces`
+- `permissions` — (DEPRECATED) replaced by `internal/perms`
+- `clique` — (DEPRECATED) replaced by `internal/spaces`
 - `spaces` — `network.habitat.space` abstraction grouping records, backed by `fgastore`
 - `fgastore` — Zanzibar-style relationship-based access control store wrapping an embedded OpenFGA server
 - `syntax` — Habitat-specific syntax types/parsers (Habitat URI, Space URI/Key, Clique ref) extending `atproto/syntax`
+- `perms` — wraps the fgastore and opensocial to query, update, and enforce permissions
 
 Sync & networking:
-- `events` — append-only event store/stream backing space sync
-- `sync` — SSE endpoint for subscribing to space events
 - `p2p` — libp2p-based peer registry/gossip for cross-instance data requests
 - `forwarding` — AT Proto service proxying (`Atproto-Proxy` header) and PDS request forwarding using service-auth JWTs
 
@@ -58,9 +56,7 @@ Shared/infra:
 - `server` — top-level Pear HTTP server wiring auth, org, oauthserver, permissions, repo
 - `db` — generic `Store[T]` tx-scoping interface shared by GORM-backed stores
 - `encrypt` — CBOR + NaCl secretbox encryption helpers
-- `error` — shared sentinel errors
 - `telemetry` — OpenTelemetry setup (traces/metrics/logs via OTLP)
-- `types` — small cross-package shared types
 - `utils` — misc HTTP/env/bsky helpers
 
 **Frontend (`frontend/`)**
@@ -93,8 +89,7 @@ Tool versions are managed by [Proto](https://moonrepo.dev/proto) via `.prototool
 
 ```bash
 # Development
-moon :dev-all           # start all apps in dev (frontend + backend, docs)
-moon frontend:dev       # frontend only (habitat management plane) + pear backend
+moon frontend:dev       # frontend (habitat management plane) + pear:dev
 moon pear:dev           # Pear server with Air hot reload (+ ngrok, + Caddy)
 moon sap:dev            # sap sync service in dev
 

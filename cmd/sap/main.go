@@ -56,7 +56,8 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	slog.SetDefault(log.New(log.WithLevel(cmd.String(fLogLevel))))
 
-	db, err := db.New(
+	// sap.New migrates this handle's schema before wiring up its stores.
+	database, err := db.New(
 		cmd.String(fDB),
 		db.WithGORMConfig(&gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: "sap_"}}),
 	)
@@ -71,7 +72,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	domain := cmd.String(fDomain)
-	store, err := oauthclient.NewGormStore(db, oauthclient.WithSingleSessionPerUser())
+	store, err := oauthclient.NewGormStore(database, oauthclient.WithSingleSessionPerUser())
 	if err != nil {
 		return fmt.Errorf("create oauth store: %w", err)
 	}
@@ -111,7 +112,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	slog.InfoContext(ctx, "notify service", "service", service.Ref(), "endpoint", endpoint)
 
 	s, err := sap.New(sap.Config{
-		DB:          db,
+		DB:          database,
 		OAuthClient: oauthApp,
 		Directory:   oauthApp.Dir,
 		// Endpoint is the base URL sap publishes as its notifyWrite service

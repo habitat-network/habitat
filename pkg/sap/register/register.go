@@ -68,9 +68,6 @@ type Registrar struct {
 }
 
 func New(db *gorm.DB, clients Clients, spaces Spaces, service string) (*Registrar, error) {
-	if err := db.AutoMigrate(&registration{}); err != nil {
-		return nil, err
-	}
 	return &Registrar{db: db, clients: clients, spaces: spaces, service: service}, nil
 }
 
@@ -208,4 +205,10 @@ func (r *Registrar) DropSpace(ctx context.Context, space habitat_syntax.SpaceURI
 	return r.db.WithContext(ctx).
 		Where("space = ?", space).
 		Delete(&registration{}).Error
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by db.Migrate, which pkg/sap/testutil.NewSapDB calls for tests.
+func Models() []any {
+	return []any{&registration{}}
 }

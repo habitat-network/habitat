@@ -34,3 +34,6 @@ exclude:
     - testutil/
     - internal/pear # Outdated will remove this package soon
     - api/
+    # Each service names its GORM models in a `migrations` package, which the
+    # tests that migrate with it already cover.
+    - /migrations(/|$)

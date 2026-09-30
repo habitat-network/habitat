@@ -101,9 +101,6 @@ func New(
 	parallelism int,
 	m *metrics,
 ) (*Engine, error) {
-	if err := db.AutoMigrate(&repo{}, &repoRecord{}); err != nil {
-		return nil, err
-	}
 	if parallelism <= 0 {
 		parallelism = 5
 	}
@@ -499,4 +496,10 @@ func backoff(retries int, maxMinutes int) time.Duration {
 	dur := min(1<<retries, maxMinutes)
 	jitter := time.Millisecond * time.Duration(rand.Intn(1000))
 	return time.Minute*time.Duration(dur) + jitter
+}
+
+// Models returns the GORM models this package persists. Their tables are
+// created by db.Migrate, which pkg/sap/testutil.NewSapDB calls for tests.
+func Models() []any {
+	return []any{&repo{}, &repoRecord{}}
 }

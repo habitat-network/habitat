@@ -11,10 +11,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
+	sap_testutil "github.com/habitat-network/habitat/pkg/sap/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +32,7 @@ const testService = "did:web:sap.example.com#habitat_space_syncer"
 func newTestServer(t *testing.T) *server {
 	t.Helper()
 
-	db := testutil.NewDB(t)
+	db := sap_testutil.NewSapDB(t)
 
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)

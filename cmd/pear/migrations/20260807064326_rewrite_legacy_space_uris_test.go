@@ -78,7 +78,7 @@ func requireRewriteRoundTrip(t *testing.T, sqlDB *sql.DB) {
 }
 
 // TestRewriteLegacySpaceUrisSkipsMissingTables covers a fresh database, where the
-// GORM-managed tables don't exist yet because AutoMigrate runs after migrations.
+// tables don't exist yet because the baseline schema migration runs after this one.
 func TestRewriteLegacySpaceUrisSkipsMissingTables(t *testing.T) {
 	sqlDB := newSQLite(t)
 	requireInTx(t, sqlDB, upRewriteLegacySpaceUris)

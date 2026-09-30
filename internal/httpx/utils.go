@@ -52,6 +52,11 @@ func WriteRecordNotFound(ctx context.Context, w http.ResponseWriter, err error) 
 	WriteError(ctx, w, "RecordNotFound", "" /* msg */, http.StatusNotFound)
 }
 
+func WriteRecordAlreadyExists(ctx context.Context, w http.ResponseWriter, err error) {
+	slog.WarnContext(ctx, "record already exists", "err", err)
+	WriteError(ctx, w, "RecordAlreadyExists", "" /* msg */, http.StatusConflict)
+}
+
 func WriteNotSupported(ctx context.Context, w http.ResponseWriter, msg string) {
 	slog.ErrorContext(ctx, "not supported", "msg", msg)
 	WriteError(ctx, w, "NotSupported", msg, http.StatusNotImplemented)
