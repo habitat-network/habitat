@@ -115,16 +115,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	slog.InfoContext(startupCtx, "running with flags", "flags", cmd.FlagNames())
 
 	// The gorm handle is named database so that db keeps referring to
-	// internal/db, which db.Migrate below needs.
+	// internal/db.
 	database, err := db.New(cmd.String(fDB))
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
-	}
-	// Stores no longer migrate their own tables, so bring the database fully up
-	// to date before any store is constructed: db.Migrate creates the tables for
-	// every store pear persists to, then replays cmd/pear/migrations.
-	if err := db.Migrate(startupCtx, database, migrations.FS, migrations.Models()); err != nil {
-		return fmt.Errorf("migrate database: %w", err)
 	}
 	fgaStore, err := setupFGA(startupCtx, cmd)
 	if err != nil {
@@ -321,6 +315,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup spaces store: %w", err)
 	}
 
+	// The database is migrated once the components migrations may use are built,
+	// so they don't construct their own. None of the stores built so far query
+	// their tables while being constructed.
+	if err := migrations.Run(startupCtx, migrations.PearMigrationContext{
+		DB:     database,
+		Spaces: spacesStore,
+	}); err != nil {
+		return fmt.Errorf("migrate database: %w", err)
+	}
+
 	blobBucket, err := blob.OpenBucket(startupCtx, cmd.String(fBlobBucket))
 	if err != nil {
 		return fmt.Errorf("open blob bucket: %w", err)
@@ -334,6 +338,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup opensocial store: %w", err)
 	}
+	loginRouter.OpensocialStore = opensocialStore
 	emailResolver := habitat_identity.NewEmailResolver(
 		database.WithContext(startupCtx), emailDomainStore, hive,
 	)

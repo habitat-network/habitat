@@ -381,6 +381,46 @@ func TestStoreNewOrgWithoutCreator(t *testing.T) {
 	require.Empty(t, memberships)
 }
 
+func TestStoreMemberProfile(t *testing.T) {
+	s := opensocial_testutil.NewTestStore(t)
+	creator := syntax.DID("did:plc:creator")
+	orgDIDStr, err := s.NewOrg(t.Context(), "acme", creator)
+	require.NoError(t, err)
+	org := syntax.DID(orgDIDStr)
+
+	// No profile set yet: GetMemberProfile returns the zero value.
+	profile, err := s.GetMemberProfile(t.Context(), org, creator)
+	require.NoError(t, err)
+	require.Empty(t, profile.DisplayName)
+
+	// SeedMemberProfile writes a first-time profile.
+	require.NoError(t, s.SeedMemberProfile(
+		t.Context(), org, creator, "Ada", "https://example.com/ada.png",
+	))
+	profile, err = s.GetMemberProfile(t.Context(), org, creator)
+	require.NoError(t, err)
+	require.Equal(t, "Ada", profile.DisplayName)
+	require.Equal(t, "https://example.com/ada.png", profile.AvatarUrl)
+
+	// SeedMemberProfile never overwrites an existing profile.
+	require.NoError(t, s.SeedMemberProfile(
+		t.Context(), org, creator, "Someone Else", "https://example.com/other.png",
+	))
+	profile, err = s.GetMemberProfile(t.Context(), org, creator)
+	require.NoError(t, err)
+	require.Equal(t, "Ada", profile.DisplayName)
+
+	// GetMemberProfiles returns profiles for every requested DID that has
+	// one, omitting those that don't.
+	other := syntax.DID("did:plc:other")
+	profiles, err := s.GetMemberProfiles(t.Context(), org, []syntax.DID{creator, other})
+	require.NoError(t, err)
+	require.Len(t, profiles, 1)
+	require.Equal(t, "Ada", profiles[creator].DisplayName)
+	_, ok := profiles[other]
+	require.False(t, ok)
+}
+
 func TestStoreWithTxRollsBack(t *testing.T) {
 	s := opensocial_testutil.NewTestStore(t)
 	var orgDIDStr string
