@@ -1,0 +1,388 @@
+package search
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/meilisearch/meilisearch-go"
+
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+)
+
+// ErrInvalidCursor is returned by Search for a cursor it didn't issue.
+var ErrInvalidCursor = errors.New("invalid search cursor")
+
+const (
+	// taskPollInterval is how often Meilisearch is polled while waiting for
+	// a write to be applied.
+	taskPollInterval = 20 * time.Millisecond
+	// accessPageSize is how many documents SetSpaceAccess reads and rewrites
+	// at a time.
+	accessPageSize = 1000
+	// snippetWords is about how many words of context a hit's snippet keeps.
+	snippetWords = 30
+)
+
+// meiliDoc is a [Document] as stored in Meilisearch.
+type meiliDoc struct {
+	// ID is derived from the URI, which has characters Meilisearch doesn't
+	// allow in a document id.
+	ID         string `json:"id"`
+	URI        string `json:"uri"`
+	Space      string `json:"space"`
+	Repo       string `json:"repo"`
+	Collection string `json:"collection"`
+	Rev        string `json:"rev"`
+	Text       string `json:"text"`
+	meiliAccess
+}
+
+// meiliAccess is an [Access] as filterable document fields. Each principal is
+// flattened to one string, so a reader matches a document by sharing one.
+type meiliAccess struct {
+	UserReaders          []string `json:"user_readers"`
+	CommunityRoleReaders []string `json:"community_role_readers"`
+	Public               bool     `json:"public"`
+}
+
+// meiliAccessUpdate partially updates a document's access fields.
+type meiliAccessUpdate struct {
+	ID string `json:"id"`
+	meiliAccess
+}
+
+// meiliHit is a search hit's retrieved fields.
+type meiliHit struct {
+	URI        string `json:"uri"`
+	Space      string `json:"space"`
+	Repo       string `json:"repo"`
+	Collection string `json:"collection"`
+	Formatted  struct {
+		Text string `json:"text"`
+	} `json:"_formatted"`
+}
+
+// Meilisearch is an [Index] stored in one Meilisearch index.
+type Meilisearch struct {
+	index  meilisearch.IndexManager
+	client meilisearch.ServiceManager
+}
+
+var _ Index = (*Meilisearch)(nil)
+
+// NewMeilisearch returns an Index stored in the Meilisearch index uid on the
+// server at host, creating and configuring the index if needed.
+func NewMeilisearch(ctx context.Context, host, apiKey, uid string) (*Meilisearch, error) {
+	client := meilisearch.New(host, meilisearch.WithAPIKey(apiKey))
+	m := &Meilisearch{index: client.Index(uid), client: client}
+	info, err := client.CreateIndexWithContext(ctx, &meilisearch.IndexConfig{
+		Uid:        uid,
+		PrimaryKey: "id",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create meilisearch index: %w", err)
+	}
+	err = m.wait(ctx, info)
+	var taskErr *taskError
+	if err != nil && (!errors.As(err, &taskErr) || taskErr.code != "index_already_exists") {
+		return nil, fmt.Errorf("create meilisearch index: %w", err)
+	}
+	info, err = m.index.UpdateSettingsWithContext(ctx, &meilisearch.Settings{
+		SearchableAttributes: []string{"text"},
+		FilterableAttributes: []string{
+			"space", "repo", "collection",
+			"user_readers", "community_role_readers", "public",
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure meilisearch index: %w", err)
+	}
+	if err := m.wait(ctx, info); err != nil {
+		return nil, fmt.Errorf("configure meilisearch index: %w", err)
+	}
+	return m, nil
+}
+
+// Put implements [Index].
+func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
+	// Keep the newest revision of each URI in docs.
+	newest := make(map[string]Document, len(docs))
+	for _, d := range docs {
+		id := docID(d.URI)
+		if old, ok := newest[id]; !ok || old.Rev < d.Rev {
+			newest[id] = d
+		}
+	}
+	if len(newest) == 0 {
+		return nil
+	}
+	// Then drop those older than what's indexed.
+	ids := make([]string, 0, len(newest))
+	for id := range newest {
+		ids = append(ids, id)
+	}
+	var existing meilisearch.DocumentsResult
+	if err := m.index.GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
+		Ids:    ids,
+		Fields: []string{"id", "rev"},
+		Limit:  int64(len(ids)),
+	}, &existing); err != nil {
+		return fmt.Errorf("get indexed revisions: %w", err)
+	}
+	var revs []meiliDoc
+	if err := existing.Results.DecodeInto(&revs); err != nil {
+		return fmt.Errorf("decode indexed revisions: %w", err)
+	}
+	for _, r := range revs {
+		if d, ok := newest[r.ID]; ok && string(d.Rev) < r.Rev {
+			delete(newest, r.ID)
+		}
+	}
+	if len(newest) == 0 {
+		return nil
+	}
+	rows := make([]meiliDoc, 0, len(newest))
+	for id, d := range newest {
+		rows = append(rows, meiliDoc{
+			ID:          id,
+			URI:         d.URI.String(),
+			Space:       d.Space.String(),
+			Repo:        d.Repo.String(),
+			Collection:  d.Collection.String(),
+			Rev:         d.Rev.String(),
+			Text:        d.Text,
+			meiliAccess: toMeiliAccess(d.Access),
+		})
+	}
+	info, err := m.index.AddDocumentsWithContext(ctx, rows, nil)
+	if err != nil {
+		return fmt.Errorf("put documents: %w", err)
+	}
+	return m.wait(ctx, info)
+}
+
+// Delete implements [Index].
+func (m *Meilisearch) Delete(ctx context.Context, uris ...habitat_syntax.SpaceRecordURI) error {
+	if len(uris) == 0 {
+		return nil
+	}
+	ids := make([]string, len(uris))
+	for i, uri := range uris {
+		ids[i] = docID(uri)
+	}
+	info, err := m.index.DeleteDocumentsWithContext(ctx, ids, nil)
+	if err != nil {
+		return fmt.Errorf("delete documents: %w", err)
+	}
+	return m.wait(ctx, info)
+}
+
+// DeleteSpace implements [Index].
+func (m *Meilisearch) DeleteSpace(ctx context.Context, space habitat_syntax.SpaceURI) error {
+	info, err := m.index.DeleteDocumentsByFilterWithContext(ctx, eq("space", space.String()), nil)
+	if err != nil {
+		return fmt.Errorf("delete space documents: %w", err)
+	}
+	return m.wait(ctx, info)
+}
+
+// SetSpaceAccess implements [Index].
+func (m *Meilisearch) SetSpaceAccess(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	access Access,
+) error {
+	fields := toMeiliAccess(access)
+	// Rewriting the access fields doesn't change which documents match the
+	// filter, so paging by offset sees each document once.
+	for offset := int64(0); ; offset += accessPageSize {
+		var page meilisearch.DocumentsResult
+		if err := m.index.GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
+			Filter: eq("space", space.String()),
+			Fields: []string{"id"},
+			Limit:  accessPageSize,
+			Offset: offset,
+		}, &page); err != nil {
+			return fmt.Errorf("list space documents: %w", err)
+		}
+		var ids []meiliDoc
+		if err := page.Results.DecodeInto(&ids); err != nil {
+			return fmt.Errorf("decode space documents: %w", err)
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		updates := make([]meiliAccessUpdate, len(ids))
+		for i, d := range ids {
+			updates[i] = meiliAccessUpdate{ID: d.ID, meiliAccess: fields}
+		}
+		info, err := m.index.UpdateDocumentsWithContext(ctx, updates, nil)
+		if err != nil {
+			return fmt.Errorf("update space access: %w", err)
+		}
+		if err := m.wait(ctx, info); err != nil {
+			return err
+		}
+		if len(ids) < accessPageSize {
+			return nil
+		}
+	}
+}
+
+// Search implements [Index].
+func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
+	offset := 0
+	if q.Cursor != "" {
+		var err error
+		offset, err = strconv.Atoi(q.Cursor)
+		if err != nil || offset < 0 {
+			return Result{}, ErrInvalidCursor
+		}
+	}
+	if strings.TrimSpace(q.Text) == "" || (q.Reader == nil && len(q.Spaces) == 0) {
+		return Result{}, nil
+	}
+	limit := q.Limit
+	if limit <= 0 {
+		limit = DefaultLimit
+	}
+	resp, err := m.index.SearchWithContext(ctx, q.Text, &meilisearch.SearchRequest{
+		Offset: int64(offset),
+		// One extra hit tells whether there is another page.
+		Limit:                 int64(limit + 1),
+		Filter:                filter(q),
+		MatchingStrategy:      meilisearch.All,
+		AttributesToRetrieve:  []string{"uri", "space", "repo", "collection"},
+		AttributesToCrop:      []string{"text"},
+		AttributesToHighlight: []string{"text"},
+		CropLength:            snippetWords,
+		HighlightPreTag:       "<mark>",
+		HighlightPostTag:      "</mark>",
+	})
+	if err != nil {
+		return Result{}, fmt.Errorf("search: %w", err)
+	}
+	var hits []meiliHit
+	if err := resp.Hits.DecodeInto(&hits); err != nil {
+		return Result{}, fmt.Errorf("decode hits: %w", err)
+	}
+	var res Result
+	if len(hits) > limit {
+		hits = hits[:limit]
+		res.Cursor = strconv.Itoa(offset + limit)
+	}
+	res.Hits = make([]Hit, len(hits))
+	for i, h := range hits {
+		res.Hits[i] = Hit{
+			URI:        habitat_syntax.SpaceRecordURI(h.URI),
+			Space:      habitat_syntax.SpaceURI(h.Space),
+			Repo:       syntax.DID(h.Repo),
+			Collection: syntax.NSID(h.Collection),
+			Snippet:    h.Formatted.Text,
+		}
+	}
+	return res, nil
+}
+
+// filter builds q's Meilisearch filter: an AND of its elements, each
+// element an OR of its strings.
+func filter(q Query) [][]string {
+	var and [][]string
+	if q.Reader != nil {
+		reader := toMeiliAccess(Access{Principals: *q.Reader})
+		or := []string{"public = true"}
+		if len(reader.UserReaders) > 0 {
+			or = append(or, in("user_readers", reader.UserReaders))
+		}
+		if len(reader.CommunityRoleReaders) > 0 {
+			or = append(or, in("community_role_readers", reader.CommunityRoleReaders))
+		}
+		and = append(and, or)
+	}
+	if len(q.Spaces) > 0 {
+		and = append(and, []string{in("space", stringsOf(q.Spaces))})
+	}
+	if len(q.Collections) > 0 {
+		and = append(and, []string{in("collection", stringsOf(q.Collections))})
+	}
+	if len(q.Repos) > 0 {
+		and = append(and, []string{in("repo", stringsOf(q.Repos))})
+	}
+	return and
+}
+
+func toMeiliAccess(a Access) meiliAccess {
+	out := meiliAccess{
+		UserReaders:          make([]string, len(a.Users)),
+		CommunityRoleReaders: make([]string, len(a.CommunityRoles)),
+		Public:               a.Public,
+	}
+	for i, u := range a.Users {
+		out.UserReaders[i] = u.String()
+	}
+	for i, r := range a.CommunityRoles {
+		out.CommunityRoleReaders[i] = r.Community.String() + "#" + r.Role
+	}
+	return out
+}
+
+// docID is the Meilisearch document id of uri.
+func docID(uri habitat_syntax.SpaceRecordURI) string {
+	sum := sha256.Sum256([]byte(uri))
+	return hex.EncodeToString(sum[:])
+}
+
+func stringsOf[T ~string](vs []T) []string {
+	out := make([]string, len(vs))
+	for i, v := range vs {
+		out[i] = string(v)
+	}
+	return out
+}
+
+// quote quotes v as a Meilisearch filter value.
+func quote(v string) string {
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(v) + `"`
+}
+
+func eq(field, v string) string {
+	return field + " = " + quote(v)
+}
+
+func in(field string, vs []string) string {
+	quoted := make([]string, len(vs))
+	for i, v := range vs {
+		quoted[i] = quote(v)
+	}
+	return field + " IN [" + strings.Join(quoted, ", ") + "]"
+}
+
+// taskError is a Meilisearch task that failed.
+type taskError struct {
+	code    string
+	message string
+}
+
+func (e *taskError) Error() string {
+	return fmt.Sprintf("meilisearch task failed: %s: %s", e.code, e.message)
+}
+
+// wait blocks until the task behind info has been applied, so the index
+// reads its own writes.
+func (m *Meilisearch) wait(ctx context.Context, info *meilisearch.TaskInfo) error {
+	task, err := m.client.WaitForTaskWithContext(ctx, info.TaskUID, taskPollInterval)
+	if err != nil {
+		return fmt.Errorf("wait for meilisearch task: %w", err)
+	}
+	if task.Status != meilisearch.TaskStatusSucceeded {
+		return &taskError{code: task.Error.Code, message: task.Error.Message}
+	}
+	return nil
+}
