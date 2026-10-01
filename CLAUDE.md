@@ -89,27 +89,25 @@ Tool versions are managed by [Proto](https://moonrepo.dev/proto) via `.prototool
 
 ```bash
 # Development
-moon frontend:dev       # frontend (habitat management plane) + pear:dev
-moon pear:dev           # Pear server with Air hot reload (+ ngrok, + Caddy)
-moon sap:dev            # sap sync service in dev
+moon run frontend:dev       # frontend (habitat management plane) + pear:dev
+moon run pear:dev           # Pear server with Air hot reload (+ ngrok, + Caddy)
+moon run sap:dev            # sap sync service in dev
 
 # Build
-moon :build             # build everything
-moon pear:build         # build Pear binary → bin/pear
-moon typescript:build   # build all TS packages
+moon run :build             # build everything
+moon run pear:build         # build Pear binary → bin/pear
+moon run typescript:build   # build all TS packages
 
 # Generate (lexicon-derived code — never hand-edit outputs)
-moon :generate          # regenerate api/habitat, typescript/api, openapi spec, api-docs
+moon run :generate          # regenerate api/habitat, typescript/api, openapi spec, api-docs
 
 # Test
-moon :test              # all tests (Go uses testcontainers for PostgreSQL isolation)
+moon run :test          # all tests (Go uses testcontainers for PostgreSQL isolation)
 go test ./...           # Go tests directly
-moon integration:test   # end-to-end tests against a live pear instance (manual/CI workflow_dispatch only)
 
 # Lint / Format
-moon :lint-check        # lint all projects
-moon :format            # format all projects (runs on staged files in pre-commit hook)
-golangci-lint run       # Go linting
+moon run <project>:lint        # lint a projects
+moon run <project>:format      # format a projects
 ```
 
 **Environment** — in `dev.env` (gitignored):
