@@ -38,7 +38,6 @@
     "@tiptap/starter-kit": "^3.28.0",
     "@tiptap/y-tiptap": "^3.0.7",
     "api": "workspace:*",
-    "cid": "github:multiformats/cid",
     "internal": "workspace:*",
     "it-byte-stream": "^3.0.0",
     "lib0": "^0.2.117",
