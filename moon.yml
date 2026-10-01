@@ -40,3 +40,9 @@ tasks:
     inputs:
     - Caddyfile
     preset: server
+  meilisearch:
+    command: meilisearch
+    args:
+    - --db-path
+    - .meilisearch
+    preset: server
