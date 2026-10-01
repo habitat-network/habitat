@@ -103,19 +103,34 @@ type Result struct {
 	Cursor string
 }
 
-// Index stores documents and searches them. Implementations must be safe for
-// concurrent use.
+// RepoCursor is the last revision of a repo the index holds.
+type RepoCursor struct {
+	Space habitat_syntax.SpaceURI
+	Repo  syntax.DID
+	Rev   string
+}
+
+// Index stores documents and searches them. It also keeps how far it has read
+// each repo, so the cursors are lost exactly when the documents are.
+// Implementations must be safe for concurrent use.
 type Index interface {
 	// Put inserts or replaces docs.
 	Put(ctx context.Context, docs ...Document) error
 	// Delete removes the documents with the given URIs; missing ones are
 	// ignored.
 	Delete(ctx context.Context, uris ...habitat_syntax.SpaceRecordURI) error
-	// DeleteSpace removes every document in a space.
+	// DeleteSpace removes every document and cursor in a space.
 	DeleteSpace(ctx context.Context, space habitat_syntax.SpaceURI) error
 	// SetSpaceAccess replaces the Access of every document in a space, after
 	// its permission records change.
 	SetSpaceAccess(ctx context.Context, space habitat_syntax.SpaceURI, access Access) error
 	// Search returns the documents matching q, most relevant first.
 	Search(ctx context.Context, q Query) (Result, error)
+
+	// Cursor returns how far the index has read repo, or "" if not at all.
+	Cursor(ctx context.Context, space habitat_syntax.SpaceURI, repo syntax.DID) (string, error)
+	// SetCursor records how far the index has read a repo.
+	SetCursor(ctx context.Context, cursor RepoCursor) error
+	// Cursors lists the cursor of every repo the index has read.
+	Cursors(ctx context.Context) ([]RepoCursor, error)
 }

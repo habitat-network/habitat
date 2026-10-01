@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -69,45 +70,73 @@ type meiliHit struct {
 	} `json:"_formatted"`
 }
 
-// Meilisearch is an [Index] stored in one Meilisearch index.
+// meiliCursor is a [RepoCursor] as stored in Meilisearch.
+type meiliCursor struct {
+	ID    string `json:"id"`
+	Space string `json:"space"`
+	Repo  string `json:"repo"`
+	Rev   string `json:"rev"`
+}
+
+// Meilisearch is an [Index] stored in two Meilisearch indexes: one of
+// documents, and one of repo cursors.
 type Meilisearch struct {
-	index  meilisearch.IndexManager
-	client meilisearch.ServiceManager
+	index   meilisearch.IndexManager
+	cursors meilisearch.IndexManager
+	client  meilisearch.ServiceManager
 }
 
 var _ Index = (*Meilisearch)(nil)
 
-// NewMeilisearch returns an Index stored in the Meilisearch index uid on the
-// server at host, creating and configuring the index if needed.
+// NewMeilisearch returns an Index stored in the Meilisearch indexes uid and
+// uid_cursors on the server at host, creating and configuring them if
+// needed.
 func NewMeilisearch(ctx context.Context, host, apiKey, uid string) (*Meilisearch, error) {
 	client := meilisearch.New(host, meilisearch.WithAPIKey(apiKey))
-	m := &Meilisearch{index: client.Index(uid), client: client}
-	info, err := client.CreateIndexWithContext(ctx, &meilisearch.IndexConfig{
-		Uid:        uid,
-		PrimaryKey: "id",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create meilisearch index: %w", err)
+	m := &Meilisearch{
+		index:   client.Index(uid),
+		cursors: client.Index(uid + "_cursors"),
+		client:  client,
 	}
-	err = m.wait(ctx, info)
-	var taskErr *taskError
-	if err != nil && (!errors.As(err, &taskErr) || taskErr.code != "index_already_exists") {
-		return nil, fmt.Errorf("create meilisearch index: %w", err)
-	}
-	info, err = m.index.UpdateSettingsWithContext(ctx, &meilisearch.Settings{
+	if err := m.setup(ctx, uid, &meilisearch.Settings{
 		SearchableAttributes: []string{"text"},
 		FilterableAttributes: []string{
 			"space", "repo", "collection",
 			"user_readers", "community_role_readers", "public",
 		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("configure meilisearch index: %w", err)
+	}); err != nil {
+		return nil, err
 	}
-	if err := m.wait(ctx, info); err != nil {
-		return nil, fmt.Errorf("configure meilisearch index: %w", err)
+	if err := m.setup(ctx, uid+"_cursors", &meilisearch.Settings{
+		FilterableAttributes: []string{"space"},
+	}); err != nil {
+		return nil, err
 	}
 	return m, nil
+}
+
+// setup creates the index uid if it doesn't exist and applies settings.
+func (m *Meilisearch) setup(ctx context.Context, uid string, settings *meilisearch.Settings) error {
+	info, err := m.client.CreateIndexWithContext(ctx, &meilisearch.IndexConfig{
+		Uid:        uid,
+		PrimaryKey: "id",
+	})
+	if err != nil {
+		return fmt.Errorf("create meilisearch index %s: %w", uid, err)
+	}
+	err = m.wait(ctx, info)
+	var taskErr *taskError
+	if err != nil && (!errors.As(err, &taskErr) || taskErr.code != "index_already_exists") {
+		return fmt.Errorf("create meilisearch index %s: %w", uid, err)
+	}
+	info, err = m.client.Index(uid).UpdateSettingsWithContext(ctx, settings)
+	if err != nil {
+		return fmt.Errorf("configure meilisearch index %s: %w", uid, err)
+	}
+	if err := m.wait(ctx, info); err != nil {
+		return fmt.Errorf("configure meilisearch index %s: %w", uid, err)
+	}
+	return nil
 }
 
 // Put implements [Index].
@@ -186,11 +215,76 @@ func (m *Meilisearch) Delete(ctx context.Context, uris ...habitat_syntax.SpaceRe
 
 // DeleteSpace implements [Index].
 func (m *Meilisearch) DeleteSpace(ctx context.Context, space habitat_syntax.SpaceURI) error {
-	info, err := m.index.DeleteDocumentsByFilterWithContext(ctx, eq("space", space.String()), nil)
+	for _, idx := range []meilisearch.IndexManager{m.index, m.cursors} {
+		info, err := idx.DeleteDocumentsByFilterWithContext(ctx, eq("space", space.String()), nil)
+		if err != nil {
+			return fmt.Errorf("delete space documents: %w", err)
+		}
+		if err := m.wait(ctx, info); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Cursor implements [Index].
+func (m *Meilisearch) Cursor(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (string, error) {
+	var c meiliCursor
+	err := m.cursors.GetDocumentWithContext(ctx, cursorID(space, repo), nil, &c)
+	var apiErr *meilisearch.Error
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+		return "", nil
+	}
 	if err != nil {
-		return fmt.Errorf("delete space documents: %w", err)
+		return "", fmt.Errorf("get cursor: %w", err)
+	}
+	return c.Rev, nil
+}
+
+// SetCursor implements [Index].
+func (m *Meilisearch) SetCursor(ctx context.Context, cursor RepoCursor) error {
+	info, err := m.cursors.AddDocumentsWithContext(ctx, []meiliCursor{{
+		ID:    cursorID(cursor.Space, cursor.Repo),
+		Space: cursor.Space.String(),
+		Repo:  cursor.Repo.String(),
+		Rev:   cursor.Rev,
+	}}, nil)
+	if err != nil {
+		return fmt.Errorf("set cursor: %w", err)
 	}
 	return m.wait(ctx, info)
+}
+
+// Cursors implements [Index].
+func (m *Meilisearch) Cursors(ctx context.Context) ([]RepoCursor, error) {
+	var out []RepoCursor
+	for offset := int64(0); ; offset += accessPageSize {
+		var page meilisearch.DocumentsResult
+		if err := m.cursors.GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
+			Limit:  accessPageSize,
+			Offset: offset,
+		}, &page); err != nil {
+			return nil, fmt.Errorf("list cursors: %w", err)
+		}
+		var rows []meiliCursor
+		if err := page.Results.DecodeInto(&rows); err != nil {
+			return nil, fmt.Errorf("decode cursors: %w", err)
+		}
+		for _, r := range rows {
+			out = append(out, RepoCursor{
+				Space: habitat_syntax.SpaceURI(r.Space),
+				Repo:  syntax.DID(r.Repo),
+				Rev:   r.Rev,
+			})
+		}
+		if len(rows) < accessPageSize {
+			return out, nil
+		}
+	}
 }
 
 // SetSpaceAccess implements [Index].
@@ -331,6 +425,12 @@ func toMeiliAccess(a Access) meiliAccess {
 		out.CommunityRoleReaders[i] = r.Community.String() + "#" + r.Role
 	}
 	return out
+}
+
+// cursorID is the Meilisearch document id of a repo's cursor.
+func cursorID(space habitat_syntax.SpaceURI, repo syntax.DID) string {
+	sum := sha256.Sum256([]byte(space.String() + " " + repo.String()))
+	return hex.EncodeToString(sum[:])
 }
 
 // docID is the Meilisearch document id of uri.

@@ -682,3 +682,39 @@ func TestStoreListObjects(t *testing.T) {
 		require.Empty(t, got)
 	})
 }
+
+func TestStoreListDependentSpaces(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+	team := newSpace(t, s.spaces, groupType, "team")
+	doc := newSpace(t, s.spaces, docsType, "doc")
+	shared := newSpace(t, s.spaces, docsType, "shared")
+	unrelated := newSpace(t, s.spaces, docsType, "unrelated")
+
+	// team's writers read doc, and doc's readers write shared.
+	_, err := s.SetSpaceRoleRelation(
+		ctx, team, habitat_syntax.SpaceRoleWriter, doc, habitat_syntax.SpaceRoleReader)
+	require.NoError(t, err)
+	_, err = s.SetSpaceRoleRelation(
+		ctx, doc, habitat_syntax.SpaceRoleReader, shared, habitat_syntax.SpaceRoleWriter)
+	require.NoError(t, err)
+	_, err = s.SetUserRelation(ctx, alice, unrelated, habitat_syntax.SpaceRoleReader)
+	require.NoError(t, err)
+
+	got, err := s.ListDependentSpaces(ctx, team)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []habitat_syntax.SpaceURI{doc, shared}, got)
+
+	got, err = s.ListDependentSpaces(ctx, shared)
+	require.NoError(t, err)
+	require.Empty(t, got)
+
+	t.Run("stops at cycles", func(t *testing.T) {
+		_, err := s.SetSpaceRoleRelation(
+			ctx, shared, habitat_syntax.SpaceRoleReader, team, habitat_syntax.SpaceRoleReader)
+		require.NoError(t, err)
+		got, err := s.ListDependentSpaces(ctx, team)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []habitat_syntax.SpaceURI{doc, shared}, got)
+	})
+}
