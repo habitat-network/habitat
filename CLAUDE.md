@@ -118,7 +118,7 @@ moon run <project>:format      # format a projects
 - `SAP_SECRET` — signing secret for the `sap` service
 - `HABITAT_OAUTH_SERVER_SECRET`, `HABITAT_OAUTH_CLIENT_SECRET`, `HABITAT_PDS_CRED_ENCRYPT_KEY` — OAuth/encryption secrets (generate with `cmd/keygen`)
 - `HABITAT_GOOGLE_CLIENT_ID` / `HABITAT_GOOGLE_CLIENT_SECRET` — Google Sign-In login method
-- `HABITAT_MEILISEARCH_URL` / `HABITAT_MEILISEARCH_API_KEY` — Meilisearch for space record search (`infra/docker-compose.yml` runs one on :7700); search is off when unset
+- `HABITAT_MEILISEARCH_URL` / `HABITAT_MEILISEARCH_API_KEY` — Meilisearch for space record search (`pear:dev` sets the URL and runs `root:meilisearch` on :7700); search is off when unset
 - `HABITAT_ADMIN_PASSWORD` — preset instance admin password (random + printed once if unset)
 
 ## Code conventions
