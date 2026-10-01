@@ -18,6 +18,7 @@ import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
+import { Route as RequireAuthSearchRouteImport } from './routes/_requireAuth/search'
 import { Route as CommunityCreateRouteImport } from './routes/community/create'
 import { Route as LoginHabitatRouteImport } from './routes/login/habitat'
 import { Route as OrgCreateRouteImport } from './routes/org/create'
@@ -96,6 +97,11 @@ const RequireAuthDataRoute = RequireAuthDataRouteImport.update({
 const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
   id: '/permissions',
   path: '/permissions',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
+const RequireAuthSearchRoute = RequireAuthSearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => RequireAuthRoute,
 } as any)
 const CommunityCreateRoute = CommunityCreateRouteImport.update({
@@ -313,6 +319,7 @@ export interface FileRoutesByFullPath {
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
+  '/search': typeof RequireAuthSearchRoute
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
   '/org/create': typeof OrgCreateRoute
@@ -356,6 +363,7 @@ export interface FileRoutesByTo {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
+  '/search': typeof RequireAuthSearchRoute
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
   '/org/create': typeof OrgCreateRoute
@@ -401,6 +409,7 @@ export interface FileRoutesById {
   '/onboard': typeof OnboardRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
+  '/_requireAuth/search': typeof RequireAuthSearchRoute
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
   '/org/create': typeof OrgCreateRoute
@@ -449,6 +458,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/data'
     | '/permissions'
+    | '/search'
     | '/community/create'
     | '/login/habitat'
     | '/org/create'
@@ -492,6 +502,7 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
+    | '/search'
     | '/community/create'
     | '/login/habitat'
     | '/org/create'
@@ -536,6 +547,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/_requireAuth/data'
     | '/_requireAuth/permissions'
+    | '/_requireAuth/search'
     | '/community/create'
     | '/login/habitat'
     | '/org/create'
@@ -649,6 +661,13 @@ declare module '@tanstack/react-router' {
       path: '/permissions'
       fullPath: '/permissions'
       preLoaderRoute: typeof RequireAuthPermissionsRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/search': {
+      id: '/_requireAuth/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof RequireAuthSearchRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/community/create': {
@@ -985,6 +1004,7 @@ const RequireAuthOpensocialOrgRouteWithChildren =
 interface RequireAuthRouteChildren {
   RequireAuthDataRoute: typeof RequireAuthDataRoute
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
+  RequireAuthSearchRoute: typeof RequireAuthSearchRoute
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
   RequireAuthCollectionsCollectionRoute: typeof RequireAuthCollectionsCollectionRoute
   RequireAuthGroupsGroupRoute: typeof RequireAuthGroupsGroupRoute
@@ -1008,6 +1028,7 @@ interface RequireAuthRouteChildren {
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthDataRoute: RequireAuthDataRoute,
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
+  RequireAuthSearchRoute: RequireAuthSearchRoute,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
   RequireAuthCollectionsCollectionRoute: RequireAuthCollectionsCollectionRoute,
   RequireAuthGroupsGroupRoute: RequireAuthGroupsGroupRoute,

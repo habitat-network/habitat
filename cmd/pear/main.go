@@ -49,6 +49,7 @@ import (
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"go.opentelemetry.io/otel/trace"
 
@@ -306,9 +307,29 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	notifier := notify.NewNotifier(notifyStore, httpx.NewClient(), hive)
 
+	// With Meilisearch configured, the search indexer follows space writes
+	// like any other syncer, so the spaces store notifies it alongside the
+	// registered ones.
+	notifiers := spaces.Notifiers{notifier}
+	var searchIndex search.Index
+	var searchIndexer *search.Indexer
+	if meilisearchURL := cmd.String(fMeilisearchURL); meilisearchURL != "" {
+		searchIndex, err = search.NewMeilisearch(
+			startupCtx,
+			meilisearchURL,
+			cmd.String(fMeilisearchAPIKey),
+			cmd.String(fMeilisearchIndex),
+		)
+		if err != nil {
+			return fmt.Errorf("setup search index: %w", err)
+		}
+		searchIndexer = search.NewIndexer(searchIndex)
+		notifiers = append(notifiers, searchIndexer)
+	}
+
 	spacesStore, err := spaces.NewStore(
 		database.WithContext(startupCtx),
-		notifier,
+		notifiers,
 		spacecommit.NewAuthority(hostKey, hive),
 	)
 	if err != nil {
@@ -421,6 +442,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		defaultDir,
 	)
 
+	var searcher *search.Searcher
+	if searchIndex != nil {
+		searcher = search.NewSearcher(searchIndex, opensocialStore, spacesStore)
+	}
+
 	// Consolidated server owning the opensocial, simplespace, relationship,
 	// spaces, and registerNotify handler routes.
 	pearApp := pearserver.New(
@@ -438,6 +464,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		mcpGatewayStore,
 		pdsForwarding,
 		emailDomainStore,
+		searcher,
 	)
 
 	repo, err := repo.NewRepo(database.WithContext(startupCtx))
@@ -652,6 +679,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	eg.Go(func() error {
 		return oauthGC.Run(egCtx)
 	})
+	if searchIndexer != nil {
+		eg.Go(func() error {
+			return searchIndexer.Run(egCtx, spacesStore, permStore)
+		})
+	}
 	eg.Go(func() error {
 		slog.InfoContext(egCtx, "starting server", "port", port)
 		if httpsCerts == "" {

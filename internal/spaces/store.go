@@ -76,6 +76,14 @@ type RepoInfo struct {
 	Hash []byte
 }
 
+// RepoHead is a repo's latest oplog revision within a space. See
+// [Store.ListRepoHeads].
+type RepoHead struct {
+	Space habitat_syntax.SpaceURI
+	Repo  syntax.DID
+	Rev   syntax.TID
+}
+
 // Record is a single record within a space
 type Record struct {
 	// Space is only populated by methods that can return records from more
@@ -229,6 +237,13 @@ type Store interface {
 		repo syntax.DID,
 	) (rev string, hash []byte, found bool, err error)
 
+	// ListRepoHeads returns the latest oplog revision of every repo with local
+	// records, across all spaces. Unlike [Store.RepoHead], a deletion counts as
+	// a revision, so a repo whose records were all deleted is still listed at
+	// the revision of its last deletion. Consumers of [Store.ListRepoOps]
+	// compare it with their own cursor to find repos they are behind on.
+	ListRepoHeads(ctx context.Context) ([]RepoHead, error)
+
 	// RepoHeadCommit returns the signed commit over a repo's current head
 	// state. commit is nil when the repo holds no records in the space.
 	RepoHeadCommit(
@@ -282,6 +297,30 @@ type Notifier interface {
 	)
 	// NotifySpaceDeleted reports that a space was deleted.
 	NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI)
+}
+
+// Notifiers is a [Notifier] that passes each notification to every notifier in
+// it, in order.
+type Notifiers []Notifier
+
+// NotifyWrite implements [Notifier].
+func (n Notifiers) NotifyWrite(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	rev syntax.TID,
+	hash []byte,
+) {
+	for _, notifier := range n {
+		notifier.NotifyWrite(ctx, space, repo, rev, hash)
+	}
+}
+
+// NotifySpaceDeleted implements [Notifier].
+func (n Notifiers) NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI) {
+	for _, notifier := range n {
+		notifier.NotifySpaceDeleted(ctx, space)
+	}
 }
 
 var (
@@ -996,6 +1035,19 @@ func (s *store) RepoHead(
 	return rev.String(), h.Sum(), true, nil
 }
 
+// ListRepoHeads implements [Store].
+func (s *store) ListRepoHeads(ctx context.Context) ([]RepoHead, error) {
+	var heads []RepoHead
+	// Unscoped, so deleted records' tombstones count towards the head.
+	if err := s.db.WithContext(ctx).Unscoped().Model(&spaceRecord{}).
+		Select("space, repo, MAX(rev) AS rev").
+		Group("space, repo").
+		Scan(&heads).Error; err != nil {
+		return nil, fmt.Errorf("list repo heads: %w", err)
+	}
+	return heads, nil
+}
+
 // RepoHeadCommit implements [Store].
 func (s *store) RepoHeadCommit(
 	ctx context.Context,
@@ -1023,7 +1075,9 @@ func (s *store) DeleteRecord(
 	collection syntax.NSID,
 	rkey string,
 ) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var rev syntax.TID
+	var hash []byte
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, uri, repo); err != nil {
 			return err
 		}
@@ -1037,7 +1091,7 @@ func (s *store) DeleteRecord(
 		if len(rows) == 0 {
 			return nil
 		}
-		rev := s.clock.Next()
+		rev = s.clock.Next()
 		if err := tx.Model(&spaceRecord{}).
 			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
 				uri, repo, collection, rkey).
@@ -1056,6 +1110,7 @@ func (s *store) DeleteRecord(
 		for _, row := range rows {
 			h.Remove(spacecommit.RecordElement(row.Collection, row.Rkey, row.Cid))
 		}
+		hash = h.Sum()
 		// Drop the hash row entirely once the repo holds no more records
 		var remaining int64
 		if err := tx.Model(&spaceRecord{}).
@@ -1068,6 +1123,14 @@ func (s *store) DeleteRecord(
 		}
 		return saveRepoHash(tx, uri, repo, h, rev)
 	})
+	if err != nil {
+		return err
+	}
+	if rev != "" {
+		// Best-effort: notify registered syncers that this repo advanced.
+		s.notifier.NotifyWrite(ctx, uri, repo, rev, hash)
+	}
+	return nil
 }
 
 // ApplyWrites implements [Store].
