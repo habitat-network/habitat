@@ -101,17 +101,28 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	endpoint := "https://" + domain
 
+	// sap names itself to space hosts by a service identifier — a did:web DID
+	// plus the service fragment it publishes that endpoint under in the DID
+	// document handleDIDDoc serves. Space hosts resolve the identifier to
+	// endpoint, and address the service-auth JWT they deliver with to it.
+	service, err := sap.NewServiceIdentity(endpoint, cmd.String(fServiceName))
+	if err != nil {
+		return fmt.Errorf("derive service identity: %w", err)
+	}
+	slog.InfoContext(ctx, "notify service", "service", service.Ref(), "endpoint", endpoint)
+
 	s, err := sap.New(sap.Config{
 		DB:          database,
 		OAuthClient: oauthApp,
 		Directory:   oauthApp.Dir,
-		// Endpoint is the base URL sap registers with each space host as
-		// its notifyWrite delivery address (see pkg/sap/register), so
-		// writes to tracked spaces reach sap's outbox live instead of only
-		// being discovered on the next crawl.
-		Endpoint: endpoint,
-		Meter:    otel.Meter("sap"),
-		Tracer:   otel.Tracer("sap"),
+		// Endpoint is the base URL sap publishes as its notifyWrite service
+		// endpoint, and ServiceID the service name it publishes it under, so
+		// space hosts can find sap to push writes to tracked spaces live
+		// instead of only on the next crawl.
+		Endpoint:  endpoint,
+		ServiceID: cmd.String(fServiceName),
+		Meter:     otel.Meter("sap"),
+		Tracer:    otel.Tracer("sap"),
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
@@ -125,15 +136,20 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		clientMetadata.URI = endpoint
 	}
 
-	server := NewSapServer(s, oauthApp, endpoint, clientMetadata, cmd.String(fIdentityResolver))
+	server := NewSapServer(
+		s, oauthApp, endpoint, service, clientMetadata, cmd.String(fIdentityResolver),
+	)
 
 	// The OAuth endpoints (callback and client metadata) must be publicly
 	// reachable since the user's PDS redirects to them, so they are served on
 	// their own port. The org and channel endpoints are served on a separate
 	// internal port so the user can restrict access to trusted services.
+	// The DID document and notifyWrite receiver are public too: space hosts
+	// resolve and deliver to them over the public network.
 	oauthMux := http.NewServeMux()
 	oauthMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
 	oauthMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+	oauthMux.HandleFunc("/.well-known/did.json", server.handleDIDDoc)
 	oauthMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", server.handleNotifyWrite)
 
 	webhookURL := cmd.String(fWebhookURL)
@@ -190,6 +206,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		combinedMux.Handle("/", internalHandler)
 		combinedMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
 		combinedMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+		combinedMux.HandleFunc("/.well-known/did.json", server.handleDIDDoc)
 		combinedMux.HandleFunc("/xrpc/network.habitat.space.notifyWrite", server.handleNotifyWrite)
 		eg.Go(func() error {
 			return serve(ctx, fmt.Sprintf(":%s", port), combinedMux)

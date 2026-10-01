@@ -6,11 +6,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -54,8 +56,8 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 
 	future := time.Now().Add(time.Hour)
 	// One whole-space and one repo-specific registration both match this write.
-	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, future))
-	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
+	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, subscriber.URL, future))
+	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, subscriber.URL, future))
 
 	signer := &fakeSigner{t: t}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
@@ -88,8 +90,8 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 
 	future := time.Now().Add(time.Hour)
 	// Both a whole-space and a repo-specific registration should be notified.
-	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, future))
-	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
+	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, subscriber.URL, future))
+	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, subscriber.URL, future))
 
 	signer := &fakeSigner{t: t}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
@@ -126,7 +128,7 @@ func TestNotifierSignerErrorAbortsDelivery(t *testing.T) {
 	t.Cleanup(subscriber.Close)
 
 	future := time.Now().Add(time.Hour)
-	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, future))
+	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, subscriber.URL, future))
 
 	signer := &fakeSigner{err: errSign}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
@@ -152,7 +154,10 @@ func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
 	// Registration targets bob, but the write is for repo (alice).
 	require.NoError(
 		t,
-		s.Register(t.Context(), space, bob, subscriber.URL, time.Now().Add(time.Hour)),
+		s.Register(
+			t.Context(), space, bob,
+			subscriber.URL, subscriber.URL, time.Now().Add(time.Hour),
+		),
 	)
 
 	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{t: t})
@@ -163,4 +168,68 @@ func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
 		t.Fatal("delivered notifyWrite to a non-matching registration")
 	case <-time.After(200 * time.Millisecond):
 	}
+}
+
+// tokenAudience reads the aud claim off a service-auth bearer token. The
+// signature is not checked: these tests care about addressing, and fakeSigner
+// mints a throwaway key per call.
+func tokenAudience(t *testing.T, header string) string {
+	t.Helper()
+	raw, ok := strings.CutPrefix(header, "Bearer ")
+	require.True(t, ok, "missing bearer token in %q", header)
+	token, err := jwt.ParseSigned(raw)
+	require.NoError(t, err)
+	var claims jwt.Claims
+	require.NoError(t, token.UnsafeClaimsWithoutVerification(&claims))
+	require.Len(t, claims.Audience, 1)
+	return claims.Audience[0]
+}
+
+// captureAudience runs one notifyWrite through a subscriber that records the
+// audience of the delivery it receives, returning that audience and the
+// subscriber's endpoint URL.
+func captureAudience(t *testing.T, register func(Store, string) error) (string, string) {
+	t.Helper()
+	s := newTestStore(t)
+
+	audiences := make(chan string, 1)
+	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		audiences <- tokenAudience(t, r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(subscriber.Close)
+
+	require.NoError(t, register(s, subscriber.URL))
+
+	NewNotifier(s, subscriber.Client(), &fakeSigner{t: t}).
+		NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
+
+	select {
+	case aud := <-audiences:
+		return aud, subscriber.URL
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for notifyWrite delivery")
+		return "", ""
+	}
+}
+
+// TestNotifierAddressesServiceIdentifier pins that a subscriber which registered
+// a service identifier is addressed by it, not by the endpoint it resolved to.
+func TestNotifierAddressesServiceIdentifier(t *testing.T) {
+	aud, endpoint := captureAudience(t, func(s Store, ep string) error {
+		return s.Register(
+			t.Context(), space, "", syncerService, ep, time.Now().Add(time.Hour),
+		)
+	})
+	require.Equal(t, syncerService, aud)
+	require.NotEqual(t, endpoint, aud, "service identifier must not be the endpoint URL")
+}
+
+// TestNotifierAddressesLegacyEndpoint pins that a registration made through the
+// deprecated endpoint field is still delivered to, addressed by its URL.
+func TestNotifierAddressesLegacyEndpoint(t *testing.T) {
+	aud, endpoint := captureAudience(t, func(s Store, ep string) error {
+		return s.Register(t.Context(), space, "", ep, ep, time.Now().Add(time.Hour))
+	})
+	require.Equal(t, endpoint, aud)
 }

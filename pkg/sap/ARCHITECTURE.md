@@ -69,7 +69,16 @@ AddSession(did,           session.Store ─────▶ crawl.Crawler
 - **`register`** keeps `registerNotify` subscriptions alive so hosts push
   `notifyWrite`/`notifySpaceDeleted` to sap instead of relying on polling: it
   registers a space inline as crawl discovers it, and a background sweep
-  renews registrations before they expire.
+  renews registrations before they expire. It registers under a *service
+  identifier* — `did:web:<sap domain>#<service name>` (`sap.ServiceIdentity`)
+  — rather than a bare URL: the host resolves that to sap's delivery endpoint
+  through the DID document sap serves at `/.well-known/did.json`, and signs
+  each delivery's service auth to the identifier. That document is built with
+  `internal/did` (`did.Web(...).Syncer(...)`, served by `did.NewHandler`), the
+  same builder every habitat-hosted identity uses, and declares no
+  `verificationMethod` because sap never signs as this DID — the space
+  authority signs the delivery. `--service-name` overrides the fragment, for
+  deployments that already publish a different one.
 - **`outbox`** is the durable handoff to sap's consumer: the syncer emits
   synced records here (in the same transaction as its state advance), and the
   consumer polls, processes, and acks them. Unacked messages redeliver.

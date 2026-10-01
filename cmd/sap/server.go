@@ -19,6 +19,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/pkg/sap"
@@ -42,6 +43,18 @@ type server struct {
 	oauthClient     *oauth.ClientApp
 	notifyValidator *auth.ServiceAuthValidator // verifies incoming notifyWrite deliveries
 
+	// endpoint is sap's public base URL, published as the serviceEndpoint of
+	// the notify service in handleDIDDoc's DID document.
+	endpoint string
+	// service is how sap names itself to space hosts: the did:web DID it
+	// serves that document under, plus the service fragment within it. Space
+	// hosts are given service.Ref() as their notifyWrite subscriber, and
+	// address the deliveries they make to it.
+	service sap.ServiceIdentity
+	// didDoc serves that document, publishing endpoint as the notify service
+	// endpoint under service's fragment.
+	didDoc http.Handler
+
 	// outboxPingPeriod/PongWait/WriteWait configure handleOutboxChannel's
 	// liveness checks (see their defaults in websocket.go). Tests shrink
 	// these directly on a *server instance rather than a shared package
@@ -62,14 +75,15 @@ type server struct {
 	httpClient          *http.Client
 }
 
-// endpoint is sap's own public base URL (the same value passed as
-// sap.Config.Endpoint) — it's both what sap registers with space hosts as
-// its notifyWrite delivery address, and the audience space hosts sign into
-// the service-auth JWT they deliver notifyWrite calls with.
+// NewSapServer builds sap's HTTP surface. endpoint is sap's own public base URL
+// (the same value passed as sap.Config.Endpoint) and service is the identity it
+// publishes that URL under — endpoint is what space hosts deliver to, and
+// service.Ref() is what they address the service-auth JWT to.
 func NewSapServer(
 	sapInstance *sap.Sap,
 	oauthClient *oauth.ClientApp,
 	endpoint string,
+	service sap.ServiceIdentity,
 	clientMetadata ConfiguredClientMetadata,
 	identityResolverURL string,
 ) *server {
@@ -78,8 +92,15 @@ func NewSapServer(
 		oauthClient: oauthClient,
 		notifyValidator: &auth.ServiceAuthValidator{
 			Dir:      oauthClient.Dir,
-			Audience: endpoint,
+			Audience: service.Ref(),
 		},
+		endpoint: endpoint,
+		service:  service,
+		// A syncer publishes a service endpoint and no keys, so the document is
+		// built from the same identity the service identifier names.
+		didDoc: did.NewHandler(
+			did.New(service.DID).Syncer(service.Name, endpoint).Build(),
+		),
 		outboxPingPeriod: defaultOutboxPingPeriod,
 		outboxPongWait:   defaultOutboxPongWait,
 		outboxWriteWait:  defaultOutboxWriteWait,
@@ -89,6 +110,20 @@ func NewSapServer(
 		identityResolverURL: strings.TrimSuffix(identityResolverURL, "/"),
 		httpClient:          httpx.NewClient(),
 	}
+}
+
+// handleDIDDoc serves sap's DID document, telling a space host where to deliver
+// this instance's notifyWrite calls.
+//
+// It declares no verification method: sap is a subscriber, never a caller — a
+// space host signs the delivery JWT with the space authority's key, and verifies
+// sap's tokens (in the other direction) against the space authority's published
+// key, so sap has nothing to sign with.
+//
+// This is served on the public listener, since space hosts resolve it over the
+// public network.
+func (s *server) handleDIDDoc(w http.ResponseWriter, r *http.Request) {
+	s.didDoc.ServeHTTP(w, r)
 }
 
 var (
