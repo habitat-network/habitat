@@ -1,4 +1,5 @@
 .habitat
+.meilisearch
 
 # pnpm workspace
 node_modules/
