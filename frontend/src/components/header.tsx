@@ -48,6 +48,11 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
                       Collections
                     </Button>
                   </li>
+                  <li>
+                    <Button variant="link" render={<Link to="/search" />}>
+                      Search
+                    </Button>
+                  </li>
                 </>
               )}
             </>
