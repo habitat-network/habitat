@@ -8,6 +8,11 @@ fileGroups:
     - '!**/*_test.go'
   test:
     - '**/*.go'
+# The search index uses SQLite's FTS5 extension, which go-sqlite3 only compiles
+# in with this tag. Every Go build, test and lint needs it, or pear can't run
+# its search migration on SQLite.
+env:
+  GOFLAGS: -tags=sqlite_fts5
 tasks:
   format-check:
     command: golangci-lint fmt -d

@@ -45,6 +45,7 @@ Data & permissions:
 - `clique` — (DEPRECATED) replaced by `internal/spaces`
 - `spaces` — `network.habitat.space` abstraction grouping records, backed by `fgastore`
 - `fgastore` — Zanzibar-style relationship-based access control store wrapping an embedded OpenFGA server
+- `search` — full-text index over space record text (SQLite FTS5 / Postgres tsvector) behind an `Index` interface; needs the `sqlite_fts5` build tag (set in `.moon/tasks/go.yml`)
 - `syntax` — Habitat-specific syntax types/parsers (Habitat URI, Space URI/Key, Clique ref) extending `atproto/syntax`
 - `perms` — wraps the fgastore and opensocial to query, update, and enforce permissions
 
