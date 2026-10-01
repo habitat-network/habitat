@@ -333,7 +333,10 @@ func (x *Indexer) indexRepo(
 		// Save the cursor only after the index write, so a crash in between
 		// replays the page rather than skipping it.
 		cursor = ops[len(ops)-1].Rev
-		if err := x.index.SetCursor(ctx, RepoCursor{Space: space, Repo: repo, Rev: cursor}); err != nil {
+		if err := x.index.SetCursor(
+			ctx,
+			RepoCursor{Space: space, Repo: repo, Rev: cursor},
+		); err != nil {
 			return err
 		}
 		if len(ops) < opsPageSize {

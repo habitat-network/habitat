@@ -45,6 +45,7 @@ Data & permissions:
 - `clique` — (DEPRECATED) replaced by `internal/spaces`
 - `spaces` — `network.habitat.space` abstraction grouping records, backed by `fgastore`
 - `fgastore` — Zanzibar-style relationship-based access control store wrapping an embedded OpenFGA server
+- `search` — full-text search over space records in Meilisearch. `search.Indexer` (a `spaces.Notifier`) syncs every repo via `ListRepoOps` and indexes each record with its space's read access (readers flattened by the perms store, opensocial.access community roles) as filterable fields; `search.Searcher` queries as the caller. Off unless `--meilisearch_url` is set. Tests use `HABITAT_TEST_MEILISEARCH_URL` if set, else testcontainers
 - `syntax` — Habitat-specific syntax types/parsers (Habitat URI, Space URI/Key, Clique ref) extending `atproto/syntax`
 - `perms` — wraps the fgastore and opensocial to query, update, and enforce permissions
 
@@ -119,6 +120,7 @@ golangci-lint run       # Go linting
 - `SAP_SECRET` — signing secret for the `sap` service
 - `HABITAT_OAUTH_SERVER_SECRET`, `HABITAT_OAUTH_CLIENT_SECRET`, `HABITAT_PDS_CRED_ENCRYPT_KEY` — OAuth/encryption secrets (generate with `cmd/keygen`)
 - `HABITAT_GOOGLE_CLIENT_ID` / `HABITAT_GOOGLE_CLIENT_SECRET` — Google Sign-In login method
+- `HABITAT_MEILISEARCH_URL` / `HABITAT_MEILISEARCH_API_KEY` — Meilisearch for space record search (`infra/docker-compose.yml` runs one on :7700); search is off when unset
 - `HABITAT_ADMIN_PASSWORD` — preset instance admin password (random + printed once if unset)
 
 ## Code conventions

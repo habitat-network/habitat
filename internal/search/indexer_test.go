@@ -302,7 +302,12 @@ func TestIndexerIndexesAccess(t *testing.T) {
 		it.idx.access(t, doc))
 
 	t.Run("a userRelation adds a reader", func(t *testing.T) {
-		_, err := it.perms.SetUserRelation(ctx, "did:plc:bob", space, habitat_syntax.SpaceRoleReader)
+		_, err := it.perms.SetUserRelation(
+			ctx,
+			"did:plc:bob",
+			space,
+			habitat_syntax.SpaceRoleReader,
+		)
 		require.NoError(t, err)
 		it.drain(ctx)
 		require.ElementsMatch(t, []syntax.DID{testOrg, "did:plc:bob"},
@@ -315,7 +320,12 @@ func TestIndexerIndexesAccess(t *testing.T) {
 		require.NoError(t, err)
 		it.drain(ctx)
 		// Joining the team gives read access to the space.
-		_, err = it.perms.SetUserRelation(ctx, "did:plc:carol", team, habitat_syntax.SpaceRoleWriter)
+		_, err = it.perms.SetUserRelation(
+			ctx,
+			"did:plc:carol",
+			team,
+			habitat_syntax.SpaceRoleWriter,
+		)
 		require.NoError(t, err)
 		it.drain(ctx)
 		require.ElementsMatch(t, []syntax.DID{testOrg, "did:plc:bob", "did:plc:carol"},

@@ -9,6 +9,15 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+  meilisearch:
+    image: getmeili/meilisearch:v1.54.0
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch_data:/meili_data
 
 volumes:
   postgres_data:
+  meilisearch_data:
