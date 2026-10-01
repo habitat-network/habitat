@@ -1,16 +1,5 @@
 {
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|resume",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "moon setup --log=error",
-            "timeout": 600
-          }
-        ]
-      }
-    ]
+    "SessionStart": []
   }
 }
