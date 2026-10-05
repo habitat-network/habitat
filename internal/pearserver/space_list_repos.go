@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -34,7 +36,16 @@ func (p *PearServer) ListRepos(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	repos, err := p.spacesStore.ListRepos(r.Context(), spaceURI)
+	var since syntax.TID
+	if params.Since != "" {
+		var err error
+		since, err = syntax.ParseTID(params.Since)
+		if err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "invalid since", err)
+			return
+		}
+	}
+	spaceRev, repos, err := p.spacesStore.ListReposSince(r.Context(), spaceURI, since)
 	if errors.Is(err, spaces.ErrSpaceNotFound) {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
@@ -51,6 +62,7 @@ func (p *PearServer) ListRepos(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListReposOutput{
-		Repos: repoViews,
+		Repos:    repoViews,
+		SpaceRev: spaceRev.String(),
 	})
 }

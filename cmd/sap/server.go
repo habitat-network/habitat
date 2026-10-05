@@ -324,6 +324,10 @@ func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 		Repo  string       `json:"repo"`
 		Rev   string       `json:"rev"`
 		Hash  atdata.Bytes `json:"hash"`
+		// SpaceRev and PrevSpaceRev are the space host's revision sequence;
+		// absent from hosts that predate it.
+		SpaceRev     string `json:"spaceRev"`
+		PrevSpaceRev string `json:"prevSpaceRev"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
@@ -344,7 +348,23 @@ func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.sap.NotifyWrite(r.Context(), spaceURI, repoDID, rev, req.Hash); err != nil {
+	var spaceRev, prevSpaceRev syntax.TID
+	if req.SpaceRev != "" {
+		if spaceRev, err = syntax.ParseTID(req.SpaceRev); err != nil {
+			http.Error(w, fmt.Sprintf("parse spaceRev: %s", err), http.StatusBadRequest)
+			return
+		}
+	}
+	if req.PrevSpaceRev != "" {
+		if prevSpaceRev, err = syntax.ParseTID(req.PrevSpaceRev); err != nil {
+			http.Error(w, fmt.Sprintf("parse prevSpaceRev: %s", err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	if err := s.sap.NotifyWrite(
+		r.Context(), spaceURI, repoDID, rev, req.Hash, spaceRev, prevSpaceRev,
+	); err != nil {
 		http.Error(w, fmt.Sprintf("notify write: %s", err), http.StatusInternalServerError)
 		return
 	}

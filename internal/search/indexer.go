@@ -138,6 +138,8 @@ func (x *Indexer) NotifyWrite(
 	repo syntax.DID,
 	_ syntax.TID,
 	_ []byte,
+	_ syntax.TID,
+	_ syntax.TID,
 ) {
 	x.enqueue(job{kind: jobIndexRepo, space: space, repo: repo})
 }

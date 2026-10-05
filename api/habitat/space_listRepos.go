@@ -11,13 +11,15 @@ import (
 type NetworkHabitatSpaceListReposParams struct {
 	Cursor string `json:"cursor,omitempty"`
 	Limit  int64  `json:"limit,omitempty"`
+	Since  string `json:"since,omitempty"`
 	Space  string `json:"space"`
 }
 
 // NetworkHabitatSpaceListReposOutput represents the output for network.habitat.space.listRepos
 type NetworkHabitatSpaceListReposOutput struct {
-	Cursor string                             `json:"cursor,omitempty"`
-	Repos  []NetworkHabitatSpaceListReposRepo `json:"repos"`
+	Cursor   string                             `json:"cursor,omitempty"`
+	Repos    []NetworkHabitatSpaceListReposRepo `json:"repos"`
+	SpaceRev string                             `json:"spaceRev,omitempty"`
 }
 
 // NetworkHabitatSpaceListReposRepo represents a repo object

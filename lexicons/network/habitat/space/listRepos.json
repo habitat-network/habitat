@@ -23,6 +23,11 @@
           },
           "cursor": {
             "type": "string"
+          },
+          "since": {
+            "type": "string",
+            "format": "tid",
+            "description": "Only return repos written at a space revision after this one. Lets a syncer that detected a gap in space revisions catch up without re-listing every repo."
           }
         }
       },
@@ -34,6 +39,11 @@
           "properties": {
             "cursor": {
               "type": "string"
+            },
+            "spaceRev": {
+              "type": "string",
+              "format": "tid",
+              "description": "The space's current revision. A syncer that has applied every repo returned here is caught up to this revision."
             },
             "repos": {
               "type": "array",

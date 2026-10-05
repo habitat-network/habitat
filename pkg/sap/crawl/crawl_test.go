@@ -111,6 +111,14 @@ func (r *recorder) Track(
 	return nil
 }
 
+func (r *recorder) RecordSpaceRev(
+	_ context.Context,
+	_ habitat_syntax.SpaceURI,
+	_ syntax.TID,
+) error {
+	return nil
+}
+
 func (r *recorder) Check(
 	_ context.Context,
 	_ habitat_syntax.SpaceURI,

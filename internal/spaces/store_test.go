@@ -1367,3 +1367,72 @@ func TestApplyWrites(t *testing.T) {
 		require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 	})
 }
+
+func TestSpaceRevSequencesWrites(t *testing.T) {
+	notifier := &notify_testutil.TestNotifier{}
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "seq")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	put := func(repo syntax.DID, rkey syntax.RecordKey) {
+		t.Helper()
+		_, _, err := s.PutRecord(t.Context(), uri, repo, coll, rkey,
+			spaces_testutil.MustMarshalRecord(t, map[string]any{"rkey": rkey}))
+		require.NoError(t, err)
+	}
+	put(owner, "a")
+	put(alice, "b")
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "a"))
+	require.NoError(t, s.RegisterRemoteWrite(t.Context(), uri, alice, "3lrev", []byte("d")))
+
+	// Each write advances the space revision, and names the revision it
+	// replaced as its previous one, so a receiver can spot a gap.
+	require.Len(t, notifier.Writes, 4)
+	require.Empty(t, notifier.Writes[0].PrevSpaceRev)
+	for i, w := range notifier.Writes {
+		require.NotEmpty(t, w.SpaceRev)
+		if i > 0 {
+			require.Equal(t, notifier.Writes[i-1].SpaceRev, w.PrevSpaceRev)
+			require.Greater(t, string(w.SpaceRev), string(w.PrevSpaceRev))
+		}
+	}
+
+	spaceRev, _, err := s.ListReposSince(t.Context(), uri, "")
+	require.NoError(t, err)
+	require.Equal(t, notifier.Writes[3].SpaceRev, spaceRev)
+}
+
+func TestListReposSince(t *testing.T) {
+	notifier := &notify_testutil.TestNotifier{}
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "since")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	for _, repo := range []syntax.DID{owner, alice} {
+		_, _, err := s.PutRecord(t.Context(), uri, repo, coll, "k",
+			spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}))
+		require.NoError(t, err)
+	}
+	afterBoth := notifier.Writes[1].SpaceRev
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k2",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 2}))
+	require.NoError(t, err)
+
+	// Only the repo written after the given revision comes back.
+	spaceRev, repos, err := s.ListReposSince(t.Context(), uri, afterBoth)
+	require.NoError(t, err)
+	require.Equal(t, notifier.Writes[2].SpaceRev, spaceRev)
+	require.Len(t, repos, 1)
+	require.Equal(t, owner, repos[0].DID)
+	require.Equal(t, spaceRev, repos[0].SpaceRev)
+
+	// At the current revision there is nothing new.
+	_, repos, err = s.ListReposSince(t.Context(), uri, spaceRev)
+	require.NoError(t, err)
+	require.Empty(t, repos)
+
+	_, _, err = s.ListReposSince(t.Context(), "at://did:plc:org/space/network.habitat.group/nope", "")
+	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
+}
