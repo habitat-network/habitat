@@ -1,6 +1,7 @@
 package authn_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,9 +12,17 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/did"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 )
+
+// fakeRevocations is an in-memory authn.RevocationChecker.
+type fakeRevocations map[string]bool
+
+func (f fakeRevocations) IsRevoked(_ context.Context, _ habitat_syntax.SpaceURI, jti string) (bool, error) {
+	return f[jti], nil
+}
 
 func newAuthenticatedRequest(token string) *http.Request {
 	r := httptest.NewRequest("GET", "/", http.NoBody)
@@ -28,7 +37,8 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 	dir.Insert(
 		*did.Web("pear.com").AtprotoKey(hostPubKey.Multibase()).ATProtoSpaceKey(hostPubKey.Multibase()).Build(),
 	)
-	method := authn.NewSpaceCredentialAuthMethod(dir)
+	revocations := fakeRevocations{}
+	method := authn.NewSpaceCredentialAuthMethod(dir, revocations)
 
 	t.Run("atproto_space", func(t *testing.T) {
 		token, err := utils.SpaceCredential(
@@ -102,5 +112,55 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 		credInfo, ok := method.Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
 		require.Nil(t, credInfo)
+	})
+
+	const space = "at://did:web:pear.com/space/com.test.space/abc"
+	claimsOf := func(t *testing.T, token string) jwt.MapClaims {
+		t.Helper()
+		claims := jwt.MapClaims{}
+		_, _, err := jwt.NewParser().ParseUnverified(token, claims)
+		require.NoError(t, err)
+		return claims
+	}
+
+	t.Run("expires in 10 minutes with a random jti", func(t *testing.T) {
+		a, err := utils.SpaceCredential(hostKey, "#atproto_space", space)
+		require.NoError(t, err)
+		b, err := utils.SpaceCredential(hostKey, "#atproto_space", space)
+		require.NoError(t, err)
+		ca, cb := claimsOf(t, a), claimsOf(t, b)
+		require.InDelta(t, ca["iat"], ca["exp"].(float64)-600, 0)
+		require.NotEmpty(t, ca["jti"])
+		require.NotEqual(t, ca["jti"], cb["jti"])
+	})
+
+	t.Run("rejects a revoked credential", func(t *testing.T) {
+		token, err := utils.SpaceCredential(hostKey, "#atproto_space", space)
+		require.NoError(t, err)
+		revocations[claimsOf(t, token)["jti"].(string)] = true
+		w := httptest.NewRecorder()
+		_, ok := method.Validate(w, newAuthenticatedRequest(token))
+		require.False(t, ok)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("still accepts an older one hour credential", func(t *testing.T) {
+		now := time.Now()
+		token, err := new(jwt.Token{
+			Method: jwt.GetSigningMethod("ES256K"),
+			Claims: jwt.MapClaims{
+				"iss": "did:web:pear.com",
+				"sub": space,
+				"iat": jwt.NewNumericDate(now),
+				"exp": jwt.NewNumericDate(now.Add(time.Hour)),
+				"jti": "legacy",
+			},
+			Header: map[string]any{
+				"typ": "atproto-space-credential+jwt", "kid": "#atproto_space", "alg": "ES256K",
+			},
+		}).SignedString(hostKey)
+		require.NoError(t, err)
+		_, ok := method.Validate(httptest.NewRecorder(), newAuthenticatedRequest(token))
+		require.True(t, ok)
 	})
 }

@@ -8,11 +8,13 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -233,4 +235,89 @@ func TestManagerAttachesClientAttestation(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, clientID, verifiedClientID)
+}
+
+// unsignedCred builds a credential whose exp the manager reads; the signature
+// is irrelevant because only the space host verifies it.
+func unsignedCred(t *testing.T, exp time.Time) string {
+	t.Helper()
+	tok, err := jwt.NewWithClaims(jwt.SigningMethodNone, jwt.MapClaims{"exp": exp.Unix()}).
+		SignedString(jwt.UnsafeAllowNoneSignatureType)
+	require.NoError(t, err)
+	return tok
+}
+
+// TestManagerRenewsShortLivedCredentials verifies the cache honors the
+// credential's own exp: one inside the renewal lead is re-minted.
+func TestManagerRenewsShortLivedCredentials(t *testing.T) {
+	var mu sync.Mutex
+	var credCalls int
+	var exp time.Time
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		credCalls++
+		e := exp
+		mu.Unlock()
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{
+			Credential: unsignedCred(t, e),
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	space := habitat_syntax.SpaceURI("at://did:web:org/space/network.habitat.group/s1")
+	m := NewManager(
+		dirWithSpaceHost("did:web:org", srv.URL), srv.Client(), stubDelegator{},
+		testAttester(t, "https://sap.example.com"),
+	)
+
+	exp = time.Now().Add(10 * time.Minute)
+	credToken(t, m, space)
+	credToken(t, m, space)
+	require.Equal(t, 1, credCalls, "a fresh 10 minute credential is cached")
+
+	exp = time.Now().Add(time.Minute)
+	m.DropSpace(space)
+	credToken(t, m, space)
+	credToken(t, m, space)
+	require.Equal(t, 3, credCalls, "a credential inside the renewal lead is re-minted")
+}
+
+// TestManagerRefetchesRejectedCredential verifies a space host's 401 (expired
+// or revoked credential) triggers one re-fetch and retry.
+func TestManagerRefetchesRejectedCredential(t *testing.T) {
+	var mu sync.Mutex
+	var minted int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch r.URL.Path {
+		case "/xrpc/network.habitat.space.getSpaceCredential":
+			minted++
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{
+				Credential: unsignedCred(t, time.Now().Add(10*time.Minute).Add(time.Duration(minted)*time.Second)),
+			})
+		case "/xrpc/network.habitat.space.listRepos":
+			// Only the second credential is accepted; the first is "revoked".
+			if minted < 2 {
+				http.Error(w, `{"error":"InvalidToken"}`, http.StatusUnauthorized)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{})
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	space := habitat_syntax.SpaceURI("at://did:web:org/space/network.habitat.group/s1")
+	m := NewManager(
+		dirWithSpaceHost("did:web:org", srv.URL), srv.Client(), stubDelegator{},
+		testAttester(t, "https://sap.example.com"),
+	)
+	client, err := m.ClientForSpace(t.Context(), space)
+	require.NoError(t, err)
+	var out habitat.NetworkHabitatSpaceListReposOutput
+	require.NoError(t, client.Get(
+		t.Context(), "network.habitat.space.listRepos",
+		map[string]any{"space": space.String()}, &out,
+	))
+	require.Equal(t, 2, minted)
 }

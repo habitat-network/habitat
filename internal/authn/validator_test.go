@@ -17,6 +17,7 @@ import (
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/revocation"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -63,7 +64,7 @@ func TestValidator(t *testing.T) {
 	v := authn.NewValidator(
 		oauth,
 		nil,
-		authn.NewSpaceCredentialAuthMethod(dir),
+		authn.NewSpaceCredentialAuthMethod(dir, revocation.NewStore(db)),
 		authn.NewDelegationTokenAuthMethod(dir, ps, hostKey),
 		ps,
 	)
