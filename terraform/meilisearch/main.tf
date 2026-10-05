@@ -3,8 +3,8 @@
 // unsuitable: Meilisearch keeps an LMDB index on local disk that must survive restarts.
 //
 // The VM has no public IP. pear (Cloud Run) reaches it over the default VPC via Direct
-// VPC egress; that wiring lives on the pear service, which is not managed here (see README
-// comments at the bottom of this file).
+// VPC egress; that wiring lives on the pear service in ../pear, which reads
+// `meilisearch_url` from this config's state.
 
 terraform {
   required_version = ">= 1.6"
@@ -121,6 +121,18 @@ resource "google_compute_router_nat" "meilisearch" {
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
 }
 
+// COS only ships container logs to Cloud Logging when the VM has a service account that can write them.
+resource "google_service_account" "meilisearch" {
+  account_id   = "meilisearch-vm"
+  display_name = "Meilisearch VM"
+}
+
+resource "google_project_iam_member" "meilisearch_log_writer" {
+  project = var.project
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.meilisearch.email}"
+}
+
 resource "google_compute_instance" "meilisearch" {
   name         = "meilisearch"
   machine_type = "e2-small"
@@ -145,8 +157,14 @@ resource "google_compute_instance" "meilisearch" {
     // No access_config block: internal IP only.
   }
 
+  service_account {
+    email  = google_service_account.meilisearch.email
+    scopes = ["cloud-platform"] // access is limited by the account's IAM roles instead
+  }
+
   metadata = {
-    user-data = <<-EOT
+    google-logging-enabled = "true"
+    user-data              = <<-EOT
       #cloud-config
       write_files:
         - path: /etc/meilisearch.env
@@ -198,9 +216,3 @@ resource "google_compute_instance" "meilisearch" {
 output "meilisearch_url" {
   value = "http://${google_compute_instance.meilisearch.network_interface[0].network_ip}:7700"
 }
-
-// To point pear at it (pear is deployed by Cloud Build, which only passes --image, so this sticks):
-//   gcloud run services update pear --region=us-west1 \
-//     --network=default --subnet=default --vpc-egress=private-ranges-only \
-//     --set-env-vars=HABITAT_MEILISEARCH_URL=$(terraform output -raw meilisearch_url) \
-//     --set-secrets=HABITAT_MEILISEARCH_API_KEY=habitat-meilisearch-key:latest

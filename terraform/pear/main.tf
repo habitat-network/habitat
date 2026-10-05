@@ -33,6 +33,15 @@ variable "region" {
   default = "us-west1"
 }
 
+// Meilisearch's VM address comes from ../meilisearch; apply that first.
+data "terraform_remote_state" "meilisearch" {
+  backend = "gcs"
+  config = {
+    bucket = "virtual-charger-477003-g0-tfstate"
+    prefix = "meilisearch"
+  }
+}
+
 locals {
   cloudsql_instance = "virtual-charger-477003-g0:us-west1:pear-db-usw1"
 
@@ -45,6 +54,7 @@ locals {
     HABITAT_SPACE_SIGNING_KEY    = "habitat-space-signing-key"
     HABITAT_NANGO_SECRET_KEY     = "habitat-nango-secret-key"
     OTEL_EXPORTER_OTLP_HEADERS   = "habitat-otlp-headers"
+    HABITAT_MEILISEARCH_API_KEY  = "habitat-meilisearch-key"
   }
 
   plain_env = {
@@ -53,6 +63,7 @@ locals {
     HABITAT_BLOB_BUCKET         = "gs://pear-blobs"
     HABITAT_GOOGLE_CLIENT_ID    = "953995456319-667186r9ng84t5m4ibdne3380idub1ha.apps.googleusercontent.com"
     OTEL_EXPORTER_OTLP_ENDPOINT = "https://otlp-gateway-prod-us-west-0.grafana.net/otlp"
+    HABITAT_MEILISEARCH_URL     = data.terraform_remote_state.meilisearch.outputs.meilisearch_url
   }
 }
 
@@ -73,6 +84,16 @@ resource "google_cloud_run_v2_service" "pear" {
     timeout                          = "300s"
     max_instance_request_concurrency = 80
     session_affinity                 = false
+
+    // Direct VPC egress so pear can reach the internal-only Meilisearch VM. Only private
+    // ranges go through the VPC; public traffic (PDSes, OTLP, Google) egresses directly.
+    vpc_access {
+      network_interfaces {
+        network    = "default"
+        subnetwork = "default"
+      }
+      egress = "PRIVATE_RANGES_ONLY"
+    }
 
     scaling {
       min_instance_count = 0
