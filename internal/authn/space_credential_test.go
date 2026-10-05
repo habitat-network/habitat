@@ -20,7 +20,11 @@ import (
 // fakeRevocations is an in-memory authn.RevocationChecker.
 type fakeRevocations map[string]bool
 
-func (f fakeRevocations) IsRevoked(_ context.Context, _ habitat_syntax.SpaceURI, jti string) (bool, error) {
+func (f fakeRevocations) IsRevoked(
+	_ context.Context,
+	_ habitat_syntax.SpaceURI,
+	jti string,
+) (bool, error) {
 	return f[jti], nil
 }
 

@@ -294,7 +294,10 @@ func TestManagerRefetchesRejectedCredential(t *testing.T) {
 		case "/xrpc/network.habitat.space.getSpaceCredential":
 			minted++
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{
-				Credential: unsignedCred(t, time.Now().Add(10*time.Minute).Add(time.Duration(minted)*time.Second)),
+				Credential: unsignedCred(
+					t,
+					time.Now().Add(10*time.Minute).Add(time.Duration(minted)*time.Second),
+				),
 			})
 		case "/xrpc/network.habitat.space.listRepos":
 			// Only the second credential is accepted; the first is "revoked".
