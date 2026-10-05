@@ -17,6 +17,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
+	"github.com/habitat-network/habitat/internal/httpsig"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -33,7 +34,7 @@ func credToken(t *testing.T, m *Manager, space habitat_syntax.SpaceURI) string {
 	t.Helper()
 	client, err := m.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
-	return strings.TrimPrefix(client.Headers.Get("Authorization"), "Bearer ")
+	return strings.TrimPrefix(client.Headers.Get("Authorization"), "Atproto-Space ")
 }
 
 // dirWithSpaceHost builds an identity.MockDirectory with a single identity
@@ -114,7 +115,7 @@ func TestManagerMintsCachesAndAuthenticates(t *testing.T) {
 		&out,
 	))
 	mu.Lock()
-	require.Equal(t, "Bearer space-cred", repoAuth)
+	require.Equal(t, "Atproto-Space space-cred", repoAuth)
 	require.Equal(t, 1, repoRevCalls)
 	mu.Unlock()
 
@@ -233,4 +234,57 @@ func TestManagerAttachesClientAttestation(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, clientID, verifiedClientID)
+}
+
+// TestManagerSignsRequestsWithBindingKey checks that the credential exchange
+// and credential use are both RFC 9421-signed by the same P-256 key, and that
+// the unbound Credential path sends no signature.
+func TestManagerSignsRequestsWithBindingKey(t *testing.T) {
+	var mintSigner, useSigner string
+	var unboundSigned bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/xrpc/network.habitat.space.getSpaceCredential":
+			if httpsig.HasSignature(r) {
+				signer, err := httpsig.Verify(r, "authorization")
+				require.NoError(t, err)
+				mintSigner = signer
+			} else {
+				unboundSigned = true
+			}
+			_ = json.NewEncoder(w).Encode(
+				habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: "space-cred"})
+		case "/xrpc/network.habitat.space.listRepos":
+			signer, err := httpsig.Verify(r, "authorization", "atproto-space-audience")
+			require.NoError(t, err)
+			useSigner = signer
+			require.Equal(t, "did:web:org", r.Header.Get(httpsig.AudienceHeader))
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{})
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	owner := syntax.DID("did:web:org")
+	space := habitat_syntax.SpaceURI("at://did:web:org/space/network.habitat.group/s1")
+	m := NewManager(
+		dirWithSpaceHost(owner, srv.URL), srv.Client(), stubDelegator{},
+		testAttester(t, "https://sap.example.com"),
+	)
+
+	// Unbound credential: no signature on the exchange.
+	_, err := m.Credential(t.Context(), space)
+	require.NoError(t, err)
+	require.True(t, unboundSigned)
+
+	client, err := m.ClientForSpace(t.Context(), space)
+	require.NoError(t, err)
+	var out habitat.NetworkHabitatSpaceListReposOutput
+	require.NoError(t, client.Get(
+		t.Context(), "network.habitat.space.listRepos",
+		map[string]any{"space": space.String()}, &out,
+	))
+	require.NotEmpty(t, mintSigner)
+	require.Equal(t, mintSigner, useSigner)
 }
