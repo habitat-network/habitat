@@ -91,7 +91,11 @@ func Verify(r *http.Request, components ...string) (string, error) {
 	}
 	covered := strings.ReplaceAll(m[1], `"`, "")
 	if covered != strings.Join(components, " ") {
-		return "", fmt.Errorf("%w: signature must cover exactly %v", ErrInvalidSignature, components)
+		return "", fmt.Errorf(
+			"%w: signature must cover exactly %v",
+			ErrInvalidSignature,
+			components,
+		)
 	}
 	didKey := m[2]
 	if !strings.HasPrefix(didKey, p256DIDKeyPrefix) {
