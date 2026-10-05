@@ -269,7 +269,10 @@ func TestEngineNotifyWriteAlreadyBehindHash(t *testing.T) {
 		Updates(map[string]any{"state": stateActive, "rev": "aaa"}).Error)
 
 	notifyHash := []byte{0x01, 0x02}
-	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:alice", "aaa", notifyHash, "", ""))
+	require.NoError(
+		t,
+		e.NotifyWrite(t.Context(), space, "did:plc:alice", "aaa", notifyHash, "", ""),
+	)
 
 	var r repo
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
@@ -1435,7 +1438,10 @@ func TestEngineObserveSpaceRev(t *testing.T) {
 	}
 	notify := func(spaceRev, prev syntax.TID) {
 		t.Helper()
-		require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:a", "aaa", nil, spaceRev, prev))
+		require.NoError(
+			t,
+			e.NotifyWrite(t.Context(), space, "did:plc:a", "aaa", nil, spaceRev, prev),
+		)
 	}
 
 	// The space's first write has nothing before it, so there is no gap.

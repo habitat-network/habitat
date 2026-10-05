@@ -1433,6 +1433,10 @@ func TestListReposSince(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, repos)
 
-	_, _, err = s.ListReposSince(t.Context(), "at://did:plc:org/space/network.habitat.group/nope", "")
+	_, _, err = s.ListReposSince(
+		t.Context(),
+		"at://did:plc:org/space/network.habitat.group/nope",
+		"",
+	)
 	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }

@@ -59,7 +59,15 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 
 	signer := &fakeSigner{t: t}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02}, "3lspacerev2", "3lspacerev1")
+	notifier.NotifyWrite(
+		t.Context(),
+		space,
+		repo,
+		"3lrev",
+		[]byte{0x01, 0x02},
+		"3lspacerev2",
+		"3lspacerev1",
+	)
 
 	for range 2 {
 		select {
@@ -113,7 +121,15 @@ func TestNotifierNoRegistrations(t *testing.T) {
 	notifier := NewNotifier(s, http.DefaultClient, signer)
 
 	// With no registrations, neither path should sign or deliver anything.
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02}, "3lspacerev2", "3lspacerev1")
+	notifier.NotifyWrite(
+		t.Context(),
+		space,
+		repo,
+		"3lrev",
+		[]byte{0x01, 0x02},
+		"3lspacerev2",
+		"3lspacerev1",
+	)
 	notifier.NotifySpaceDeleted(t.Context(), space)
 }
 
@@ -132,7 +148,15 @@ func TestNotifierSignerErrorAbortsDelivery(t *testing.T) {
 
 	signer := &fakeSigner{err: errSign}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02}, "3lspacerev2", "3lspacerev1")
+	notifier.NotifyWrite(
+		t.Context(),
+		space,
+		repo,
+		"3lrev",
+		[]byte{0x01, 0x02},
+		"3lspacerev2",
+		"3lspacerev1",
+	)
 
 	select {
 	case <-delivered:
@@ -158,7 +182,15 @@ func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
 	)
 
 	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{t: t})
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02}, "3lspacerev2", "3lspacerev1")
+	notifier.NotifyWrite(
+		t.Context(),
+		space,
+		repo,
+		"3lrev",
+		[]byte{0x01, 0x02},
+		"3lspacerev2",
+		"3lspacerev1",
+	)
 
 	select {
 	case <-delivered:
