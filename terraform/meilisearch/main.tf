@@ -105,6 +105,22 @@ resource "google_compute_firewall" "meilisearch" {
   }
 }
 
+// The VM has no external IP, so it needs Cloud NAT to pull the image from Docker Hub.
+// NAT is outbound-only; the VM stays unreachable from the internet.
+resource "google_compute_router" "meilisearch" {
+  name    = "meilisearch-router"
+  network = "default"
+  region  = var.region
+}
+
+resource "google_compute_router_nat" "meilisearch" {
+  name                               = "meilisearch-nat"
+  router                             = google_compute_router.meilisearch.name
+  region                             = var.region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+}
+
 resource "google_compute_instance" "meilisearch" {
   name         = "meilisearch"
   machine_type = "e2-small"
@@ -172,6 +188,11 @@ resource "google_compute_instance" "meilisearch" {
 
   // COS images are replaced, not patched in place; changing user-data requires a restart anyway.
   allow_stopping_for_update = true
+
+  // `gcloud compute ssh` adds keys to instance metadata; don't strip them on apply.
+  lifecycle {
+    ignore_changes = [metadata["ssh-keys"]]
+  }
 }
 
 output "meilisearch_url" {
