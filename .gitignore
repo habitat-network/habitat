@@ -66,3 +66,6 @@ cmd/pear/repo.db
 
 # UI MCP
 .playwright-mcp/
+# Terraform
+**/.terraform/
+*.tfstate*
