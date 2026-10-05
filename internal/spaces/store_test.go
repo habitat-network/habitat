@@ -1006,6 +1006,94 @@ func TestDeleteSpaceTriggersNotify(t *testing.T) {
 	require.Equal(t, []habitat_syntax.SpaceURI{uri}, notifier.Deleted)
 }
 
+func TestDeleteRecordTriggersNotify(t *testing.T) {
+	notifier := &notify_testutil.TestNotifier{}
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "notify-space")
+	require.NoError(t, err)
+	coll := syntax.NSID("network.habitat.note")
+	for _, rkey := range []syntax.RecordKey{"k1", "k2"} {
+		_, _, err = s.PutRecord(t.Context(), uri, owner, coll, rkey,
+			spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}))
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))
+	require.Len(t, notifier.Writes, 3)
+	rev, hash, found, err := s.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, rev, notifier.Writes[2].Rev.String())
+	require.Equal(t, hash, notifier.Writes[2].Hash)
+
+	// Deleting the last record still notifies, though the repo has no head.
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k2"))
+	require.Len(t, notifier.Writes, 4)
+	require.Greater(t, notifier.Writes[3].Rev.String(), rev)
+
+	// Deleting a record that doesn't exist changes nothing, so doesn't notify.
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "missing"))
+	require.Len(t, notifier.Writes, 4)
+}
+
+func TestNotifiersNotifiesEach(t *testing.T) {
+	a, b := &notify_testutil.TestNotifier{}, &notify_testutil.TestNotifier{}
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(spaces.Notifiers{a, b}))
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "fanout")
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(t.Context(), uri, owner, "network.habitat.note", "k1",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}))
+	require.NoError(t, err)
+	require.NoError(t, s.DeleteSpace(t.Context(), uri))
+
+	for _, n := range []*notify_testutil.TestNotifier{a, b} {
+		require.Len(t, n.Writes, 1)
+		require.Equal(t, []habitat_syntax.SpaceURI{uri}, n.Deleted)
+	}
+}
+
+func TestListRepoHeadsCountsDeletions(t *testing.T) {
+	notifier := &notify_testutil.TestNotifier{}
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithNotifier(notifier))
+
+	heads, err := s.ListRepoHeads(t.Context())
+	require.NoError(t, err)
+	require.Empty(t, heads)
+
+	a, err := s.CreateSpace(t.Context(), orgID, groupType, "a")
+	require.NoError(t, err)
+	b, err := s.CreateSpace(t.Context(), orgID, groupType, "b")
+	require.NoError(t, err)
+	coll := syntax.NSID("network.habitat.note")
+	put := func(space habitat_syntax.SpaceURI, repo syntax.DID, rkey syntax.RecordKey) {
+		t.Helper()
+		_, _, err := s.PutRecord(t.Context(), space, repo, coll, rkey,
+			spaces_testutil.MustMarshalRecord(t, map[string]any{"rkey": rkey}))
+		require.NoError(t, err)
+	}
+	put(a, owner, "k1")
+	put(a, owner, "k2")
+	put(a, alice, "k1")
+	put(b, owner, "k1")
+	// Alice's only record in a is deleted: her repo has no head, but the
+	// deletion is still the latest revision to sync.
+	require.NoError(t, s.DeleteRecord(t.Context(), a, alice, coll, "k1"))
+
+	heads, err = s.ListRepoHeads(t.Context())
+	require.NoError(t, err)
+	// Each repo's head is the revision it was last notified at.
+	latest := map[spaces.RepoHead]syntax.TID{}
+	for _, w := range notifier.Writes {
+		latest[spaces.RepoHead{Space: w.Space, Repo: w.Repo}] = w.Rev
+	}
+	require.Len(t, heads, len(latest))
+	for _, h := range heads {
+		require.Equal(t, latest[spaces.RepoHead{Space: h.Space, Repo: h.Repo}], h.Rev, h)
+	}
+}
+
 // TestListRepoOpsPrev tracks the previous cid of each op so a syncer can fold
 // the prior element out of its LtHash on updates and deletes.
 func TestListRepoOpsPrev(t *testing.T) {
