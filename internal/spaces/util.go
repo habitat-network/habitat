@@ -52,24 +52,16 @@ func cborToJSON(value []byte) (datatypes.JSON, error) {
 	return datatypes.JSON(out), nil
 }
 
-// decode returns the record's value, read from the JSON column. Rows with no
-// JSON (written by a binary that predates the column, after the backfill ran)
-// fall back to the CBOR value.
+// decode returns the record's value, read from the JSON column.
 func (r spaceRecord) decode() (map[string]any, error) {
-	if r.noJSON() {
-		return atdata.UnmarshalCBOR(r.Value)
-	}
 	return atdata.UnmarshalJSON(r.ValueJSON)
 }
 
-// cbor returns the record's DAG-CBOR block bytes. When they are rebuilt from
-// the JSON column the result must hash to the record's stored CID, since the
-// CID commits to those exact bytes.
+// cbor returns the record's DAG-CBOR block bytes, rebuilt from the JSON
+// column. The result must hash to the record's stored CID, since the CID
+// commits to those exact bytes.
 func (r spaceRecord) cbor() ([]byte, error) {
-	if r.noJSON() {
-		return r.Value, nil
-	}
-	record, err := atdata.UnmarshalJSON(r.ValueJSON)
+	record, err := r.decode()
 	if err != nil {
 		return nil, fmt.Errorf("decode record json: %w", err)
 	}
@@ -85,11 +77,4 @@ func (r spaceRecord) cbor() ([]byte, error) {
 		return nil, fmt.Errorf("record json re-encodes to cid %s, want %s", got, r.Cid)
 	}
 	return raw, nil
-}
-
-// noJSON reports whether the row has no JSON value. datatypes.JSON scans a
-// NULL column as the JSON text "null"; a record is always an object, so that
-// can only mean NULL.
-func (r spaceRecord) noJSON() bool {
-	return len(r.ValueJSON) == 0 || string(r.ValueJSON) == "null"
 }
