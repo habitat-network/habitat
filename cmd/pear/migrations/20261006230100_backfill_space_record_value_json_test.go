@@ -16,7 +16,12 @@ import (
 )
 
 func TestBackfillSpaceRecordValueJSONSqlite(t *testing.T) {
-	requireBackfill(t, newDB(t, "sqlite://"+t.TempDir()+"/test.db"), "text", "json_extract(value_json, '$.text')")
+	requireBackfill(
+		t,
+		newDB(t, "sqlite://"+t.TempDir()+"/test.db"),
+		"text",
+		"json_extract(value_json, '$.text')",
+	)
 }
 
 func TestBackfillSpaceRecordValueJSONPostgres(t *testing.T) {
@@ -59,11 +64,21 @@ func requireBackfill(t *testing.T, sqlDB *sql.DB, jsonType, textExpr string) {
 		if deleted {
 			deletedAt = time.Now()
 		}
-		_, err := sqlDB.ExecContext(ctx,
+		_, err := sqlDB.ExecContext(
+			ctx,
 			"INSERT INTO space_records (space, repo, collection, rkey, value, value_json, deleted_at) "+
-				"VALUES ("+placeholders(postgres, 7)+")",
-			"at://did:plc:o/space/t/k", "did:plc:r", "network.habitat.note", rkey,
-			value, valueJSON, deletedAt)
+				"VALUES ("+placeholders(
+				postgres,
+				7,
+			)+")",
+			"at://did:plc:o/space/t/k",
+			"did:plc:r",
+			"network.habitat.note",
+			rkey,
+			value,
+			valueJSON,
+			deletedAt,
+		)
 		require.NoError(t, err, rkey)
 	}
 	cbor := func(text string) []byte {
