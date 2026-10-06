@@ -11,7 +11,7 @@ import {
   hasOpensocialAction,
 } from "@/lib/opensocialActions";
 
-export const Route = createFileRoute("/_requireAuth/opensocial/$org/mcp")({
+export const Route = createFileRoute("/_requireAuth/orgs/$org/settings/mcp")({
   loader: ({ context, params }) =>
     Promise.all([
       context.queryClient.ensureQueryData(

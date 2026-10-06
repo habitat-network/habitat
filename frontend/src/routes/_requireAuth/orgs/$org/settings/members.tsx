@@ -21,7 +21,9 @@ import {
   TableRow,
 } from "internal/components/ui";
 
-export const Route = createFileRoute("/_requireAuth/opensocial/$org/members")({
+export const Route = createFileRoute(
+  "/_requireAuth/orgs/$org/settings/members",
+)({
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(
       orgMembersQueryOptions(

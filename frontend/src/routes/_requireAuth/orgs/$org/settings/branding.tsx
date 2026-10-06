@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { orgProfileQueryOptions } from "@/queries/opensocial";
 import { OrgProfileForm } from "@/components/OrgProfileForm";
 
-export const Route = createFileRoute("/_requireAuth/opensocial/$org/settings")({
+export const Route = createFileRoute(
+  "/_requireAuth/orgs/$org/settings/branding",
+)({
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(
       orgProfileQueryOptions(

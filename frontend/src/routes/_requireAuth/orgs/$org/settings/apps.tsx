@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "internal/components/ui";
 
-export const Route = createFileRoute("/_requireAuth/opensocial/$org/apps")({
+export const Route = createFileRoute("/_requireAuth/orgs/$org/settings/apps")({
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(
       orgAppAccessQueryOptions(
@@ -46,7 +46,7 @@ function OrgApps() {
             <TableRow key={app.clientId}>
               <TableCell className="font-mono text-xs break-all">
                 <Link
-                  to="/opensocial/$org/app/$clientKey"
+                  to="/orgs/$org/settings/app/$clientKey"
                   params={{ org, clientKey: app.rkey }}
                   className="hover:underline"
                 >

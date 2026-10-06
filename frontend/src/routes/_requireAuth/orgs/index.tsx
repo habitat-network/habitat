@@ -8,7 +8,7 @@ import { PendingInvites } from "@/components/PendingInvites";
 import { CreateOrgDialog } from "@/components/CreateOrgDialog";
 import { Card, CardContent, ItemGroup } from "internal/components/ui";
 
-export const Route = createFileRoute("/_requireAuth/opensocial/")({
+export const Route = createFileRoute("/_requireAuth/orgs/")({
   loader: async ({ context }) => {
     const { authManager, queryClient } = context;
     const [orgs, invites] = await Promise.all([

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { orgRolesQueryOptions } from "@/queries/opensocial";
 import { RolesEditor } from "@/components/RolesEditor";
 
-export const Route = createFileRoute("/_requireAuth/opensocial/$org/roles")({
+export const Route = createFileRoute("/_requireAuth/orgs/$org/settings/roles")({
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(
       orgRolesQueryOptions(

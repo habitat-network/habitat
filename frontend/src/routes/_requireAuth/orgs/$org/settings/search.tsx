@@ -11,17 +11,19 @@ import {
   hasOpensocialAction,
 } from "@/lib/opensocialActions";
 
-export const Route = createFileRoute("/_requireAuth/opensocial/$org/search")({
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(
-      orgPermissionsQueryOptions(
-        params.org,
-        context.authManager,
-        context.queryClient,
+export const Route = createFileRoute("/_requireAuth/orgs/$org/settings/search")(
+  {
+    loader: ({ context, params }) =>
+      context.queryClient.ensureQueryData(
+        orgPermissionsQueryOptions(
+          params.org,
+          context.authManager,
+          context.queryClient,
+        ),
       ),
-    ),
-  component: OrgSearch,
-});
+    component: OrgSearch,
+  },
+);
 
 function OrgSearch() {
   const { org } = Route.useParams();

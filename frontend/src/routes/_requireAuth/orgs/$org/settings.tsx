@@ -24,7 +24,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "internal/components/ui";
-import { ensureValidDid } from "@atproto/syntax";
 import {
   UsersIcon,
   ShieldIcon,
@@ -35,13 +34,7 @@ import {
   SearchIcon,
 } from "lucide-react";
 
-export const Route = createFileRoute("/_requireAuth/opensocial/$org")({
-  params: {
-    parse: ({ org }) => {
-      ensureValidDid(org);
-      return { org };
-    },
-  },
+export const Route = createFileRoute("/_requireAuth/orgs/$org/settings")({
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(
       orgMembersQueryOptions(
@@ -55,27 +48,27 @@ export const Route = createFileRoute("/_requireAuth/opensocial/$org")({
 
 const NAV_ITEMS: {
   to:
-    | "/opensocial/$org/members"
-    | "/opensocial/$org/roles"
-    | "/opensocial/$org/capabilities"
-    | "/opensocial/$org/apps"
-    | "/opensocial/$org/mcp"
-    | "/opensocial/$org/search"
-    | "/opensocial/$org/settings";
+    | "/orgs/$org/settings/members"
+    | "/orgs/$org/settings/roles"
+    | "/orgs/$org/settings/capabilities"
+    | "/orgs/$org/settings/apps"
+    | "/orgs/$org/settings/mcp"
+    | "/orgs/$org/settings/search"
+    | "/orgs/$org/settings/branding";
   label: string;
   icon: typeof UsersIcon;
 }[] = [
-  { to: "/opensocial/$org/members", label: "Members", icon: UsersIcon },
-  { to: "/opensocial/$org/roles", label: "Roles", icon: ShieldIcon },
+  { to: "/orgs/$org/settings/members", label: "Members", icon: UsersIcon },
+  { to: "/orgs/$org/settings/roles", label: "Roles", icon: ShieldIcon },
   {
-    to: "/opensocial/$org/capabilities",
+    to: "/orgs/$org/settings/capabilities",
     label: "Capabilities",
     icon: KeyRoundIcon,
   },
-  { to: "/opensocial/$org/apps", label: "Authorized apps", icon: PlugIcon },
-  { to: "/opensocial/$org/mcp", label: "MCP servers", icon: ServerIcon },
-  { to: "/opensocial/$org/search", label: "Search", icon: SearchIcon },
-  { to: "/opensocial/$org/settings", label: "Branding", icon: PaletteIcon },
+  { to: "/orgs/$org/settings/apps", label: "Authorized apps", icon: PlugIcon },
+  { to: "/orgs/$org/settings/mcp", label: "MCP servers", icon: ServerIcon },
+  { to: "/orgs/$org/settings/search", label: "Search", icon: SearchIcon },
+  { to: "/orgs/$org/settings/branding", label: "Branding", icon: PaletteIcon },
 ];
 
 function OrgLayout() {
@@ -98,7 +91,7 @@ function OrgLayout() {
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg" render={<Link to="/opensocial" />}>
+              <SidebarMenuButton size="lg" render={<Link to="/orgs" />}>
                 <OrgAvatar
                   did={org}
                   name={profile?.name}
@@ -111,7 +104,7 @@ function OrgLayout() {
                     )}
                   </span>
                   <span className="truncate text-xs text-muted-foreground">
-                    All organizations
+                    Settings
                   </span>
                 </div>
               </SidebarMenuButton>
