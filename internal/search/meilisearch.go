@@ -44,10 +44,13 @@ type meiliDoc struct {
 	ID    string `json:"id"`
 	URI   string `json:"uri"`
 	Space string `json:"space"`
-	// SpaceOwner is the DID owning Space, which collection scopes are keyed
-	// by. Documents indexed before it existed lack it until they are
-	// reindexed, so they match only the default collections.
+	// SpaceOwner, SpaceType and SpaceKey are the parts of Space. Collection
+	// scopes are keyed by SpaceOwner. Documents indexed before these existed
+	// lack them until they are reindexed, so they match only the default
+	// collections.
 	SpaceOwner string `json:"space_owner"`
+	SpaceType  string `json:"space_type"`
+	SpaceKey   string `json:"space_key"`
 	Repo       string `json:"repo"`
 	Collection string `json:"collection"`
 	Rev        string `json:"rev"`
@@ -114,7 +117,7 @@ func NewMeilisearch(ctx context.Context, host, apiKey, uid string) (*Meilisearch
 		// query, so allow far more owners than Meilisearch's default 100.
 		Faceting: &meilisearch.Faceting{MaxValuesPerFacet: maxSpaceOwners},
 		FilterableAttributes: []string{
-			"space", "space_owner", "repo", "collection",
+			"space", "space_owner", "space_type", "space_key", "repo", "collection",
 			"user_readers", "community_role_readers", "public",
 		},
 	}); err != nil {
@@ -197,6 +200,8 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 			URI:         d.URI.String(),
 			Space:       d.Space.String(),
 			SpaceOwner:  d.Space.SpaceOwner().String(),
+			SpaceType:   d.Space.SpaceType().String(),
+			SpaceKey:    d.Space.Skey().String(),
 			Repo:        d.Repo.String(),
 			Collection:  d.Collection.String(),
 			Rev:         d.Rev.String(),
