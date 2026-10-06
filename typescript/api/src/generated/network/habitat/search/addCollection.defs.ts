@@ -17,16 +17,6 @@ export type $Params = l.InferOutput<typeof $params>
 export const $input = /*#__PURE__*/ l.jsonPayload({
   org: /*#__PURE__*/ l.string({ format: 'did' }),
   collection: /*#__PURE__*/ l.string({ format: 'nsid' }),
-  crawlableFields: /*#__PURE__*/ l.optional(
-    /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ maxLength: 256 }), {
-      maxLength: 100,
-    }),
-  ),
-  filterableFields: /*#__PURE__*/ l.optional(
-    /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ maxLength: 256 }), {
-      maxLength: 100,
-    }),
-  ),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
@@ -40,7 +30,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Surface a collection in search results for spaces the org owns, by writing its search config record. Adding a collection that is already configured replaces its config. Requires service-auth. Requires the community.configure action. */
+/** Surface a collection in search results for the org, by writing its search config record. Adding a collection that is already configured succeeds without change. Requires service-auth. Requires the community.configure action. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }

@@ -7,9 +7,7 @@
       "description": "List the collections an org surfaces in search results: those its admins configured, and the defaults every org includes. Requires service-auth. Requires the community.configure action.",
       "parameters": {
         "type": "params",
-        "required": [
-          "org"
-        ],
+        "required": ["org"],
         "properties": {
           "org": {
             "type": "string",
@@ -22,18 +20,15 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": [
-            "collections",
-            "defaults"
-          ],
+          "required": ["collections", "defaults"],
           "properties": {
             "collections": {
               "type": "array",
               "items": {
-                "type": "ref",
-                "ref": "#collection"
+                "type": "string",
+                "format": "nsid"
               },
-              "description": "Collections the org's admins configured."
+              "description": "Collections the org's admins added."
             },
             "defaults": {
               "type": "array",
@@ -44,32 +39,6 @@
               "description": "Collections always included in search results, whatever the org configures."
             }
           }
-        }
-      }
-    },
-    "collection": {
-      "type": "object",
-      "required": [
-        "collection"
-      ],
-      "properties": {
-        "collection": {
-          "type": "string",
-          "format": "nsid"
-        },
-        "crawlableFields": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "See network.habitat.search.config."
-        },
-        "filterableFields": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "See network.habitat.search.config."
         }
       }
     }

@@ -10,39 +10,19 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-/** Declares how one collection is searched for an org. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not surfaced in search, unless it is a default collection. */
+/** Surfaces one collection in search results for an org. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not surfaced in search, unless it is a default collection. */
 type Main = {
   $type: 'network.habitat.search.config'
-
-  /**
-   * Paths of the record fields whose text is indexed, with dots for nested fields (e.g. `body.text`). Absent or empty means every text field.
-   */
-  crawlableFields?: string[]
-
-  /**
-   * Paths of the record fields a search may filter on. Absent or empty means none.
-   */
-  filterableFields?: string[]
   updatedAt: l.DatetimeString
 }
 
 export type { Main }
 
-/** Declares how one collection is searched for an org. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not surfaced in search, unless it is a default collection. */
+/** Surfaces one collection in search results for an org. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not surfaced in search, unless it is a default collection. */
 const main = /*#__PURE__*/ l.record<'any', Main>(
   'any',
   $nsid,
   /*#__PURE__*/ l.object({
-    crawlableFields: /*#__PURE__*/ l.optional(
-      /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ maxLength: 256 }), {
-        maxLength: 100,
-      }),
-    ),
-    filterableFields: /*#__PURE__*/ l.optional(
-      /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ maxLength: 256 }), {
-        maxLength: 100,
-      }),
-    ),
     updatedAt: /*#__PURE__*/ l.string({ format: 'datetime' }),
   }),
 )

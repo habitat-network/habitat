@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
-
 	"github.com/habitat-network/habitat/api/habitat"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/searchconfig"
@@ -68,10 +66,13 @@ func TestServer_SearchCollections(t *testing.T) {
 			))
 			return out
 		}
-		add := func(input habitat.NetworkHabitatSearchAddCollectionInput) {
-			input.Org = orgDID
+		add := func(collection string) {
 			require.Equal(t, http.StatusOK, client.Procedure(
-				ts.Server.AddSearchCollection, input, &none,
+				ts.Server.AddSearchCollection,
+				habitat.NetworkHabitatSearchAddCollectionInput{
+					Org: orgDID, Collection: collection,
+				},
+				&none,
 			))
 		}
 
@@ -80,22 +81,10 @@ func TestServer_SearchCollections(t *testing.T) {
 		// Defaults are always reported.
 		require.Len(t, out.Defaults, len(searchconfig.DefaultCollections))
 
-		add(habitat.NetworkHabitatSearchAddCollectionInput{Collection: "com.example.post"})
-		// Adding again replaces the config.
-		add(habitat.NetworkHabitatSearchAddCollectionInput{
-			Collection:       "com.example.post",
-			CrawlableFields:  []string{"body.text"},
-			FilterableFields: []string{"author"},
-		})
-		got := list().Collections
-		require.Len(t, got, 1)
-		require.Equal(t, "com.example.post", got[0].Collection)
-		require.Equal(t, []string{"body.text"}, got[0].CrawlableFields)
-		require.Equal(t, []string{"author"}, got[0].FilterableFields)
-
-		stored, err := ts.SearchConfig.List(t.Context(), syntax.DID(orgDID))
-		require.NoError(t, err)
-		require.Len(t, stored, 1)
+		add("com.example.post")
+		add("com.example.post")
+		add("com.example.note")
+		require.Equal(t, []string{"com.example.note", "com.example.post"}, list().Collections)
 
 		require.Equal(t, http.StatusOK, client.Procedure(
 			ts.Server.RemoveSearchCollection,
@@ -104,6 +93,6 @@ func TestServer_SearchCollections(t *testing.T) {
 			},
 			&none,
 		))
-		require.Empty(t, list().Collections)
+		require.Equal(t, []string{"com.example.note"}, list().Collections)
 	})
 }

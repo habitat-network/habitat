@@ -18,7 +18,7 @@ export type $Params = l.InferOutput<typeof $params>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
   collections: /*#__PURE__*/ l.array(
-    /*#__PURE__*/ l.ref<Collection>((() => collection) as any),
+    /*#__PURE__*/ l.string({ format: 'nsid' }),
   ),
   defaults: /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ format: 'nsid' })),
 })
@@ -39,36 +39,3 @@ const $lxm = $nsid
 type $lxm = typeof $lxm
 
 export { $lxm }
-
-type Collection = {
-  $type?: 'network.habitat.search.listCollections#collection'
-  collection: l.NsidString
-
-  /**
-   * See network.habitat.search.config.
-   */
-  crawlableFields?: string[]
-
-  /**
-   * See network.habitat.search.config.
-   */
-  filterableFields?: string[]
-}
-
-export type { Collection }
-
-const collection = /*#__PURE__*/ l.typedObject<Collection>(
-  $nsid,
-  'collection',
-  /*#__PURE__*/ l.object({
-    collection: /*#__PURE__*/ l.string({ format: 'nsid' }),
-    crawlableFields: /*#__PURE__*/ l.optional(
-      /*#__PURE__*/ l.array(/*#__PURE__*/ l.string()),
-    ),
-    filterableFields: /*#__PURE__*/ l.optional(
-      /*#__PURE__*/ l.array(/*#__PURE__*/ l.string()),
-    ),
-  }),
-)
-
-export { collection }

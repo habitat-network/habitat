@@ -30,7 +30,7 @@ func TestServer_SearchRecords(t *testing.T) {
 	// Search only surfaces collections the org configured, plus the defaults.
 	_, err := ts.SpaceStore.CreateSpace(ctx, org, opensocial.MembersSpaceType, "self")
 	require.NoError(t, err)
-	require.NoError(t, ts.SearchConfig.Put(ctx, org, searchconfig.Config{Collection: coll}))
+	require.NoError(t, ts.SearchConfig.Add(ctx, org, coll))
 
 	// putIndexed writes a note and indexes it, as the indexer would, readable
 	// by readers.
@@ -74,6 +74,10 @@ func TestServer_SearchRecords(t *testing.T) {
 
 	client := httpx_testutil.NewTestXRPCClient(t)
 	search := func(params url.Values) (int, habitat.NetworkHabitatSpaceSearchRecordsOutput) {
+		// Search one org at a time, unless the test names its own.
+		if !params.Has("org") && !params.Has("space") {
+			params.Set("org", org.String())
+		}
 		var out habitat.NetworkHabitatSpaceSearchRecordsOutput
 		code := client.Query(ts.Server.SearchRecords, params, &out)
 		return code, out
@@ -145,7 +149,7 @@ func TestServer_SearchRecords(t *testing.T) {
 
 		// Configuring the collection surfaces it, and removing it hides it
 		// again.
-		require.NoError(t, ts.SearchConfig.Put(ctx, org, searchconfig.Config{Collection: hidden}))
+		require.NoError(t, ts.SearchConfig.Add(ctx, org, hidden))
 		code, out = search(url.Values{"q": {"quince"}})
 		require.Equal(t, http.StatusOK, code)
 		require.ElementsMatch(t, []string{defaultURI, hiddenURI}, uris(out))
@@ -154,6 +158,21 @@ func TestServer_SearchRecords(t *testing.T) {
 		code, out = search(url.Values{"q": {"quince"}})
 		require.Equal(t, http.StatusOK, code)
 		require.Equal(t, []string{defaultURI}, uris(out))
+	})
+
+	t.Run("searches one org at a time", func(t *testing.T) {
+		var out habitat.NetworkHabitatSpaceSearchRecordsOutput
+		code := client.Query(ts.Server.SearchRecords, url.Values{"q": {"apple"}}, &out)
+		require.Equal(t, http.StatusBadRequest, code, "org or space is required")
+
+		code, out = search(url.Values{"q": {"apple"}, "org": {"did:plc:otherorg"}})
+		require.Equal(t, http.StatusOK, code)
+		require.Empty(t, out.Records)
+
+		code, _ = search(url.Values{
+			"q": {"apple"}, "org": {"did:plc:otherorg"}, "space": {readable.String()},
+		})
+		require.Equal(t, http.StatusBadRequest, code, "space owned by another org")
 	})
 
 	t.Run("scopes a space credential to its space", func(t *testing.T) {

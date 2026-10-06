@@ -28,45 +28,25 @@ func TestStore(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, got)
 
-	require.NoError(t, s.Put(t.Context(), orgA, searchconfig.Config{
-		Collection:       "com.example.post",
-		CrawlableFields:  []string{"text"},
-		FilterableFields: []string{"author"},
-	}))
-	require.NoError(
-		t,
-		s.Put(t.Context(), orgA, searchconfig.Config{Collection: "com.example.note"}),
-	)
-	require.NoError(
-		t,
-		s.Put(t.Context(), orgB, searchconfig.Config{Collection: "com.example.other"}),
-	)
-	// Putting again replaces the config.
-	require.NoError(t, s.Put(t.Context(), orgA, searchconfig.Config{
-		Collection:      "com.example.post",
-		CrawlableFields: []string{"body"},
-	}))
+	require.NoError(t, s.Add(t.Context(), orgA, "com.example.post"))
+	require.NoError(t, s.Add(t.Context(), orgA, "com.example.note"))
+	// Adding again does nothing.
+	require.NoError(t, s.Add(t.Context(), orgA, "com.example.post"))
+	require.NoError(t, s.Add(t.Context(), orgB, "com.example.other"))
 
 	got, err = s.List(t.Context(), orgA)
 	require.NoError(t, err)
-	require.Equal(t, []searchconfig.Config{
-		{Collection: "com.example.note"},
-		{Collection: "com.example.post", CrawlableFields: []string{"body"}},
-	}, got)
-
-	byOrg, err := s.Collections(t.Context(), orgA, orgB, "did:web:none.example.com")
+	require.Equal(t, []syntax.NSID{"com.example.note", "com.example.post"}, got)
+	got, err = s.Collections(t.Context(), orgB)
 	require.NoError(t, err)
-	require.Equal(t, map[syntax.DID][]syntax.NSID{
-		orgA: {"com.example.note", "com.example.post"},
-		orgB: {"com.example.other"},
-	}, byOrg)
+	require.Equal(t, []syntax.NSID{"com.example.other"}, got)
 
 	require.NoError(t, s.Remove(t.Context(), orgA, "com.example.post"))
 	// Removing one that isn't configured does nothing.
 	require.NoError(t, s.Remove(t.Context(), orgA, "com.example.post"))
 	got, err = s.List(t.Context(), orgA)
 	require.NoError(t, err)
-	require.Equal(t, []searchconfig.Config{{Collection: "com.example.note"}}, got)
+	require.Equal(t, []syntax.NSID{"com.example.note"}, got)
 
 	require.Equal(t, searchconfig.DefaultCollections, s.Defaults())
 }

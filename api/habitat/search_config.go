@@ -6,10 +6,8 @@ import "encoding/json"
 
 // NetworkHabitatSearchConfig represents a network.habitat.search.config record
 type NetworkHabitatSearchConfig struct {
-	LexiconTypeID    string   `json:"$type"`
-	CrawlableFields  []string `json:"crawlableFields,omitempty"`
-	FilterableFields []string `json:"filterableFields,omitempty"`
-	UpdatedAt        string   `json:"updatedAt"`
+	LexiconTypeID string `json:"$type"`
+	UpdatedAt     string `json:"updatedAt"`
 }
 
 // MarshalJSON sets $type to "network.habitat.search.config" before encoding.
