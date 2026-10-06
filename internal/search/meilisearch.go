@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -35,9 +37,13 @@ const (
 type meiliDoc struct {
 	// ID is derived from the URI, which has characters Meilisearch doesn't
 	// allow in a document id.
-	ID         string `json:"id"`
-	URI        string `json:"uri"`
-	Space      string `json:"space"`
+	ID    string `json:"id"`
+	URI   string `json:"uri"`
+	Space string `json:"space"`
+	// SpaceOwner is the DID owning Space, which collection scopes are keyed
+	// by. Documents indexed before it existed lack it until they are
+	// reindexed, so they match only the default collections.
+	SpaceOwner string `json:"space_owner"`
 	Repo       string `json:"repo"`
 	Collection string `json:"collection"`
 	Rev        string `json:"rev"`
@@ -101,7 +107,7 @@ func NewMeilisearch(ctx context.Context, host, apiKey, uid string) (*Meilisearch
 	if err := m.setup(ctx, uid, &meilisearch.Settings{
 		SearchableAttributes: []string{"text"},
 		FilterableAttributes: []string{
-			"space", "repo", "collection",
+			"space", "space_owner", "repo", "collection",
 			"user_readers", "community_role_readers", "public",
 		},
 	}); err != nil {
@@ -183,6 +189,7 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 			ID:          id,
 			URI:         d.URI.String(),
 			Space:       d.Space.String(),
+			SpaceOwner:  d.Space.SpaceOwner().String(),
 			Repo:        d.Repo.String(),
 			Collection:  d.Collection.String(),
 			Rev:         d.Rev.String(),
@@ -406,10 +413,37 @@ func filter(q Query) [][]string {
 	if len(q.Collections) > 0 {
 		and = append(and, []string{in("collection", stringsOf(q.Collections))})
 	}
+	if q.Scope != nil {
+		and = append(and, scopeFilter(*q.Scope))
+	}
 	if len(q.Repos) > 0 {
 		and = append(and, []string{in("repo", stringsOf(q.Repos))})
 	}
 	return and
+}
+
+// scopeFilter is an OR of the collections scope allows: its defaults for any
+// space, and each owner's configured collections for that owner's spaces.
+// Owners are sorted so the filter is deterministic.
+func scopeFilter(scope CollectionScope) []string {
+	var or []string
+	if len(scope.Default) > 0 {
+		or = append(or, in("collection", stringsOf(scope.Default)))
+	}
+	for _, owner := range slices.Sorted(maps.Keys(scope.ByOwner)) {
+		collections := scope.ByOwner[owner]
+		if len(collections) == 0 {
+			continue
+		}
+		or = append(or, "("+eq("space_owner", owner.String())+" AND "+
+			in("collection", stringsOf(collections))+")")
+	}
+	if len(or) == 0 {
+		// Nothing is allowed. Collections are never empty, so this matches
+		// no document.
+		return []string{eq("collection", "")}
+	}
+	return or
 }
 
 func toMeiliAccess(a Access) meiliAccess {

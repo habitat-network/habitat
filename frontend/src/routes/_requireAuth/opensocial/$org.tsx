@@ -32,6 +32,7 @@ import {
   PlugIcon,
   ServerIcon,
   PaletteIcon,
+  SearchIcon,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_requireAuth/opensocial/$org")({
@@ -59,6 +60,7 @@ const NAV_ITEMS: {
     | "/opensocial/$org/capabilities"
     | "/opensocial/$org/apps"
     | "/opensocial/$org/mcp"
+    | "/opensocial/$org/search"
     | "/opensocial/$org/settings";
   label: string;
   icon: typeof UsersIcon;
@@ -72,6 +74,7 @@ const NAV_ITEMS: {
   },
   { to: "/opensocial/$org/apps", label: "Authorized apps", icon: PlugIcon },
   { to: "/opensocial/$org/mcp", label: "MCP servers", icon: ServerIcon },
+  { to: "/opensocial/$org/search", label: "Search", icon: SearchIcon },
   { to: "/opensocial/$org/settings", label: "Branding", icon: PaletteIcon },
 ];
 

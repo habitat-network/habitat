@@ -15,6 +15,7 @@ import (
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/search/searchtest"
+	"github.com/habitat-network/habitat/internal/searchconfig"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -25,9 +26,13 @@ func TestServer_SearchRecords(t *testing.T) {
 	ctx := t.Context()
 	coll := syntax.NSID("network.habitat.note")
 
+	// Search only surfaces collections the org configured, plus the defaults.
+	require.NoError(t, ts.SearchConfig.Add(ctx, org, coll))
+
 	// putIndexed writes a note and indexes it, as the indexer would, readable
 	// by readers.
-	putIndexed := func(
+	putIndexedIn := func(
+		coll syntax.NSID,
 		space habitat_syntax.SpaceURI,
 		rkey syntax.RecordKey,
 		text string,
@@ -47,6 +52,14 @@ func TestServer_SearchRecords(t *testing.T) {
 			Access:     search.Access{Principals: search.Principals{Users: readers}},
 		}))
 		return uri.String()
+	}
+	putIndexed := func(
+		space habitat_syntax.SpaceURI,
+		rkey syntax.RecordKey,
+		text string,
+		readers ...syntax.DID,
+	) string {
+		return putIndexedIn(coll, space, rkey, text, readers...)
 	}
 	readable, err := ts.SpaceStore.CreateSpace(ctx, org, groupTp, "search-readable")
 	require.NoError(t, err)
@@ -113,6 +126,31 @@ func TestServer_SearchRecords(t *testing.T) {
 		code, out = search(url.Values{"q": {"apple"}, "collection": {"network.habitat.other"}})
 		require.Equal(t, http.StatusOK, code)
 		require.Empty(t, out.Records)
+	})
+
+	t.Run("only surfaces configured and default collections", func(t *testing.T) {
+		hidden := syntax.NSID("network.habitat.hidden")
+		hiddenURI := putIndexedIn(hidden, readable, "q1", "quince jelly", owner)
+		defaultURI := putIndexedIn(
+			searchconfig.DefaultCollections[0], readable, "q2", "quince jelly", owner,
+		)
+
+		// Unconfigured collections are left out; defaults are always in.
+		code, out := search(url.Values{"q": {"quince"}})
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, []string{defaultURI}, uris(out))
+
+		// Configuring the collection surfaces it, and removing it hides it
+		// again.
+		require.NoError(t, ts.SearchConfig.Add(ctx, org, hidden))
+		code, out = search(url.Values{"q": {"quince"}})
+		require.Equal(t, http.StatusOK, code)
+		require.ElementsMatch(t, []string{defaultURI, hiddenURI}, uris(out))
+
+		require.NoError(t, ts.SearchConfig.Remove(ctx, org, hidden))
+		code, out = search(url.Values{"q": {"quince"}})
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, []string{defaultURI}, uris(out))
 	})
 
 	t.Run("scopes a space credential to its space", func(t *testing.T) {

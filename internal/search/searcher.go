@@ -28,6 +28,17 @@ type RecordGetter interface {
 	) ([]spaces.Record, error)
 }
 
+// CollectionSource says which collections search surfaces.
+// [github.com/habitat-network/habitat/internal/searchconfig.Store] implements
+// it.
+type CollectionSource interface {
+	// Defaults returns the collections included for every space.
+	Defaults() []syntax.NSID
+	// ListAll returns the collections each org's admins configured. An org
+	// with none is absent.
+	ListAll(ctx context.Context) (map[syntax.DID][]syntax.NSID, error)
+}
+
 // Match is one search result: the record as the spaces store holds it now,
 // with the snippet the index matched.
 type Match struct {
@@ -51,12 +62,32 @@ type Searcher struct {
 	index       Index
 	communities CommunitySource
 	records     RecordGetter
+	collections CollectionSource
+}
+
+// SearcherOption configures a [Searcher].
+type SearcherOption func(*Searcher)
+
+// WithCollections limits results to the collections src surfaces: its
+// defaults, and what an org configured for the spaces it owns. Without it a
+// Searcher returns every collection.
+func WithCollections(src CollectionSource) SearcherOption {
+	return func(s *Searcher) { s.collections = src }
 }
 
 // NewSearcher returns a Searcher over index, resolving callers' community
 // roles with communities and loading matched records from records.
-func NewSearcher(index Index, communities CommunitySource, records RecordGetter) *Searcher {
-	return &Searcher{index: index, communities: communities, records: records}
+func NewSearcher(
+	index Index,
+	communities CommunitySource,
+	records RecordGetter,
+	opts ...SearcherOption,
+) *Searcher {
+	s := &Searcher{index: index, communities: communities, records: records}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // Search runs q as caller, over every space they may read, narrowed to
@@ -68,6 +99,9 @@ func (s *Searcher) Search(ctx context.Context, caller syntax.DID, q Query) (Page
 		return Page{}, err
 	}
 	q.Reader = &reader
+	if err := s.scope(ctx, &q); err != nil {
+		return Page{}, err
+	}
 	return s.search(ctx, q)
 }
 
@@ -76,7 +110,25 @@ func (s *Searcher) Search(ctx context.Context, caller syntax.DID, q Query) (Page
 // credential.
 func (s *Searcher) SearchSpaces(ctx context.Context, q Query) (Page, error) {
 	q.Reader = nil
+	if err := s.scope(ctx, &q); err != nil {
+		return Page{}, err
+	}
 	return s.search(ctx, q)
+}
+
+// scope narrows q to the defaults plus, for each org, the collections its
+// admins configured in the spaces it owns. It applies to every space whoever
+// the caller is, so a space is searchable the same way for all its readers.
+func (s *Searcher) scope(ctx context.Context, q *Query) error {
+	if s.collections == nil {
+		return nil
+	}
+	byOwner, err := s.collections.ListAll(ctx)
+	if err != nil {
+		return fmt.Errorf("list search collections: %w", err)
+	}
+	q.Scope = &CollectionScope{Default: s.collections.Defaults(), ByOwner: byOwner}
+	return nil
 }
 
 // reader returns caller's principals: themselves, and their roles in each
