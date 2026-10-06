@@ -30,7 +30,8 @@
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
     "tailwindcss": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "zustand": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

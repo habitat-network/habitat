@@ -1,18 +1,30 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { AuthManager } from "internal";
 import { myOrgsQueryOptions } from "@/queries/opensocial";
 
-const STORAGE_KEY = "habitat.selectedOrg";
-
-function readStored(): string | undefined {
-  try {
-    return localStorage.getItem(STORAGE_KEY) ?? undefined;
-  } catch {
-    return undefined;
-  }
+interface SelectedOrgState {
+  selectedOrg?: string;
+  select: (did: string) => void;
 }
+
+// useSelectedOrgStore holds the org the user last picked, persisted to
+// localStorage so it survives reloads.
+const useSelectedOrgStore = create<SelectedOrgState>()(
+  persist(
+    (set) => ({
+      selectedOrg: undefined,
+      select: (did) => set({ selectedOrg: did }),
+    }),
+    {
+      name: "habitat.selectedOrg",
+      partialize: (state) => ({ selectedOrg: state.selectedOrg }),
+    },
+  ),
+);
 
 // useSelectedOrg resolves which org the app is currently scoped to. An org in
 // the URL (/orgs/$org/...) wins, then the last org the user picked, then the
@@ -20,28 +32,14 @@ function readStored(): string | undefined {
 export function useSelectedOrg(authManager: AuthManager) {
   const { data: orgs = [] } = useQuery(myOrgsQueryOptions(authManager));
   const { org: urlOrg } = useParams({ strict: false }) as { org?: string };
-  const [stored, setStored] = useState(readStored);
+  const selectedOrg = useSelectedOrgStore((s) => s.selectedOrg);
+  const select = useSelectedOrgStore((s) => s.select);
 
-  const select = useCallback((did: string) => {
-    setStored(did);
-    try {
-      localStorage.setItem(STORAGE_KEY, did);
-    } catch {
-      // Storage unavailable; the selection just won't survive a reload.
-    }
-  }, []);
-
-  // Remember the org of the page being viewed for later visits elsewhere.
   useEffect(() => {
-    if (!urlOrg) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, urlOrg);
-    } catch {
-      // Storage unavailable; the selection just won't survive a reload.
-    }
-  }, [urlOrg]);
+    if (urlOrg) select(urlOrg);
+  }, [urlOrg, select]);
 
   const known = (did?: string) => orgs.find((o) => o.did === did)?.did;
-  const org = known(urlOrg) ?? known(stored) ?? orgs[0]?.did;
+  const org = known(urlOrg) ?? known(selectedOrg) ?? orgs[0]?.did;
   return { org, orgs, select };
 }
