@@ -2,7 +2,9 @@ package search
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -34,9 +36,8 @@ type RecordGetter interface {
 type CollectionSource interface {
 	// Defaults returns the collections included for every space.
 	Defaults() []syntax.NSID
-	// Collections returns the collections each of orgs' admins configured.
-	// An org with none is absent.
-	Collections(ctx context.Context, orgs ...syntax.DID) (map[syntax.DID][]syntax.NSID, error)
+	// Collections returns the collections org's admins configured.
+	Collections(ctx context.Context, org syntax.DID) ([]syntax.NSID, error)
 }
 
 // Match is one search result: the record as the spaces store holds it now,
@@ -69,8 +70,9 @@ type Searcher struct {
 type SearcherOption func(*Searcher)
 
 // WithCollections limits results to the collections src surfaces: its
-// defaults, and what an org configured for the spaces it owns. Without it a
-// Searcher returns every collection.
+// defaults, and those the org being searched configured. Queries must then
+// name that org in [Query.Org]. Without it a Searcher returns every
+// collection from every org.
 func WithCollections(src CollectionSource) SearcherOption {
 	return func(s *Searcher) { s.collections = src }
 }
@@ -90,6 +92,10 @@ func NewSearcher(
 	return s
 }
 
+// ErrOrgRequired is returned by a [Searcher] limited to configured
+// collections for a query that names no org.
+var ErrOrgRequired = errors.New("search requires an org")
+
 // Search runs q as caller, over every space they may read, narrowed to
 // q.Spaces when set. A space caller can't read finds nothing rather than
 // failing, so it can't be told apart from one with no matches.
@@ -99,14 +105,7 @@ func (s *Searcher) Search(ctx context.Context, caller syntax.DID, q Query) (Page
 		return Page{}, err
 	}
 	q.Reader = &reader
-	owners, err := s.index.SpaceOwners(ctx, reader)
-	if err != nil {
-		return Page{}, fmt.Errorf("list space owners: %w", err)
-	}
-	if err := s.scope(ctx, &q, owners); err != nil {
-		return Page{}, err
-	}
-	return s.search(ctx, q)
+	return s.scoped(ctx, q)
 }
 
 // SearchSpaces runs q over q.Spaces without checking who may read them, for
@@ -114,28 +113,37 @@ func (s *Searcher) Search(ctx context.Context, caller syntax.DID, q Query) (Page
 // credential.
 func (s *Searcher) SearchSpaces(ctx context.Context, q Query) (Page, error) {
 	q.Reader = nil
-	owners := make([]syntax.DID, len(q.Spaces))
-	for i, space := range q.Spaces {
-		owners[i] = space.SpaceOwner()
+	if q.Org == "" && len(q.Spaces) == 1 {
+		q.Org = q.Spaces[0].SpaceOwner()
 	}
-	if err := s.scope(ctx, &q, owners); err != nil {
-		return Page{}, err
-	}
-	return s.search(ctx, q)
+	return s.scoped(ctx, q)
 }
 
-// scope narrows q to the defaults plus, for each of owners, the collections
-// its admins configured for the spaces it owns.
-func (s *Searcher) scope(ctx context.Context, q *Query, owners []syntax.DID) error {
+// scoped runs q limited to the collections surfaced for q.Org: the defaults
+// plus those its admins configured. A collection filter in q narrows that
+// further.
+func (s *Searcher) scoped(ctx context.Context, q Query) (Page, error) {
 	if s.collections == nil {
-		return nil
+		return s.search(ctx, q)
 	}
-	byOwner, err := s.collections.Collections(ctx, owners...)
+	if q.Org == "" {
+		return Page{}, ErrOrgRequired
+	}
+	configured, err := s.collections.Collections(ctx, q.Org)
 	if err != nil {
-		return fmt.Errorf("list search collections: %w", err)
+		return Page{}, fmt.Errorf("list search collections: %w", err)
 	}
-	q.Scope = &CollectionScope{Default: s.collections.Defaults(), ByOwner: byOwner}
-	return nil
+	allowed := append(s.collections.Defaults(), configured...)
+	if len(q.Collections) > 0 {
+		allowed = slices.DeleteFunc(allowed, func(c syntax.NSID) bool {
+			return !slices.Contains(q.Collections, c)
+		})
+	}
+	if len(allowed) == 0 {
+		return Page{}, nil
+	}
+	q.Collections = allowed
+	return s.search(ctx, q)
 }
 
 // reader returns caller's principals: themselves, and their roles in each

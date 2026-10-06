@@ -4,8 +4,6 @@ package habitat
 
 // NetworkHabitatSearchAddCollectionInput represents the input for network.habitat.search.addCollection
 type NetworkHabitatSearchAddCollectionInput struct {
-	Collection       string   `json:"collection"`
-	CrawlableFields  []string `json:"crawlableFields,omitempty"`
-	FilterableFields []string `json:"filterableFields,omitempty"`
-	Org              string   `json:"org"`
+	Collection string `json:"collection"`
+	Org        string `json:"org"`
 }

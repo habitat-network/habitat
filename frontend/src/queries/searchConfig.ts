@@ -4,9 +4,6 @@ import { mutationOptions, queryOptions } from "@tanstack/react-query";
 import { network } from "api";
 import { pearAgent } from "./pearAgent";
 
-export type SearchCollectionConfig =
-  network.habitat.search.listCollections.Collection;
-
 export const searchCollectionsQueryKey = (org: DidString) =>
   ["search", "collections", org] as const;
 
@@ -34,24 +31,22 @@ export function orgSearchCollectionsQueryOptions(
   });
 }
 
-// addSearchCollectionMutationOptions surfaces a collection in org's search
-// results by writing its search config: which of its record fields are
-// crawlable (indexed) and filterable. Adding one that's already configured
-// replaces its config. Refetches the list before resolving, so isPending
-// covers the refresh.
+// addSearchCollectionMutationOptions surfaces a collection (an NSID) in org's
+// search results. Adding one that's already configured is a no-op. Refetches
+// the list before resolving, so isPending covers the refresh.
 export const addSearchCollectionMutationOptions = (
   authManager: AuthManager,
   org: DidString,
 ) =>
   mutationOptions({
     mutationFn: async (
-      input: Omit<network.habitat.search.addCollection.$InputBody, "org">,
+      collection: network.habitat.search.addCollection.$InputBody["collection"],
       { client },
     ) => {
       await xrpc(
         pearAgent(authManager, `${org}#habitat`),
         network.habitat.search.addCollection.main,
-        { body: { org, ...input } },
+        { body: { org, collection } },
       );
       await client.invalidateQueries({
         queryKey: searchCollectionsQueryKey(org),

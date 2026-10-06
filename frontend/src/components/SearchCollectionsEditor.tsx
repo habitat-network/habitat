@@ -3,11 +3,11 @@ import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import type { AuthManager } from "internal";
 import type { DidString } from "@atproto/lex";
+import { network } from "api";
 import { isValidNsid } from "@atproto/syntax";
 import {
   addSearchCollectionMutationOptions,
   removeSearchCollectionMutationOptions,
-  type SearchCollectionConfig,
 } from "@/queries/searchConfig";
 import {
   Badge,
@@ -30,19 +30,12 @@ import {
   TableRow,
 } from "internal/components/ui";
 
+// A collection NSID, as the search endpoints take it.
+type SearchCollection =
+  network.habitat.search.removeCollection.$InputBody["collection"];
+
 interface AddCollectionFormValues {
   collection: string;
-  // Comma-separated field paths.
-  crawlableFields: string;
-  filterableFields: string;
-}
-
-// parseFields splits a comma-separated list of field paths.
-function parseFields(value: string): string[] {
-  return value
-    .split(",")
-    .map((f) => f.trim())
-    .filter((f) => f !== "");
 }
 
 // SearchCollectionsEditor lists the collections surfaced in the org's search
@@ -56,7 +49,7 @@ export function SearchCollectionsEditor({
   authManager,
 }: {
   org: DidString;
-  collections: SearchCollectionConfig[];
+  collections: SearchCollection[];
   defaults: string[];
   canConfigure: boolean;
   authManager: AuthManager;
@@ -78,8 +71,6 @@ export function SearchCollectionsEditor({
         <TableHeader>
           <TableRow>
             <TableHead>Collection</TableHead>
-            <TableHead>Crawlable fields</TableHead>
-            <TableHead>Filterable fields</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
@@ -87,29 +78,19 @@ export function SearchCollectionsEditor({
           {defaults.map((collection) => (
             <TableRow key={collection}>
               <TableCell className="font-mono text-sm">{collection}</TableCell>
-              <TableCell className="text-muted-foreground">All</TableCell>
-              <TableCell className="text-muted-foreground">None</TableCell>
               <TableCell className="text-right">
                 <Badge variant="secondary">Default</Badge>
               </TableCell>
             </TableRow>
           ))}
-          {collections.map((config) => (
-            <TableRow key={config.collection}>
-              <TableCell className="font-mono text-sm">
-                {config.collection}
-              </TableCell>
-              <TableCell className="font-mono text-sm text-muted-foreground">
-                {config.crawlableFields?.join(", ") || "All"}
-              </TableCell>
-              <TableCell className="font-mono text-sm text-muted-foreground">
-                {config.filterableFields?.join(", ") || "None"}
-              </TableCell>
+          {collections.map((collection) => (
+            <TableRow key={collection}>
+              <TableCell className="font-mono text-sm">{collection}</TableCell>
               <TableCell className="text-right">
                 {canConfigure && (
                   <RemoveCollectionButton
                     org={org}
-                    collection={config.collection}
+                    collection={collection}
                     authManager={authManager}
                   />
                 )}
@@ -118,7 +99,7 @@ export function SearchCollectionsEditor({
           ))}
           {collections.length === 0 && defaults.length === 0 && (
             <TableRow>
-              <TableCell colSpan={4} className="text-muted-foreground">
+              <TableCell colSpan={2} className="text-muted-foreground">
                 No collections are searchable yet.
               </TableCell>
             </TableRow>
@@ -145,11 +126,7 @@ function AddCollectionDialog({
     formState: { errors, isValid },
   } = useForm<AddCollectionFormValues>({
     mode: "onChange",
-    defaultValues: {
-      collection: "",
-      crawlableFields: "",
-      filterableFields: "",
-    },
+    defaultValues: { collection: "" },
   });
 
   const {
@@ -164,25 +141,16 @@ function AddCollectionDialog({
     resetMutation();
   };
 
-  const submit = handleSubmit(
-    ({ collection, crawlableFields, filterableFields }) => {
-      const nsid = collection.trim();
-      if (!isValidNsid(nsid)) return;
-      add(
-        {
-          collection: nsid,
-          crawlableFields: parseFields(crawlableFields),
-          filterableFields: parseFields(filterableFields),
-        },
-        {
-          onSuccess() {
-            setOpen(false);
-            reset();
-          },
-        },
-      );
-    },
-  );
+  const submit = handleSubmit(({ collection }) => {
+    const nsid = collection.trim();
+    if (!isValidNsid(nsid)) return;
+    add(nsid, {
+      onSuccess() {
+        setOpen(false);
+        reset();
+      },
+    });
+  });
 
   return (
     <Dialog
@@ -215,36 +183,8 @@ function AddCollectionDialog({
             />
             <FieldError errors={[errors.collection]} />
             <p className="text-xs text-muted-foreground">
-              Records in this collection will show up in search results for
-              spaces this community owns.
-            </p>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="search-crawlable">
-              Crawlable fields (optional)
-            </FieldLabel>
-            <Input
-              id="search-crawlable"
-              placeholder="title, body.text"
-              {...register("crawlableFields")}
-            />
-            <p className="text-xs text-muted-foreground">
-              Comma-separated paths of the fields whose text is searched. Leave
-              empty to search every text field.
-            </p>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="search-filterable">
-              Filterable fields (optional)
-            </FieldLabel>
-            <Input
-              id="search-filterable"
-              placeholder="author, status"
-              {...register("filterableFields")}
-            />
-            <p className="text-xs text-muted-foreground">
-              Comma-separated paths of the fields search results can be filtered
-              by.
+              Records in this collection will show up in this community's search
+              results.
             </p>
           </Field>
           <FieldError errors={error ? [{ message: error.message }] : []} />
@@ -265,7 +205,7 @@ function RemoveCollectionButton({
   authManager,
 }: {
   org: DidString;
-  collection: SearchCollectionConfig["collection"];
+  collection: SearchCollection;
   authManager: AuthManager;
 }) {
   const { mutate, isPending, error } = useMutation(

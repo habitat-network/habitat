@@ -74,20 +74,13 @@ type Query struct {
 	Spaces      []habitat_syntax.SpaceURI
 	Collections []syntax.NSID
 	Repos       []syntax.DID
-	// Scope limits results to the collections it allows. A nil Scope allows
-	// every collection; [Searcher] sets it from the org configuration.
-	Scope *CollectionScope
+	// Org limits results to the spaces this org owns. [Searcher] requires it
+	// when it limits results to configured collections.
+	Org syntax.DID
 	// Limit caps the hits returned; zero means [DefaultLimit].
 	Limit int
 	// Cursor continues a previous result's [Result.Cursor].
 	Cursor string
-}
-
-// CollectionScope is the collections a query may return: Default for every
-// space, plus ByOwner's collections for spaces owned by that DID.
-type CollectionScope struct {
-	Default []syntax.NSID
-	ByOwner map[syntax.DID][]syntax.NSID
 }
 
 // DefaultLimit is the page size used when [Query.Limit] is zero.
@@ -134,9 +127,6 @@ type Index interface {
 	// SetSpaceAccess replaces the Access of every document in a space, after
 	// its permission records change.
 	SetSpaceAccess(ctx context.Context, space habitat_syntax.SpaceURI, access Access) error
-	// SpaceOwners returns the owners of the spaces holding documents reader
-	// may read.
-	SpaceOwners(ctx context.Context, reader Reader) ([]syntax.DID, error)
 	// Search returns the documents matching q, most relevant first.
 	Search(ctx context.Context, q Query) (Result, error)
 

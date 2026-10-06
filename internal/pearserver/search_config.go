@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/opensocial"
-	"github.com/habitat-network/habitat/internal/searchconfig"
 )
 
 // ListSearchCollections implements network.habitat.search.listCollections.
@@ -33,23 +34,13 @@ func (p *PearServer) ListSearchCollections(w http.ResponseWriter, r *http.Reques
 	if !p.requireAction(ctx, w, org, credInfo.Subject, searchConfigureAction) {
 		return
 	}
-	configs, err := p.searchConfig.List(ctx, org)
+	configured, err := p.searchConfig.List(ctx, org)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list search collections: %w", err))
 		return
 	}
-	collections := make([]habitat.NetworkHabitatSearchListCollectionsCollection, len(configs))
-	for i, cfg := range configs {
-		collections[i] = habitat.NetworkHabitatSearchListCollectionsCollection{
-			Collection:       cfg.Collection.String(),
-			CrawlableFields:  cfg.CrawlableFields,
-			FilterableFields: cfg.FilterableFields,
-		}
-	}
-	defaults := make([]string, 0, len(searchconfig.DefaultCollections))
-	for _, c := range p.searchConfig.Defaults() {
-		defaults = append(defaults, c.String())
-	}
+	collections := nsidStrings(configured)
+	defaults := nsidStrings(p.searchConfig.Defaults())
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSearchListCollectionsOutput{
 		Collections: collections,
 		Defaults:    defaults,
@@ -81,12 +72,7 @@ func (p *PearServer) AddSearchCollection(w http.ResponseWriter, r *http.Request)
 	if !p.requireAction(ctx, w, org, credInfo.Subject, searchConfigureAction) {
 		return
 	}
-	err := p.searchConfig.Put(ctx, org, searchconfig.Config{
-		Collection:       collection,
-		CrawlableFields:  input.CrawlableFields,
-		FilterableFields: input.FilterableFields,
-	})
-	if err != nil {
+	if err := p.searchConfig.Add(ctx, org, collection); err != nil {
 		httpx.WriteServerError(ctx, w, err)
 		return
 	}
@@ -127,3 +113,11 @@ func (p *PearServer) RemoveSearchCollection(w http.ResponseWriter, r *http.Reque
 // Search configuration has no action of its own; it is part of configuring
 // the community.
 const searchConfigureAction = opensocial.ActionCommunityConfigure
+
+func nsidStrings(nsids []syntax.NSID) []string {
+	out := make([]string, len(nsids))
+	for i, n := range nsids {
+		out[i] = n.String()
+	}
+	return out
+}

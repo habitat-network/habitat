@@ -4,12 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -33,9 +30,6 @@ const (
 	// snippetWords is about how many words of context a hit's snippet keeps.
 	snippetWords = 30
 )
-
-// maxSpaceOwners caps how many space owners SpaceOwners returns.
-const maxSpaceOwners = 10000
 
 // meiliDoc is a [Document] as stored in Meilisearch.
 type meiliDoc struct {
@@ -113,9 +107,6 @@ func NewMeilisearch(ctx context.Context, host, apiKey, uid string) (*Meilisearch
 	}
 	if err := m.setup(ctx, uid, &meilisearch.Settings{
 		SearchableAttributes: []string{"text"},
-		// Reading the owners of the spaces a caller can read is a facet
-		// query, so allow far more owners than Meilisearch's default 100.
-		Faceting: &meilisearch.Faceting{MaxValuesPerFacet: maxSpaceOwners},
 		FilterableAttributes: []string{
 			"space_owner", "space_type", "space_key", "repo", "collection",
 			"user_readers", "community_role_readers", "public",
@@ -213,32 +204,6 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 		return fmt.Errorf("put documents: %w", err)
 	}
 	return m.wait(ctx, info)
-}
-
-// SpaceOwners implements [Index].
-func (m *Meilisearch) SpaceOwners(ctx context.Context, reader Reader) ([]syntax.DID, error) {
-	resp, err := m.index.SearchWithContext(ctx, "", &meilisearch.SearchRequest{
-		Limit:  1,
-		Filter: filter(Query{Reader: &reader}),
-		Facets: []string{"space_owner"},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("search space owners: %w", err)
-	}
-	var dist map[string]map[string]int
-	if len(resp.FacetDistribution) > 0 {
-		if err := json.Unmarshal(resp.FacetDistribution, &dist); err != nil {
-			return nil, fmt.Errorf("decode space owners: %w", err)
-		}
-	}
-	owners := make([]syntax.DID, 0, len(dist["space_owner"]))
-	for owner := range dist["space_owner"] {
-		if did, err := syntax.ParseDID(owner); err == nil {
-			owners = append(owners, did)
-		}
-	}
-	slices.Sort(owners)
-	return owners, nil
 }
 
 // Delete implements [Index].
@@ -464,37 +429,13 @@ func filter(q Query) [][]string {
 	if len(q.Collections) > 0 {
 		and = append(and, []string{in("collection", stringsOf(q.Collections))})
 	}
-	if q.Scope != nil {
-		and = append(and, scopeFilter(*q.Scope))
+	if q.Org != "" {
+		and = append(and, []string{eq("space_owner", q.Org.String())})
 	}
 	if len(q.Repos) > 0 {
 		and = append(and, []string{in("repo", stringsOf(q.Repos))})
 	}
 	return and
-}
-
-// scopeFilter is an OR of the collections scope allows: its defaults for any
-// space, and each owner's configured collections for that owner's spaces.
-// Owners are sorted so the filter is deterministic.
-func scopeFilter(scope CollectionScope) []string {
-	var or []string
-	if len(scope.Default) > 0 {
-		or = append(or, in("collection", stringsOf(scope.Default)))
-	}
-	for _, owner := range slices.Sorted(maps.Keys(scope.ByOwner)) {
-		collections := scope.ByOwner[owner]
-		if len(collections) == 0 {
-			continue
-		}
-		or = append(or, "("+eq("space_owner", owner.String())+" AND "+
-			in("collection", stringsOf(collections))+")")
-	}
-	if len(or) == 0 {
-		// Nothing is allowed. Collections are never empty, so this matches
-		// no document.
-		return []string{eq("collection", "")}
-	}
-	return or
 }
 
 // spaceFilter matches the documents in space, by the parts of its URI.

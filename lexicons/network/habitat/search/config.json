@@ -4,24 +4,12 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "Declares how one collection is searched for an org. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not surfaced in search, unless it is a default collection.",
+      "description": "Surfaces one collection in search results for an org. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not surfaced in search, unless it is a default collection.",
       "key": "any",
       "record": {
         "type": "object",
         "required": ["updatedAt"],
         "properties": {
-          "crawlableFields": {
-            "type": "array",
-            "items": { "type": "string", "maxLength": 256 },
-            "maxLength": 100,
-            "description": "Paths of the record fields whose text is indexed, with dots for nested fields (e.g. `body.text`). Absent or empty means every text field."
-          },
-          "filterableFields": {
-            "type": "array",
-            "items": { "type": "string", "maxLength": 256 },
-            "maxLength": 100,
-            "description": "Paths of the record fields a search may filter on. Absent or empty means none."
-          },
           "updatedAt": {
             "type": "string",
             "format": "datetime"
