@@ -39,6 +39,11 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/community.opensocial.assignRoles", p.AssignRoles)
 	p.router.HandleFunc("/xrpc/community.opensocial.ejectMember", p.EjectMember)
 
+	// Search configuration
+	p.router.HandleFunc("/xrpc/network.habitat.search.listCollections", p.ListSearchCollections)
+	p.router.HandleFunc("/xrpc/network.habitat.search.addCollection", p.AddSearchCollection)
+	p.router.HandleFunc("/xrpc/network.habitat.search.removeCollection", p.RemoveSearchCollection)
+
 	// MCP gateway
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.addServer", p.AddServer)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.updateServer", p.UpdateServer)

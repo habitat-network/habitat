@@ -54,6 +54,13 @@ func (p *PearServer) SearchRecords(w http.ResponseWriter, r *http.Request) {
 		}
 		q.Collections = append(q.Collections, collection)
 	}
+	if params.Org != "" {
+		org, ok := httpx.ParseDIDInput(ctx, w, params.Org, "org")
+		if !ok {
+			return
+		}
+		q.Org = org
+	}
 	if params.Repo != "" {
 		repo, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
 		if !ok {
@@ -77,9 +84,20 @@ func (p *PearServer) SearchRecords(w http.ResponseWriter, r *http.Request) {
 		// Checks the caller can read the space, as listRecords does.
 		validateOpts = append(validateOpts, authn.WithSpace(space, habitat_syntax.SpaceRoleReader))
 		q.Spaces = []habitat_syntax.SpaceURI{space}
+		if q.Org != "" && q.Org != space.SpaceOwner() {
+			httpx.WriteInvalidRequest(ctx, w, "space is not owned by org", nil)
+			return
+		}
+		q.Org = space.SpaceOwner()
 	}
 	credInfo, ok := p.validator.Request(validateOpts...).Validate(w, r)
 	if !ok {
+		return
+	}
+	// A space credential's space implies the org. Anything else searches one
+	// org at a time.
+	if q.Org == "" && credInfo.Space == "" {
+		httpx.WriteInvalidRequest(ctx, w, "org or space is required", nil)
 		return
 	}
 
@@ -88,6 +106,7 @@ func (p *PearServer) SearchRecords(w http.ResponseWriter, r *http.Request) {
 	if credInfo.Space != "" {
 		// A space credential reads only its own space, all of it.
 		q.Spaces = []habitat_syntax.SpaceURI{credInfo.Space}
+		q.Org = credInfo.Space.SpaceOwner()
 		page, err = p.searcher.SearchSpaces(ctx, q)
 	} else {
 		// The index only matches what the caller may read.

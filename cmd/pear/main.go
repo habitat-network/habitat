@@ -50,6 +50,7 @@ import (
 	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
+	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"go.opentelemetry.io/otel/trace"
 
@@ -442,9 +443,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		defaultDir,
 	)
 
+	searchConfigStore := searchconfig.NewStore(spacesStore)
 	var searcher *search.Searcher
 	if searchIndex != nil {
-		searcher = search.NewSearcher(searchIndex, opensocialStore, spacesStore)
+		searcher = search.NewSearcher(
+			searchIndex, opensocialStore, spacesStore, search.WithCollections(searchConfigStore),
+		)
 	}
 
 	// Consolidated server owning the opensocial, simplespace, relationship,
@@ -465,6 +469,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		pdsForwarding,
 		emailDomainStore,
 		searcher,
+		searchConfigStore,
 	)
 
 	repo, err := repo.NewRepo(database.WithContext(startupCtx))
@@ -639,6 +644,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	// Spaces
 	mux.PathPrefix("/xrpc/network.habitat.space.").Handler(pearApp)
+
+	// Search configuration (which collections an org surfaces in search)
+	mux.PathPrefix("/xrpc/network.habitat.search.").Handler(pearApp)
 
 	// Simplespace
 	mux.PathPrefix("/xrpc/network.habitat.simplespace.").Handler(pearApp)

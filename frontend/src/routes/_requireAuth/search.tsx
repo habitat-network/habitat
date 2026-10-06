@@ -5,34 +5,51 @@ import { useState, type FormEvent } from "react";
 import { z } from "zod";
 import { Button, Card, CardContent, Input } from "internal/components/ui";
 import { searchRecordsQueryOptions, type SearchResult } from "@/queries/search";
+import { myOrgsQueryOptions } from "@/queries/opensocial";
 
 export const Route = createFileRoute("/_requireAuth/search")({
   validateSearch: z.object({
     q: z.string().default(""),
+    org: z.string().optional(),
   }),
   component: SearchPage,
 });
 
 function SearchPage() {
-  const { q } = Route.useSearch();
+  const { q, org: orgParam } = Route.useSearch();
   const { authManager } = Route.useRouteContext();
   const navigate = Route.useNavigate();
   const [input, setInput] = useState(q);
-  const results = useQuery(searchRecordsQueryOptions(authManager, q));
+  const { data: orgs = [] } = useQuery(myOrgsQueryOptions(authManager));
+  // Search one org at a time: the chosen one, else the first the user is in.
+  const org = orgs.find((o) => o.did === orgParam)?.did ?? orgs[0]?.did;
+  const results = useQuery(searchRecordsQueryOptions(authManager, org, q));
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    navigate({ search: { q: input } });
+    navigate({ search: { q: input, org } });
   };
 
   return (
     <div className="flex flex-col gap-6 py-6">
       <h1 className="text-2xl font-semibold">Search</h1>
       <form onSubmit={onSubmit} className="flex gap-2">
+        <select
+          aria-label="Community"
+          className="border-input bg-background rounded-md border px-2 text-sm"
+          value={org ?? ""}
+          onChange={(e) => navigate({ search: { q, org: e.target.value } })}
+        >
+          {orgs.map((o) => (
+            <option key={o.did} value={o.did}>
+              {o.did}
+            </option>
+          ))}
+        </select>
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Search records you can read"
+          placeholder="Search records you can read in this community"
         />
         <Button type="submit">Search</Button>
       </form>

@@ -23,6 +23,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
+	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -50,6 +51,8 @@ type TestServer struct {
 	EmailDomainStore *emaildomain.Store
 	// SearchIndex backs searchRecords; search is off when it is nil.
 	SearchIndex search.Index
+	// SearchConfig stores the collections each org surfaces in search.
+	SearchConfig *searchconfig.Store
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -191,9 +194,12 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	require.NoError(t, err)
 	ts.EmailDomainStore = emailDomainStore
 
+	ts.SearchConfig = searchconfig.NewStore(ts.SpaceStore)
 	var searcher *search.Searcher
 	if ts.SearchIndex != nil {
-		searcher = search.NewSearcher(ts.SearchIndex, os, ts.SpaceStore)
+		searcher = search.NewSearcher(
+			ts.SearchIndex, os, ts.SpaceStore, search.WithCollections(ts.SearchConfig),
+		)
 	}
 
 	ts.Server = pearserver.New(
@@ -212,6 +218,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ts.PDSForwarding,
 		emailDomainStore,
 		searcher,
+		ts.SearchConfig,
 	)
 	ts.PermStore = ps
 	return &ts

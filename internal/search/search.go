@@ -74,6 +74,9 @@ type Query struct {
 	Spaces      []habitat_syntax.SpaceURI
 	Collections []syntax.NSID
 	Repos       []syntax.DID
+	// Org limits results to the spaces this org owns. [Searcher] requires it
+	// when it limits results to configured collections.
+	Org syntax.DID
 	// Limit caps the hits returned; zero means [DefaultLimit].
 	Limit int
 	// Cursor continues a previous result's [Result.Cursor].

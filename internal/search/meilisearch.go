@@ -35,9 +35,14 @@ const (
 type meiliDoc struct {
 	// ID is derived from the URI, which has characters Meilisearch doesn't
 	// allow in a document id.
-	ID         string `json:"id"`
-	URI        string `json:"uri"`
-	Space      string `json:"space"`
+	ID  string `json:"id"`
+	URI string `json:"uri"`
+	// SpaceOwner, SpaceType and SpaceKey are the parts of the document's
+	// space URI, which is not stored whole. Collection scopes are keyed by
+	// SpaceOwner.
+	SpaceOwner string `json:"space_owner"`
+	SpaceType  string `json:"space_type"`
+	SpaceKey   string `json:"space_key"`
 	Repo       string `json:"repo"`
 	Collection string `json:"collection"`
 	Rev        string `json:"rev"`
@@ -62,7 +67,9 @@ type meiliAccessUpdate struct {
 // meiliHit is a search hit's retrieved fields.
 type meiliHit struct {
 	URI        string `json:"uri"`
-	Space      string `json:"space"`
+	SpaceOwner string `json:"space_owner"`
+	SpaceType  string `json:"space_type"`
+	SpaceKey   string `json:"space_key"`
 	Repo       string `json:"repo"`
 	Collection string `json:"collection"`
 	Formatted  struct {
@@ -101,7 +108,7 @@ func NewMeilisearch(ctx context.Context, host, apiKey, uid string) (*Meilisearch
 	if err := m.setup(ctx, uid, &meilisearch.Settings{
 		SearchableAttributes: []string{"text"},
 		FilterableAttributes: []string{
-			"space", "repo", "collection",
+			"space_owner", "space_type", "space_key", "repo", "collection",
 			"user_readers", "community_role_readers", "public",
 		},
 	}); err != nil {
@@ -182,7 +189,9 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 		rows = append(rows, meiliDoc{
 			ID:          id,
 			URI:         d.URI.String(),
-			Space:       d.Space.String(),
+			SpaceOwner:  d.Space.SpaceOwner().String(),
+			SpaceType:   d.Space.SpaceType().String(),
+			SpaceKey:    d.Space.Skey().String(),
 			Repo:        d.Repo.String(),
 			Collection:  d.Collection.String(),
 			Rev:         d.Rev.String(),
@@ -215,8 +224,12 @@ func (m *Meilisearch) Delete(ctx context.Context, uris ...habitat_syntax.SpaceRe
 
 // DeleteSpace implements [Index].
 func (m *Meilisearch) DeleteSpace(ctx context.Context, space habitat_syntax.SpaceURI) error {
-	for _, idx := range []meilisearch.IndexManager{m.index, m.cursors} {
-		info, err := idx.DeleteDocumentsByFilterWithContext(ctx, eq("space", space.String()), nil)
+	// Documents store the parts of their space URI; cursors store it whole.
+	for idx, filter := range map[meilisearch.IndexManager]string{
+		m.index:   spaceFilter(space),
+		m.cursors: eq("space", space.String()),
+	} {
+		info, err := idx.DeleteDocumentsByFilterWithContext(ctx, filter, nil)
 		if err != nil {
 			return fmt.Errorf("delete space documents: %w", err)
 		}
@@ -299,7 +312,7 @@ func (m *Meilisearch) SetSpaceAccess(
 	for offset := int64(0); ; offset += accessPageSize {
 		var page meilisearch.DocumentsResult
 		if err := m.index.GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
-			Filter: eq("space", space.String()),
+			Filter: spaceFilter(space),
 			Fields: []string{"id"},
 			Limit:  accessPageSize,
 			Offset: offset,
@@ -350,10 +363,12 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 	resp, err := m.index.SearchWithContext(ctx, q.Text, &meilisearch.SearchRequest{
 		Offset: int64(offset),
 		// One extra hit tells whether there is another page.
-		Limit:                 int64(limit + 1),
-		Filter:                filter(q),
-		MatchingStrategy:      meilisearch.All,
-		AttributesToRetrieve:  []string{"uri", "space", "repo", "collection"},
+		Limit:            int64(limit + 1),
+		Filter:           filter(q),
+		MatchingStrategy: meilisearch.All,
+		AttributesToRetrieve: []string{
+			"uri", "space_owner", "space_type", "space_key", "repo", "collection",
+		},
 		AttributesToCrop:      []string{"text"},
 		AttributesToHighlight: []string{"text"},
 		CropLength:            snippetWords,
@@ -375,8 +390,12 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 	res.Hits = make([]Hit, len(hits))
 	for i, h := range hits {
 		res.Hits[i] = Hit{
-			URI:        habitat_syntax.SpaceRecordURI(h.URI),
-			Space:      habitat_syntax.SpaceURI(h.Space),
+			URI: habitat_syntax.SpaceRecordURI(h.URI),
+			Space: habitat_syntax.ConstructSpaceURI(
+				syntax.DID(h.SpaceOwner),
+				syntax.NSID(h.SpaceType),
+				habitat_syntax.SpaceKey(h.SpaceKey),
+			),
 			Repo:       syntax.DID(h.Repo),
 			Collection: syntax.NSID(h.Collection),
 			Snippet:    h.Formatted.Text,
@@ -401,15 +420,29 @@ func filter(q Query) [][]string {
 		and = append(and, or)
 	}
 	if len(q.Spaces) > 0 {
-		and = append(and, []string{in("space", stringsOf(q.Spaces))})
+		or := make([]string, len(q.Spaces))
+		for i, space := range q.Spaces {
+			or[i] = spaceFilter(space)
+		}
+		and = append(and, or)
 	}
 	if len(q.Collections) > 0 {
 		and = append(and, []string{in("collection", stringsOf(q.Collections))})
+	}
+	if q.Org != "" {
+		and = append(and, []string{eq("space_owner", q.Org.String())})
 	}
 	if len(q.Repos) > 0 {
 		and = append(and, []string{in("repo", stringsOf(q.Repos))})
 	}
 	return and
+}
+
+// spaceFilter matches the documents in space, by the parts of its URI.
+func spaceFilter(space habitat_syntax.SpaceURI) string {
+	return "(" + eq("space_owner", space.SpaceOwner().String()) +
+		" AND " + eq("space_type", space.SpaceType().String()) +
+		" AND " + eq("space_key", space.Skey().String()) + ")"
 }
 
 func toMeiliAccess(a Access) meiliAccess {
