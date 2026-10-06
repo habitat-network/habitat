@@ -4,6 +4,8 @@ import type { AuthManager } from "internal";
 import { OrgAvatar } from "internal";
 import {
   acceptInvite,
+  myInvitesQueryOptions,
+  myOrgsQueryOptions,
   orgProfileQueryOptions,
   type InviteView,
 } from "@/queries/opensocial";
@@ -78,7 +80,22 @@ function PendingInviteRow({
   const { mutate, isPending, error } = useMutation({
     mutationFn: () => acceptInvite(authManager, invite.org),
     async onSuccess() {
-      await queryClient.invalidateQueries({ queryKey: ["opensocial"] });
+      // The org list and invites are read by the route loader through
+      // ensureQueryData, so no observer is mounted and a plain invalidation
+      // only marks them stale: ensureQueryData would still hand the stale
+      // data back to the re-run loader. refetchType "all" refetches them
+      // even though they're inactive.
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: myOrgsQueryOptions(authManager).queryKey,
+          refetchType: "all",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: myInvitesQueryOptions(authManager).queryKey,
+          refetchType: "all",
+        }),
+        queryClient.invalidateQueries({ queryKey: ["opensocial"] }),
+      ]);
       await router.invalidate();
     },
   });
