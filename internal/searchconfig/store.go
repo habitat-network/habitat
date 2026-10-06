@@ -29,6 +29,7 @@ const Collection = "network.habitat.search.config"
 var DefaultCollections = []syntax.NSID{
 	"network.habitat.docs.markdown",
 	"network.habitat.docs.comment",
+	"network.habitat.docs.commentReply",
 }
 
 // Store reads and writes search config records in the spaces store.
