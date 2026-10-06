@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { OrgAvatar, type AuthManager } from "internal";
 import {
@@ -12,8 +12,10 @@ import {
   DropdownMenuTrigger,
 } from "internal/components/ui";
 import { ChevronsUpDownIcon } from "lucide-react";
-import { orgProfileQueryOptions } from "@/queries/opensocial";
-import { useSelectedOrg } from "@/lib/selectedOrg";
+import {
+  myOrgsQueryOptions,
+  orgProfileQueryOptions,
+} from "@/queries/opensocial";
 
 function OrgLabel({
   did,
@@ -41,7 +43,9 @@ function OrgLabel({
 // OrgSwitcher is the app's top-level org selection: everything else (search,
 // settings) is scoped to the org picked here.
 export function OrgSwitcher({ authManager }: { authManager: AuthManager }) {
-  const { org, orgs, select } = useSelectedOrg(authManager);
+  const { data: orgs = [] } = useQuery(myOrgsQueryOptions(authManager));
+  // The current org is whichever one the URL (/orgs/$org/...) names.
+  const { org } = useParams({ strict: false });
   const navigate = useNavigate();
 
   return (
@@ -60,16 +64,9 @@ export function OrgSwitcher({ authManager }: { authManager: AuthManager }) {
           {orgs.map((o) => (
             <DropdownMenuItem
               key={o.did}
-              onClick={() => {
-                select(o.did);
-                // Pages under /orgs/$org are keyed by the URL, so follow it.
-                if (location.pathname.startsWith("/orgs/")) {
-                  navigate({
-                    to: "/orgs/$org/settings",
-                    params: { org: o.did },
-                  });
-                }
-              }}
+              onClick={() =>
+                navigate({ to: "/orgs/$org", params: { org: o.did } })
+              }
             >
               <OrgLabel did={o.did} authManager={authManager} />
             </DropdownMenuItem>
