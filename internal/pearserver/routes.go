@@ -19,6 +19,9 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential", p.GetSpaceCredential)
 	p.router.HandleFunc("/xrpc/network.habitat.space.notifyWrite", p.NotifyWrite)
 	p.router.HandleFunc("/xrpc/network.habitat.space.registerNotify", p.RegisterNotify)
+	p.router.HandleFunc(
+		"/xrpc/network.habitat.space.notifyCredentialRevoked", p.NotifyCredentialRevoked,
+	)
 	p.router.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", p.UploadBlob)
 
 	// Opensocial
@@ -89,6 +92,9 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/com.atproto.space.getDelegationToken", p.GetDelegationToken)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getSpaceCredential", p.GetSpaceCredential)
 	p.router.HandleFunc("/xrpc/com.atproto.space.registerNotify", p.RegisterNotify)
+	p.router.HandleFunc(
+		"/xrpc/com.atproto.space.notifyCredentialRevoked", p.NotifyCredentialRevoked,
+	)
 	p.router.HandleFunc("/xrpc/com.atproto.repo.uploadBlob", p.UploadBlob)
 
 	// com.atproto.server aliases

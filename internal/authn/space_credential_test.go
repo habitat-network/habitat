@@ -103,4 +103,43 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 		require.False(t, ok)
 		require.Nil(t, credInfo)
 	})
+
+	const space = "at://did:web:pear.com/space/com.test.space/abc"
+
+	t.Run("expires in 10 minutes with a random jti", func(t *testing.T) {
+		claimsOf := func(token string) jwt.MapClaims {
+			claims := jwt.MapClaims{}
+			_, _, err := jwt.NewParser().ParseUnverified(token, claims)
+			require.NoError(t, err)
+			return claims
+		}
+		a, err := utils.SpaceCredential(hostKey, "#atproto_space", space)
+		require.NoError(t, err)
+		b, err := utils.SpaceCredential(hostKey, "#atproto_space", space)
+		require.NoError(t, err)
+		ca, cb := claimsOf(a), claimsOf(b)
+		require.InDelta(t, ca["iat"], ca["exp"].(float64)-600, 0)
+		require.NotEmpty(t, ca["jti"])
+		require.NotEqual(t, ca["jti"], cb["jti"])
+	})
+
+	t.Run("still accepts an older one hour credential", func(t *testing.T) {
+		now := time.Now()
+		token, err := new(jwt.Token{
+			Method: jwt.GetSigningMethod("ES256K"),
+			Claims: jwt.MapClaims{
+				"iss": "did:web:pear.com",
+				"sub": space,
+				"iat": jwt.NewNumericDate(now),
+				"exp": jwt.NewNumericDate(now.Add(time.Hour)),
+				"jti": "legacy",
+			},
+			Header: map[string]any{
+				"typ": "atproto-space-credential+jwt", "kid": "#atproto_space", "alg": "ES256K",
+			},
+		}).SignedString(hostKey)
+		require.NoError(t, err)
+		_, ok := method.Validate(httptest.NewRecorder(), newAuthenticatedRequest(token))
+		require.True(t, ok)
+	})
 }
