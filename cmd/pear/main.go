@@ -645,6 +645,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Spaces
 	mux.PathPrefix("/xrpc/network.habitat.space.").Handler(pearApp)
 
+	// Search configuration (which collections an org surfaces in search)
+	mux.PathPrefix("/xrpc/network.habitat.search.").Handler(pearApp)
+
 	// Simplespace
 	mux.PathPrefix("/xrpc/network.habitat.simplespace.").Handler(pearApp)
 
