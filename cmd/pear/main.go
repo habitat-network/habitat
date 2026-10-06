@@ -443,7 +443,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		defaultDir,
 	)
 
-	searchConfigStore := searchconfig.NewStore(database.WithContext(startupCtx))
+	searchConfigStore := searchconfig.NewStore(spacesStore)
 	var searcher *search.Searcher
 	if searchIndex != nil {
 		searcher = search.NewSearcher(

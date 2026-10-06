@@ -13,7 +13,6 @@ import (
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
-	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
@@ -39,7 +38,6 @@ func Models() []any {
 		pdscred.Models(),
 		permissions.Models(),
 		repo.Models(),
-		searchconfig.Models(),
 		spaces.Models(),
 	} {
 		models = append(models, set...)

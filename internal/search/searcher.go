@@ -34,9 +34,9 @@ type RecordGetter interface {
 type CollectionSource interface {
 	// Defaults returns the collections included for every space.
 	Defaults() []syntax.NSID
-	// ListAll returns the collections each org's admins configured. An org
-	// with none is absent.
-	ListAll(ctx context.Context) (map[syntax.DID][]syntax.NSID, error)
+	// Collections returns the collections each of orgs' admins configured.
+	// An org with none is absent.
+	Collections(ctx context.Context, orgs ...syntax.DID) (map[syntax.DID][]syntax.NSID, error)
 }
 
 // Match is one search result: the record as the spaces store holds it now,
@@ -99,7 +99,11 @@ func (s *Searcher) Search(ctx context.Context, caller syntax.DID, q Query) (Page
 		return Page{}, err
 	}
 	q.Reader = &reader
-	if err := s.scope(ctx, &q); err != nil {
+	owners, err := s.index.SpaceOwners(ctx, reader)
+	if err != nil {
+		return Page{}, fmt.Errorf("list space owners: %w", err)
+	}
+	if err := s.scope(ctx, &q, owners); err != nil {
 		return Page{}, err
 	}
 	return s.search(ctx, q)
@@ -110,20 +114,23 @@ func (s *Searcher) Search(ctx context.Context, caller syntax.DID, q Query) (Page
 // credential.
 func (s *Searcher) SearchSpaces(ctx context.Context, q Query) (Page, error) {
 	q.Reader = nil
-	if err := s.scope(ctx, &q); err != nil {
+	owners := make([]syntax.DID, len(q.Spaces))
+	for i, space := range q.Spaces {
+		owners[i] = space.SpaceOwner()
+	}
+	if err := s.scope(ctx, &q, owners); err != nil {
 		return Page{}, err
 	}
 	return s.search(ctx, q)
 }
 
-// scope narrows q to the defaults plus, for each org, the collections its
-// admins configured in the spaces it owns. It applies to every space whoever
-// the caller is, so a space is searchable the same way for all its readers.
-func (s *Searcher) scope(ctx context.Context, q *Query) error {
+// scope narrows q to the defaults plus, for each of owners, the collections
+// its admins configured for the spaces it owns.
+func (s *Searcher) scope(ctx context.Context, q *Query, owners []syntax.DID) error {
 	if s.collections == nil {
 		return nil
 	}
-	byOwner, err := s.collections.ListAll(ctx)
+	byOwner, err := s.collections.Collections(ctx, owners...)
 	if err != nil {
 		return fmt.Errorf("list search collections: %w", err)
 	}

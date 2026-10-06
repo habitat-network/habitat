@@ -3,6 +3,7 @@
  */
 
 export * as addCollection from './search/addCollection.js'
+export * as config from './search/config.js'
 export * as listCollections from './search/listCollections.js'
 export * as query from './search/query.js'
 export * as removeCollection from './search/removeCollection.js'

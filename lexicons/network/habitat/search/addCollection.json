@@ -4,12 +4,15 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Surface a collection in search results for spaces the org owns. Adding a collection that is already configured succeeds without change. Requires service-auth. Requires the community.configure action.",
+      "description": "Surface a collection in search results for spaces the org owns, by writing its search config record. Adding a collection that is already configured replaces its config. Requires service-auth. Requires the community.configure action.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["org", "collection"],
+          "required": [
+            "org",
+            "collection"
+          ],
           "properties": {
             "org": {
               "type": "string",
@@ -19,6 +22,24 @@
             "collection": {
               "type": "string",
               "format": "nsid"
+            },
+            "crawlableFields": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "maxLength": 100,
+              "description": "See network.habitat.search.config."
+            },
+            "filterableFields": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "maxLength": 100,
+              "description": "See network.habitat.search.config."
             }
           }
         }

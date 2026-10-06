@@ -194,7 +194,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	require.NoError(t, err)
 	ts.EmailDomainStore = emailDomainStore
 
-	ts.SearchConfig = searchconfig.NewStore(ts.DB)
+	ts.SearchConfig = searchconfig.NewStore(ts.SpaceStore)
 	var searcher *search.Searcher
 	if ts.SearchIndex != nil {
 		searcher = search.NewSearcher(

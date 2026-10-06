@@ -108,6 +108,10 @@ func (f *fakeIndex) SetSpaceAccess(
 	return nil
 }
 
+func (f *fakeIndex) SpaceOwners(context.Context, Reader) ([]syntax.DID, error) {
+	return nil, nil
+}
+
 func (f *fakeIndex) Search(context.Context, Query) (Result, error) {
 	return Result{}, nil
 }

@@ -134,6 +134,9 @@ type Index interface {
 	// SetSpaceAccess replaces the Access of every document in a space, after
 	// its permission records change.
 	SetSpaceAccess(ctx context.Context, space habitat_syntax.SpaceURI, access Access) error
+	// SpaceOwners returns the owners of the spaces holding documents reader
+	// may read.
+	SpaceOwners(ctx context.Context, reader Reader) ([]syntax.DID, error)
 	// Search returns the documents matching q, most relevant first.
 	Search(ctx context.Context, q Query) (Result, error)
 

@@ -37,7 +37,7 @@ func TestServer_SearchCollections(t *testing.T) {
 		))
 		require.Equal(t, http.StatusUnauthorized, client.Procedure(
 			ts.Server.RemoveSearchCollection,
-			habitat.NetworkHabitatSearchAddCollectionInput{
+			habitat.NetworkHabitatSearchRemoveCollectionInput{
 				Org: orgDID, Collection: "com.example.post",
 			},
 			&none,
@@ -68,16 +68,10 @@ func TestServer_SearchCollections(t *testing.T) {
 			))
 			return out
 		}
-		change := func(
-			h func(http.ResponseWriter, *http.Request),
-			collection string,
-		) {
+		add := func(input habitat.NetworkHabitatSearchAddCollectionInput) {
+			input.Org = orgDID
 			require.Equal(t, http.StatusOK, client.Procedure(
-				h,
-				habitat.NetworkHabitatSearchAddCollectionInput{
-					Org: orgDID, Collection: collection,
-				},
-				&none,
+				ts.Server.AddSearchCollection, input, &none,
 			))
 		}
 
@@ -86,15 +80,30 @@ func TestServer_SearchCollections(t *testing.T) {
 		// Defaults are always reported.
 		require.Len(t, out.Defaults, len(searchconfig.DefaultCollections))
 
-		change(ts.Server.AddSearchCollection, "com.example.post")
-		change(ts.Server.AddSearchCollection, "com.example.post")
-		require.Equal(t, []string{"com.example.post"}, list().Collections)
+		add(habitat.NetworkHabitatSearchAddCollectionInput{Collection: "com.example.post"})
+		// Adding again replaces the config.
+		add(habitat.NetworkHabitatSearchAddCollectionInput{
+			Collection:       "com.example.post",
+			CrawlableFields:  []string{"body.text"},
+			FilterableFields: []string{"author"},
+		})
+		got := list().Collections
+		require.Len(t, got, 1)
+		require.Equal(t, "com.example.post", got[0].Collection)
+		require.Equal(t, []string{"body.text"}, got[0].CrawlableFields)
+		require.Equal(t, []string{"author"}, got[0].FilterableFields)
 
-		got, err := ts.SearchConfig.List(t.Context(), syntax.DID(orgDID))
+		stored, err := ts.SearchConfig.List(t.Context(), syntax.DID(orgDID))
 		require.NoError(t, err)
-		require.Equal(t, []syntax.NSID{"com.example.post"}, got)
+		require.Len(t, stored, 1)
 
-		change(ts.Server.RemoveSearchCollection, "com.example.post")
+		require.Equal(t, http.StatusOK, client.Procedure(
+			ts.Server.RemoveSearchCollection,
+			habitat.NetworkHabitatSearchRemoveCollectionInput{
+				Org: orgDID, Collection: "com.example.post",
+			},
+			&none,
+		))
 		require.Empty(t, list().Collections)
 	})
 }

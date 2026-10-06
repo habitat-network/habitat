@@ -7,6 +7,7 @@ import { isValidNsid } from "@atproto/syntax";
 import {
   addSearchCollectionMutationOptions,
   removeSearchCollectionMutationOptions,
+  type SearchCollectionConfig,
 } from "@/queries/searchConfig";
 import {
   Badge,
@@ -31,6 +32,17 @@ import {
 
 interface AddCollectionFormValues {
   collection: string;
+  // Comma-separated field paths.
+  crawlableFields: string;
+  filterableFields: string;
+}
+
+// parseFields splits a comma-separated list of field paths.
+function parseFields(value: string): string[] {
+  return value
+    .split(",")
+    .map((f) => f.trim())
+    .filter((f) => f !== "");
 }
 
 // SearchCollectionsEditor lists the collections surfaced in the org's search
@@ -44,7 +56,7 @@ export function SearchCollectionsEditor({
   authManager,
 }: {
   org: DidString;
-  collections: string[];
+  collections: SearchCollectionConfig[];
   defaults: string[];
   canConfigure: boolean;
   authManager: AuthManager;
@@ -66,6 +78,8 @@ export function SearchCollectionsEditor({
         <TableHeader>
           <TableRow>
             <TableHead>Collection</TableHead>
+            <TableHead>Crawlable fields</TableHead>
+            <TableHead>Filterable fields</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
@@ -73,19 +87,29 @@ export function SearchCollectionsEditor({
           {defaults.map((collection) => (
             <TableRow key={collection}>
               <TableCell className="font-mono text-sm">{collection}</TableCell>
+              <TableCell className="text-muted-foreground">All</TableCell>
+              <TableCell className="text-muted-foreground">None</TableCell>
               <TableCell className="text-right">
                 <Badge variant="secondary">Default</Badge>
               </TableCell>
             </TableRow>
           ))}
-          {collections.map((collection) => (
-            <TableRow key={collection}>
-              <TableCell className="font-mono text-sm">{collection}</TableCell>
+          {collections.map((config) => (
+            <TableRow key={config.collection}>
+              <TableCell className="font-mono text-sm">
+                {config.collection}
+              </TableCell>
+              <TableCell className="font-mono text-sm text-muted-foreground">
+                {config.crawlableFields?.join(", ") || "All"}
+              </TableCell>
+              <TableCell className="font-mono text-sm text-muted-foreground">
+                {config.filterableFields?.join(", ") || "None"}
+              </TableCell>
               <TableCell className="text-right">
                 {canConfigure && (
                   <RemoveCollectionButton
                     org={org}
-                    collection={collection}
+                    collection={config.collection}
                     authManager={authManager}
                   />
                 )}
@@ -94,7 +118,7 @@ export function SearchCollectionsEditor({
           ))}
           {collections.length === 0 && defaults.length === 0 && (
             <TableRow>
-              <TableCell colSpan={2} className="text-muted-foreground">
+              <TableCell colSpan={4} className="text-muted-foreground">
                 No collections are searchable yet.
               </TableCell>
             </TableRow>
@@ -121,7 +145,11 @@ function AddCollectionDialog({
     formState: { errors, isValid },
   } = useForm<AddCollectionFormValues>({
     mode: "onChange",
-    defaultValues: { collection: "" },
+    defaultValues: {
+      collection: "",
+      crawlableFields: "",
+      filterableFields: "",
+    },
   });
 
   const {
@@ -136,16 +164,25 @@ function AddCollectionDialog({
     resetMutation();
   };
 
-  const submit = handleSubmit(({ collection }) => {
-    const nsid = collection.trim();
-    if (!isValidNsid(nsid)) return;
-    add(nsid, {
-      onSuccess() {
-        setOpen(false);
-        reset();
-      },
-    });
-  });
+  const submit = handleSubmit(
+    ({ collection, crawlableFields, filterableFields }) => {
+      const nsid = collection.trim();
+      if (!isValidNsid(nsid)) return;
+      add(
+        {
+          collection: nsid,
+          crawlableFields: parseFields(crawlableFields),
+          filterableFields: parseFields(filterableFields),
+        },
+        {
+          onSuccess() {
+            setOpen(false);
+            reset();
+          },
+        },
+      );
+    },
+  );
 
   return (
     <Dialog
@@ -182,6 +219,34 @@ function AddCollectionDialog({
               spaces this community owns.
             </p>
           </Field>
+          <Field>
+            <FieldLabel htmlFor="search-crawlable">
+              Crawlable fields (optional)
+            </FieldLabel>
+            <Input
+              id="search-crawlable"
+              placeholder="title, body.text"
+              {...register("crawlableFields")}
+            />
+            <p className="text-xs text-muted-foreground">
+              Comma-separated paths of the fields whose text is searched. Leave
+              empty to search every text field.
+            </p>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="search-filterable">
+              Filterable fields (optional)
+            </FieldLabel>
+            <Input
+              id="search-filterable"
+              placeholder="author, status"
+              {...register("filterableFields")}
+            />
+            <p className="text-xs text-muted-foreground">
+              Comma-separated paths of the fields search results can be filtered
+              by.
+            </p>
+          </Field>
           <FieldError errors={error ? [{ message: error.message }] : []} />
           <DialogFooter>
             <Button type="submit" disabled={adding || !isValid}>
@@ -200,7 +265,7 @@ function RemoveCollectionButton({
   authManager,
 }: {
   org: DidString;
-  collection: string;
+  collection: SearchCollectionConfig["collection"];
   authManager: AuthManager;
 }) {
   const { mutate, isPending, error } = useMutation(

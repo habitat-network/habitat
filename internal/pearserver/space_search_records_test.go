@@ -12,6 +12,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/search/searchtest"
@@ -27,7 +28,9 @@ func TestServer_SearchRecords(t *testing.T) {
 	coll := syntax.NSID("network.habitat.note")
 
 	// Search only surfaces collections the org configured, plus the defaults.
-	require.NoError(t, ts.SearchConfig.Add(ctx, org, coll))
+	_, err := ts.SpaceStore.CreateSpace(ctx, org, opensocial.MembersSpaceType, "self")
+	require.NoError(t, err)
+	require.NoError(t, ts.SearchConfig.Put(ctx, org, searchconfig.Config{Collection: coll}))
 
 	// putIndexed writes a note and indexes it, as the indexer would, readable
 	// by readers.
@@ -142,7 +145,7 @@ func TestServer_SearchRecords(t *testing.T) {
 
 		// Configuring the collection surfaces it, and removing it hides it
 		// again.
-		require.NoError(t, ts.SearchConfig.Add(ctx, org, hidden))
+		require.NoError(t, ts.SearchConfig.Put(ctx, org, searchconfig.Config{Collection: hidden}))
 		code, out = search(url.Values{"q": {"quince"}})
 		require.Equal(t, http.StatusOK, code)
 		require.ElementsMatch(t, []string{defaultURI, hiddenURI}, uris(out))

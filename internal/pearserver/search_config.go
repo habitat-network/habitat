@@ -1,12 +1,9 @@
 package pearserver
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-
-	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -36,39 +33,31 @@ func (p *PearServer) ListSearchCollections(w http.ResponseWriter, r *http.Reques
 	if !p.requireAction(ctx, w, org, credInfo.Subject, searchConfigureAction) {
 		return
 	}
-	collections, err := p.searchConfig.List(ctx, org)
+	configs, err := p.searchConfig.List(ctx, org)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list search collections: %w", err))
 		return
 	}
+	collections := make([]habitat.NetworkHabitatSearchListCollectionsCollection, len(configs))
+	for i, cfg := range configs {
+		collections[i] = habitat.NetworkHabitatSearchListCollectionsCollection{
+			Collection:       cfg.Collection.String(),
+			CrawlableFields:  cfg.CrawlableFields,
+			FilterableFields: cfg.FilterableFields,
+		}
+	}
+	defaults := make([]string, 0, len(searchconfig.DefaultCollections))
+	for _, c := range p.searchConfig.Defaults() {
+		defaults = append(defaults, c.String())
+	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSearchListCollectionsOutput{
-		Collections: nsidStrings(collections),
-		Defaults:    nsidStrings(p.searchConfig.Defaults()),
+		Collections: collections,
+		Defaults:    defaults,
 	})
 }
 
 // AddSearchCollection implements network.habitat.search.addCollection.
 func (p *PearServer) AddSearchCollection(w http.ResponseWriter, r *http.Request) {
-	p.changeSearchCollection(w, r, (*searchconfig.Store).Add)
-}
-
-// RemoveSearchCollection implements network.habitat.search.removeCollection.
-func (p *PearServer) RemoveSearchCollection(w http.ResponseWriter, r *http.Request) {
-	p.changeSearchCollection(w, r, (*searchconfig.Store).Remove)
-}
-
-// searchConfigureAction is the action required to configure an org's search.
-// Search configuration has no action of its own; it is part of configuring
-// the community.
-const searchConfigureAction = opensocial.ActionCommunityConfigure
-
-// changeSearchCollection handles addCollection and removeCollection, which
-// take the same input and differ only in change.
-func (p *PearServer) changeSearchCollection(
-	w http.ResponseWriter,
-	r *http.Request,
-	change func(*searchconfig.Store, context.Context, syntax.DID, syntax.NSID) error,
-) {
 	ctx := r.Context()
 	credInfo, ok := p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
@@ -92,16 +81,49 @@ func (p *PearServer) changeSearchCollection(
 	if !p.requireAction(ctx, w, org, credInfo.Subject, searchConfigureAction) {
 		return
 	}
-	if err := change(p.searchConfig, ctx, org, collection); err != nil {
+	err := p.searchConfig.Put(ctx, org, searchconfig.Config{
+		Collection:       collection,
+		CrawlableFields:  input.CrawlableFields,
+		FilterableFields: input.FilterableFields,
+	})
+	if err != nil {
 		httpx.WriteServerError(ctx, w, err)
 		return
 	}
 }
 
-func nsidStrings(nsids []syntax.NSID) []string {
-	out := make([]string, len(nsids))
-	for i, n := range nsids {
-		out[i] = n.String()
+// RemoveSearchCollection implements network.habitat.search.removeCollection.
+func (p *PearServer) RemoveSearchCollection(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := p.validator.Request(
+		authn.WithMethods(authn.ValidatorMethodOAuth, authn.ValidatorMethodServiceAuth),
+	).Validate(w, r)
+	if !ok {
+		return
 	}
-	return out
+	var input habitat.NetworkHabitatSearchRemoveCollectionInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "reading request body", err)
+		return
+	}
+	org, ok := httpx.ParseDIDInput(ctx, w, input.Org, "org")
+	if !ok {
+		return
+	}
+	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
+	if !ok {
+		return
+	}
+	if !p.requireAction(ctx, w, org, credInfo.Subject, searchConfigureAction) {
+		return
+	}
+	if err := p.searchConfig.Remove(ctx, org, collection); err != nil {
+		httpx.WriteServerError(ctx, w, err)
+		return
+	}
 }
+
+// searchConfigureAction is the action required to configure an org's search.
+// Search configuration has no action of its own; it is part of configuring
+// the community.
+const searchConfigureAction = opensocial.ActionCommunityConfigure
