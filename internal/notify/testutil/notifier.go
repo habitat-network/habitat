@@ -17,6 +17,9 @@ type writeCall struct {
 	Repo  syntax.DID
 	Rev   syntax.TID
 	Hash  []byte
+
+	SpaceRev     syntax.TID
+	PrevSpaceRev syntax.TID
 }
 
 func (n *TestNotifier) NotifyWrite(
@@ -25,8 +28,13 @@ func (n *TestNotifier) NotifyWrite(
 	repo syntax.DID,
 	rev syntax.TID,
 	hash []byte,
+	spaceRev syntax.TID,
+	prevSpaceRev syntax.TID,
 ) {
-	n.Writes = append(n.Writes, writeCall{Space: space, Repo: repo, Rev: rev, Hash: hash})
+	n.Writes = append(n.Writes, writeCall{
+		Space: space, Repo: repo, Rev: rev, Hash: hash,
+		SpaceRev: spaceRev, PrevSpaceRev: prevSpaceRev,
+	})
 }
 
 func (n *TestNotifier) NotifySpaceDeleted(

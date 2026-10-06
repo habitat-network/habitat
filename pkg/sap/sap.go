@@ -280,19 +280,23 @@ func (s *Sap) Sessions(ctx context.Context) ([]syntax.DID, error) {
 
 // NotifyWrite reacts to a host's notifyWrite: the repo advanced to rev with
 // commit hash (sha256 of its LtHash state; may be nil). The repo is synced
-// incrementally and re-verified.
+// incrementally and re-verified. spaceRev and prevSpaceRev are the space
+// host's revision pair for the write (empty from hosts that predate them);
+// a gap in the sequence triggers a catch-up of the whole space.
 func (s *Sap) NotifyWrite(
 	ctx context.Context,
 	spaceURI syntax.URI,
 	repo syntax.DID,
 	rev syntax.TID,
 	hash []byte,
+	spaceRev syntax.TID,
+	prevSpaceRev syntax.TID,
 ) error {
 	space, err := habitat_syntax.ParseSpaceURI(spaceURI.String())
 	if err != nil {
 		return fmt.Errorf("parse space: %w", err)
 	}
-	return s.engine.NotifyWrite(ctx, space, repo, rev, hash)
+	return s.engine.NotifyWrite(ctx, space, repo, rev, hash, spaceRev, prevSpaceRev)
 }
 
 // TrackSpace tracks a space sap wouldn't discover through a session's crawl —

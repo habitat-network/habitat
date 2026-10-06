@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/spacecommit"
@@ -26,9 +27,13 @@ var tracer = otel.Tracer("spaces/store")
 
 // GORM models
 type space struct {
-	Owner     syntax.DID              `gorm:"primaryKey"`
-	Type      syntax.NSID             `gorm:"primaryKey"`
-	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
+	Owner syntax.DID              `gorm:"primaryKey"`
+	Type  syntax.NSID             `gorm:"primaryKey"`
+	Skey  habitat_syntax.SpaceKey `gorm:"primaryKey"`
+	// Rev is the space's own revision (TID), advanced to a fresh TID on every
+	// write to any of its repos. Syncers use it to detect missed
+	// notifications and to catch up via listRepos's since.
+	Rev       syntax.TID
 	CreatedAt time.Time
 }
 
@@ -60,10 +65,13 @@ type spaceRecord struct {
 // records; only ListRepos, which just reports the repo set and its last-known
 // digest, reads Hash directly for such a row.
 type spaceRepo struct {
-	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	Repo      syntax.DID              `gorm:"primaryKey"`
-	Hash      []byte
-	Rev       syntax.TID
+	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Repo  syntax.DID              `gorm:"primaryKey"`
+	Hash  []byte
+	Rev   syntax.TID
+	// SpaceRev is the space revision at this repo's latest write, so listRepos
+	// can return only the repos that changed since a given space revision.
+	SpaceRev  syntax.TID
 	Remote    bool
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
@@ -74,6 +82,8 @@ type RepoInfo struct {
 	DID  syntax.DID
 	Rev  string
 	Hash []byte
+	// SpaceRev is the space revision at the repo's latest write.
+	SpaceRev syntax.TID
 }
 
 // RepoHead is a repo's latest oplog revision within a space. See
@@ -128,6 +138,15 @@ type Store interface {
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 	) ([]RepoInfo, error)
+	// ListReposSince returns the space's current revision and the repos that
+	// were written at a space revision after since; an empty since lists every
+	// repo. The space revision is read before the repos, so it never runs ahead
+	// of the returned data.
+	ListReposSince(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		since syntax.TID,
+	) (syntax.TID, []RepoInfo, error)
 
 	// RegisterRemoteWrite records that repo advanced to rev/hash on its own
 	// PDS, without this space host holding the record data locally. It is the
@@ -288,12 +307,16 @@ type WriteResult struct {
 // registered syncers. Implementations must be non-blocking and best-effort.
 type Notifier interface {
 	// NotifyWrite reports that a repo advanced to a new revision within a space.
+	// spaceRev is the space's revision after the write and prevSpaceRev its
+	// revision before it, so a receiver can detect a gap in the sequence.
 	NotifyWrite(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
 		rev syntax.TID,
 		hash []byte,
+		spaceRev syntax.TID,
+		prevSpaceRev syntax.TID,
 	)
 	// NotifySpaceDeleted reports that a space was deleted.
 	NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI)
@@ -310,9 +333,11 @@ func (n Notifiers) NotifyWrite(
 	repo syntax.DID,
 	rev syntax.TID,
 	hash []byte,
+	spaceRev syntax.TID,
+	prevSpaceRev syntax.TID,
 ) {
 	for _, notifier := range n {
-		notifier.NotifyWrite(ctx, space, repo, rev, hash)
+		notifier.NotifyWrite(ctx, space, repo, rev, hash, spaceRev, prevSpaceRev)
 	}
 }
 
@@ -498,12 +523,14 @@ func saveRepoHash(
 	repo syntax.DID,
 	h spacecommit.LtHash,
 	rev syntax.TID,
+	spaceRev syntax.TID,
 ) error {
 	return tx.Save(&spaceRepo{
-		Space: space,
-		Repo:  repo,
-		Hash:  h.State(),
-		Rev:   rev,
+		Space:    space,
+		Repo:     repo,
+		Hash:     h.State(),
+		Rev:      rev,
+		SpaceRev: spaceRev,
 	}).Error
 }
 
@@ -516,14 +543,41 @@ func saveRemoteRepoHash(
 	repo syntax.DID,
 	digest []byte,
 	rev syntax.TID,
+	spaceRev syntax.TID,
 ) error {
 	return tx.Save(&spaceRepo{
-		Space:  space,
-		Repo:   repo,
-		Hash:   digest,
-		Rev:    rev,
-		Remote: true,
+		Space:    space,
+		Repo:     repo,
+		Hash:     digest,
+		Rev:      rev,
+		SpaceRev: spaceRev,
+		Remote:   true,
 	}).Error
+}
+
+// advanceSpaceRev moves the space's revision to a fresh TID inside tx and
+// returns the previous and new revisions. The space row is locked for the
+// update so concurrent writes to different repos in the space are sequenced:
+// each sees the revision the one before it produced as its previous revision.
+func (s *store) advanceSpaceRev(
+	tx *gorm.DB,
+	uri habitat_syntax.SpaceURI,
+) (syntax.TID, syntax.TID, error) {
+	var sp space
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("owner = ? AND type = ? AND skey = ?",
+			uri.SpaceOwner(), uri.SpaceType(), uri.Skey()).
+		First(&sp).Error; err != nil {
+		return "", "", fmt.Errorf("lock space: %w", err)
+	}
+	cur := s.clock.Next()
+	if err := tx.Model(&space{}).
+		Where("owner = ? AND type = ? AND skey = ?",
+			uri.SpaceOwner(), uri.SpaceType(), uri.Skey()).
+		Update("rev", cur).Error; err != nil {
+		return "", "", fmt.Errorf("advance space rev: %w", err)
+	}
+	return sp.Rev, cur, nil
 }
 
 // lockRepo acquires the per-repo advisory lock PutRecord/DeleteRecord hold for
@@ -547,21 +601,36 @@ func (s *store) ListRepos(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 ) ([]RepoInfo, error) {
-	ok, err := s.CheckSpaceExists(ctx, uri)
-	if err != nil {
-		return nil, err
-	} else if !ok {
-		return nil, ErrSpaceNotFound
+	_, repos, err := s.ListReposSince(ctx, uri, "")
+	return repos, err
+}
+
+// ListReposSince implements [Store].
+func (s *store) ListReposSince(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	since syntax.TID,
+) (syntax.TID, []RepoInfo, error) {
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND type = ? AND skey = ?",
+			uri.SpaceOwner(), uri.SpaceType(), uri.Skey()).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", nil, ErrSpaceNotFound
+	} else if err != nil {
+		return "", nil, err
 	}
 
 	// The writer set and each repo's hash come straight from the cached hash
 	// table, maintained incrementally by the write path — no record rescan.
+	query := s.db.WithContext(ctx).Where("space = ?", uri)
+	if since != "" {
+		query = query.Where("space_rev > ?", since)
+	}
 	var rows []spaceRepo
-	if err := s.db.WithContext(ctx).
-		Where("space = ?", uri).
-		Order("repo ASC").
-		Find(&rows).Error; err != nil {
-		return nil, err
+	if err := query.Order("repo ASC").Find(&rows).Error; err != nil {
+		return "", nil, err
 	}
 
 	repos := make([]RepoInfo, len(rows))
@@ -573,12 +642,13 @@ func (s *store) ListRepos(
 			digest = h.Sum()
 		}
 		repos[i] = RepoInfo{
-			DID:  row.Repo,
-			Rev:  string(row.Rev),
-			Hash: digest,
+			DID:      row.Repo,
+			Rev:      string(row.Rev),
+			Hash:     digest,
+			SpaceRev: row.SpaceRev,
 		}
 	}
-	return repos, nil
+	return sp.Rev, repos, nil
 }
 
 // RegisterRemoteWrite implements [Store].
@@ -596,18 +666,24 @@ func (s *store) RegisterRemoteWrite(
 		return ErrSpaceNotFound
 	}
 
+	var prevSpaceRev, spaceRev syntax.TID
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, uri, repo); err != nil {
 			return err
 		}
-		return saveRemoteRepoHash(tx, uri, repo, hash, rev)
+		var err error
+		prevSpaceRev, spaceRev, err = s.advanceSpaceRev(tx, uri)
+		if err != nil {
+			return err
+		}
+		return saveRemoteRepoHash(tx, uri, repo, hash, rev, spaceRev)
 	})
 	if err != nil {
 		return fmt.Errorf("register remote write: %w", err)
 	}
 
 	// Best-effort: forward to registered syncers, same as a local write.
-	s.notifier.NotifyWrite(ctx, uri, repo, rev, hash)
+	s.notifier.NotifyWrite(ctx, uri, repo, rev, hash, spaceRev, prevSpaceRev)
 	return nil
 }
 
@@ -644,6 +720,7 @@ func (s *store) PutRecord(
 	var recordURI habitat_syntax.SpaceRecordURI
 	var newRev syntax.TID
 	var repoHash []byte
+	var prevSpaceRev, spaceRev syntax.TID
 	var skipped bool
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, spaceURI, repo); err != nil {
@@ -680,7 +757,11 @@ func (s *store) PutRecord(
 			h.Remove(spacecommit.RecordElement(collection, rkey, existing.Cid))
 		}
 		h.Add(spacecommit.RecordElement(collection, rkey, newCidStr))
-		if err := saveRepoHash(tx, spaceURI, repo, h, tid); err != nil {
+		prevSpaceRev, spaceRev, err = s.advanceSpaceRev(tx, spaceURI)
+		if err != nil {
+			return err
+		}
+		if err := saveRepoHash(tx, spaceURI, repo, h, tid, spaceRev); err != nil {
 			return fmt.Errorf("failed to save repo hash: %w", err)
 		}
 		repoHash = h.Sum()
@@ -700,7 +781,7 @@ func (s *store) PutRecord(
 	}
 	if !skipped {
 		// Best-effort: notify registered syncers that this repo advanced.
-		s.notifier.NotifyWrite(ctx, spaceURI, repo, newRev, repoHash)
+		s.notifier.NotifyWrite(ctx, spaceURI, repo, newRev, repoHash, spaceRev, prevSpaceRev)
 	}
 	return recordURI, &newCid, nil
 }
@@ -1077,6 +1158,7 @@ func (s *store) DeleteRecord(
 ) error {
 	var rev syntax.TID
 	var hash []byte
+	var prevSpaceRev, spaceRev syntax.TID
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, uri, repo); err != nil {
 			return err
@@ -1111,6 +1193,10 @@ func (s *store) DeleteRecord(
 			h.Remove(spacecommit.RecordElement(row.Collection, row.Rkey, row.Cid))
 		}
 		hash = h.Sum()
+		prevSpaceRev, spaceRev, err = s.advanceSpaceRev(tx, uri)
+		if err != nil {
+			return err
+		}
 		// Drop the hash row entirely once the repo holds no more records
 		var remaining int64
 		if err := tx.Model(&spaceRecord{}).
@@ -1121,14 +1207,14 @@ func (s *store) DeleteRecord(
 		if remaining == 0 {
 			return tx.Where("space = ? AND repo = ?", uri, repo).Delete(&spaceRepo{}).Error
 		}
-		return saveRepoHash(tx, uri, repo, h, rev)
+		return saveRepoHash(tx, uri, repo, h, rev, spaceRev)
 	})
 	if err != nil {
 		return err
 	}
 	if rev != "" {
 		// Best-effort: notify registered syncers that this repo advanced.
-		s.notifier.NotifyWrite(ctx, uri, repo, rev, hash)
+		s.notifier.NotifyWrite(ctx, uri, repo, rev, hash, spaceRev, prevSpaceRev)
 	}
 	return nil
 }
@@ -1156,6 +1242,7 @@ func (s *store) ApplyWrites(
 	results := make([]WriteResult, len(writes))
 	var headRev syntax.TID
 	var headHash []byte
+	var prevSpaceRev, spaceRev syntax.TID
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, spaceURI, repo); err != nil {
 			return err
@@ -1241,6 +1328,11 @@ func (s *store) ApplyWrites(
 			return nil
 		}
 		headHash = h.Sum()
+		// The batch is one revision of the space, however many records it wrote.
+		prevSpaceRev, spaceRev, err = s.advanceSpaceRev(tx, spaceURI)
+		if err != nil {
+			return err
+		}
 		// Drop the hash row entirely once the repo holds no more records.
 		var remaining int64
 		if err := tx.Model(&spaceRecord{}).
@@ -1251,14 +1343,14 @@ func (s *store) ApplyWrites(
 		if remaining == 0 {
 			return tx.Where("space = ? AND repo = ?", spaceURI, repo).Delete(&spaceRepo{}).Error
 		}
-		return saveRepoHash(tx, spaceURI, repo, h, headRev)
+		return saveRepoHash(tx, spaceURI, repo, h, headRev, spaceRev)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("apply writes: %w", err)
 	}
 	if headRev != "" {
 		// Best-effort: notify registered syncers that this repo advanced.
-		s.notifier.NotifyWrite(ctx, spaceURI, repo, headRev, headHash)
+		s.notifier.NotifyWrite(ctx, spaceURI, repo, headRev, headHash, spaceRev, prevSpaceRev)
 	}
 	return results, nil
 }
