@@ -15,7 +15,7 @@ import {
 } from "internal/components/ui";
 
 export const Route = createFileRoute(
-  "/_requireAuth/opensocial/$org/app/$clientKey",
+  "/_requireAuth/orgs/$org/settings/app/$clientKey",
 )({
   component: AppDetail,
 });

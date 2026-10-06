@@ -7,7 +7,7 @@ import {
 import { CapabilitiesEditor } from "@/components/CapabilitiesEditor";
 
 export const Route = createFileRoute(
-  "/_requireAuth/opensocial/$org/capabilities",
+  "/_requireAuth/orgs/$org/settings/capabilities",
 )({
   loader: ({ context, params }) =>
     Promise.all([

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { xrpc } from "@atproto/lex";
 import { network } from "api";
 import {
@@ -17,6 +17,7 @@ import {
 import Avatar from "boring-avatars";
 
 import { Search } from "lucide-react";
+import { useState, type FormEvent } from "react";
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
@@ -31,21 +32,8 @@ export const Route = createFileRoute("/_requireAuth/")({
       (app) => app.clientUri !== import.meta.env.VITE_BASE_URL,
     );
 
-    let orgName: string | undefined;
-    try {
-      const meta = await xrpc(
-        authManager,
-        network.habitat.org.getMetadata.main,
-        { params: {} },
-      );
-      orgName = meta.body.name;
-    } catch {
-      // Not a member of an org
-    }
-
     return {
       apps,
-      orgName,
     };
   },
   component() {
@@ -102,6 +90,13 @@ function RecentlyUsed({ apps }: RecentlyUsedProps) {
 
 function AuthenticatedHome() {
   const { apps } = Route.useLoaderData()!;
+  const navigate = useNavigate();
+  const [q, setQ] = useState("");
+
+  const onSearch = (e: FormEvent) => {
+    e.preventDefault();
+    if (q.trim()) navigate({ to: "/search", search: { q } });
+  };
 
   // For now, don't require the user to be registered with a habitat service. If they do have one,
   // requests will still be routed there, but allow them to use the centralized one by default.
@@ -110,15 +105,18 @@ function AuthenticatedHome() {
     <>
       <div className="flex-1 flex flex-col gap-4 justify-center min-h-[60vh]">
         <h1 className="text-2xl">Welcome to Habitat!</h1>
-        <InputGroup>
-          <InputGroupInput
-            disabled
-            placeholder="Search your data for anything... coming soon!"
-          />
-          <InputGroupAddon>
-            <Search />
-          </InputGroupAddon>
-        </InputGroup>
+        <form onSubmit={onSearch}>
+          <InputGroup>
+            <InputGroupInput
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search your data for anything..."
+            />
+            <InputGroupAddon>
+              <Search />
+            </InputGroupAddon>
+          </InputGroup>
+        </form>
       </div>
       {apps.length > 0 ? (
         <div className="flex gap-4 flex-wrap">

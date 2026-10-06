@@ -21,37 +21,32 @@ import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAut
 import { Route as RequireAuthSearchRouteImport } from './routes/_requireAuth/search'
 import { Route as CommunityCreateRouteImport } from './routes/community/create'
 import { Route as LoginHabitatRouteImport } from './routes/login/habitat'
-import { Route as OrgCreateRouteImport } from './routes/org/create'
-import { Route as OrgJoinRouteImport } from './routes/org/join'
 import { Route as RequireAuthBlobTestIndexRouteImport } from './routes/_requireAuth/blob-test/index'
-import { Route as RequireAuthCollectionsIndexRouteImport } from './routes/_requireAuth/collections/index'
-import { Route as RequireAuthCollectionsCollectionRouteImport } from './routes/_requireAuth/collections/$collection'
-import { Route as RequireAuthGroupsIndexRouteImport } from './routes/_requireAuth/groups/index'
-import { Route as RequireAuthGroupsGroupRouteImport } from './routes/_requireAuth/groups/$group'
-import { Route as RequireAuthOpensocialIndexRouteImport } from './routes/_requireAuth/opensocial/index'
-import { Route as RequireAuthOpensocialOrgRouteImport } from './routes/_requireAuth/opensocial/$org'
-import { Route as RequireAuthOrgIndexRouteImport } from './routes/_requireAuth/org/index'
+import { Route as RequireAuthOrgsIndexRouteImport } from './routes/_requireAuth/orgs/index'
+import { Route as RequireAuthOrgsOrgRouteImport } from './routes/_requireAuth/orgs/$org'
 import { Route as RequireAuthPearTestIndexRouteImport } from './routes/_requireAuth/pear-test/index'
 import { Route as RequireAuthPearTestViewRouteImport } from './routes/_requireAuth/pear-test/view'
 import { Route as RequireAuthPermissionsIndexRouteImport } from './routes/_requireAuth/permissions/index'
 import { Route as RequireAuthPermissionsLexiconsRouteImport } from './routes/_requireAuth/permissions/lexicons'
 import { Route as RequireAuthPermissionsPeopleRouteImport } from './routes/_requireAuth/permissions/people'
 import { Route as RequireAuthSpacesIndexRouteImport } from './routes/_requireAuth/spaces/index'
-import { Route as RequireAuthOpensocialOrgIndexRouteImport } from './routes/_requireAuth/opensocial/$org/index'
-import { Route as RequireAuthOpensocialOrgAppsRouteImport } from './routes/_requireAuth/opensocial/$org/apps'
-import { Route as RequireAuthOpensocialOrgCapabilitiesRouteImport } from './routes/_requireAuth/opensocial/$org/capabilities'
-import { Route as RequireAuthOpensocialOrgMcpRouteImport } from './routes/_requireAuth/opensocial/$org/mcp'
-import { Route as RequireAuthOpensocialOrgMembersRouteImport } from './routes/_requireAuth/opensocial/$org/members'
-import { Route as RequireAuthOpensocialOrgRolesRouteImport } from './routes/_requireAuth/opensocial/$org/roles'
-import { Route as RequireAuthOpensocialOrgSearchRouteImport } from './routes/_requireAuth/opensocial/$org/search'
-import { Route as RequireAuthOpensocialOrgSettingsRouteImport } from './routes/_requireAuth/opensocial/$org/settings'
+import { Route as RequireAuthOrgsOrgIndexRouteImport } from './routes/_requireAuth/orgs/$org/index'
+import { Route as RequireAuthOrgsOrgSettingsRouteImport } from './routes/_requireAuth/orgs/$org/settings'
 import { Route as RequireAuthPermissionsLexiconsIndexRouteImport } from './routes/_requireAuth/permissions/lexicons/index'
 import { Route as RequireAuthPermissionsLexiconsCollectionRouteImport } from './routes/_requireAuth/permissions/lexicons/$collection'
 import { Route as RequireAuthPermissionsPeopleDidRouteImport } from './routes/_requireAuth/permissions/people/$did'
 import { Route as RequireAuthSpacesSpaceOwnerIndexRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.index'
 import { Route as RequireAuthSpacesTypeSpaceTypeRouteImport } from './routes/_requireAuth/spaces/type.$spaceType'
-import { Route as RequireAuthOpensocialOrgAppClientKeyRouteImport } from './routes/_requireAuth/opensocial/$org/app.$clientKey'
+import { Route as RequireAuthOrgsOrgSettingsIndexRouteImport } from './routes/_requireAuth/orgs/$org/settings/index'
+import { Route as RequireAuthOrgsOrgSettingsAppsRouteImport } from './routes/_requireAuth/orgs/$org/settings/apps'
+import { Route as RequireAuthOrgsOrgSettingsBrandingRouteImport } from './routes/_requireAuth/orgs/$org/settings/branding'
+import { Route as RequireAuthOrgsOrgSettingsCapabilitiesRouteImport } from './routes/_requireAuth/orgs/$org/settings/capabilities'
+import { Route as RequireAuthOrgsOrgSettingsMcpRouteImport } from './routes/_requireAuth/orgs/$org/settings/mcp'
+import { Route as RequireAuthOrgsOrgSettingsMembersRouteImport } from './routes/_requireAuth/orgs/$org/settings/members'
+import { Route as RequireAuthOrgsOrgSettingsRolesRouteImport } from './routes/_requireAuth/orgs/$org/settings/roles'
+import { Route as RequireAuthOrgsOrgSettingsSearchRouteImport } from './routes/_requireAuth/orgs/$org/settings/search'
 import { Route as RequireAuthSpacesSpaceOwnerSpaceTypeIndexRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.$spaceType.index'
+import { Route as RequireAuthOrgsOrgSettingsAppClientKeyRouteImport } from './routes/_requireAuth/orgs/$org/settings/app.$clientKey'
 import { Route as RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.$spaceType.$spaceKey.index'
 import { Route as RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerIndexRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.$spaceType.$spaceKey.$recordOwner.index'
 import { Route as RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerRecordTypeRecordKeyRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.$spaceType.$spaceKey.$recordOwner.$recordType.$recordKey'
@@ -115,59 +110,20 @@ const LoginHabitatRoute = LoginHabitatRouteImport.update({
   path: '/habitat',
   getParentRoute: () => LoginRoute,
 } as any)
-const OrgCreateRoute = OrgCreateRouteImport.update({
-  id: '/org/create',
-  path: '/org/create',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OrgJoinRoute = OrgJoinRouteImport.update({
-  id: '/org/join',
-  path: '/org/join',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RequireAuthBlobTestIndexRoute =
   RequireAuthBlobTestIndexRouteImport.update({
     id: '/blob-test/',
     path: '/blob-test/',
     getParentRoute: () => RequireAuthRoute,
   } as any)
-const RequireAuthCollectionsIndexRoute =
-  RequireAuthCollectionsIndexRouteImport.update({
-    id: '/collections/',
-    path: '/collections/',
-    getParentRoute: () => RequireAuthRoute,
-  } as any)
-const RequireAuthCollectionsCollectionRoute =
-  RequireAuthCollectionsCollectionRouteImport.update({
-    id: '/collections/$collection',
-    path: '/collections/$collection',
-    getParentRoute: () => RequireAuthRoute,
-  } as any)
-const RequireAuthGroupsIndexRoute = RequireAuthGroupsIndexRouteImport.update({
-  id: '/groups/',
-  path: '/groups/',
+const RequireAuthOrgsIndexRoute = RequireAuthOrgsIndexRouteImport.update({
+  id: '/orgs/',
+  path: '/orgs/',
   getParentRoute: () => RequireAuthRoute,
 } as any)
-const RequireAuthGroupsGroupRoute = RequireAuthGroupsGroupRouteImport.update({
-  id: '/groups/$group',
-  path: '/groups/$group',
-  getParentRoute: () => RequireAuthRoute,
-} as any)
-const RequireAuthOpensocialIndexRoute =
-  RequireAuthOpensocialIndexRouteImport.update({
-    id: '/opensocial/',
-    path: '/opensocial/',
-    getParentRoute: () => RequireAuthRoute,
-  } as any)
-const RequireAuthOpensocialOrgRoute =
-  RequireAuthOpensocialOrgRouteImport.update({
-    id: '/opensocial/$org',
-    path: '/opensocial/$org',
-    getParentRoute: () => RequireAuthRoute,
-  } as any)
-const RequireAuthOrgIndexRoute = RequireAuthOrgIndexRouteImport.update({
-  id: '/org/',
-  path: '/org/',
+const RequireAuthOrgsOrgRoute = RequireAuthOrgsOrgRouteImport.update({
+  id: '/orgs/$org',
+  path: '/orgs/$org',
   getParentRoute: () => RequireAuthRoute,
 } as any)
 const RequireAuthPearTestIndexRoute =
@@ -204,53 +160,16 @@ const RequireAuthSpacesIndexRoute = RequireAuthSpacesIndexRouteImport.update({
   path: '/spaces/',
   getParentRoute: () => RequireAuthRoute,
 } as any)
-const RequireAuthOpensocialOrgIndexRoute =
-  RequireAuthOpensocialOrgIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => RequireAuthOpensocialOrgRoute,
-  } as any)
-const RequireAuthOpensocialOrgAppsRoute =
-  RequireAuthOpensocialOrgAppsRouteImport.update({
-    id: '/apps',
-    path: '/apps',
-    getParentRoute: () => RequireAuthOpensocialOrgRoute,
-  } as any)
-const RequireAuthOpensocialOrgCapabilitiesRoute =
-  RequireAuthOpensocialOrgCapabilitiesRouteImport.update({
-    id: '/capabilities',
-    path: '/capabilities',
-    getParentRoute: () => RequireAuthOpensocialOrgRoute,
-  } as any)
-const RequireAuthOpensocialOrgMcpRoute =
-  RequireAuthOpensocialOrgMcpRouteImport.update({
-    id: '/mcp',
-    path: '/mcp',
-    getParentRoute: () => RequireAuthOpensocialOrgRoute,
-  } as any)
-const RequireAuthOpensocialOrgMembersRoute =
-  RequireAuthOpensocialOrgMembersRouteImport.update({
-    id: '/members',
-    path: '/members',
-    getParentRoute: () => RequireAuthOpensocialOrgRoute,
-  } as any)
-const RequireAuthOpensocialOrgRolesRoute =
-  RequireAuthOpensocialOrgRolesRouteImport.update({
-    id: '/roles',
-    path: '/roles',
-    getParentRoute: () => RequireAuthOpensocialOrgRoute,
-  } as any)
-const RequireAuthOpensocialOrgSearchRoute =
-  RequireAuthOpensocialOrgSearchRouteImport.update({
-    id: '/search',
-    path: '/search',
-    getParentRoute: () => RequireAuthOpensocialOrgRoute,
-  } as any)
-const RequireAuthOpensocialOrgSettingsRoute =
-  RequireAuthOpensocialOrgSettingsRouteImport.update({
+const RequireAuthOrgsOrgIndexRoute = RequireAuthOrgsOrgIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => RequireAuthOrgsOrgRoute,
+} as any)
+const RequireAuthOrgsOrgSettingsRoute =
+  RequireAuthOrgsOrgSettingsRouteImport.update({
     id: '/settings',
     path: '/settings',
-    getParentRoute: () => RequireAuthOpensocialOrgRoute,
+    getParentRoute: () => RequireAuthOrgsOrgRoute,
   } as any)
 const RequireAuthPermissionsLexiconsIndexRoute =
   RequireAuthPermissionsLexiconsIndexRouteImport.update({
@@ -282,17 +201,65 @@ const RequireAuthSpacesTypeSpaceTypeRoute =
     path: '/spaces/type/$spaceType',
     getParentRoute: () => RequireAuthRoute,
   } as any)
-const RequireAuthOpensocialOrgAppClientKeyRoute =
-  RequireAuthOpensocialOrgAppClientKeyRouteImport.update({
-    id: '/app/$clientKey',
-    path: '/app/$clientKey',
-    getParentRoute: () => RequireAuthOpensocialOrgRoute,
+const RequireAuthOrgsOrgSettingsIndexRoute =
+  RequireAuthOrgsOrgSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
+  } as any)
+const RequireAuthOrgsOrgSettingsAppsRoute =
+  RequireAuthOrgsOrgSettingsAppsRouteImport.update({
+    id: '/apps',
+    path: '/apps',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
+  } as any)
+const RequireAuthOrgsOrgSettingsBrandingRoute =
+  RequireAuthOrgsOrgSettingsBrandingRouteImport.update({
+    id: '/branding',
+    path: '/branding',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
+  } as any)
+const RequireAuthOrgsOrgSettingsCapabilitiesRoute =
+  RequireAuthOrgsOrgSettingsCapabilitiesRouteImport.update({
+    id: '/capabilities',
+    path: '/capabilities',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
+  } as any)
+const RequireAuthOrgsOrgSettingsMcpRoute =
+  RequireAuthOrgsOrgSettingsMcpRouteImport.update({
+    id: '/mcp',
+    path: '/mcp',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
+  } as any)
+const RequireAuthOrgsOrgSettingsMembersRoute =
+  RequireAuthOrgsOrgSettingsMembersRouteImport.update({
+    id: '/members',
+    path: '/members',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
+  } as any)
+const RequireAuthOrgsOrgSettingsRolesRoute =
+  RequireAuthOrgsOrgSettingsRolesRouteImport.update({
+    id: '/roles',
+    path: '/roles',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
+  } as any)
+const RequireAuthOrgsOrgSettingsSearchRoute =
+  RequireAuthOrgsOrgSettingsSearchRouteImport.update({
+    id: '/search',
+    path: '/search',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
   } as any)
 const RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute =
   RequireAuthSpacesSpaceOwnerSpaceTypeIndexRouteImport.update({
     id: '/spaces/$spaceOwner/$spaceType/',
     path: '/spaces/$spaceOwner/$spaceType/',
     getParentRoute: () => RequireAuthRoute,
+  } as any)
+const RequireAuthOrgsOrgSettingsAppClientKeyRoute =
+  RequireAuthOrgsOrgSettingsAppClientKeyRouteImport.update({
+    id: '/app/$clientKey',
+    path: '/app/$clientKey',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
   } as any)
 const RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute =
   RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRouteImport.update({
@@ -329,37 +296,32 @@ export interface FileRoutesByFullPath {
   '/search': typeof RequireAuthSearchRoute
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
-  '/org/create': typeof OrgCreateRoute
-  '/org/join': typeof OrgJoinRoute
-  '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
-  '/groups/$group': typeof RequireAuthGroupsGroupRoute
-  '/opensocial/$org': typeof RequireAuthOpensocialOrgRouteWithChildren
+  '/orgs/$org': typeof RequireAuthOrgsOrgRouteWithChildren
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
   '/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
   '/blob-test/': typeof RequireAuthBlobTestIndexRoute
-  '/collections/': typeof RequireAuthCollectionsIndexRoute
-  '/groups/': typeof RequireAuthGroupsIndexRoute
-  '/opensocial/': typeof RequireAuthOpensocialIndexRoute
-  '/org/': typeof RequireAuthOrgIndexRoute
+  '/orgs/': typeof RequireAuthOrgsIndexRoute
   '/pear-test/': typeof RequireAuthPearTestIndexRoute
   '/permissions/': typeof RequireAuthPermissionsIndexRoute
   '/spaces/': typeof RequireAuthSpacesIndexRoute
-  '/opensocial/$org/apps': typeof RequireAuthOpensocialOrgAppsRoute
-  '/opensocial/$org/capabilities': typeof RequireAuthOpensocialOrgCapabilitiesRoute
-  '/opensocial/$org/mcp': typeof RequireAuthOpensocialOrgMcpRoute
-  '/opensocial/$org/members': typeof RequireAuthOpensocialOrgMembersRoute
-  '/opensocial/$org/roles': typeof RequireAuthOpensocialOrgRolesRoute
-  '/opensocial/$org/search': typeof RequireAuthOpensocialOrgSearchRoute
-  '/opensocial/$org/settings': typeof RequireAuthOpensocialOrgSettingsRoute
+  '/orgs/$org/settings': typeof RequireAuthOrgsOrgSettingsRouteWithChildren
   '/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/spaces/type/$spaceType': typeof RequireAuthSpacesTypeSpaceTypeRoute
-  '/opensocial/$org/': typeof RequireAuthOpensocialOrgIndexRoute
+  '/orgs/$org/': typeof RequireAuthOrgsOrgIndexRoute
   '/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
   '/spaces/$spaceOwner/': typeof RequireAuthSpacesSpaceOwnerIndexRoute
-  '/opensocial/$org/app/$clientKey': typeof RequireAuthOpensocialOrgAppClientKeyRoute
+  '/orgs/$org/settings/apps': typeof RequireAuthOrgsOrgSettingsAppsRoute
+  '/orgs/$org/settings/branding': typeof RequireAuthOrgsOrgSettingsBrandingRoute
+  '/orgs/$org/settings/capabilities': typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
+  '/orgs/$org/settings/mcp': typeof RequireAuthOrgsOrgSettingsMcpRoute
+  '/orgs/$org/settings/members': typeof RequireAuthOrgsOrgSettingsMembersRoute
+  '/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
+  '/orgs/$org/settings/search': typeof RequireAuthOrgsOrgSettingsSearchRoute
+  '/orgs/$org/settings/': typeof RequireAuthOrgsOrgSettingsIndexRoute
   '/spaces/$spaceOwner/$spaceType/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute
+  '/orgs/$org/settings/app/$clientKey': typeof RequireAuthOrgsOrgSettingsAppClientKeyRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerIndexRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerRecordTypeRecordKeyRoute
@@ -374,36 +336,30 @@ export interface FileRoutesByTo {
   '/search': typeof RequireAuthSearchRoute
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
-  '/org/create': typeof OrgCreateRoute
-  '/org/join': typeof OrgJoinRoute
   '/': typeof RequireAuthIndexRoute
-  '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
-  '/groups/$group': typeof RequireAuthGroupsGroupRoute
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
   '/blob-test': typeof RequireAuthBlobTestIndexRoute
-  '/collections': typeof RequireAuthCollectionsIndexRoute
-  '/groups': typeof RequireAuthGroupsIndexRoute
-  '/opensocial': typeof RequireAuthOpensocialIndexRoute
-  '/org': typeof RequireAuthOrgIndexRoute
+  '/orgs': typeof RequireAuthOrgsIndexRoute
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions': typeof RequireAuthPermissionsIndexRoute
   '/spaces': typeof RequireAuthSpacesIndexRoute
-  '/opensocial/$org/apps': typeof RequireAuthOpensocialOrgAppsRoute
-  '/opensocial/$org/capabilities': typeof RequireAuthOpensocialOrgCapabilitiesRoute
-  '/opensocial/$org/mcp': typeof RequireAuthOpensocialOrgMcpRoute
-  '/opensocial/$org/members': typeof RequireAuthOpensocialOrgMembersRoute
-  '/opensocial/$org/roles': typeof RequireAuthOpensocialOrgRolesRoute
-  '/opensocial/$org/search': typeof RequireAuthOpensocialOrgSearchRoute
-  '/opensocial/$org/settings': typeof RequireAuthOpensocialOrgSettingsRoute
   '/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/spaces/type/$spaceType': typeof RequireAuthSpacesTypeSpaceTypeRoute
-  '/opensocial/$org': typeof RequireAuthOpensocialOrgIndexRoute
+  '/orgs/$org': typeof RequireAuthOrgsOrgIndexRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsIndexRoute
   '/spaces/$spaceOwner': typeof RequireAuthSpacesSpaceOwnerIndexRoute
-  '/opensocial/$org/app/$clientKey': typeof RequireAuthOpensocialOrgAppClientKeyRoute
+  '/orgs/$org/settings/apps': typeof RequireAuthOrgsOrgSettingsAppsRoute
+  '/orgs/$org/settings/branding': typeof RequireAuthOrgsOrgSettingsBrandingRoute
+  '/orgs/$org/settings/capabilities': typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
+  '/orgs/$org/settings/mcp': typeof RequireAuthOrgsOrgSettingsMcpRoute
+  '/orgs/$org/settings/members': typeof RequireAuthOrgsOrgSettingsMembersRoute
+  '/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
+  '/orgs/$org/settings/search': typeof RequireAuthOrgsOrgSettingsSearchRoute
+  '/orgs/$org/settings': typeof RequireAuthOrgsOrgSettingsIndexRoute
   '/spaces/$spaceOwner/$spaceType': typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute
+  '/orgs/$org/settings/app/$clientKey': typeof RequireAuthOrgsOrgSettingsAppClientKeyRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerIndexRoute
   '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerRecordTypeRecordKeyRoute
@@ -421,38 +377,33 @@ export interface FileRoutesById {
   '/_requireAuth/search': typeof RequireAuthSearchRoute
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
-  '/org/create': typeof OrgCreateRoute
-  '/org/join': typeof OrgJoinRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
-  '/_requireAuth/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
-  '/_requireAuth/groups/$group': typeof RequireAuthGroupsGroupRoute
-  '/_requireAuth/opensocial/$org': typeof RequireAuthOpensocialOrgRouteWithChildren
+  '/_requireAuth/orgs/$org': typeof RequireAuthOrgsOrgRouteWithChildren
   '/_requireAuth/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/_requireAuth/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
   '/_requireAuth/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
   '/_requireAuth/blob-test/': typeof RequireAuthBlobTestIndexRoute
-  '/_requireAuth/collections/': typeof RequireAuthCollectionsIndexRoute
-  '/_requireAuth/groups/': typeof RequireAuthGroupsIndexRoute
-  '/_requireAuth/opensocial/': typeof RequireAuthOpensocialIndexRoute
-  '/_requireAuth/org/': typeof RequireAuthOrgIndexRoute
+  '/_requireAuth/orgs/': typeof RequireAuthOrgsIndexRoute
   '/_requireAuth/pear-test/': typeof RequireAuthPearTestIndexRoute
   '/_requireAuth/permissions/': typeof RequireAuthPermissionsIndexRoute
   '/_requireAuth/spaces/': typeof RequireAuthSpacesIndexRoute
-  '/_requireAuth/opensocial/$org/apps': typeof RequireAuthOpensocialOrgAppsRoute
-  '/_requireAuth/opensocial/$org/capabilities': typeof RequireAuthOpensocialOrgCapabilitiesRoute
-  '/_requireAuth/opensocial/$org/mcp': typeof RequireAuthOpensocialOrgMcpRoute
-  '/_requireAuth/opensocial/$org/members': typeof RequireAuthOpensocialOrgMembersRoute
-  '/_requireAuth/opensocial/$org/roles': typeof RequireAuthOpensocialOrgRolesRoute
-  '/_requireAuth/opensocial/$org/search': typeof RequireAuthOpensocialOrgSearchRoute
-  '/_requireAuth/opensocial/$org/settings': typeof RequireAuthOpensocialOrgSettingsRoute
+  '/_requireAuth/orgs/$org/settings': typeof RequireAuthOrgsOrgSettingsRouteWithChildren
   '/_requireAuth/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/_requireAuth/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/_requireAuth/spaces/type/$spaceType': typeof RequireAuthSpacesTypeSpaceTypeRoute
-  '/_requireAuth/opensocial/$org/': typeof RequireAuthOpensocialOrgIndexRoute
+  '/_requireAuth/orgs/$org/': typeof RequireAuthOrgsOrgIndexRoute
   '/_requireAuth/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
   '/_requireAuth/spaces/$spaceOwner/': typeof RequireAuthSpacesSpaceOwnerIndexRoute
-  '/_requireAuth/opensocial/$org/app/$clientKey': typeof RequireAuthOpensocialOrgAppClientKeyRoute
+  '/_requireAuth/orgs/$org/settings/apps': typeof RequireAuthOrgsOrgSettingsAppsRoute
+  '/_requireAuth/orgs/$org/settings/branding': typeof RequireAuthOrgsOrgSettingsBrandingRoute
+  '/_requireAuth/orgs/$org/settings/capabilities': typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
+  '/_requireAuth/orgs/$org/settings/mcp': typeof RequireAuthOrgsOrgSettingsMcpRoute
+  '/_requireAuth/orgs/$org/settings/members': typeof RequireAuthOrgsOrgSettingsMembersRoute
+  '/_requireAuth/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
+  '/_requireAuth/orgs/$org/settings/search': typeof RequireAuthOrgsOrgSettingsSearchRoute
+  '/_requireAuth/orgs/$org/settings/': typeof RequireAuthOrgsOrgSettingsIndexRoute
   '/_requireAuth/spaces/$spaceOwner/$spaceType/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRoute
+  '/_requireAuth/orgs/$org/settings/app/$clientKey': typeof RequireAuthOrgsOrgSettingsAppClientKeyRoute
   '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyIndexRoute
   '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerIndexRoute
   '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey': typeof RequireAuthSpacesSpaceOwnerSpaceTypeSpaceKeyRecordOwnerRecordTypeRecordKeyRoute
@@ -471,37 +422,32 @@ export interface FileRouteTypes {
     | '/search'
     | '/community/create'
     | '/login/habitat'
-    | '/org/create'
-    | '/org/join'
-    | '/collections/$collection'
-    | '/groups/$group'
-    | '/opensocial/$org'
+    | '/orgs/$org'
     | '/pear-test/view'
     | '/permissions/lexicons'
     | '/permissions/people'
     | '/blob-test/'
-    | '/collections/'
-    | '/groups/'
-    | '/opensocial/'
-    | '/org/'
+    | '/orgs/'
     | '/pear-test/'
     | '/permissions/'
     | '/spaces/'
-    | '/opensocial/$org/apps'
-    | '/opensocial/$org/capabilities'
-    | '/opensocial/$org/mcp'
-    | '/opensocial/$org/members'
-    | '/opensocial/$org/roles'
-    | '/opensocial/$org/search'
-    | '/opensocial/$org/settings'
+    | '/orgs/$org/settings'
     | '/permissions/lexicons/$collection'
     | '/permissions/people/$did'
     | '/spaces/type/$spaceType'
-    | '/opensocial/$org/'
+    | '/orgs/$org/'
     | '/permissions/lexicons/'
     | '/spaces/$spaceOwner/'
-    | '/opensocial/$org/app/$clientKey'
+    | '/orgs/$org/settings/apps'
+    | '/orgs/$org/settings/branding'
+    | '/orgs/$org/settings/capabilities'
+    | '/orgs/$org/settings/mcp'
+    | '/orgs/$org/settings/members'
+    | '/orgs/$org/settings/roles'
+    | '/orgs/$org/settings/search'
+    | '/orgs/$org/settings/'
     | '/spaces/$spaceOwner/$spaceType/'
+    | '/orgs/$org/settings/app/$clientKey'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey/'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey'
@@ -516,36 +462,30 @@ export interface FileRouteTypes {
     | '/search'
     | '/community/create'
     | '/login/habitat'
-    | '/org/create'
-    | '/org/join'
     | '/'
-    | '/collections/$collection'
-    | '/groups/$group'
     | '/pear-test/view'
     | '/permissions/people'
     | '/blob-test'
-    | '/collections'
-    | '/groups'
-    | '/opensocial'
-    | '/org'
+    | '/orgs'
     | '/pear-test'
     | '/permissions'
     | '/spaces'
-    | '/opensocial/$org/apps'
-    | '/opensocial/$org/capabilities'
-    | '/opensocial/$org/mcp'
-    | '/opensocial/$org/members'
-    | '/opensocial/$org/roles'
-    | '/opensocial/$org/search'
-    | '/opensocial/$org/settings'
     | '/permissions/lexicons/$collection'
     | '/permissions/people/$did'
     | '/spaces/type/$spaceType'
-    | '/opensocial/$org'
+    | '/orgs/$org'
     | '/permissions/lexicons'
     | '/spaces/$spaceOwner'
-    | '/opensocial/$org/app/$clientKey'
+    | '/orgs/$org/settings/apps'
+    | '/orgs/$org/settings/branding'
+    | '/orgs/$org/settings/capabilities'
+    | '/orgs/$org/settings/mcp'
+    | '/orgs/$org/settings/members'
+    | '/orgs/$org/settings/roles'
+    | '/orgs/$org/settings/search'
+    | '/orgs/$org/settings'
     | '/spaces/$spaceOwner/$spaceType'
+    | '/orgs/$org/settings/app/$clientKey'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner'
     | '/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey'
@@ -562,38 +502,33 @@ export interface FileRouteTypes {
     | '/_requireAuth/search'
     | '/community/create'
     | '/login/habitat'
-    | '/org/create'
-    | '/org/join'
     | '/_requireAuth/'
-    | '/_requireAuth/collections/$collection'
-    | '/_requireAuth/groups/$group'
-    | '/_requireAuth/opensocial/$org'
+    | '/_requireAuth/orgs/$org'
     | '/_requireAuth/pear-test/view'
     | '/_requireAuth/permissions/lexicons'
     | '/_requireAuth/permissions/people'
     | '/_requireAuth/blob-test/'
-    | '/_requireAuth/collections/'
-    | '/_requireAuth/groups/'
-    | '/_requireAuth/opensocial/'
-    | '/_requireAuth/org/'
+    | '/_requireAuth/orgs/'
     | '/_requireAuth/pear-test/'
     | '/_requireAuth/permissions/'
     | '/_requireAuth/spaces/'
-    | '/_requireAuth/opensocial/$org/apps'
-    | '/_requireAuth/opensocial/$org/capabilities'
-    | '/_requireAuth/opensocial/$org/mcp'
-    | '/_requireAuth/opensocial/$org/members'
-    | '/_requireAuth/opensocial/$org/roles'
-    | '/_requireAuth/opensocial/$org/search'
-    | '/_requireAuth/opensocial/$org/settings'
+    | '/_requireAuth/orgs/$org/settings'
     | '/_requireAuth/permissions/lexicons/$collection'
     | '/_requireAuth/permissions/people/$did'
     | '/_requireAuth/spaces/type/$spaceType'
-    | '/_requireAuth/opensocial/$org/'
+    | '/_requireAuth/orgs/$org/'
     | '/_requireAuth/permissions/lexicons/'
     | '/_requireAuth/spaces/$spaceOwner/'
-    | '/_requireAuth/opensocial/$org/app/$clientKey'
+    | '/_requireAuth/orgs/$org/settings/apps'
+    | '/_requireAuth/orgs/$org/settings/branding'
+    | '/_requireAuth/orgs/$org/settings/capabilities'
+    | '/_requireAuth/orgs/$org/settings/mcp'
+    | '/_requireAuth/orgs/$org/settings/members'
+    | '/_requireAuth/orgs/$org/settings/roles'
+    | '/_requireAuth/orgs/$org/settings/search'
+    | '/_requireAuth/orgs/$org/settings/'
     | '/_requireAuth/spaces/$spaceOwner/$spaceType/'
+    | '/_requireAuth/orgs/$org/settings/app/$clientKey'
     | '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/'
     | '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/'
     | '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/$recordOwner/$recordType/$recordKey'
@@ -607,8 +542,6 @@ export interface RootRouteChildren {
   OauthLoginRoute: typeof OauthLoginRoute
   OnboardRoute: typeof OnboardRoute
   CommunityCreateRoute: typeof CommunityCreateRoute
-  OrgCreateRoute: typeof OrgCreateRoute
-  OrgJoinRoute: typeof OrgJoinRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -697,20 +630,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginHabitatRouteImport
       parentRoute: typeof LoginRoute
     }
-    '/org/create': {
-      id: '/org/create'
-      path: '/org/create'
-      fullPath: '/org/create'
-      preLoaderRoute: typeof OrgCreateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/org/join': {
-      id: '/org/join'
-      path: '/org/join'
-      fullPath: '/org/join'
-      preLoaderRoute: typeof OrgJoinRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_requireAuth/blob-test/': {
       id: '/_requireAuth/blob-test/'
       path: '/blob-test'
@@ -718,53 +637,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthBlobTestIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
-    '/_requireAuth/collections/': {
-      id: '/_requireAuth/collections/'
-      path: '/collections'
-      fullPath: '/collections/'
-      preLoaderRoute: typeof RequireAuthCollectionsIndexRouteImport
+    '/_requireAuth/orgs/': {
+      id: '/_requireAuth/orgs/'
+      path: '/orgs'
+      fullPath: '/orgs/'
+      preLoaderRoute: typeof RequireAuthOrgsIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
-    '/_requireAuth/collections/$collection': {
-      id: '/_requireAuth/collections/$collection'
-      path: '/collections/$collection'
-      fullPath: '/collections/$collection'
-      preLoaderRoute: typeof RequireAuthCollectionsCollectionRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
-    '/_requireAuth/groups/': {
-      id: '/_requireAuth/groups/'
-      path: '/groups'
-      fullPath: '/groups/'
-      preLoaderRoute: typeof RequireAuthGroupsIndexRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
-    '/_requireAuth/groups/$group': {
-      id: '/_requireAuth/groups/$group'
-      path: '/groups/$group'
-      fullPath: '/groups/$group'
-      preLoaderRoute: typeof RequireAuthGroupsGroupRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
-    '/_requireAuth/opensocial/': {
-      id: '/_requireAuth/opensocial/'
-      path: '/opensocial'
-      fullPath: '/opensocial/'
-      preLoaderRoute: typeof RequireAuthOpensocialIndexRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
-    '/_requireAuth/opensocial/$org': {
-      id: '/_requireAuth/opensocial/$org'
-      path: '/opensocial/$org'
-      fullPath: '/opensocial/$org'
-      preLoaderRoute: typeof RequireAuthOpensocialOrgRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
-    '/_requireAuth/org/': {
-      id: '/_requireAuth/org/'
-      path: '/org'
-      fullPath: '/org/'
-      preLoaderRoute: typeof RequireAuthOrgIndexRouteImport
+    '/_requireAuth/orgs/$org': {
+      id: '/_requireAuth/orgs/$org'
+      path: '/orgs/$org'
+      fullPath: '/orgs/$org'
+      preLoaderRoute: typeof RequireAuthOrgsOrgRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/pear-test/': {
@@ -809,61 +693,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthSpacesIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
-    '/_requireAuth/opensocial/$org/': {
-      id: '/_requireAuth/opensocial/$org/'
+    '/_requireAuth/orgs/$org/': {
+      id: '/_requireAuth/orgs/$org/'
       path: '/'
-      fullPath: '/opensocial/$org/'
-      preLoaderRoute: typeof RequireAuthOpensocialOrgIndexRouteImport
-      parentRoute: typeof RequireAuthOpensocialOrgRoute
+      fullPath: '/orgs/$org/'
+      preLoaderRoute: typeof RequireAuthOrgsOrgIndexRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgRoute
     }
-    '/_requireAuth/opensocial/$org/apps': {
-      id: '/_requireAuth/opensocial/$org/apps'
-      path: '/apps'
-      fullPath: '/opensocial/$org/apps'
-      preLoaderRoute: typeof RequireAuthOpensocialOrgAppsRouteImport
-      parentRoute: typeof RequireAuthOpensocialOrgRoute
-    }
-    '/_requireAuth/opensocial/$org/capabilities': {
-      id: '/_requireAuth/opensocial/$org/capabilities'
-      path: '/capabilities'
-      fullPath: '/opensocial/$org/capabilities'
-      preLoaderRoute: typeof RequireAuthOpensocialOrgCapabilitiesRouteImport
-      parentRoute: typeof RequireAuthOpensocialOrgRoute
-    }
-    '/_requireAuth/opensocial/$org/mcp': {
-      id: '/_requireAuth/opensocial/$org/mcp'
-      path: '/mcp'
-      fullPath: '/opensocial/$org/mcp'
-      preLoaderRoute: typeof RequireAuthOpensocialOrgMcpRouteImport
-      parentRoute: typeof RequireAuthOpensocialOrgRoute
-    }
-    '/_requireAuth/opensocial/$org/members': {
-      id: '/_requireAuth/opensocial/$org/members'
-      path: '/members'
-      fullPath: '/opensocial/$org/members'
-      preLoaderRoute: typeof RequireAuthOpensocialOrgMembersRouteImport
-      parentRoute: typeof RequireAuthOpensocialOrgRoute
-    }
-    '/_requireAuth/opensocial/$org/roles': {
-      id: '/_requireAuth/opensocial/$org/roles'
-      path: '/roles'
-      fullPath: '/opensocial/$org/roles'
-      preLoaderRoute: typeof RequireAuthOpensocialOrgRolesRouteImport
-      parentRoute: typeof RequireAuthOpensocialOrgRoute
-    }
-    '/_requireAuth/opensocial/$org/search': {
-      id: '/_requireAuth/opensocial/$org/search'
-      path: '/search'
-      fullPath: '/opensocial/$org/search'
-      preLoaderRoute: typeof RequireAuthOpensocialOrgSearchRouteImport
-      parentRoute: typeof RequireAuthOpensocialOrgRoute
-    }
-    '/_requireAuth/opensocial/$org/settings': {
-      id: '/_requireAuth/opensocial/$org/settings'
+    '/_requireAuth/orgs/$org/settings': {
+      id: '/_requireAuth/orgs/$org/settings'
       path: '/settings'
-      fullPath: '/opensocial/$org/settings'
-      preLoaderRoute: typeof RequireAuthOpensocialOrgSettingsRouteImport
-      parentRoute: typeof RequireAuthOpensocialOrgRoute
+      fullPath: '/orgs/$org/settings'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgRoute
     }
     '/_requireAuth/permissions/lexicons/': {
       id: '/_requireAuth/permissions/lexicons/'
@@ -900,12 +742,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthSpacesTypeSpaceTypeRouteImport
       parentRoute: typeof RequireAuthRoute
     }
-    '/_requireAuth/opensocial/$org/app/$clientKey': {
-      id: '/_requireAuth/opensocial/$org/app/$clientKey'
-      path: '/app/$clientKey'
-      fullPath: '/opensocial/$org/app/$clientKey'
-      preLoaderRoute: typeof RequireAuthOpensocialOrgAppClientKeyRouteImport
-      parentRoute: typeof RequireAuthOpensocialOrgRoute
+    '/_requireAuth/orgs/$org/settings/': {
+      id: '/_requireAuth/orgs/$org/settings/'
+      path: '/'
+      fullPath: '/orgs/$org/settings/'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsIndexRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
+    }
+    '/_requireAuth/orgs/$org/settings/apps': {
+      id: '/_requireAuth/orgs/$org/settings/apps'
+      path: '/apps'
+      fullPath: '/orgs/$org/settings/apps'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsAppsRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
+    }
+    '/_requireAuth/orgs/$org/settings/branding': {
+      id: '/_requireAuth/orgs/$org/settings/branding'
+      path: '/branding'
+      fullPath: '/orgs/$org/settings/branding'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsBrandingRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
+    }
+    '/_requireAuth/orgs/$org/settings/capabilities': {
+      id: '/_requireAuth/orgs/$org/settings/capabilities'
+      path: '/capabilities'
+      fullPath: '/orgs/$org/settings/capabilities'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsCapabilitiesRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
+    }
+    '/_requireAuth/orgs/$org/settings/mcp': {
+      id: '/_requireAuth/orgs/$org/settings/mcp'
+      path: '/mcp'
+      fullPath: '/orgs/$org/settings/mcp'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsMcpRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
+    }
+    '/_requireAuth/orgs/$org/settings/members': {
+      id: '/_requireAuth/orgs/$org/settings/members'
+      path: '/members'
+      fullPath: '/orgs/$org/settings/members'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsMembersRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
+    }
+    '/_requireAuth/orgs/$org/settings/roles': {
+      id: '/_requireAuth/orgs/$org/settings/roles'
+      path: '/roles'
+      fullPath: '/orgs/$org/settings/roles'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsRolesRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
+    }
+    '/_requireAuth/orgs/$org/settings/search': {
+      id: '/_requireAuth/orgs/$org/settings/search'
+      path: '/search'
+      fullPath: '/orgs/$org/settings/search'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsSearchRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
     }
     '/_requireAuth/spaces/$spaceOwner/$spaceType/': {
       id: '/_requireAuth/spaces/$spaceOwner/$spaceType/'
@@ -913,6 +804,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/spaces/$spaceOwner/$spaceType/'
       preLoaderRoute: typeof RequireAuthSpacesSpaceOwnerSpaceTypeIndexRouteImport
       parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/orgs/$org/settings/app/$clientKey': {
+      id: '/_requireAuth/orgs/$org/settings/app/$clientKey'
+      path: '/app/$clientKey'
+      fullPath: '/orgs/$org/settings/app/$clientKey'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsAppClientKeyRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
     }
     '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/': {
       id: '/_requireAuth/spaces/$spaceOwner/$spaceType/$spaceKey/'
@@ -990,53 +888,63 @@ const RequireAuthPermissionsRouteWithChildren =
     RequireAuthPermissionsRouteChildren,
   )
 
-interface RequireAuthOpensocialOrgRouteChildren {
-  RequireAuthOpensocialOrgAppsRoute: typeof RequireAuthOpensocialOrgAppsRoute
-  RequireAuthOpensocialOrgCapabilitiesRoute: typeof RequireAuthOpensocialOrgCapabilitiesRoute
-  RequireAuthOpensocialOrgMcpRoute: typeof RequireAuthOpensocialOrgMcpRoute
-  RequireAuthOpensocialOrgMembersRoute: typeof RequireAuthOpensocialOrgMembersRoute
-  RequireAuthOpensocialOrgRolesRoute: typeof RequireAuthOpensocialOrgRolesRoute
-  RequireAuthOpensocialOrgSearchRoute: typeof RequireAuthOpensocialOrgSearchRoute
-  RequireAuthOpensocialOrgSettingsRoute: typeof RequireAuthOpensocialOrgSettingsRoute
-  RequireAuthOpensocialOrgIndexRoute: typeof RequireAuthOpensocialOrgIndexRoute
-  RequireAuthOpensocialOrgAppClientKeyRoute: typeof RequireAuthOpensocialOrgAppClientKeyRoute
+interface RequireAuthOrgsOrgSettingsRouteChildren {
+  RequireAuthOrgsOrgSettingsAppsRoute: typeof RequireAuthOrgsOrgSettingsAppsRoute
+  RequireAuthOrgsOrgSettingsBrandingRoute: typeof RequireAuthOrgsOrgSettingsBrandingRoute
+  RequireAuthOrgsOrgSettingsCapabilitiesRoute: typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
+  RequireAuthOrgsOrgSettingsMcpRoute: typeof RequireAuthOrgsOrgSettingsMcpRoute
+  RequireAuthOrgsOrgSettingsMembersRoute: typeof RequireAuthOrgsOrgSettingsMembersRoute
+  RequireAuthOrgsOrgSettingsRolesRoute: typeof RequireAuthOrgsOrgSettingsRolesRoute
+  RequireAuthOrgsOrgSettingsSearchRoute: typeof RequireAuthOrgsOrgSettingsSearchRoute
+  RequireAuthOrgsOrgSettingsIndexRoute: typeof RequireAuthOrgsOrgSettingsIndexRoute
+  RequireAuthOrgsOrgSettingsAppClientKeyRoute: typeof RequireAuthOrgsOrgSettingsAppClientKeyRoute
 }
 
-const RequireAuthOpensocialOrgRouteChildren: RequireAuthOpensocialOrgRouteChildren =
+const RequireAuthOrgsOrgSettingsRouteChildren: RequireAuthOrgsOrgSettingsRouteChildren =
   {
-    RequireAuthOpensocialOrgAppsRoute: RequireAuthOpensocialOrgAppsRoute,
-    RequireAuthOpensocialOrgCapabilitiesRoute:
-      RequireAuthOpensocialOrgCapabilitiesRoute,
-    RequireAuthOpensocialOrgMcpRoute: RequireAuthOpensocialOrgMcpRoute,
-    RequireAuthOpensocialOrgMembersRoute: RequireAuthOpensocialOrgMembersRoute,
-    RequireAuthOpensocialOrgRolesRoute: RequireAuthOpensocialOrgRolesRoute,
-    RequireAuthOpensocialOrgSearchRoute: RequireAuthOpensocialOrgSearchRoute,
-    RequireAuthOpensocialOrgSettingsRoute:
-      RequireAuthOpensocialOrgSettingsRoute,
-    RequireAuthOpensocialOrgIndexRoute: RequireAuthOpensocialOrgIndexRoute,
-    RequireAuthOpensocialOrgAppClientKeyRoute:
-      RequireAuthOpensocialOrgAppClientKeyRoute,
+    RequireAuthOrgsOrgSettingsAppsRoute: RequireAuthOrgsOrgSettingsAppsRoute,
+    RequireAuthOrgsOrgSettingsBrandingRoute:
+      RequireAuthOrgsOrgSettingsBrandingRoute,
+    RequireAuthOrgsOrgSettingsCapabilitiesRoute:
+      RequireAuthOrgsOrgSettingsCapabilitiesRoute,
+    RequireAuthOrgsOrgSettingsMcpRoute: RequireAuthOrgsOrgSettingsMcpRoute,
+    RequireAuthOrgsOrgSettingsMembersRoute:
+      RequireAuthOrgsOrgSettingsMembersRoute,
+    RequireAuthOrgsOrgSettingsRolesRoute: RequireAuthOrgsOrgSettingsRolesRoute,
+    RequireAuthOrgsOrgSettingsSearchRoute:
+      RequireAuthOrgsOrgSettingsSearchRoute,
+    RequireAuthOrgsOrgSettingsIndexRoute: RequireAuthOrgsOrgSettingsIndexRoute,
+    RequireAuthOrgsOrgSettingsAppClientKeyRoute:
+      RequireAuthOrgsOrgSettingsAppClientKeyRoute,
   }
 
-const RequireAuthOpensocialOrgRouteWithChildren =
-  RequireAuthOpensocialOrgRoute._addFileChildren(
-    RequireAuthOpensocialOrgRouteChildren,
+const RequireAuthOrgsOrgSettingsRouteWithChildren =
+  RequireAuthOrgsOrgSettingsRoute._addFileChildren(
+    RequireAuthOrgsOrgSettingsRouteChildren,
   )
+
+interface RequireAuthOrgsOrgRouteChildren {
+  RequireAuthOrgsOrgSettingsRoute: typeof RequireAuthOrgsOrgSettingsRouteWithChildren
+  RequireAuthOrgsOrgIndexRoute: typeof RequireAuthOrgsOrgIndexRoute
+}
+
+const RequireAuthOrgsOrgRouteChildren: RequireAuthOrgsOrgRouteChildren = {
+  RequireAuthOrgsOrgSettingsRoute: RequireAuthOrgsOrgSettingsRouteWithChildren,
+  RequireAuthOrgsOrgIndexRoute: RequireAuthOrgsOrgIndexRoute,
+}
+
+const RequireAuthOrgsOrgRouteWithChildren =
+  RequireAuthOrgsOrgRoute._addFileChildren(RequireAuthOrgsOrgRouteChildren)
 
 interface RequireAuthRouteChildren {
   RequireAuthDataRoute: typeof RequireAuthDataRoute
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
   RequireAuthSearchRoute: typeof RequireAuthSearchRoute
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
-  RequireAuthCollectionsCollectionRoute: typeof RequireAuthCollectionsCollectionRoute
-  RequireAuthGroupsGroupRoute: typeof RequireAuthGroupsGroupRoute
-  RequireAuthOpensocialOrgRoute: typeof RequireAuthOpensocialOrgRouteWithChildren
+  RequireAuthOrgsOrgRoute: typeof RequireAuthOrgsOrgRouteWithChildren
   RequireAuthPearTestViewRoute: typeof RequireAuthPearTestViewRoute
   RequireAuthBlobTestIndexRoute: typeof RequireAuthBlobTestIndexRoute
-  RequireAuthCollectionsIndexRoute: typeof RequireAuthCollectionsIndexRoute
-  RequireAuthGroupsIndexRoute: typeof RequireAuthGroupsIndexRoute
-  RequireAuthOpensocialIndexRoute: typeof RequireAuthOpensocialIndexRoute
-  RequireAuthOrgIndexRoute: typeof RequireAuthOrgIndexRoute
+  RequireAuthOrgsIndexRoute: typeof RequireAuthOrgsIndexRoute
   RequireAuthPearTestIndexRoute: typeof RequireAuthPearTestIndexRoute
   RequireAuthSpacesIndexRoute: typeof RequireAuthSpacesIndexRoute
   RequireAuthSpacesTypeSpaceTypeRoute: typeof RequireAuthSpacesTypeSpaceTypeRoute
@@ -1052,15 +960,10 @@ const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
   RequireAuthSearchRoute: RequireAuthSearchRoute,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
-  RequireAuthCollectionsCollectionRoute: RequireAuthCollectionsCollectionRoute,
-  RequireAuthGroupsGroupRoute: RequireAuthGroupsGroupRoute,
-  RequireAuthOpensocialOrgRoute: RequireAuthOpensocialOrgRouteWithChildren,
+  RequireAuthOrgsOrgRoute: RequireAuthOrgsOrgRouteWithChildren,
   RequireAuthPearTestViewRoute: RequireAuthPearTestViewRoute,
   RequireAuthBlobTestIndexRoute: RequireAuthBlobTestIndexRoute,
-  RequireAuthCollectionsIndexRoute: RequireAuthCollectionsIndexRoute,
-  RequireAuthGroupsIndexRoute: RequireAuthGroupsIndexRoute,
-  RequireAuthOpensocialIndexRoute: RequireAuthOpensocialIndexRoute,
-  RequireAuthOrgIndexRoute: RequireAuthOrgIndexRoute,
+  RequireAuthOrgsIndexRoute: RequireAuthOrgsIndexRoute,
   RequireAuthPearTestIndexRoute: RequireAuthPearTestIndexRoute,
   RequireAuthSpacesIndexRoute: RequireAuthSpacesIndexRoute,
   RequireAuthSpacesTypeSpaceTypeRoute: RequireAuthSpacesTypeSpaceTypeRoute,
@@ -1097,8 +1000,6 @@ const rootRouteChildren: RootRouteChildren = {
   OauthLoginRoute: OauthLoginRoute,
   OnboardRoute: OnboardRoute,
   CommunityCreateRoute: CommunityCreateRoute,
-  OrgCreateRoute: OrgCreateRoute,
-  OrgJoinRoute: OrgJoinRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

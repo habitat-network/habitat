@@ -67,6 +67,7 @@ catalog:
   vite-tsconfig-paths: ^6.0.0
   vitest: ^4.1.11
   zod: ^4.4.3
+  zustand: ^5.0.15
 
 minimumReleaseAgeExclude:
   - '@atproto-labs/did-resolver@0.0.0-spaces-alpha-20260913191958'
