@@ -77,9 +77,21 @@ func backfillBatch(ctx context.Context, tx *sql.Tx, set string, postgres bool) (
 	}
 	_ = rows.Close()
 
-	update := "UPDATE space_records SET value_json = " + set + " WHERE space = " + bind(postgres, 2) +
-		" AND repo = " + bind(postgres, 3) + " AND collection = " + bind(postgres, 4) +
-		" AND rkey = " + bind(postgres, 5)
+	update := "UPDATE space_records SET value_json = " + set + " WHERE space = " + bind(
+		postgres,
+		2,
+	) +
+		" AND repo = " + bind(
+		postgres,
+		3,
+	) + " AND collection = " + bind(
+		postgres,
+		4,
+	) +
+		" AND rkey = " + bind(
+		postgres,
+		5,
+	)
 	for _, r := range batch {
 		record, err := atdata.UnmarshalCBOR(r.value)
 		if err != nil {
