@@ -28,6 +28,14 @@ func upBackfillSpaceRecordValueJSON(ctx context.Context, tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
+	// Go migrations also run in tests that apply no schema migrations first.
+	exists, err := tableExists(ctx, tx, "space_records", postgres)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
 	set := "?"
 	if postgres {
 		set = "$1::jsonb"
