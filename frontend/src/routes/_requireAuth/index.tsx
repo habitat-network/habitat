@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { myOrgsQueryOptions } from "@/queries/opensocial";
 import { getLastOrg } from "@/lib/selectedOrg";
 
@@ -6,14 +6,14 @@ import { getLastOrg } from "@/lib/selectedOrg";
 // belong to it, else their first org, else the orgs page so they can create
 // or join one.
 export const Route = createFileRoute("/_requireAuth/")({
-  async beforeLoad({ context }) {
+  async loader({ context }) {
     const { authManager, queryClient } = context;
     const orgs = await queryClient.ensureQueryData(
       myOrgsQueryOptions(authManager),
     );
     const last = getLastOrg();
     const org = orgs.find((o) => o.did === last)?.did ?? orgs[0]?.did;
-    if (!org) throw redirect({ to: "/orgs" });
-    throw redirect({ to: "/orgs/$org", params: { org } });
+    if (!org) throw Route.redirect({ to: "/orgs" });
+    throw Route.redirect({ to: "/orgs/$org", params: { org } });
   },
 });
