@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -45,7 +46,7 @@ type spaceRecord struct {
 	Value      []byte
 	// ValueJSON is the same record as JSON in the native JSON column. It is
 	// written alongside Value so records can be queried; reads still use Value.
-	ValueJSON jsonValue
+	ValueJSON datatypes.JSON
 	Rev       syntax.TID `gorm:"uniqueIndex"`
 	Cid       string
 	PrevCid   string // cid of the record's prior version, for the oplog

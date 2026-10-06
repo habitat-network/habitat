@@ -1,13 +1,11 @@
 package spaces
 
 import (
-	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
-	"gorm.io/gorm"
-	"gorm.io/gorm/schema"
+	"gorm.io/datatypes"
 )
 
 // MarshaledRecord is a record value that has been validated against the
@@ -39,46 +37,8 @@ func MarshalRecord(value any) (MarshaledRecord, error) {
 	return MarshaledRecord(bytes), nil
 }
 
-// jsonValue is a record's value as JSON, stored in the database's native JSON
-// type (jsonb on Postgres, text holding JSON on SQLite) so records can be
-// queried with the database's JSON operators. A nil jsonValue is stored as
-// NULL.
-type jsonValue []byte
-
-// GormDBDataType picks the column type per dialect.
-func (jsonValue) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
-	if db.Name() == "postgres" {
-		return "jsonb"
-	}
-	return "text"
-}
-
-// Value implements driver.Valuer. It returns a string so drivers send JSON
-// text rather than bytes.
-func (v jsonValue) Value() (driver.Value, error) {
-	if v == nil {
-		return nil, nil
-	}
-	return string(v), nil
-}
-
-// Scan implements sql.Scanner.
-func (v *jsonValue) Scan(src any) error {
-	switch s := src.(type) {
-	case nil:
-		*v = nil
-	case string:
-		*v = jsonValue(s)
-	case []byte:
-		*v = append(jsonValue(nil), s...)
-	default:
-		return fmt.Errorf("scan jsonValue: unsupported type %T", src)
-	}
-	return nil
-}
-
 // cborToJSON re-encodes a CBOR record value as JSON text for the JSON column.
-func cborToJSON(value []byte) (jsonValue, error) {
+func cborToJSON(value []byte) (datatypes.JSON, error) {
 	record, err := atdata.UnmarshalCBOR(value)
 	if err != nil {
 		return nil, fmt.Errorf("decode record cbor: %w", err)
@@ -87,5 +47,5 @@ func cborToJSON(value []byte) (jsonValue, error) {
 	if err != nil {
 		return nil, fmt.Errorf("encode record json: %w", err)
 	}
-	return jsonValue(out), nil
+	return datatypes.JSON(out), nil
 }
