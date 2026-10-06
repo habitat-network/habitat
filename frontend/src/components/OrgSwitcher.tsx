@@ -5,6 +5,7 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -54,21 +55,26 @@ export function OrgSwitcher({ authManager }: { authManager: AuthManager }) {
         <ChevronsUpDownIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        <DropdownMenuLabel>Organizations</DropdownMenuLabel>
-        {orgs.map((o) => (
-          <DropdownMenuItem
-            key={o.did}
-            onClick={() => {
-              select(o.did);
-              // Pages under /orgs/$org are keyed by the URL, so follow it.
-              if (location.pathname.startsWith("/orgs/")) {
-                navigate({ to: "/orgs/$org/settings", params: { org: o.did } });
-              }
-            }}
-          >
-            <OrgLabel did={o.did} authManager={authManager} />
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+          {orgs.map((o) => (
+            <DropdownMenuItem
+              key={o.did}
+              onClick={() => {
+                select(o.did);
+                // Pages under /orgs/$org are keyed by the URL, so follow it.
+                if (location.pathname.startsWith("/orgs/")) {
+                  navigate({
+                    to: "/orgs/$org/settings",
+                    params: { org: o.did },
+                  });
+                }
+              }}
+            >
+              <OrgLabel did={o.did} authManager={authManager} />
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link to="/orgs" />}>
           All organizations
