@@ -47,7 +47,7 @@ type jsonValue []byte
 
 // GormDBDataType picks the column type per dialect.
 func (jsonValue) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
-	if db.Dialector.Name() == "postgres" {
+	if db.Name() == "postgres" {
 		return "jsonb"
 	}
 	return "text"
