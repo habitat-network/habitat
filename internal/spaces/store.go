@@ -43,12 +43,15 @@ type spaceRecord struct {
 	Collection syntax.NSID             `gorm:"primaryKey"`
 	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
 	Value      []byte
-	Rev        syntax.TID `gorm:"uniqueIndex"`
-	Cid        string
-	PrevCid    string // cid of the record's prior version, for the oplog
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	DeletedAt  gorm.DeletedAt
+	// ValueJSON is the same record as JSON in the native JSON column. It is
+	// written alongside Value so records can be queried; reads still use Value.
+	ValueJSON jsonValue
+	Rev       syntax.TID `gorm:"uniqueIndex"`
+	Cid       string
+	PrevCid   string // cid of the record's prior version, for the oplog
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt
 }
 
 // spaceRepo caches a permissioned repo's LtHash so reads (listRepos,
@@ -716,6 +719,10 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
 	newCidStr := newCid.String()
+	valueJSON, err := cborToJSON(value)
+	if err != nil {
+		return "", nil, err
+	}
 
 	var recordURI habitat_syntax.SpaceRecordURI
 	var newRev syntax.TID
@@ -771,6 +778,7 @@ func (s *store) PutRecord(
 			Collection: collection,
 			Rkey:       rkey,
 			Value:      value,
+			ValueJSON:  valueJSON,
 			Rev:        tid,
 			PrevCid:    existing.Cid,
 			Cid:        newCidStr,
@@ -1281,6 +1289,10 @@ func (s *store) ApplyWrites(
 				if err != nil {
 					return fmt.Errorf("failed to compute cid: %w", err)
 				}
+				valueJSON, err := cborToJSON(w.Value)
+				if err != nil {
+					return err
+				}
 				results[i] = WriteResult{URI: uri, Cid: &newCid}
 				if exists {
 					if existing.Cid == newCid.String() {
@@ -1296,6 +1308,7 @@ func (s *store) ApplyWrites(
 					Collection: w.Collection,
 					Rkey:       rkey,
 					Value:      w.Value,
+					ValueJSON:  valueJSON,
 					Rev:        rev,
 					PrevCid:    existing.Cid,
 					Cid:        newCid.String(),
