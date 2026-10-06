@@ -3,6 +3,7 @@
  */
 
 export * as appAccess from './space/appAccess.js'
+export * as applyWrites from './space/applyWrites.js'
 export * as defs from './space/defs.js'
 export * as deleteRecord from './space/deleteRecord.js'
 export * as getBlob from './space/getBlob.js'
@@ -19,3 +20,4 @@ export * as notifySpaceDeleted from './space/notifySpaceDeleted.js'
 export * as notifyWrite from './space/notifyWrite.js'
 export * as putRecord from './space/putRecord.js'
 export * as registerNotify from './space/registerNotify.js'
+export * as searchRecords from './space/searchRecords.js'
