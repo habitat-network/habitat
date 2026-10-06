@@ -8,7 +8,10 @@ import (
 )
 
 func init() {
-	goose.AddMigrationContext(upBackfillSpaceRecordValueJSONAgain, func(context.Context, *sql.Tx) error { return nil })
+	goose.AddMigrationContext(
+		upBackfillSpaceRecordValueJSONAgain,
+		func(context.Context, *sql.Tx) error { return nil },
+	)
 }
 
 // upBackfillSpaceRecordValueJSONAgain re-runs the backfill right before the
