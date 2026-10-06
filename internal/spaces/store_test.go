@@ -1498,7 +1498,9 @@ func TestReadsUseValueJSON(t *testing.T) {
 		"flag":   true,
 		"nested": map[string]any{"list": []any{"a", 1, map[string]any{"k": nil}}},
 		"bytes":  map[string]any{"$bytes": "AAEC"},
-		"link":   map[string]any{"$link": "bafyreigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"},
+		"link": map[string]any{
+			"$link": "bafyreigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+		},
 	}
 	_, putCid, err := s.PutRecord(t.Context(), uri, alice, coll, "rich",
 		spaces_testutil.MustMarshalRecord(t, rich))
