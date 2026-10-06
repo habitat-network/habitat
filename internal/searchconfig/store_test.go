@@ -33,8 +33,14 @@ func TestStore(t *testing.T) {
 		CrawlableFields:  []string{"text"},
 		FilterableFields: []string{"author"},
 	}))
-	require.NoError(t, s.Put(t.Context(), orgA, searchconfig.Config{Collection: "com.example.note"}))
-	require.NoError(t, s.Put(t.Context(), orgB, searchconfig.Config{Collection: "com.example.other"}))
+	require.NoError(
+		t,
+		s.Put(t.Context(), orgA, searchconfig.Config{Collection: "com.example.note"}),
+	)
+	require.NoError(
+		t,
+		s.Put(t.Context(), orgB, searchconfig.Config{Collection: "com.example.other"}),
+	)
 	// Putting again replaces the config.
 	require.NoError(t, s.Put(t.Context(), orgA, searchconfig.Config{
 		Collection:      "com.example.post",
