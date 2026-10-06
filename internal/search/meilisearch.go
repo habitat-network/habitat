@@ -398,10 +398,12 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 	resp, err := m.index.SearchWithContext(ctx, q.Text, &meilisearch.SearchRequest{
 		Offset: int64(offset),
 		// One extra hit tells whether there is another page.
-		Limit:                 int64(limit + 1),
-		Filter:                filter(q),
-		MatchingStrategy:      meilisearch.All,
-		AttributesToRetrieve:  []string{"uri", "space_owner", "space_type", "space_key", "repo", "collection"},
+		Limit:            int64(limit + 1),
+		Filter:           filter(q),
+		MatchingStrategy: meilisearch.All,
+		AttributesToRetrieve: []string{
+			"uri", "space_owner", "space_type", "space_key", "repo", "collection",
+		},
 		AttributesToCrop:      []string{"text"},
 		AttributesToHighlight: []string{"text"},
 		CropLength:            snippetWords,
