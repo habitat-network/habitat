@@ -112,3 +112,9 @@ func placeholders(postgres bool, n int) string {
 	}
 	return strings.Join(out, ", ")
 }
+
+// TestBackfillSpaceRecordValueJSONSkipsMissingTable covers databases where the
+// schema migrations haven't created space_records.
+func TestBackfillSpaceRecordValueJSONSkipsMissingTable(t *testing.T) {
+	requireInTx(t, newDB(t, "sqlite://"+t.TempDir()+"/test.db"), upBackfillSpaceRecordValueJSON)
+}
