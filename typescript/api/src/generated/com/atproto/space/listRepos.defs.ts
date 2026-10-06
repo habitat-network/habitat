@@ -19,14 +19,12 @@ export const $params = /*#__PURE__*/ l.params({
     ),
   ),
   cursor: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
-  since: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'tid' })),
 })
 
 export type $Params = l.InferOutput<typeof $params>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
   cursor: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
-  spaceRev: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'tid' })),
   repos: /*#__PURE__*/ l.array(/*#__PURE__*/ l.ref<Repo>((() => repo) as any)),
 })
 

@@ -37,11 +37,12 @@ func (p *PearServer) ListRepos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var since syntax.TID
-	if params.Since != "" {
+	// The cursor is a space revision: list only repos written after it.
+	if params.Cursor != "" {
 		var err error
-		since, err = syntax.ParseTID(params.Since)
+		since, err = syntax.ParseTID(params.Cursor)
 		if err != nil {
-			httpx.WriteInvalidRequest(ctx, w, "invalid since", err)
+			httpx.WriteInvalidRequest(ctx, w, "invalid cursor", err)
 			return
 		}
 	}
@@ -62,7 +63,7 @@ func (p *PearServer) ListRepos(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListReposOutput{
-		Repos:    repoViews,
-		SpaceRev: spaceRev.String(),
+		Repos:  repoViews,
+		Cursor: spaceRev.String(),
 	})
 }

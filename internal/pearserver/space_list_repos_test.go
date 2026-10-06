@@ -44,7 +44,7 @@ func TestServer_ListRepos(t *testing.T) {
 	require.NotEmpty(t, output.Repos[0].Hash)
 }
 
-func TestServer_ListRepos_Since(t *testing.T) {
+func TestServer_ListRepos_CursorIsSpaceRev(t *testing.T) {
 	ts := pearserver_testutil.NewTestServer(t)
 	store := ts.SpaceStore
 
@@ -59,21 +59,21 @@ func TestServer_ListRepos_Since(t *testing.T) {
 		ts.Server.ListRepos, url.Values{"space": {uri.String()}}, &all,
 	)
 	require.Equal(t, http.StatusOK, code)
-	require.NotEmpty(t, all.SpaceRev)
+	require.NotEmpty(t, all.Cursor)
 
 	// Nothing was written after the current space revision.
 	var none habitat.NetworkHabitatSpaceListReposOutput
 	code = httpx_testutil.NewTestXRPCClient(t).Query(
 		ts.Server.ListRepos,
-		url.Values{"space": {uri.String()}, "since": {all.SpaceRev}}, &none,
+		url.Values{"space": {uri.String()}, "cursor": {all.Cursor}}, &none,
 	)
 	require.Equal(t, http.StatusOK, code)
 	require.Empty(t, none.Repos)
-	require.Equal(t, all.SpaceRev, none.SpaceRev)
+	require.Equal(t, all.Cursor, none.Cursor)
 
 	code = httpx_testutil.NewTestXRPCClient(t).Query(
 		ts.Server.ListRepos,
-		url.Values{"space": {uri.String()}, "since": {"not-a-tid"}}, &none,
+		url.Values{"space": {uri.String()}, "cursor": {"not-a-tid"}}, &none,
 	)
 	require.Equal(t, http.StatusBadRequest, code)
 }

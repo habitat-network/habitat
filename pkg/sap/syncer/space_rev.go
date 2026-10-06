@@ -23,7 +23,7 @@ const catchUpInterval = time.Minute
 // space host stamps every write with a space revision and tells us the one it
 // replaced, so a notification whose previous revision isn't Rev means we
 // missed one; the space is then marked Stale and caught up with
-// listRepos?since=Rev.
+// listRepos with Rev as the cursor.
 type spaceSync struct {
 	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	// Rev is the newest space revision whose writes we have applied. Empty
@@ -159,7 +159,7 @@ func (e *Engine) catchUpStale(ctx context.Context) {
 }
 
 // CatchUp lists the repos written since the last space revision we applied
-// (all of them if we hold none) and queues every one that is behind, then
+// (all of them if we hold none), passing it as the listRepos cursor and queues every one that is behind, then
 // advances the space revision to the one the listing was taken at. If the host
 // rejects the since cursor, it falls back to a full listing.
 func (e *Engine) CatchUp(ctx context.Context, space habitat_syntax.SpaceURI) error {
@@ -188,9 +188,10 @@ func (e *Engine) CatchUp(ctx context.Context, space habitat_syntax.SpaceURI) err
 	return e.RecordSpaceRev(ctx, space, rev)
 }
 
-// listSince pages listRepos for repos written after since and observes each
-// one's head. It returns the space revision of the first page, which was read
-// before any repo data, so recording it never skips a write.
+// listSince lists the repos written after since (every repo when empty) and
+// observes each one's head. It returns the space revision the listing was
+// taken at, which the host reports in the response cursor and reads before any
+// repo data, so recording it never skips a write.
 func (e *Engine) listSince(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
@@ -200,33 +201,20 @@ func (e *Engine) listSince(
 	if err != nil {
 		return "", fmt.Errorf("client for space: %w", err)
 	}
-	var spaceRev syntax.TID
-	cursor := ""
-	for page := 0; ; page++ {
-		params := map[string]any{"space": space.String()}
-		if since != "" {
-			params["since"] = since.String()
-		}
-		if cursor != "" {
-			params["cursor"] = cursor
-		}
-		var out habitat.NetworkHabitatSpaceListReposOutput
-		if err := client.Get(ctx, "network.habitat.space.listRepos", params, &out); err != nil {
-			return "", fmt.Errorf("list repos: %w", err)
-		}
-		if page == 0 {
-			spaceRev = syntax.TID(out.SpaceRev)
-		}
-		for _, r := range out.Repos {
-			if _, err := e.observeHead(
-				ctx, space, syntax.DID(r.Did), syntax.TID(r.Rev), r.Hash,
-			); err != nil {
-				return "", err
-			}
-		}
-		if out.Cursor == "" || out.Cursor == cursor {
-			return spaceRev, nil
-		}
-		cursor = out.Cursor
+	params := map[string]any{"space": space.String()}
+	if since != "" {
+		params["cursor"] = since.String()
 	}
+	var out habitat.NetworkHabitatSpaceListReposOutput
+	if err := client.Get(ctx, "network.habitat.space.listRepos", params, &out); err != nil {
+		return "", fmt.Errorf("list repos: %w", err)
+	}
+	for _, r := range out.Repos {
+		if _, err := e.observeHead(
+			ctx, space, syntax.DID(r.Did), syntax.TID(r.Rev), r.Hash,
+		); err != nil {
+			return "", err
+		}
+	}
+	return syntax.TID(out.Cursor), nil
 }

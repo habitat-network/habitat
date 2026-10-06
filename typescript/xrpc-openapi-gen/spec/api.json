@@ -8881,20 +8881,11 @@
           {
             "name": "cursor",
             "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "since",
-            "in": "query",
-            "description": "Only return repos written at a space revision after this one. Lets a syncer that detected a gap in space revisions catch up without re-listing every repo.",
+            "description": "A space revision (TID), as returned in a previous response's cursor. Only repos written at a space revision after it are returned; omit to list every repo. Lets a syncer that detected a gap in space revisions catch up without re-listing every repo.",
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Only return repos written at a space revision after this one. Lets a syncer that detected a gap in space revisions catch up without re-listing every repo.",
-              "format": "tid"
+              "description": "A space revision (TID), as returned in a previous response's cursor. Only repos written at a space revision after it are returned; omit to list every repo. Lets a syncer that detected a gap in space revisions catch up without re-listing every repo."
             }
           }
         ],
@@ -8910,12 +8901,8 @@
                   ],
                   "properties": {
                     "cursor": {
-                      "type": "string"
-                    },
-                    "spaceRev": {
                       "type": "string",
-                      "description": "The space's current revision. A syncer that has applied every repo returned here is caught up to this revision.",
-                      "format": "tid"
+                      "description": "The space's current revision (TID). A syncer that has applied every repo returned here is caught up to this revision; pass it as cursor on the next request to list only what changed after."
                     },
                     "repos": {
                       "type": "array",

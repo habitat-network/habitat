@@ -75,8 +75,8 @@ AddSession(did,           session.Store ─────▶ crawl.Crawler
   `notifyWrite`. The engine persists the last revision it applied per space
   (`spaceSync`); a notification whose previous revision isn't the one we hold
   marks the space stale, and a background catch-up lists
-  `listRepos?since=<held rev>` and queues every repo behind. A full crawl listing
-  also records the space revision, and if `since` fails the catch-up falls back to
+  `listRepos with the held rev as cursor` and queues every repo behind. A full crawl listing
+  also records the space revision, and if the cursor is rejected the catch-up falls back to
   a full listing. Hosts that send no space revision keep the crawl/Check sweep.
 - **`outbox`** is the durable handoff to sap's consumer: the syncer emits
   synced records here (in the same transaction as its state advance), and the

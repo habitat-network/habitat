@@ -1500,9 +1500,9 @@ func TestEngineCatchUpListsSince(t *testing.T) {
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/xrpc/network.habitat.space.listRepos", r.URL.Path)
-		require.Equal(t, "3l000000000b2", r.URL.Query().Get("since"))
+		require.Equal(t, "3l000000000b2", r.URL.Query().Get("cursor"))
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
-			SpaceRev: "3l000000000e2",
+			Cursor: "3l000000000e2",
 			Repos: []habitat.NetworkHabitatSpaceListReposRepo{
 				{Did: "did:plc:missed", Rev: "3l000000000d2"},
 			},
@@ -1535,7 +1535,7 @@ func TestEngineCatchUpStaysStaleBehindSeen(t *testing.T) {
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
-			SpaceRev: "3l000000000c2",
+			Cursor: "3l000000000c2",
 		})
 	}))
 	t.Cleanup(srv.Close)
@@ -1560,13 +1560,13 @@ func TestEngineCatchUpFallsBackToFullListing(t *testing.T) {
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("since") != "" {
+		if r.URL.Query().Get("cursor") != "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
-			SpaceRev: "3l000000000e2",
-			Repos:    []habitat.NetworkHabitatSpaceListReposRepo{{Did: "did:plc:a", Rev: "aaa"}},
+			Cursor: "3l000000000e2",
+			Repos:  []habitat.NetworkHabitatSpaceListReposRepo{{Did: "did:plc:a", Rev: "aaa"}},
 		})
 	}))
 	t.Cleanup(srv.Close)

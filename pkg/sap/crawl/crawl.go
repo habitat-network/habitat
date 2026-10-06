@@ -367,7 +367,7 @@ func (c *Crawler) enumerateRepos(
 			return err
 		}
 	}
-	return c.tracker.RecordSpaceRev(ctx, space, syntax.TID(output.SpaceRev))
+	return c.tracker.RecordSpaceRev(ctx, space, syntax.TID(output.Cursor))
 }
 
 // detachCancel returns a context that keeps ctx's cancellation but starts a
