@@ -61,7 +61,6 @@ import (
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
-	"github.com/habitat-network/habitat/internal/revocation"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
@@ -411,8 +410,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	permStore := perms.NewStore(database, spacesStore, fgaStore, opensocialStore)
-	revocationStore := revocation.NewStore(database)
-	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir, revocationStore)
+	spaceCredential := authn.NewSpaceCredentialAuthMethod(defaultDir)
 	validator := authn.NewValidator(
 		oauthServer,
 		serviceAuth,
@@ -467,7 +465,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		pdsForwarding,
 		emailDomainStore,
 		searcher,
-		revocationStore,
 	)
 
 	repo, err := repo.NewRepo(database.WithContext(startupCtx))

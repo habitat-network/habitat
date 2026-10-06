@@ -16,7 +16,6 @@ import (
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
-	"github.com/habitat-network/habitat/internal/revocation"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -41,7 +40,6 @@ type PearServer struct {
 	permStore       perms.Store
 	simpleStore     *simplespace.Store
 	notifyStore     notify.Store
-	revocations     revocation.Store
 	mcpGatewayStore mcpgateway.Store
 
 	// clientMeta resolves OAuth client metadata/JWKS for verifying client
@@ -76,7 +74,6 @@ func New(
 	pdsForwarding *forwarding.PDSForwarding,
 	emailDomainStore *emaildomain.Store,
 	searcher *search.Searcher,
-	revocations revocation.Store,
 ) *PearServer {
 	ps := &PearServer{
 		router:           mux.NewRouter(),
@@ -96,7 +93,6 @@ func New(
 		pdsForwarding:    pdsForwarding,
 		emailDomainStore: emailDomainStore,
 		searcher:         searcher,
-		revocations:      revocations,
 	}
 	ps.registerRoutes()
 	return ps

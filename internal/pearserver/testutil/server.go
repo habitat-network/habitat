@@ -22,7 +22,6 @@ import (
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
-	"github.com/habitat-network/habitat/internal/revocation"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -41,7 +40,6 @@ type TestServer struct {
 	OpenSocialStore  *opensocial.Store
 	SimpleStore      *simplespace.Store
 	NotifyStore      notify.Store
-	Revocations      revocation.Store
 	Hive             hive.Hive
 	HostKey          atcrypto.PrivateKey
 	DB               *gorm.DB
@@ -159,9 +157,6 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		require.NoError(t, err)
 		ts.NotifyStore = notifyStore
 	}
-	if ts.Revocations == nil {
-		ts.Revocations = revocation.NewStore(ts.DB)
-	}
 	blobStore := spaces_testutil.NewTestBlobStore(t)
 
 	os, err := opensocial.NewStore(ts.DB, ts.SpaceStore, blobStore, ts.Hive)
@@ -217,7 +212,6 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ts.PDSForwarding,
 		emailDomainStore,
 		searcher,
-		ts.Revocations,
 	)
 	ts.PermStore = ps
 	return &ts
