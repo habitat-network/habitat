@@ -5,9 +5,8 @@ import { useState, type FormEvent } from "react";
 import { z } from "zod";
 import { Button, Card, CardContent, Input } from "internal/components/ui";
 import { searchRecordsQueryOptions, type SearchResult } from "@/queries/search";
-import { useSelectedOrg } from "@/lib/selectedOrg";
 
-export const Route = createFileRoute("/_requireAuth/search")({
+export const Route = createFileRoute("/_requireAuth/orgs/$org/search")({
   validateSearch: z.object({
     q: z.string().default(""),
   }),
@@ -19,8 +18,8 @@ function SearchPage() {
   const { authManager } = Route.useRouteContext();
   const navigate = Route.useNavigate();
   const [input, setInput] = useState(q);
-  // Search one org at a time: the one selected in the header.
-  const { org } = useSelectedOrg(authManager);
+  // Search one org at a time: the one in the URL.
+  const { org } = Route.useParams();
   const results = useQuery(searchRecordsQueryOptions(authManager, org, q));
 
   const onSubmit = (e: FormEvent) => {

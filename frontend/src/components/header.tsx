@@ -1,8 +1,7 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { Actor, UserAvatar, type AuthManager } from "internal";
 import { Button } from "internal/components/ui";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
-import { useSelectedOrg } from "@/lib/selectedOrg";
 
 interface HeaderProps {
   profile?: Actor;
@@ -10,8 +9,8 @@ interface HeaderProps {
   onLogout: () => void;
 }
 
-const SettingsLink = ({ authManager }: { authManager: AuthManager }) => {
-  const { org } = useSelectedOrg(authManager);
+const SettingsLink = () => {
+  const { org } = useParams({ strict: false });
   if (!org) return null;
   return (
     <li>
@@ -43,7 +42,7 @@ const Header = ({ profile, authManager, onLogout }: HeaderProps) => {
                   Spaces
                 </Button>
               </li>
-              <SettingsLink authManager={authManager} />
+              <SettingsLink />
             </>
           )}
         </ul>

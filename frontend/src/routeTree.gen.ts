@@ -18,7 +18,6 @@ import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
-import { Route as RequireAuthSearchRouteImport } from './routes/_requireAuth/search'
 import { Route as CommunityCreateRouteImport } from './routes/community/create'
 import { Route as LoginHabitatRouteImport } from './routes/login/habitat'
 import { Route as RequireAuthBlobTestIndexRouteImport } from './routes/_requireAuth/blob-test/index'
@@ -31,6 +30,7 @@ import { Route as RequireAuthPermissionsLexiconsRouteImport } from './routes/_re
 import { Route as RequireAuthPermissionsPeopleRouteImport } from './routes/_requireAuth/permissions/people'
 import { Route as RequireAuthSpacesIndexRouteImport } from './routes/_requireAuth/spaces/index'
 import { Route as RequireAuthOrgsOrgIndexRouteImport } from './routes/_requireAuth/orgs/$org/index'
+import { Route as RequireAuthOrgsOrgSearchRouteImport } from './routes/_requireAuth/orgs/$org/search'
 import { Route as RequireAuthOrgsOrgSettingsRouteImport } from './routes/_requireAuth/orgs/$org/settings'
 import { Route as RequireAuthPermissionsLexiconsIndexRouteImport } from './routes/_requireAuth/permissions/lexicons/index'
 import { Route as RequireAuthPermissionsLexiconsCollectionRouteImport } from './routes/_requireAuth/permissions/lexicons/$collection'
@@ -93,11 +93,6 @@ const RequireAuthDataRoute = RequireAuthDataRouteImport.update({
 const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
   id: '/permissions',
   path: '/permissions',
-  getParentRoute: () => RequireAuthRoute,
-} as any)
-const RequireAuthSearchRoute = RequireAuthSearchRouteImport.update({
-  id: '/search',
-  path: '/search',
   getParentRoute: () => RequireAuthRoute,
 } as any)
 const CommunityCreateRoute = CommunityCreateRouteImport.update({
@@ -165,6 +160,12 @@ const RequireAuthOrgsOrgIndexRoute = RequireAuthOrgsOrgIndexRouteImport.update({
   path: '/',
   getParentRoute: () => RequireAuthOrgsOrgRoute,
 } as any)
+const RequireAuthOrgsOrgSearchRoute =
+  RequireAuthOrgsOrgSearchRouteImport.update({
+    id: '/search',
+    path: '/search',
+    getParentRoute: () => RequireAuthOrgsOrgRoute,
+  } as any)
 const RequireAuthOrgsOrgSettingsRoute =
   RequireAuthOrgsOrgSettingsRouteImport.update({
     id: '/settings',
@@ -293,7 +294,6 @@ export interface FileRoutesByFullPath {
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
-  '/search': typeof RequireAuthSearchRoute
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
   '/orgs/$org': typeof RequireAuthOrgsOrgRouteWithChildren
@@ -305,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/pear-test/': typeof RequireAuthPearTestIndexRoute
   '/permissions/': typeof RequireAuthPermissionsIndexRoute
   '/spaces/': typeof RequireAuthSpacesIndexRoute
+  '/orgs/$org/search': typeof RequireAuthOrgsOrgSearchRoute
   '/orgs/$org/settings': typeof RequireAuthOrgsOrgSettingsRouteWithChildren
   '/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
@@ -333,7 +334,6 @@ export interface FileRoutesByTo {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
-  '/search': typeof RequireAuthSearchRoute
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
   '/': typeof RequireAuthIndexRoute
@@ -344,6 +344,7 @@ export interface FileRoutesByTo {
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions': typeof RequireAuthPermissionsIndexRoute
   '/spaces': typeof RequireAuthSpacesIndexRoute
+  '/orgs/$org/search': typeof RequireAuthOrgsOrgSearchRoute
   '/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/spaces/type/$spaceType': typeof RequireAuthSpacesTypeSpaceTypeRoute
@@ -374,7 +375,6 @@ export interface FileRoutesById {
   '/onboard': typeof OnboardRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
-  '/_requireAuth/search': typeof RequireAuthSearchRoute
   '/community/create': typeof CommunityCreateRoute
   '/login/habitat': typeof LoginHabitatRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
@@ -387,6 +387,7 @@ export interface FileRoutesById {
   '/_requireAuth/pear-test/': typeof RequireAuthPearTestIndexRoute
   '/_requireAuth/permissions/': typeof RequireAuthPermissionsIndexRoute
   '/_requireAuth/spaces/': typeof RequireAuthSpacesIndexRoute
+  '/_requireAuth/orgs/$org/search': typeof RequireAuthOrgsOrgSearchRoute
   '/_requireAuth/orgs/$org/settings': typeof RequireAuthOrgsOrgSettingsRouteWithChildren
   '/_requireAuth/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/_requireAuth/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
@@ -419,7 +420,6 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/data'
     | '/permissions'
-    | '/search'
     | '/community/create'
     | '/login/habitat'
     | '/orgs/$org'
@@ -431,6 +431,7 @@ export interface FileRouteTypes {
     | '/pear-test/'
     | '/permissions/'
     | '/spaces/'
+    | '/orgs/$org/search'
     | '/orgs/$org/settings'
     | '/permissions/lexicons/$collection'
     | '/permissions/people/$did'
@@ -459,7 +460,6 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
-    | '/search'
     | '/community/create'
     | '/login/habitat'
     | '/'
@@ -470,6 +470,7 @@ export interface FileRouteTypes {
     | '/pear-test'
     | '/permissions'
     | '/spaces'
+    | '/orgs/$org/search'
     | '/permissions/lexicons/$collection'
     | '/permissions/people/$did'
     | '/spaces/type/$spaceType'
@@ -499,7 +500,6 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/_requireAuth/data'
     | '/_requireAuth/permissions'
-    | '/_requireAuth/search'
     | '/community/create'
     | '/login/habitat'
     | '/_requireAuth/'
@@ -512,6 +512,7 @@ export interface FileRouteTypes {
     | '/_requireAuth/pear-test/'
     | '/_requireAuth/permissions/'
     | '/_requireAuth/spaces/'
+    | '/_requireAuth/orgs/$org/search'
     | '/_requireAuth/orgs/$org/settings'
     | '/_requireAuth/permissions/lexicons/$collection'
     | '/_requireAuth/permissions/people/$did'
@@ -609,13 +610,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthPermissionsRouteImport
       parentRoute: typeof RequireAuthRoute
     }
-    '/_requireAuth/search': {
-      id: '/_requireAuth/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof RequireAuthSearchRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
     '/community/create': {
       id: '/community/create'
       path: '/community/create'
@@ -698,6 +692,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/orgs/$org/'
       preLoaderRoute: typeof RequireAuthOrgsOrgIndexRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgRoute
+    }
+    '/_requireAuth/orgs/$org/search': {
+      id: '/_requireAuth/orgs/$org/search'
+      path: '/search'
+      fullPath: '/orgs/$org/search'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSearchRouteImport
       parentRoute: typeof RequireAuthOrgsOrgRoute
     }
     '/_requireAuth/orgs/$org/settings': {
@@ -924,11 +925,13 @@ const RequireAuthOrgsOrgSettingsRouteWithChildren =
   )
 
 interface RequireAuthOrgsOrgRouteChildren {
+  RequireAuthOrgsOrgSearchRoute: typeof RequireAuthOrgsOrgSearchRoute
   RequireAuthOrgsOrgSettingsRoute: typeof RequireAuthOrgsOrgSettingsRouteWithChildren
   RequireAuthOrgsOrgIndexRoute: typeof RequireAuthOrgsOrgIndexRoute
 }
 
 const RequireAuthOrgsOrgRouteChildren: RequireAuthOrgsOrgRouteChildren = {
+  RequireAuthOrgsOrgSearchRoute: RequireAuthOrgsOrgSearchRoute,
   RequireAuthOrgsOrgSettingsRoute: RequireAuthOrgsOrgSettingsRouteWithChildren,
   RequireAuthOrgsOrgIndexRoute: RequireAuthOrgsOrgIndexRoute,
 }
@@ -939,7 +942,6 @@ const RequireAuthOrgsOrgRouteWithChildren =
 interface RequireAuthRouteChildren {
   RequireAuthDataRoute: typeof RequireAuthDataRoute
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
-  RequireAuthSearchRoute: typeof RequireAuthSearchRoute
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
   RequireAuthOrgsOrgRoute: typeof RequireAuthOrgsOrgRouteWithChildren
   RequireAuthPearTestViewRoute: typeof RequireAuthPearTestViewRoute
@@ -958,7 +960,6 @@ interface RequireAuthRouteChildren {
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthDataRoute: RequireAuthDataRoute,
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
-  RequireAuthSearchRoute: RequireAuthSearchRoute,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
   RequireAuthOrgsOrgRoute: RequireAuthOrgsOrgRouteWithChildren,
   RequireAuthPearTestViewRoute: RequireAuthPearTestViewRoute,
