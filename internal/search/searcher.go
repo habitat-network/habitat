@@ -64,6 +64,7 @@ type Searcher struct {
 	communities CommunitySource
 	records     RecordGetter
 	collections CollectionSource
+	everyone    syntax.DID
 }
 
 // SearcherOption configures a [Searcher].
@@ -75,6 +76,13 @@ type SearcherOption func(*Searcher)
 // collection from every org.
 func WithCollections(src CollectionSource) SearcherOption {
 	return func(s *Searcher) { s.collections = src }
+}
+
+// WithEveryoneOrg also searches the records of the everyone org, the default
+// org every user belongs to, in the same query as the org being searched. Its
+// collections are limited the same way as any org's.
+func WithEveryoneOrg(did syntax.DID) SearcherOption {
+	return func(s *Searcher) { s.everyone = did }
 }
 
 // NewSearcher returns a Searcher over index, resolving callers' community
@@ -105,7 +113,7 @@ func (s *Searcher) Search(ctx context.Context, caller syntax.DID, q Query) (Page
 		return Page{}, err
 	}
 	q.Reader = &reader
-	return s.scoped(ctx, q)
+	return s.scoped(ctx, q, true)
 }
 
 // SearchSpaces runs q over q.Spaces without checking who may read them, for
@@ -116,34 +124,66 @@ func (s *Searcher) SearchSpaces(ctx context.Context, q Query) (Page, error) {
 	if q.Org == "" && len(q.Spaces) == 1 {
 		q.Org = q.Spaces[0].SpaceOwner()
 	}
-	return s.scoped(ctx, q)
+	return s.scoped(ctx, q, false)
 }
 
 // scoped runs q limited to the collections surfaced for q.Org: the defaults
 // plus those its admins configured. A collection filter in q narrows that
-// further.
-func (s *Searcher) scoped(ctx context.Context, q Query) (Page, error) {
+// further. With includeEveryone, the everyone org's records are searched too,
+// within its own collections.
+func (s *Searcher) scoped(ctx context.Context, q Query, includeEveryone bool) (Page, error) {
 	if s.collections == nil {
 		return s.search(ctx, q)
 	}
 	if q.Org == "" {
 		return Page{}, ErrOrgRequired
 	}
-	configured, err := s.collections.Collections(ctx, q.Org)
+	allowed, err := s.allowedCollections(ctx, q.Org, q.Collections)
 	if err != nil {
-		return Page{}, fmt.Errorf("list search collections: %w", err)
+		return Page{}, err
 	}
-	allowed := append(s.collections.Defaults(), configured...)
-	if len(q.Collections) > 0 {
-		allowed = slices.DeleteFunc(allowed, func(c syntax.NSID) bool {
-			return !slices.Contains(q.Collections, c)
-		})
+	var also []Scope
+	if includeEveryone && s.everyone != "" && s.everyone != q.Org {
+		everyone, err := s.allowedCollections(ctx, s.everyone, q.Collections)
+		if err != nil {
+			return Page{}, err
+		}
+		if len(everyone) > 0 {
+			also = []Scope{{Org: s.everyone, Collections: everyone}}
+		}
 	}
 	if len(allowed) == 0 {
-		return Page{}, nil
+		if len(also) == 0 {
+			return Page{}, nil
+		}
+		// Only the everyone org has anything to search: make it the primary
+		// scope.
+		q.Org, q.Collections = also[0].Org, also[0].Collections
+		return s.search(ctx, q)
 	}
 	q.Collections = allowed
+	q.Also = also
 	return s.search(ctx, q)
+}
+
+// allowedCollections returns the collections surfaced for org: the defaults
+// plus those its admins configured, narrowed to filter when set.
+func (s *Searcher) allowedCollections(
+	ctx context.Context,
+	org syntax.DID,
+	filter []syntax.NSID,
+) ([]syntax.NSID, error) {
+	configured, err := s.collections.Collections(ctx, org)
+	if err != nil {
+		return nil, fmt.Errorf("list search collections: %w", err)
+	}
+	allowed := append(s.collections.Defaults(), configured...)
+	if len(filter) > 0 {
+		allowed = slices.DeleteFunc(allowed, func(c syntax.NSID) bool {
+			return !slices.Contains(filter, c)
+		})
+	}
+	return allowed, nil
 }
 
 // reader returns caller's principals: themselves, and their roles in each
