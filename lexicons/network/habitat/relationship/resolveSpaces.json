@@ -1,0 +1,53 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.resolveSpaces",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List the downstream spaces that inherit a role from a space: every space on which the holders of the role on the given space also hold that role, directly or transitively through chains of space relations and built-in role implications (owner implies manager implies writer implies reader). The queried space itself is not included. Caller must have the reader role on the space and is only returned spaces they have the reader role on.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "space"
+                ],
+                "properties": {
+                    "space": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the source space."
+                    },
+                    "relation": {
+                        "type": "string",
+                        "enum": [
+                            "owner",
+                            "manager",
+                            "writer",
+                            "reader"
+                        ],
+                        "default": "reader",
+                        "description": "The role to follow. Defaults to reader."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "spaces"
+                    ],
+                    "properties": {
+                        "spaces": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "uri"
+                            },
+                            "description": "URIs of the spaces that inherit the role from the queried space."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

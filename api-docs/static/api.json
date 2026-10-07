@@ -6264,6 +6264,124 @@
         }
       }
     },
+    "/network.habitat.relationship.resolveSpaces": {
+      "get": {
+        "tags": [
+          "network.habitat.relationship"
+        ],
+        "summary": "network.habitat.relationship.resolveSpaces",
+        "description": "List the downstream spaces that inherit a role from a space: every space on which the holders of the role on the given space also hold that role, directly or transitively through chains of space relations and built-in role implications (owner implies manager implies writer implies reader). The queried space itself is not included. Caller must have the reader role on the space and is only returned spaces they have the reader role on.",
+        "operationId": "network.habitat.relationship.resolveSpaces",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "URI of the source space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "URI of the source space.",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
+            "description": "The role to follow. Defaults to reader.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "The role to follow. Defaults to reader.",
+              "default": "reader"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "spaces"
+                  ],
+                  "properties": {
+                    "spaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "uri"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.relationship.setSpaceRelation": {
       "post": {
         "tags": [
@@ -6755,6 +6873,221 @@
         }
       }
     },
+    "/network.habitat.search.addCollection": {
+      "post": {
+        "tags": [
+          "network.habitat.search"
+        ],
+        "summary": "network.habitat.search.addCollection",
+        "description": "Surface a collection in search results for the org, by writing its search config record. Adding a collection that is already configured succeeds without change. Requires service-auth. Requires the community.configure action.",
+        "operationId": "network.habitat.search.addCollection",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "collection"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to configure.",
+                    "format": "did"
+                  },
+                  "collection": {
+                    "type": "string",
+                    "format": "nsid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.search.listCollections": {
+      "get": {
+        "tags": [
+          "network.habitat.search"
+        ],
+        "summary": "network.habitat.search.listCollections",
+        "description": "List the collections an org surfaces in search results: those its admins configured, and the defaults every org includes. Requires service-auth. Requires the community.configure action.",
+        "operationId": "network.habitat.search.listCollections",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "org",
+            "in": "query",
+            "description": "DID of the community whose search configuration to list.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "DID of the community whose search configuration to list.",
+              "format": "did"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "collections",
+                    "defaults"
+                  ],
+                  "properties": {
+                    "collections": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "nsid"
+                      }
+                    },
+                    "defaults": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "nsid"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.search.query": {
       "get": {
         "tags": [
@@ -6823,6 +7156,106 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.search.removeCollection": {
+      "post": {
+        "tags": [
+          "network.habitat.search"
+        ],
+        "summary": "network.habitat.search.removeCollection",
+        "description": "Stop surfacing a collection the org's admins added in search results. Default collections stay included. Removing a collection that isn't configured succeeds without change. Requires service-auth. Requires the community.configure action.",
+        "operationId": "network.habitat.search.removeCollection",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "collection"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to configure.",
+                    "format": "did"
+                  },
+                  "collection": {
+                    "type": "string",
+                    "format": "nsid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
           },
           "400": {
             "description": "Bad Request",
@@ -9116,6 +9549,111 @@
         }
       }
     },
+    "/network.habitat.space.notifyCredentialRevoked": {
+      "post": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.notifyCredentialRevoked",
+        "description": "Notify a repo host that outstanding space credentials were revoked. Sent by the space authority. The repo host MUST reject a credential whose jti has been revoked for that space, and retain the revocation for at least 60 minutes (the maximum credential lifetime). Idempotent, so the authority may safely retry delivery. Authenticated with service auth from the space authority.",
+        "operationId": "network.habitat.space.notifyCredentialRevoked",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space",
+                  "jtis"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the space the credentials were issued for.",
+                    "format": "at-uri"
+                  },
+                  "jtis": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.notifySpaceDeleted": {
       "post": {
         "tags": [
@@ -9616,7 +10154,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.searchRecords",
-        "description": "Full-text search over the records in the permissioned spaces the caller can read, most relevant first. Without a space, searches every space the caller can read. Callable with OAuth, service auth, or a space credential; a space credential can only search its own space.",
+        "description": "Full-text search over the records in the permissioned spaces the caller can read, most relevant first. Searches one org at a time: the spaces the org owns that the caller can read. Callable with OAuth, service auth, or a space credential; a space credential can only search its own space.",
         "operationId": "network.habitat.space.searchRecords",
         "security": [
           {
@@ -9632,6 +10170,17 @@
             "schema": {
               "type": "string",
               "description": "The text to search for. Free-form; not a query syntax."
+            }
+          },
+          {
+            "name": "org",
+            "in": "query",
+            "description": "Only search the spaces this org owns, and only the collections it surfaces in search: the defaults plus those its admins configured. Required unless space is given, which implies its owner.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Only search the spaces this org owns, and only the collections it surfaces in search: the defaults plus those its admins configured. Required unless space is given, which implies its owner.",
+              "format": "did"
             }
           },
           {
@@ -10699,6 +11248,18 @@
         "type": "string",
         "format": "token",
         "description": "De-emphasized display, shown at the bottom or collapsed."
+      },
+      "network.habitat.search.config": {
+        "type": "object",
+        "required": [
+          "updatedAt"
+        ],
+        "properties": {
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "network.habitat.search.query.resultView": {
         "type": "object",

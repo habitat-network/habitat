@@ -111,6 +111,15 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 	) ([]habitat_syntax.SpaceURI, error)
 
+	// ListInheritingSpaces returns the spaces on which holders of role on space
+	// also hold role, directly or transitively through spaceRelations and
+	// built-in role implications. space itself is excluded.
+	ListInheritingSpaces(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		role habitat_syntax.SpaceRole,
+	) ([]habitat_syntax.SpaceURI, error)
+
 	// WithTx returns a copy of the store scoped to the given transaction, so
 	// its DB writes participate in a caller-managed transaction rather than
 	// opening a second, independent one (which SQLite can't run concurrently
@@ -578,6 +587,39 @@ func (s *store) ListDependentSpaces(
 		}
 	}
 	return dependents, nil
+}
+
+// ListInheritingSpaces implements [Store]. It asks OpenFGA which spaces the
+// userset "all holders of role on space" holds role on, which resolves
+// transitive spaceRelations and role implications.
+func (s *store) ListInheritingSpaces(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	role habitat_syntax.SpaceRole,
+) ([]habitat_syntax.SpaceURI, error) {
+	keys, err := s.fga.ListObjects(
+		ctx,
+		fgastore.SpaceUsersetString(space, fgaRelationFromRole[role]),
+		fgaRelationFromRole[role],
+		fgastore.TypeSpace,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("perms: list inheriting spaces: %w", err)
+	}
+
+	spaceURIs := make([]habitat_syntax.SpaceURI, 0, len(keys))
+	for _, key := range keys {
+		uri, err := fgastore.ParseSpaceObjectKey(key)
+		if err != nil {
+			return nil, fmt.Errorf("perms: list inheriting spaces: %w", err)
+		}
+		// A userset trivially holds its own role on the space it is defined on.
+		if uri == space {
+			continue
+		}
+		spaceURIs = append(spaceURIs, uri)
+	}
+	return spaceURIs, nil
 }
 
 // DeleteRelation implements [Store].
