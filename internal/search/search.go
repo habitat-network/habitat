@@ -77,10 +77,21 @@ type Query struct {
 	// Org limits results to the spaces this org owns. [Searcher] requires it
 	// when it limits results to configured collections.
 	Org syntax.DID
+	// Also adds orgs whose records match alongside Org, each limited to its
+	// own collections. When set, Org and Collections apply as one more scope
+	// of that union rather than as separate filters.
+	Also []Scope
 	// Limit caps the hits returned; zero means [DefaultLimit].
 	Limit int
 	// Cursor continues a previous result's [Result.Cursor].
 	Cursor string
+}
+
+// Scope matches the records of the spaces one org owns, limited to
+// Collections when set.
+type Scope struct {
+	Org         syntax.DID
+	Collections []syntax.NSID
 }
 
 // DefaultLimit is the page size used when [Query.Limit] is zero.

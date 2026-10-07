@@ -447,7 +447,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	var searcher *search.Searcher
 	if searchIndex != nil {
 		searcher = search.NewSearcher(
-			searchIndex, opensocialStore, spacesStore, search.WithCollections(searchConfigStore),
+			searchIndex, opensocialStore, spacesStore,
+			search.WithCollections(searchConfigStore),
+			search.WithEveryoneOrg(everyoneOrg.DID()),
 		)
 	}
 

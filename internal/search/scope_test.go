@@ -107,3 +107,37 @@ func TestSearcher_WithoutCollectionSourceIsUnlimited(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, idx.last.Collections)
 }
+
+func TestSearcher_IncludesEveryoneOrg(t *testing.T) {
+	member := syntax.DID("did:plc:member")
+	orgA := syntax.DID("did:plc:orga")
+	everyone := syntax.DID("did:web:everyone")
+	idx := &captureIndex{}
+	s := search.NewSearcher(idx, fakeCommunities{}, noRecords{},
+		search.WithCollections(fakeCollections{
+			orgA:     {"com.example.a"},
+			everyone: {"com.example.e"},
+		}),
+		search.WithEveryoneOrg(everyone))
+
+	_, err := s.Search(t.Context(), member, search.Query{Text: "x", Org: orgA})
+	require.NoError(t, err)
+	require.Equal(t, orgA, idx.last.Org)
+	require.Len(t, idx.last.Also, 1)
+	require.Equal(t, everyone, idx.last.Also[0].Org)
+	require.ElementsMatch(t,
+		[]syntax.NSID{"com.example.default", "com.example.e"}, idx.last.Also[0].Collections)
+
+	// Searching the everyone org itself doesn't duplicate it.
+	_, err = s.Search(t.Context(), member, search.Query{Text: "x", Org: everyone})
+	require.NoError(t, err)
+	require.Empty(t, idx.last.Also)
+
+	// A space credential reads only its own space.
+	_, err = s.SearchSpaces(t.Context(), search.Query{
+		Text:   "x",
+		Spaces: []habitat_syntax.SpaceURI{habitat_syntax.ConstructSpaceURI(orgA, "t", "k")},
+	})
+	require.NoError(t, err)
+	require.Empty(t, idx.last.Also)
+}

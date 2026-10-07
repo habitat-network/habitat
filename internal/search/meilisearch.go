@@ -426,16 +426,35 @@ func filter(q Query) [][]string {
 		}
 		and = append(and, or)
 	}
-	if len(q.Collections) > 0 {
-		and = append(and, []string{in("collection", stringsOf(q.Collections))})
-	}
-	if q.Org != "" {
-		and = append(and, []string{eq("space_owner", q.Org.String())})
+	if len(q.Also) > 0 {
+		// Each org matches within its own collections, so the union is an OR of
+		// per-org clauses.
+		or := []string{scopeFilter(Scope{Org: q.Org, Collections: q.Collections})}
+		for _, scope := range q.Also {
+			or = append(or, scopeFilter(scope))
+		}
+		and = append(and, or)
+	} else {
+		if len(q.Collections) > 0 {
+			and = append(and, []string{in("collection", stringsOf(q.Collections))})
+		}
+		if q.Org != "" {
+			and = append(and, []string{eq("space_owner", q.Org.String())})
+		}
 	}
 	if len(q.Repos) > 0 {
 		and = append(and, []string{in("repo", stringsOf(q.Repos))})
 	}
 	return and
+}
+
+// scopeFilter matches the documents of scope's org, in its collections.
+func scopeFilter(scope Scope) string {
+	f := eq("space_owner", scope.Org.String())
+	if len(scope.Collections) > 0 {
+		f += " AND " + in("collection", stringsOf(scope.Collections))
+	}
+	return "(" + f + ")"
 }
 
 // spaceFilter matches the documents in space, by the parts of its URI.
