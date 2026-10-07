@@ -199,7 +199,17 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 	require.NoError(t, err)
 
 	searcher := &fakeRecordSearcher{
-		matches: []search.Match{{URI: recordURI, Record: spaces.Record{Space: spaceURI, Value: map[string]any{"hello": "world"}, Cid: *recordCid}, Snippet: "<mark>hello</mark>"}},
+		matches: []search.Match{
+			{
+				URI: recordURI,
+				Record: spaces.Record{
+					Space: spaceURI,
+					Value: map[string]any{"hello": "world"},
+					Cid:   *recordCid,
+				},
+				Snippet: "<mark>hello</mark>",
+			},
+		},
 	}
 	newHTTPServer := func(s RecordSearcher) *httptest.Server {
 		srv := New(
