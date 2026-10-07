@@ -317,6 +317,30 @@ func TestServer_Relationship(t *testing.T) {
 		require.Contains(t, out.Dids, alice.String())
 	})
 
+	t.Run("list inheriting spaces", func(t *testing.T) {
+		source := newSpace(t, docsTp, "lis-source")
+		mid := newSpace(t, docsTp, "lis-mid")
+		leaf := newSpace(t, docsTp, "lis-leaf")
+		_, err := ts.PermStore.SetUserRelation(
+			t.Context(), alice, source, habitat_syntax.SpaceRoleReader)
+		require.NoError(t, err)
+		_, err = ts.PermStore.SetSpaceRoleRelation(
+			t.Context(), source, habitat_syntax.SpaceRoleReader, mid, habitat_syntax.SpaceRoleReader)
+		require.NoError(t, err)
+		_, err = ts.PermStore.SetSpaceRoleRelation(
+			t.Context(), mid, habitat_syntax.SpaceRoleReader, leaf, habitat_syntax.SpaceRoleReader)
+		require.NoError(t, err)
+
+		var out habitat.NetworkHabitatRelationshipListInheritingSpacesOutput
+		code := client.Query(
+			ts.Server.ListInheritingSpaces,
+			url.Values{"space": {source.String()}},
+			&out,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.ElementsMatch(t, []string{mid.String(), leaf.String()}, out.Spaces)
+	})
+
 	t.Run("list related spaces", func(t *testing.T) {
 		space := newSpace(t, docsTp, "lrs-doc")
 		_, err := ts.PermStore.SetUserRelation(

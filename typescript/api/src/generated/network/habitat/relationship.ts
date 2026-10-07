@@ -5,6 +5,7 @@
 export * as checkSpaceRelation from './relationship/checkSpaceRelation.js'
 export * as checkUserRelation from './relationship/checkUserRelation.js'
 export * as deleteRelation from './relationship/deleteRelation.js'
+export * as listInheritingSpaces from './relationship/listInheritingSpaces.js'
 export * as listRelatedSpaces from './relationship/listRelatedSpaces.js'
 export * as listRelations from './relationship/listRelations.js'
 export * as resolveRelations from './relationship/resolveRelations.js'

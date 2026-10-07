@@ -718,3 +718,40 @@ func TestStoreListDependentSpaces(t *testing.T) {
 		require.ElementsMatch(t, []habitat_syntax.SpaceURI{doc, shared}, got)
 	})
 }
+
+func TestStoreListInheritingSpaces(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+	team := newSpace(t, s.spaces, groupType, "team")
+	doc := newSpace(t, s.spaces, docsType, "doc")
+	shared := newSpace(t, s.spaces, docsType, "shared")
+	writeOnly := newSpace(t, s.spaces, docsType, "write-only")
+	unrelated := newSpace(t, s.spaces, docsType, "unrelated")
+
+	// team's readers read doc, and doc's readers read shared (transitive).
+	_, err := s.SetSpaceRoleRelation(
+		ctx, team, habitat_syntax.SpaceRoleReader, doc, habitat_syntax.SpaceRoleReader)
+	require.NoError(t, err)
+	_, err = s.SetSpaceRoleRelation(
+		ctx, doc, habitat_syntax.SpaceRoleReader, shared, habitat_syntax.SpaceRoleReader)
+	require.NoError(t, err)
+	// team's writers writing writeOnly implies they read it, so it inherits
+	// reader but not through the reader userset alone.
+	_, err = s.SetSpaceRoleRelation(
+		ctx, team, habitat_syntax.SpaceRoleWriter, writeOnly, habitat_syntax.SpaceRoleWriter)
+	require.NoError(t, err)
+	_, err = s.SetUserRelation(ctx, alice, unrelated, habitat_syntax.SpaceRoleReader)
+	require.NoError(t, err)
+
+	got, err := s.ListInheritingSpaces(ctx, team, habitat_syntax.SpaceRoleReader)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []habitat_syntax.SpaceURI{doc, shared}, got)
+
+	got, err = s.ListInheritingSpaces(ctx, team, habitat_syntax.SpaceRoleWriter)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []habitat_syntax.SpaceURI{writeOnly}, got)
+
+	got, err = s.ListInheritingSpaces(ctx, shared, habitat_syntax.SpaceRoleReader)
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
