@@ -483,10 +483,17 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
+	// A nil *search.Searcher in an interface would be non-nil, so only set it
+	// when search is configured.
+	var mcpSearcher mcpserver.RecordSearcher
+	if searcher != nil {
+		mcpSearcher = searcher
+	}
 	mcpServer := mcpserver.New(
 		oauthServer,
 		spacesStore,
 		permStore,
+		mcpSearcher,
 		nangoClient,
 		opensocialStore,
 		mcpGatewayStore,

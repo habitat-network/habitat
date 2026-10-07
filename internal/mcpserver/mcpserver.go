@@ -18,6 +18,7 @@ import (
 	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -48,6 +49,12 @@ type OrgMcpServerStore interface {
 		id syntax.RecordKey,
 	) (*opensocial.McpServer, error)
 	ListMcpServers(ctx context.Context, orgDID syntax.DID) ([]*opensocial.McpServer, error)
+}
+
+// RecordSearcher runs a record search as a caller. See search.Searcher for
+// the concrete implementation.
+type RecordSearcher interface {
+	Search(ctx context.Context, caller syntax.DID, q search.Query) (search.Page, error)
 }
 
 // ManualServerSource lists the manually configured MCP servers (see
@@ -84,6 +91,9 @@ type Server struct {
 //   - spacesStore and permStore back the "get_record" tool: permStore checks
 //     the caller holds at least a reader role on the record's space before
 //     spacesStore returns the record.
+//   - searcher backs the "search_records" tool, which searches as the caller.
+//     It may be nil when search isn't configured, in which case the tool isn't
+//     offered.
 //   - nangoClient and orgRecords together look up the caller's Nango
 //     connections to org-configured MCP servers, and manualServers the
 //     manually configured servers of the caller's orgs (see
@@ -99,6 +109,7 @@ func New(
 	tokens authn.RawMethod,
 	spacesStore spaces.Store,
 	permStore perms.Store,
+	searcher RecordSearcher,
 	nangoClient NangoClient,
 	orgRecords OrgMcpServerStore,
 	manualServers ManualServerSource,
@@ -111,6 +122,13 @@ func New(
 		Name:        "get_record",
 		Description: "Get a single Habitat record by its space record URI.",
 	}, getRecordHandler(spacesStore, permStore))
+	if searcher != nil {
+		mcp.AddTool(mcpServer, &mcp.Tool{
+			Name: "search_records",
+			Description: "Full-text search Habitat records the caller can read, " +
+				"optionally within one org and collection.",
+		}, searchRecordsHandler(searcher))
+	}
 	mcpServer.AddReceivingMiddleware(
 		mergeConnectedToolsMiddleware(nangoClient, orgRecords, manualServers),
 		proxyConnectedToolCallMiddleware(nangoClient, orgRecords, manualServers),
