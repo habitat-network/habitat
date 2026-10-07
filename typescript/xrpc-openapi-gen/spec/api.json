@@ -5875,124 +5875,6 @@
         }
       }
     },
-    "/network.habitat.relationship.listInheritingSpaces": {
-      "get": {
-        "tags": [
-          "network.habitat.relationship"
-        ],
-        "summary": "network.habitat.relationship.listInheritingSpaces",
-        "description": "List the downstream spaces that inherit a role from a space: every space on which the holders of the role on the given space also hold that role, directly or transitively through chains of space relations and built-in role implications (owner implies manager implies writer implies reader). The queried space itself is not included. Caller must have the reader role on the space and is only returned spaces they have the reader role on.",
-        "operationId": "network.habitat.relationship.listInheritingSpaces",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "space",
-            "in": "query",
-            "description": "URI of the source space.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "URI of the source space.",
-              "format": "uri"
-            }
-          },
-          {
-            "name": "relation",
-            "in": "query",
-            "description": "The role to follow. Defaults to reader.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "The role to follow. Defaults to reader.",
-              "default": "reader"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "spaces"
-                  ],
-                  "properties": {
-                    "spaces": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "format": "uri"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.relationship.listRelatedSpaces": {
       "get": {
         "tags": [
@@ -6317,6 +6199,124 @@
                       "items": {
                         "type": "string",
                         "format": "did"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.relationship.resolveSpaces": {
+      "get": {
+        "tags": [
+          "network.habitat.relationship"
+        ],
+        "summary": "network.habitat.relationship.resolveSpaces",
+        "description": "List the downstream spaces that inherit a role from a space: every space on which the holders of the role on the given space also hold that role, directly or transitively through chains of space relations and built-in role implications (owner implies manager implies writer implies reader). The queried space itself is not included. Caller must have the reader role on the space and is only returned spaces they have the reader role on.",
+        "operationId": "network.habitat.relationship.resolveSpaces",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "URI of the source space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "URI of the source space.",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
+            "description": "The role to follow. Defaults to reader.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "The role to follow. Defaults to reader.",
+              "default": "reader"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "spaces"
+                  ],
+                  "properties": {
+                    "spaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "uri"
                       }
                     }
                   }

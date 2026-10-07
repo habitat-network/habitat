@@ -4,7 +4,7 @@
 
 import { l } from '@atproto/lex'
 
-const $nsid = 'network.habitat.relationship.listInheritingSpaces'
+const $nsid = 'network.habitat.relationship.resolveSpaces'
 
 type $nsid = typeof $nsid
 

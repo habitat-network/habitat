@@ -75,8 +75,8 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/network.habitat.relationship.resolveRelations", p.ResolveRelations)
 	p.router.HandleFunc("/xrpc/network.habitat.relationship.listRelatedSpaces", p.ListRelatedSpaces)
 	p.router.HandleFunc(
-		"/xrpc/network.habitat.relationship.listInheritingSpaces",
-		p.ListInheritingSpaces,
+		"/xrpc/network.habitat.relationship.resolveSpaces",
+		p.ResolveSpaces,
 	)
 
 	// com.atproto aliases for the permissioned-data proposal's official NSIDs

@@ -317,7 +317,7 @@ func TestServer_Relationship(t *testing.T) {
 		require.Contains(t, out.Dids, alice.String())
 	})
 
-	t.Run("list inheriting spaces", func(t *testing.T) {
+	t.Run("resolve spaces", func(t *testing.T) {
 		source := newSpace(t, docsTp, "lis-source")
 		mid := newSpace(t, docsTp, "lis-mid")
 		leaf := newSpace(t, docsTp, "lis-leaf")
@@ -336,9 +336,9 @@ func TestServer_Relationship(t *testing.T) {
 			t.Context(), mid, habitat_syntax.SpaceRoleReader, leaf, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 
-		var out habitat.NetworkHabitatRelationshipListInheritingSpacesOutput
+		var out habitat.NetworkHabitatRelationshipResolveSpacesOutput
 		code := client.Query(
-			ts.Server.ListInheritingSpaces,
+			ts.Server.ResolveSpaces,
 			url.Values{"space": {source.String()}},
 			&out,
 		)

@@ -10,10 +10,10 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// ListInheritingSpaces implements network.habitat.relationship.listInheritingSpaces.
-func (p *PearServer) ListInheritingSpaces(w http.ResponseWriter, r *http.Request) {
+// ResolveSpaces implements network.habitat.relationship.resolveSpaces.
+func (p *PearServer) ResolveSpaces(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var params habitat.NetworkHabitatRelationshipListInheritingSpacesParams
+	var params habitat.NetworkHabitatRelationshipResolveSpacesParams
 	if err := p.decoder.Decode(&params, r.URL.Query()); err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to decode query params", err)
 		return
@@ -40,7 +40,7 @@ func (p *PearServer) ListInheritingSpaces(w http.ResponseWriter, r *http.Request
 	}
 	inheriting, err := p.permStore.ListInheritingSpaces(ctx, space, role)
 	if err != nil {
-		httpx.WriteServerError(ctx, w, fmt.Errorf("list inheriting spaces: %w", err))
+		httpx.WriteServerError(ctx, w, fmt.Errorf("resolve spaces: %w", err))
 		return
 	}
 	// Only return spaces the caller is allowed to read.
@@ -63,6 +63,6 @@ func (p *PearServer) ListInheritingSpaces(w http.ResponseWriter, r *http.Request
 	httpx.WriteJSON(
 		ctx,
 		w,
-		habitat.NetworkHabitatRelationshipListInheritingSpacesOutput{Spaces: out},
+		habitat.NetworkHabitatRelationshipResolveSpacesOutput{Spaces: out},
 	)
 }
