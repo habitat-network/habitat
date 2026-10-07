@@ -325,7 +325,12 @@ func TestServer_Relationship(t *testing.T) {
 			t.Context(), alice, source, habitat_syntax.SpaceRoleReader)
 		require.NoError(t, err)
 		_, err = ts.PermStore.SetSpaceRoleRelation(
-			t.Context(), source, habitat_syntax.SpaceRoleReader, mid, habitat_syntax.SpaceRoleReader)
+			t.Context(),
+			source,
+			habitat_syntax.SpaceRoleReader,
+			mid,
+			habitat_syntax.SpaceRoleReader,
+		)
 		require.NoError(t, err)
 		_, err = ts.PermStore.SetSpaceRoleRelation(
 			t.Context(), mid, habitat_syntax.SpaceRoleReader, leaf, habitat_syntax.SpaceRoleReader)
