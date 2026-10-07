@@ -24,6 +24,28 @@ const SettingsLink = () => {
   );
 };
 
+// SpacesLink goes to the current org's spaces when the route names an org,
+// and to the all-spaces page otherwise.
+const SpacesLink = () => {
+  const { org } = useParams({ strict: false });
+  return (
+    <li>
+      <Button
+        variant="link"
+        render={
+          org ? (
+            <Link to="/spaces/$spaceOwner" params={{ spaceOwner: org }} />
+          ) : (
+            <Link to="/spaces" />
+          )
+        }
+      >
+        Spaces
+      </Button>
+    </li>
+  );
+};
+
 const Header = ({ profile, authManager, onLogout }: HeaderProps) => {
   return (
     <header className="w-full">
@@ -37,11 +59,7 @@ const Header = ({ profile, authManager, onLogout }: HeaderProps) => {
               <li>
                 <OrgSwitcher authManager={authManager} />
               </li>
-              <li>
-                <Button variant="link" render={<Link to="/spaces" />}>
-                  Spaces
-                </Button>
-              </li>
+              <SpacesLink />
               <SettingsLink />
             </>
           )}
