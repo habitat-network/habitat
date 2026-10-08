@@ -1,15 +1,12 @@
 import {
   type Agent,
-  type InferOutput,
-  type Schema,
   type XrpcFailure,
   XrpcInvalidResponseError,
   XrpcResponseError,
-  jsonToLex,
 } from "@atproto/lex";
 import { SpaceRef, isSpaceRefString } from "@atproto/syntax";
 import { Effect } from "effect";
-import { InvalidSpaceRefError, WireDecodeError } from "./errors";
+import { InvalidSpaceRefError } from "./errors";
 
 /**
  * An xrpc Agent for `service` that adds the space signature headers from
@@ -38,22 +35,6 @@ export const failureStatus = (failure: XrpcFailure): number =>
   failure instanceof XrpcInvalidResponseError
     ? failure.response.status
     : 0;
-
-/**
- * Validate inbound atproto JSON (`{$bytes}`, `{$link}`) against a lexicon
- * schema, converting it to lex values first.
- */
-export const decodeLex =
-  <S extends Schema>(schema: S) =>
-  (json: unknown): Effect.Effect<InferOutput<S>, WireDecodeError> =>
-    Effect.suspend(() => {
-      const result = schema.safeParse(
-        jsonToLex(json as Parameters<typeof jsonToLex>[0]),
-      );
-      return result.success
-        ? Effect.succeed(result.value as InferOutput<S>)
-        : Effect.fail(new WireDecodeError({ message: result.reason.message }));
-    });
 
 /**
  * Parse an untrusted string into a SpaceRef, once, at the edge. `isSpaceRefString`

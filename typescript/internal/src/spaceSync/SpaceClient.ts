@@ -13,7 +13,7 @@ import {
 import type { DidString, SpaceRef } from "@atproto/syntax";
 import { createSpaceSigHeaders } from "@atproto/space";
 import { com } from "api";
-import { Context, Duration, Effect, Layer, Schedule, type Scope } from "effect";
+import { Context, Effect, Layer, Schedule, type Scope, Stream } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { Credentials } from "./Credentials";
 import { CredentialError, XrpcError, errorMessage } from "./errors";
@@ -33,39 +33,6 @@ interface Target {
 
 const isTransient = (error: SpaceCallError): boolean =>
   error._tag === "XrpcError" ? error.transient : error.reason === "Transport";
-
-/**
- * A fetch body's own async iterator deadlocks when a consumer abandons it
- * mid-stream: `return()` queues behind an in-flight `next()` that the stalled
- * reader never settles. Carve out our own iterator over a locked reader so
- * disposal just cancels the body. A host that goes quiet for `idleMs` fails
- * the stream rather than holding the pass forever.
- */
-async function* carChunks(
-  body: ReadableStream<Uint8Array>,
-  idleMs: number,
-): AsyncIterable<Uint8Array> {
-  const reader = body.getReader();
-  try {
-    while (true) {
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const idle = new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`CAR stream stalled for ${idleMs}ms`)),
-          idleMs,
-        );
-      });
-      const { done, value } = await Promise.race([reader.read(), idle]).finally(
-        () => clearTimeout(timer),
-      );
-      if (done) return;
-      if (value !== undefined) yield value;
-    }
-  } finally {
-    // Deliberately not awaited: a pending read() may never settle.
-    void reader.cancel().catch(() => undefined);
-  }
-}
 
 export class SpaceClient extends Context.Service<
   SpaceClient,
@@ -105,7 +72,6 @@ export class SpaceClient extends Context.Service<
       const config = yield* SpaceSyncConfig;
       const credentials = yield* Credentials;
       const identity = yield* Identity;
-      const idleMs = Duration.toMillis(config.streamIdleTimeout);
 
       const space = com.atproto.space;
 
@@ -272,6 +238,40 @@ export class SpaceClient extends Context.Service<
         return res.body;
       });
 
+      /**
+       * The CAR body as a stream that fails if the host goes quiet for
+       * `streamIdleTimeout` between chunks. When iteration ends or is
+       * abandoned the stream only releases its reader; getRepo's scope cancels
+       * the body.
+       */
+      const carStream = (body: ReadableStream<Uint8Array>) =>
+        Stream.fromReadableStream({
+          evaluate: () => body,
+          releaseLockOnEnd: true,
+          onError: (error) =>
+            new XrpcError({
+              method: space.getRepo.main.nsid,
+              status: 0,
+              error: "Transport",
+              message: errorMessage(error),
+              transient: true,
+            }),
+        }).pipe(
+          Stream.timeoutOrElse({
+            duration: config.streamIdleTimeout,
+            orElse: () =>
+              Stream.fail(
+                new XrpcError({
+                  method: space.getRepo.main.nsid,
+                  status: 0,
+                  error: "Timeout",
+                  message: "CAR stream stalled",
+                  transient: true,
+                }),
+              ),
+          }),
+        );
+
       // getRepo bypasses `xrpc`, which buffers the whole body, so the CAR can
       // be verified as it streams.
       const getRepo = (ref: SpaceRef, repo: DidString) => {
@@ -297,16 +297,16 @@ export class SpaceClient extends Context.Service<
               return res;
             },
           ),
-          // Cancels an unfinished download when the scope closes (e.g. on interruption).
+          // Cancels an unfinished download when the scope closes (e.g. on
+          // interruption). Deliberately not awaited: a cancel can wait on the
+          // other side indefinitely (a tee()'d body only settles once every
+          // branch is cancelled), and closing the scope must not hang on it.
           (res) =>
-            Effect.promise(
-              () =>
-                res.body?.cancel().catch(() => undefined) ?? Promise.resolve(),
-            ),
+            Effect.sync(() => void res.body?.cancel().catch(() => undefined)),
         ).pipe(
           Effect.flatMap((res) =>
             res.body
-              ? Effect.succeed(carChunks(res.body, idleMs))
+              ? Effect.succeed(Stream.toAsyncIterable(carStream(res.body)))
               : Effect.fail(invalidResponse(method, res.status, "empty body")),
           ),
         );

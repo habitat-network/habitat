@@ -1,16 +1,20 @@
+import { jsonToLex } from "@atproto/lex";
 import { serviceAuth } from "@atproto/lex-server";
 import type { DidString, SpaceRef } from "@atproto/syntax";
 import { com } from "api";
 import { Context, Effect, Layer, Option } from "effect";
 import { SpaceSyncConfig } from "./config";
-import { NotificationAuthError, errorMessage } from "./errors";
+import { NotificationAuthError, WireDecodeError, errorMessage } from "./errors";
 import { SpaceSyncer } from "./SpaceSyncer";
 import { SyncStore } from "./SyncStore";
-import { decodeLex, parseSpaceRef } from "./wire";
+import { parseSpaceRef } from "./wire";
 
 export type NotificationMethod =
   | typeof com.atproto.space.notifyWrite.main
   | typeof com.atproto.space.notifySpaceDeleted.main;
+
+/** An inbound request body as parsed JSON; `jsonToLex` turns `$bytes`/`$link` into lex values. */
+type JsonBody = Parameters<typeof jsonToLex>[0];
 
 /** How long a seen nonce is remembered; longer than serviceAuth's 5 minute max token age. */
 const NONCE_TTL_MS = 10 * 60 * 1000;
@@ -103,7 +107,10 @@ export const receiveNotifyWrite = Effect.fn("receiveNotifyWrite")(function* (
   authorization: string | undefined,
 ) {
   const method = com.atproto.space.notifyWrite;
-  const input = yield* decodeLex(method.$input.schema)(body);
+  const input = yield* Effect.try({
+    try: () => method.$input.schema.parse(jsonToLex(body as JsonBody)),
+    catch: (error) => new WireDecodeError({ message: errorMessage(error) }),
+  });
   const space = yield* watchedSpace(input.space);
   if (Option.isNone(space)) return;
   yield* Effect.flatMap(NotificationAuth, (a) =>
@@ -118,7 +125,10 @@ export const receiveNotifyWrite = Effect.fn("receiveNotifyWrite")(function* (
 export const receiveNotifySpaceDeleted = Effect.fn("receiveNotifySpaceDeleted")(
   function* (body: unknown, authorization: string | undefined) {
     const method = com.atproto.space.notifySpaceDeleted;
-    const input = yield* decodeLex(method.$input.schema)(body);
+    const input = yield* Effect.try({
+      try: () => method.$input.schema.parse(jsonToLex(body as JsonBody)),
+      catch: (error) => new WireDecodeError({ message: errorMessage(error) }),
+    });
     const space = yield* watchedSpace(input.space);
     if (Option.isNone(space)) return;
     yield* Effect.flatMap(NotificationAuth, (a) =>

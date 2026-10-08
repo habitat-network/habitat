@@ -5,15 +5,6 @@ import { describe, expect } from "vitest";
 import { SpaceSyncer } from "./SpaceSyncer";
 import { SyncStore } from "./SyncStore";
 import { runWithSyncer } from "./test/harness";
-import { com } from "api";
-import { decodeLex } from "./wire";
-
-/** The spaceRev of a notifyWrite body, as receiveNotifyWrite would pass it on. */
-const decodeNotify = (body: unknown) =>
-  decodeLex(com.atproto.space.notifyWrite.$input.schema)(body).pipe(
-    Effect.map((input) => input.spaceRev),
-    Effect.orDie,
-  );
 
 describe("SpaceSyncer", () => {
   it.live("watch performs an initial full sync and then goes idle", () =>
@@ -48,7 +39,7 @@ describe("SpaceSyncer", () => {
           const syncer = yield* SpaceSyncer;
           yield* syncer.watch(space.ref);
           yield* syncer.awaitIdle(space.ref);
-          const stale = yield* decodeNotify(space.notifyWriteBody(alice.did));
+          const stale = space.spaceRevOf(alice.did);
           const listsBefore = space.listReposCalls;
           yield* syncer.notifyWrite(space.ref, stale);
           yield* syncer.awaitIdle(space.ref);
@@ -57,10 +48,7 @@ describe("SpaceSyncer", () => {
           yield* Effect.promise(() =>
             space.write(alice, "com.example.post", "2", { text: "b" }),
           );
-          yield* syncer.notifyWrite(
-            space.ref,
-            yield* decodeNotify(space.notifyWriteBody(alice.did)),
-          );
+          yield* syncer.notifyWrite(space.ref, space.spaceRevOf(alice.did));
           yield* syncer.awaitIdle(space.ref);
           expect(sink.batches.at(-1)?._tag).toBe("Ops");
           expect(sink.view(space.id, alice.did)).toEqual(
@@ -90,10 +78,7 @@ describe("SpaceSyncer", () => {
               text: String(i),
             }),
           );
-          yield* syncer.notifyWrite(
-            space.ref,
-            yield* decodeNotify(space.notifyWriteBody(alice.did)),
-          );
+          yield* syncer.notifyWrite(space.ref, space.spaceRevOf(alice.did));
         }
         yield* syncer.awaitIdle(space.ref);
         // One pass for the first notification, at most one more for everything queued behind it.
