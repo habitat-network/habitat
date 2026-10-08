@@ -3,7 +3,9 @@ import { it } from "@effect/vitest";
 import type { DidString } from "@atproto/syntax";
 import { Effect, Option } from "effect";
 import { describe, expect } from "vitest";
-import { syncRepo } from "./repoSync";
+import type { SpaceRef } from "@atproto/syntax";
+import { RepoSync } from "./repoSync";
+import type { ListedRepo } from "./types";
 import { SyncStore } from "./SyncStore";
 import { runWithHarness } from "./test/harness";
 
@@ -16,7 +18,10 @@ const listed = (
   spaceRev: space.spaceRevOf(did),
 });
 
-describe("syncRepo", () => {
+const syncRepo = (space: SpaceRef, listed: ListedRepo) =>
+  Effect.flatMap(RepoSync, (r) => r.sync(space, listed));
+
+describe("RepoSync.sync", () => {
   it.live("recovers a repo with no local state and stores its rev", () =>
     runWithHarness(({ net, sink }) =>
       Effect.gen(function* () {

@@ -33,38 +33,37 @@ const hasEntry = (
  * Applies the proposal's fallback rules: a missing #atproto_space_host falls back
  * to #atproto_pds, but a present-and-malformed one is an error.
  */
-export const identityFromDoc = (
+export const identityFromDoc = Effect.fnUntraced(function* (
   did: DidString,
   doc: DidDocument,
-): Effect.Effect<ResolvedIdentity, IdentityError> =>
-  Effect.gen(function* () {
-    const pds = getPds(doc);
-    if (!pds)
+): Effect.fn.Return<ResolvedIdentity, IdentityError> {
+  const pds = getPds(doc);
+  if (!pds)
+    return yield* new IdentityError({
+      did,
+      message: "missing #atproto_pds service",
+    });
+  const signingKey = getKey(doc);
+  if (!signingKey)
+    return yield* new IdentityError({
+      did,
+      message: "missing #atproto signing key",
+    });
+  let spaceHost = pds;
+  if (hasEntry(doc.service, did, "#atproto_space_host")) {
+    const endpoint = getServiceEndpoint(doc, {
+      id: "#atproto_space_host",
+      type: "AtprotoSpaceHost",
+    });
+    if (!endpoint)
       return yield* new IdentityError({
         did,
-        message: "missing #atproto_pds service",
+        message: "malformed #atproto_space_host service",
       });
-    const signingKey = getKey(doc);
-    if (!signingKey)
-      return yield* new IdentityError({
-        did,
-        message: "missing #atproto signing key",
-      });
-    let spaceHost = pds;
-    if (hasEntry(doc.service, did, "#atproto_space_host")) {
-      const endpoint = getServiceEndpoint(doc, {
-        id: "#atproto_space_host",
-        type: "AtprotoSpaceHost",
-      });
-      if (!endpoint)
-        return yield* new IdentityError({
-          did,
-          message: "malformed #atproto_space_host service",
-        });
-      spaceHost = endpoint;
-    }
-    return { did, pds, signingKey, spaceHost };
-  });
+    spaceHost = endpoint;
+  }
+  return { did, pds, signingKey, spaceHost };
+});
 
 export class Identity extends Context.Service<
   Identity,

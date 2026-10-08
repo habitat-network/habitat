@@ -13,7 +13,16 @@ import {
 import type { DidString, SpaceRef } from "@atproto/syntax";
 import { createSpaceSigHeaders } from "@atproto/space";
 import { com } from "api";
-import { Context, Effect, Layer, Schedule, type Scope, Stream } from "effect";
+import {
+  Context,
+  DateTime,
+  Effect,
+  Layer,
+  Option,
+  Schedule,
+  type Scope,
+  Stream,
+} from "effect";
 import { SpaceSyncConfig } from "./config";
 import { Credentials } from "./Credentials";
 import { CredentialError, XrpcError, errorMessage } from "./errors";
@@ -208,10 +217,10 @@ export class SpaceClient extends Context.Service<
               signal,
             }),
         );
-        const expiresAt = Date.parse(res.body.expiresAt);
-        if (!Number.isFinite(expiresAt))
+        const expiresAt = DateTime.make(res.body.expiresAt);
+        if (Option.isNone(expiresAt))
           return yield* invalidResponse(method, 200, "unparseable expiresAt");
-        return { expiresAt };
+        return { expiresAt: DateTime.toEpochMillis(expiresAt.value) };
       });
 
       const listRepoOps = Effect.fnUntraced(function* (

@@ -6,7 +6,8 @@ import { CredentialError, errorMessage } from "../errors";
 import { Identity } from "../Identity";
 import { NotificationAuth } from "../notification";
 import { SpaceClient } from "../SpaceClient";
-import { RepoBackoff } from "../spacePass";
+import { RepoSync } from "../repoSync";
+import { RepoBackoff, SpacePass } from "../spacePass";
 import { SpaceSyncer } from "../SpaceSyncer";
 import { SyncSink } from "../SyncSink";
 import { SyncStore } from "../SyncStore";
@@ -52,7 +53,9 @@ export type HarnessServices =
   | Identity
   | DelegationSource
   | RepoBackoff
-  | NotificationAuth;
+  | NotificationAuth
+  | RepoSync
+  | SpacePass;
 
 export interface Harness {
   readonly net: FakeNetwork;
@@ -66,7 +69,7 @@ export const makeHarness = async (
   const net = new FakeNetwork();
   server.use(...net.handlers);
   const sink = makeRecordingSink();
-  const layer = Layer.mergeAll(
+  const base = Layer.mergeAll(
     SpaceClient.layer.pipe(
       Layer.provideMerge(Credentials.layer),
       Layer.provideMerge(Identity.layer),
@@ -76,7 +79,12 @@ export const makeHarness = async (
     sink.layer,
     RepoBackoff.layer,
     NotificationAuth.layer,
-  ).pipe(Layer.provide(testConfig(overrides)));
+  );
+  const layer = SpacePass.layer.pipe(
+    Layer.provideMerge(RepoSync.layer),
+    Layer.provideMerge(base),
+    Layer.provide(testConfig(overrides)),
+  );
   return { net, sink: sink.state, layer };
 };
 

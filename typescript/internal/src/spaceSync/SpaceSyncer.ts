@@ -15,11 +15,9 @@ import {
   Stream,
 } from "effect";
 import { SpaceSyncConfig } from "./config";
-import type { Credentials } from "./Credentials";
 import type { SinkError, StoreError } from "./errors";
-import type { Identity } from "./Identity";
 import { type SpaceCallError, SpaceClient } from "./SpaceClient";
-import { RepoBackoff, recordPassFailure, runSpacePass } from "./spacePass";
+import { RepoBackoff, SpacePass } from "./spacePass";
 import { SyncSink } from "./SyncSink";
 import { SyncStore } from "./SyncStore";
 import type { SyncEvent } from "./types";
@@ -61,14 +59,7 @@ export class SpaceSyncer extends Context.Service<
       const sink = yield* SyncSink;
       const client = yield* SpaceClient;
       const backoff = yield* RepoBackoff;
-      const services = yield* Effect.context<
-        | SpaceClient
-        | Identity
-        | Credentials
-        | SyncStore
-        | SyncSink
-        | RepoBackoff
-      >();
+      const spacePass = yield* SpacePass;
       const permits = yield* Semaphore.make(config.maxActiveSpaces);
       const fibers = yield* FiberMap.make<SpaceRefString>();
       const events = yield* PubSub.sliding<SyncEvent>(config.eventBufferSize);
@@ -99,42 +90,40 @@ export class SpaceSyncer extends Context.Service<
         settleIdle(id);
       };
 
-      const deleteSpaceData = (ref: SpaceRef) => {
+      const deleteSpaceData = Effect.fnUntraced(function* (ref: SpaceRef) {
         const space = ref.toString();
-        return Effect.gen(function* () {
-          pending.delete(space);
-          yield* sink.apply({ _tag: "SpaceDeleted", space });
-          yield* store.removeSpace(space);
-          yield* backoff.clearSpace(space);
-          yield* PubSub.publish(events, { _tag: "SpaceDeleted", space });
-        }).pipe(Effect.uninterruptible);
-      };
+        pending.delete(space);
+        yield* sink.apply({ _tag: "SpaceDeleted", space });
+        yield* store.removeSpace(space);
+        yield* backoff.clearSpace(space);
+        yield* PubSub.publish(events, { _tag: "SpaceDeleted", space });
+      }, Effect.uninterruptible);
 
       const pass = (ref: SpaceRef, full: boolean) => {
         const space = ref.toString();
-        return runSpacePass(ref, full).pipe(
+        return spacePass.run(ref, full).pipe(
           Effect.flatMap((evts) => PubSub.publishAll(events, evts)),
-          Effect.catchTag("CredentialError", (error) =>
-            error.reason === "SpaceDeleted"
-              ? deleteSpaceData(ref)
-              : recordPassFailure(space, error),
+          Effect.catchIf(
+            (error) =>
+              error._tag === "CredentialError" &&
+              error.reason === "SpaceDeleted",
+            () => deleteSpaceData(ref),
           ),
-          Effect.catch((error) => recordPassFailure(space, error)),
+          Effect.catch((error) => spacePass.recordFailure(space, error)),
           // Defects would otherwise vanish into the FiberMap unreported.
           Effect.catchCause((cause) =>
             Cause.hasInterruptsOnly(cause)
               ? Effect.failCause(cause)
-              : Effect.logError("space pass died", Cause.pretty(cause)),
+              : Effect.logError("space pass died", cause),
           ),
           // One permit per pass, so a busy space can't hold a slot indefinitely.
           permits.withPermits(1),
-          Effect.provideContext(services),
           Effect.annotateLogs({ space }),
         );
       };
 
-      const drain = (id: SpaceRefString, token: number): Effect.Effect<void> =>
-        Effect.gen(function* () {
+      const drain = Effect.fnUntraced(
+        function* (id: SpaceRefString, token: number) {
           while (true) {
             // Take the next trigger or release `running` in the same synchronous
             // step, so an enqueue can never observe a fiber that has stopped draining.
@@ -150,24 +139,32 @@ export class SpaceSyncer extends Context.Service<
             if (next === undefined) return;
             yield* pass(next.ref, next.full);
           }
-        }).pipe(Effect.ensuring(Effect.sync(() => release(id, token))));
+        },
+        (effect, id, token) =>
+          Effect.ensuring(
+            effect,
+            Effect.sync(() => release(id, token)),
+          ),
+      );
 
-      const enqueue = (ref: SpaceRef, full: boolean) =>
-        Effect.gen(function* () {
-          const id = ref.toString();
-          const token = yield* Effect.sync(() => {
-            if (stopping.has(id)) return undefined;
-            pending.set(id, { ref, full: full || !!pending.get(id)?.full });
-            if (running.has(id)) return undefined;
-            const t = ++nextToken;
-            running.set(id, t);
-            return t;
-          });
-          if (token !== undefined)
-            yield* FiberMap.run(fibers, id, { onlyIfMissing: false })(
-              drain(id, token),
-            );
+      const enqueue = Effect.fnUntraced(function* (
+        ref: SpaceRef,
+        full: boolean,
+      ) {
+        const id = ref.toString();
+        const token = yield* Effect.sync(() => {
+          if (stopping.has(id)) return undefined;
+          pending.set(id, { ref, full: full || !!pending.get(id)?.full });
+          if (running.has(id)) return undefined;
+          const t = ++nextToken;
+          running.set(id, t);
+          return t;
         });
+        if (token !== undefined)
+          yield* FiberMap.run(fibers, id, { onlyIfMissing: false })(
+            drain(id, token),
+          );
+      });
 
       /**
        * Stop the space's fiber and run `remove` with new passes held off until

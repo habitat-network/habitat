@@ -21,7 +21,8 @@ export {
   type PromiseSyncStore,
   createSpaceSyncer,
 } from "./promise";
-export { RepoBackoff } from "./spacePass";
+export { RepoSync } from "./repoSync";
+export { RepoBackoff, SpacePass, type SpacePassError } from "./spacePass";
 export { SpaceClient, type SpaceCallError } from "./SpaceClient";
 export { SpaceSyncer } from "./SpaceSyncer";
 export { SyncSink } from "./SyncSink";

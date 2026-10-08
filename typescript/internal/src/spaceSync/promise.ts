@@ -11,7 +11,8 @@ import {
   receiveNotifyWrite,
 } from "./notification";
 import { SpaceClient } from "./SpaceClient";
-import { RepoBackoff } from "./spacePass";
+import { RepoSync } from "./repoSync";
+import { RepoBackoff, SpacePass } from "./spacePass";
 import { SpaceSyncer } from "./SpaceSyncer";
 import { SyncSink } from "./SyncSink";
 import { SyncStore } from "./SyncStore";
@@ -145,6 +146,8 @@ export const createSpaceSyncer = (options: CreateSpaceSyncerOptions) => {
   const { store, sink, delegation, ...config } = options;
   const configLayer = spaceSyncConfigLayer(config);
   const layer = Layer.mergeAll(SpaceSyncer.layer, NotificationAuth.layer).pipe(
+    Layer.provideMerge(SpacePass.layer),
+    Layer.provideMerge(RepoSync.layer),
     Layer.provideMerge(RepoBackoff.layer),
     Layer.provideMerge(SpaceClient.layer),
     Layer.provideMerge(Credentials.layer),

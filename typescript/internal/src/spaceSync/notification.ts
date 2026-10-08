@@ -2,7 +2,7 @@ import { jsonToLex } from "@atproto/lex";
 import { serviceAuth } from "@atproto/lex-server";
 import type { DidString, SpaceRef } from "@atproto/syntax";
 import { com } from "api";
-import { Context, Effect, Layer, Option } from "effect";
+import { Clock, Context, Effect, Layer, Option } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { NotificationAuthError, WireDecodeError, errorMessage } from "./errors";
 import { SpaceSyncer } from "./SpaceSyncer";
@@ -39,12 +39,14 @@ export class NotificationAuth extends Context.Service<
     NotificationAuth,
     Effect.gen(function* () {
       const config = yield* SpaceSyncConfig;
+      // serviceAuth calls `unique` outside Effect, so read the Clock service directly.
+      const clock = yield* Clock.Clock;
       const nonces = new Map<string, number>();
       const auth = serviceAuth({
         audience: config.serviceDid as DidString,
         plcDirectoryUrl: config.plcUrl,
         unique: async (nonce) => {
-          const now = Date.now();
+          const now = clock.currentTimeMillisUnsafe();
           for (const [seen, expiresAt] of nonces)
             if (expiresAt <= now) nonces.delete(seen);
           if (nonces.has(nonce)) return false;
@@ -92,14 +94,13 @@ export class NotificationAuth extends Context.Service<
  * auth work: verification resolves the authority's DID, which unauthenticated
  * callers must not be able to trigger for arbitrary spaces.
  */
-const watchedSpace = (space: string) =>
-  Effect.gen(function* () {
-    const ref = yield* parseSpaceRef(space);
-    const store = yield* SyncStore;
-    return Option.isSome(yield* store.getSpace(ref.toString()))
-      ? Option.some(ref)
-      : Option.none();
-  });
+const watchedSpace = Effect.fnUntraced(function* (space: string) {
+  const ref = yield* parseSpaceRef(space);
+  const store = yield* SyncStore;
+  return Option.isSome(yield* store.getSpace(ref.toString()))
+    ? Option.some(ref)
+    : Option.none();
+});
 
 /** Handle an inbound com.atproto.space.notifyWrite (raw JSON body + Authorization header). */
 export const receiveNotifyWrite = Effect.fn("receiveNotifyWrite")(function* (

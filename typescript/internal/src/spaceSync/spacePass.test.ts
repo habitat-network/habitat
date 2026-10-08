@@ -2,7 +2,8 @@
 import { it } from "@effect/vitest";
 import { Duration, Effect, Option } from "effect";
 import { describe, expect } from "vitest";
-import { recordPassFailure, runSpacePass } from "./spacePass";
+import type { SpaceRef, SpaceRefString } from "@atproto/syntax";
+import { SpacePass } from "./spacePass";
 import { SyncStore } from "./SyncStore";
 import { type FakeSpace } from "./test/fakeNetwork";
 import { SERVICE_DID, runWithHarness } from "./test/harness";
@@ -21,7 +22,12 @@ const stateOf = (space: FakeSpace) =>
     Effect.map(Option.getOrThrow),
   );
 
-describe("runSpacePass", () => {
+const runSpacePass = (space: SpaceRef, full: boolean) =>
+  Effect.flatMap(SpacePass, (p) => p.run(space, full));
+const recordPassFailure = (space: SpaceRefString, error: unknown) =>
+  Effect.flatMap(SpacePass, (p) => p.recordFailure(space, error));
+
+describe("SpacePass.run", () => {
   it.live(
     "full pass syncs every writer, registers, and checkpoints at the newest spaceRev",
     () =>
