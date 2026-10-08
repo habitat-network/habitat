@@ -312,6 +312,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// like any other syncer, so the spaces store notifies it alongside the
 	// registered ones.
 	notifiers := spaces.Notifiers{notifier}
+	blobBucket, err := blob.OpenBucket(startupCtx, cmd.String(fBlobBucket))
+	if err != nil {
+		return fmt.Errorf("open blob bucket: %w", err)
+	}
+	defer func() { _ = blobBucket.Close() }()
+	blobStore := spaces.NewBlobStore(blobBucket)
+
 	var searchIndex search.Index
 	var searchIndexer *search.Indexer
 	if meilisearchURL := cmd.String(fMeilisearchURL); meilisearchURL != "" {
@@ -324,7 +331,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		if err != nil {
 			return fmt.Errorf("setup search index: %w", err)
 		}
-		searchIndexer = search.NewIndexer(searchIndex)
+		searchIndexer = search.NewIndexer(searchIndex, search.WithBlobs(blobStore))
 		notifiers = append(notifiers, searchIndexer)
 	}
 
@@ -346,13 +353,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}); err != nil {
 		return fmt.Errorf("migrate database: %w", err)
 	}
-
-	blobBucket, err := blob.OpenBucket(startupCtx, cmd.String(fBlobBucket))
-	if err != nil {
-		return fmt.Errorf("open blob bucket: %w", err)
-	}
-	defer func() { _ = blobBucket.Close() }()
-	blobStore := spaces.NewBlobStore(blobBucket)
 
 	opensocialStore, err := opensocial.NewStore(
 		database.WithContext(startupCtx), spacesStore, blobStore, hive,

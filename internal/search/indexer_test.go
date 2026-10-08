@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -413,4 +414,70 @@ func TestIndexerRunIndexesUntilCancelled(t *testing.T) {
 
 	cancel()
 	require.ErrorIs(t, <-done, context.Canceled)
+}
+
+func TestIndexerIndexesBlobContent(t *testing.T) {
+	it := setupIndexer(t)
+	blobs := spaces_testutil.NewTestBlobStore(t)
+	it.x.blobs = blobs
+	ctx := t.Context()
+	space, err := it.store.CreateSpace(ctx, testOrg, testType, "a")
+	require.NoError(t, err)
+
+	upload := func(mimeType, body string) map[string]any {
+		c, size, err := blobs.PutBlob(ctx, mimeType, []byte(body))
+		require.NoError(t, err)
+		return map[string]any{
+			"$type":    "blob",
+			"ref":      map[string]any{"$link": c.String()},
+			"mimeType": mimeType,
+			"size":     size,
+		}
+	}
+	putBlobs := func(rkey string, refs ...map[string]any) {
+		attachments := make([]any, len(refs))
+		for i, r := range refs {
+			attachments[i] = r
+		}
+		_, _, err := it.store.PutRecord(ctx, space, testRepo, testColl, syntax.RecordKey(rkey),
+			spaces_testutil.MustMarshalRecord(t, map[string]any{
+				"text":        "note",
+				"attachments": attachments,
+			}))
+		require.NoError(t, err)
+	}
+
+	htmlBody := "<html><style>.x{}</style><body><p>html words</p>" +
+		"<script>nope()</script></body></html>"
+	putBlobs(
+		"k1",
+		upload("text/plain; charset=utf-8", "plain words"),
+		upload("text/html", htmlBody),
+		upload("application/json", `{"title":"json words"}`),
+		upload("image/png", "not indexed"),
+	)
+	it.drain(ctx)
+	text := it.idx.texts()[recordURI(space, "k1")]
+	require.Contains(t, text, "note")
+	require.Contains(t, text, "plain words")
+	require.Contains(t, text, "html words")
+	require.Contains(t, text, "json words")
+	require.NotContains(t, text, "nope")
+	require.NotContains(t, text, ".x{}")
+	require.NotContains(t, text, "not indexed")
+
+	t.Run("oversized and missing blobs are skipped", func(t *testing.T) {
+		big := upload("text/plain", strings.Repeat("a", maxBlobBytes+1))
+		missing := map[string]any{
+			"$type": "blob",
+			"ref": map[string]any{
+				"$link": "bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			},
+			"mimeType": "text/plain",
+			"size":     5,
+		}
+		putBlobs("k2", big, missing)
+		it.drain(ctx)
+		require.Equal(t, "note", it.idx.texts()[recordURI(space, "k2")])
+	})
 }
