@@ -24,14 +24,22 @@ func ExtractText(record map[string]any) string {
 	walk(record, &sb)
 	text := strings.TrimSpace(sb.String())
 	if len(text) > maxTextBytes {
-		// Cut on a rune boundary so the tail stays valid UTF-8.
-		cut := maxTextBytes
-		for cut > 0 && !utf8.RuneStart(text[cut]) {
-			cut--
-		}
-		text = text[:cut]
+		text = truncateUTF8(text, maxTextBytes)
 	}
 	return text
+}
+
+// truncateUTF8 cuts text to at most max bytes on a rune boundary, so the tail
+// stays valid UTF-8.
+func truncateUTF8(text string, max int) string {
+	if len(text) <= max {
+		return text
+	}
+	cut := max
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return text[:cut]
 }
 
 func walk(v any, sb *strings.Builder) {

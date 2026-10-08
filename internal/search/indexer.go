@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -92,6 +93,9 @@ var accessCollections = map[syntax.NSID]bool{
 // repeated notifications for a repo that is still pending are collapsed.
 type Indexer struct {
 	index Index
+	// blobs, when set, supplies the content of blobs records reference; see
+	// [WithBlobs].
+	blobs BlobSource
 
 	mu      sync.Mutex
 	order   []job
@@ -121,14 +125,21 @@ type job struct {
 	repo syntax.DID
 }
 
+// IndexerOption configures an [Indexer].
+type IndexerOption func(*Indexer)
+
 // NewIndexer returns an Indexer that writes to index. Nothing is indexed
 // until [Indexer.Run] is called.
-func NewIndexer(index Index) *Indexer {
-	return &Indexer{
+func NewIndexer(index Index, opts ...IndexerOption) *Indexer {
+	x := &Indexer{
 		index:   index,
 		pending: map[job]bool{},
 		wake:    make(chan struct{}, 1),
 	}
+	for _, opt := range opts {
+		opt(x)
+	}
+	return x
 }
 
 // NotifyWrite implements [spaces.Notifier] by queueing repo to be indexed.
@@ -460,13 +471,19 @@ func (x *Indexer) apply(
 			deleted = append(deleted, uri)
 			continue
 		}
+		text := ExtractText(op.Value)
+		// Blob content is part of the record's text, so the document keeps the
+		// record's access and collection and hydrates as the record.
+		if blobText := x.blobText(ctx, op.Value); blobText != "" {
+			text = strings.TrimSpace(text + " " + blobText)
+		}
 		docs = append(docs, Document{
 			URI:        uri,
 			Space:      space,
 			Repo:       repo,
 			Collection: op.Collection,
 			Rev:        syntax.TID(op.Rev),
-			Text:       ExtractText(op.Value),
+			Text:       text,
 			Access:     *access,
 		})
 	}
