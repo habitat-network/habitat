@@ -53,8 +53,7 @@ func (p *PearServer) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	views := make([]habitat.NetworkHabitatSpaceListSpacesSpaceView, len(spaces))
 	for i, uri := range spaces {
 		views[i] = habitat.NetworkHabitatSpaceListSpacesSpaceView{
-			Uri:     uri.String(),
-			IsOwner: uri.SpaceOwner() == credInfo.Subject,
+			Uri: uri.String(),
 		}
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListSpacesOutput{
