@@ -79,6 +79,14 @@ AddSession(did,           session.Store ─────▶ crawl.Crawler
   `verificationMethod` because sap never signs as this DID — the space
   authority signs the delivery. `--service-name` overrides the fragment, for
   deployments that already publish a different one.
+- **space revisions** (`syncer/space_rev.go`): the space host stamps each write
+  with a space revision (TID) and sends the current and previous one in every
+  `notifyWrite`. The engine persists the last revision it applied per space
+  (`spaceSync`); a notification whose previous revision isn't the one we hold
+  marks the space stale, and a background catch-up lists
+  `listRepos with the held rev as cursor` and queues every repo behind. A full crawl listing
+  also records the space revision, and if the cursor is rejected the catch-up falls back to
+  a full listing. Hosts that send no space revision keep the crawl/Check sweep.
 - **`outbox`** is the durable handoff to sap's consumer: the syncer emits
   synced records here (in the same transaction as its state advance), and the
   consumer polls, processes, and acks them. Unacked messages redeliver.

@@ -45,6 +45,7 @@ Data & permissions:
 - `clique` — (DEPRECATED) replaced by `internal/spaces`
 - `spaces` — `network.habitat.space` abstraction grouping records, backed by `fgastore`
 - `fgastore` — Zanzibar-style relationship-based access control store wrapping an embedded OpenFGA server
+- `search` — full-text search over space records in Meilisearch. `search.Indexer` (a `spaces.Notifier`) syncs every repo via `ListRepoOps` and indexes each record with its space's read access (readers flattened by the perms store, opensocial.access community roles) as filterable fields; `search.Searcher` queries as the caller. Off unless `--meilisearch_url` is set. Tests use `HABITAT_TEST_MEILISEARCH_URL` if set, else testcontainers
 - `syntax` — Habitat-specific syntax types/parsers (Habitat URI, Space URI/Key, Clique ref) extending `atproto/syntax`
 - `perms` — wraps the fgastore and opensocial to query, update, and enforce permissions
 
@@ -89,27 +90,25 @@ Tool versions are managed by [Proto](https://moonrepo.dev/proto) via `.prototool
 
 ```bash
 # Development
-moon frontend:dev       # frontend (habitat management plane) + pear:dev
-moon pear:dev           # Pear server with Air hot reload (+ ngrok, + Caddy)
-moon sap:dev            # sap sync service in dev
+moon run frontend:dev       # frontend (habitat management plane) + pear:dev
+moon run pear:dev           # Pear server with Air hot reload (+ ngrok, + Caddy)
+moon run sap:dev            # sap sync service in dev
 
 # Build
-moon :build             # build everything
-moon pear:build         # build Pear binary → bin/pear
-moon typescript:build   # build all TS packages
+moon run :build             # build everything
+moon run pear:build         # build Pear binary → bin/pear
+moon run typescript:build   # build all TS packages
 
 # Generate (lexicon-derived code — never hand-edit outputs)
-moon :generate          # regenerate api/habitat, typescript/api, openapi spec, api-docs
+moon run :generate          # regenerate api/habitat, typescript/api, openapi spec, api-docs
 
 # Test
-moon :test              # all tests (Go uses testcontainers for PostgreSQL isolation)
+moon run :test          # all tests (Go uses testcontainers for PostgreSQL isolation)
 go test ./...           # Go tests directly
-moon integration:test   # end-to-end tests against a live pear instance (manual/CI workflow_dispatch only)
 
 # Lint / Format
-moon :lint-check        # lint all projects
-moon :format            # format all projects (runs on staged files in pre-commit hook)
-golangci-lint run       # Go linting
+moon run <project>:lint        # lint a projects
+moon run <project>:format      # format a projects
 ```
 
 **Environment** — in `dev.env` (gitignored):
@@ -119,6 +118,7 @@ golangci-lint run       # Go linting
 - `SAP_SECRET` — signing secret for the `sap` service
 - `HABITAT_OAUTH_SERVER_SECRET`, `HABITAT_OAUTH_CLIENT_SECRET`, `HABITAT_PDS_CRED_ENCRYPT_KEY` — OAuth/encryption secrets (generate with `cmd/keygen`)
 - `HABITAT_GOOGLE_CLIENT_ID` / `HABITAT_GOOGLE_CLIENT_SECRET` — Google Sign-In login method
+- `HABITAT_MEILISEARCH_URL` / `HABITAT_MEILISEARCH_API_KEY` — Meilisearch for space record search (`pear:dev` sets the URL and runs `root:meilisearch` on :7700); search is off when unset
 - `HABITAT_ADMIN_PASSWORD` — preset instance admin password (random + printed once if unset)
 
 ## Code conventions

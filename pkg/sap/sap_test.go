@@ -134,6 +134,8 @@ func TestSap(t *testing.T) {
 				syntax.DID(input.Repo),
 				syntax.TID(input.Rev),
 				input.Hash,
+				syntax.TID(input.SpaceRev),
+				syntax.TID(input.PrevSpaceRev),
 			))
 			w.WriteHeader(http.StatusOK)
 		})

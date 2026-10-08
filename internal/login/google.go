@@ -62,16 +62,16 @@ func NewGoogleProvider(
 func (p *googleProvider) Authorize(
 	ctx context.Context,
 	loginHint string,
-) (string, []byte, error) {
+) (string, string, []byte, error) {
 	verifier := oauth2.GenerateVerifier()
 	state := make([]byte, 16)
 	if _, err := rand.Read(state); err != nil {
-		return "", nil, fmt.Errorf("generate state: %w", err)
+		return "", "", nil, fmt.Errorf("generate state: %w", err)
 	}
 	stateStr := hex.EncodeToString(state)
 	stateBytes, err := json.Marshal(googleProviderState{Verifier: verifier, State: stateStr})
 	if err != nil {
-		return "", nil, fmt.Errorf("marshal google state: %w", err)
+		return "", "", nil, fmt.Errorf("marshal google state: %w", err)
 	}
 	authURL := p.oauthCfg.AuthCodeURL(
 		stateStr,
@@ -81,35 +81,35 @@ func (p *googleProvider) Authorize(
 		oauth2.SetAuthURLParam("prompt", "select_account"),
 	)
 
-	return authURL, stateBytes, nil
+	return authURL, stateStr, stateBytes, nil
 }
 
 func (p *googleProvider) Exchange(
 	ctx context.Context,
 	query url.Values,
 	stateBytes []byte,
-) (loginID string, err error) {
+) (loginID string, profile Profile, err error) {
 	code := query.Get("code")
 	var s googleProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
-		return "", fmt.Errorf("unmarshal google state: %w", err)
+		return "", Profile{}, fmt.Errorf("unmarshal google state: %w", err)
 	}
 	if s.State != query.Get("state") {
-		return "", fmt.Errorf("google state mismatch")
+		return "", Profile{}, fmt.Errorf("google state mismatch")
 	}
 	token, err := p.oauthCfg.Exchange(ctx, code, oauth2.VerifierOption(s.Verifier))
 	if err != nil {
-		return "", fmt.Errorf("google token exchange: %w", err)
+		return "", Profile{}, fmt.Errorf("google token exchange: %w", err)
 	}
 
 	idToken, ok := token.Extra("id_token").(string)
 	if !ok || idToken == "" {
-		return "", fmt.Errorf("no id_token in google token response")
+		return "", Profile{}, fmt.Errorf("no id_token in google token response")
 	}
 
 	claims, err := verifyGoogleIDToken(idToken, p.oauthCfg.ClientID)
 	if err != nil {
-		return "", fmt.Errorf("verify google id token: %w", err)
+		return "", Profile{}, fmt.Errorf("verify google id token: %w", err)
 	}
 
 	if err := p.upsertCredentials(ctx, claims.Email, &Credentials{
@@ -119,10 +119,10 @@ func (p *googleProvider) Exchange(
 		IDToken:      idToken,
 		Email:        claims.Email,
 	}); err != nil {
-		return "", fmt.Errorf("store google credentials: %w", err)
+		return "", Profile{}, fmt.Errorf("store google credentials: %w", err)
 	}
 
-	return claims.Email, nil
+	return claims.Email, Profile{Name: claims.Name, Picture: claims.Picture}, nil
 }
 
 type googleCredentialsModel struct {

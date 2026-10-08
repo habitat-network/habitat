@@ -42,7 +42,7 @@ func TestLoginRouter(t *testing.T) {
 	}
 
 	t.Run("member login", func(t *testing.T) {
-		_, state, err := router.Authorize(t.Context(), adminID.DID)
+		_, _, state, err := router.Authorize(t.Context(), adminID.DID)
 		require.NoError(t, err)
 
 		err = router.Exchange(
@@ -61,7 +61,7 @@ func TestLoginRouter(t *testing.T) {
 			Google:   p,
 			OrgStore: store,
 		}
-		_, state, err := router.Authorize(t.Context(), orgID.DID)
+		_, _, state, err := router.Authorize(t.Context(), orgID.DID)
 		require.NoError(t, err)
 
 		err = router.Exchange(
@@ -177,7 +177,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 		router := org.LoginRouter{
 			Google: p, OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,
 		}
-		_, state, err := router.Authorize(t.Context(), alice)
+		_, _, state, err := router.Authorize(t.Context(), alice)
 		require.NoError(t, err)
 		// The provisioned email is passed as Google's login_hint.
 		require.Equal(t, "alice@acme.com", p.LoginID)
@@ -220,7 +220,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 
 	t.Run("google not configured", func(t *testing.T) {
 		router := org.LoginRouter{OrgStore: orgStore, EmailStore: emailStore}
-		_, _, err := router.Authorize(t.Context(), alice)
+		_, _, _, err := router.Authorize(t.Context(), alice)
 		require.ErrorContains(t, err, "unsupported login provider")
 		err = router.Exchange(t.Context(), alice, url.Values{}, nil)
 		require.ErrorContains(t, err, "unsupported login provider")

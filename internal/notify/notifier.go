@@ -51,6 +51,8 @@ func (d *Deliverer) NotifyWrite(
 	repo syntax.DID,
 	rev syntax.TID,
 	hash []byte,
+	spaceRev syntax.TID,
+	prevSpaceRev syntax.TID,
 ) {
 	regs, err := d.store.ListForRepo(ctx, space, repo)
 	if err != nil {
@@ -67,6 +69,10 @@ func (d *Deliverer) NotifyWrite(
 		Repo:  repo.String(),
 		Rev:   rev.String(),
 		Hash:  atdata.Bytes(hash),
+		// The space host sequences writes with its own revision; sending the
+		// previous one too lets a syncer see a gap and catch up.
+		SpaceRev:     spaceRev.String(),
+		PrevSpaceRev: prevSpaceRev.String(),
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: marshal notifyWrite", "err", err)

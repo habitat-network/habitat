@@ -10,6 +10,7 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/network.habitat.space.getRecord", p.GetRecord)
 	p.router.HandleFunc("/xrpc/network.habitat.space.getBlob", p.GetBlob)
 	p.router.HandleFunc("/xrpc/network.habitat.space.listRecords", p.ListRecords)
+	p.router.HandleFunc("/xrpc/network.habitat.space.searchRecords", p.SearchRecords)
 	p.router.HandleFunc("/xrpc/network.habitat.space.deleteRecord", p.DeleteRecord)
 	p.router.HandleFunc("/xrpc/network.habitat.space.listRepoOps", p.ListRepoOps)
 	p.router.HandleFunc("/xrpc/network.habitat.space.getLatestCommit", p.GetLatestCommit)
@@ -18,10 +19,14 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/network.habitat.space.getSpaceCredential", p.GetSpaceCredential)
 	p.router.HandleFunc("/xrpc/network.habitat.space.notifyWrite", p.NotifyWrite)
 	p.router.HandleFunc("/xrpc/network.habitat.space.registerNotify", p.RegisterNotify)
+	p.router.HandleFunc(
+		"/xrpc/network.habitat.space.notifyCredentialRevoked", p.NotifyCredentialRevoked,
+	)
 	p.router.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", p.UploadBlob)
 
 	// Opensocial
 	p.router.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", p.CreateOrg)
+	p.router.HandleFunc("/xrpc/network.habitat.opensocial.getProfiles", p.GetProfiles)
 	p.router.HandleFunc("/xrpc/community.opensocial.updateProfile", p.UpdateProfile)
 	p.router.HandleFunc("/xrpc/community.opensocial.uploadImage", p.UploadImage)
 	p.router.HandleFunc("/xrpc/community.opensocial.createInvite", p.CreateInvite)
@@ -36,6 +41,11 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/community.opensocial.updatePermissions", p.UpdatePermissions)
 	p.router.HandleFunc("/xrpc/community.opensocial.assignRoles", p.AssignRoles)
 	p.router.HandleFunc("/xrpc/community.opensocial.ejectMember", p.EjectMember)
+
+	// Search configuration
+	p.router.HandleFunc("/xrpc/network.habitat.search.listCollections", p.ListSearchCollections)
+	p.router.HandleFunc("/xrpc/network.habitat.search.addCollection", p.AddSearchCollection)
+	p.router.HandleFunc("/xrpc/network.habitat.search.removeCollection", p.RemoveSearchCollection)
 
 	// MCP gateway
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.addServer", p.AddServer)
@@ -64,6 +74,10 @@ func (p *PearServer) registerRoutes() {
 	)
 	p.router.HandleFunc("/xrpc/network.habitat.relationship.resolveRelations", p.ResolveRelations)
 	p.router.HandleFunc("/xrpc/network.habitat.relationship.listRelatedSpaces", p.ListRelatedSpaces)
+	p.router.HandleFunc(
+		"/xrpc/network.habitat.relationship.resolveSpaces",
+		p.ResolveSpaces,
+	)
 
 	// com.atproto aliases for the permissioned-data proposal's official NSIDs
 	// (proposal 0016). Same handlers as the network.habitat registrations
@@ -82,6 +96,9 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/com.atproto.space.getDelegationToken", p.GetDelegationToken)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getSpaceCredential", p.GetSpaceCredential)
 	p.router.HandleFunc("/xrpc/com.atproto.space.registerNotify", p.RegisterNotify)
+	p.router.HandleFunc(
+		"/xrpc/com.atproto.space.notifyCredentialRevoked", p.NotifyCredentialRevoked,
+	)
 	p.router.HandleFunc("/xrpc/com.atproto.repo.uploadBlob", p.UploadBlob)
 
 	// com.atproto.server aliases

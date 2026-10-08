@@ -1,0 +1,39 @@
+{
+    "lexicon": 1,
+    "id": "community.opensocial.memberProfile",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "A member's profile within a community. Lives in the community's `members` space, authored and keyed by the member's own DID. Members configure this themselves; it may be seeded from login-provider account metadata (e.g. Google name/picture) on first join.",
+            "key": "any",
+            "record": {
+                "type": "object",
+                "required": [
+                    "updatedAt"
+                ],
+                "properties": {
+                    "displayName": {
+                        "type": "string",
+                        "maxLength": 256,
+                        "description": "The member's display name within the community."
+                    },
+                    "bio": {
+                        "type": "string",
+                        "maxLength": 2048,
+                        "description": "A short bio for the member."
+                    },
+                    "avatarUrl": {
+                        "type": "string",
+                        "format": "uri",
+                        "maxLength": 2048,
+                        "description": "URL of the member's avatar image."
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        }
+    }
+}

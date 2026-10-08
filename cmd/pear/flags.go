@@ -26,6 +26,9 @@ var (
 	fBuiltinApps        = "builtin_app"
 	fBlobBucket         = "blob_bucket"
 	fNangoSecretKey     = "nango_secret_key"
+	fMeilisearchURL     = "meilisearch_url"
+	fMeilisearchAPIKey  = "meilisearch_api_key"
+	fMeilisearchIndex   = "meilisearch_index"
 )
 
 var profiles []string
@@ -142,6 +145,22 @@ func getFlags() []cli.Flag {
 			Name:    fNangoSecretKey,
 			Usage:   "Secret key for the Nango environment brokering MCP server OAuth connections. If unset, MCP server configuration is unavailable.",
 			Sources: getSources(fNangoSecretKey),
+		},
+		&cli.StringFlag{
+			Name:    fMeilisearchURL,
+			Usage:   "URL of the Meilisearch server that indexes space records for search. If unset, search is unavailable.",
+			Sources: getSources(fMeilisearchURL),
+		},
+		&cli.StringFlag{
+			Name:    fMeilisearchAPIKey,
+			Usage:   "API key for the Meilisearch server",
+			Sources: getSources(fMeilisearchAPIKey),
+		},
+		&cli.StringFlag{
+			Name:    fMeilisearchIndex,
+			Usage:   "Name of the Meilisearch index of space records; cursors go in <name>_cursors",
+			Value:   "space_records",
+			Sources: getSources(fMeilisearchIndex),
 		},
 	}
 }

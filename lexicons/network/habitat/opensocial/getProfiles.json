@@ -1,0 +1,76 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.opensocial.getProfiles",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "Get the profiles of members within an opensocial org. For a member with no community.opensocial.memberProfile record, falls back to their public Bluesky profile. Callable by any member of the org.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "org",
+                    "dids"
+                ],
+                "properties": {
+                    "org": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "DID of the org the members belong to."
+                    },
+                    "dids": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "did"
+                        },
+                        "maxLength": 100,
+                        "description": "DIDs of the members whose profiles to fetch."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "profiles"
+                    ],
+                    "properties": {
+                        "profiles": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "network.habitat.opensocial.getProfiles#profileView"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "profileView": {
+            "type": "object",
+            "required": [
+                "did",
+                "handle"
+            ],
+            "properties": {
+                "did": {
+                    "type": "string",
+                    "format": "did"
+                },
+                "handle": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "bio": {
+                    "type": "string"
+                },
+                "avatarUrl": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

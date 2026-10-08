@@ -142,6 +142,7 @@ func TestMCPServerToolsList_MergesConnectedServerTools(t *testing.T) {
 		fakeTokens{},
 		spacesStore,
 		permStore,
+		nil,
 		nangoClient,
 		orgRecords,
 		nil,
@@ -184,6 +185,7 @@ func TestMCPServerToolsList_SkipsUnreachableConnectedServer(t *testing.T) {
 		fakeTokens{},
 		spacesStore,
 		permStore,
+		nil,
 		nangoClient,
 		orgRecords,
 		nil,
@@ -223,6 +225,7 @@ func TestMCPServerToolsList_SkipsConnectionWithNoMatchingRecord(t *testing.T) {
 		fakeTokens{},
 		spacesStore,
 		permStore,
+		nil,
 		nangoClient,
 		newFakeOrgMcpServerStore(),
 		nil,
@@ -262,6 +265,7 @@ func TestMCPServerToolsCall_ProxiesToConnectedServer(t *testing.T) {
 		fakeTokens{},
 		spacesStore,
 		permStore,
+		nil,
 		nangoClient,
 		orgRecords,
 		nil,
@@ -287,7 +291,7 @@ func TestMCPServerToolsCall_UnknownNamespacedToolFallsThrough(t *testing.T) {
 	caller := "did:plc:caller"
 
 	srv := New(
-		fakeTokens{}, spacesStore, permStore, newFakeNangoClient(), newFakeOrgMcpServerStore(),
+		fakeTokens{}, spacesStore, permStore, nil, newFakeNangoClient(), newFakeOrgMcpServerStore(),
 		nil,
 		"https://habitat.example",
 		"https://habitat.example/mcp",
@@ -352,6 +356,7 @@ func TestMCPServerTools_ManualServer(t *testing.T) {
 		fakeTokens{},
 		spacesStore,
 		permStore,
+		nil,
 		newFakeNangoClient(),
 		newFakeOrgMcpServerStore(),
 		manual,

@@ -45,6 +45,7 @@ export const OPENSOCIAL_ACTIONS: {
 ];
 
 export const ACTION_MCP_CONFIGURE = "mcp.configure";
+export const ACTION_COMMUNITY_CONFIGURE = "community.configure";
 
 // hasOpensocialAction reports whether a member holding userRoles may perform
 // action under bindings (the community.opensocial.permissions record's

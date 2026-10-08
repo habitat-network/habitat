@@ -61,7 +61,15 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 
 	signer := &fakeSigner{t: t}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
+	notifier.NotifyWrite(
+		t.Context(),
+		space,
+		repo,
+		"3lrev",
+		[]byte{0x01, 0x02},
+		"3lspacerev2",
+		"3lspacerev1",
+	)
 
 	for range 2 {
 		select {
@@ -70,6 +78,8 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 			require.Equal(t, repo.String(), d.in.Repo)
 			require.Equal(t, "3lrev", d.in.Rev)
 			require.Equal(t, []byte{0x01, 0x02}, []byte(d.in.Hash))
+			require.Equal(t, "3lspacerev2", d.in.SpaceRev)
+			require.Equal(t, "3lspacerev1", d.in.PrevSpaceRev)
 		case <-time.After(2 * time.Second):
 			t.Fatal("timed out waiting for notifyWrite delivery")
 		}
@@ -113,7 +123,15 @@ func TestNotifierNoRegistrations(t *testing.T) {
 	notifier := NewNotifier(s, http.DefaultClient, signer)
 
 	// With no registrations, neither path should sign or deliver anything.
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
+	notifier.NotifyWrite(
+		t.Context(),
+		space,
+		repo,
+		"3lrev",
+		[]byte{0x01, 0x02},
+		"3lspacerev2",
+		"3lspacerev1",
+	)
 	notifier.NotifySpaceDeleted(t.Context(), space)
 }
 
@@ -132,7 +150,15 @@ func TestNotifierSignerErrorAbortsDelivery(t *testing.T) {
 
 	signer := &fakeSigner{err: errSign}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
+	notifier.NotifyWrite(
+		t.Context(),
+		space,
+		repo,
+		"3lrev",
+		[]byte{0x01, 0x02},
+		"3lspacerev2",
+		"3lspacerev1",
+	)
 
 	select {
 	case <-delivered:
@@ -161,7 +187,15 @@ func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
 	)
 
 	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{t: t})
-	notifier.NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
+	notifier.NotifyWrite(
+		t.Context(),
+		space,
+		repo,
+		"3lrev",
+		[]byte{0x01, 0x02},
+		"3lspacerev2",
+		"3lspacerev1",
+	)
 
 	select {
 	case <-delivered:
@@ -202,7 +236,7 @@ func captureAudience(t *testing.T, register func(Store, string) error) (string, 
 	require.NoError(t, register(s, subscriber.URL))
 
 	NewNotifier(s, subscriber.Client(), &fakeSigner{t: t}).
-		NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02})
+		NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01, 0x02}, "3lspacerev2", "3lspacerev1")
 
 	select {
 	case aud := <-audiences:

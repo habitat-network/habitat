@@ -53,7 +53,7 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	redirect, state, err := p.Authorize(t.Context(), "user@gmail.com")
+	redirect, _, state, err := p.Authorize(t.Context(), "user@gmail.com")
 	require.NoError(t, err)
 	require.Contains(t, redirect, "https://accounts.google.com/o/oauth2/v2/auth")
 	require.Contains(t, redirect, "login_hint=user%40gmail.com")
@@ -78,7 +78,10 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	idToken := makeIDToken(t, defaultTestClaims(clientID, "user@gmail.com"))
+	claims := defaultTestClaims(clientID, "user@gmail.com")
+	claims.Name = "Test User"
+	claims.Picture = "https://example.com/avatar.png"
+	idToken := makeIDToken(t, claims)
 
 	tokenServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -104,16 +107,21 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	gp := p.(*googleProvider)
 	gp.oauthCfg.Endpoint.TokenURL = tokenServer.URL
 
-	_, state, err := p.Authorize(t.Context(), "")
+	_, _, state, err := p.Authorize(t.Context(), "")
 	require.NoError(t, err)
 
 	var gs googleProviderState
 	require.NoError(t, json.Unmarshal(state, &gs))
 
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, tokenServer.Client())
-	loginID, err := p.Exchange(ctx, url.Values{"code": {"auth-code"}, "state": {gs.State}}, state)
+	loginID, profile, err := p.Exchange(
+		ctx,
+		url.Values{"code": {"auth-code"}, "state": {gs.State}},
+		state,
+	)
 	require.NoError(t, err)
 	require.Equal(t, "user@gmail.com", loginID)
+	require.Equal(t, Profile{Name: "Test User", Picture: "https://example.com/avatar.png"}, profile)
 
 	creds, err := gp.GetCredentials(ctx, "user@gmail.com")
 	require.NoError(t, err)
