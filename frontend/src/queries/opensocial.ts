@@ -418,7 +418,8 @@ export function orgRolesQueryOptions(
       );
       return response.body.records.map((record) => {
         const value = record.value as
-          { name?: string; description?: string } | undefined;
+          | { name?: string; description?: string }
+          | undefined;
         return {
           rkey: record.rkey,
           name: value?.name ?? record.rkey,
@@ -595,4 +596,81 @@ export async function createInvite(
     },
   );
   return response.body;
+}
+
+const FILE_SPACE_TYPE = "at.dropb.space";
+const FILE_COLLECTION = "at.dropb.file";
+
+// fileSpaceKey derives a space key from the file's name (keeping it
+// recognizable) plus a short random suffix so repeat uploads of the same name
+// don't collide.
+function fileSpaceKey(name: string): string {
+  const base = name
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .slice(0, 100);
+  const suffix = crypto.randomUUID().slice(0, 8);
+  return base ? `${base}-${suffix}` : suffix;
+}
+
+// uploadOrgFile shares a file with every member of `org`: it uploads the blob,
+// creates a new space under the community readable by the built-in "member"
+// role, and writes an at.dropb.file record referencing the blob into it.
+// Returns the new space's URI.
+export async function uploadOrgFile(
+  authManager: AuthManager,
+  org: string,
+  file: File,
+): Promise<string> {
+  const did = authManager.getAuthInfo()!.did as DidString;
+
+  const headers = new Headers();
+  headers.append("Content-Type", file.type || "application/octet-stream");
+  const uploadRes = await authManager.fetch(
+    "/xrpc/com.atproto.repo.uploadBlob",
+    "POST",
+    await file.arrayBuffer(),
+    headers,
+  );
+  if (!uploadRes) {
+    throw new Error("Upload failed: no response");
+  }
+  if (!uploadRes.ok) {
+    throw new Error(
+      `Upload failed: ${uploadRes.status} ${await uploadRes.text()}`,
+    );
+  }
+  const { blob } = await uploadRes.json();
+
+  const space = await xrpc(
+    pearAgent(authManager, `${org}#habitat`),
+    community.opensocial.createSpace.main,
+    {
+      body: {
+        org: org as DidString,
+        type: FILE_SPACE_TYPE as NsidString,
+        skey: fileSpaceKey(file.name),
+        roles: ["member"],
+      },
+    },
+  );
+
+  const now = new Date().toISOString();
+  await xrpc(authManager, com.atproto.space.createRecord.main, {
+    validateResponse: false,
+    body: {
+      space: space.body.uri as SpaceRefString,
+      repo: did,
+      collection: FILE_COLLECTION as NsidString,
+      validate: false,
+      record: {
+        $type: FILE_COLLECTION,
+        name: file.name.slice(0, 255),
+        blob,
+        createdAt: now,
+        updatedAt: now,
+      },
+    },
+  });
+  return space.body.uri;
 }

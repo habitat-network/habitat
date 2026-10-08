@@ -17,6 +17,7 @@ import {
 import Avatar from "boring-avatars";
 
 import { Search } from "lucide-react";
+import { UploadFileDialog } from "@/components/UploadFileDialog";
 import { useState, type FormEvent } from "react";
 
 export const Route = createFileRoute("/_requireAuth/orgs/$org/")({
@@ -91,6 +92,7 @@ function RecentlyUsed({ apps }: RecentlyUsedProps) {
 function AuthenticatedHome() {
   const { apps } = Route.useLoaderData()!;
   const { org } = Route.useParams();
+  const { authManager } = Route.useRouteContext();
   const navigate = Route.useNavigate();
   const [q, setQ] = useState("");
 
@@ -119,6 +121,9 @@ function AuthenticatedHome() {
             </InputGroupAddon>
           </InputGroup>
         </form>
+        <div>
+          <UploadFileDialog org={org} authManager={authManager} />
+        </div>
       </div>
       {apps.length > 0 ? (
         <div className="flex gap-4 flex-wrap">
