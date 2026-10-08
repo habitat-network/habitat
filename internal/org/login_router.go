@@ -107,10 +107,10 @@ func (r *LoginRouter) provisionEmailMember(ctx context.Context, did syntax.DID) 
 func (r *LoginRouter) Authorize(
 	ctx context.Context,
 	did syntax.DID,
-) (string, []byte, error) {
+) (string, string, []byte, error) {
 	// email-domain member login
 	if provider, email, ok, err := r.emailLogin(ctx, did); err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	} else if ok {
 		return provider.Authorize(ctx, string(email))
 	}
@@ -120,21 +120,21 @@ func (r *LoginRouter) Authorize(
 	if err == nil {
 		provider := r.getProvider(fetchedOrg)
 		if provider == nil {
-			return "", nil, fmt.Errorf("unsupported login provider for %s", did)
+			return "", "", nil, fmt.Errorf("unsupported login provider for %s", did)
 		}
 		return provider.Authorize(ctx, "" /* loginHint (empty because any admin will work) */)
 	} else if !errors.Is(err, ErrOrgNotFound) {
-		return "", nil, fmt.Errorf("failed to get org: %w", err)
+		return "", "", nil, fmt.Errorf("failed to get org: %w", err)
 	}
 
 	// member login
 	member, err := r.OrgStore.GetMember(ctx, did)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to get member: %w", err)
+		return "", "", nil, fmt.Errorf("failed to get member: %w", err)
 	}
 	provider := r.getProvider(member.Org)
 	if provider == nil {
-		return "", nil, fmt.Errorf("unsupported login provider for %s", did)
+		return "", "", nil, fmt.Errorf("unsupported login provider for %s", did)
 	}
 	return provider.Authorize(ctx, member.LoginID)
 }

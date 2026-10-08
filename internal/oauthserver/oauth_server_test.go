@@ -1674,3 +1674,160 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 	}
 	require.Len(t, output.Apps, 1, "unresolvable client should be omitted from the response")
 }
+
+// statefulProvider is a [login.Provider] whose flow state carries the same
+// `state` it sends through the redirect, like the Google and PDS providers.
+type statefulProvider struct {
+	redirectBase string
+	redirectURI  string
+	loginID      string
+}
+
+func (p *statefulProvider) Authorize(
+	_ context.Context,
+	loginHint string,
+) (string, string, []byte, error) {
+	p.loginID = loginHint
+	state := []byte(`{"state":"outer-state"}`)
+	return p.redirectBase + "/provider?state=outer-state", "outer-state", state, nil
+}
+
+func (p *statefulProvider) Exchange(
+	_ context.Context,
+	query url.Values,
+	state []byte,
+) (string, login.Profile, error) {
+	if string(state) != `{"state":"outer-state"}` || query.Get("state") != "outer-state" {
+		return "", login.Profile{}, fmt.Errorf("callback got another flow's state: %s", state)
+	}
+	return p.loginID, login.Profile{}, nil
+}
+
+// TestHandleOpensocialSurvivesNestedFlow verifies the opensocial org flow is
+// still resumed at its own callback when another sign-in (e.g. the member's
+// PDS login, which pear runs against itself) overwrites the cookie's
+// request_key and provider_state while the provider hop is in flight. The
+// callback must find the right request by the `state` it echoes back.
+func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
+	db := dbtestutil.NewDB(t, Models())
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	pds := &statefulProvider{}
+	opensocialStore := testOpensocialStore(t)
+	adminDID := syntax.DID("did:web:example.did.com") // dummyDir resolves any handle to this DID
+	orgDIDStr, err := opensocialStore.NewOrg(t.Context(), "acme", adminDID)
+	require.NoError(t, err)
+	orgDID := syntax.DID(orgDIDStr)
+
+	oauthServer, err := NewOAuthServer(
+		bytes,
+		&org.LoginRouter{Pds: pds},
+		dummyDir,
+		db,
+		noop.Meter{},
+		testStore(t),
+		"https://habitat.example",
+		NewJWTBearerStore(),
+		opensocialStore,
+		nil,
+	)
+	require.NoError(t, err)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/authorize":
+			oauthServer.HandleAuthorize(w, r)
+		case "/oauth-callback":
+			oauthServer.HandleCallback(w, r)
+		case "/oauth/token":
+			oauthServer.HandleToken(w, r)
+		case "/ui/login/opensocial":
+			postReq := httptest.NewRequest(
+				http.MethodPost,
+				"/oauth/opensocial",
+				strings.NewReader(url.Values{"handle": {"admin.example.com"}}.Encode()),
+			)
+			postReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			postReq.AddCookie(r.Cookies()[0])
+			oauthServer.HandleOpensocial(w, postReq)
+		case "/provider":
+			// Stand in for a nested sign-in: it takes over both cookie slots
+			// the outer flow was relying on, then the outer provider hop
+			// returns to the callback.
+			session, err := oauthServer.sessionStore.Get(r, sessionName)
+			require.NoError(t, err)
+			session.Values[requestKeyCookie] = "nested-request-key"
+			session.Values[providerStateCookie] = []byte(`{"state":"nested-state"}`)
+			require.NoError(t, session.Save(r, w))
+			http.Redirect(
+				w, r, pds.redirectURI+"?code=dummy&state=outer-state", http.StatusSeeOther,
+			)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	server.Client().Jar = jar
+	pds.redirectBase = server.URL
+	pds.redirectURI = server.URL + "/oauth-callback"
+
+	verifier := oauth2.GenerateVerifier()
+	config := &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  server.URL + "/oauth/authorize",
+			TokenURL: server.URL + "/oauth/token",
+		},
+	}
+
+	var capturedToken string
+	clientApp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/client-metadata.json":
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+				ClientId:      "http://" + r.Host + "/client-metadata.json",
+				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				ResponseTypes: []string{"code"},
+				GrantTypes:    []string{"authorization_code", "refresh_token"},
+			}))
+		case "/oauth-callback":
+			ctx := context.WithValue(r.Context(), oauth2.HTTPClient, server.Client())
+			token, exchangeErr := config.Exchange(
+				ctx,
+				r.URL.Query().Get("code"),
+				oauth2.VerifierOption(verifier),
+			)
+			require.NoError(t, exchangeErr)
+			capturedToken = token.AccessToken
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(clientApp.Close)
+
+	config.ClientID = clientApp.URL + "/client-metadata.json"
+	config.RedirectURL = clientApp.URL + "/oauth-callback"
+
+	authReq, err := http.NewRequest(
+		http.MethodGet,
+		config.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier))+
+			"&handle="+url.QueryEscape(orgDID.String()),
+		http.NoBody,
+	)
+	require.NoError(t, err)
+
+	result, err := server.Client().Do(authReq)
+	require.NoError(t, err)
+	respBytes, err := io.ReadAll(result.Body)
+	require.NoError(t, err)
+	require.NoError(t, result.Body.Close())
+	require.Equal(t, http.StatusOK, result.StatusCode, "authorize request failed: %s", respBytes)
+	require.NotEmpty(t, capturedToken, "outer flow should resume after the nested flow")
+}
