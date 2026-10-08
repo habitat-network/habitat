@@ -8203,6 +8203,17 @@
             }
           },
           {
+            "name": "repo",
+            "in": "query",
+            "description": "The DID of the account whose repo holds the blob.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The DID of the account whose repo holds the blob.",
+              "format": "did"
+            }
+          },
+          {
             "name": "cid",
             "in": "query",
             "description": "The CID of the blob to fetch.",
@@ -8249,6 +8260,18 @@
                         },
                         {
                           "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "RepoNotFound"
+                        },
+                        {
+                          "const": "RepoTakendown"
+                        },
+                        {
+                          "const": "RepoSuspended"
+                        },
+                        {
+                          "const": "RepoDeactivated"
                         }
                       ]
                     },
@@ -8467,6 +8490,9 @@
                         },
                         {
                           "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "RepoNotFound"
                         },
                         {
                           "const": "RepoTakendown"
@@ -8693,7 +8719,7 @@
             "schema": {
               "type": "string",
               "description": "Reference to the space.",
-              "format": "at-uri"
+              "format": "space-ref"
             }
           },
           {
@@ -8705,6 +8731,16 @@
               "type": "string",
               "description": "The DID of the account whose repo to download.",
               "format": "did"
+            }
+          },
+          {
+            "name": "excludeValues",
+            "in": "query",
+            "description": "If true, omit the record blocks and return only the commit and index roots. The index is still fully authenticated by folding its entries into a set hash and comparing against the commit, so a syncer can diff it against a local copy and fetch just the records it lacks. Note the resulting CAR declares two roots and carries no non-root blocks.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If true, omit the record blocks and return only the commit and index roots. The index is still fully authenticated by folding its entries into a set hash and comparing against the commit, so a syncer can diff it against a local copy and fetch just the records it lacks. Note the resulting CAR declares two roots and carries no non-root blocks."
             }
           }
         ],
@@ -8979,7 +9015,7 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 100,
+              "maximum": 1000,
               "default": 50
             }
           },
@@ -9150,7 +9186,8 @@
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Return operations after this revision."
+              "description": "Return operations after this revision.",
+              "format": "tid"
             }
           },
           {
@@ -9163,6 +9200,16 @@
               "minimum": 1,
               "maximum": 1000,
               "default": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque pagination cursor from a previous response. Takes precedence over `since` when both are supplied.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Opaque pagination cursor from a previous response. Takes precedence over `since` when both are supplied."
             }
           },
           {
@@ -9280,7 +9327,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.listRepos",
-        "description": "List the known repos that hold data in a space (the writer set), with each repo's current rev and commit hash. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth.",
+        "description": "List the known repos that hold data in a space (the writer set), with each repo's current repoRev and commit hash. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth.",
         "operationId": "network.habitat.space.listRepos",
         "security": [
           {
@@ -9296,7 +9343,7 @@
             "schema": {
               "type": "string",
               "description": "Reference to the space.",
-              "format": "at-uri"
+              "format": "space-ref"
             }
           },
           {
@@ -9314,11 +9361,11 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "A space revision (TID), as returned in a previous response's cursor. Only repos written at a space revision after it are returned; omit to list every repo. Lets a syncer that detected a gap in space revisions catch up without re-listing every repo.",
+            "description": "Return repos updated after this space revision (exclusive). Use a previous response's cursor or a previously processed spaceRev.",
             "required": false,
             "schema": {
               "type": "string",
-              "description": "A space revision (TID), as returned in a previous response's cursor. Only repos written at a space revision after it are returned; omit to list every repo. Lets a syncer that detected a gap in space revisions catch up without re-listing every repo."
+              "description": "Return repos updated after this space revision (exclusive). Use a previous response's cursor or a previously processed spaceRev."
             }
           }
         ],
@@ -9333,15 +9380,15 @@
                     "repos"
                   ],
                   "properties": {
-                    "cursor": {
-                      "type": "string",
-                      "description": "The space's current revision (TID). A syncer that has applied every repo returned here is caught up to this revision; pass it as cursor on the next request to list only what changed after."
-                    },
                     "repos": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/network.habitat.space.listRepos.repo"
                       }
+                    },
+                    "cursor": {
+                      "type": "string",
+                      "description": "Pass this cursor on the next request. Omitted when no repos are returned."
                     }
                   }
                 }
@@ -9424,7 +9471,7 @@
         ],
         "parameters": [
           {
-            "name": "type",
+            "name": "spaceType",
             "in": "query",
             "description": "Filter to spaces of this type. Required if the caller's OAuth scope is narrower than `space:*`.",
             "required": false,
@@ -9570,7 +9617,7 @@
                 "type": "object",
                 "required": [
                   "space",
-                  "jtis"
+                  "credentials"
                 ],
                 "properties": {
                   "space": {
@@ -9578,11 +9625,13 @@
                     "description": "Reference to the space the credentials were issued for.",
                     "format": "at-uri"
                   },
-                  "jtis": {
+                  "credentials": {
                     "type": "array",
                     "items": {
-                      "type": "string"
-                    }
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxItems": 100
                   }
                 }
               }
@@ -9771,14 +9820,14 @@
                 "required": [
                   "space",
                   "repo",
-                  "rev",
+                  "repoRev",
                   "hash"
                 ],
                 "properties": {
                   "space": {
                     "type": "string",
                     "description": "Reference to the space.",
-                    "format": "at-uri"
+                    "format": "space-ref"
                   },
                   "repo": {
                     "type": "string",
@@ -9787,7 +9836,13 @@
                   },
                   "rev": {
                     "type": "string",
-                    "description": "The revision of the write."
+                    "description": "The repo revision after the write.",
+                    "format": "tid"
+                  },
+                  "repoRev": {
+                    "type": "string",
+                    "description": "The repo revision after the write.",
+                    "format": "tid"
                   },
                   "hash": {
                     "type": "string",
@@ -9796,12 +9851,12 @@
                   },
                   "spaceRev": {
                     "type": "string",
-                    "description": "The space's revision after this write, assigned by the space host. Set on notifications forwarded by the space host to syncers; absent on repo-host-to-space-host notifications.",
+                    "description": "The space revision assigned by the space host. Present only on notifications forwarded to syncers.",
                     "format": "tid"
                   },
                   "prevSpaceRev": {
                     "type": "string",
-                    "description": "The space's revision before this write. A syncer whose last seen space revision differs from this has missed a notification and should catch up with listRepos since that revision. Empty for the space's first write.",
+                    "description": "The previous space revision. Omitted on the first update in a space. A gap indicates missed notifications; recover using listRepos with cursor.",
                     "format": "tid"
                   }
                 }
@@ -11568,7 +11623,8 @@
         ],
         "properties": {
           "rev": {
-            "type": "string"
+            "type": "string",
+            "format": "tid"
           },
           "collection": {
             "type": "string",
@@ -11592,7 +11648,10 @@
       "network.habitat.space.listRepos.repo": {
         "type": "object",
         "required": [
-          "did"
+          "did",
+          "repoRev",
+          "hash",
+          "spaceRev"
         ],
         "properties": {
           "did": {
@@ -11604,28 +11663,32 @@
             "type": "string",
             "description": "The repo's current revision (TID), as last reported to the authority. May lag the repo host, which is the source of truth."
           },
+          "repoRev": {
+            "type": "string",
+            "description": "The repo's current revision (TID), as last reported to the authority. May lag the repo host, which is the source of truth."
+          },
           "hash": {
             "type": "string",
             "format": "byte",
             "description": "The repo's current commit hash (sha256 of the LtHash state), as last reported to the authority."
+          },
+          "spaceRev": {
+            "type": "string",
+            "description": "The space revision at which this repo was last updated.",
+            "format": "tid"
           }
         }
       },
       "network.habitat.space.listSpaces.spaceView": {
         "type": "object",
         "required": [
-          "uri",
-          "isOwner"
+          "uri"
         ],
         "properties": {
           "uri": {
             "type": "string",
             "description": "URI of the space.",
             "format": "at-uri"
-          },
-          "isOwner": {
-            "type": "boolean",
-            "description": "Whether the authenticated user is the owner of the space."
           }
         }
       },

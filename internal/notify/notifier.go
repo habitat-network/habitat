@@ -65,10 +65,11 @@ func (d *Deliverer) NotifyWrite(
 	}
 
 	body, err := json.Marshal(habitat.NetworkHabitatSpaceNotifyWriteInput{
-		Space: space.String(),
-		Repo:  repo.String(),
-		Rev:   rev.String(),
-		Hash:  atdata.Bytes(hash),
+		Space:   space.String(),
+		Repo:    repo.String(),
+		Rev:     rev.String(),
+		Hash:    atdata.Bytes(hash),
+		RepoRev: rev.String(),
 		// The space host sequences writes with its own revision; sending the
 		// previous one too lets a syncer see a gap and catch up.
 		SpaceRev:     spaceRev.String(),

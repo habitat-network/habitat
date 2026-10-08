@@ -35,7 +35,7 @@ export type Member =
 // calling user participates in.
 export interface SpacesFilter {
   did?: string;
-  type?: string;
+  spaceType?: string;
 }
 
 // spacesListQueryOptions lists the spaces the calling user participates in,
@@ -46,7 +46,7 @@ export function spacesListQueryOptions(
   filter: SpacesFilter = {},
 ) {
   return queryOptions({
-    queryKey: ["listSpaces", filter.did ?? null, filter.type ?? null],
+    queryKey: ["listSpaces", filter.did ?? null, filter.spaceType ?? null],
     queryFn: async (): Promise<SpaceView[]> => {
       const response = await xrpc(
         authManager,
@@ -55,7 +55,7 @@ export function spacesListQueryOptions(
           validateResponse: false,
           params: {
             did: filter.did as DidString | undefined,
-            type: filter.type as NsidString | undefined,
+            spaceType: filter.spaceType as NsidString | undefined,
           },
         },
       );

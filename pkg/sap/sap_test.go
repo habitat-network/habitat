@@ -131,7 +131,7 @@ func TestSap(t *testing.T) {
 				r.Context(),
 				habitat_syntax.SpaceURI(input.Space).URI(),
 				syntax.DID(input.Repo),
-				syntax.TID(input.Rev),
+				syntax.TID(input.RepoRev),
 				input.Hash,
 				syntax.TID(input.SpaceRev),
 				syntax.TID(input.PrevSpaceRev),
