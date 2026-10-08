@@ -447,9 +447,12 @@ func TestIndexerIndexesBlobContent(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	putBlobs("k1",
+	htmlBody := "<html><style>.x{}</style><body><p>html words</p>" +
+		"<script>nope()</script></body></html>"
+	putBlobs(
+		"k1",
 		upload("text/plain; charset=utf-8", "plain words"),
-		upload("text/html", "<html><style>.x{}</style><body><p>html words</p><script>nope()</script></body></html>"),
+		upload("text/html", htmlBody),
 		upload("application/json", `{"title":"json words"}`),
 		upload("image/png", "not indexed"),
 	)
@@ -466,8 +469,10 @@ func TestIndexerIndexesBlobContent(t *testing.T) {
 	t.Run("oversized and missing blobs are skipped", func(t *testing.T) {
 		big := upload("text/plain", strings.Repeat("a", maxBlobBytes+1))
 		missing := map[string]any{
-			"$type":    "blob",
-			"ref":      map[string]any{"$link": "bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+			"$type": "blob",
+			"ref": map[string]any{
+				"$link": "bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			},
 			"mimeType": "text/plain",
 			"size":     5,
 		}

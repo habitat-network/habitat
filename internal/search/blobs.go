@@ -34,7 +34,7 @@ const (
 // blobExtractors maps the mime types whose blob content is indexed to the
 // function turning their bytes into text. The record's blob refs are matched
 // against these by their media type alone, ignoring parameters like charset.
-var blobExtractors = map[string]func([]byte) string{
+var blobExtractors = map[string]func(context.Context, []byte) string{
 	"text/plain":       textFromPlain,
 	"text/markdown":    textFromPlain,
 	"text/html":        textFromHTML,
@@ -93,7 +93,7 @@ func (x *Indexer) blobText(ctx context.Context, record map[string]any) string {
 		if !ok || len(data) > maxBlobBytes {
 			continue
 		}
-		if text := clean(extract(data)); text != "" {
+		if text := clean(extract(ctx, data)); text != "" {
 			sb.WriteString(text)
 			sb.WriteByte(' ')
 		}
@@ -101,11 +101,11 @@ func (x *Indexer) blobText(ctx context.Context, record map[string]any) string {
 	return truncateUTF8(strings.TrimSpace(sb.String()), maxBlobTextBytes)
 }
 
-func textFromPlain(data []byte) string { return string(data) }
+func textFromPlain(_ context.Context, data []byte) string { return string(data) }
 
 // textFromHTML returns the text nodes of an HTML document, skipping scripts
 // and styles.
-func textFromHTML(data []byte) string {
+func textFromHTML(ctx context.Context, data []byte) string {
 	var sb strings.Builder
 	z := html.NewTokenizer(bytes.NewReader(data))
 	skip := 0
@@ -113,7 +113,7 @@ func textFromHTML(data []byte) string {
 		switch z.Next() {
 		case html.ErrorToken:
 			if !errors.Is(z.Err(), io.EOF) {
-				slog.Debug("search: html blob parse stopped", "err", z.Err())
+				slog.DebugContext(ctx, "search: html blob parse stopped", "err", z.Err())
 			}
 			return sb.String()
 		case html.StartTagToken:
@@ -140,7 +140,7 @@ func isHiddenTag(name []byte) bool {
 
 // textFromJSON returns the prose strings of a JSON document, as [ExtractText]
 // does for a record. Invalid JSON yields no text.
-func textFromJSON(data []byte) string {
+func textFromJSON(_ context.Context, data []byte) string {
 	var v any
 	if err := json.Unmarshal(data, &v); err != nil {
 		return ""

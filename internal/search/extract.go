@@ -29,13 +29,13 @@ func ExtractText(record map[string]any) string {
 	return text
 }
 
-// truncateUTF8 cuts text to at most max bytes on a rune boundary, so the tail
+// truncateUTF8 cuts text to at most limit bytes on a rune boundary, so the tail
 // stays valid UTF-8.
-func truncateUTF8(text string, max int) string {
-	if len(text) <= max {
+func truncateUTF8(text string, limit int) string {
+	if len(text) <= limit {
 		return text
 	}
-	cut := max
+	cut := limit
 	for cut > 0 && !utf8.RuneStart(text[cut]) {
 		cut--
 	}
