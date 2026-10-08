@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/ipfs/go-cid"
+
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	notify_testutil "github.com/habitat-network/habitat/internal/notify/testutil"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -540,6 +543,113 @@ func TestPutRecord_UpdateExisting(t *testing.T) {
 	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "rkey")
 	require.NoError(t, err)
 	require.Equal(t, int64(2), rec.Value["v"])
+}
+
+// blobValue returns a record value with a single atproto blob field
+// referencing cidStr, in the raw JSON shape ExtractBlobs recognizes.
+func blobValue(cidStr string) map[string]any {
+	return map[string]any{
+		"$type": "network.habitat.note",
+		"image": map[string]any{
+			"$type":    "blob",
+			"ref":      map[string]any{"$link": cidStr},
+			"mimeType": "image/png",
+			"size":     float64(42),
+		},
+	}
+}
+
+func TestPutRecord_TracksBlobReferences(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	blobCID := "bafkreihdwdcefgh4dqkjv67uzcmw37nwqfknnagwmjb44agkh4lphqzgxq"
+
+	_, _, err = s.PutRecord(
+		t.Context(), uri, owner, coll, "rkey",
+		spaces_testutil.MustMarshalRecord(t, blobValue(blobCID)),
+	)
+	require.NoError(t, err)
+
+	c, err := cid.Decode(blobCID)
+	require.NoError(t, err)
+	referenced, err := s.BlobReferenced(t.Context(), uri, c)
+	require.NoError(t, err)
+	require.True(t, referenced)
+}
+
+// TestPutRecord_ClearsStaleBlobReferences pins that overwriting a record
+// drops its prior blob references rather than accumulating them: a blob
+// referenced by an old value must not stay authorized once the record no
+// longer references it.
+func TestPutRecord_ClearsStaleBlobReferences(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	blobCID := "bafkreihdwdcefgh4dqkjv67uzcmw37nwqfknnagwmjb44agkh4lphqzgxq"
+
+	_, _, err = s.PutRecord(
+		t.Context(), uri, owner, coll, "rkey",
+		spaces_testutil.MustMarshalRecord(t, blobValue(blobCID)),
+	)
+	require.NoError(t, err)
+
+	_, _, err = s.PutRecord(
+		t.Context(), uri, owner, coll, "rkey",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"text": "no blob"}),
+	)
+	require.NoError(t, err)
+
+	c, err := cid.Decode(blobCID)
+	require.NoError(t, err)
+	referenced, err := s.BlobReferenced(t.Context(), uri, c)
+	require.NoError(t, err)
+	require.False(t, referenced)
+}
+
+// TestDeleteRecord_ClearsBlobReferences pins that deleting the only record
+// referencing a blob revokes read access to that blob within the space.
+func TestDeleteRecord_ClearsBlobReferences(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	blobCID := "bafkreihdwdcefgh4dqkjv67uzcmw37nwqfknnagwmjb44agkh4lphqzgxq"
+
+	_, _, err = s.PutRecord(
+		t.Context(), uri, owner, coll, "rkey",
+		spaces_testutil.MustMarshalRecord(t, blobValue(blobCID)),
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "rkey"))
+
+	c, err := cid.Decode(blobCID)
+	require.NoError(t, err)
+	referenced, err := s.BlobReferenced(t.Context(), uri, c)
+	require.NoError(t, err)
+	require.False(t, referenced)
+}
+
+func TestBlobReferenced_UnreferencedCidIsFalse(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	c, err := cid.Decode("bafkreihdwdcefgh4dqkjv67uzcmw37nwqfknnagwmjb44agkh4lphqzgxq")
+	require.NoError(t, err)
+	referenced, err := s.BlobReferenced(t.Context(), uri, c)
+	require.NoError(t, err)
+	require.False(t, referenced)
 }
 
 func TestGetRecord_NotFound(t *testing.T) {
@@ -1366,6 +1476,39 @@ func TestApplyWrites(t *testing.T) {
 		)
 		require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 	})
+}
+
+// TestBackfillBlobRefs pins that records written before blob references were
+// tracked get their refs rebuilt from their stored values, and that running it
+// again changes nothing.
+func TestBackfillBlobRefs(t *testing.T) {
+	d := db_testutil.NewDB(t, spaces.Models())
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(d))
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	blobCID := "bafkreihdwdcefgh4dqkjv67uzcmw37nwqfknnagwmjb44agkh4lphqzgxq"
+	_, _, err = s.PutRecord(
+		t.Context(), uri, owner, "network.habitat.note", "rkey",
+		spaces_testutil.MustMarshalRecord(t, blobValue(blobCID)),
+	)
+	require.NoError(t, err)
+	// Simulate a record written before refs were tracked.
+	require.NoError(t, d.Exec("DELETE FROM blob_refs").Error)
+
+	c, err := cid.Decode(blobCID)
+	require.NoError(t, err)
+	referenced, err := s.BlobReferenced(t.Context(), uri, c)
+	require.NoError(t, err)
+	require.False(t, referenced)
+
+	for range 2 {
+		require.NoError(t, spaces.BackfillBlobRefs(d))
+		referenced, err = s.BlobReferenced(t.Context(), uri, c)
+		require.NoError(t, err)
+		require.True(t, referenced)
+	}
 }
 
 func TestSpaceRevSequencesWrites(t *testing.T) {
