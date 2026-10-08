@@ -356,3 +356,38 @@ dev dependency `@effect/vitest`.
   12. Idle spaces leave no `FiberMap` entry.
   13. The scheduler picks up due spaces and renews registration.
   14. `verifyNotification` accept and reject cases.
+
+## Planning revisions (2026-10-08)
+
+These supersede the sections above where they conflict.
+
+1. **Wire format comes from upstream, not `lexicons/`.** Habitat's
+   `lexicons/com/atproto/space/*.json` (and the generated `typescript/api`)
+   predate the 2026-10-01 alpha. For example, `listRepos` entries have `rev`
+   with no `spaceRev`, and `getSpaceCredential` still describes DPoP. The library
+   therefore does not use `@atproto/lex-client` + `api` bindings. `SpaceClient`
+   makes signed `fetch` calls and decodes every response with local Effect
+   `Schema`s (`wire.ts`) matching the upstream alpha lexicons in
+   `../atproto/lexicons/com/atproto/space`. JSON goes through `jsonToLex` first
+   so `$bytes`/`$link` become `Uint8Array`/`Cid`. Pear's Go space host follows the
+   older lexicons and is not a target of this library until it is updated.
+2. **Timestamps are epoch milliseconds** (`number`) read from `Clock`, not
+   `DateTime.Utc`. This keeps host store rows trivial and works with `TestClock`.
+3. **`events` carries `SyncEvent`, not `RepoBatch`.** A `Reset`'s record stream is
+   consumed by the sink, so the event is `{ _tag: "Reset", space, did, rev }`.
+   The other variants are the same as `RepoBatch`.
+4. **Per-space mailbox is a coalescing map.** Each space has at most one pending
+   trigger kind (the strongest). A `running` map with per-fiber tokens decides
+   whether to fork a fiber, which avoids a lost-wakeup race with `FiberMap`
+   cleanup.
+5. **Sink interruption.** The commit is
+   `uninterruptibleMask(restore => restore(sink.apply(batch)) *> store.putRepo(state))`.
+   `sink.apply` may be interrupted (for example a long `Reset` download during
+   `unwatch`) and must roll back when it is. Once `apply` returns, `putRepo`
+   always runs.
+6. **Scheduler lease.** When the scheduler enqueues a due space it moves
+   `nextDueAt` to `now + backoffCap`, so later ticks don't re-select it while it
+   waits for a permit. The pass then writes the real `nextDueAt`.
+7. **Identity caching** uses an Effect `Cache` (10k entries, 10 min TTL for
+   successes, failures not cached). `Identity` does not expose the `#atproto_space`
+   key because the consumer never verifies credentials.
