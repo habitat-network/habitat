@@ -1,10 +1,11 @@
-import { Duration, Effect, Layer } from "effect";
+import { Duration, Effect, Layer, type Scope } from "effect";
 import { server } from "../../test/msw";
 import { type SpaceSyncOptions, spaceSyncConfigLayer } from "../config";
 import { Credentials, DelegationSource } from "../Credentials";
 import { CredentialError, errorMessage } from "../errors";
 import { Identity } from "../Identity";
 import { SpaceClient } from "../SpaceClient";
+import { SpaceSyncer } from "../SpaceSyncer";
 import { SyncSink } from "../SyncSink";
 import { SyncStore } from "../SyncStore";
 import { FakeNetwork, PLC_URL } from "./fakeNetwork";
@@ -67,4 +68,20 @@ export const runWithHarness = <A, E>(
 ) =>
   Effect.promise(() => makeHarness(overrides)).pipe(
     Effect.flatMap((h) => body(h).pipe(Effect.provide(h.layer), Effect.provide(testConfig(overrides)))),
+  );
+
+/** Like runWithHarness, with SpaceSyncer (and its scheduler) running for the body. */
+export const runWithSyncer = <A, E>(
+  body: (h: Harness) => Effect.Effect<A, E, HarnessServices | SpaceSyncer | Scope.Scope>,
+  overrides: Partial<SpaceSyncOptions> = {},
+) =>
+  Effect.promise(() => makeHarness(overrides)).pipe(
+    Effect.flatMap((h) =>
+      Effect.scoped(
+        body(h).pipe(
+          Effect.provide(SpaceSyncer.layer.pipe(Layer.provideMerge(h.layer), Layer.provide(testConfig(overrides)))),
+          Effect.provide(testConfig(overrides)),
+        ),
+      ),
+    ),
   );
