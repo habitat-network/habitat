@@ -23,7 +23,7 @@ func TestServer_NotifyCredentialRevoked(t *testing.T) {
 		return httpx_testutil.NewTestXRPCClient(t).Procedure(
 			ts.Server.NotifyCredentialRevoked,
 			habitat.NetworkHabitatSpaceNotifyCredentialRevokedInput{
-				Space: space.String(), Jtis: jtis,
+				Space: space.String(), Credentials: jtis,
 			},
 			&out,
 		)

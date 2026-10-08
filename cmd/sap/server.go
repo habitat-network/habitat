@@ -320,10 +320,11 @@ func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Space string       `json:"space"`
-		Repo  string       `json:"repo"`
-		Rev   string       `json:"rev"`
-		Hash  atdata.Bytes `json:"hash"`
+		Space   string       `json:"space"`
+		Repo    string       `json:"repo"`
+		Rev     string       `json:"rev"`
+		RepoRev string       `json:"repoRev"`
+		Hash    atdata.Bytes `json:"hash"`
 		// SpaceRev and PrevSpaceRev are the space host's revision sequence;
 		// absent from hosts that predate it.
 		SpaceRev     string `json:"spaceRev"`
@@ -342,7 +343,13 @@ func (s *server) handleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rev, err := syntax.ParseTID(req.Rev)
+	// Prefer repoRev, the field the lexicon now requires; fall back to the
+	// deprecated rev so hosts that predate the rename still sync.
+	repoRev := req.RepoRev
+	if repoRev == "" {
+		repoRev = req.Rev
+	}
+	rev, err := syntax.ParseTID(repoRev)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("parse rev: %s", err), http.StatusBadRequest)
 		return

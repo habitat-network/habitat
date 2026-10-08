@@ -46,7 +46,7 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
         com.atproto.space.listSpaces.main,
         {
           validateResponse: false,
-          params: { type: MEMBERS_SPACE_TYPE as NsidString },
+          params: { spaceType: MEMBERS_SPACE_TYPE as NsidString },
         },
       );
       const orgs: OrgSummary[] = [];

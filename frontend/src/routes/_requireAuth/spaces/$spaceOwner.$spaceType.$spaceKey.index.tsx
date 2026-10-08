@@ -209,7 +209,7 @@ function SpaceMembers() {
                     </DidHoverCard>
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
-                    {repo.rev ?? "—"}
+                    {repo.repoRev ?? "—"}
                   </TableCell>
                 </TableRow>
               ))}
