@@ -418,8 +418,7 @@ export function orgRolesQueryOptions(
       );
       return response.body.records.map((record) => {
         const value = record.value as
-          | { name?: string; description?: string }
-          | undefined;
+          { name?: string; description?: string } | undefined;
         return {
           rkey: record.rkey,
           name: value?.name ?? record.rkey,
