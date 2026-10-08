@@ -37,18 +37,20 @@ describe("Credentials", () => {
     }),
   );
 
-  it.effect("re-mints once the credential is within the refresh lead of expiry", () =>
-    Effect.gen(function* () {
-      const { space, layer } = yield* setup;
-      yield* Effect.gen(function* () {
-        yield* TestClock.setTime(Date.now());
-        const credentials = yield* Credentials;
-        yield* credentials.get(space.ref);
-        yield* TestClock.adjust("10 minutes");
-        yield* credentials.get(space.ref);
-        expect(space.credentialJtis).toHaveLength(2);
-      }).pipe(Effect.provide(layer));
-    }),
+  it.effect(
+    "re-mints once the credential is within the refresh lead of expiry",
+    () =>
+      Effect.gen(function* () {
+        const { space, layer } = yield* setup;
+        yield* Effect.gen(function* () {
+          yield* TestClock.setTime(Date.now());
+          const credentials = yield* Credentials;
+          yield* credentials.get(space.ref);
+          yield* TestClock.adjust("10 minutes");
+          yield* credentials.get(space.ref);
+          expect(space.credentialJtis).toHaveLength(2);
+        }).pipe(Effect.provide(layer));
+      }),
   );
 
   it.effect("re-mints after invalidate", () =>
@@ -87,9 +89,13 @@ describe("Credentials", () => {
       yield* Effect.gen(function* () {
         const credentials = yield* Credentials;
         space.deniedUsers.add(alice.did);
-        expect(Exit.isFailure(yield* Effect.exit(credentials.get(space.ref)))).toBe(true);
+        expect(
+          Exit.isFailure(yield* Effect.exit(credentials.get(space.ref))),
+        ).toBe(true);
         space.deniedUsers.clear();
-        expect(Exit.isSuccess(yield* Effect.exit(credentials.get(space.ref)))).toBe(true);
+        expect(
+          Exit.isSuccess(yield* Effect.exit(credentials.get(space.ref))),
+        ).toBe(true);
       }).pipe(Effect.provide(layer));
     }),
   );

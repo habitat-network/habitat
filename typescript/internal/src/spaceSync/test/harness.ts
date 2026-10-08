@@ -32,12 +32,23 @@ export const fakeDelegation = (net: FakeNetwork) =>
       issue: (space) =>
         Effect.tryPromise({
           try: () => net.delegationTokenFor(space),
-          catch: (error) => new CredentialError({ space, reason: "NoDelegation", message: errorMessage(error) }),
+          catch: (error) =>
+            new CredentialError({
+              space,
+              reason: "NoDelegation",
+              message: errorMessage(error),
+            }),
         }),
     }),
   );
 
-export type HarnessServices = SyncStore | SyncSink | SpaceClient | Credentials | Identity | DelegationSource;
+export type HarnessServices =
+  | SyncStore
+  | SyncSink
+  | SpaceClient
+  | Credentials
+  | Identity
+  | DelegationSource;
 
 export interface Harness {
   readonly net: FakeNetwork;
@@ -45,7 +56,9 @@ export interface Harness {
   readonly layer: Layer.Layer<HarnessServices>;
 }
 
-export const makeHarness = async (overrides: Partial<SpaceSyncOptions> = {}): Promise<Harness> => {
+export const makeHarness = async (
+  overrides: Partial<SpaceSyncOptions> = {},
+): Promise<Harness> => {
   const net = new FakeNetwork();
   server.use(...net.handlers);
   const sink = makeRecordingSink();
@@ -67,19 +80,31 @@ export const runWithHarness = <A, E>(
   overrides: Partial<SpaceSyncOptions> = {},
 ) =>
   Effect.promise(() => makeHarness(overrides)).pipe(
-    Effect.flatMap((h) => body(h).pipe(Effect.provide(h.layer), Effect.provide(testConfig(overrides)))),
+    Effect.flatMap((h) =>
+      body(h).pipe(
+        Effect.provide(h.layer),
+        Effect.provide(testConfig(overrides)),
+      ),
+    ),
   );
 
 /** Like runWithHarness, with SpaceSyncer (and its scheduler) running for the body. */
 export const runWithSyncer = <A, E>(
-  body: (h: Harness) => Effect.Effect<A, E, HarnessServices | SpaceSyncer | Scope.Scope>,
+  body: (
+    h: Harness,
+  ) => Effect.Effect<A, E, HarnessServices | SpaceSyncer | Scope.Scope>,
   overrides: Partial<SpaceSyncOptions> = {},
 ) =>
   Effect.promise(() => makeHarness(overrides)).pipe(
     Effect.flatMap((h) =>
       Effect.scoped(
         body(h).pipe(
-          Effect.provide(SpaceSyncer.layer.pipe(Layer.provideMerge(h.layer), Layer.provide(testConfig(overrides)))),
+          Effect.provide(
+            SpaceSyncer.layer.pipe(
+              Layer.provideMerge(h.layer),
+              Layer.provide(testConfig(overrides)),
+            ),
+          ),
           Effect.provide(testConfig(overrides)),
         ),
       ),

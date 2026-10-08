@@ -5,7 +5,8 @@ import { NotificationAuthError } from "./errors";
 import { Identity } from "./Identity";
 import { parseSpaceRef } from "./wire";
 
-export type NotificationLxm = "com.atproto.space.notifyWrite" | "com.atproto.space.notifySpaceDeleted";
+export type NotificationLxm =
+  "com.atproto.space.notifyWrite" | "com.atproto.space.notifySpaceDeleted";
 
 const ServiceAuthPayload = Schema.Struct({
   iss: Schema.String,
@@ -16,7 +17,10 @@ const ServiceAuthPayload = Schema.Struct({
 
 const decodePart = (part: string) =>
   Effect.try({
-    try: () => JSON.parse(new TextDecoder().decode(fromBase64(part, "base64url"))) as unknown,
+    try: () =>
+      JSON.parse(
+        new TextDecoder().decode(fromBase64(part, "base64url")),
+      ) as unknown,
     catch: () => new NotificationAuthError({ message: "malformed jwt" }),
   });
 
@@ -27,7 +31,11 @@ const decodePart = (part: string) =>
  */
 export const verifyNotification = Effect.fn("verifyNotification")(function* (
   authorization: string | undefined,
-  opts: { readonly lxm: NotificationLxm; readonly space: string; readonly serviceDid: string },
+  opts: {
+    readonly lxm: NotificationLxm;
+    readonly space: string;
+    readonly serviceDid: string;
+  },
 ) {
   const fail = (message: string) => new NotificationAuthError({ message });
   const token = authorization?.match(/^Bearer (.+)$/)?.[1];
@@ -40,16 +48,25 @@ export const verifyNotification = Effect.fn("verifyNotification")(function* (
     Effect.flatMap(Schema.decodeUnknownEffect(ServiceAuthPayload)),
     Effect.mapError(() => fail("malformed jwt payload")),
   );
-  const { authority } = yield* parseSpaceRef(opts.space).pipe(Effect.mapError(() => fail("invalid space")));
-  if (payload.iss.split("#")[0] !== authority) return yield* fail("issuer is not the space authority");
+  const { authority } = yield* parseSpaceRef(opts.space).pipe(
+    Effect.mapError(() => fail("invalid space")),
+  );
+  if (payload.iss.split("#")[0] !== authority)
+    return yield* fail("issuer is not the space authority");
   if (payload.aud !== opts.serviceDid) return yield* fail("wrong audience");
   if (payload.lxm !== opts.lxm) return yield* fail("wrong lxm");
   const now = yield* Clock.currentTimeMillis;
   if (payload.exp * 1000 <= now) return yield* fail("token expired");
   const identity = yield* Identity;
-  const { signingKey } = yield* identity.resolve(authority).pipe(Effect.mapError((e) => fail(e.message)));
+  const { signingKey } = yield* identity
+    .resolve(authority)
+    .pipe(Effect.mapError((e) => fail(e.message)));
   const valid = yield* Effect.promise(() =>
-    verifySignature(signingKey, new TextEncoder().encode(`${head}.${body}`), fromBase64(sig, "base64url")).catch(() => false),
+    verifySignature(
+      signingKey,
+      new TextEncoder().encode(`${head}.${body}`),
+      fromBase64(sig, "base64url"),
+    ).catch(() => false),
   );
   if (!valid) return yield* fail("bad signature");
 });

@@ -1,4 +1,16 @@
-import { Clock, Context, Duration, Effect, FiberMap, Layer, Option, PubSub, Schedule, Semaphore, Stream } from "effect";
+import {
+  Clock,
+  Context,
+  Duration,
+  Effect,
+  FiberMap,
+  Layer,
+  Option,
+  PubSub,
+  Schedule,
+  Semaphore,
+  Stream,
+} from "effect";
 import { SpaceSyncConfig } from "./config";
 import type { Credentials } from "./Credentials";
 import type { InvalidSpaceRefError, SinkError, StoreError } from "./errors";
@@ -10,16 +22,30 @@ import { SyncStore } from "./SyncStore";
 import type { SyncEvent } from "./types";
 import { type NotifyWriteInput, parseSpaceRef } from "./wire";
 
-const STRENGTH: Record<PassKind, number> = { CatchUp: 0, Maintenance: 1, Full: 2 };
+const STRENGTH: Record<PassKind, number> = {
+  CatchUp: 0,
+  Maintenance: 1,
+  Full: 2,
+};
 
 export class SpaceSyncer extends Context.Service<
   SpaceSyncer,
   {
-    readonly watch: (space: string) => Effect.Effect<void, InvalidSpaceRefError | StoreError>;
+    readonly watch: (
+      space: string,
+    ) => Effect.Effect<void, InvalidSpaceRefError | StoreError>;
     readonly unwatch: (space: string) => Effect.Effect<void, StoreError>;
-    readonly notifyWrite: (input: NotifyWriteInput) => Effect.Effect<void, StoreError>;
-    readonly notifySpaceDeleted: (space: string) => Effect.Effect<void, StoreError | SinkError>;
-    readonly getBlob: (space: string, did: string, cid: string) => Effect.Effect<Uint8Array, SpaceCallError>;
+    readonly notifyWrite: (
+      input: NotifyWriteInput,
+    ) => Effect.Effect<void, StoreError>;
+    readonly notifySpaceDeleted: (
+      space: string,
+    ) => Effect.Effect<void, StoreError | SinkError>;
+    readonly getBlob: (
+      space: string,
+      did: string,
+      cid: string,
+    ) => Effect.Effect<Uint8Array, SpaceCallError>;
     /** Committed batches (Reset carries no records), for fan-out such as SSE. */
     readonly events: Stream.Stream<SyncEvent>;
     readonly activeSpaces: Effect.Effect<number>;
@@ -33,7 +59,9 @@ export class SpaceSyncer extends Context.Service<
       const store = yield* SyncStore;
       const sink = yield* SyncSink;
       const client = yield* SpaceClient;
-      const services = yield* Effect.context<SpaceClient | Identity | Credentials | SyncStore | SyncSink>();
+      const services = yield* Effect.context<
+        SpaceClient | Identity | Credentials | SyncStore | SyncSink
+      >();
       const permits = yield* Semaphore.make(config.maxActiveSpaces);
       const fibers = yield* FiberMap.make<string>();
       const events = yield* PubSub.unbounded<SyncEvent>();
@@ -71,7 +99,9 @@ export class SpaceSyncer extends Context.Service<
             yield* runSpacePass(space, kind).pipe(
               Effect.flatMap((evts) => PubSub.publishAll(events, evts)),
               Effect.catchTag("CredentialError", (error) =>
-                error.reason === "SpaceDeleted" ? deleteSpaceData(space) : recordPassFailure(space, error),
+                error.reason === "SpaceDeleted"
+                  ? deleteSpaceData(space)
+                  : recordPassFailure(space, error),
               ),
               Effect.catch((error) => recordPassFailure(space, error)),
               Effect.provideContext(services),
@@ -80,20 +110,29 @@ export class SpaceSyncer extends Context.Service<
           }
         }).pipe(
           permits.withPermits(1),
-          Effect.ensuring(Effect.sync(() => void (running.get(space) === token && running.delete(space)))),
+          Effect.ensuring(
+            Effect.sync(
+              () =>
+                void (running.get(space) === token && running.delete(space)),
+            ),
+          ),
         );
 
       const enqueue = (space: string, kind: PassKind) =>
         Effect.gen(function* () {
           const token = yield* Effect.sync(() => {
             const prev = pending.get(space);
-            if (prev === undefined || STRENGTH[kind] > STRENGTH[prev]) pending.set(space, kind);
+            if (prev === undefined || STRENGTH[kind] > STRENGTH[prev])
+              pending.set(space, kind);
             if (running.has(space)) return undefined;
             const t = ++nextToken;
             running.set(space, t);
             return t;
           });
-          if (token !== undefined) yield* FiberMap.run(fibers, space, { onlyIfMissing: false })(drain(space, token));
+          if (token !== undefined)
+            yield* FiberMap.run(fibers, space, { onlyIfMissing: false })(
+              drain(space, token),
+            );
         });
 
       const stop = (space: string) =>
@@ -112,18 +151,38 @@ export class SpaceSyncer extends Context.Service<
         const fullIntervalMs = Duration.toMillis(config.fullPassInterval);
         for (const state of due) {
           if (running.has(state.space)) continue;
-          yield* store.putSpace({ ...state, nextDueAt: now + Duration.toMillis(config.backoffCap) });
-          yield* enqueue(state.space, (state.lastFullPassAt ?? 0) + fullIntervalMs <= now ? "Full" : "Maintenance");
+          yield* store.putSpace({
+            ...state,
+            nextDueAt: now + Duration.toMillis(config.backoffCap),
+          });
+          yield* enqueue(
+            state.space,
+            (state.lastFullPassAt ?? 0) + fullIntervalMs <= now
+              ? "Full"
+              : "Maintenance",
+          );
         }
-      }).pipe(Effect.catch((error) => Effect.logWarning("scheduler tick failed", error)));
-      yield* tick.pipe(Effect.repeat(Schedule.spaced(config.schedulerInterval)), Effect.forkScoped);
+      }).pipe(
+        Effect.catch((error) =>
+          Effect.logWarning("scheduler tick failed", error),
+        ),
+      );
+      yield* tick.pipe(
+        Effect.repeat(Schedule.spaced(config.schedulerInterval)),
+        Effect.forkScoped,
+      );
 
       return SpaceSyncer.of({
         watch: Effect.fn("SpaceSyncer.watch")(function* (space: string) {
           const { authority } = yield* parseSpaceRef(space);
           if (Option.isNone(yield* store.getSpace(space))) {
             const now = yield* Clock.currentTimeMillis;
-            yield* store.putSpace({ space, authority, nextDueAt: now + Duration.toMillis(config.backoffCap), failures: 0 });
+            yield* store.putSpace({
+              space,
+              authority,
+              nextDueAt: now + Duration.toMillis(config.backoffCap),
+              failures: 0,
+            });
           }
           yield* enqueue(space, "Full");
         }),
@@ -131,24 +190,36 @@ export class SpaceSyncer extends Context.Service<
           yield* stop(space);
           yield* store.removeSpace(space);
         }),
-        notifyWrite: Effect.fn("SpaceSyncer.notifyWrite")(function* (input: NotifyWriteInput) {
+        notifyWrite: Effect.fn("SpaceSyncer.notifyWrite")(function* (
+          input: NotifyWriteInput,
+        ) {
           const state = yield* store.getSpace(input.space);
           if (Option.isNone(state)) return;
           // Never trusted as a checkpoint: it only decides whether a catch-up pass is worth running.
-          if (input.spaceRev && state.value.spaceRev && input.spaceRev <= state.value.spaceRev) return;
+          if (
+            input.spaceRev &&
+            state.value.spaceRev &&
+            input.spaceRev <= state.value.spaceRev
+          )
+            return;
           yield* enqueue(input.space, "CatchUp");
         }),
-        notifySpaceDeleted: Effect.fn("SpaceSyncer.notifySpaceDeleted")(function* (space: string) {
-          if (Option.isNone(yield* store.getSpace(space))) return;
-          yield* stop(space);
-          yield* deleteSpaceData(space);
-        }),
+        notifySpaceDeleted: Effect.fn("SpaceSyncer.notifySpaceDeleted")(
+          function* (space: string) {
+            if (Option.isNone(yield* store.getSpace(space))) return;
+            yield* stop(space);
+            yield* deleteSpaceData(space);
+          },
+        ),
         getBlob: (space, did, cid) => client.getBlob(space, did, cid),
         events: Stream.fromPubSub(events),
         activeSpaces: FiberMap.size(fibers),
         awaitIdle: (space) =>
           Effect.sync(() => running.has(space) || pending.has(space)).pipe(
-            Effect.repeat({ schedule: Schedule.spaced("5 millis"), while: (busy: boolean) => busy }),
+            Effect.repeat({
+              schedule: Schedule.spaced("5 millis"),
+              while: (busy: boolean) => busy,
+            }),
             Effect.asVoid,
           ),
       });

@@ -40,11 +40,17 @@ export const makeRecordingSink = () => {
       apply: (batch) =>
         Effect.gen(function* () {
           state.inFlight.add(batch.space);
-          state.maxConcurrentSpaces = Math.max(state.maxConcurrentSpaces, state.inFlight.size);
+          state.maxConcurrentSpaces = Math.max(
+            state.maxConcurrentSpaces,
+            state.inFlight.size,
+          );
           if (state.applyDelayMs > 0) yield* Effect.sleep(state.applyDelayMs);
           if (state.failNext > 0) {
             state.failNext--;
-            return yield* new SinkError({ message: "sink failure (test)", cause: new Error("boom") });
+            return yield* new SinkError({
+              message: "sink failure (test)",
+              cause: new Error("boom"),
+            });
           }
           switch (batch._tag) {
             case "Ops": {
@@ -56,29 +62,58 @@ export const makeRecordingSink = () => {
                 else view.delete(path);
               }
               state.views.set(key, view);
-              state.batches.push({ _tag: "Ops", space: batch.space, did: batch.did, rev: batch.rev, paths: batch.changes.map((c) => `${c.collection}/${c.rkey}`) });
+              state.batches.push({
+                _tag: "Ops",
+                space: batch.space,
+                did: batch.did,
+                rev: batch.rev,
+                paths: batch.changes.map((c) => `${c.collection}/${c.rkey}`),
+              });
               return;
             }
             case "Reset": {
               const records = yield* Stream.runCollect(batch.records).pipe(
-                Effect.mapError((e) => new SinkError({ message: e.message, cause: e })),
+                Effect.mapError(
+                  (e) => new SinkError({ message: e.message, cause: e }),
+                ),
               );
-              state.views.set(`${batch.space}|${batch.did}`, new Map(records.map((r) => [`${r.collection}/${r.rkey}`, r.cid.toString()])));
-              state.batches.push({ _tag: "Reset", space: batch.space, did: batch.did, rev: batch.rev, paths: records.map((r) => `${r.collection}/${r.rkey}`) });
+              state.views.set(
+                `${batch.space}|${batch.did}`,
+                new Map(
+                  records.map((r) => [
+                    `${r.collection}/${r.rkey}`,
+                    r.cid.toString(),
+                  ]),
+                ),
+              );
+              state.batches.push({
+                _tag: "Reset",
+                space: batch.space,
+                did: batch.did,
+                rev: batch.rev,
+                paths: records.map((r) => `${r.collection}/${r.rkey}`),
+              });
               return;
             }
             case "RepoRemoved":
               state.views.delete(`${batch.space}|${batch.did}`);
-              state.batches.push({ _tag: "RepoRemoved", space: batch.space, did: batch.did });
+              state.batches.push({
+                _tag: "RepoRemoved",
+                space: batch.space,
+                did: batch.did,
+              });
               return;
             case "SpaceDeleted":
-              for (const key of [...state.views.keys()]) if (key.startsWith(`${batch.space}|`)) state.views.delete(key);
+              for (const key of [...state.views.keys()])
+                if (key.startsWith(`${batch.space}|`)) state.views.delete(key);
               state.batches.push({ _tag: "SpaceDeleted", space: batch.space });
               return;
           }
         }).pipe(
           Effect.onInterrupt(() => Effect.sync(() => void state.interrupted++)),
-          Effect.ensuring(Effect.sync(() => void state.inFlight.delete(batch.space))),
+          Effect.ensuring(
+            Effect.sync(() => void state.inFlight.delete(batch.space)),
+          ),
         ),
     }),
   );
