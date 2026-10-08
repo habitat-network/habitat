@@ -6,7 +6,12 @@ export {
 } from "./Credentials";
 export * from "./errors";
 export { Identity, type ResolvedIdentity } from "./Identity";
-export { type NotificationLxm, verifyNotification } from "./notification";
+export {
+  NotificationAuth,
+  type NotificationMethod,
+  receiveNotifySpaceDeleted,
+  receiveNotifyWrite,
+} from "./notification";
 export {
   type CreateSpaceSyncerOptions,
   type PromiseDelegationSource,
@@ -16,6 +21,7 @@ export {
   type PromiseSyncStore,
   createSpaceSyncer,
 } from "./promise";
+export { RepoBackoff } from "./spacePass";
 export { SpaceClient, type SpaceCallError } from "./SpaceClient";
 export { SpaceSyncer } from "./SpaceSyncer";
 export { SyncSink } from "./SyncSink";

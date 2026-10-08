@@ -1,23 +1,33 @@
-import type { DidString, SpaceRefString } from "@atproto/syntax";
+import type { DidString, SpaceRef, SpaceRefString } from "@atproto/syntax";
 import type { VerifiedRecord } from "@atproto/space";
-import { com } from "api";
 import { Effect, Layer, ManagedRuntime, Option, Stream } from "effect";
 import { type SpaceSyncOptions, spaceSyncConfigLayer } from "./config";
 import { Credentials, DelegationSource } from "./Credentials";
 import { CredentialError, SinkError, StoreError, errorMessage } from "./errors";
 import { Identity } from "./Identity";
-import { verifyNotification } from "./notification";
+import {
+  NotificationAuth,
+  receiveNotifySpaceDeleted,
+  receiveNotifyWrite,
+} from "./notification";
 import { SpaceClient } from "./SpaceClient";
+import { RepoBackoff } from "./spacePass";
 import { SpaceSyncer } from "./SpaceSyncer";
 import { SyncSink } from "./SyncSink";
 import { SyncStore } from "./SyncStore";
 import type { RepoBatch, RepoState, SpaceState, SyncEvent } from "./types";
-import { decodeLex, toSpaceRef } from "./wire";
+import { parseSpaceRef } from "./wire";
 
 export interface PromiseSyncStore {
   getSpace(space: SpaceRefString): Promise<SpaceState | undefined>;
   putSpace(state: SpaceState): Promise<void>;
   removeSpace(space: SpaceRefString): Promise<void>;
+  /** Set nextDueAt to `until` only if it still equals `seen`; atomically. */
+  claimDue(
+    space: SpaceRefString,
+    seen: number,
+    until: number,
+  ): Promise<boolean>;
   dueSpaces(now: number, limit: number): Promise<ReadonlyArray<SpaceState>>;
   getRepo(
     space: SpaceRefString,
@@ -66,6 +76,8 @@ const storeLayer = (store: PromiseSyncStore) => {
         ),
       putSpace: (state) => wrap(() => store.putSpace(state)),
       removeSpace: (space) => wrap(() => store.removeSpace(space)),
+      claimDue: (space, seen, until) =>
+        wrap(() => store.claimDue(space, seen, until)),
       dueSpaces: (now, limit) => wrap(() => store.dueSpaces(now, limit)),
       getRepo: (space, did) =>
         wrap(() => store.getRepo(space, did)).pipe(
@@ -97,8 +109,9 @@ const sinkLayer = (sink: PromiseSyncSink) =>
     }),
   );
 
-const delegationLayer = (delegation: PromiseDelegationSource) =>
-  Layer.succeed(
+const delegationLayer = (delegation: PromiseDelegationSource) => {
+  const { attestation } = delegation;
+  return Layer.succeed(
     DelegationSource,
     DelegationSource.of({
       issue: (space) =>
@@ -111,28 +124,28 @@ const delegationLayer = (delegation: PromiseDelegationSource) =>
               message: errorMessage(e),
             }),
         }),
-      ...(delegation.attestation
-        ? {
-            attestation: (space: SpaceRefString, aud: string) =>
-              Effect.tryPromise({
-                try: () => delegation.attestation!(space, aud),
-                catch: (e) =>
-                  new CredentialError({
-                    space,
-                    reason: "NotAuthorized",
-                    message: errorMessage(e),
-                  }),
+      attestation:
+        attestation &&
+        ((space, aud) =>
+          Effect.tryPromise({
+            try: () => attestation(space, aud),
+            catch: (e) =>
+              new CredentialError({
+                space,
+                reason: "NotAuthorized",
+                message: errorMessage(e),
               }),
-          }
-        : {}),
+          })),
     }),
   );
+};
 
 /** Promise API over SpaceSyncer for hosts that don't use Effect. Call dispose() on shutdown. */
 export const createSpaceSyncer = (options: CreateSpaceSyncerOptions) => {
   const { store, sink, delegation, ...config } = options;
   const configLayer = spaceSyncConfigLayer(config);
-  const layer = SpaceSyncer.layer.pipe(
+  const layer = Layer.mergeAll(SpaceSyncer.layer, NotificationAuth.layer).pipe(
+    Layer.provideMerge(RepoBackoff.layer),
     Layer.provideMerge(SpaceClient.layer),
     Layer.provideMerge(Credentials.layer),
     Layer.provideMerge(Identity.layer),
@@ -146,53 +159,37 @@ export const createSpaceSyncer = (options: CreateSpaceSyncerOptions) => {
     Layer.provideMerge(configLayer),
   );
   const runtime = ManagedRuntime.make(layer);
-  const run = <A, E>(effect: Effect.Effect<A, E, SpaceSyncer | Identity>) =>
-    runtime.runPromise(effect);
+  const run = <A, E>(
+    effect: Effect.Effect<A, E, Layer.Success<typeof layer>>,
+  ) => runtime.runPromise(effect);
+  /** Validates the space once; the syncer works with the parsed SpaceRef. */
+  const withSpace = <A, E>(
+    space: string,
+    f: (
+      syncer: SpaceSyncer["Service"],
+      ref: SpaceRef,
+    ) => Effect.Effect<A, E, Layer.Success<typeof layer>>,
+  ) =>
+    run(
+      Effect.gen(function* () {
+        const ref = yield* parseSpaceRef(space);
+        return yield* f(yield* SpaceSyncer, ref);
+      }),
+    );
 
   return {
-    watch: (space: SpaceRefString) =>
-      run(Effect.flatMap(SpaceSyncer, (s) => s.watch(space))),
-    unwatch: (space: SpaceRefString) =>
-      run(Effect.flatMap(SpaceSyncer, (s) => s.unwatch(space))),
+    watch: (space: string) => withSpace(space, (s, ref) => s.watch(ref)),
+    unwatch: (space: string) => withSpace(space, (s, ref) => s.unwatch(ref)),
     /** Pass the raw JSON body and Authorization header of an inbound notifyWrite. */
     notifyWrite: (body: unknown, authorization: string | undefined) =>
-      run(
-        Effect.gen(function* () {
-          const input = yield* decodeLex(
-            com.atproto.space.notifyWrite.$input.schema,
-          )(body);
-          const space = yield* toSpaceRef(input.space);
-          yield* verifyNotification(authorization, {
-            lxm: "com.atproto.space.notifyWrite",
-            space,
-            serviceDid: options.serviceDid,
-          });
-          yield* Effect.flatMap(SpaceSyncer, (s) =>
-            s.notifyWrite({ ...input, space }),
-          );
-        }),
-      ),
+      run(receiveNotifyWrite(body, authorization)),
+    /** Pass the raw JSON body and Authorization header of an inbound notifySpaceDeleted. */
     notifySpaceDeleted: (body: unknown, authorization: string | undefined) =>
-      run(
-        Effect.gen(function* () {
-          const { space: rawSpace } = yield* decodeLex(
-            com.atproto.space.notifySpaceDeleted.$input.schema,
-          )(body);
-          const space = yield* toSpaceRef(rawSpace);
-          yield* verifyNotification(authorization, {
-            lxm: "com.atproto.space.notifySpaceDeleted",
-            space,
-            serviceDid: options.serviceDid,
-          });
-          yield* Effect.flatMap(SpaceSyncer, (s) =>
-            s.notifySpaceDeleted(space),
-          );
-        }),
-      ),
-    getBlob: (space: SpaceRefString, did: DidString, cid: string) =>
-      run(Effect.flatMap(SpaceSyncer, (s) => s.getBlob(space, did, cid))),
-    awaitIdle: (space: SpaceRefString) =>
-      run(Effect.flatMap(SpaceSyncer, (s) => s.awaitIdle(space))),
+      run(receiveNotifySpaceDeleted(body, authorization)),
+    getBlob: (space: string, did: DidString, cid: string) =>
+      withSpace(space, (s, ref) => s.getBlob(ref, did, cid)),
+    awaitIdle: (space: string) =>
+      withSpace(space, (s, ref) => s.awaitIdle(ref)),
     // `Stream.provide(runtime)` is not a Layer in v4, so resolve the service once
     // and hand back its stream.
     events: (): AsyncIterable<SyncEvent> => ({

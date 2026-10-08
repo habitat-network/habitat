@@ -45,6 +45,8 @@ export class XrpcError extends Schema.TaggedError<XrpcError>()("XrpcError", {
   status: Schema.Number,
   error: Schema.optional(Schema.String),
   message: Schema.String,
+  /** Worth retrying as-is (network failure, timeout, 5xx, 429, …). */
+  transient: Schema.Boolean,
 }) {}
 
 /** Internal: a repo failed verification; triggers full-state recovery. */
@@ -61,6 +63,21 @@ export class RepoSyncError extends Schema.TaggedError<RepoSyncError>()(
     did: Schema.String,
     message: Schema.String,
     cause: Schema.Defect(),
+  },
+) {}
+
+/**
+ * The repo host says the repo is gone or unavailable (taken down, suspended,
+ * deactivated, not found). Not retried within the pass and doesn't hold back the
+ * checkpoint; the next full pass tries it again.
+ */
+export class RepoUnavailableError extends Schema.TaggedError<RepoUnavailableError>()(
+  "RepoUnavailableError",
+  {
+    space: Schema.String,
+    did: Schema.String,
+    code: Schema.String,
+    message: Schema.String,
   },
 ) {}
 

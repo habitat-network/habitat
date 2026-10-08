@@ -3,8 +3,9 @@ import { it } from "@effect/vitest";
 import { Secp256k1Keypair } from "@atproto/crypto";
 import { Effect, Exit } from "effect";
 import { describe, expect } from "vitest";
-import { verifyNotification } from "./notification";
-import { SERVICE_DID, runWithHarness } from "./test/harness";
+import { NotificationAuth, receiveNotifyWrite } from "./notification";
+import { com } from "api";
+import { SERVICE_DID, runWithHarness, runWithSyncer } from "./test/harness";
 
 const LXM = "com.atproto.space.notifyWrite" as const;
 
@@ -21,9 +22,15 @@ describe("verifyNotification", () => {
             ]),
           );
           const space = net.createSpace(alice);
-          const opts = { lxm: LXM, space: space.ref, serviceDid: SERVICE_DID };
+          const notificationAuth = yield* NotificationAuth;
           const check = (token: string | undefined) =>
-            Effect.exit(verifyNotification(token && `Bearer ${token}`, opts));
+            Effect.exit(
+              notificationAuth.verify(
+                token && `Bearer ${token}`,
+                com.atproto.space.notifyWrite.main,
+                space.ref,
+              ),
+            );
           const auth = (
             issuer = alice,
             extra: Partial<Parameters<typeof net.serviceAuth>[1]> = {},
@@ -60,6 +67,26 @@ describe("verifyNotification", () => {
               yield* check(yield* auth(alice, { signer: otherKey })),
             ),
           ).toBe(true);
+        }),
+      ),
+  );
+
+  it.live(
+    "ignores notifications for unwatched spaces before any auth work",
+    () =>
+      runWithSyncer(({ net }) =>
+        Effect.gen(function* () {
+          const alice = yield* Effect.promise(() => net.createAccount("alice"));
+          const space = net.createSpace(alice);
+          yield* Effect.promise(() =>
+            space.write(alice, "com.example.post", "1", { text: "a" }),
+          );
+          // No Authorization at all: this would fail if verification ran.
+          yield* receiveNotifyWrite(
+            space.notifyWriteBody(alice.did),
+            undefined,
+          );
+          expect(space.listReposCalls).toBe(0);
         }),
       ),
   );

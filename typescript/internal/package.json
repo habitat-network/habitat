@@ -48,6 +48,7 @@
     "@atproto/identity": "catalog:",
     "@atproto/crypto": "catalog:",
     "@atproto/lex": "catalog:",
+    "@atproto/lex-server": "catalog:",
     "@atproto/oauth-client-browser": "alpha",
     "@atproto/space": "alpha",
     "@atproto/syntax": "catalog:",

@@ -72,6 +72,10 @@ export class Identity extends Context.Service<
     readonly resolve: (
       did: DidString,
     ) => Effect.Effect<ResolvedIdentity, IdentityError>;
+    /** Drop the cached document and resolve again, e.g. after a signature fails (key rotation). */
+    readonly refresh: (
+      did: DidString,
+    ) => Effect.Effect<ResolvedIdentity, IdentityError>;
   }
 >()("internal/spaceSync/Identity") {
   static readonly layer = Layer.effect(
@@ -96,7 +100,13 @@ export class Identity extends Context.Service<
             Exit.isSuccess(exit) ? Duration.minutes(10) : Duration.zero,
         },
       );
-      return Identity.of({ resolve: (did) => Cache.get(cache, did) });
+      return Identity.of({
+        resolve: (did) => Cache.get(cache, did),
+        refresh: (did) =>
+          Cache.invalidate(cache, did).pipe(
+            Effect.andThen(Cache.get(cache, did)),
+          ),
+      });
     }),
   );
 }

@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { cidForRawBytes } from "@atproto/lex";
+import { Duration, Effect, Layer } from "effect";
+import { HttpResponse, delay, http } from "msw";
 import { describe, expect } from "vitest";
 import { server } from "../test/msw";
 import { Credentials } from "./Credentials";
@@ -9,20 +11,22 @@ import { SpaceClient } from "./SpaceClient";
 import { FakeNetwork } from "./test/fakeNetwork";
 import { fakeDelegation, testConfig } from "./test/harness";
 
-const setup = Effect.promise(async () => {
-  const net = new FakeNetwork();
-  server.use(...net.handlers);
-  const alice = await net.createAccount("alice");
-  const bob = await net.createAccount("bob");
-  const space = net.createSpace(alice);
-  const layer = SpaceClient.layer.pipe(
-    Layer.provideMerge(Credentials.layer),
-    Layer.provideMerge(Identity.layer),
-    Layer.provide(fakeDelegation(net)),
-    Layer.provide(testConfig()),
-  );
-  return { net, alice, bob, space, layer };
-});
+const setupWith = (overrides: Parameters<typeof testConfig>[0] = {}) =>
+  Effect.promise(async () => {
+    const net = new FakeNetwork();
+    server.use(...net.handlers);
+    const alice = await net.createAccount("alice");
+    const bob = await net.createAccount("bob");
+    const space = net.createSpace(alice);
+    const layer = SpaceClient.layer.pipe(
+      Layer.provideMerge(Credentials.layer),
+      Layer.provideMerge(Identity.layer),
+      Layer.provide(fakeDelegation(net)),
+      Layer.provide(testConfig(overrides)),
+    );
+    return { net, alice, bob, space, layer };
+  });
+const setup = setupWith();
 
 describe("SpaceClient", () => {
   it.live("lists writers in spaceRev order with a matching cursor", () =>
@@ -136,6 +140,70 @@ describe("SpaceClient", () => {
         }),
       ).pipe(Effect.provide(layer));
       expect(size).toBeGreaterThan(0);
+    }),
+  );
+
+  it.live("fails a request that gets no response within requestTimeout", () =>
+    Effect.gen(function* () {
+      const { space, layer } = yield* setupWith({
+        requestTimeout: Duration.millis(50),
+        requestRetries: 0,
+      });
+      server.use(
+        http.get("*/xrpc/com.atproto.space.listRepos", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ repos: [] });
+        }),
+      );
+      const error = yield* Effect.flip(
+        Effect.flatMap(SpaceClient, (c) => c.listRepos(space.ref)).pipe(
+          Effect.provide(layer),
+        ),
+      );
+      expect(error._tag === "XrpcError" && error.error).toBe("Timeout");
+    }),
+  );
+
+  it.live("rejects a blob whose bytes don't match its cid", () =>
+    Effect.gen(function* () {
+      const { bob, space, layer } = yield* setupWith({ requestRetries: 0 });
+      const real = new TextEncoder().encode("real blob");
+      const cid = (yield* Effect.promise(() =>
+        cidForRawBytes(real),
+      )).toString();
+      let served: Uint8Array = real;
+      server.use(
+        http.get(
+          "*/xrpc/com.atproto.space.getBlob",
+          () =>
+            new HttpResponse(served, {
+              headers: { "content-type": "application/octet-stream" },
+            }),
+        ),
+      );
+      const getBlob = Effect.flatMap(SpaceClient, (c) =>
+        c.getBlob(space.ref, bob.did, cid),
+      ).pipe(Effect.provide(layer));
+      expect(yield* getBlob).toEqual(real);
+      served = new TextEncoder().encode("forged blob");
+      const error = yield* Effect.flip(getBlob);
+      expect(error._tag === "XrpcError" && error.error).toBe("InvalidResponse");
+    }),
+  );
+
+  it.live("only trusts SpaceDeleted from the space host", () =>
+    Effect.gen(function* () {
+      const { bob, space, layer } = yield* setupWith({ requestRetries: 0 });
+      yield* Effect.promise(() =>
+        space.write(bob, "com.example.post", "1", { text: "b" }),
+      );
+      space.repoHostErrors.set(bob.did, "SpaceDeleted");
+      const error = yield* Effect.flip(
+        Effect.flatMap(SpaceClient, (c) =>
+          c.listRepoOps(space.ref, bob.did, undefined),
+        ).pipe(Effect.provide(layer)),
+      );
+      expect(error._tag).toBe("XrpcError");
     }),
   );
 });

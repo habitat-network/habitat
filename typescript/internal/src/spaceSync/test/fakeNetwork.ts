@@ -85,10 +85,18 @@ const streamFrom = (
 };
 
 export class FakeSpace {
-  readonly ref: SpaceRefString;
+  readonly ref: SpaceRef;
+  /** `ref` as a string, for store rows, sink views and wire bodies. */
+  readonly id: SpaceRefString;
   readonly repos = new Map<string, FakeRepo>();
   readonly delisted = new Set<string>();
   readonly failingRepos = new Set<string>();
+  /** Repo DID → error code its host answers listRepoOps/getRepo with. */
+  readonly repoHostErrors = new Map<string, string>();
+  /** Repos whose host inlines tampered record values. */
+  readonly forgedValues = new Set<string>();
+  /** Repos whose host pages listRepoOps forever with the same cursor. */
+  readonly loopingOps = new Set<string>();
   readonly corruptOpsCommits = new Set<string>();
   readonly deniedUsers = new Set<string>();
   readonly registrations: string[] = [];
@@ -115,7 +123,8 @@ export class FakeSpace {
       authority.did,
       SPACE_TYPE as NsidString,
       skey as RecordKeyString,
-    ).toString();
+    );
+    this.id = this.ref.toString();
   }
 
   async write(
@@ -190,7 +199,7 @@ export class FakeSpace {
   notifyWriteBody(did: string, prevSpaceRev?: string): unknown {
     const repo = this.repos.get(did)!;
     return lexToJson({
-      space: this.ref,
+      space: this.id,
       repo: did,
       repoRev: repo.rev,
       hash: repo.commit.setHash.digest(),
@@ -220,7 +229,7 @@ export class FakeNetwork {
 
   createSpace(authority: FakeAccount, skey = "main"): FakeSpace {
     const space = new FakeSpace(authority, skey);
-    this.spaces.set(space.ref, space);
+    this.spaces.set(space.id, space);
     return space;
   }
 
@@ -302,7 +311,7 @@ export class FakeNetwork {
     // A corrupt commit signs a different rev into the ctx than the one it reports.
     const ctxRev = opts.corrupt ? TID.nextStr(repo.rev) : repo.rev;
     const commit = await repo.commit.sign(
-      { space: space.ref, author: did, rev: ctxRev },
+      { space: space.id, author: did, rev: ctxRev },
       author.keypair,
     );
     return { ...commit, rev: repo.rev };
@@ -324,7 +333,7 @@ export class FakeNetwork {
     try {
       const parsed = await verifySpaceToken("credential", token, {
         getSigningKey: () => space.authority.keypair.did(),
-        sub: space.ref,
+        sub: space.id,
       });
       jti = parsed.payload.jti;
       kid = parsed.payload.cnf!.kid;
@@ -378,7 +387,7 @@ export class FakeNetwork {
             const token = await verifySpaceToken("delegation", delegation, {
               getSigningKey: (iss) => this.accounts.get(iss)!.keypair.did(),
               aud: spaceHostAud(space.authority.did),
-              sub: space.ref,
+              sub: space.id,
             });
             if (space.deniedUsers.has(token.payload.iss))
               return xrpcError(403, "UserNotAuthorized");
@@ -390,7 +399,7 @@ export class FakeNetwork {
             "credential",
             {
               iss: space.authority.did,
-              sub: space.ref,
+              sub: space.id,
               keyId,
               expiresInSec: space.credentialLifetimeSec,
             },
@@ -478,6 +487,10 @@ export class FakeNetwork {
         if (denied) return denied;
         if (space.failingRepos.has(did))
           return xrpcError(500, "InternalServerError");
+        const hostError = space.repoHostErrors.get(did);
+        if (hostError) return xrpcError(400, hostError);
+        if (space.loopingOps.has(did))
+          return json({ ops: [], cursor: "again" });
         const since = url.searchParams.get("since") ?? "";
         if (since < repo.oplogFloor)
           return xrpcError(
@@ -506,7 +519,11 @@ export class FakeNetwork {
               op.cid && current?.cid.toString() === op.cid
                 ? current.record
                 : undefined;
-            return { ...op, ...(value ? { value } : {}) };
+            const served =
+              value && space.forgedValues.has(did)
+                ? { ...value, forged: true }
+                : value;
+            return { ...op, ...(served ? { value: served } : {}) };
           }),
           ...(commit ? { commit } : {}),
           ...(last ? {} : { cursor: String(start + limit) }),
@@ -527,6 +544,8 @@ export class FakeNetwork {
         if (denied) return denied;
         if (space.failingRepos.has(did))
           return xrpcError(500, "InternalServerError");
+        const hostError = space.repoHostErrors.get(did);
+        if (hostError) return xrpcError(400, hostError);
         const commit = await this.signCommit(space, did, { corrupt: false });
         const car = serializeRepo(commit, repo.records.values());
         return new HttpResponse(streamFrom(car), {

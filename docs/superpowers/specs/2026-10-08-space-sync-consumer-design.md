@@ -396,3 +396,33 @@ These supersede the sections above where they conflict.
 7. **Identity caching** uses an Effect `Cache` (10k entries, 10 min TTL for
    successes, failures not cached). `Identity` does not expose the `#atproto_space`
    key because the consumer never verifies credentials.
+8. **Review hardening (2026-10-08).** These supersede #4, #6 and #7 where they
+   conflict.
+   - **Single instance.** The mailbox and running set live in process memory, so
+     one `SpaceSyncer` owns a store. `claimDue` (compare-and-set on `nextDueAt`)
+     keeps leases from clobbering a finished pass, but it doesn't make multiple
+     instances safe.
+   - **Trust boundaries.** `SpaceDeleted` is only honoured from the space host
+     (the authority). Inline `listRepoOps` values must hash to their CIDs (via
+     `serializeRecord`); blobs must match their CID (`isCidForBytes`). Recovery
+     never applies a snapshot older than the local rev.
+   - **Liveness.** Every request has `requestTimeout`; CAR streams fail after
+     `streamIdleTimeout` without data; an incremental sync pages at most
+     `maxIncrementalOps` ops and rejects repeated cursors, falling back to
+     `getRepo`. Retries follow lex's `shouldRetry()` (408/425/429/5xx).
+   - **Per-repo outcomes.** `RepoTakendown`/`Suspended`/`Deactivated`/`NotFound`
+     are terminal for the pass and don't hold back the checkpoint. Other failures
+     back off per repo (in-memory `RepoBackoff`), so notifications can't re-trigger
+     a failing download. Transient incremental failures don't fall back to `getRepo`.
+     `registerNotify` is best-effort.
+   - **Space lifecycle.** `PassKind` is a boolean `full`. `unwatch` and
+     `notifySpaceDeleted` hold off new passes while removing. Each pass takes its
+     own permit, defects are logged, `awaitIdle` waits on a `Deferred`, and `events`
+     is a sliding buffer of `eventBufferSize`.
+   - **Space refs** are parsed into `SpaceRef` once at the edges (`watch`,
+     notification bodies, store rows); services take `SpaceRef`, ports keep
+     `SpaceRefString`.
+   - **Notifications** are verified with `@atproto/lex-server`'s `serviceAuth`
+     (`NotificationAuth`), and `receiveNotifyWrite`/`receiveNotifySpaceDeleted`
+     drop unwatched spaces before any auth work. `Identity.refresh` re-resolves a
+     DID when a commit or CAR signature fails, for key rotation.

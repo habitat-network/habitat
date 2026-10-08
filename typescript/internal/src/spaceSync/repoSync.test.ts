@@ -27,11 +27,11 @@ describe("syncRepo", () => {
         );
         const event = yield* syncRepo(space.ref, listed(space, alice.did));
         expect(Option.getOrThrow(event)._tag).toBe("Reset");
-        expect(sink.view(space.ref, alice.did)).toEqual(
+        expect(sink.view(space.id, alice.did)).toEqual(
           space.expectedView(alice.did),
         );
         const stored = yield* Effect.flatMap(SyncStore, (s) =>
-          s.getRepo(space.ref, alice.did),
+          s.getRepo(space.id, alice.did),
         );
         expect(Option.getOrThrow(stored).rev).toBe(space.repoRevOf(alice.did));
       }),
@@ -53,7 +53,7 @@ describe("syncRepo", () => {
         const event = yield* syncRepo(space.ref, listed(space, alice.did));
         expect(Option.getOrThrow(event)._tag).toBe("Ops");
         expect(space.getRepoCalls).toBe(1);
-        expect(sink.view(space.ref, alice.did)).toEqual(
+        expect(sink.view(space.id, alice.did)).toEqual(
           space.expectedView(alice.did),
         );
       }),
@@ -80,7 +80,7 @@ describe("syncRepo", () => {
         );
         yield* syncRepo(space.ref, listed(space, alice.did));
         expect(sink.batches.at(-1)?.paths).toEqual(["com.example.post/1"]);
-        expect(sink.view(space.ref, alice.did)).toEqual(
+        expect(sink.view(space.id, alice.did)).toEqual(
           space.expectedView(alice.did),
         );
       }),
@@ -104,7 +104,7 @@ describe("syncRepo", () => {
           space.truncateOplog(alice.did);
           const event = yield* syncRepo(space.ref, listed(space, alice.did));
           expect(Option.getOrThrow(event)._tag).toBe("Reset");
-          expect(sink.view(space.ref, alice.did)).toEqual(
+          expect(sink.view(space.id, alice.did)).toEqual(
             space.expectedView(alice.did),
           );
         }),
@@ -143,7 +143,7 @@ describe("syncRepo", () => {
         yield* syncRepo(space.ref, listed(space, alice.did));
         const store = yield* SyncStore;
         const local = Option.getOrThrow(
-          yield* store.getRepo(space.ref, alice.did),
+          yield* store.getRepo(space.id, alice.did),
         );
         const tampered = local.ltHash.slice();
         tampered[0] ^= 0xff;
@@ -171,7 +171,7 @@ describe("syncRepo", () => {
         );
         expect(error._tag).toBe("SinkError");
         const stored = yield* Effect.flatMap(SyncStore, (s) =>
-          s.getRepo(space.ref, alice.did),
+          s.getRepo(space.id, alice.did),
         );
         expect(Option.isNone(stored)).toBe(true);
       }),
@@ -197,5 +197,77 @@ describe("syncRepo", () => {
           expect(error._tag).toBe("RepoSyncError");
         }),
       ),
+  );
+
+  /** Syncs alice once, then writes again so the next sync has ops to fetch. */
+  const syncedThenWritten = Effect.fnUntraced(function* (
+    net: Parameters<Parameters<typeof runWithHarness>[0]>[0]["net"],
+  ) {
+    const alice = yield* Effect.promise(() => net.createAccount("alice"));
+    const space = net.createSpace(alice);
+    yield* Effect.promise(() =>
+      space.write(alice, "com.example.post", "1", { text: "a" }),
+    );
+    yield* syncRepo(space.ref, listed(space, alice.did));
+    yield* Effect.promise(() =>
+      space.write(alice, "com.example.post", "2", { text: "b" }),
+    );
+    return { alice, space };
+  });
+
+  it.live(
+    "recovers via getRepo when an inlined value doesn't match its cid",
+    () =>
+      runWithHarness(({ net, sink }) =>
+        Effect.gen(function* () {
+          const { alice, space } = yield* syncedThenWritten(net);
+          space.forgedValues.add(alice.did);
+          const event = yield* syncRepo(space.ref, listed(space, alice.did));
+          expect(Option.getOrThrow(event)._tag).toBe("Reset");
+          expect(space.getRepoCalls).toBe(2);
+          expect(sink.view(space.id, alice.did)).toEqual(
+            space.expectedView(alice.did),
+          );
+        }),
+      ),
+  );
+
+  it.live("falls back to getRepo when listRepoOps repeats its cursor", () =>
+    runWithHarness(({ net }) =>
+      Effect.gen(function* () {
+        const { alice, space } = yield* syncedThenWritten(net);
+        space.loopingOps.add(alice.did);
+        const event = yield* syncRepo(space.ref, listed(space, alice.did));
+        expect(Option.getOrThrow(event)._tag).toBe("Reset");
+      }),
+    ),
+  );
+
+  it.live("reports an unavailable repo without downloading it", () =>
+    runWithHarness(({ net }) =>
+      Effect.gen(function* () {
+        const { alice, space } = yield* syncedThenWritten(net);
+        space.repoHostErrors.set(alice.did, "RepoTakendown");
+        const error = yield* Effect.flip(
+          syncRepo(space.ref, listed(space, alice.did)),
+        );
+        expect(error._tag).toBe("RepoUnavailableError");
+        expect(space.getRepoCalls).toBe(1);
+      }),
+    ),
+  );
+
+  it.live("does not fall back to getRepo on a transient failure", () =>
+    runWithHarness(({ net }) =>
+      Effect.gen(function* () {
+        const { alice, space } = yield* syncedThenWritten(net);
+        space.failingRepos.add(alice.did);
+        const error = yield* Effect.flip(
+          syncRepo(space.ref, listed(space, alice.did)),
+        );
+        expect(error._tag).toBe("RepoSyncError");
+        expect(space.getRepoCalls).toBe(1);
+      }),
+    ),
   );
 });

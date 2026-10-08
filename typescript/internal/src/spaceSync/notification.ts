@@ -1,73 +1,131 @@
-import type { SpaceRefString } from "@atproto/syntax";
-import { verifySignature } from "@atproto/crypto";
-import { fromBase64 } from "@atproto/lex";
-import { Clock, Effect, Schema } from "effect";
-import { NotificationAuthError } from "./errors";
-import { Identity } from "./Identity";
-import { parseSpaceRef } from "./wire";
+import { serviceAuth } from "@atproto/lex-server";
+import type { DidString, SpaceRef } from "@atproto/syntax";
+import { com } from "api";
+import { Context, Effect, Layer, Option } from "effect";
+import { SpaceSyncConfig } from "./config";
+import { NotificationAuthError, errorMessage } from "./errors";
+import { SpaceSyncer } from "./SpaceSyncer";
+import { SyncStore } from "./SyncStore";
+import { decodeLex, parseSpaceRef } from "./wire";
 
-export type NotificationLxm =
-  "com.atproto.space.notifyWrite" | "com.atproto.space.notifySpaceDeleted";
+export type NotificationMethod =
+  | typeof com.atproto.space.notifyWrite.main
+  | typeof com.atproto.space.notifySpaceDeleted.main;
 
-const ServiceAuthPayload = Schema.Struct({
-  iss: Schema.String,
-  aud: Schema.String,
-  exp: Schema.Number,
-  lxm: Schema.optional(Schema.String),
-});
-
-const decodePart = (part: string) =>
-  Effect.try({
-    try: () =>
-      JSON.parse(
-        new TextDecoder().decode(fromBase64(part, "base64url")),
-      ) as unknown,
-    catch: () => new NotificationAuthError({ message: "malformed jwt" }),
-  });
+/** How long a seen nonce is remembered; longer than serviceAuth's 5 minute max token age. */
+const NONCE_TTL_MS = 10 * 60 * 1000;
 
 /**
- * Verify the service-auth JWT on an inbound notifyWrite / notifySpaceDeleted:
- * issued by the space authority, addressed to us, for this method, unexpired,
- * and signed by the authority's #atproto key.
+ * Verifies the service-auth JWT on inbound notifications with
+ * `@atproto/lex-server`'s `serviceAuth` (typ, exp/iat/nbf, aud, lxm, nonce
+ * replay, signature with a DID-doc refresh on key rotation), then checks the
+ * issuer is the space's authority.
  */
-export const verifyNotification = Effect.fn("verifyNotification")(function* (
+export class NotificationAuth extends Context.Service<
+  NotificationAuth,
+  {
+    readonly verify: (
+      authorization: string | undefined,
+      method: NotificationMethod,
+      space: SpaceRef,
+    ) => Effect.Effect<void, NotificationAuthError>;
+  }
+>()("internal/spaceSync/NotificationAuth") {
+  static readonly layer = Layer.effect(
+    NotificationAuth,
+    Effect.gen(function* () {
+      const config = yield* SpaceSyncConfig;
+      const nonces = new Map<string, number>();
+      const auth = serviceAuth({
+        audience: config.serviceDid as DidString,
+        plcDirectoryUrl: config.plcUrl,
+        unique: async (nonce) => {
+          const now = Date.now();
+          for (const [seen, expiresAt] of nonces)
+            if (expiresAt <= now) nonces.delete(seen);
+          if (nonces.has(nonce)) return false;
+          nonces.set(nonce, now + NONCE_TTL_MS);
+          return true;
+        },
+      });
+      return NotificationAuth.of({
+        verify: (authorization, method, space) =>
+          Effect.tryPromise({
+            try: async (signal) =>
+              await auth({
+                method,
+                params: {},
+                // serviceAuth reads only the Authorization header off the request.
+                request: new Request(
+                  `https://notification.invalid/xrpc/${method.nsid}`,
+                  {
+                    method: "POST",
+                    headers: authorization ? { authorization } : {},
+                    signal,
+                  },
+                ),
+              }),
+            catch: (error) =>
+              new NotificationAuthError({ message: errorMessage(error) }),
+          }).pipe(
+            Effect.flatMap(({ did }) =>
+              did === space.spaceDid
+                ? Effect.void
+                : Effect.fail(
+                    new NotificationAuthError({
+                      message: "issuer is not the space authority",
+                    }),
+                  ),
+            ),
+          ),
+      });
+    }),
+  );
+}
+
+/**
+ * Parse the body and drop notifications for spaces we don't watch before any
+ * auth work: verification resolves the authority's DID, which unauthenticated
+ * callers must not be able to trigger for arbitrary spaces.
+ */
+const watchedSpace = (space: string) =>
+  Effect.gen(function* () {
+    const ref = yield* parseSpaceRef(space);
+    const store = yield* SyncStore;
+    return Option.isSome(yield* store.getSpace(ref.toString()))
+      ? Option.some(ref)
+      : Option.none();
+  });
+
+/** Handle an inbound com.atproto.space.notifyWrite (raw JSON body + Authorization header). */
+export const receiveNotifyWrite = Effect.fn("receiveNotifyWrite")(function* (
+  body: unknown,
   authorization: string | undefined,
-  opts: {
-    readonly lxm: NotificationLxm;
-    readonly space: SpaceRefString;
-    readonly serviceDid: string;
-  },
 ) {
-  const fail = (message: string) => new NotificationAuthError({ message });
-  const token = authorization?.match(/^Bearer (.+)$/)?.[1];
-  if (!token) return yield* fail("missing bearer token");
-  const parts = token.split(".");
-  if (parts.length !== 3) return yield* fail("malformed jwt");
-  const [head, body, sig] = parts;
-  yield* decodePart(head);
-  const payload = yield* decodePart(body).pipe(
-    Effect.flatMap(Schema.decodeUnknownEffect(ServiceAuthPayload)),
-    Effect.mapError(() => fail("malformed jwt payload")),
+  const method = com.atproto.space.notifyWrite;
+  const input = yield* decodeLex(method.$input.schema)(body);
+  const space = yield* watchedSpace(input.space);
+  if (Option.isNone(space)) return;
+  yield* Effect.flatMap(NotificationAuth, (a) =>
+    a.verify(authorization, method.main, space.value),
   );
-  const { authority } = yield* parseSpaceRef(opts.space).pipe(
-    Effect.mapError(() => fail("invalid space")),
+  yield* Effect.flatMap(SpaceSyncer, (s) =>
+    s.notifyWrite(space.value, input.spaceRev),
   );
-  if (payload.iss.split("#")[0] !== authority)
-    return yield* fail("issuer is not the space authority");
-  if (payload.aud !== opts.serviceDid) return yield* fail("wrong audience");
-  if (payload.lxm !== opts.lxm) return yield* fail("wrong lxm");
-  const now = yield* Clock.currentTimeMillis;
-  if (payload.exp * 1000 <= now) return yield* fail("token expired");
-  const identity = yield* Identity;
-  const { signingKey } = yield* identity
-    .resolve(authority)
-    .pipe(Effect.mapError((e) => fail(e.message)));
-  const valid = yield* Effect.promise(() =>
-    verifySignature(
-      signingKey,
-      new TextEncoder().encode(`${head}.${body}`),
-      fromBase64(sig, "base64url"),
-    ).catch(() => false),
-  );
-  if (!valid) return yield* fail("bad signature");
 });
+
+/** Handle an inbound com.atproto.space.notifySpaceDeleted (raw JSON body + Authorization header). */
+export const receiveNotifySpaceDeleted = Effect.fn("receiveNotifySpaceDeleted")(
+  function* (body: unknown, authorization: string | undefined) {
+    const method = com.atproto.space.notifySpaceDeleted;
+    const input = yield* decodeLex(method.$input.schema)(body);
+    const space = yield* watchedSpace(input.space);
+    if (Option.isNone(space)) return;
+    yield* Effect.flatMap(NotificationAuth, (a) =>
+      a.verify(authorization, method.main, space.value),
+    );
+    yield* Effect.flatMap(SpaceSyncer, (s) =>
+      s.notifySpaceDeleted(space.value),
+    );
+  },
+);

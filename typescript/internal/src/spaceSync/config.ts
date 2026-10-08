@@ -18,6 +18,14 @@ export interface SpaceSyncOptions {
   readonly credentialRefreshLead: Duration.Duration;
   readonly requestRetryBase: Duration.Duration;
   readonly requestRetries: number;
+  /** Deadline for one request to return its response headers. */
+  readonly requestTimeout: Duration.Duration;
+  /** Max gap between chunks of a streamed getRepo CAR. */
+  readonly streamIdleTimeout: Duration.Duration;
+  /** Ops one incremental sync will buffer before falling back to getRepo. */
+  readonly maxIncrementalOps: number;
+  /** Events kept for slow `events` subscribers; the oldest are dropped past this. */
+  readonly eventBufferSize: number;
 }
 
 export const defaultSpaceSyncOptions: SpaceSyncOptions = {
@@ -35,6 +43,10 @@ export const defaultSpaceSyncOptions: SpaceSyncOptions = {
   credentialRefreshLead: Duration.seconds(30),
   requestRetryBase: Duration.millis(500),
   requestRetries: 2,
+  requestTimeout: Duration.seconds(30),
+  streamIdleTimeout: Duration.seconds(60),
+  maxIncrementalOps: 10_000,
+  eventBufferSize: 10_000,
 };
 
 export const SpaceSyncConfig = Context.Reference<SpaceSyncOptions>(

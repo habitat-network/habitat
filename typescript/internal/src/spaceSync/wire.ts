@@ -7,14 +7,7 @@ import {
   XrpcResponseError,
   jsonToLex,
 } from "@atproto/lex";
-import {
-  SpaceRef,
-  isSpaceRefString,
-  type DidString,
-  type NsidString,
-  type RecordKeyString,
-  type SpaceRefString,
-} from "@atproto/syntax";
+import { SpaceRef, isSpaceRefString } from "@atproto/syntax";
 import { Effect } from "effect";
 import { InvalidSpaceRefError, WireDecodeError } from "./errors";
 
@@ -63,32 +56,26 @@ export const decodeLex =
     });
 
 /**
- * Narrow an untrusted string to a SpaceRefString. `isSpaceRefString` accepts anything
- * round-trippable; `SpaceRef.parse` is the exact re-check.
+ * Parse an untrusted string into a SpaceRef, once, at the edge. `isSpaceRefString`
+ * accepts anything round-trippable; the round trip through `SpaceRef` is the exact
+ * re-check. Everything past the edge passes the SpaceRef around.
  */
-export const toSpaceRef = (
-  space: string,
-): Effect.Effect<SpaceRefString, InvalidSpaceRefError> =>
-  isSpaceRefString(space) && SpaceRef.parse(space).toString() === space
-    ? Effect.succeed(space)
-    : Effect.fail(new InvalidSpaceRefError({ space }));
-
 export const parseSpaceRef = (
   space: string,
-): Effect.Effect<
-  { authority: DidString; type: NsidString; skey: RecordKeyString },
-  InvalidSpaceRefError
-> =>
-  Effect.flatMap(toSpaceRef(space), (ref) =>
-    Effect.try({
-      try: () => {
-        const parsed = SpaceRef.parse(ref);
-        return {
-          authority: parsed.spaceDid,
-          type: parsed.spaceType,
-          skey: parsed.skey,
-        };
-      },
-      catch: () => new InvalidSpaceRefError({ space }),
-    }),
-  );
+): Effect.Effect<SpaceRef, InvalidSpaceRefError> =>
+  Effect.suspend(() => {
+    if (!isSpaceRefString(space))
+      return Effect.fail(new InvalidSpaceRefError({ space }));
+    const ref = SpaceRef.parse(space);
+    return ref.toString() === space
+      ? Effect.succeed(ref)
+      : Effect.fail(new InvalidSpaceRefError({ space }));
+  });
+
+/** listRepoOps / getRepo error codes meaning the repo itself is unavailable. */
+export const REPO_UNAVAILABLE_CODES: ReadonlySet<string> = new Set([
+  "RepoNotFound",
+  "RepoTakendown",
+  "RepoSuspended",
+  "RepoDeactivated",
+]);

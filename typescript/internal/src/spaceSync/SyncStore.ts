@@ -15,6 +15,16 @@ export class SyncStore extends Context.Service<
     readonly removeSpace: (
       space: SpaceRefString,
     ) => Effect.Effect<void, StoreError>;
+    /**
+     * Lease a due space: set its `nextDueAt` to `until` only if it still equals
+     * `seen` (compare-and-set). Returns whether the lease was taken. Touches no
+     * other field, so it can't clobber a pass that finished in between.
+     */
+    readonly claimDue: (
+      space: SpaceRefString,
+      seen: number,
+      until: number,
+    ) => Effect.Effect<boolean, StoreError>;
     /** Spaces with `nextDueAt <= now`, oldest first. */
     readonly dueSpaces: (
       now: number,
@@ -47,6 +57,13 @@ export class SyncStore extends Context.Service<
         Effect.sync(() => {
           spaces.delete(space);
           repos.delete(space);
+        }),
+      claimDue: (space, seen, until) =>
+        Effect.sync(() => {
+          const state = spaces.get(space);
+          if (state?.nextDueAt !== seen) return false;
+          spaces.set(space, { ...state, nextDueAt: until });
+          return true;
         }),
       dueSpaces: (now, limit) =>
         Effect.sync(() =>

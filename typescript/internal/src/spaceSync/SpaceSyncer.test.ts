@@ -8,8 +8,10 @@ import { runWithSyncer } from "./test/harness";
 import { com } from "api";
 import { decodeLex } from "./wire";
 
+/** The spaceRev of a notifyWrite body, as receiveNotifyWrite would pass it on. */
 const decodeNotify = (body: unknown) =>
   decodeLex(com.atproto.space.notifyWrite.$input.schema)(body).pipe(
+    Effect.map((input) => input.spaceRev),
     Effect.orDie,
   );
 
@@ -25,7 +27,7 @@ describe("SpaceSyncer", () => {
         const syncer = yield* SpaceSyncer;
         yield* syncer.watch(space.ref);
         yield* syncer.awaitIdle(space.ref);
-        expect(sink.view(space.ref, alice.did)).toEqual(
+        expect(sink.view(space.id, alice.did)).toEqual(
           space.expectedView(alice.did),
         );
         expect(yield* syncer.activeSpaces).toBe(0);
@@ -48,7 +50,7 @@ describe("SpaceSyncer", () => {
           yield* syncer.awaitIdle(space.ref);
           const stale = yield* decodeNotify(space.notifyWriteBody(alice.did));
           const listsBefore = space.listReposCalls;
-          yield* syncer.notifyWrite(stale);
+          yield* syncer.notifyWrite(space.ref, stale);
           yield* syncer.awaitIdle(space.ref);
           expect(space.listReposCalls).toBe(listsBefore);
 
@@ -56,11 +58,12 @@ describe("SpaceSyncer", () => {
             space.write(alice, "com.example.post", "2", { text: "b" }),
           );
           yield* syncer.notifyWrite(
+            space.ref,
             yield* decodeNotify(space.notifyWriteBody(alice.did)),
           );
           yield* syncer.awaitIdle(space.ref);
           expect(sink.batches.at(-1)?._tag).toBe("Ops");
-          expect(sink.view(space.ref, alice.did)).toEqual(
+          expect(sink.view(space.id, alice.did)).toEqual(
             space.expectedView(alice.did),
           );
         }),
@@ -88,6 +91,7 @@ describe("SpaceSyncer", () => {
             }),
           );
           yield* syncer.notifyWrite(
+            space.ref,
             yield* decodeNotify(space.notifyWriteBody(alice.did)),
           );
         }
@@ -98,7 +102,7 @@ describe("SpaceSyncer", () => {
         // walk, not the coalescing. 2 is the bound; 50 uncoalesced notifications would give ~50.
         expect(space.listRepoOpsCalls - opsBefore).toBeLessThanOrEqual(2);
         expect(space.listReposCalls - listsBefore).toBeLessThanOrEqual(25);
-        expect(sink.view(space.ref, alice.did)).toEqual(
+        expect(sink.view(space.id, alice.did)).toEqual(
           space.expectedView(alice.did),
         );
       }),
@@ -122,7 +126,7 @@ describe("SpaceSyncer", () => {
           expect(sink.batches.at(-1)?._tag).toBe("SpaceDeleted");
           expect(
             Option.isNone(
-              yield* Effect.flatMap(SyncStore, (s) => s.getSpace(space.ref)),
+              yield* Effect.flatMap(SyncStore, (s) => s.getSpace(space.id)),
             ),
           ).toBe(true);
         }),
@@ -146,7 +150,7 @@ describe("SpaceSyncer", () => {
           expect(sink.batches.map((b) => b._tag)).toEqual(["SpaceDeleted"]);
           expect(
             Option.isNone(
-              yield* Effect.flatMap(SyncStore, (s) => s.getSpace(space.ref)),
+              yield* Effect.flatMap(SyncStore, (s) => s.getSpace(space.id)),
             ),
           ).toBe(true);
         }),
@@ -166,13 +170,13 @@ describe("SpaceSyncer", () => {
         yield* syncer.watch(space.ref);
         yield* syncer.awaitIdle(space.ref);
         const failed = Option.getOrThrow(
-          yield* Effect.flatMap(SyncStore, (s) => s.getSpace(space.ref)),
+          yield* Effect.flatMap(SyncStore, (s) => s.getSpace(space.id)),
         );
         expect(failed.failures).toBe(1);
         space.deniedUsers.clear();
         yield* Effect.sleep("400 millis");
         yield* syncer.awaitIdle(space.ref);
-        expect(sink.view(space.ref, alice.did)).toEqual(
+        expect(sink.view(space.id, alice.did)).toEqual(
           space.expectedView(alice.did),
         );
       }),
@@ -228,8 +232,8 @@ describe("SpaceSyncer", () => {
           expect(sink.interrupted).toBe(1);
           expect(sink.batches).toHaveLength(0);
           const store = yield* SyncStore;
-          expect(Option.isNone(yield* store.getSpace(space.ref))).toBe(true);
-          expect(yield* store.listRepoDids(space.ref)).toEqual([]);
+          expect(Option.isNone(yield* store.getSpace(space.id))).toBe(true);
+          expect(yield* store.listRepoDids(space.id)).toEqual([]);
           expect(yield* syncer.activeSpaces).toBe(0);
         }),
       ),
@@ -254,7 +258,7 @@ describe("SpaceSyncer", () => {
         const events = yield* Fiber.join(collector);
         expect(events[0]).toEqual({
           _tag: "Reset",
-          space: space.ref,
+          space: space.id,
           did: alice.did,
           rev: space.repoRevOf(alice.did),
         });
@@ -278,6 +282,32 @@ describe("SpaceSyncer", () => {
           expect(space.registrations.length).toBeGreaterThanOrEqual(2);
         }),
       { registrationRenewLead: Duration.millis(100) },
+    ),
+  );
+
+  it.live("a notification racing unwatch doesn't bring the space back", () =>
+    runWithSyncer(({ net }) =>
+      Effect.gen(function* () {
+        const alice = yield* Effect.promise(() => net.createAccount("alice"));
+        const space = net.createSpace(alice);
+        yield* Effect.promise(() =>
+          space.write(alice, "com.example.post", "1", { text: "a" }),
+        );
+        const syncer = yield* SpaceSyncer;
+        yield* syncer.watch(space.ref);
+        yield* syncer.awaitIdle(space.ref);
+        yield* Effect.promise(() =>
+          space.write(alice, "com.example.post", "2", { text: "b" }),
+        );
+        yield* Effect.all(
+          [syncer.unwatch(space.ref), syncer.notifyWrite(space.ref, undefined)],
+          { concurrency: "unbounded" },
+        );
+        yield* syncer.awaitIdle(space.ref);
+        const store = yield* SyncStore;
+        expect(Option.isNone(yield* store.getSpace(space.id))).toBe(true);
+        expect(yield* store.listRepoDids(space.id)).toEqual([]);
+      }),
     ),
   );
 });

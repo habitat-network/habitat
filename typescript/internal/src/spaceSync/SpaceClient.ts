@@ -6,22 +6,24 @@ import {
   type TidString,
   XrpcResponse,
   asXrpcFailure,
+  isCidForBytes,
+  parseCidSafe,
   xrpc,
 } from "@atproto/lex";
-import type { DidString, SpaceRefString } from "@atproto/syntax";
+import type { DidString, SpaceRef } from "@atproto/syntax";
 import { createSpaceSigHeaders } from "@atproto/space";
 import { com } from "api";
-import { Context, Effect, Layer, Schedule, type Scope } from "effect";
+import { Context, Duration, Effect, Layer, Schedule, type Scope } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { Credentials } from "./Credentials";
-import { CredentialError, XrpcError } from "./errors";
+import { CredentialError, XrpcError, errorMessage } from "./errors";
 import { Identity } from "./Identity";
-import { failureStatus, parseSpaceRef, signedAgent } from "./wire";
+import { failureStatus, signedAgent } from "./wire";
 
 export type SpaceCallError = XrpcError | CredentialError;
 
 interface Target {
-  readonly space: SpaceRefString;
+  readonly space: SpaceRef;
   readonly method: Query | Procedure;
   /** Repo DID for repo calls, authority DID for space-host calls. */
   readonly audience: DidString;
@@ -30,23 +32,32 @@ interface Target {
 }
 
 const isTransient = (error: SpaceCallError): boolean =>
-  error._tag === "XrpcError"
-    ? error.status === 0 || error.status >= 500
-    : error.reason === "Transport";
+  error._tag === "XrpcError" ? error.transient : error.reason === "Transport";
 
 /**
  * A fetch body's own async iterator deadlocks when a consumer abandons it
  * mid-stream: `return()` queues behind an in-flight `next()` that the stalled
  * reader never settles. Carve out our own iterator over a locked reader so
- * disposal just cancels the body.
+ * disposal just cancels the body. A host that goes quiet for `idleMs` fails
+ * the stream rather than holding the pass forever.
  */
 async function* carChunks(
   body: ReadableStream<Uint8Array>,
+  idleMs: number,
 ): AsyncIterable<Uint8Array> {
   const reader = body.getReader();
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const idle = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`CAR stream stalled for ${idleMs}ms`)),
+          idleMs,
+        );
+      });
+      const { done, value } = await Promise.race([reader.read(), idle]).finally(
+        () => clearTimeout(timer),
+      );
       if (done) return;
       if (value !== undefined) yield value;
     }
@@ -60,15 +71,15 @@ export class SpaceClient extends Context.Service<
   SpaceClient,
   {
     readonly listRepos: (
-      space: SpaceRefString,
+      space: SpaceRef,
       cursor?: string,
     ) => Effect.Effect<com.atproto.space.listRepos.$OutputBody, SpaceCallError>;
     readonly registerNotify: (
-      space: SpaceRefString,
+      space: SpaceRef,
       service: string,
     ) => Effect.Effect<{ readonly expiresAt: number }, SpaceCallError>;
     readonly listRepoOps: (
-      space: SpaceRefString,
+      space: SpaceRef,
       repo: DidString,
       since: string | undefined,
       cursor?: string,
@@ -77,11 +88,12 @@ export class SpaceClient extends Context.Service<
       SpaceCallError
     >;
     readonly getRepo: (
-      space: SpaceRefString,
+      space: SpaceRef,
       repo: DidString,
     ) => Effect.Effect<AsyncIterable<Uint8Array>, SpaceCallError, Scope.Scope>;
+    /** Fetches a blob and checks its bytes against `cid`. */
     readonly getBlob: (
-      space: SpaceRefString,
+      space: SpaceRef,
       repo: DidString,
       cid: string,
     ) => Effect.Effect<Uint8Array, SpaceCallError>;
@@ -93,6 +105,7 @@ export class SpaceClient extends Context.Service<
       const config = yield* SpaceSyncConfig;
       const credentials = yield* Credentials;
       const identity = yield* Identity;
+      const idleMs = Duration.toMillis(config.streamIdleTimeout);
 
       const space = com.atproto.space;
 
@@ -113,6 +126,7 @@ export class SpaceClient extends Context.Service<
                   status: 0,
                   error: "IdentityError",
                   message: e.message,
+                  transient: true,
                 }),
             ),
           );
@@ -129,9 +143,12 @@ export class SpaceClient extends Context.Service<
             try: (signal) => run(agent, signal),
             catch: (cause): SpaceCallError => {
               const failure = asXrpcFailure(target.method, cause);
-              return failure.error === "SpaceDeleted"
+              // Only the authority's space host speaks for the space. A repo
+              // host answering SpaceDeleted must not wipe everyone's data.
+              return failure.error === "SpaceDeleted" &&
+                target.hostOf === "space"
                 ? new CredentialError({
-                    space: target.space,
+                    space: target.space.toString(),
                     reason: "SpaceDeleted",
                     message: failure.message,
                   })
@@ -140,9 +157,25 @@ export class SpaceClient extends Context.Service<
                     status: failureStatus(failure),
                     error: failure.error,
                     message: failure.message,
+                    transient: failure.shouldRetry(),
                   });
             },
-          });
+          }).pipe(
+            // Interrupting the request aborts its fetch through `signal`.
+            Effect.timeoutOrElse({
+              duration: config.requestTimeout,
+              orElse: () =>
+                Effect.fail(
+                  new XrpcError({
+                    method: target.method.nsid,
+                    status: 0,
+                    error: "Timeout",
+                    message: "no response before the request timeout",
+                    transient: true,
+                  }),
+                ),
+            }),
+          );
         });
 
       const call = <A>(
@@ -167,67 +200,56 @@ export class SpaceClient extends Context.Service<
           }),
         );
 
-      const authorityOf = (ref: SpaceRefString) =>
-        parseSpaceRef(ref).pipe(
-          Effect.map((parsed) => parsed.authority),
-          Effect.mapError(
-            () =>
-              new CredentialError({
-                space: ref,
-                reason: "SpaceNotFound",
-                message: "invalid space ref",
-              }),
-          ),
-        );
+      const invalidResponse = (
+        method: Query | Procedure,
+        status: number,
+        message: string,
+      ) =>
+        new XrpcError({
+          method: method.nsid,
+          status,
+          error: "InvalidResponse",
+          message,
+          transient: false,
+        });
 
       const listRepos = Effect.fnUntraced(function* (
-        ref: SpaceRefString,
+        ref: SpaceRef,
         cursor?: string,
       ) {
         const method = space.listRepos.main;
-        const target: Target = {
-          space: ref,
-          method,
-          audience: yield* authorityOf(ref),
-          hostOf: "space",
-        };
-        const res = yield* call(target, (agent, signal) =>
-          xrpc(agent, method, {
-            params: { space: ref, limit: 1000, cursor },
-            signal,
-          }),
+        const res = yield* call(
+          { space: ref, method, audience: ref.spaceDid, hostOf: "space" },
+          (agent, signal) =>
+            xrpc(agent, method, {
+              params: { space: ref.toString(), limit: 1000, cursor },
+              signal,
+            }),
         );
         return res.body;
       });
 
       const registerNotify = Effect.fnUntraced(function* (
-        ref: SpaceRefString,
+        ref: SpaceRef,
         service: string,
       ) {
         const method = space.registerNotify.main;
-        const target: Target = {
-          space: ref,
-          method,
-          audience: yield* authorityOf(ref),
-          hostOf: "space",
-        };
-        const res = yield* call(target, (agent, signal) =>
-          xrpc(agent, method, { body: { space: ref, service }, signal }),
+        const res = yield* call(
+          { space: ref, method, audience: ref.spaceDid, hostOf: "space" },
+          (agent, signal) =>
+            xrpc(agent, method, {
+              body: { space: ref.toString(), service },
+              signal,
+            }),
         );
         const expiresAt = Date.parse(res.body.expiresAt);
-        if (!Number.isFinite(expiresAt)) {
-          return yield* new XrpcError({
-            method: method.nsid,
-            status: 200,
-            error: "InvalidResponse",
-            message: "unparseable expiresAt",
-          });
-        }
+        if (!Number.isFinite(expiresAt))
+          return yield* invalidResponse(method, 200, "unparseable expiresAt");
         return { expiresAt };
       });
 
       const listRepoOps = Effect.fnUntraced(function* (
-        ref: SpaceRefString,
+        ref: SpaceRef,
         repo: DidString,
         since: string | undefined,
         cursor?: string,
@@ -238,7 +260,7 @@ export class SpaceClient extends Context.Service<
           (agent, signal) =>
             xrpc(agent, method, {
               params: {
-                space: ref,
+                space: ref.toString(),
                 repo,
                 since: since as TidString | undefined,
                 cursor,
@@ -252,14 +274,14 @@ export class SpaceClient extends Context.Service<
 
       // getRepo bypasses `xrpc`, which buffers the whole body, so the CAR can
       // be verified as it streams.
-      const getRepo = (ref: SpaceRefString, repo: DidString) => {
+      const getRepo = (ref: SpaceRef, repo: DidString) => {
         const method = space.getRepo.main;
         return Effect.acquireRelease(
           call(
             { space: ref, method, audience: repo, hostOf: "repo" },
             async (agent, signal) => {
               const params = method.parameters.toURLSearchParams({
-                space: ref,
+                space: ref.toString(),
                 repo,
               });
               const res = await agent.fetchHandler(
@@ -284,34 +306,49 @@ export class SpaceClient extends Context.Service<
         ).pipe(
           Effect.flatMap((res) =>
             res.body
-              ? Effect.succeed(carChunks(res.body))
-              : Effect.fail(
-                  new XrpcError({
-                    method: method.nsid,
-                    status: res.status,
-                    error: "InvalidResponse",
-                    message: "empty body",
-                  }),
-                ),
+              ? Effect.succeed(carChunks(res.body, idleMs))
+              : Effect.fail(invalidResponse(method, res.status, "empty body")),
           ),
         );
       };
 
       const getBlob = Effect.fnUntraced(function* (
-        ref: SpaceRefString,
+        ref: SpaceRef,
         repo: DidString,
         cid: string,
       ) {
         const method = space.getBlob.main;
+        const expected = parseCidSafe(cid);
+        if (!expected)
+          return yield* new XrpcError({
+            method: method.nsid,
+            status: 0,
+            error: "InvalidRequest",
+            message: `invalid cid ${cid}`,
+            transient: false,
+          });
         const res = yield* call(
           { space: ref, method, audience: repo, hostOf: "repo" },
           (agent, signal) =>
             xrpc(agent, method, {
-              params: { space: ref, repo, cid: cid as CidString },
+              params: { space: ref.toString(), repo, cid: cid as CidString },
               signal,
             }),
         );
-        return res.body;
+        const bytes = res.body;
+        // The repo host is untrusted transport: the blob must hash to its CID.
+        const matches = yield* Effect.tryPromise({
+          try: () => isCidForBytes(expected, bytes),
+          catch: (error) =>
+            invalidResponse(method, res.status, errorMessage(error)),
+        });
+        if (!matches)
+          return yield* invalidResponse(
+            method,
+            res.status,
+            "blob does not match its cid",
+          );
+        return bytes;
       });
 
       return SpaceClient.of({

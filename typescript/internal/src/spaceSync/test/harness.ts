@@ -4,7 +4,9 @@ import { type SpaceSyncOptions, spaceSyncConfigLayer } from "../config";
 import { Credentials, DelegationSource } from "../Credentials";
 import { CredentialError, errorMessage } from "../errors";
 import { Identity } from "../Identity";
+import { NotificationAuth } from "../notification";
 import { SpaceClient } from "../SpaceClient";
+import { RepoBackoff } from "../spacePass";
 import { SpaceSyncer } from "../SpaceSyncer";
 import { SyncSink } from "../SyncSink";
 import { SyncStore } from "../SyncStore";
@@ -48,7 +50,9 @@ export type HarnessServices =
   | SpaceClient
   | Credentials
   | Identity
-  | DelegationSource;
+  | DelegationSource
+  | RepoBackoff
+  | NotificationAuth;
 
 export interface Harness {
   readonly net: FakeNetwork;
@@ -70,6 +74,8 @@ export const makeHarness = async (
     ),
     SyncStore.memory,
     sink.layer,
+    RepoBackoff.layer,
+    NotificationAuth.layer,
   ).pipe(Layer.provide(testConfig(overrides)));
   return { net, sink: sink.state, layer };
 };

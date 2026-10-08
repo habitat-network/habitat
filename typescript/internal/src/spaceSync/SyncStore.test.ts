@@ -59,4 +59,17 @@ describe("SyncStore.memory", () => {
         expect(Option.getOrThrow(stored).ltHash[0]).toBe(0);
       }).pipe(Effect.provide(SyncStore.memory)),
   );
+
+  it.effect("claimDue only leases a space whose nextDueAt is unchanged", () =>
+    Effect.gen(function* () {
+      const store = yield* SyncStore;
+      const s = space("lease", 10);
+      yield* store.putSpace(s);
+      expect(yield* store.claimDue(s.space, 10, 500)).toBe(true);
+      // A second claimant saw the old value and loses.
+      expect(yield* store.claimDue(s.space, 10, 900)).toBe(false);
+      const leased = Option.getOrThrow(yield* store.getSpace(s.space));
+      expect(leased.nextDueAt).toBe(500);
+    }).pipe(Effect.provide(SyncStore.memory)),
+  );
 });

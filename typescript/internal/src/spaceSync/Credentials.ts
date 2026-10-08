@@ -1,4 +1,4 @@
-import type { SpaceRefString } from "@atproto/syntax";
+import type { SpaceRef, SpaceRefString } from "@atproto/syntax";
 import { P256Keypair } from "@atproto/crypto";
 import { type XrpcFailure, XrpcResponseError, xrpcSafe } from "@atproto/lex";
 import { com } from "api";
@@ -7,11 +7,21 @@ import {
   parseSpaceToken,
   spaceHostAud,
 } from "@atproto/space";
-import { Cache, Clock, Context, Duration, Effect, Exit, Layer } from "effect";
+import {
+  Cache,
+  Clock,
+  Context,
+  Duration,
+  Effect,
+  Equal,
+  Exit,
+  Hash,
+  Layer,
+} from "effect";
 import { SpaceSyncConfig } from "./config";
 import { CredentialError, errorMessage } from "./errors";
 import { Identity } from "./Identity";
-import { parseSpaceRef, signedAgent } from "./wire";
+import { signedAgent } from "./wire";
 
 export interface SpaceCredential {
   readonly space: SpaceRefString;
@@ -73,13 +83,27 @@ const credentialFailure = (
   });
 };
 
+/** Cache key that compares by value, so every lookup for a space shares one credential. */
+class SpaceKey implements Equal.Equal {
+  readonly id: SpaceRefString;
+  constructor(readonly ref: SpaceRef) {
+    this.id = ref.toString();
+  }
+  [Equal.symbol](that: unknown): boolean {
+    return that instanceof SpaceKey && that.id === this.id;
+  }
+  [Hash.symbol](): number {
+    return Hash.string(this.id);
+  }
+}
+
 export class Credentials extends Context.Service<
   Credentials,
   {
     readonly get: (
-      space: SpaceRefString,
+      space: SpaceRef,
     ) => Effect.Effect<SpaceCredential, CredentialError>;
-    readonly invalidate: (space: SpaceRefString) => Effect.Effect<void>;
+    readonly invalidate: (space: SpaceRef) => Effect.Effect<void>;
   }
 >()("internal/spaceSync/Credentials") {
   static readonly layer = Layer.effect(
@@ -90,19 +114,11 @@ export class Credentials extends Context.Service<
       const delegation = yield* DelegationSource;
       const refreshLeadMs = Duration.toMillis(config.credentialRefreshLead);
 
-      const mint = Effect.fn("Credentials.mint")(function* (
-        space: SpaceRefString,
-      ) {
-        const { authority } = yield* parseSpaceRef(space).pipe(
-          Effect.mapError(
-            () =>
-              new CredentialError({
-                space,
-                reason: "SpaceNotFound",
-                message: "invalid space ref",
-              }),
-          ),
-        );
+      const mint = Effect.fn("Credentials.mint")(function* ({
+        ref,
+        id: space,
+      }: SpaceKey) {
+        const authority = ref.spaceDid;
         const host = yield* identity.resolve(authority).pipe(
           Effect.mapError(
             (e) =>
@@ -172,8 +188,10 @@ export class Credentials extends Context.Service<
 
       return Credentials.of({
         get: (space) =>
-          Cache.get(cache, space).pipe(Effect.map((entry) => entry.value)),
-        invalidate: (space) => Cache.invalidate(cache, space),
+          Cache.get(cache, new SpaceKey(space)).pipe(
+            Effect.map((entry) => entry.value),
+          ),
+        invalidate: (space) => Cache.invalidate(cache, new SpaceKey(space)),
       });
     }),
   );

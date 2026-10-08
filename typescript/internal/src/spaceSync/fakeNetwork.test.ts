@@ -18,7 +18,7 @@ describe("FakeNetwork", () => {
     await space.write(bob, "com.example.post", "a", null);
 
     const key = await P256Keypair.create();
-    const delegation = await net.delegationToken(alice, space.ref);
+    const delegation = await net.delegationToken(alice, space.id);
     const credRes = await fetch(
       `${alice.pds}/xrpc/com.atproto.space.getSpaceCredential`,
       {
@@ -29,14 +29,14 @@ describe("FakeNetwork", () => {
           })),
           "content-type": "application/json",
         },
-        body: JSON.stringify({ space: space.ref }),
+        body: JSON.stringify({ space: space.id }),
       },
     );
     expect(credRes.status).toBe(200);
     const { credential } = (await credRes.json()) as { credential: string };
 
     const url = new URL(`${bob.pds}/xrpc/com.atproto.space.getRepo`);
-    url.searchParams.set("space", space.ref);
+    url.searchParams.set("space", space.id);
     url.searchParams.set("repo", bob.did);
     const repoRes = await fetch(url, {
       headers: await createSpaceSigHeaders(key, {
@@ -48,7 +48,7 @@ describe("FakeNetwork", () => {
     const repo = await verifyRepoCarFull(
       [new Uint8Array(await repoRes.arrayBuffer())],
       {
-        space: space.ref,
+        space: space.id,
         author: bob.did,
         didKey: bob.keypair.did(),
       },
@@ -64,7 +64,7 @@ describe("FakeNetwork", () => {
     const space = net.createSpace(alice);
     await space.write(alice, "com.example.post", "a", { text: "hi" });
     const key = await P256Keypair.create();
-    const delegation = await net.delegationToken(alice, space.ref);
+    const delegation = await net.delegationToken(alice, space.id);
     const { credential } = (await (
       await fetch(`${alice.pds}/xrpc/com.atproto.space.getSpaceCredential`, {
         method: "POST",
@@ -74,11 +74,11 @@ describe("FakeNetwork", () => {
           })),
           "content-type": "application/json",
         },
-        body: JSON.stringify({ space: space.ref }),
+        body: JSON.stringify({ space: space.id }),
       })
     ).json()) as { credential: string };
     const url = new URL(`${alice.pds}/xrpc/com.atproto.space.listRepoOps`);
-    url.searchParams.set("space", space.ref);
+    url.searchParams.set("space", space.id);
     url.searchParams.set("repo", alice.did);
     const res = await fetch(url, {
       headers: await createSpaceSigHeaders(key, {

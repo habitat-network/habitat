@@ -17,6 +17,12 @@ const memoryStore = (): PromiseSyncStore => {
   return {
     getSpace: async (s) => spaces.get(s),
     putSpace: async (st) => void spaces.set(st.space, st),
+    claimDue: async (s, seen, until) => {
+      const st = spaces.get(s);
+      if (st?.nextDueAt !== seen) return false;
+      spaces.set(s, { ...st, nextDueAt: until });
+      return true;
+    },
     removeSpace: async (s) => {
       spaces.delete(s);
       for (const k of [...repos.keys()])
@@ -59,8 +65,8 @@ describe("createSpaceSyncer", () => {
       },
     });
     try {
-      await syncer.watch(space.ref);
-      await syncer.awaitIdle(space.ref);
+      await syncer.watch(space.id);
+      await syncer.awaitIdle(space.id);
       expect(applied).toEqual([{ tag: "Reset", records: ["1"] }]);
 
       await space.write(alice, "com.example.post", "2", { text: "b" });
@@ -70,7 +76,7 @@ describe("createSpaceSyncer", () => {
         syncer.notifyWrite(space.notifyWriteBody(alice.did), "Bearer nope"),
       ).rejects.toThrow();
       await syncer.notifyWrite(space.notifyWriteBody(alice.did), goodAuth);
-      await syncer.awaitIdle(space.ref);
+      await syncer.awaitIdle(space.id);
       expect(applied.at(-1)).toEqual({ tag: "Ops" });
     } finally {
       await syncer.dispose();

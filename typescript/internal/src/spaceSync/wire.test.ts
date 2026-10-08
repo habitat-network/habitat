@@ -9,14 +9,14 @@ import { decodeLex, parseSpaceRef } from "./wire";
 const SPACE = "at://did:plc:alice/space/com.example.board/main";
 
 describe("parseSpaceRef", () => {
-  it.effect("splits a space ref into authority, type and skey", () =>
+  it.effect("parses a space ref into its authority, type and skey", () =>
     Effect.gen(function* () {
       const ref = yield* parseSpaceRef(SPACE);
-      expect(ref).toEqual({
-        authority: "did:plc:alice",
-        type: "com.example.board",
-        skey: "main",
-      });
+      expect([ref.spaceDid, ref.spaceType, ref.skey]).toEqual([
+        "did:plc:alice",
+        "com.example.board",
+        "main",
+      ]);
     }),
   );
 
