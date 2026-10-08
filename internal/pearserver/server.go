@@ -17,6 +17,7 @@ import (
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
+	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
@@ -54,6 +55,9 @@ type PearServer struct {
 
 	// searcher answers searchRecords.
 	searcher *search.Searcher
+
+	// searchConfig stores the collections each org surfaces in search.
+	searchConfig *searchconfig.Store
 }
 
 // New creates a PearServer with the given dependencies and prepares
@@ -74,6 +78,7 @@ func New(
 	pdsForwarding *forwarding.PDSForwarding,
 	emailDomainStore *emaildomain.Store,
 	searcher *search.Searcher,
+	searchConfig *searchconfig.Store,
 ) *PearServer {
 	ps := &PearServer{
 		router:           mux.NewRouter(),
@@ -93,6 +98,7 @@ func New(
 		pdsForwarding:    pdsForwarding,
 		emailDomainStore: emailDomainStore,
 		searcher:         searcher,
+		searchConfig:     searchConfig,
 	}
 	ps.registerRoutes()
 	return ps

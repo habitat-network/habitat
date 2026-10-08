@@ -46,17 +46,27 @@ func WithConfirmationKey(didKey string) SpaceCredentialOpt {
 	}
 }
 
+const (
+	// DefaultSpaceCredentialTTL is the lifetime of a minted space credential.
+	// Short expiry is the primary revocation mechanism for space credentials.
+	DefaultSpaceCredentialTTL = 10 * time.Minute
+	// MaxSpaceCredentialTTL is the longest a space credential may live.
+	MaxSpaceCredentialTTL = 60 * time.Minute
+)
+
 func SpaceCredential(
 	privateKey atcrypto.PrivateKey,
 	kid string,
 	space habitat_syntax.SpaceURI,
 	opts ...SpaceCredentialOpt,
 ) (string, error) {
+	now := time.Now()
 	claims := jwt.MapClaims{
 		"iss": space.SpaceOwner(),
 		"sub": space,
-		"iat": jwt.NewNumericDate(time.Now()),
-		"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		"iat": jwt.NewNumericDate(now),
+		"exp": jwt.NewNumericDate(now.Add(DefaultSpaceCredentialTTL)),
+		// Random unique identifier, used for revocation.
 		"jti": RandomNonce(16),
 	}
 	for _, opt := range opts {

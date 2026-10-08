@@ -62,16 +62,16 @@ func NewGoogleProvider(
 func (p *googleProvider) Authorize(
 	ctx context.Context,
 	loginHint string,
-) (string, []byte, error) {
+) (string, string, []byte, error) {
 	verifier := oauth2.GenerateVerifier()
 	state := make([]byte, 16)
 	if _, err := rand.Read(state); err != nil {
-		return "", nil, fmt.Errorf("generate state: %w", err)
+		return "", "", nil, fmt.Errorf("generate state: %w", err)
 	}
 	stateStr := hex.EncodeToString(state)
 	stateBytes, err := json.Marshal(googleProviderState{Verifier: verifier, State: stateStr})
 	if err != nil {
-		return "", nil, fmt.Errorf("marshal google state: %w", err)
+		return "", "", nil, fmt.Errorf("marshal google state: %w", err)
 	}
 	authURL := p.oauthCfg.AuthCodeURL(
 		stateStr,
@@ -81,7 +81,7 @@ func (p *googleProvider) Authorize(
 		oauth2.SetAuthURLParam("prompt", "select_account"),
 	)
 
-	return authURL, stateBytes, nil
+	return authURL, stateStr, stateBytes, nil
 }
 
 func (p *googleProvider) Exchange(

@@ -1,15 +1,52 @@
-import { Link } from "@tanstack/react-router";
-import { network } from "api";
-import { Actor, UserAvatar } from "internal";
+import { Link, useParams } from "@tanstack/react-router";
+import { Actor, UserAvatar, type AuthManager } from "internal";
 import { Button } from "internal/components/ui";
+import { OrgSwitcher } from "@/components/OrgSwitcher";
 
 interface HeaderProps {
   profile?: Actor;
-  org?: network.habitat.org.getMetadata.$OutputBody;
+  authManager: AuthManager;
   onLogout: () => void;
 }
 
-const Header = ({ profile, org, onLogout }: HeaderProps) => {
+const SettingsLink = () => {
+  const { org } = useParams({ strict: false });
+  if (!org) return null;
+  return (
+    <li>
+      <Button
+        variant="link"
+        render={<Link to="/orgs/$org/settings" params={{ org }} />}
+      >
+        Settings
+      </Button>
+    </li>
+  );
+};
+
+// SpacesLink goes to the current org's spaces when the route names an org,
+// and to the all-spaces page otherwise.
+const SpacesLink = () => {
+  const { org } = useParams({ strict: false });
+  return (
+    <li>
+      <Button
+        variant="link"
+        render={
+          org ? (
+            <Link to="/spaces/$spaceOwner" params={{ spaceOwner: org }} />
+          ) : (
+            <Link to="/spaces" />
+          )
+        }
+      >
+        Spaces
+      </Button>
+    </li>
+  );
+};
+
+const Header = ({ profile, authManager, onLogout }: HeaderProps) => {
   return (
     <header className="w-full">
       <nav className="flex justify-between py-4 px-6 items-center border-b">
@@ -19,42 +56,11 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
           </li>
           {profile && (
             <>
-              {org?.orgId && (
-                <li>
-                  <Button variant="link" render={<Link to="/org" />}>
-                    {org.name}
-                  </Button>
-                </li>
-              )}
               <li>
-                <Button variant="link" render={<Link to="/spaces" />}>
-                  Spaces
-                </Button>
+                <OrgSwitcher authManager={authManager} />
               </li>
-              <li>
-                <Button variant="link" render={<Link to="/opensocial" />}>
-                  Organizations
-                </Button>
-              </li>
-              {import.meta.env.DEV && (
-                <>
-                  <li>
-                    <Button variant="link" render={<Link to="/groups" />}>
-                      Groups
-                    </Button>
-                  </li>
-                  <li>
-                    <Button variant="link" render={<Link to="/collections" />}>
-                      Collections
-                    </Button>
-                  </li>
-                  <li>
-                    <Button variant="link" render={<Link to="/search" />}>
-                      Search
-                    </Button>
-                  </li>
-                </>
-              )}
+              <SpacesLink />
+              <SettingsLink />
             </>
           )}
         </ul>

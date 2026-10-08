@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -26,8 +28,14 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-// renewalLead is how far before a credential's nominal expiry it is renewed.
-const renewalLead = 5 * time.Minute
+// renewalLead is how far before a credential's expiry it is renewed. Hosts
+// mint credentials with a 10 minute default lifetime, so this keeps a cached
+// credential from being used in its last couple of minutes.
+const renewalLead = 2 * time.Minute
+
+// defaultCredentialTTL is assumed for a credential whose exp claim can't be
+// read: the spec's default lifetime.
+const defaultCredentialTTL = 10 * time.Minute
 
 // Delegator mints a short-lived delegation token authorizing a read of
 // space, using some session that can access it. getDelegationToken is served
@@ -177,9 +185,9 @@ func (m *Manager) credential(
 }
 
 // mint resolves the space's own host, exchanges a fresh delegation token for
-// a space credential there, and caches the pair. The host mints credentials
-// with ~1h expiry; renewing just before expiry (see renewalLead) keeps them
-// from going stale.
+// a space credential there, and caches the pair. The host mints short-lived
+// credentials (10 minutes by default); renewing just before the credential's
+// exp (see renewalLead) keeps them from going stale.
 func (m *Manager) mint(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
@@ -223,11 +231,70 @@ func (m *Manager) mint(
 	); err != nil {
 		return spaceCred{}, fmt.Errorf("get space credential: %w", err)
 	}
-	c := spaceCred{token: out.Credential, host: host, expire: time.Now().Add(time.Hour)}
+	c := spaceCred{token: out.Credential, host: host, expire: credentialExpiry(out.Credential)}
 	m.mu.Lock()
 	m.creds[credKey{space: space, bound: bound}] = c
 	m.mu.Unlock()
 	return c, nil
+}
+
+// credentialExpiry reads a credential's exp claim without verifying it (the
+// space host verifies on use), falling back to the default lifetime for a
+// token that doesn't carry one.
+func credentialExpiry(token string) time.Time {
+	claims := jwt.RegisteredClaims{}
+	if _, _, err := jwt.NewParser().ParseUnverified(token, &claims); err == nil &&
+		claims.ExpiresAt != nil {
+		return claims.ExpiresAt.Time
+	}
+	return time.Now().Add(defaultCredentialTTL)
+}
+
+// refreshTransport retries a space host request once with a freshly minted
+// credential when the host rejects the one it carried with a 401: an expired
+// or revoked credential (see com.atproto.space.notifyCredentialRevoked) is
+// handled by re-fetching rather than surfacing the failure.
+type refreshTransport struct {
+	m     *Manager
+	space habitat_syntax.SpaceURI
+	next  http.RoundTripper
+}
+
+func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.next.RoundTrip(req)
+	if err != nil || resp.StatusCode != http.StatusUnauthorized {
+		return resp, err
+	}
+	// A request body that can't be replayed can't be retried.
+	if req.Body != nil && req.GetBody == nil {
+		return resp, nil
+	}
+	stale := strings.TrimPrefix(req.Header.Get("Authorization"), httpsig.CredentialScheme+" ")
+	t.m.invalidate(t.space, stale)
+	c, err := t.m.credential(req.Context(), t.space, true)
+	if err != nil || c.token == stale {
+		return resp, nil
+	}
+	retry := req.Clone(req.Context())
+	if req.GetBody != nil {
+		if retry.Body, err = req.GetBody(); err != nil {
+			return resp, nil
+		}
+	}
+	// next re-signs the retry: the signature covers the new credential.
+	retry.Header.Set("Authorization", httpsig.CredentialScheme+" "+c.token)
+	_ = resp.Body.Close()
+	return t.next.RoundTrip(retry)
+}
+
+// invalidate evicts space's cached bound credential if it is still token.
+func (m *Manager) invalidate(space habitat_syntax.SpaceURI, token string) {
+	k := credKey{space: space, bound: true}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.creds[k].token == token {
+		delete(m.creds, k)
+	}
 }
 
 // hostForSpace resolves the habitat host that serves space: a space's
@@ -278,7 +345,8 @@ func (m *Manager) Credential(
 // ClientForSpace returns an atproto API client that reads space at its own
 // host, authenticated with a valid key-bound space credential. Every request
 // is signed per RFC 9421 over the credential and its audience, the space
-// owner's DID.
+// owner's DID. A request rejected with 401 is retried once with a freshly
+// minted credential.
 func (m *Manager) ClientForSpace(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
@@ -291,11 +359,16 @@ func (m *Manager) ClientForSpace(
 	if err != nil {
 		return nil, err
 	}
+	// The refresh transport sits above the signing one so a retried request,
+	// carrying a new credential, is signed again.
+	signed := signedClient(
+		m.httpc, key, space.SpaceOwner(), "authorization", "atproto-space-audience",
+	)
+	httpc := *m.httpc
+	httpc.Transport = &refreshTransport{m: m, space: space, next: signed.Transport}
 	return &atclient.APIClient{
-		Client: signedClient(
-			m.httpc, key, space.SpaceOwner(), "authorization", "atproto-space-audience",
-		),
-		Host: c.host,
+		Client: &httpc,
+		Host:   c.host,
 		Headers: http.Header{
 			"Authorization": []string{httpsig.CredentialScheme + " " + c.token},
 		},
