@@ -41,11 +41,11 @@ func NewPassthroughProvider(t *testing.T) *PassthroughProvider {
 func (p *PassthroughProvider) Authorize(
 	ctx context.Context,
 	loginHint string,
-) (redirectURI string, state []byte, err error) {
+) (redirectURI string, state string, providerState []byte, err error) {
 	if p.LoginID == "" {
 		p.LoginID = loginHint
 	}
-	return p.Server.URL + "/authorize", nil, nil
+	return p.Server.URL + "/authorize", "", nil, nil
 }
 
 func (p *PassthroughProvider) Exchange(
