@@ -57,9 +57,11 @@ func (p *PearServer) ListRepos(w http.ResponseWriter, r *http.Request) {
 	repoViews := make([]habitat.NetworkHabitatSpaceListReposRepo, len(repos))
 	for i, r := range repos {
 		repoViews[i] = habitat.NetworkHabitatSpaceListReposRepo{
-			Did:  r.DID.String(),
-			Rev:  r.Rev,
-			Hash: r.Hash,
+			Did:      r.DID.String(),
+			Rev:      r.Rev,
+			Hash:     r.Hash,
+			RepoRev:  r.Rev,
+			SpaceRev: r.SpaceRev.String(),
 		}
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListReposOutput{

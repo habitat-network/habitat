@@ -210,8 +210,14 @@ func (e *Engine) listSince(
 		return "", fmt.Errorf("list repos: %w", err)
 	}
 	for _, r := range out.Repos {
+		// Prefer repoRev, the field the lexicon now requires; fall back to the
+		// deprecated rev so hosts that predate the rename still sync.
+		rev := r.RepoRev
+		if rev == "" {
+			rev = r.Rev
+		}
 		if _, err := e.observeHead(
-			ctx, space, syntax.DID(r.Did), syntax.TID(r.Rev), r.Hash,
+			ctx, space, syntax.DID(r.Did), syntax.TID(rev), r.Hash,
 		); err != nil {
 			return "", err
 		}

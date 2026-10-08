@@ -1504,7 +1504,7 @@ func TestEngineCatchUpListsSince(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 			Cursor: "3l000000000e2",
 			Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-				{Did: "did:plc:missed", Rev: "3l000000000d2"},
+				{Did: "did:plc:missed", RepoRev: "3l000000000d2", Hash: atdata.Bytes("hash")},
 			},
 		})
 	}))
@@ -1566,7 +1566,9 @@ func TestEngineCatchUpFallsBackToFullListing(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 			Cursor: "3l000000000e2",
-			Repos:  []habitat.NetworkHabitatSpaceListReposRepo{{Did: "did:plc:a", Rev: "aaa"}},
+			Repos: []habitat.NetworkHabitatSpaceListReposRepo{
+				{Did: "did:plc:a", RepoRev: "aaa", Hash: atdata.Bytes("hash")},
+			},
 		})
 	}))
 	t.Cleanup(srv.Close)

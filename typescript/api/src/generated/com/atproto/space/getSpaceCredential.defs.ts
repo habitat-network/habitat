@@ -32,7 +32,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Exchange a delegation token for a space credential. Called on the space authority, with the delegation token as the request's authorization token and a DPoP proof signed by the key to bind the credential to. The resulting space credential reads repos across the space. Requires a delegation token and DPoP proof, plus a client attestation when the space gates on app identity. */
+/** Exchange a delegation token for a space credential. Called on the space authority, with the delegation token as the request's authorization token and an HTTP message signature over Authorization made by the key to bind the credential to. The resulting space credential reads repos across the space. Requires a delegation token and HTTP message signature, plus a client attestation when the space gates on app identity. */
 const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
   'SpaceNotFound',
   'SpaceDeleted',

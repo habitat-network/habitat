@@ -17,7 +17,7 @@ export type $Params = l.InferOutput<typeof $params>
 export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
   repo: /*#__PURE__*/ l.string({ format: 'did' }),
-  rev: /*#__PURE__*/ l.string({ format: 'tid' }),
+  repoRev: /*#__PURE__*/ l.string({ format: 'tid' }),
   hash: /*#__PURE__*/ l.bytes(),
   spaceRev: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'tid' })),
   prevSpaceRev: /*#__PURE__*/ l.optional(
@@ -36,8 +36,11 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Notify that a repo in a space has advanced to a new revision. Sent by a repo host to the space host, and forwarded to registered syncers. Best-effort. Authenticated with service auth. */
-const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
+/** Notify that a repo in a space has advanced. Repo hosts reliably deliver their latest state to the space host, which sequences updates and forwards them to registered syncers with reasonable-effort delivery. Authenticated with service auth. */
+const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
+  'SpaceNotFound',
+  'FutureRev',
+])
 
 export { main }
 

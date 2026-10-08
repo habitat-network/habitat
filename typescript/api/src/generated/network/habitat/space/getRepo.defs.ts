@@ -11,8 +11,11 @@ type $nsid = typeof $nsid
 export { $nsid }
 
 export const $params = /*#__PURE__*/ l.params({
-  space: /*#__PURE__*/ l.string({ format: 'at-uri' }),
+  space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
   repo: /*#__PURE__*/ l.string({ format: 'did' }),
+  excludeValues: /*#__PURE__*/ l.optional(
+    /*#__PURE__*/ l.withDefault(/*#__PURE__*/ l.boolean(), false),
+  ),
 })
 
 export type $Params = l.InferOutput<typeof $params>

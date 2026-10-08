@@ -16,7 +16,10 @@ export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'at-uri' }),
-  jtis: /*#__PURE__*/ l.array(/*#__PURE__*/ l.string(), { minLength: 1 }),
+  credentials: /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ minLength: 1 }), {
+    minLength: 1,
+    maxLength: 100,
+  }),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>

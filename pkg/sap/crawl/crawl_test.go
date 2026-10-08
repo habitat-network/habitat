@@ -148,7 +148,8 @@ func TestCrawlerBackfillsSession(t *testing.T) {
 		case "/xrpc/network.habitat.space.listRepos":
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-					{Did: "did:plc:alice"}, {Did: "did:plc:bob"},
+					{Did: "did:plc:alice", Hash: atdata.Bytes("hash")},
+					{Did: "did:plc:bob", Hash: atdata.Bytes("hash")},
 				},
 			})
 		default:
@@ -403,7 +404,7 @@ func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
 		case "/xrpc/network.habitat.space.listRepos":
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-					{Did: repoDID.String(), Rev: "3lrev2", Hash: atdata.Bytes("hash")},
+					{Did: repoDID.String(), RepoRev: "3lrev2", Hash: atdata.Bytes("hash")},
 				},
 			})
 		}
@@ -415,6 +416,43 @@ func TestCrawlerChecksRepoRevAndHash(t *testing.T) {
 	fc := fakeClients{base: base}
 	app := newOAuthApp(t, base, "did:plc:alice", "sess1")
 	c, err := New(db_testutil.NewDB(t, Models()), app, rec, fc, rec, nil, nil, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, c.enumerateRepos(t.Context(), space))
+
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	require.Contains(t, rec.checks, repoDID)
+}
+
+// TestCrawlerChecksDeprecatedRev pins the backwards-compatibility path: a host
+// that predates repoRev reports only the deprecated rev, and the crawl still
+// checks it rather than treating the repo as having no revision.
+func TestCrawlerChecksDeprecatedRev(t *testing.T) {
+	space := habitat_syntax.SpaceURI("at://did:web:owner/space/network.habitat.space/s1")
+	repoDID := syntax.DID("did:web:alice")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/xrpc/network.habitat.space.listSpaces":
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListSpacesOutput{
+				Spaces: []habitat.NetworkHabitatSpaceListSpacesSpaceView{{Uri: space.String()}},
+			})
+		case "/xrpc/network.habitat.space.listRepos":
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
+				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
+					{Did: repoDID.String(), Rev: "3loldrev", Hash: atdata.Bytes("hash")},
+				},
+			})
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	rec := &recorder{}
+	base := mustParseURL(t, srv.URL)
+	c, err := New(
+		db_testutil.NewDB(t, Models()), nil, rec, fakeClients{base: base}, rec, nil, nil, nil,
+	)
 	require.NoError(t, err)
 
 	require.NoError(t, c.enumerateRepos(t.Context(), space))
@@ -437,7 +475,7 @@ func TestCrawlerTrackSpace(t *testing.T) {
 		case "/xrpc/network.habitat.space.listRepos":
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
-					{Did: repoDID.String(), Rev: "3lrev2", Hash: atdata.Bytes("hash")},
+					{Did: repoDID.String(), RepoRev: "3lrev2", Hash: atdata.Bytes("hash")},
 				},
 			})
 		default:
