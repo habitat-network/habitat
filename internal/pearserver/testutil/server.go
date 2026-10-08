@@ -22,6 +22,8 @@ import (
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/search"
+	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -47,6 +49,10 @@ type TestServer struct {
 	NangoClient      *FakeNangoClient
 	PDSForwarding    *forwarding.PDSForwarding
 	EmailDomainStore *emaildomain.Store
+	// SearchIndex backs searchRecords; search is off when it is nil.
+	SearchIndex search.Index
+	// SearchConfig stores the collections each org surfaces in search.
+	SearchConfig *searchconfig.Store
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -94,6 +100,13 @@ func WithNangoClient(client *FakeNangoClient) utils.Opt[TestServer] {
 func WithFGA(fga fgastore.Store) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.FGA = fga
+	}
+}
+
+// WithSearchIndex turns search on, over index.
+func WithSearchIndex(index search.Index) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.SearchIndex = index
 	}
 }
 
@@ -181,6 +194,14 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	require.NoError(t, err)
 	ts.EmailDomainStore = emailDomainStore
 
+	ts.SearchConfig = searchconfig.NewStore(ts.SpaceStore)
+	var searcher *search.Searcher
+	if ts.SearchIndex != nil {
+		searcher = search.NewSearcher(
+			ts.SearchIndex, os, ts.SpaceStore, search.WithCollections(ts.SearchConfig),
+		)
+	}
+
 	ts.Server = pearserver.New(
 		"pear.example.com",
 		ts.Validator,
@@ -196,6 +217,8 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		mcpGatewayStore,
 		ts.PDSForwarding,
 		emailDomainStore,
+		searcher,
+		ts.SearchConfig,
 	)
 	ts.PermStore = ps
 	return &ts

@@ -89,6 +89,7 @@ type Engine struct {
 	verifier    *Verifier
 	parallelism int
 	notif       *utils.PollNotifier
+	catchUp     *utils.PollNotifier // wakes runCatchUp when a space goes stale
 	jobs        chan job
 	metrics     *metrics
 }
@@ -111,6 +112,7 @@ func New(
 		verifier:    verifier,
 		parallelism: parallelism,
 		notif:       utils.NewPollNotifier(),
+		catchUp:     utils.NewPollNotifier(),
 		jobs:        make(chan job),
 		metrics:     m,
 	}, nil
@@ -142,17 +144,23 @@ func (e *Engine) Track(
 // NotifyWrite reacts to a host notification that a repo advanced: it tracks
 // the repo if unknown, and requeues a settled repo when the notified rev is
 // ahead of ours or the notified commit hash differs from our verified one.
+// spaceRev and prevSpaceRev are the space host's revision sequence for the
+// write (empty from a host that predates it); a prevSpaceRev we don't hold
+// means we missed a notification, and the space is caught up with
+// listRepos?since.
 func (e *Engine) NotifyWrite(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 	did syntax.DID,
 	rev syntax.TID,
 	hash []byte,
+	spaceRev syntax.TID,
+	prevSpaceRev syntax.TID,
 ) error {
 	if _, err := e.observeHead(ctx, space, did, rev, hash); err != nil {
 		return fmt.Errorf("notify write: %w", err)
 	}
-	return nil
+	return e.observeSpaceRev(ctx, space, spaceRev, prevSpaceRev)
 }
 
 // observeHead applies an observation of a repo's head at the host — from a
@@ -249,6 +257,11 @@ func (e *Engine) Check(
 
 // DropSpace stops tracking every repo in the space.
 func (e *Engine) DropSpace(ctx context.Context, space habitat_syntax.SpaceURI) error {
+	if err := e.db.WithContext(ctx).
+		Where("space = ?", space).
+		Delete(&spaceSync{}).Error; err != nil {
+		return err
+	}
 	return e.db.WithContext(ctx).
 		Where("space = ?", space).
 		Delete(&repo{}).Error
@@ -257,6 +270,7 @@ func (e *Engine) DropSpace(ctx context.Context, space habitat_syntax.SpaceURI) e
 // Run drives the dispatcher and worker pool until ctx ends.
 func (e *Engine) Run(ctx context.Context) {
 	go e.runDispatcher(ctx)
+	go e.runCatchUp(ctx)
 	for i := 0; i < e.parallelism; i++ {
 		go e.runWorker(ctx, i)
 	}
@@ -501,5 +515,5 @@ func backoff(retries int, maxMinutes int) time.Duration {
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate, which pkg/sap/testutil.NewSapDB calls for tests.
 func Models() []any {
-	return []any{&repo{}, &repoRecord{}}
+	return []any{&repo{}, &repoRecord{}, &spaceSync{}}
 }

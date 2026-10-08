@@ -1,0 +1,102 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.space.searchRecords",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Full-text search over the records in the permissioned spaces the caller can read, most relevant first. Searches one org at a time: the spaces the org owns that the caller can read. Callable with OAuth, service auth, or a space credential; a space credential can only search its own space.",
+      "parameters": {
+        "type": "params",
+        "required": ["q"],
+        "properties": {
+          "q": {
+            "type": "string",
+            "description": "The text to search for. Free-form; not a query syntax."
+          },
+          "org": {
+            "type": "string",
+            "format": "did",
+            "description": "Only search the spaces this org owns, and only the collections it surfaces in search: the defaults plus those its admins configured. Required unless space is given, which implies its owner."
+          },
+          "space": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Only search this space. A space credential only searches its own space, so it is implied there."
+          },
+          "collection": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "nsid"
+            },
+            "description": "Only return records in these collections."
+          },
+          "repo": {
+            "type": "string",
+            "format": "did",
+            "description": "Only return records from this account's repo."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25,
+            "description": "The maximum number of records to return. A page can hold fewer, even when more follow."
+          },
+          "cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["records"],
+          "properties": {
+            "cursor": {
+              "type": "string"
+            },
+            "records": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#record"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "SpaceNotFound"
+        }
+      ]
+    },
+    "record": {
+      "type": "object",
+      "required": ["uri", "space", "cid", "value"],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "at-uri"
+        },
+        "space": {
+          "type": "string",
+          "format": "at-uri"
+        },
+        "cid": {
+          "type": "string",
+          "format": "cid"
+        },
+        "value": {
+          "type": "unknown"
+        },
+        "snippet": {
+          "type": "string",
+          "description": "A fragment of the record's text with the matches wrapped in <mark></mark>. The rest is unescaped record text, so escape it before rendering as HTML."
+        }
+      }
+    }
+  }
+}

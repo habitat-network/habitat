@@ -141,14 +141,14 @@ func TestEngineNotifyWriteRequeues(t *testing.T) {
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	e, _, db := newTestEngine(t, "http://unused.example")
 
-	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:new", "aaa", nil))
+	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:new", "aaa", nil, "", ""))
 	var r repo
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:new").Error)
 	require.Equal(t, statePending, r.State)
 
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:new").
 		Updates(map[string]any{"state": stateActive, "rev": "aaa"}).Error)
-	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:new", "bbb", nil))
+	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:new", "bbb", nil, "", ""))
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:new").Error)
 	require.Equal(t, statePending, r.State)
 }
@@ -249,7 +249,7 @@ func TestEngineNotifyWriteSyncingMarksDirty(t *testing.T) {
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
 		Update("state", stateSyncing).Error)
 
-	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:alice", "zzz", nil))
+	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:alice", "zzz", nil, "", ""))
 
 	var r repo
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
@@ -269,7 +269,10 @@ func TestEngineNotifyWriteAlreadyBehindHash(t *testing.T) {
 		Updates(map[string]any{"state": stateActive, "rev": "aaa"}).Error)
 
 	notifyHash := []byte{0x01, 0x02}
-	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:alice", "aaa", notifyHash))
+	require.NoError(
+		t,
+		e.NotifyWrite(t.Context(), space, "did:plc:alice", "aaa", notifyHash, "", ""),
+	)
 
 	var r repo
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
@@ -976,7 +979,7 @@ func TestEngineNotifyWriteBehindHashSameRev(t *testing.T) {
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
 		Updates(map[string]any{"state": stateActive, "rev": "aaa"}).Error)
 
-	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:alice", "", []byte{0x01}))
+	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:alice", "", []byte{0x01}, "", ""))
 
 	var r repo
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
@@ -994,7 +997,7 @@ func TestEngineNotifyWriteAlreadyCurrent(t *testing.T) {
 	require.NoError(t, db.Model(&repo{}).Where("did = ?", "did:plc:alice").
 		Updates(map[string]any{"state": stateActive, "rev": "aaa"}).Error)
 
-	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:alice", "aaa", nil))
+	require.NoError(t, e.NotifyWrite(t.Context(), space, "did:plc:alice", "aaa", nil, "", ""))
 
 	var r repo
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
@@ -1018,7 +1021,7 @@ func TestEngineNotifyWriteConcurrentUnknownRepo(t *testing.T) {
 	for range concurrency {
 		go func() {
 			<-start
-			errs <- e.NotifyWrite(context.Background(), space, "did:plc:racer", "aaa", nil)
+			errs <- e.NotifyWrite(context.Background(), space, "did:plc:racer", "aaa", nil, "", "")
 		}()
 	}
 	close(start)
@@ -1420,4 +1423,163 @@ func TestEngineCheckLeavesCurrentReposActive(t *testing.T) {
 	var r repo
 	require.NoError(t, db.First(&r, "space = ? AND did = ?", space, repoDID).Error)
 	require.Equal(t, stateActive, r.State)
+}
+
+func TestEngineObserveSpaceRev(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
+	e, _, db := newTestEngine(t, "http://unused.example")
+	state := func() spaceSync {
+		t.Helper()
+		var s spaceSync
+		require.NoError(t, db.First(&s, "space = ?", space).Error)
+		return s
+	}
+	notify := func(spaceRev, prev syntax.TID) {
+		t.Helper()
+		require.NoError(
+			t,
+			e.NotifyWrite(t.Context(), space, "did:plc:a", "aaa", nil, spaceRev, prev),
+		)
+	}
+
+	// The space's first write has nothing before it, so there is no gap.
+	notify("3l000000000a2", "")
+	require.Equal(t, spaceSync{Space: space, Rev: "3l000000000a2", Seen: "3l000000000a2"}, state())
+
+	// A write that follows the revision we hold advances it.
+	notify("3l000000000b2", "3l000000000a2")
+	require.Equal(t, syntax.TID("3l000000000b2"), state().Rev)
+	require.False(t, state().Stale)
+
+	// A duplicate or reordered notification changes nothing.
+	notify("3l000000000a2", "")
+	require.Equal(t, syntax.TID("3l000000000b2"), state().Rev)
+
+	// A previous revision we don't hold means a notification was missed: the
+	// held revision stays put for the catch-up to list since.
+	notify("3l000000000d2", "3l000000000c2")
+	require.Equal(t, spaceSync{
+		Space: space, Rev: "3l000000000b2", Seen: "3l000000000d2", Stale: true,
+	}, state())
+
+	// While stale, later notifications only raise the newest seen revision.
+	notify("3l000000000e2", "3l000000000d2")
+	require.Equal(t, syntax.TID("3l000000000b2"), state().Rev)
+	require.Equal(t, syntax.TID("3l000000000e2"), state().Seen)
+}
+
+func TestEngineObserveSpaceRevUnknownSpaceNeedsListing(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
+	e, _, db := newTestEngine(t, "http://unused.example")
+
+	require.NoError(t, e.NotifyWrite(
+		t.Context(), space, "did:plc:a", "aaa", nil, "3l000000000b2", "3l000000000a2"))
+	var s spaceSync
+	require.NoError(t, db.First(&s, "space = ?", space).Error)
+	require.True(t, s.Stale)
+	require.Empty(t, s.Rev)
+
+	// A host that sends no space revisions never creates catch-up state.
+	other := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s2")
+	require.NoError(t, e.NotifyWrite(t.Context(), other, "did:plc:a", "aaa", nil, "", ""))
+	var n int64
+	require.NoError(t, db.Model(&spaceSync{}).Where("space = ?", other).Count(&n).Error)
+	require.Zero(t, n)
+}
+
+// TestEngineCatchUpListsSince pins the gap-recovery path: a stale space lists
+// the repos written since the revision we hold, queues the ones behind, and
+// records the space revision the listing was taken at.
+func TestEngineCatchUpListsSince(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/xrpc/network.habitat.space.listRepos", r.URL.Path)
+		require.Equal(t, "3l000000000b2", r.URL.Query().Get("cursor"))
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
+			Cursor: "3l000000000e2",
+			Repos: []habitat.NetworkHabitatSpaceListReposRepo{
+				{Did: "did:plc:missed", Rev: "3l000000000d2"},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	e, _, db := newTestEngine(t, srv.URL)
+	require.NoError(t, db.Create(&spaceSync{
+		Space: space, Rev: "3l000000000b2", Seen: "3l000000000e2", Stale: true,
+	}).Error)
+
+	require.NoError(t, e.CatchUp(t.Context(), space))
+
+	var r repo
+	require.NoError(t, db.First(&r, "did = ?", "did:plc:missed").Error)
+	require.Equal(t, statePending, r.State)
+	var s spaceSync
+	require.NoError(t, db.First(&s, "space = ?", space).Error)
+	require.Equal(t, syntax.TID("3l000000000e2"), s.Rev)
+	require.False(t, s.Stale)
+}
+
+// TestEngineCatchUpStaysStaleBehindSeen pins that a catch-up whose listing is
+// older than a notification that arrived meanwhile doesn't declare the space
+// caught up.
+func TestEngineCatchUpStaysStaleBehindSeen(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
+			Cursor: "3l000000000c2",
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	e, _, db := newTestEngine(t, srv.URL)
+	require.NoError(t, db.Create(&spaceSync{
+		Space: space, Rev: "3l000000000b2", Seen: "3l000000000e2", Stale: true,
+	}).Error)
+
+	require.NoError(t, e.CatchUp(t.Context(), space))
+
+	var s spaceSync
+	require.NoError(t, db.First(&s, "space = ?", space).Error)
+	require.Equal(t, syntax.TID("3l000000000c2"), s.Rev)
+	require.True(t, s.Stale)
+}
+
+// TestEngineCatchUpFallsBackToFullListing pins the fallback when the host
+// rejects the since cursor.
+func TestEngineCatchUpFallsBackToFullListing(t *testing.T) {
+	t.Parallel()
+
+	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("cursor") != "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
+			Cursor: "3l000000000e2",
+			Repos:  []habitat.NetworkHabitatSpaceListReposRepo{{Did: "did:plc:a", Rev: "aaa"}},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	e, _, db := newTestEngine(t, srv.URL)
+	require.NoError(t, db.Create(&spaceSync{
+		Space: space, Rev: "3l000000000b2", Seen: "3l000000000e2", Stale: true,
+	}).Error)
+
+	require.NoError(t, e.CatchUp(t.Context(), space))
+
+	var s spaceSync
+	require.NoError(t, db.First(&s, "space = ?", space).Error)
+	require.Equal(t, syntax.TID("3l000000000e2"), s.Rev)
+	require.False(t, s.Stale)
 }
