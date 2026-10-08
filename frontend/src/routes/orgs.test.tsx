@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import type { DidString } from "@atproto/lex";
 import { SpaceRef } from "@atproto/syntax";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
@@ -11,12 +12,12 @@ import {
 } from "@/test/render";
 import { server } from "@/test/server";
 
-const membersSpace = (did: string) =>
+const membersSpace = (did: DidString) =>
   new SpaceRef(did, "community.opensocial.members", "self").toString();
 
-const ORG = "did:plc:ewvi7nxzyoun6zhxrhs64oiz";
+const ORG = "did:plc:ewvi7nxzyoun6zhxrhs64oiz" as DidString;
 
-function mockOrgs(orgs: string[]) {
+function mockOrgs(orgs: DidString[]) {
   server.use(
     xrpcHandler("com.atproto.space.listSpaces", () =>
       HttpResponse.json({
