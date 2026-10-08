@@ -35,7 +35,7 @@ func newTestLoginProvider(t *testing.T) *PasswordLoginProvider {
 
 func TestLoginProvider_Authorize(t *testing.T) {
 	p := newTestLoginProvider(t)
-	redirect, state, err := p.Authorize(context.Background(), "did:web:alice.example.com")
+	redirect, _, state, err := p.Authorize(context.Background(), "did:web:alice.example.com")
 	require.NoError(t, err)
 	require.Nil(t, state)
 	// loginHint is resolved from a DID to a handle (from the dummy directory)
@@ -49,7 +49,7 @@ func TestLoginProvider_Authorize(t *testing.T) {
 
 func TestLoginProvider_Authorize_EmptyLoginHint(t *testing.T) {
 	p := newTestLoginProvider(t)
-	redirect, state, err := p.Authorize(context.Background(), "")
+	redirect, _, state, err := p.Authorize(context.Background(), "")
 	require.NoError(t, err)
 	require.Nil(t, state)
 	require.Equal(t, "https://pear.example.com/ui/login/habitat?handle=", redirect)
