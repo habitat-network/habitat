@@ -1,5 +1,6 @@
 import { Context, Effect, Layer, Option } from "effect";
 import type { StoreError } from "./errors";
+import type { DidString, SpaceRefString } from "@atproto/syntax";
 import type { RepoState, SpaceState } from "./types";
 
 /** Host-provided durable sync state. Implementations should make each call atomic. */
@@ -7,34 +8,36 @@ export class SyncStore extends Context.Service<
   SyncStore,
   {
     readonly getSpace: (
-      space: string,
+      space: SpaceRefString,
     ) => Effect.Effect<Option.Option<SpaceState>, StoreError>;
     readonly putSpace: (state: SpaceState) => Effect.Effect<void, StoreError>;
     /** Also drops every RepoState of the space. */
-    readonly removeSpace: (space: string) => Effect.Effect<void, StoreError>;
+    readonly removeSpace: (
+      space: SpaceRefString,
+    ) => Effect.Effect<void, StoreError>;
     /** Spaces with `nextDueAt <= now`, oldest first. */
     readonly dueSpaces: (
       now: number,
       limit: number,
     ) => Effect.Effect<ReadonlyArray<SpaceState>, StoreError>;
     readonly getRepo: (
-      space: string,
-      did: string,
+      space: SpaceRefString,
+      did: DidString,
     ) => Effect.Effect<Option.Option<RepoState>, StoreError>;
     readonly listRepoDids: (
-      space: string,
-    ) => Effect.Effect<ReadonlyArray<string>, StoreError>;
+      space: SpaceRefString,
+    ) => Effect.Effect<ReadonlyArray<DidString>, StoreError>;
     readonly putRepo: (state: RepoState) => Effect.Effect<void, StoreError>;
     readonly removeRepo: (
-      space: string,
-      did: string,
+      space: SpaceRefString,
+      did: DidString,
     ) => Effect.Effect<void, StoreError>;
   }
 >()("internal/spaceSync/SyncStore") {
   /** Process-local store for tests and ephemeral syncers. */
   static readonly memory = Layer.sync(SyncStore, () => {
     const spaces = new Map<string, SpaceState>();
-    const repos = new Map<string, Map<string, RepoState>>();
+    const repos = new Map<string, Map<DidString, RepoState>>();
     return SyncStore.of({
       getSpace: (space) =>
         Effect.sync(() => Option.fromNullishOr(spaces.get(space))),

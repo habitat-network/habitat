@@ -1,91 +1,94 @@
-import { jsonToLex } from "@atproto/lex";
-import { Effect, Schema } from "effect";
-import { InvalidSpaceRefError, XrpcError } from "./errors";
+import {
+  type Agent,
+  type InferOutput,
+  type Schema,
+  type XrpcFailure,
+  XrpcInvalidResponseError,
+  XrpcResponseError,
+  jsonToLex,
+} from "@atproto/lex";
+import {
+  SpaceRef,
+  isSpaceRefString,
+  type DidString,
+  type NsidString,
+  type RecordKeyString,
+  type SpaceRefString,
+} from "@atproto/syntax";
+import { Effect } from "effect";
+import { InvalidSpaceRefError, WireDecodeError } from "./errors";
 
-// Wire shapes follow the upstream alpha lexicons (../atproto/lexicons/com/atproto/space),
-// not habitat's lexicons/, which predate spaceRev/repoRev and HTTP message signatures.
-
-const Bytes = Schema.Uint8Array;
-
-export const SignedCommit = Schema.Struct({
-  ver: Schema.Literal(1),
-  hash: Bytes,
-  ikm: Bytes,
-  sig: Bytes,
-  mac: Bytes,
-  rev: Schema.String,
+/**
+ * An xrpc Agent for `service` that adds the space signature headers from
+ * `sign` to every request. Redirects are refused: the signature is addressed
+ * to one host and must not be replayed to another.
+ */
+export const signedAgent = (
+  service: string,
+  sign: () => Promise<Record<string, string>>,
+): Agent => ({
+  fetchHandler: async (path, init) => {
+    const headers = new Headers(init.headers);
+    for (const [name, value] of Object.entries(await sign()))
+      headers.set(name, value);
+    return fetch(new URL(path, service), {
+      ...init,
+      headers,
+      redirect: "error",
+    });
+  },
 });
 
-export const ListReposRepo = Schema.Struct({
-  did: Schema.String,
-  repoRev: Schema.String,
-  spaceRev: Schema.String,
-  hash: Bytes,
-});
+/** HTTP status of a failed xrpc call; 0 when no response arrived. */
+export const failureStatus = (failure: XrpcFailure): number =>
+  failure instanceof XrpcResponseError ||
+  failure instanceof XrpcInvalidResponseError
+    ? failure.response.status
+    : 0;
 
-export const ListReposOutput = Schema.Struct({
-  repos: Schema.Array(ListReposRepo),
-  cursor: Schema.optional(Schema.String),
-});
-
-export const OpEntry = Schema.Struct({
-  rev: Schema.String,
-  collection: Schema.String,
-  rkey: Schema.String,
-  cid: Schema.NullOr(Schema.String),
-  prev: Schema.NullOr(Schema.String),
-  value: Schema.optional(Schema.Unknown),
-});
-
-export const ListRepoOpsOutput = Schema.Struct({
-  ops: Schema.Array(OpEntry),
-  commit: Schema.optional(SignedCommit),
-  cursor: Schema.optional(Schema.String),
-});
-
-export const RegisterNotifyOutput = Schema.Struct({ expiresAt: Schema.String });
-
-export const GetSpaceCredentialOutput = Schema.Struct({
-  credential: Schema.String,
-});
-
-export const NotifyWriteInput = Schema.Struct({
-  space: Schema.String,
-  repo: Schema.String,
-  repoRev: Schema.String,
-  hash: Bytes,
-  spaceRev: Schema.optional(Schema.String),
-  prevSpaceRev: Schema.optional(Schema.String),
-});
-export type NotifyWriteInput = typeof NotifyWriteInput.Type;
-
-export const NotifySpaceDeletedInput = Schema.Struct({ space: Schema.String });
-
-/** Convert atproto JSON (`{$bytes}`, `{$link}`) into lex values before Schema decoding. */
-export const lexJson = (json: unknown): unknown =>
-  jsonToLex(json as Parameters<typeof jsonToLex>[0]);
-
-export const invalidResponse =
-  (method: string) =>
-  (error: Schema.SchemaError): XrpcError =>
-    new XrpcError({
-      method,
-      status: 200,
-      error: "InvalidResponse",
-      message: error.message,
+/**
+ * Validate inbound atproto JSON (`{$bytes}`, `{$link}`) against a lexicon
+ * schema, converting it to lex values first.
+ */
+export const decodeLex =
+  <S extends Schema>(schema: S) =>
+  (json: unknown): Effect.Effect<InferOutput<S>, WireDecodeError> =>
+    Effect.suspend(() => {
+      const result = schema.safeParse(
+        jsonToLex(json as Parameters<typeof jsonToLex>[0]),
+      );
+      return result.success
+        ? Effect.succeed(result.value as InferOutput<S>)
+        : Effect.fail(new WireDecodeError({ message: result.reason.message }));
     });
 
-const SPACE_REF =
-  /^at:\/\/(did:[a-z]+:[a-zA-Z0-9._:%-]+)\/space\/([a-zA-Z][a-zA-Z0-9.-]*)\/([A-Za-z0-9._:~-]{1,512})$/;
+/**
+ * Narrow an untrusted string to a SpaceRefString. `isSpaceRefString` accepts anything
+ * round-trippable; `SpaceRef.parse` is the exact re-check.
+ */
+export const toSpaceRef = (
+  space: string,
+): Effect.Effect<SpaceRefString, InvalidSpaceRefError> =>
+  isSpaceRefString(space) && SpaceRef.parse(space).toString() === space
+    ? Effect.succeed(space)
+    : Effect.fail(new InvalidSpaceRefError({ space }));
 
 export const parseSpaceRef = (
   space: string,
 ): Effect.Effect<
-  { authority: string; type: string; skey: string },
+  { authority: DidString; type: NsidString; skey: RecordKeyString },
   InvalidSpaceRefError
-> => {
-  const match = SPACE_REF.exec(space);
-  return match
-    ? Effect.succeed({ authority: match[1], type: match[2], skey: match[3] })
-    : Effect.fail(new InvalidSpaceRefError({ space }));
-};
+> =>
+  Effect.flatMap(toSpaceRef(space), (ref) =>
+    Effect.try({
+      try: () => {
+        const parsed = SpaceRef.parse(ref);
+        return {
+          authority: parsed.spaceDid,
+          type: parsed.spaceType,
+          skey: parsed.skey,
+        };
+      },
+      catch: () => new InvalidSpaceRefError({ space }),
+    }),
+  );

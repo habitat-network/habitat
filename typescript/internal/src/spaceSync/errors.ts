@@ -5,6 +5,12 @@ export class InvalidSpaceRefError extends Schema.TaggedError<InvalidSpaceRefErro
   { space: Schema.String },
 ) {}
 
+/** A body did not match its lexicon schema. */
+export class WireDecodeError extends Schema.TaggedError<WireDecodeError>()(
+  "WireDecodeError",
+  { message: Schema.String },
+) {}
+
 export class IdentityError extends Schema.TaggedError<IdentityError>()(
   "IdentityError",
   {

@@ -1,27 +1,20 @@
+import type { SpaceRefString } from "@atproto/syntax";
 import { P256Keypair } from "@atproto/crypto";
+import { type XrpcFailure, XrpcResponseError, xrpcSafe } from "@atproto/lex";
+import { com } from "api";
 import {
   createSpaceSigHeaders,
   parseSpaceToken,
   spaceHostAud,
 } from "@atproto/space";
-import {
-  Cache,
-  Clock,
-  Context,
-  Duration,
-  Effect,
-  Exit,
-  Layer,
-  Predicate,
-  Schema,
-} from "effect";
+import { Cache, Clock, Context, Duration, Effect, Exit, Layer } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { CredentialError, errorMessage } from "./errors";
 import { Identity } from "./Identity";
-import { GetSpaceCredentialOutput, parseSpaceRef } from "./wire";
+import { parseSpaceRef, signedAgent } from "./wire";
 
 export interface SpaceCredential {
-  readonly space: string;
+  readonly space: SpaceRefString;
   readonly token: string;
   /** Fresh P-256 key the credential is bound to (`cnf.kid`). */
   readonly key: P256Keypair;
@@ -37,10 +30,12 @@ export interface SpaceCredential {
 export class DelegationSource extends Context.Service<
   DelegationSource,
   {
-    readonly issue: (space: string) => Effect.Effect<string, CredentialError>;
+    readonly issue: (
+      space: SpaceRefString,
+    ) => Effect.Effect<string, CredentialError>;
     /** Client attestation JWT for spaces that gate on app identity. */
     readonly attestation?: (
-      space: string,
+      space: SpaceRefString,
       aud: string,
     ) => Effect.Effect<string, CredentialError>;
   }
@@ -57,25 +52,24 @@ const REASONS: Record<string, CredentialError["reason"]> = {
 };
 
 const credentialFailure = (
-  space: string,
-  status: number,
-  body: unknown,
+  space: SpaceRefString,
+  failure: XrpcFailure,
 ): CredentialError => {
-  const code =
-    Predicate.hasProperty(body, "error") && Predicate.isString(body.error)
-      ? body.error
-      : undefined;
-  const message =
-    Predicate.hasProperty(body, "message") && Predicate.isString(body.message)
-      ? body.message
-      : `HTTP ${status}`;
+  // Only an error response from the authority says anything about access;
+  // network failures and malformed responses are transient.
+  if (!(failure instanceof XrpcResponseError))
+    return new CredentialError({
+      space,
+      reason: "Transport",
+      message: failure.message,
+    });
   const reason =
-    (code === undefined ? undefined : REASONS[code]) ??
-    (status >= 500 ? "Transport" : "NotAuthorized");
+    REASONS[failure.error] ??
+    (failure.status >= 500 ? "Transport" : "NotAuthorized");
   return new CredentialError({
     space,
     reason,
-    message: code ? `${code}: ${message}` : message,
+    message: `${failure.error}: ${failure.message}`,
   });
 };
 
@@ -83,9 +77,9 @@ export class Credentials extends Context.Service<
   Credentials,
   {
     readonly get: (
-      space: string,
+      space: SpaceRefString,
     ) => Effect.Effect<SpaceCredential, CredentialError>;
-    readonly invalidate: (space: string) => Effect.Effect<void>;
+    readonly invalidate: (space: SpaceRefString) => Effect.Effect<void>;
   }
 >()("internal/spaceSync/Credentials") {
   static readonly layer = Layer.effect(
@@ -96,7 +90,9 @@ export class Credentials extends Context.Service<
       const delegation = yield* DelegationSource;
       const refreshLeadMs = Duration.toMillis(config.credentialRefreshLead);
 
-      const mint = Effect.fn("Credentials.mint")(function* (space: string) {
+      const mint = Effect.fn("Credentials.mint")(function* (
+        space: SpaceRefString,
+      ) {
         const { authority } = yield* parseSpaceRef(space).pipe(
           Effect.mapError(
             () =>
@@ -107,71 +103,7 @@ export class Credentials extends Context.Service<
               }),
           ),
         );
-        const host = yield* identity
-          .resolve(authority)
-          .pipe(
-            Effect.mapError(
-              (e) =>
-                new CredentialError({
-                  space,
-                  reason: "Transport",
-                  message: e.message,
-                }),
-            ),
-          );
-        const token = yield* delegation.issue(space);
-        const attestation = delegation.attestation
-          ? yield* delegation.attestation(space, spaceHostAud(authority))
-          : undefined;
-        const response = yield* Effect.tryPromise({
-          try: async (signal) => {
-            // A new keypair per credential, per the proposal.
-            const key = await P256Keypair.create();
-            const headers = await createSpaceSigHeaders(key, {
-              authorization: `Bearer ${token}`,
-            });
-            const res = await fetch(
-              new URL(
-                "/xrpc/com.atproto.space.getSpaceCredential",
-                host.spaceHost,
-              ),
-              {
-                method: "POST",
-                redirect: "error",
-                signal,
-                headers: {
-                  ...headers,
-                  "content-type": "application/json",
-                  accept: "application/json",
-                },
-                body: JSON.stringify({
-                  space,
-                  ...(attestation ? { clientAttestation: attestation } : {}),
-                }),
-              },
-            );
-            return {
-              key,
-              status: res.status,
-              body: (await res.json().catch(() => undefined)) as unknown,
-            };
-          },
-          catch: (error) =>
-            new CredentialError({
-              space,
-              reason: "Transport",
-              message: errorMessage(error),
-            }),
-        });
-        if (response.status !== 200)
-          return yield* credentialFailure(
-            space,
-            response.status,
-            response.body,
-          );
-        const { credential } = yield* Schema.decodeUnknownEffect(
-          GetSpaceCredentialOutput,
-        )(response.body).pipe(
+        const host = yield* identity.resolve(authority).pipe(
           Effect.mapError(
             (e) =>
               new CredentialError({
@@ -181,6 +113,33 @@ export class Credentials extends Context.Service<
               }),
           ),
         );
+        const token = yield* delegation.issue(space);
+        const attestation = delegation.attestation
+          ? yield* delegation.attestation(space, spaceHostAud(authority))
+          : undefined;
+        // A new keypair per credential, per the proposal.
+        const key = yield* Effect.promise(() => P256Keypair.create());
+        const agent = signedAgent(host.spaceHost, () =>
+          createSpaceSigHeaders(key, { authorization: `Bearer ${token}` }),
+        );
+        const result = yield* Effect.tryPromise({
+          try: (signal) =>
+            xrpcSafe(agent, com.atproto.space.getSpaceCredential.main, {
+              body: {
+                space,
+                ...(attestation ? { clientAttestation: attestation } : {}),
+              },
+              signal,
+            }),
+          catch: (error) =>
+            new CredentialError({
+              space,
+              reason: "Transport",
+              message: errorMessage(error),
+            }),
+        });
+        if (!result.success) return yield* credentialFailure(space, result);
+        const { credential } = result.body;
         const exp = yield* Effect.try({
           try: () => parseSpaceToken("credential", credential).payload.exp,
           catch: (error) =>
@@ -194,7 +153,7 @@ export class Credentials extends Context.Service<
         const value: SpaceCredential = {
           space,
           token: credential,
-          key: response.key,
+          key,
           expiresAt: exp * 1000,
         };
         return {

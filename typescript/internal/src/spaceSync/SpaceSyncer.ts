@@ -1,3 +1,5 @@
+import { SpaceRef, type DidString, type SpaceRefString } from "@atproto/syntax";
+import type { com } from "api";
 import {
   Clock,
   Context,
@@ -20,7 +22,7 @@ import { type PassKind, recordPassFailure, runSpacePass } from "./spacePass";
 import { SyncSink } from "./SyncSink";
 import { SyncStore } from "./SyncStore";
 import type { SyncEvent } from "./types";
-import { type NotifyWriteInput, parseSpaceRef } from "./wire";
+import { toSpaceRef } from "./wire";
 
 const STRENGTH: Record<PassKind, number> = {
   CatchUp: 0,
@@ -34,22 +36,24 @@ export class SpaceSyncer extends Context.Service<
     readonly watch: (
       space: string,
     ) => Effect.Effect<void, InvalidSpaceRefError | StoreError>;
-    readonly unwatch: (space: string) => Effect.Effect<void, StoreError>;
-    readonly notifyWrite: (
-      input: NotifyWriteInput,
+    readonly unwatch: (
+      space: SpaceRefString,
     ) => Effect.Effect<void, StoreError>;
+    readonly notifyWrite: (
+      input: com.atproto.space.notifyWrite.$InputBody,
+    ) => Effect.Effect<void, InvalidSpaceRefError | StoreError>;
     readonly notifySpaceDeleted: (
-      space: string,
+      space: SpaceRefString,
     ) => Effect.Effect<void, StoreError | SinkError>;
     readonly getBlob: (
-      space: string,
-      did: string,
+      space: SpaceRefString,
+      did: DidString,
       cid: string,
     ) => Effect.Effect<Uint8Array, SpaceCallError>;
     /** Committed batches (Reset carries no records), for fan-out such as SSE. */
     readonly events: Stream.Stream<SyncEvent>;
     readonly activeSpaces: Effect.Effect<number>;
-    readonly awaitIdle: (space: string) => Effect.Effect<void>;
+    readonly awaitIdle: (space: SpaceRefString) => Effect.Effect<void>;
   }
 >()("internal/spaceSync/SpaceSyncer") {
   static readonly layer = Layer.effect(
@@ -73,7 +77,7 @@ export class SpaceSyncer extends Context.Service<
       const running = new Map<string, number>();
       let nextToken = 0;
 
-      const deleteSpaceData = (space: string) =>
+      const deleteSpaceData = (space: SpaceRefString) =>
         Effect.gen(function* () {
           pending.delete(space);
           yield* sink.apply({ _tag: "SpaceDeleted", space });
@@ -81,7 +85,10 @@ export class SpaceSyncer extends Context.Service<
           yield* PubSub.publish(events, { _tag: "SpaceDeleted", space });
         }).pipe(Effect.uninterruptible);
 
-      const drain = (space: string, token: number): Effect.Effect<void> =>
+      const drain = (
+        space: SpaceRefString,
+        token: number,
+      ): Effect.Effect<void> =>
         Effect.gen(function* () {
           while (true) {
             // Take the next trigger or release `running` in the same synchronous
@@ -118,7 +125,7 @@ export class SpaceSyncer extends Context.Service<
           ),
         );
 
-      const enqueue = (space: string, kind: PassKind) =>
+      const enqueue = (space: SpaceRefString, kind: PassKind) =>
         Effect.gen(function* () {
           const token = yield* Effect.sync(() => {
             const prev = pending.get(space);
@@ -135,7 +142,7 @@ export class SpaceSyncer extends Context.Service<
             );
         });
 
-      const stop = (space: string) =>
+      const stop = (space: SpaceRefString) =>
         Effect.gen(function* () {
           pending.delete(space);
           yield* FiberMap.remove(fibers, space);
@@ -173,27 +180,30 @@ export class SpaceSyncer extends Context.Service<
       );
 
       return SpaceSyncer.of({
-        watch: Effect.fn("SpaceSyncer.watch")(function* (space: string) {
-          const { authority } = yield* parseSpaceRef(space);
+        watch: Effect.fn("SpaceSyncer.watch")(function* (untrusted: string) {
+          const space = yield* toSpaceRef(untrusted);
           if (Option.isNone(yield* store.getSpace(space))) {
             const now = yield* Clock.currentTimeMillis;
             yield* store.putSpace({
               space,
-              authority,
+              authority: SpaceRef.parse(space).spaceDid,
               nextDueAt: now + Duration.toMillis(config.backoffCap),
               failures: 0,
             });
           }
           yield* enqueue(space, "Full");
         }),
-        unwatch: Effect.fn("SpaceSyncer.unwatch")(function* (space: string) {
+        unwatch: Effect.fn("SpaceSyncer.unwatch")(function* (
+          space: SpaceRefString,
+        ) {
           yield* stop(space);
           yield* store.removeSpace(space);
         }),
         notifyWrite: Effect.fn("SpaceSyncer.notifyWrite")(function* (
-          input: NotifyWriteInput,
+          input: com.atproto.space.notifyWrite.$InputBody,
         ) {
-          const state = yield* store.getSpace(input.space);
+          const space = yield* toSpaceRef(input.space);
+          const state = yield* store.getSpace(space);
           if (Option.isNone(state)) return;
           // Never trusted as a checkpoint: it only decides whether a catch-up pass is worth running.
           if (
@@ -202,10 +212,10 @@ export class SpaceSyncer extends Context.Service<
             input.spaceRev <= state.value.spaceRev
           )
             return;
-          yield* enqueue(input.space, "CatchUp");
+          yield* enqueue(space, "CatchUp");
         }),
         notifySpaceDeleted: Effect.fn("SpaceSyncer.notifySpaceDeleted")(
-          function* (space: string) {
+          function* (space: SpaceRefString) {
             if (Option.isNone(yield* store.getSpace(space))) return;
             yield* stop(space);
             yield* deleteSpaceData(space);

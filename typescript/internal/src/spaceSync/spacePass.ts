@@ -5,6 +5,7 @@ import { syncRepo } from "./repoSync";
 import { SpaceClient } from "./SpaceClient";
 import { SyncSink } from "./SyncSink";
 import { SyncStore } from "./SyncStore";
+import type { DidString, SpaceRefString } from "@atproto/syntax";
 import type { ListedRepo, SyncEvent } from "./types";
 
 export type PassKind = "CatchUp" | "Maintenance" | "Full";
@@ -25,7 +26,7 @@ const LIST_REPOS = "com.atproto.space.listRepos";
  * space never overlap.
  */
 export const runSpacePass = Effect.fn("runSpacePass")(function* (
-  space: string,
+  space: SpaceRefString,
   kind: PassKind,
 ) {
   const store = yield* SyncStore;
@@ -61,7 +62,7 @@ export const runSpacePass = Effect.fn("runSpacePass")(function* (
   // Walk the writer set. Entries must be strictly ascending by spaceRev and each
   // non-empty page's cursor must equal its last entry; a writer that reappears
   // keeps only its newest listing.
-  const listed = new Map<string, ListedRepo>();
+  const listed = new Map<DidString, ListedRepo>();
   let cursor = full ? undefined : state.spaceRev;
   while (true) {
     const page = yield* client.listRepos(space, cursor);
@@ -170,7 +171,7 @@ export const runSpacePass = Effect.fn("runSpacePass")(function* (
 });
 
 /** Record a failed pass on the space and schedule a backed-off retry. Never fails. */
-export const recordPassFailure = (space: string, error: unknown) =>
+export const recordPassFailure = (space: SpaceRefString, error: unknown) =>
   Effect.gen(function* () {
     const store = yield* SyncStore;
     const config = yield* SpaceSyncConfig;

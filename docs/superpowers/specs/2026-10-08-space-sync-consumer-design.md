@@ -85,7 +85,7 @@ notifications.
 | `Identity` | service, default layer | Resolve a DID to its PDS endpoint, `#atproto` key, and space host endpoint + space key (`#atproto_space_host` / `#atproto_space` with fallbacks to `#atproto_pds` / `#atproto`; a present-but-malformed entry is an error, not a fallback). Default layer uses `@atproto/identity`'s `IdResolver`. |
 | `DelegationSource` | service, **host-provided** | `issue(space) → Effect<string, CredentialError>`: returns a delegation token from `com.atproto.space.getDelegationToken` using whichever OAuth session the host chooses (e.g. authority first, then other members). Optional `attestation(space, aud)` hook returning a client-attestation JWT. |
 | `Credentials` | service | Bounded `Cache` keyed by space, TTL tied to the credential's `exp` (refresh 30 s before). On miss: fresh `P256Keypair`, `DelegationSource.issue`, `getSpaceCredential` to the authority's space host with the `atproto-space` HTTP signature over `("authorization")`. Exposes `get(space)` and `invalidate(space)`. |
-| `SpaceClient` | service | Signed XRPC calls: `listRepos`, `registerNotify`, `listRepoOps`, `getRepo` (streaming body), `getBlob`. Uses `@atproto/lex-client` `Client` with the generated `api` lexicon bindings and a signing `fetch` that sets `Authorization: Atproto-Space <cred>`, `Atproto-Space-Audience` (repo DID for repo calls, authority DID for host calls) and the signature headers. Each call is `Effect.tryPromise` with the fiber's `AbortSignal`. Maps error bodies to `XrpcError`. |
+| `SpaceClient` | service | Signed XRPC calls: `listRepos`, `registerNotify`, `listRepoOps`, `getRepo` (streaming body), `getBlob`. Uses `@atproto/lex` `xrpc` with the generated `api` lexicon bindings and a signing `Agent` whose `fetchHandler` sets `Authorization: Atproto-Space <cred>`, `Atproto-Space-Audience` (repo DID for repo calls, authority DID for host calls) and the signature headers, and refuses redirects. Each call is `Effect.tryPromise` with the fiber's `AbortSignal`. Maps lex `XrpcFailure`s to `XrpcError` (or `CredentialError` for `SpaceDeleted`). |
 | `RepoSync` | internal module | Sync one repo (incremental, else recovery), deliver one batch to the sink, then persist repo state. |
 | `SpacePass` | internal module | One reconcile pass over a space (credential, registration, `listRepos` walk, repo fan-out, pruning, checkpoint). |
 | `SpaceSyncer` | service, public | Trigger intake, on-demand per-space fibers, scheduler, event `PubSub`. |
@@ -361,16 +361,21 @@ dev dependency `@effect/vitest`.
 
 These supersede the sections above where they conflict.
 
-1. **Wire format comes from upstream, not `lexicons/`.** Habitat's
-   `lexicons/com/atproto/space/*.json` (and the generated `typescript/api`)
-   predate the 2026-10-01 alpha. For example, `listRepos` entries have `rev`
-   with no `spaceRev`, and `getSpaceCredential` still describes DPoP. The library
-   therefore does not use `@atproto/lex-client` + `api` bindings. `SpaceClient`
-   makes signed `fetch` calls and decodes every response with local Effect
-   `Schema`s (`wire.ts`) matching the upstream alpha lexicons in
-   `../atproto/lexicons/com/atproto/space`. JSON goes through `jsonToLex` first
-   so `$bytes`/`$link` become `Uint8Array`/`Cid`. Pear's Go space host follows the
-   older lexicons and is not a target of this library until it is updated.
+1. **Wire format comes from the generated `api` package.** Habitat's
+   `lexicons/com/atproto/space/*.json` were brought up to the 2026-10-01 alpha
+   in #1140, so `typescript/api` is the single source of wire shapes. Code uses
+   the generated types and schemas directly (`com.atproto.space.listRepos.$OutputBody`,
+   `com.atproto.space.notifyWrite.$input.schema`, …) with no local aliases or
+   restated Effect `Schema`s. Outbound calls go through `@atproto/lex`'s `xrpc` /
+   `xrpcSafe` on a signing `Agent` (`signedAgent` in `wire.ts`), so lex builds
+   requests and validates responses. `getRepo` is the one exception: it builds
+   its query from the lexicon's params schema and parses errors with
+   `XrpcResponse.fromFetchResponse`, but reads the body itself so the CAR
+   streams instead of being buffered. Inbound notification bodies are checked
+   with `decodeLex(schema)` (`jsonToLex` then the lexicon schema's `safeParse`).
+   Lexicon validation is strict: revs must be valid TIDs and CIDs valid CIDs.
+   Space refs and DIDs are the branded `SpaceRefString` / `DidString` from
+   `@atproto/syntax` rather than plain `string` aliases.
 2. **Timestamps are epoch milliseconds** (`number`) read from `Clock`, not
    `DateTime.Utc`. This keeps host store rows trivial and works with `TestClock`.
 3. **`events` carries `SyncEvent`, not `RepoBatch`.** A `Reset`'s record stream is

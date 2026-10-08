@@ -1,38 +1,32 @@
-import type { DidString } from "@atproto/syntax";
-import { createSpaceSigHeaders } from "@atproto/space";
 import {
-  Context,
-  Effect,
-  Layer,
-  Predicate,
-  Schedule,
-  Schema,
-  type Scope,
-} from "effect";
+  type Agent,
+  type CidString,
+  type Procedure,
+  type Query,
+  type TidString,
+  XrpcResponse,
+  asXrpcFailure,
+  xrpc,
+} from "@atproto/lex";
+import type { DidString, SpaceRefString } from "@atproto/syntax";
+import { createSpaceSigHeaders } from "@atproto/space";
+import { com } from "api";
+import { Context, Effect, Layer, Schedule, type Scope } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { Credentials } from "./Credentials";
-import { CredentialError, XrpcError, errorMessage } from "./errors";
+import { CredentialError, XrpcError } from "./errors";
 import { Identity } from "./Identity";
-import {
-  ListRepoOpsOutput,
-  ListReposOutput,
-  RegisterNotifyOutput,
-  invalidResponse,
-  lexJson,
-  parseSpaceRef,
-} from "./wire";
+import { failureStatus, parseSpaceRef, signedAgent } from "./wire";
 
 export type SpaceCallError = XrpcError | CredentialError;
 
-interface CallInput {
-  readonly space: string;
-  readonly method: string;
+interface Target {
+  readonly space: SpaceRefString;
+  readonly method: Query | Procedure;
   /** Repo DID for repo calls, authority DID for space-host calls. */
-  readonly audience: string;
+  readonly audience: DidString;
   /** "repo" → audience's PDS; "space" → audience's space host. */
   readonly hostOf: "repo" | "space";
-  readonly params?: Record<string, string | undefined>;
-  readonly body?: unknown;
 }
 
 const isTransient = (error: SpaceCallError): boolean =>
@@ -66,26 +60,29 @@ export class SpaceClient extends Context.Service<
   SpaceClient,
   {
     readonly listRepos: (
-      space: string,
+      space: SpaceRefString,
       cursor?: string,
-    ) => Effect.Effect<typeof ListReposOutput.Type, SpaceCallError>;
+    ) => Effect.Effect<com.atproto.space.listRepos.$OutputBody, SpaceCallError>;
     readonly registerNotify: (
-      space: string,
+      space: SpaceRefString,
       service: string,
     ) => Effect.Effect<{ readonly expiresAt: number }, SpaceCallError>;
     readonly listRepoOps: (
-      space: string,
-      repo: string,
+      space: SpaceRefString,
+      repo: DidString,
       since: string | undefined,
       cursor?: string,
-    ) => Effect.Effect<typeof ListRepoOpsOutput.Type, SpaceCallError>;
+    ) => Effect.Effect<
+      com.atproto.space.listRepoOps.$OutputBody,
+      SpaceCallError
+    >;
     readonly getRepo: (
-      space: string,
-      repo: string,
+      space: SpaceRefString,
+      repo: DidString,
     ) => Effect.Effect<AsyncIterable<Uint8Array>, SpaceCallError, Scope.Scope>;
     readonly getBlob: (
-      space: string,
-      repo: string,
+      space: SpaceRefString,
+      repo: DidString,
       cid: string,
     ) => Effect.Effect<Uint8Array, SpaceCallError>;
   }
@@ -97,96 +94,68 @@ export class SpaceClient extends Context.Service<
       const credentials = yield* Credentials;
       const identity = yield* Identity;
 
-      const attempt = (
-        input: CallInput,
-      ): Effect.Effect<Response, SpaceCallError> =>
+      const space = com.atproto.space;
+
+      /**
+       * One signed request to the target's host. `run` throws an xrpc failure
+       * (as `xrpc` and `XrpcResponse.fromFetchResponse` do) on an error response.
+       */
+      const attempt = <A>(
+        target: Target,
+        run: (agent: Agent, signal: AbortSignal) => Promise<A>,
+      ): Effect.Effect<A, SpaceCallError> =>
         Effect.gen(function* () {
-          const resolved = yield* identity
-            .resolve(input.audience)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new XrpcError({
-                    method: input.method,
-                    status: 0,
-                    error: "IdentityError",
-                    message: e.message,
-                  }),
-              ),
-            );
-          const credential = yield* credentials.get(input.space);
-          const response = yield* Effect.tryPromise({
-            try: async (signal) => {
-              const url = new URL(
-                `/xrpc/${input.method}`,
-                input.hostOf === "repo" ? resolved.pds : resolved.spaceHost,
-              );
-              for (const [name, value] of Object.entries(input.params ?? {})) {
-                if (value !== undefined) url.searchParams.set(name, value);
-              }
-              const headers = await createSpaceSigHeaders(credential.key, {
-                authorization: `Atproto-Space ${credential.token}`,
-                audience: input.audience as DidString,
-              });
-              return fetch(url, {
-                method: input.body === undefined ? "GET" : "POST",
-                redirect: "error",
-                signal,
-                headers:
-                  input.body === undefined
-                    ? headers
-                    : { ...headers, "content-type": "application/json" },
-                body:
-                  input.body === undefined
-                    ? undefined
-                    : JSON.stringify(input.body),
-              });
-            },
-            catch: (error) =>
-              new XrpcError({
-                method: input.method,
-                status: 0,
-                error: "Transport",
-                message: errorMessage(error),
-              }),
-          });
-          if (response.ok) return response;
-          const body: unknown = yield* Effect.promise(() =>
-            response.json().catch(() => undefined),
+          const resolved = yield* identity.resolve(target.audience).pipe(
+            Effect.mapError(
+              (e) =>
+                new XrpcError({
+                  method: target.method.nsid,
+                  status: 0,
+                  error: "IdentityError",
+                  message: e.message,
+                }),
+            ),
           );
-          const error =
-            Predicate.hasProperty(body, "error") &&
-            Predicate.isString(body.error)
-              ? body.error
-              : undefined;
-          const message =
-            Predicate.hasProperty(body, "message") &&
-            Predicate.isString(body.message)
-              ? body.message
-              : `HTTP ${response.status}`;
-          if (error === "SpaceDeleted") {
-            return yield* new CredentialError({
-              space: input.space,
-              reason: "SpaceDeleted",
-              message,
-            });
-          }
-          return yield* new XrpcError({
-            method: input.method,
-            status: response.status,
-            error,
-            message,
+          const credential = yield* credentials.get(target.space);
+          const agent = signedAgent(
+            target.hostOf === "repo" ? resolved.pds : resolved.spaceHost,
+            () =>
+              createSpaceSigHeaders(credential.key, {
+                authorization: `Atproto-Space ${credential.token}`,
+                audience: target.audience,
+              }),
+          );
+          return yield* Effect.tryPromise({
+            try: (signal) => run(agent, signal),
+            catch: (cause): SpaceCallError => {
+              const failure = asXrpcFailure(target.method, cause);
+              return failure.error === "SpaceDeleted"
+                ? new CredentialError({
+                    space: target.space,
+                    reason: "SpaceDeleted",
+                    message: failure.message,
+                  })
+                : new XrpcError({
+                    method: target.method.nsid,
+                    status: failureStatus(failure),
+                    error: failure.error,
+                    message: failure.message,
+                  });
+            },
           });
         });
 
-      const call = Effect.fnUntraced(function* (input: CallInput) {
-        return yield* attempt(input).pipe(
+      const call = <A>(
+        target: Target,
+        run: (agent: Agent, signal: AbortSignal) => Promise<A>,
+      ) =>
+        attempt(target, run).pipe(
           // A rejected credential is re-minted and the call retried once.
           Effect.catchTag("XrpcError", (e) =>
             e.error === "JwtExpired" || e.error === "CredentialRevoked"
               ? credentials
-                  .invalidate(input.space)
-                  .pipe(Effect.flatMap(() => attempt(input)))
+                  .invalidate(target.space)
+                  .pipe(Effect.flatMap(() => attempt(target, run)))
               : Effect.fail(e),
           ),
           Effect.retry({
@@ -197,27 +166,14 @@ export class SpaceClient extends Context.Service<
             while: isTransient,
           }),
         );
-      });
 
-      const readJson = (method: string, response: Response) =>
-        Effect.tryPromise({
-          try: async () => lexJson(await response.json()),
-          catch: (error) =>
-            new XrpcError({
-              method,
-              status: response.status,
-              error: "InvalidResponse",
-              message: errorMessage(error),
-            }),
-        });
-
-      const authorityOf = (space: string) =>
-        parseSpaceRef(space).pipe(
-          Effect.map((ref) => ref.authority),
+      const authorityOf = (ref: SpaceRefString) =>
+        parseSpaceRef(ref).pipe(
+          Effect.map((parsed) => parsed.authority),
           Effect.mapError(
             () =>
               new CredentialError({
-                space,
+                space: ref,
                 reason: "SpaceNotFound",
                 message: "invalid space ref",
               }),
@@ -225,43 +181,43 @@ export class SpaceClient extends Context.Service<
         );
 
       const listRepos = Effect.fnUntraced(function* (
-        space: string,
+        ref: SpaceRefString,
         cursor?: string,
       ) {
-        const method = "com.atproto.space.listRepos";
-        const authority = yield* authorityOf(space);
-        const res = yield* call({
-          space,
+        const method = space.listRepos.main;
+        const target: Target = {
+          space: ref,
           method,
-          audience: authority,
+          audience: yield* authorityOf(ref),
           hostOf: "space",
-          params: { space, limit: "1000", cursor },
-        });
-        return yield* Schema.decodeUnknownEffect(ListReposOutput)(
-          yield* readJson(method, res),
-        ).pipe(Effect.mapError(invalidResponse(method)));
+        };
+        const res = yield* call(target, (agent, signal) =>
+          xrpc(agent, method, {
+            params: { space: ref, limit: 1000, cursor },
+            signal,
+          }),
+        );
+        return res.body;
       });
 
       const registerNotify = Effect.fnUntraced(function* (
-        space: string,
+        ref: SpaceRefString,
         service: string,
       ) {
-        const method = "com.atproto.space.registerNotify";
-        const authority = yield* authorityOf(space);
-        const res = yield* call({
-          space,
+        const method = space.registerNotify.main;
+        const target: Target = {
+          space: ref,
           method,
-          audience: authority,
+          audience: yield* authorityOf(ref),
           hostOf: "space",
-          body: { space, service },
-        });
-        const out = yield* Schema.decodeUnknownEffect(RegisterNotifyOutput)(
-          yield* readJson(method, res),
-        ).pipe(Effect.mapError(invalidResponse(method)));
-        const expiresAt = Date.parse(out.expiresAt);
+        };
+        const res = yield* call(target, (agent, signal) =>
+          xrpc(agent, method, { body: { space: ref, service }, signal }),
+        );
+        const expiresAt = Date.parse(res.body.expiresAt);
         if (!Number.isFinite(expiresAt)) {
           return yield* new XrpcError({
-            method,
+            method: method.nsid,
             status: 200,
             error: "InvalidResponse",
             message: "unparseable expiresAt",
@@ -271,33 +227,54 @@ export class SpaceClient extends Context.Service<
       });
 
       const listRepoOps = Effect.fnUntraced(function* (
-        space: string,
-        repo: string,
+        ref: SpaceRefString,
+        repo: DidString,
         since: string | undefined,
         cursor?: string,
       ) {
-        const method = "com.atproto.space.listRepoOps";
-        const res = yield* call({
-          space,
-          method,
-          audience: repo,
-          hostOf: "repo",
-          params: { space, repo, since, cursor, limit: "1000" },
-        });
-        return yield* Schema.decodeUnknownEffect(ListRepoOpsOutput)(
-          yield* readJson(method, res),
-        ).pipe(Effect.mapError(invalidResponse(method)));
+        const method = space.listRepoOps.main;
+        const res = yield* call(
+          { space: ref, method, audience: repo, hostOf: "repo" },
+          (agent, signal) =>
+            xrpc(agent, method, {
+              params: {
+                space: ref,
+                repo,
+                since: since as TidString | undefined,
+                cursor,
+                limit: 1000,
+              },
+              signal,
+            }),
+        );
+        return res.body;
       });
 
-      const getRepo = (space: string, repo: string) =>
-        Effect.acquireRelease(
-          call({
-            space,
-            method: "com.atproto.space.getRepo",
-            audience: repo,
-            hostOf: "repo",
-            params: { space, repo },
-          }),
+      // getRepo bypasses `xrpc`, which buffers the whole body, so the CAR can
+      // be verified as it streams.
+      const getRepo = (ref: SpaceRefString, repo: DidString) => {
+        const method = space.getRepo.main;
+        return Effect.acquireRelease(
+          call(
+            { space: ref, method, audience: repo, hostOf: "repo" },
+            async (agent, signal) => {
+              const params = method.parameters.toURLSearchParams({
+                space: ref,
+                repo,
+              });
+              const res = await agent.fetchHandler(
+                `/xrpc/${method.nsid}?${params}`,
+                {
+                  method: "GET",
+                  signal,
+                  headers: { accept: method.output.encoding },
+                },
+              );
+              // Throws the parsed xrpc error for 4xx/5xx responses.
+              if (!res.ok) await XrpcResponse.fromFetchResponse(method, res);
+              return res;
+            },
+          ),
           // Cancels an unfinished download when the scope closes (e.g. on interruption).
           (res) =>
             Effect.promise(
@@ -310,7 +287,7 @@ export class SpaceClient extends Context.Service<
               ? Effect.succeed(carChunks(res.body))
               : Effect.fail(
                   new XrpcError({
-                    method: "com.atproto.space.getRepo",
+                    method: method.nsid,
                     status: res.status,
                     error: "InvalidResponse",
                     message: "empty body",
@@ -318,30 +295,23 @@ export class SpaceClient extends Context.Service<
                 ),
           ),
         );
+      };
 
       const getBlob = Effect.fnUntraced(function* (
-        space: string,
-        repo: string,
+        ref: SpaceRefString,
+        repo: DidString,
         cid: string,
       ) {
-        const method = "com.atproto.space.getBlob";
-        const res = yield* call({
-          space,
-          method,
-          audience: repo,
-          hostOf: "repo",
-          params: { space, repo, cid },
-        });
-        return yield* Effect.tryPromise({
-          try: async () => new Uint8Array(await res.arrayBuffer()),
-          catch: (error) =>
-            new XrpcError({
-              method,
-              status: res.status,
-              error: "InvalidResponse",
-              message: errorMessage(error),
+        const method = space.getBlob.main;
+        const res = yield* call(
+          { space: ref, method, audience: repo, hostOf: "repo" },
+          (agent, signal) =>
+            xrpc(agent, method, {
+              params: { space: ref, repo, cid: cid as CidString },
+              signal,
             }),
-        });
+        );
+        return res.body;
       });
 
       return SpaceClient.of({

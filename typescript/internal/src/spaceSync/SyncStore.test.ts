@@ -1,12 +1,13 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
+import type { DidString, SpaceRefString } from "@atproto/syntax";
 import { Effect, Option } from "effect";
 import { describe, expect } from "vitest";
 import { SyncStore } from "./SyncStore";
 
 const space = (name: string, nextDueAt: number) => ({
-  space: `at://did:plc:a/space/com.example.board/${name}`,
-  authority: "did:plc:a",
+  space: `at://did:plc:a/space/com.example.board/${name}` as SpaceRefString,
+  authority: "did:plc:a" as DidString,
   nextDueAt,
   failures: 0,
 });
@@ -31,15 +32,15 @@ describe("SyncStore.memory", () => {
       yield* store.putSpace(s);
       yield* store.putRepo({
         space: s.space,
-        did: "did:plc:b",
+        did: "did:plc:b" as DidString,
         rev: "1",
         ltHash: new Uint8Array(2048),
       });
       expect(yield* store.listRepoDids(s.space)).toEqual(["did:plc:b"]);
       yield* store.removeSpace(s.space);
-      expect(Option.isNone(yield* store.getRepo(s.space, "did:plc:b"))).toBe(
-        true,
-      );
+      expect(
+        Option.isNone(yield* store.getRepo(s.space, "did:plc:b" as DidString)),
+      ).toBe(true);
       expect(Option.isNone(yield* store.getSpace(s.space))).toBe(true);
     }).pipe(Effect.provide(SyncStore.memory)),
   );
@@ -50,9 +51,11 @@ describe("SyncStore.memory", () => {
       Effect.gen(function* () {
         const store = yield* SyncStore;
         const ltHash = new Uint8Array(2048);
-        yield* store.putRepo({ space: "s", did: "d", rev: "1", ltHash });
+        const s = space("s", 0);
+        const did = "did:plc:d" as DidString;
+        yield* store.putRepo({ space: s.space, did, rev: "1", ltHash });
         ltHash[0] = 9;
-        const stored = yield* store.getRepo("s", "d");
+        const stored = yield* store.getRepo(s.space, did);
         expect(Option.getOrThrow(stored).ltHash[0]).toBe(0);
       }).pipe(Effect.provide(SyncStore.memory)),
   );

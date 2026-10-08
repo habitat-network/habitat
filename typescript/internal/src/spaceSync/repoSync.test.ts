@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
+import type { DidString } from "@atproto/syntax";
 import { Effect, Option } from "effect";
 import { describe, expect } from "vitest";
 import { syncRepo } from "./repoSync";
@@ -8,7 +9,7 @@ import { runWithHarness } from "./test/harness";
 
 const listed = (
   space: { repoRevOf(d: string): string; spaceRevOf(d: string): string },
-  did: string,
+  did: DidString,
 ) => ({
   did,
   repoRev: space.repoRevOf(did),

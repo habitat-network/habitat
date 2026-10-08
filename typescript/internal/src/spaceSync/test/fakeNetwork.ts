@@ -13,7 +13,13 @@ import {
   verifySpaceSignature,
   verifySpaceToken,
 } from "@atproto/space";
-import type { DidString, NsidString, RecordKeyString } from "@atproto/syntax";
+import {
+  SpaceRef,
+  type DidString,
+  type NsidString,
+  type RecordKeyString,
+  type SpaceRefString,
+} from "@atproto/syntax";
 import { type HttpHandler, HttpResponse, http } from "msw";
 
 // In-memory stand-in for a PLC directory, a space host and repo hosts. Every
@@ -24,7 +30,7 @@ export const PLC_URL = "https://plc.test";
 export const SPACE_TYPE = "com.example.board";
 
 export interface FakeAccount {
-  readonly did: string;
+  readonly did: DidString;
   readonly keypair: Secp256k1Keypair;
   readonly pds: string;
 }
@@ -79,7 +85,7 @@ const streamFrom = (
 };
 
 export class FakeSpace {
-  readonly ref: string;
+  readonly ref: SpaceRefString;
   readonly repos = new Map<string, FakeRepo>();
   readonly delisted = new Set<string>();
   readonly failingRepos = new Set<string>();
@@ -104,7 +110,12 @@ export class FakeSpace {
     readonly authority: FakeAccount,
     readonly skey: string,
   ) {
-    this.ref = `at://${authority.did}/space/${SPACE_TYPE}/${skey}`;
+    // Build through the syntax package so the fake only ever holds a real SpaceRefString.
+    this.ref = new SpaceRef(
+      authority.did,
+      SPACE_TYPE as NsidString,
+      skey as RecordKeyString,
+    ).toString();
   }
 
   async write(
@@ -199,7 +210,7 @@ export class FakeNetwork {
       name.toLowerCase().replace(/[^a-z]/g, "") + "a".repeat(24)
     ).slice(0, 24);
     const account = {
-      did: `did:plc:${id}`,
+      did: `did:plc:${id}` as DidString,
       keypair,
       pds: `https://${name.toLowerCase()}.pds.test`,
     };

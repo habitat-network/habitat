@@ -1,4 +1,5 @@
 import { getServiceEndpoint } from "@atproto/common-web";
+import type { DidString } from "@atproto/syntax";
 import {
   type DidDocument,
   IdResolver,
@@ -10,7 +11,7 @@ import { SpaceSyncConfig } from "./config";
 import { IdentityError, errorMessage } from "./errors";
 
 export interface ResolvedIdentity {
-  readonly did: string;
+  readonly did: DidString;
   /** Repo host for this DID's space repos. */
   readonly pds: string;
   /** `#atproto` signing key as a did:key. Verifies commits and service auth. */
@@ -21,7 +22,7 @@ export interface ResolvedIdentity {
 
 const hasEntry = (
   entries: ReadonlyArray<{ readonly id: string }> | undefined,
-  did: string,
+  did: DidString,
   fragment: string,
 ): boolean =>
   (entries ?? []).some(
@@ -33,7 +34,7 @@ const hasEntry = (
  * to #atproto_pds, but a present-and-malformed one is an error.
  */
 export const identityFromDoc = (
-  did: string,
+  did: DidString,
   doc: DidDocument,
 ): Effect.Effect<ResolvedIdentity, IdentityError> =>
   Effect.gen(function* () {
@@ -50,7 +51,7 @@ export const identityFromDoc = (
         message: "missing #atproto signing key",
       });
     let spaceHost = pds;
-    if (hasEntry(doc.service, doc.id, "#atproto_space_host")) {
+    if (hasEntry(doc.service, did, "#atproto_space_host")) {
       const endpoint = getServiceEndpoint(doc, {
         id: "#atproto_space_host",
         type: "AtprotoSpaceHost",
@@ -69,7 +70,7 @@ export class Identity extends Context.Service<
   Identity,
   {
     readonly resolve: (
-      did: string,
+      did: DidString,
     ) => Effect.Effect<ResolvedIdentity, IdentityError>;
   }
 >()("internal/spaceSync/Identity") {
@@ -79,7 +80,7 @@ export class Identity extends Context.Service<
       const { plcUrl } = yield* SpaceSyncConfig;
       const resolver = new IdResolver({ plcUrl });
       const cache = yield* Cache.makeWith(
-        (did: string) =>
+        (did: DidString) =>
           Effect.tryPromise({
             try: () => resolver.did.ensureResolve(did),
             catch: (error) =>

@@ -1,14 +1,15 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
-import { Duration, Effect, Fiber, Option, Schema, Stream } from "effect";
+import { Duration, Effect, Fiber, Option, Stream } from "effect";
 import { describe, expect } from "vitest";
 import { SpaceSyncer } from "./SpaceSyncer";
 import { SyncStore } from "./SyncStore";
 import { runWithSyncer } from "./test/harness";
-import { NotifyWriteInput, lexJson } from "./wire";
+import { com } from "api";
+import { decodeLex } from "./wire";
 
 const decodeNotify = (body: unknown) =>
-  Schema.decodeUnknownEffect(NotifyWriteInput)(lexJson(body)).pipe(
+  decodeLex(com.atproto.space.notifyWrite.$input.schema)(body).pipe(
     Effect.orDie,
   );
 

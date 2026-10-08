@@ -1,14 +1,10 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
 import { toBase64 } from "@atproto/lex";
-import { Effect, Exit, Schema } from "effect";
+import { com } from "api";
+import { Effect, Exit } from "effect";
 import { describe, expect } from "vitest";
-import {
-  ListRepoOpsOutput,
-  NotifyWriteInput,
-  lexJson,
-  parseSpaceRef,
-} from "./wire";
+import { decodeLex, parseSpaceRef } from "./wire";
 
 const SPACE = "at://did:plc:alice/space/com.example.board/main";
 
@@ -47,11 +43,11 @@ describe("wire decoding", () => {
       const json = {
         ops: [
           {
-            rev: "3l2",
+            rev: "3jzfcijpj2z2a",
             collection: "com.example.post",
             rkey: "1",
             cid: null,
-            prev: "bafyprev",
+            prev: "bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm",
           },
         ],
         commit: {
@@ -60,12 +56,12 @@ describe("wire decoding", () => {
           ikm: bytes(2),
           sig: bytes(3),
           mac: bytes(4),
-          rev: "3l2",
+          rev: "3jzfcijpj2z2a",
         },
       };
-      const out = yield* Schema.decodeUnknownEffect(ListRepoOpsOutput)(
-        lexJson(json),
-      );
+      const out = yield* decodeLex(
+        com.atproto.space.listRepoOps.$output.schema,
+      )(json);
       expect(out.commit?.hash).toBeInstanceOf(Uint8Array);
       expect(out.commit?.hash[0]).toBe(1);
       expect(out.ops[0].cid).toBeNull();
@@ -78,14 +74,14 @@ describe("wire decoding", () => {
       const body = {
         space: SPACE,
         repo: "did:plc:bob",
-        repoRev: "3l2",
+        repoRev: "3jzfcijpj2z2a",
         hash: { $bytes: toBase64(new Uint8Array(32)) },
-        spaceRev: "3l3",
+        spaceRev: "3jzfcijpj2z2b",
       };
-      const input = yield* Schema.decodeUnknownEffect(NotifyWriteInput)(
-        lexJson(body),
-      );
-      expect(input.spaceRev).toBe("3l3");
+      const input = yield* decodeLex(
+        com.atproto.space.notifyWrite.$input.schema,
+      )(body);
+      expect(input.spaceRev).toBe("3jzfcijpj2z2b");
       expect(input.prevSpaceRev).toBeUndefined();
       expect(input.hash).toBeInstanceOf(Uint8Array);
     }),

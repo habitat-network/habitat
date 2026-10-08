@@ -15,7 +15,8 @@
 - Code lives in `typescript/internal/src/spaceSync/` and is exported as subpath `internal/spaceSync` (source-exported like the package's other subpaths; no build step).
 - Effect v4 idioms per https://github.com/Effect-TS/effect/blob/main/LLMS.md: `Context.Service` classes with static `layer`s, `Effect.fn("Name")` for public operations, `Effect.fnUntraced` for internals, `Schema.TaggedError` for errors, `Schema` to decode all untrusted data, `Predicate` for guards (never hand-written `isRecord`-style helpers).
 - Service keys are namespaced `"internal/spaceSync/<Name>"`.
-- Wire format follows the upstream alpha lexicons in `../atproto/lexicons/com/atproto/space`, **not** habitat's `lexicons/` (stale). Do not import `api` space bindings.
+- Wire format comes from the generated `api` package (`lexicons/` matches the 2026-10-01 alpha since #1140). Use `com.atproto.space.*` types and schemas directly; do not alias or restate them. Make outbound calls with `@atproto/lex` `xrpc`/`xrpcSafe` on `signedAgent` (`getRepo` alone reads its body directly so the CAR streams). If `api` types look stale, run `tsc --build` in `typescript/api`.
+- Space refs and DIDs are `SpaceRefString` / `DidString` from `@atproto/syntax`, not plain strings.
 - Timestamps are epoch milliseconds from `Clock.currentTimeMillis`.
 - Assumes the workspace is already on vitest 5 (done separately by the user). If `pnpm --filter internal exec vitest --version` reports 4.x, stop and tell the user.
 - Every test file starts with `// @vitest-environment node` (the package default is jsdom). Network calls in tests go through msw handlers registered on the shared `server` from `typescript/internal/src/test/msw.ts`, which errors on unhandled requests.
@@ -42,7 +43,7 @@ typescript/internal/
     index.ts                         public exports
     types.ts                         SpaceState, RepoState, Change, RepoBatch, SyncEvent
     errors.ts                        Schema.TaggedError classes
-    wire.ts                          Schema decoders for XRPC bodies, parseSpaceRef, lexJson
+    wire.ts                          signedAgent, failureStatus, decodeLex, toSpaceRef, parseSpaceRef
     config.ts                        SpaceSyncConfig reference + spaceSyncConfigLayer
     Identity.ts                      Identity service (DID → pds / signing key / space host)
     Credentials.ts                   DelegationSource port + Credentials service
@@ -75,7 +76,8 @@ typescript/internal/
 - Produces:
   - `types.ts`: `SpaceState`, `RepoState`, `Change`, `RepoBatch`, `SyncEvent`, `ListedRepo`
   - `errors.ts`: `InvalidSpaceRefError`, `IdentityError`, `CredentialError` (with `reason`), `XrpcError`, `RepoVerificationError`, `RepoSyncError`, `SinkError`, `StoreError`, `NotificationAuthError`, `errorMessage(e: unknown): string`
-  - `wire.ts`: `parseSpaceRef(space) → Effect<{authority,type,skey}, InvalidSpaceRefError>`, `lexJson(json: unknown): unknown`, `invalidResponse(method) → (e: Schema.SchemaError) => XrpcError`, schemas `SignedCommit`, `ListReposRepo`, `ListReposOutput`, `OpEntry`, `ListRepoOpsOutput`, `RegisterNotifyOutput`, `GetSpaceCredentialOutput`, `NotifyWriteInput`, `NotifySpaceDeletedInput`, type `NotifyWriteInput`
+  - `wire.ts`: `signedAgent(service, sign: () => Promise<Record<string,string>>) → Agent`, `failureStatus(failure: XrpcFailure) → number`, `decodeLex(schema) → (json: unknown) => Effect<InferOutput<S>, WireDecodeError>`, `toSpaceRef(space) → Effect<SpaceRefString, InvalidSpaceRefError>`, `parseSpaceRef(space) → Effect<{authority: DidString, type: NsidString, skey: RecordKeyString}, InvalidSpaceRefError>`. No wire type aliases: consumers import `com` from `"api"`.
+  - `errors.ts` also has `WireDecodeError`.
   - `config.ts`: `SpaceSyncOptions`, `defaultSpaceSyncOptions`, `SpaceSyncConfig` (Context.Reference), `spaceSyncConfigLayer(options)`
 
 - [ ] **Step 1: Add dependencies and the subpath export**
@@ -251,6 +253,8 @@ export const errorMessage = (error: unknown): string =>
 
 - [ ] **Step 4: Write the failing test `wire.test.ts`**
 
+> **Superseded (2026-10-08, after #1140):** the code below predates the switch to the `api` package (fixtures now need valid TIDs/CIDs). The source in `typescript/internal/src/spaceSync/wire.test.ts` is authoritative; see the spec's Planning revision #1.
+
 ```ts
 // @vitest-environment node
 import { it } from "@effect/vitest";
@@ -325,6 +329,8 @@ Run: `pnpm --filter internal exec vitest run src/spaceSync/wire.test.ts`
 Expected: FAIL. Cannot resolve `./wire`.
 
 - [ ] **Step 6: Write `wire.ts`**
+
+> **Superseded (2026-10-08, after #1140):** the code below predates the switch to the `api` package. The source in `typescript/internal/src/spaceSync/wire.ts` is authoritative; see the spec's Planning revision #1.
 
 ```ts
 import { jsonToLex } from "@atproto/lex";
@@ -1337,6 +1343,8 @@ Expected: FAIL. Cannot resolve `./Credentials`.
 
 - [ ] **Step 4: Write `Credentials.ts`**
 
+> **Superseded (2026-10-08, after #1140):** the code below predates the switch to the `api` package. The source in `typescript/internal/src/spaceSync/Credentials.ts` is authoritative; see the spec's Planning revision #1.
+
 ```ts
 import { P256Keypair } from "@atproto/crypto";
 import { createSpaceSigHeaders, parseSpaceToken, spaceHostAud } from "@atproto/space";
@@ -1611,6 +1619,8 @@ Run: `pnpm --filter internal exec vitest run src/spaceSync/SpaceClient.test.ts`
 Expected: FAIL. Cannot resolve `./SpaceClient`.
 
 - [ ] **Step 3: Write `SpaceClient.ts`**
+
+> **Superseded (2026-10-08, after #1140):** the code below predates the switch to the `api` package. The source in `typescript/internal/src/spaceSync/SpaceClient.ts` is authoritative; see the spec's Planning revision #1.
 
 ```ts
 import type { DidString } from "@atproto/syntax";

@@ -6,7 +6,13 @@ import {
   verifyCommit,
   verifyRepoCar,
 } from "@atproto/space";
-import type { NsidString, RecordKeyString } from "@atproto/syntax";
+import type {
+  DidString,
+  NsidString,
+  RecordKeyString,
+  SpaceRefString,
+} from "@atproto/syntax";
+import type { com } from "api";
 import { Effect, Option, Predicate, Stream } from "effect";
 import { RepoSyncError, RepoVerificationError, errorMessage } from "./errors";
 import { Identity } from "./Identity";
@@ -51,7 +57,7 @@ const commitBatch = (batch: RepoBatch, state: RepoState) =>
     }),
   );
 
-const parseCidOr = (space: string, did: string, value: string) =>
+const parseCidOr = (space: SpaceRefString, did: DidString, value: string) =>
   Effect.try({
     try: () => parseCid(value),
     catch: () =>
@@ -63,7 +69,7 @@ const parseCidOr = (space: string, did: string, value: string) =>
   });
 
 const incremental = Effect.fnUntraced(function* (
-  space: string,
+  space: SpaceRefString,
   listed: ListedRepo,
   local: RepoState,
 ) {
@@ -74,7 +80,7 @@ const incremental = Effect.fnUntraced(function* (
   // Later ops on a path supersede earlier ones, so the batch holds one change per path.
   const changes = new Map<string, Change>();
   let cursor: string | undefined;
-  let commit: SignedCommit | undefined;
+  let commit: com.atproto.space.defs.SignedCommit | undefined;
   do {
     const page = yield* client.listRepoOps(space, did, local.rev, cursor);
     for (const op of page.ops) {
@@ -120,7 +126,14 @@ const incremental = Effect.fnUntraced(function* (
       did,
       message: "oplog did not end with a commit",
     });
-  const finalCommit = commit;
+  // The lexicon types `ver` as any integer; only version 1 is verifiable.
+  if (commit.ver !== 1)
+    return yield* new RepoVerificationError({
+      space,
+      did,
+      message: `unsupported commit version ${commit.ver}`,
+    });
+  const finalCommit: SignedCommit = { ...commit, ver: 1 };
   const { signingKey } = yield* identity
     .resolve(did)
     .pipe(
@@ -173,7 +186,7 @@ const incremental = Effect.fnUntraced(function* (
 });
 
 const recover = Effect.fnUntraced(function* (
-  space: string,
+  space: SpaceRefString,
   listed: ListedRepo,
 ) {
   const client = yield* SpaceClient;
@@ -238,7 +251,7 @@ const recover = Effect.fnUntraced(function* (
  * state exists, otherwise (or on any verification failure) via a full getRepo.
  */
 export const syncRepo = Effect.fn("syncRepo")(function* (
-  space: string,
+  space: SpaceRefString,
   listed: ListedRepo,
 ) {
   const store = yield* SyncStore;

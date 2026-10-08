@@ -1,3 +1,4 @@
+import type { SpaceRefString } from "@atproto/syntax";
 import { verifySignature } from "@atproto/crypto";
 import { fromBase64 } from "@atproto/lex";
 import { Clock, Effect, Schema } from "effect";
@@ -33,7 +34,7 @@ export const verifyNotification = Effect.fn("verifyNotification")(function* (
   authorization: string | undefined,
   opts: {
     readonly lxm: NotificationLxm;
-    readonly space: string;
+    readonly space: SpaceRefString;
     readonly serviceDid: string;
   },
 ) {

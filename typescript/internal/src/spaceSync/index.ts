@@ -21,8 +21,4 @@ export { SpaceSyncer } from "./SpaceSyncer";
 export { SyncSink } from "./SyncSink";
 export { SyncStore } from "./SyncStore";
 export * from "./types";
-export {
-  NotifySpaceDeletedInput,
-  NotifyWriteInput,
-  parseSpaceRef,
-} from "./wire";
+export { parseSpaceRef } from "./wire";
