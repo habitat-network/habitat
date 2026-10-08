@@ -271,7 +271,7 @@ export function orgProfileQueryOptions(
           const blobParams = new URLSearchParams({ space: aboutSpace, cid });
           const blobUrl = `${cred.host}/xrpc/com.atproto.space.getBlob?${blobParams}`;
           const blobRes = await fetch(blobUrl, {
-            headers: await spaceCredentialHeaders(cred, "GET", blobUrl),
+            headers: await spaceCredentialHeaders(cred),
           });
           if (blobRes.ok) {
             profile.avatarUrl = URL.createObjectURL(await blobRes.blob());
