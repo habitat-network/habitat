@@ -1566,7 +1566,9 @@ func TestEngineCatchUpFallsBackToFullListing(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
 			Cursor: "3l000000000e2",
-			Repos:  []habitat.NetworkHabitatSpaceListReposRepo{{Did: "did:plc:a", RepoRev: "aaa", Hash: atdata.Bytes("hash")}},
+			Repos: []habitat.NetworkHabitatSpaceListReposRepo{
+				{Did: "did:plc:a", RepoRev: "aaa", Hash: atdata.Bytes("hash")},
+			},
 		})
 	}))
 	t.Cleanup(srv.Close)
