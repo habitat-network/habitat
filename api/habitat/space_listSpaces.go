@@ -10,7 +10,6 @@ type NetworkHabitatSpaceListSpacesParams struct {
 	Did       string `json:"did,omitempty"`
 	Limit     int64  `json:"limit,omitempty"`
 	SpaceType string `json:"spaceType,omitempty"`
-	Type      string `json:"type,omitempty"`
 }
 
 // NetworkHabitatSpaceListSpacesOutput represents the output for network.habitat.space.listSpaces

@@ -33,8 +33,8 @@ func (p *PearServer) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		filterOwner = &ownerDid
 	}
 	var filterType *syntax.NSID
-	if params.Type != "" {
-		t, ok := httpx.ParseNSIDInput(ctx, w, params.Type, "type filter")
+	if params.SpaceType != "" {
+		t, ok := httpx.ParseNSIDInput(ctx, w, params.SpaceType, "type filter")
 		if !ok {
 			return
 		}

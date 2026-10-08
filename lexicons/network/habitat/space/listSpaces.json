@@ -8,7 +8,7 @@
       "parameters": {
         "type": "params",
         "properties": {
-          "type": {
+          "spaceType": {
             "type": "string",
             "format": "nsid",
             "description": "Filter to spaces of this type. Required if the caller's OAuth scope is narrower than `space:*`."

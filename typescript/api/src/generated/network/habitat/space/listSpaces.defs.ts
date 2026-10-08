@@ -11,7 +11,6 @@ type $nsid = typeof $nsid
 export { $nsid }
 
 export const $params = /*#__PURE__*/ l.params({
-  type: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'nsid' })),
   spaceType: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.string({ format: 'nsid' }),
   ),
