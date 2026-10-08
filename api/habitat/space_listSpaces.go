@@ -6,10 +6,11 @@ import "encoding/json"
 
 // NetworkHabitatSpaceListSpacesParams represents the input parameters for network.habitat.space.listSpaces
 type NetworkHabitatSpaceListSpacesParams struct {
-	Cursor string `json:"cursor,omitempty"`
-	Did    string `json:"did,omitempty"`
-	Limit  int64  `json:"limit,omitempty"`
-	Type   string `json:"type,omitempty"`
+	Cursor    string `json:"cursor,omitempty"`
+	Did       string `json:"did,omitempty"`
+	Limit     int64  `json:"limit,omitempty"`
+	SpaceType string `json:"spaceType,omitempty"`
+	Type      string `json:"type,omitempty"`
 }
 
 // NetworkHabitatSpaceListSpacesOutput represents the output for network.habitat.space.listSpaces
@@ -21,7 +22,6 @@ type NetworkHabitatSpaceListSpacesOutput struct {
 // NetworkHabitatSpaceListSpacesSpaceView represents a spaceView object
 type NetworkHabitatSpaceListSpacesSpaceView struct {
 	LexiconTypeID string `json:"$type"`
-	IsOwner       bool   `json:"isOwner"`
 	Uri           string `json:"uri"`
 }
 

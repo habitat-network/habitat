@@ -11,13 +11,18 @@
         "properties": {
           "space": {
             "type": "string",
-            "format": "at-uri",
+            "format": "space-ref",
             "description": "Reference to the space."
           },
           "repo": {
             "type": "string",
             "format": "did",
             "description": "The DID of the account whose repo to download."
+          },
+          "excludeValues": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, omit the record blocks and return only the commit and index roots. The index is still fully authenticated by folding its entries into a set hash and comparing against the commit, so a syncer can diff it against a local copy and fetch just the records it lacks. Note the resulting CAR declares two roots and carries no non-root blocks."
           }
         }
       },

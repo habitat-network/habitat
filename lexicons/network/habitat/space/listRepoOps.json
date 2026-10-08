@@ -21,6 +21,7 @@
           },
           "since": {
             "type": "string",
+            "format": "tid",
             "description": "Return operations after this revision."
           },
           "limit": {
@@ -29,6 +30,10 @@
             "maximum": 1000,
             "default": 100,
             "description": "Maximum number of operations to return."
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque pagination cursor from a previous response. Takes precedence over `since` when both are supplied."
           },
           "excludeValues": {
             "type": "boolean",
@@ -74,7 +79,10 @@
       "required": ["rev", "collection", "rkey", "cid", "prev"],
       "nullable": ["cid", "prev"],
       "properties": {
-        "rev": { "type": "string" },
+        "rev": { 
+          "type": "string",
+          "format": "tid"
+        },
         "collection": { "type": "string", "format": "nsid" },
         "rkey": { "type": "string", "format": "record-key" },
         "cid": { "type": "string", "format": "cid" },

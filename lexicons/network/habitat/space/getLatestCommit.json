@@ -32,10 +32,12 @@
               "description": "The account's current signed commit."
             }
           }
-        }
+        },
+        "required": ["commit"]
       },
       "errors": [
         { "name": "SpaceNotFound" },
+        { "name": "RepoNotFound" },
         { "name": "RepoTakendown" },
         { "name": "RepoSuspended" },
         { "name": "RepoDeactivated" }
