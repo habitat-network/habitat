@@ -30,6 +30,26 @@ interface CallInput {
 const isTransient = (error: SpaceCallError): boolean =>
   error._tag === "XrpcError" ? error.status === 0 || error.status >= 500 : error.reason === "Transport";
 
+/**
+ * A fetch body's own async iterator deadlocks when a consumer abandons it
+ * mid-stream: `return()` queues behind an in-flight `next()` that the stalled
+ * reader never settles. Carve out our own iterator over a locked reader so
+ * disposal just cancels the body.
+ */
+async function* carChunks(body: ReadableStream<Uint8Array>): AsyncIterable<Uint8Array> {
+  const reader = body.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      if (value !== undefined) yield value;
+    }
+  } finally {
+    // Deliberately not awaited: a pending read() may never settle.
+    void reader.cancel().catch(() => undefined);
+  }
+}
+
 export class SpaceClient extends Context.Service<
   SpaceClient,
   {
@@ -155,7 +175,7 @@ export class SpaceClient extends Context.Service<
         ).pipe(
           Effect.flatMap((res) =>
             res.body
-              ? Effect.succeed(res.body as AsyncIterable<Uint8Array>)
+              ? Effect.succeed(carChunks(res.body))
               : Effect.fail(new XrpcError({ method: "com.atproto.space.getRepo", status: res.status, error: "InvalidResponse", message: "empty body" })),
           ),
         );
