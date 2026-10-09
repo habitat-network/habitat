@@ -1445,7 +1445,7 @@ func TestListReposSince(t *testing.T) {
 }
 
 // TestWritesStoreValueJSON checks that PutRecord and ApplyWrites write the
-// record's JSON alongside its CBOR value.
+// record's JSON.
 func TestWritesStoreValueJSON(t *testing.T) {
 	db := db_testutil.NewDB(t, spaces.Models())
 	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db))
@@ -1481,9 +1481,8 @@ func TestWritesStoreValueJSON(t *testing.T) {
 	}
 }
 
-// TestReadsUseValueJSON checks that reads come from the JSON column, that the
-// repo snapshot rebuilds CBOR blocks matching each record's CID from it, and
-// that rows with no JSON still read from the CBOR value.
+// TestReadsUseValueJSON checks that reads come from the JSON column and that
+// the repo snapshot rebuilds CBOR blocks matching each record's CID from it.
 func TestReadsUseValueJSON(t *testing.T) {
 	db := db_testutil.NewDB(t, spaces.Models())
 	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db))
@@ -1530,13 +1529,6 @@ func TestReadsUseValueJSON(t *testing.T) {
 	got, err = s.GetRecord(t.Context(), uri, alice, coll, "plain")
 	require.NoError(t, err)
 	require.Equal(t, map[string]any{"text": "from json"}, got.Value)
-
-	// A row with no JSON falls back to the CBOR value.
-	require.NoError(t, db.Exec(
-		`UPDATE space_records SET value_json = NULL WHERE rkey = 'plain'`).Error)
-	got, err = s.GetRecord(t.Context(), uri, alice, coll, "plain")
-	require.NoError(t, err)
-	require.Equal(t, map[string]any{"text": "cbor"}, got.Value)
 }
 
 func mustJSON(t *testing.T, v any) []byte {
