@@ -16,8 +16,8 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
-	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	"github.com/habitat-network/habitat/internal/notify"
+	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
