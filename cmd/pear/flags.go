@@ -20,6 +20,8 @@ var (
 	fHiveDomain         = "hive_domain"
 	fGoogleClientID     = "google_client_id"
 	fGoogleClientSecret = "google_client_secret"
+	fWorkOSClientID     = "workos_client_id"
+	fWorkOSAPIKey       = "workos_api_key"
 	fPdsOauthClientUri  = "pds_oauth_client_uri"
 	fAdminPassword      = "admin_password"
 	fUiDevProxy         = "ui_dev_proxy"
@@ -107,6 +109,16 @@ func getFlags() []cli.Flag {
 			Name:    fGoogleClientSecret,
 			Usage:   "Google OAuth client secret for Google Sign-In login method",
 			Sources: getSources(fGoogleClientSecret),
+		},
+		&cli.StringFlag{
+			Name:    fWorkOSClientID,
+			Usage:   "WorkOS client ID for the AuthKit login method",
+			Sources: getSources(fWorkOSClientID),
+		},
+		&cli.StringFlag{
+			Name:    fWorkOSAPIKey,
+			Usage:   "WorkOS secret API key for the AuthKit login method",
+			Sources: getSources(fWorkOSAPIKey),
 		},
 		&cli.StringFlag{
 			Name:    fPdsOauthClientUri,

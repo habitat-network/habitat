@@ -87,3 +87,26 @@ func TestServer_CreateEmailDomainOrg(t *testing.T) {
 		}
 	})
 }
+
+func TestServer_CreateEmailDomainOrg_WorkOS(t *testing.T) {
+	client := httpx_testutil.NewTestXRPCClient(t)
+	ts := newOpenSocialServer(t, alice)
+	var out habitat.NetworkHabitatEmaildomainCreateOrgOutput
+	code := client.Procedure(
+		ts.Server.CreateEmailDomainOrg,
+		habitat.NetworkHabitatEmaildomainCreateOrgInput{
+			Handle: "acme", Domain: "acme.com", WorkosOrgId: "org_acme",
+		},
+		&out,
+	)
+	require.Equal(t, http.StatusOK, code)
+	org := syntax.DID(out.Org)
+
+	_, method, ok, err := ts.EmailDomainStore.LookupDomain(t.Context(), "acme.com")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, emaildomain.LoginMethodWorkOS, method)
+	ok, err = ts.EmailDomainStore.HasWorkOSOrg(t.Context(), org, []string{"org_acme"})
+	require.NoError(t, err)
+	require.True(t, ok)
+}

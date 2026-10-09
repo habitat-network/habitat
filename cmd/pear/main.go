@@ -65,6 +65,7 @@ import (
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
@@ -296,6 +297,21 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		loginRouter.Google = googleProvider
 		slog.InfoContext(startupCtx, "google login provider enabled")
 	}
+	workosClientID := cmd.String(fWorkOSClientID)
+	workosAPIKey := cmd.String(fWorkOSAPIKey)
+	if workosClientID != "" && workosAPIKey != "" {
+		workosProvider, err := login.NewWorkOSProvider(
+			workosClientID,
+			workosAPIKey,
+			"https://"+domain+"/oauth-callback",
+			"",
+		)
+		if err != nil {
+			return fmt.Errorf("setup workos login provider: %w", err)
+		}
+		loginRouter.WorkOS = workosProvider
+		slog.InfoContext(startupCtx, "workos login provider enabled")
+	}
 
 	// Habitat's single host signing key signs permissioned-repo commits for repo
 	// owners on external PDSes (habitat-managed owners sign with their own hive
@@ -364,8 +380,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup opensocial store: %w", err)
 	}
 	loginRouter.OpensocialStore = opensocialStore
+	// With WorkOS on, an email whose domain isn't mapped still gets an
+	// identity; sign-in places it in an org (see org.LoginRouter).
+	var emailResolverOpts []utils.Opt[habitat_identity.EmailResolver]
+	if loginRouter.WorkOS != nil {
+		emailResolverOpts = append(emailResolverOpts, habitat_identity.WithUnaffiliatedMinting())
+	}
 	emailResolver := habitat_identity.NewEmailResolver(
-		database.WithContext(startupCtx), emailDomainStore, hive,
+		database.WithContext(startupCtx), emailDomainStore, hive, emailResolverOpts...,
 	)
 	loginRouter.OpensocialStore = opensocialStore
 

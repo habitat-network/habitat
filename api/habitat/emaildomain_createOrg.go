@@ -4,8 +4,9 @@ package habitat
 
 // NetworkHabitatEmaildomainCreateOrgInput represents the input for network.habitat.emaildomain.createOrg
 type NetworkHabitatEmaildomainCreateOrgInput struct {
-	Domain string `json:"domain"`
-	Handle string `json:"handle"`
+	Domain      string `json:"domain"`
+	Handle      string `json:"handle"`
+	WorkosOrgId string `json:"workosOrgId,omitempty"`
 }
 
 // NetworkHabitatEmaildomainCreateOrgOutput represents the output for network.habitat.emaildomain.createOrg

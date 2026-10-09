@@ -226,3 +226,146 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 		require.ErrorContains(t, err, "unsupported login provider")
 	})
 }
+
+func TestLoginRouterWorkOS(t *testing.T) {
+	db := db_testutil.NewDB(
+		t,
+		hive.Models(),
+		login.Models(),
+		instance.Models(),
+		emaildomain.Models(),
+		spaces.Models(),
+		opensocial.Models(),
+	)
+	emailStore, err := emaildomain.NewStore(db)
+	require.NoError(t, err)
+	osStore := opensocial_testutil.NewTestStore(t, opensocial_testutil.WithDB(db))
+	orgDIDStr, err := osStore.NewOrgWithoutCreator(t.Context(), "acme")
+	require.NoError(t, err)
+	orgDID := syntax.DID(orgDIDStr)
+	alice := syntax.DID("did:web:alice.example.com")
+	require.NoError(t, emailStore.CreateDomainMapping(
+		t.Context(), "acme.com", orgDID, emaildomain.LoginMethodWorkOS,
+	))
+	require.NoError(t, emailStore.CreateWorkOSOrgMapping(t.Context(), "org_acme", orgDID))
+	require.NoError(t, emailStore.Provision(t.Context(), "alice@acme.com", orgDID, alice))
+	orgStore := testutil.NewTestStore(t)
+
+	exchange := func(t *testing.T, workosOrgIDs ...string) error {
+		t.Helper()
+		p := login_testutil.NewPassthroughProvider(t)
+		for _, id := range workosOrgIDs {
+			p.Profile.ExternalOrgs = append(
+				p.Profile.ExternalOrgs,
+				login.ExternalOrg{ID: id, Name: id},
+			)
+		}
+		router := org.LoginRouter{
+			WorkOS: p, OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,
+		}
+		_, _, state, err := router.Authorize(t.Context(), alice)
+		require.NoError(t, err)
+		require.Equal(t, "alice@acme.com", p.LoginID)
+		return router.Exchange(t.Context(), alice, url.Values{}, state)
+	}
+
+	t.Run("user outside the workos org is rejected and not enrolled", func(t *testing.T) {
+		require.Error(t, exchange(t, "org_other"))
+		require.Error(t, exchange(t))
+		roles, err := osStore.GetUserRoles(t.Context(), orgDID, alice)
+		require.NoError(t, err)
+		require.Empty(t, roles)
+	})
+
+	t.Run("user in the mapped workos org is enrolled", func(t *testing.T) {
+		require.NoError(t, exchange(t, "org_other", "org_acme"))
+		roles, err := osStore.GetUserRoles(t.Context(), orgDID, alice)
+		require.NoError(t, err)
+		require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+	})
+
+	t.Run("workos not configured", func(t *testing.T) {
+		router := org.LoginRouter{
+			OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,
+		}
+		_, _, _, err := router.Authorize(t.Context(), alice)
+		require.Error(t, err)
+	})
+}
+
+func TestLoginRouterWorkOSUnaffiliated(t *testing.T) {
+	db := db_testutil.NewDB(
+		t,
+		hive.Models(),
+		login.Models(),
+		instance.Models(),
+		emaildomain.Models(),
+		spaces.Models(),
+		opensocial.Models(),
+	)
+	emailStore, err := emaildomain.NewStore(db)
+	require.NoError(t, err)
+	osStore := opensocial_testutil.NewTestStore(t, opensocial_testutil.WithDB(db))
+	orgStore := testutil.NewTestStore(t)
+	provision := func(t *testing.T, did syntax.DID, email emaildomain.Email) {
+		t.Helper()
+		require.NoError(t, emailStore.Provision(t.Context(), email, "", did))
+	}
+	signIn := func(t *testing.T, did syntax.DID, orgs ...login.ExternalOrg) error {
+		t.Helper()
+		p := login_testutil.NewPassthroughProvider(t)
+		p.Profile.ExternalOrgs = orgs
+		router := org.LoginRouter{
+			WorkOS: p, OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,
+		}
+		_, _, state, err := router.Authorize(t.Context(), did)
+		require.NoError(t, err)
+		return router.Exchange(t.Context(), did, url.Values{}, state)
+	}
+	orgOf := func(t *testing.T, did syntax.DID) syntax.DID {
+		t.Helper()
+		orgDID, ok, err := emailStore.GetOrgDID(t.Context(), did)
+		require.NoError(t, err)
+		require.True(t, ok)
+		return orgDID
+	}
+
+	t.Run("user in no workos org gets a personal org and admin", func(t *testing.T) {
+		bob := syntax.DID("did:web:bob.example.com")
+		provision(t, bob, "bob@gmail.com")
+		require.NoError(t, signIn(t, bob))
+		orgDID := orgOf(t, bob)
+		require.NotEmpty(t, orgDID)
+		isOrg, err := osStore.IsOrg(t.Context(), orgDID)
+		require.NoError(t, err)
+		require.True(t, isOrg)
+		roles, err := osStore.GetUserRoles(t.Context(), orgDID, bob)
+		require.NoError(t, err)
+		require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+
+		// Signing in again keeps the same org.
+		require.NoError(t, signIn(t, bob))
+		require.Equal(t, orgDID, orgOf(t, bob))
+	})
+
+	t.Run("first member of an unmapped workos org creates and maps it", func(t *testing.T) {
+		carol := syntax.DID("did:web:carol.example.com")
+		provision(t, carol, "carol@globex.com")
+		globex := login.ExternalOrg{ID: "org_globex", Name: "Globex"}
+		require.NoError(t, signIn(t, carol, globex))
+		orgDID := orgOf(t, carol)
+		mapped, ok, err := emailStore.LookupWorkOSOrg(t.Context(), []string{"org_globex"})
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, orgDID, mapped)
+
+		// A later member of the same workos org joins it as a plain member.
+		dave := syntax.DID("did:web:dave.example.com")
+		provision(t, dave, "dave@globex.com")
+		require.NoError(t, signIn(t, dave, globex))
+		require.Equal(t, orgDID, orgOf(t, dave))
+		roles, err := osStore.GetUserRoles(t.Context(), orgDID, dave)
+		require.NoError(t, err)
+		require.Equal(t, []string{opensocial.MemberRoleRkey}, roles)
+	})
+}
