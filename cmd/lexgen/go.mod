@@ -1,9 +1,9 @@
 module github.com/habitat-network/habitat/cmd/lexgen
 
-go 1.26
+go 1.26.0
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
+	github.com/bluesky-social/indigo v0.0.0-20261008210153-5568a3799fb6
 	github.com/urfave/cli/v2 v2.27.7
 )
 
@@ -12,7 +12,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-	golang.org/x/mod v0.38.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/tools v0.48.0 // indirect
+	golang.org/x/mod v0.41.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/tools v0.51.0 // indirect
 )
