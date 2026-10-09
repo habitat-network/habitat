@@ -66,7 +66,12 @@ func TestServer_SpaceEndpointsEncodeRequestNamespace(t *testing.T) {
 			var out struct {
 				Repos []typed `json:"repos"`
 			}
-			body := query(t, ts.Server.ListRepos, ns+".space.listRepos", url.Values{"space": {spaceURI.String()}})
+			body := query(
+				t,
+				ts.Server.ListRepos,
+				ns+".space.listRepos",
+				url.Values{"space": {spaceURI.String()}},
+			)
 			require.NoError(t, json.Unmarshal(body, &out))
 			require.NotEmpty(t, out.Repos)
 			require.Equal(t, ns+".space.listRepos#repo", out.Repos[0].Type)
