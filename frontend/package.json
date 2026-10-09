@@ -20,7 +20,7 @@
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-devtools": "catalog:",
     "@tanstack/router-plugin": "catalog:",
-    "@uiw/react-json-view": "2.0.0-alpha.43",
+    "@uiw/react-json-view": "2.0.0-alpha.44",
     "api": "workspace:*",
     "boring-avatars": "catalog:",
     "canvas-confetti": "^1.9.4",
