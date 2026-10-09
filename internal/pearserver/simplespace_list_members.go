@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -32,6 +33,17 @@ func (p *PearServer) ListMembers(w http.ResponseWriter, r *http.Request) {
 	dids, err := p.simpleStore.ListMembers(ctx, credInfo.Org.DID(), spaceURI)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list members: %w", err))
+		return
+	}
+	if httpx.IsComAtprotoRequest(r) {
+		// Membership in a simplespace grants both read and write.
+		members := make([]comatproto.ComAtprotoSimplespaceListMembersMember, len(dids))
+		for i, did := range dids {
+			members[i] = comatproto.ComAtprotoSimplespaceListMembersMember{
+				Did: did.String(), Read: true, Write: true,
+			}
+		}
+		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSimplespaceListMembersOutput{Members: members})
 		return
 	}
 	members := make([]habitat.NetworkHabitatSimplespaceListMembersMember, len(dids))
