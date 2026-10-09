@@ -9,6 +9,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -87,6 +88,27 @@ func (p *PearServer) ApplyWrites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if httpx.IsComAtprotoRequest(r) {
+		out := comatproto.ComAtprotoSpaceApplyWritesOutput{
+			Results: make([]interface{}, len(results)),
+		}
+		for i, res := range results {
+			switch writes[i].Action {
+			case spaces.WriteCreate:
+				out.Results[i] = comatproto.ComAtprotoSpaceApplyWritesCreateResult{
+					Uri: res.URI.String(), Cid: res.Cid.String(),
+				}
+			case spaces.WriteUpdate:
+				out.Results[i] = comatproto.ComAtprotoSpaceApplyWritesUpdateResult{
+					Uri: res.URI.String(), Cid: res.Cid.String(),
+				}
+			default:
+				out.Results[i] = comatproto.ComAtprotoSpaceApplyWritesDeleteResult{}
+			}
+		}
+		httpx.WriteJSON(ctx, w, out)
+		return
+	}
 	out := habitat.NetworkHabitatSpaceApplyWritesOutput{
 		Results: make([]interface{}, len(results)),
 	}
