@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	notify_testutil "github.com/habitat-network/habitat/internal/notify/testutil"
@@ -1478,4 +1479,69 @@ func TestWritesStoreValueJSON(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(want), &parsed))
 		require.Equal(t, parsed["text"], text)
 	}
+}
+
+// TestReadsUseValueJSON checks that reads come from the JSON column, that the
+// repo snapshot rebuilds CBOR blocks matching each record's CID from it, and
+// that rows with no JSON still read from the CBOR value.
+func TestReadsUseValueJSON(t *testing.T) {
+	db := db_testutil.NewDB(t, spaces.Models())
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db))
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "json")
+	require.NoError(t, err)
+	coll := syntax.NSID("network.habitat.note")
+
+	rich := map[string]any{
+		"text":   "héllo ☃ \"quoted\"",
+		"n":      int64(9007199254740991),
+		"neg":    -3,
+		"flag":   true,
+		"nested": map[string]any{"list": []any{"a", 1, map[string]any{"k": nil}}},
+		"bytes":  map[string]any{"$bytes": "AAEC"},
+		"link": map[string]any{
+			"$link": "bafyreigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+		},
+	}
+	_, putCid, err := s.PutRecord(t.Context(), uri, alice, coll, "rich",
+		spaces_testutil.MustMarshalRecord(t, rich))
+	require.NoError(t, err)
+	_, _, err = s.PutRecord(t.Context(), uri, alice, coll, "plain",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"text": "cbor"}))
+	require.NoError(t, err)
+
+	// The snapshot's blocks are rebuilt from JSON and must hash to the CID the
+	// record was stored under.
+	commit, blocks, err := s.RepoSnapshot(t.Context(), uri, alice)
+	require.NoError(t, err)
+	require.NotNil(t, commit)
+	require.Len(t, blocks, 2)
+
+	// A record read back from JSON equals what was written.
+	got, err := s.GetRecord(t.Context(), uri, alice, coll, "rich")
+	require.NoError(t, err)
+	require.Equal(t, putCid.String(), got.Cid.String())
+	want, err := atdata.UnmarshalJSON(mustJSON(t, rich))
+	require.NoError(t, err)
+	require.Equal(t, want, got.Value)
+
+	// Reads come from the JSON column, not the CBOR value.
+	require.NoError(t, db.Exec(
+		`UPDATE space_records SET value_json = '{"text":"from json"}' WHERE rkey = 'plain'`).Error)
+	got, err = s.GetRecord(t.Context(), uri, alice, coll, "plain")
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{"text": "from json"}, got.Value)
+
+	// A row with no JSON falls back to the CBOR value.
+	require.NoError(t, db.Exec(
+		`UPDATE space_records SET value_json = NULL WHERE rkey = 'plain'`).Error)
+	got, err = s.GetRecord(t.Context(), uri, alice, coll, "plain")
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{"text": "cbor"}, got.Value)
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	require.NoError(t, err)
+	return b
 }
