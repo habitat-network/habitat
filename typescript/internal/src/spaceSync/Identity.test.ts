@@ -90,6 +90,51 @@ describe("identityFromDoc", () => {
 });
 
 describe("Identity.layer", () => {
+  const webLayer = Identity.layer.pipe(
+    Layer.provide(spaceSyncConfigLayer({ serviceDid: "did:web:s.test" })),
+  );
+
+  it.effect('resolves did:web without redirect: "error"', () =>
+    Effect.gen(function* () {
+      const did = "did:web:org.test";
+      const doc = JSON.parse(
+        JSON.stringify(yield* Effect.promise(() => docWith())).replaceAll(
+          DID,
+          did,
+        ),
+      ) as DidDocument;
+      let redirectMode: RequestRedirect | undefined;
+      server.use(
+        http.get("https://org.test/.well-known/did.json", ({ request }) => {
+          redirectMode = request.redirect;
+          return HttpResponse.json(doc);
+        }),
+      );
+      const identity = yield* Identity;
+      expect((yield* identity.resolve(did)).pds).toBe("https://pds.test");
+      // Cloudflare Workers throw on "error"; see NoRedirectDidWebResolver.
+      expect(redirectMode).toBe("manual");
+    }).pipe(Effect.provide(webLayer)),
+  );
+
+  it.effect("refuses a redirected did:web document", () =>
+    Effect.gen(function* () {
+      server.use(
+        http.get(
+          "https://moved.test/.well-known/did.json",
+          () =>
+            new HttpResponse(null, {
+              status: 302,
+              headers: { location: "https://elsewhere.test/did.json" },
+            }),
+        ),
+      );
+      const identity = yield* Identity;
+      const exit = yield* Effect.exit(identity.resolve("did:web:moved.test"));
+      expect(Exit.isFailure(exit)).toBe(true);
+    }).pipe(Effect.provide(webLayer)),
+  );
+
   it.effect(
     "resolves did:plc through the configured PLC directory and caches",
     () =>
@@ -97,7 +142,9 @@ describe("Identity.layer", () => {
         const doc = yield* Effect.promise(() => docWith());
         let hits = 0;
         server.use(
-          http.get("https://plc.test/:did", () => {
+          http.get("https://plc.test/:did", ({ request }) => {
+            // Cloudflare Workers throw on "error"; see NoRedirectDidPlcResolver.
+            expect(request.redirect).toBe("manual");
             hits++;
             return HttpResponse.json(doc);
           }),

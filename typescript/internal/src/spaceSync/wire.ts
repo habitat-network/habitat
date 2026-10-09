@@ -9,16 +9,17 @@ import { Effect } from "effect";
 import { InvalidSpaceRefError } from "./errors";
 
 /**
- * fetch that refuses redirects. `redirect: "error"` would say the same but
- * workerd throws on it, so follow nothing and reject any 3xx ourselves.
+ * fetch that refuses redirects. Uses `redirect: "manual"` and a status check
+ * rather than `redirect: "error"`, which Cloudflare Workers reject outright
+ * ("error" isn't implemented at the edge).
  */
 export const fetchNoRedirect = async (
-  input: URL | string,
+  url: URL,
   init: RequestInit = {},
 ): Promise<Response> => {
-  const res = await fetch(input, { ...init, redirect: "manual" });
+  const res = await fetch(url, { ...init, redirect: "manual" });
   if (res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400))
-    throw new TypeError(`unexpected redirect (${res.status}) from ${input}`);
+    throw new Error(`refused redirect from ${url}`);
   return res;
 };
 

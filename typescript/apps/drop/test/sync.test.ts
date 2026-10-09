@@ -33,6 +33,9 @@ describe("sync", () => {
     const state = await store.getSpace(SPACE);
     expect(state?.failures).toBe(1);
     expect(state?.lastError).toBeTruthy();
+    // It fails on the unreachable host, not on workerd rejecting the
+    // fetch options (`redirect: "error"` throws in Workers).
+    expect(state?.lastError).not.toMatch(/redirect/i);
     expect(state?.nextDueAt).toBeGreaterThan(started);
   });
 

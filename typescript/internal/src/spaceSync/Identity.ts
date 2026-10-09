@@ -1,8 +1,13 @@
 import { getServiceEndpoint } from "@atproto/common-web";
 import type { DidString } from "@atproto/syntax";
 import {
+  DOC_PATH,
   type DidDocument,
+  DidPlcResolver,
+  DidWebResolver,
   IdResolver,
+  PoorlyFormattedDidError,
+  UnsupportedDidWebPathError,
   getKey,
   getPds,
 } from "@atproto/identity";
@@ -10,45 +15,6 @@ import { Cache, Context, Duration, Effect, Exit, Layer } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { IdentityError, errorMessage } from "./errors";
 import { fetchNoRedirect } from "./wire";
-
-const DID_ACCEPT = "application/did+ld+json,application/json";
-
-/**
- * did:plc and did:web resolvers that fetch via `fetchNoRedirect`.
- * @atproto/identity's own resolvers pass `redirect: "error"`, which workerd rejects.
- */
-export const noRedirectDidMethods = (plcUrl: string, timeout: number) => ({
-  plc: {
-    resolveNoCheck: async (did: string): Promise<unknown> => {
-      const res = await fetchNoRedirect(
-        new URL(`/${encodeURIComponent(did)}`, plcUrl),
-        {
-          headers: { accept: DID_ACCEPT },
-          signal: AbortSignal.timeout(timeout),
-        },
-      );
-      if (res.status === 404) return null;
-      if (!res.ok)
-        throw Object.assign(new Error(res.statusText), { status: res.status });
-      return res.json();
-    },
-  },
-  web: {
-    resolveNoCheck: async (did: string): Promise<unknown> => {
-      const parts = did.split(":").slice(2).map(decodeURIComponent);
-      if (parts.length !== 1) throw new Error(`unsupported did:web ${did}`);
-      const url = new URL(`https://${parts[0]}/.well-known/did.json`);
-      if (url.hostname === "localhost") url.protocol = "http";
-      const res = await fetchNoRedirect(url, {
-        headers: { accept: DID_ACCEPT },
-        signal: AbortSignal.timeout(timeout),
-      });
-      // Positively not found, versus due to e.g. network error
-      if (!res.ok) return null;
-      return res.json();
-    },
-  },
-});
 
 export interface ResolvedIdentity {
   readonly did: DidString;
@@ -105,6 +71,50 @@ export const identityFromDoc = Effect.fnUntraced(function* (
   return { did, pds, signingKey, spaceHost };
 });
 
+/** Matches the library's own default. */
+const DID_TIMEOUT_MS = 3000;
+
+const DID_DOC_ACCEPT = "application/did+ld+json,application/json";
+
+// The library's did:web and did:plc resolvers fetch with `redirect: "error"`,
+// which Cloudflare Workers reject outright, so every lookup would fail there.
+// These two behave the same but refuse redirects through fetchNoRedirect.
+
+/** did:web: no did:web paths, and plain http for localhost, as upstream. */
+export class NoRedirectDidWebResolver extends DidWebResolver {
+  override async resolveNoCheck(did: string): Promise<unknown> {
+    const parts = did.split(":").slice(2).map(decodeURIComponent);
+    if (parts.length < 1 || !parts[0]) throw new PoorlyFormattedDidError(did);
+    if (parts.length > 1) throw new UnsupportedDidWebPathError(did);
+    const url = new URL(`https://${parts[0]}${DOC_PATH}`);
+    if (url.hostname === "localhost") url.protocol = "http";
+    const res = await fetchNoRedirect(url, {
+      signal: AbortSignal.timeout(this.timeout),
+      headers: { accept: DID_DOC_ACCEPT },
+    });
+    // Positively not found, versus e.g. a network error (which throws).
+    if (!res.ok) return null;
+    return res.json();
+  }
+}
+
+/** did:plc: a 404 is not found, any other failure throws, as upstream. */
+export class NoRedirectDidPlcResolver extends DidPlcResolver {
+  override async resolveNoCheck(did: string): Promise<unknown> {
+    const res = await fetchNoRedirect(
+      new URL(`/${encodeURIComponent(did)}`, this.plcUrl),
+      {
+        signal: AbortSignal.timeout(this.timeout),
+        headers: { accept: DID_DOC_ACCEPT },
+      },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok)
+      throw Object.assign(new Error(res.statusText), { status: res.status });
+    return res.json();
+  }
+}
+
 export class Identity extends Context.Service<
   Identity,
   {
@@ -121,11 +131,15 @@ export class Identity extends Context.Service<
     Identity,
     Effect.gen(function* () {
       const { plcUrl } = yield* SpaceSyncConfig;
-      const resolver = new IdResolver({ plcUrl });
-      for (const [method, impl] of Object.entries(
-        noRedirectDidMethods(plcUrl, 3000),
-      ))
-        resolver.did.methods.set(method, impl as never);
+      const resolver = new IdResolver({ plcUrl, timeout: DID_TIMEOUT_MS });
+      resolver.did.methods.set(
+        "web",
+        new NoRedirectDidWebResolver(DID_TIMEOUT_MS),
+      );
+      resolver.did.methods.set(
+        "plc",
+        new NoRedirectDidPlcResolver(plcUrl, DID_TIMEOUT_MS),
+      );
       const cache = yield* Cache.makeWith(
         (did: DidString) =>
           Effect.tryPromise({
