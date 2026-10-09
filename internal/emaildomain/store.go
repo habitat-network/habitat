@@ -94,7 +94,8 @@ func (s *Store) GetEmail(ctx context.Context, did syntax.DID) (Email, bool, erro
 }
 
 // GetOrgDID returns the org did was provisioned into via email sign-in; ok
-// is false for any DID not provisioned that way.
+// is false for any DID not provisioned that way. The org is empty for a DID
+// provisioned unaffiliated that has not yet signed in.
 func (s *Store) GetOrgDID(ctx context.Context, did syntax.DID) (syntax.DID, bool, error) {
 	var row memberEmail
 	err := s.db.WithContext(ctx).Where("did = ?", did).First(&row).Error
@@ -115,17 +116,24 @@ func (s *Store) GetLoginMethod(
 	ctx context.Context,
 	did syntax.DID,
 ) (LoginMethod, bool, error) {
+	var rows []memberEmail
+	if err := s.db.WithContext(ctx).Where("did = ?", did).Limit(1).Find(&rows).Error; err != nil {
+		return "", false, fmt.Errorf("get login method: %w", err)
+	}
+	if len(rows) == 0 {
+		return "", false, nil
+	}
 	var methods []LoginMethod
 	if err := s.db.WithContext(ctx).
-		Model(&memberEmail{}).
-		Joins("JOIN domain_mappings ON domain_mappings.org_did = member_emails.org_did").
-		Where("member_emails.did = ?", did).
+		Model(&domainMapping{}).
+		Where("org_did = ?", rows[0].OrgDID).
 		Limit(1).
-		Pluck("domain_mappings.login_method", &methods).Error; err != nil {
+		Pluck("login_method", &methods).Error; err != nil {
 		return "", false, fmt.Errorf("get login method: %w", err)
 	}
 	if len(methods) == 0 {
-		return "", false, nil
+		// Members with no domain-mapped org were placed by WorkOS sign-in.
+		return LoginMethodWorkOS, true, nil
 	}
 	return methods[0], true, nil
 }
@@ -212,6 +220,57 @@ func (s *Store) HasWorkOSOrg(
 		return false, fmt.Errorf("check workos org mapping: %w", err)
 	}
 	return n > 0, nil
+}
+
+// OrgHasWorkOSOrg reports whether orgDID is mapped to any WorkOS organization.
+func (s *Store) OrgHasWorkOSOrg(ctx context.Context, orgDID syntax.DID) (bool, error) {
+	var n int64
+	if err := s.db.WithContext(ctx).
+		Model(&workosOrgMapping{}).
+		Where("org_did = ?", orgDID).
+		Count(&n).Error; err != nil {
+		return false, fmt.Errorf("check workos org mapping: %w", err)
+	}
+	return n > 0, nil
+}
+
+// LookupWorkOSOrg returns the org mapped to the first of workosOrgIDs that
+// has a mapping; ok is false if none does.
+func (s *Store) LookupWorkOSOrg(
+	ctx context.Context,
+	workosOrgIDs []string,
+) (syntax.DID, bool, error) {
+	if len(workosOrgIDs) == 0 {
+		return "", false, nil
+	}
+	var rows []workosOrgMapping
+	if err := s.db.WithContext(ctx).
+		Where("workos_org_id IN ?", workosOrgIDs).
+		Find(&rows).Error; err != nil {
+		return "", false, fmt.Errorf("lookup workos org: %w", err)
+	}
+	// Honor the caller's ordering rather than the database's.
+	for _, id := range workosOrgIDs {
+		for _, r := range rows {
+			if r.WorkOSOrgID == id {
+				return r.OrgDID, true, nil
+			}
+		}
+	}
+	return "", false, nil
+}
+
+// SetMemberOrg records that did, provisioned unaffiliated (see
+// Store.Provision with an empty org), now belongs to orgDID. It is a no-op
+// for a DID that already has an org.
+func (s *Store) SetMemberOrg(ctx context.Context, did, orgDID syntax.DID) error {
+	if err := s.db.WithContext(ctx).
+		Model(&memberEmail{}).
+		Where("did = ? AND org_did = ''", did).
+		Update("org_did", orgDID).Error; err != nil {
+		return fmt.Errorf("set member org: %w", err)
+	}
+	return nil
 }
 
 // Models returns the GORM models this package persists. Their tables are

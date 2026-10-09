@@ -12,10 +12,16 @@ import (
 type Profile struct {
 	Name    string
 	Picture string
-	// ExternalOrgIDs are the IDs of the identity provider's own
-	// organizations the user belongs to (e.g. WorkOS organizations). Empty
-	// for providers without such a concept.
-	ExternalOrgIDs []string
+	// ExternalOrgs are the identity provider's own organizations the user
+	// belongs to (e.g. WorkOS organizations). Empty for providers without
+	// such a concept.
+	ExternalOrgs []ExternalOrg
+}
+
+// ExternalOrg is an organization in a login provider's own directory.
+type ExternalOrg struct {
+	ID   string
+	Name string
 }
 
 // Provider abstracts a login backend. Each implementation handles a specific

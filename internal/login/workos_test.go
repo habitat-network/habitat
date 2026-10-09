@@ -53,7 +53,7 @@ func TestWorkOSProvider_Exchange(t *testing.T) {
 		case "/user_management/organization_memberships":
 			require.Equal(t, "user_1", r.URL.Query().Get("user_id"))
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": []map[string]any{
-				{"organization_id": "org_1", "status": "active"},
+				{"organization_id": "org_1", "organization_name": "Acme", "status": "active"},
 				{"organization_id": "org_2", "status": "inactive"},
 			}})
 		default:
@@ -70,7 +70,7 @@ func TestWorkOSProvider_Exchange(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "alice@acme.com", loginID)
 		require.Equal(t, Profile{
-			Name: "Alice A", Picture: "https://pic", ExternalOrgIDs: []string{"org_1"},
+			Name: "Alice A", Picture: "https://pic", ExternalOrgs: []ExternalOrg{{ID: "org_1", Name: "Acme"}},
 		}, profile)
 	})
 

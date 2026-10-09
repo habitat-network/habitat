@@ -380,8 +380,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup opensocial store: %w", err)
 	}
 	loginRouter.OpensocialStore = opensocialStore
+	// With WorkOS on, an email whose domain isn't mapped still gets an
+	// identity; sign-in places it in an org (see org.LoginRouter).
+	var emailResolverOpts []utils.Opt[habitat_identity.EmailResolver]
+	if loginRouter.WorkOS != nil {
+		emailResolverOpts = append(emailResolverOpts, habitat_identity.WithUnaffiliatedMinting())
+	}
 	emailResolver := habitat_identity.NewEmailResolver(
-		database.WithContext(startupCtx), emailDomainStore, hive,
+		database.WithContext(startupCtx), emailDomainStore, hive, emailResolverOpts...,
 	)
 	loginRouter.OpensocialStore = opensocialStore
 

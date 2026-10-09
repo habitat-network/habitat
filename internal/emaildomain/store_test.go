@@ -113,3 +113,36 @@ func TestStore_WorkOSOrgMapping(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 }
+
+func TestStore_Unaffiliated(t *testing.T) {
+	s, err := emaildomain.NewStore(pear_testutil.NewPearDB(t))
+	require.NoError(t, err)
+	alice := syntax.DID("did:web:alice.example.com")
+	org := syntax.DID("did:web:acme.example.com")
+	require.NoError(t, s.Provision(t.Context(), "alice@gmail.com", "", alice))
+
+	method, ok, err := s.GetLoginMethod(t.Context(), alice)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, emaildomain.LoginMethodWorkOS, method)
+
+	require.NoError(t, s.CreateWorkOSOrgMapping(t.Context(), "org_2", org))
+	got, ok, err := s.LookupWorkOSOrg(t.Context(), []string{"org_1", "org_2"})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, org, got)
+	_, ok, err = s.LookupWorkOSOrg(t.Context(), []string{"org_1"})
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.NoError(t, s.SetMemberOrg(t.Context(), alice, org))
+	got, ok, err = s.GetOrgDID(t.Context(), alice)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, org, got)
+	// Placement is one-shot: a member with an org keeps it.
+	require.NoError(t, s.SetMemberOrg(t.Context(), alice, "did:web:other.example.com"))
+	got, _, err = s.GetOrgDID(t.Context(), alice)
+	require.NoError(t, err)
+	require.Equal(t, org, got)
+}

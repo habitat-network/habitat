@@ -18,7 +18,7 @@ const workosDefaultBaseURL = "https://api.workos.com"
 // workosProvider signs users in with WorkOS AuthKit. WorkOS owns the
 // credentials and sessions, so nothing is persisted here. Exchange reports
 // the user's verified email as the login ID and the WorkOS organizations
-// they have an active membership in via Profile.ExternalOrgIDs; deciding
+// they have an active membership in via Profile.ExternalOrgs; deciding
 // which habitat org that maps to is the caller's job.
 type workosProvider struct {
 	clientID    string
@@ -99,8 +99,9 @@ type workosAuthResponse struct {
 
 type workosMembershipsResponse struct {
 	Data []struct {
-		OrganizationID string `json:"organization_id"`
-		Status         string `json:"status"`
+		OrganizationID   string `json:"organization_id"`
+		OrganizationName string `json:"organization_name"`
+		Status           string `json:"status"`
 	} `json:"data"`
 }
 
@@ -147,17 +148,17 @@ func (p *workosProvider) Exchange(
 	}, &memberships); err != nil {
 		return "", Profile{}, fmt.Errorf("workos list memberships: %w", err)
 	}
-	var orgIDs []string
+	var orgs []ExternalOrg
 	for _, m := range memberships.Data {
 		if m.Status == "active" {
-			orgIDs = append(orgIDs, m.OrganizationID)
+			orgs = append(orgs, ExternalOrg{ID: m.OrganizationID, Name: m.OrganizationName})
 		}
 	}
 
 	return auth.User.Email, Profile{
-		Name:           strings.TrimSpace(auth.User.FirstName + " " + auth.User.LastName),
-		Picture:        auth.User.ProfilePicture,
-		ExternalOrgIDs: orgIDs,
+		Name:         strings.TrimSpace(auth.User.FirstName + " " + auth.User.LastName),
+		Picture:      auth.User.ProfilePicture,
+		ExternalOrgs: orgs,
 	}, nil
 }
 
