@@ -11,6 +11,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/did"
+	"github.com/habitat-network/habitat/internal/httpsig"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -141,5 +143,54 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 		require.NoError(t, err)
 		_, ok := method.Validate(httptest.NewRecorder(), newAuthenticatedRequest(token))
 		require.True(t, ok)
+	})
+}
+
+func TestSpaceCredentialAuthMethod_KeyBinding(t *testing.T) {
+	hostKey, _ := atcrypto.GeneratePrivateKeyK256()
+	hostPubKey, _ := hostKey.PublicKey()
+	dir := identity.NewMockDirectory()
+	dir.Insert(
+		*did.Web("pear.com").AtprotoKey(hostPubKey.Multibase()).ATProtoSpaceKey(hostPubKey.Multibase()).Build(),
+	)
+	method := authn.NewSpaceCredentialAuthMethod(dir)
+	space := habitat_syntax.SpaceURI("at://did:web:pear.com/space/com.test.space/abc")
+
+	syncerKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	syncerPub, err := syncerKey.PublicKey()
+	require.NoError(t, err)
+	bound, err := utils.SpaceCredential(
+		hostKey, "#atproto_space", space, utils.WithConfirmationKey(syncerPub.DIDKey()),
+	)
+	require.NoError(t, err)
+
+	signed := func(key atcrypto.PrivateKey, audience string) *http.Request {
+		r := httptest.NewRequest("GET", "/", http.NoBody)
+		r.Header.Set("Authorization", "Atproto-Space "+bound)
+		r.Header.Set(httpsig.AudienceHeader, audience)
+		require.NoError(t, httpsig.Sign(r, key, "authorization", "atproto-space-audience"))
+		return r
+	}
+
+	t.Run("signed by bound key", func(t *testing.T) {
+		r := signed(syncerKey, "did:web:pear.com")
+		require.True(t, method.CanHandle(r))
+		info, ok := method.Validate(httptest.NewRecorder(), r)
+		require.True(t, ok)
+		require.Equal(t, space, info.Space)
+		require.Equal(t, "did:web:pear.com", info.Audience)
+	})
+
+	t.Run("unsigned bound credential rejected", func(t *testing.T) {
+		_, ok := method.Validate(httptest.NewRecorder(), newAuthenticatedRequest(bound))
+		require.False(t, ok)
+	})
+
+	t.Run("signed by other key rejected", func(t *testing.T) {
+		other, err := atcrypto.GeneratePrivateKeyP256()
+		require.NoError(t, err)
+		_, ok := method.Validate(httptest.NewRecorder(), signed(other, "did:web:pear.com"))
+		require.False(t, ok)
 	})
 }

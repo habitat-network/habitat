@@ -1,16 +1,22 @@
 package pearserver_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	clientmetadata_testutil "github.com/habitat-network/habitat/internal/clientmetadata/testutil"
+	"github.com/habitat-network/habitat/internal/httpsig"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
@@ -70,6 +76,47 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 			)
 			require.Equal(t, http.StatusOK, code)
 			require.NotEmpty(t, out.Credential)
+		})
+
+		t.Run("signed request yields a key-bound credential", func(t *testing.T) {
+			key, err := atcrypto.GeneratePrivateKeyP256()
+			require.NoError(t, err)
+			pub, err := key.PublicKey()
+			require.NoError(t, err)
+			body, err := json.Marshal(
+				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{Space: uri.String()},
+			)
+			require.NoError(t, err)
+			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+			req.Header.Set("Authorization", "Bearer delegation")
+			require.NoError(t, httpsig.Sign(req, key, "authorization"))
+
+			w := httptest.NewRecorder()
+			ts.Server.GetSpaceCredential(w, req)
+			require.Equal(t, http.StatusOK, w.Code)
+			var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+			claims := jwt.MapClaims{}
+			_, _, err = jwt.NewParser().ParseUnverified(out.Credential, claims)
+			require.NoError(t, err)
+			require.Equal(t, map[string]any{"kid": pub.DIDKey()}, claims["cnf"])
+		})
+
+		t.Run("bad signature is rejected", func(t *testing.T) {
+			key, err := atcrypto.GeneratePrivateKeyP256()
+			require.NoError(t, err)
+			body, err := json.Marshal(
+				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{Space: uri.String()},
+			)
+			require.NoError(t, err)
+			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+			req.Header.Set("Authorization", "Bearer delegation")
+			require.NoError(t, httpsig.Sign(req, key, "authorization"))
+			req.Header.Set("Authorization", "Bearer other")
+
+			w := httptest.NewRecorder()
+			ts.Server.GetSpaceCredential(w, req)
+			require.Equal(t, http.StatusBadRequest, w.Code)
 		})
 
 		t.Run("valid attestation is accepted", func(t *testing.T) {

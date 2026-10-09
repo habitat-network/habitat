@@ -1,10 +1,13 @@
 package authn
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/habitat-network/habitat/internal/httpsig"
 	"github.com/habitat-network/habitat/internal/httpx"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -38,9 +41,10 @@ func (s *SpaceCredentialAuthMethod) Validate(
 	scopes ...string,
 ) (*CredentialInfo, bool) {
 	ctx := r.Context()
+	claims := jwt.MapClaims{}
 	token, err := jwt.ParseWithClaims(
 		getBearerToken(r),
-		jwt.MapClaims{},
+		claims,
 		fetchIssuerKeyFunc(ctx, s.dir, nil),
 		jwt.WithExpirationRequired(),
 		jwt.WithIssuedAt(),
@@ -62,8 +66,43 @@ func (s *SpaceCredentialAuthMethod) Validate(
 		return nil, false
 	}
 
+	audience, err := verifyKeyBinding(r, claims)
+	if err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "credential key binding", err)
+		return nil, false
+	}
+
 	return &CredentialInfo{
-		Space:  space,
-		Method: ValidatorMethodSpaceCredential,
+		Space:    space,
+		Audience: audience,
+		Method:   ValidatorMethodSpaceCredential,
 	}, true
+}
+
+// verifyKeyBinding enforces the credential's cnf claim. A credential bound to
+// a key (cnf.kid, a P-256 did:key) must be presented with an RFC 9421
+// signature by that key over the credential and the Atproto-Space-Audience
+// header; the audience is returned. A credential with no cnf claim is the
+// legacy unbound form and is accepted as before.
+func verifyKeyBinding(r *http.Request, claims jwt.MapClaims) (string, error) {
+	cnf, hasCnf := claims["cnf"]
+	if !hasCnf {
+		return "", nil
+	}
+	cnfMap, ok := cnf.(map[string]any)
+	if !ok {
+		return "", errors.New("malformed cnf claim")
+	}
+	kid, ok := cnfMap["kid"].(string)
+	if !ok || kid == "" {
+		return "", errors.New("unsupported cnf claim: only cnf.kid is supported")
+	}
+	signer, err := httpsig.Verify(r, "authorization", "atproto-space-audience")
+	if err != nil {
+		return "", err
+	}
+	if signer != kid {
+		return "", errors.New("signature key does not match credential cnf.kid")
+	}
+	return strings.TrimSpace(r.Header.Get(httpsig.AudienceHeader)), nil
 }
