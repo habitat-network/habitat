@@ -1,7 +1,24 @@
 import { Context, Duration, Layer } from "effect";
 
+/**
+ * The DID document service entry space hosts deliver notifications to: a
+ * syncer's DID document must publish `#atproto_space_syncer` with its base URL.
+ */
+export const SYNCER_SERVICE_ID = "atproto_space_syncer";
+
+/**
+ * The service identifier registerNotify subscribes: our DID plus the
+ * `#atproto_space_syncer` fragment, which the space host resolves to the
+ * delivery endpoint. A bare DID would resolve to our `#atproto_pds` instead.
+ */
+export const syncerServiceRef = (serviceDid: string): string =>
+  `${serviceDid}#${SYNCER_SERVICE_ID}`;
+
 export interface SpaceSyncOptions {
-  /** Our service identifier, sent to registerNotify and checked as `aud` on notifications. */
+  /**
+   * Our DID. registerNotify subscribes its `#atproto_space_syncer` service
+   * (see syncerServiceRef), and it's checked as `aud` on notifications.
+   */
   readonly serviceDid: string;
   readonly plcUrl: string;
   /** Max spaces running a pass at once (global). */

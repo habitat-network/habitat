@@ -13,6 +13,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/notify"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -32,7 +33,15 @@ const registrationTTL = 24 * time.Hour
 // The `endpoint` field predates that and is kept for compatibility: a
 // subscriber may still pass a bare URL, which then serves as both the delivery
 // address and the audience. `service` wins if both are given.
+//
+// Registrations are recorded in the namespace the request used, so one made
+// through com.atproto.space.registerNotify is delivered com.atproto.space
+// notifications.
 func (p *PearServer) RegisterNotify(w http.ResponseWriter, r *http.Request) {
+	ns := notify.NamespaceHabitat
+	if httpx.IsComAtprotoRequest(r) {
+		ns = notify.NamespaceAtproto
+	}
 	ctx := r.Context()
 	var input habitat.NetworkHabitatSpaceRegisterNotifyInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -63,7 +72,7 @@ func (p *PearServer) RegisterNotify(w http.ResponseWriter, r *http.Request) {
 	}
 	expiresAt := time.Now().Add(registrationTTL)
 	if err := p.notifyStore.Register(
-		ctx, spaceURI, repo, audience, endpoint, expiresAt,
+		ctx, ns, spaceURI, repo, audience, endpoint, expiresAt,
 	); err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("register notify: %w", err))
 		return
