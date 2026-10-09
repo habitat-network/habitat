@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "drop",
+  "main": "src/server/entry.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // SyncHub hosts the one long-lived space syncer (internal/spaceSync) for
+  // every org this deployment holds credentials for — see
+  // src/server/syncHub.ts for why it lives in a Durable Object rather than
+  // the stateless Worker.
+  "durable_objects": {
+    "bindings": [{ "name": "SYNC_HUB", "class_name": "SyncHub" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SyncHub"] }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "drop",
+      // Placeholder: replace with the id `wrangler d1 create drop` prints
+      // (see README.md's deployment section).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  // FILES mirrors every synced file's blob, keyed by CID, so downloads are
+  // served from Cloudflare instead of round-tripping to the org's space
+  // host on every click (see src/server/sink.ts).
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "drop-files" }],
+  // These `vars` are the real deployment's values, not local dev's — same
+  // reason as chalk's wrangler.jsonc: `@cloudflare/vite-plugin` bakes the
+  // top-level config into the build regardless of `--env`, so local dev
+  // overrides them via `.dev.vars` instead. DROP_SESSION_SECRET and
+  // DROP_CREDENTIALS_KEY are wrangler secrets, not vars (see README.md).
+  "vars": {
+    "DROP_BASE_URL": "https://drop.habitat.network",
+    "DROP_HABITAT_URL": "https://pear.habitat.network",
+  },
+  "dev": { "port": 5178 },
+}
