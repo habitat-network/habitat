@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
 import { Duration, Effect, Fiber, Option, Stream } from "effect";
+import { TestClock } from "effect/testing";
 import { describe, expect } from "vitest";
 import { SpaceSyncer } from "./SpaceSyncer";
 import { SyncStore } from "./SyncStore";
@@ -199,7 +200,7 @@ describe("SpaceSyncer", () => {
     ),
   );
 
-  it.live(
+  it.effect(
     "unwatch interrupts an in-flight sink apply and leaves no state",
     () =>
       runWithSyncer(({ net, sink }) =>
@@ -209,10 +210,15 @@ describe("SpaceSyncer", () => {
           yield* Effect.promise(() =>
             space.write(alice, "com.example.post", "1", { text: "a" }),
           );
+          // The apply's delay runs on the test clock, which never advances
+          // here, so once the pass reaches the sink it stays in flight until
+          // unwatch interrupts it, however slow the pass was to get there.
           sink.applyDelayMs = 500;
           const syncer = yield* SpaceSyncer;
           yield* syncer.watch(space.ref);
-          yield* Effect.sleep("150 millis");
+          while (!sink.inFlight.has(space.id)) {
+            yield* TestClock.withLive(Effect.sleep("5 millis"));
+          }
           yield* syncer.unwatch(space.ref);
           expect(sink.interrupted).toBe(1);
           expect(sink.batches).toHaveLength(0);
