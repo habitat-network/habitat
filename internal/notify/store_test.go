@@ -33,7 +33,7 @@ func registerLegacy(
 ) {
 	t.Helper()
 	require.NoError(
-		t, s.Register(t.Context(), space, repo, endpoint, endpoint, expiresAt),
+		t, s.Register(t.Context(), NamespaceHabitat, space, repo, endpoint, endpoint, expiresAt),
 	)
 }
 
@@ -125,7 +125,7 @@ func TestStoreRegisterRecordsAudience(t *testing.T) {
 	future := time.Now().Add(time.Hour)
 
 	require.NoError(t, s.Register(
-		t.Context(), space, "", syncerService, "https://sync.example", future,
+		t.Context(), NamespaceHabitat, space, "", syncerService, "https://sync.example", future,
 	))
 
 	regs, err := s.ListForRepo(t.Context(), space, repo)
@@ -143,10 +143,10 @@ func TestStoreReRegisteringSameAudienceMovesEndpoint(t *testing.T) {
 	future := time.Now().Add(time.Hour)
 
 	require.NoError(t, s.Register(
-		t.Context(), space, "", syncerService, "https://old.example", future,
+		t.Context(), NamespaceHabitat, space, "", syncerService, "https://old.example", future,
 	))
 	require.NoError(t, s.Register(
-		t.Context(), space, "", syncerService, "https://moved.example", future,
+		t.Context(), NamespaceHabitat, space, "", syncerService, "https://moved.example", future,
 	))
 
 	regs, err := s.ListForRepo(t.Context(), space, repo)
@@ -163,7 +163,7 @@ func TestStoreLegacyEndpointIsItsOwnAudience(t *testing.T) {
 	s := newTestStore(t)
 
 	require.NoError(t, s.Register(
-		t.Context(), space, "", "https://sync.example", "https://sync.example",
+		t.Context(), NamespaceHabitat, space, "", "https://sync.example", "https://sync.example",
 		time.Now().Add(time.Hour),
 	))
 
@@ -182,10 +182,10 @@ func TestStoreKeepsDistinctLegacyEndpoints(t *testing.T) {
 	future := time.Now().Add(time.Hour)
 
 	require.NoError(t, s.Register(
-		t.Context(), space, "", "https://a.example", "https://a.example", future,
+		t.Context(), NamespaceHabitat, space, "", "https://a.example", "https://a.example", future,
 	))
 	require.NoError(t, s.Register(
-		t.Context(), space, "", "https://b.example", "https://b.example", future,
+		t.Context(), NamespaceHabitat, space, "", "https://b.example", "https://b.example", future,
 	))
 
 	regs, err := s.ListForRepo(t.Context(), space, repo)
@@ -203,10 +203,10 @@ func TestStoreKeysDistinctAudiencesOnSameEndpoint(t *testing.T) {
 	future := time.Now().Add(time.Hour)
 
 	require.NoError(t, s.Register(
-		t.Context(), space, "", syncerService, "https://sync.example", future,
+		t.Context(), NamespaceHabitat, space, "", syncerService, "https://sync.example", future,
 	))
 	require.NoError(t, s.Register(
-		t.Context(), space, "", "did:web:other.example#habitat_space_syncer",
+		t.Context(), NamespaceHabitat, space, "", "did:web:other.example#habitat_space_syncer",
 		"https://sync.example", future,
 	))
 

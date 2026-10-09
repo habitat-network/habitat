@@ -56,8 +56,30 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 
 	future := time.Now().Add(time.Hour)
 	// One whole-space and one repo-specific registration both match this write.
-	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, subscriber.URL, future))
-	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, subscriber.URL, future))
+	require.NoError(
+		t,
+		s.Register(
+			t.Context(),
+			NamespaceHabitat,
+			space,
+			"",
+			subscriber.URL,
+			subscriber.URL,
+			future,
+		),
+	)
+	require.NoError(
+		t,
+		s.Register(
+			t.Context(),
+			NamespaceHabitat,
+			space,
+			repo,
+			subscriber.URL,
+			subscriber.URL,
+			future,
+		),
+	)
 
 	signer := &fakeSigner{t: t}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
@@ -100,8 +122,30 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 
 	future := time.Now().Add(time.Hour)
 	// Both a whole-space and a repo-specific registration should be notified.
-	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, subscriber.URL, future))
-	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, subscriber.URL, future))
+	require.NoError(
+		t,
+		s.Register(
+			t.Context(),
+			NamespaceHabitat,
+			space,
+			"",
+			subscriber.URL,
+			subscriber.URL,
+			future,
+		),
+	)
+	require.NoError(
+		t,
+		s.Register(
+			t.Context(),
+			NamespaceHabitat,
+			space,
+			repo,
+			subscriber.URL,
+			subscriber.URL,
+			future,
+		),
+	)
 
 	signer := &fakeSigner{t: t}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
@@ -146,7 +190,18 @@ func TestNotifierSignerErrorAbortsDelivery(t *testing.T) {
 	t.Cleanup(subscriber.Close)
 
 	future := time.Now().Add(time.Hour)
-	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, subscriber.URL, future))
+	require.NoError(
+		t,
+		s.Register(
+			t.Context(),
+			NamespaceHabitat,
+			space,
+			"",
+			subscriber.URL,
+			subscriber.URL,
+			future,
+		),
+	)
 
 	signer := &fakeSigner{err: errSign}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
@@ -181,7 +236,7 @@ func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
 	require.NoError(
 		t,
 		s.Register(
-			t.Context(), space, bob,
+			t.Context(), NamespaceHabitat, space, bob,
 			subscriber.URL, subscriber.URL, time.Now().Add(time.Hour),
 		),
 	)
@@ -252,7 +307,7 @@ func captureAudience(t *testing.T, register func(Store, string) error) (string, 
 func TestNotifierAddressesServiceIdentifier(t *testing.T) {
 	aud, endpoint := captureAudience(t, func(s Store, ep string) error {
 		return s.Register(
-			t.Context(), space, "", syncerService, ep, time.Now().Add(time.Hour),
+			t.Context(), NamespaceHabitat, space, "", syncerService, ep, time.Now().Add(time.Hour),
 		)
 	})
 	require.Equal(t, syncerService, aud)
@@ -263,7 +318,54 @@ func TestNotifierAddressesServiceIdentifier(t *testing.T) {
 // deprecated endpoint field is still delivered to, addressed by its URL.
 func TestNotifierAddressesLegacyEndpoint(t *testing.T) {
 	aud, endpoint := captureAudience(t, func(s Store, ep string) error {
-		return s.Register(t.Context(), space, "", ep, ep, time.Now().Add(time.Hour))
+		return s.Register(
+			t.Context(),
+			NamespaceHabitat,
+			space,
+			"",
+			ep,
+			ep,
+			time.Now().Add(time.Hour),
+		)
 	})
 	require.Equal(t, endpoint, aud)
+}
+
+// TestNotifierDeliversAtprotoNamespace pins that a com.atproto.space
+// registration is delivered com.atproto.space.notifyWrite, addressed to the
+// bare DID of its service identifier.
+func TestNotifierDeliversAtprotoNamespace(t *testing.T) {
+	s := newTestStore(t)
+
+	type delivery struct{ path, aud, lxm string }
+	received := make(chan delivery, 1)
+	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		token, err := jwt.ParseSigned(raw)
+		require.NoError(t, err)
+		var claims struct {
+			jwt.Claims
+			Lxm string `json:"lxm"`
+		}
+		require.NoError(t, token.UnsafeClaimsWithoutVerification(&claims))
+		received <- delivery{r.URL.Path, claims.Audience[0], claims.Lxm}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(subscriber.Close)
+
+	require.NoError(t, s.Register(
+		t.Context(), NamespaceAtproto, space, "", syncerService, subscriber.URL,
+		time.Now().Add(time.Hour),
+	))
+	NewNotifier(s, subscriber.Client(), &fakeSigner{t: t}).
+		NotifyWrite(t.Context(), space, repo, "3lrev", []byte{0x01}, "3lspacerev2", "3lspacerev1")
+
+	select {
+	case d := <-received:
+		require.Equal(t, "/xrpc/com.atproto.space.notifyWrite", d.path)
+		require.Equal(t, "com.atproto.space.notifyWrite", d.lxm)
+		require.Equal(t, "did:web:sync.example.com", d.aud)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for notifyWrite delivery")
+	}
 }

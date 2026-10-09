@@ -1,0 +1,14 @@
+layer: application
+language: typescript
+tasks:
+  dev:
+    env:
+      SERVER_PORT: "5178"
+      # workerd's outbound fetch only trusts public CAs plus this bundle, not
+      # the macOS keychain, so without it every request to a Caddy-served
+      # *.local.habitat.network host (pear's OAuth and space endpoints) fails
+      # TLS with an opaque "internal error".
+      NODE_EXTRA_CA_CERTS: "$HOME/Library/Application Support/Caddy/pki/authorities/local/root.crt"
+    deps:
+      - pear:dev
+      - root:caddy

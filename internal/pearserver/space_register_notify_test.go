@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
+	"github.com/habitat-network/habitat/internal/notify"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -98,7 +99,31 @@ func TestServerRegisterNotify(t *testing.T) {
 	// what it was resolved to an endpoint through.
 	require.Equal(t, syncerRef, regs[0].Audience)
 	require.Equal(t, syncerEndpoint, regs[0].Endpoint)
+	require.Equal(t, notify.NamespaceHabitat, regs[0].Namespace)
 	require.Empty(t, regs[0].Repo)
+}
+
+// TestServerRegisterNotifyAtproto pins that com.atproto.space.registerNotify
+// records its registrations as com.atproto.space ones, so they are delivered
+// com.atproto.space notifications.
+func TestServerRegisterNotifyAtproto(t *testing.T) {
+	ts := newNotifyServer(t)
+
+	body, err := json.Marshal(habitat.NetworkHabitatSpaceRegisterNotifyInput{
+		Space: notifySpace.String(), Service: syncerRef,
+	})
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	ts.Server.ServeHTTP(w, httptest.NewRequest(
+		http.MethodPost, "/xrpc/com.atproto.space.registerNotify", bytes.NewReader(body),
+	))
+	require.Equal(t, http.StatusOK, w.Code)
+
+	regs, err := ts.NotifyStore.ListForSpace(t.Context(), notifySpace)
+	require.NoError(t, err)
+	require.Len(t, regs, 1)
+	require.Equal(t, syncerRef, regs[0].Audience)
+	require.Equal(t, notify.NamespaceAtproto, regs[0].Namespace)
 }
 
 func TestServerRegisterNotifyRepoSpecific(t *testing.T) {

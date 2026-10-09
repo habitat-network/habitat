@@ -169,35 +169,42 @@ describe("SpaceSyncer", () => {
     ),
   );
 
-  it.live("never runs more than maxActiveSpaces passes at once", () =>
-    runWithSyncer(
-      ({ net, sink }) =>
-        Effect.gen(function* () {
-          const alice = yield* Effect.promise(() => net.createAccount("alice"));
-          sink.applyDelayMs = 20;
-          const spaces = [];
-          for (let i = 0; i < 20; i++) {
-            const space = net.createSpace(alice, `s${i}`);
-            yield* Effect.promise(() =>
-              space.write(alice, "com.example.post", "1", { text: "a" }),
+  it.live(
+    "never runs more than maxActiveSpaces passes at once",
+    () =>
+      runWithSyncer(
+        ({ net, sink }) =>
+          Effect.gen(function* () {
+            const alice = yield* Effect.promise(() =>
+              net.createAccount("alice"),
             );
-            spaces.push(space);
-          }
-          const syncer = yield* SpaceSyncer;
-          yield* Effect.forEach(spaces, (s) => syncer.watch(s.ref), {
-            discard: true,
-          });
-          yield* Effect.forEach(spaces, (s) => syncer.awaitIdle(s.ref), {
-            discard: true,
-          });
-          expect(sink.maxConcurrentSpaces).toBeLessThanOrEqual(3);
-          expect(sink.batches.filter((b) => b._tag === "Reset")).toHaveLength(
-            20,
-          );
-          expect(yield* syncer.activeSpaces).toBe(0);
-        }),
-      { maxActiveSpaces: 3 },
-    ),
+            sink.applyDelayMs = 20;
+            const spaces = [];
+            for (let i = 0; i < 20; i++) {
+              const space = net.createSpace(alice, `s${i}`);
+              yield* Effect.promise(() =>
+                space.write(alice, "com.example.post", "1", { text: "a" }),
+              );
+              spaces.push(space);
+            }
+            const syncer = yield* SpaceSyncer;
+            yield* Effect.forEach(spaces, (s) => syncer.watch(s.ref), {
+              discard: true,
+            });
+            yield* Effect.forEach(spaces, (s) => syncer.awaitIdle(s.ref), {
+              discard: true,
+            });
+            expect(sink.maxConcurrentSpaces).toBeLessThanOrEqual(3);
+            expect(sink.batches.filter((b) => b._tag === "Reset")).toHaveLength(
+              20,
+            );
+            expect(yield* syncer.activeSpaces).toBe(0);
+          }),
+        { maxActiveSpaces: 3 },
+      ),
+    // 20 spaces' worth of signing and verification on real time: about a
+    // second on an idle machine, several on a busy CI runner.
+    30_000,
   );
 
   it.effect(

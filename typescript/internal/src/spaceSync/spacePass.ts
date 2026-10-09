@@ -8,7 +8,11 @@ import {
   Option,
   Stream,
 } from "effect";
-import { type SpaceSyncOptions, SpaceSyncConfig } from "./config";
+import {
+  type SpaceSyncOptions,
+  SpaceSyncConfig,
+  syncerServiceRef,
+} from "./config";
 import {
   type SinkError,
   type StoreError,
@@ -242,7 +246,7 @@ export class SpacePass extends Context.Service<
             state.registrationExpiresAt - now <= renewLeadMs)
         ) {
           const registered = yield* client
-            .registerNotify(ref, config.serviceDid)
+            .registerNotify(ref, syncerServiceRef(config.serviceDid))
             .pipe(
               Effect.map(Option.some),
               Effect.catchIf(

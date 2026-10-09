@@ -97,12 +97,9 @@ func verifyKeyBinding(r *http.Request, claims jwt.MapClaims) (string, error) {
 	if !ok || kid == "" {
 		return "", errors.New("unsupported cnf claim: only cnf.kid is supported")
 	}
-	signer, err := httpsig.Verify(r, "authorization", "atproto-space-audience")
-	if err != nil {
+	// The signature may omit keyid; it is checked against cnf.kid either way.
+	if err := httpsig.VerifyBound(r, kid, "authorization", "atproto-space-audience"); err != nil {
 		return "", err
-	}
-	if signer != kid {
-		return "", errors.New("signature key does not match credential cnf.kid")
 	}
 	return strings.TrimSpace(r.Header.Get(httpsig.AudienceHeader)), nil
 }

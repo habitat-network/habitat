@@ -77,24 +77,30 @@ it("uploads a blob and putRecords to the member's own repo when the alarm fires"
   // real, matching what a live alarm firing at its scheduled time sees.
   await new Promise((resolve) => setTimeout(resolve, 2100));
   await runDurableObjectAlarm(stub);
-  const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-  expect(urls.some((u) => u.includes("network.habitat.repo.uploadBlob"))).toBe(
-    true,
-  );
-  // Earlier tests' real alarms (also scheduled IDLE_MS out) can fire in the
-  // background during this test's real wait above, so filter on this test's
-  // own space URI rather than assuming the first/only "space.putRecord" call
-  // observed belongs to it.
-  const put = fetchMock.mock.calls.find(
-    (c) =>
-      String(c[0]).includes("space.putRecord") &&
-      JSON.parse(String(c[1].body)).space === uri,
-  );
-  expect(JSON.parse(String(put![1].body))).toMatchObject({
-    space: uri,
-    repo: "did:web:bob.example",
-    collection: "network.habitat.docs.crdt",
-    rkey: "self",
+  // This room's own real alarm can fire during the wait above and still be
+  // mid-flush when runDurableObjectAlarm returns (finding no alarm left to
+  // run), so wait for its writes rather than reading the mock once.
+  await vi.waitFor(() => {
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(
+      urls.some((u) => u.includes("network.habitat.repo.uploadBlob")),
+    ).toBe(true);
+    // Earlier tests' real alarms (also scheduled IDLE_MS out) can fire in the
+    // background during this test's real wait above, so filter on this test's
+    // own space URI rather than assuming the first/only "space.putRecord" call
+    // observed belongs to it.
+    const put = fetchMock.mock.calls.find(
+      (c) =>
+        String(c[0]).includes("space.putRecord") &&
+        JSON.parse(String(c[1].body)).space === uri,
+    );
+    expect(put).toBeDefined();
+    expect(JSON.parse(String(put![1].body))).toMatchObject({
+      space: uri,
+      repo: "did:web:bob.example",
+      collection: "network.habitat.docs.crdt",
+      rkey: "self",
+    });
   });
 });
 
@@ -112,16 +118,19 @@ it("flushes each member to their own repo separately", async () => {
   }
   await new Promise((resolve) => setTimeout(resolve, 2100)); // see the note above
   await runDurableObjectAlarm(stub);
-  const repos = fetchMock.mock.calls
-    .filter((c) => String(c[0]).includes("space.putRecord"))
-    .map(
-      (c) => JSON.parse(String(c[1].body)) as { space: string; repo: string },
-    )
-    .filter((body) => body.space === uri)
-    .map((body) => body.repo);
-  expect(new Set(repos)).toEqual(
-    new Set(["did:web:bob.example", "did:web:carol.example"]),
-  );
+  // As above: a background alarm may still be flushing the second member.
+  await vi.waitFor(() => {
+    const repos = fetchMock.mock.calls
+      .filter((c) => String(c[0]).includes("space.putRecord"))
+      .map(
+        (c) => JSON.parse(String(c[1].body)) as { space: string; repo: string },
+      )
+      .filter((body) => body.space === uri)
+      .map((body) => body.repo);
+    expect(new Set(repos)).toEqual(
+      new Set(["did:web:bob.example", "did:web:carol.example"]),
+    );
+  });
 });
 
 it("keeps the pending flush when the sap write fails", async () => {
