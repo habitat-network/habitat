@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.search.removeCollection",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Stop surfacing a collection the org's admins added in search results. Default collections stay included. Removing a collection that isn't configured succeeds without change. Requires service-auth. Requires the community.configure action.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["org", "collection"],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community to configure."
+            },
+            "collection": {
+              "type": "string",
+              "format": "nsid"
+            }
+          }
+        }
+      }
+    }
+  }
+}

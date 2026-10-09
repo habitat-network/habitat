@@ -13,6 +13,7 @@ import (
 	habitat_err "github.com/habitat-network/habitat/internal/error"
 	"github.com/habitat-network/habitat/internal/nango"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -73,6 +74,92 @@ func getRecordHandler(
 		}
 
 		return nil, getRecordOutput{URI: input.URI, Value: record.Value}, nil
+	}
+}
+
+// maxSearchLimit is the largest page the "search_records" tool returns,
+// matching the searchRecords endpoint.
+const maxSearchLimit = 100
+
+type searchRecordsInput struct {
+	Query      string `json:"query"                jsonschema:"the text to search for"`
+	Org        string `json:"org,omitempty"        jsonschema:"DID of the org whose spaces to search"`
+	Collection string `json:"collection,omitempty" jsonschema:"only return records of this collection NSID"`
+	Limit      int    `json:"limit,omitempty"      jsonschema:"maximum number of hits to return, up to 100"`
+}
+
+type searchRecordsHit struct {
+	URI     string `json:"uri"`
+	Space   string `json:"space"`
+	CID     string `json:"cid"`
+	Value   any    `json:"value"`
+	Snippet string `json:"snippet"`
+}
+
+type searchRecordsOutput struct {
+	Hits []searchRecordsHit `json:"hits"`
+}
+
+// searchRecordsHandler implements the "search_records" MCP tool: run the same
+// search as the searchRecords endpoint as the authenticated caller, so the
+// index only matches records they may read.
+func searchRecordsHandler(
+	searcher RecordSearcher,
+) mcp.ToolHandlerFor[searchRecordsInput, searchRecordsOutput] {
+	return func(
+		ctx context.Context,
+		_ *mcp.CallToolRequest,
+		input searchRecordsInput,
+	) (*mcp.CallToolResult, searchRecordsOutput, error) {
+		tokenInfo := auth.TokenInfoFromContext(ctx)
+		if tokenInfo == nil || tokenInfo.UserID == "" {
+			return nil, searchRecordsOutput{}, fmt.Errorf("missing authenticated caller")
+		}
+		caller := syntax.DID(tokenInfo.UserID)
+
+		if input.Query == "" {
+			return nil, searchRecordsOutput{}, fmt.Errorf("query is required")
+		}
+		if input.Limit < 0 || input.Limit > maxSearchLimit {
+			return nil, searchRecordsOutput{}, fmt.Errorf(
+				"limit must be between 1 and %d", maxSearchLimit,
+			)
+		}
+		q := search.Query{Text: input.Query, Limit: input.Limit}
+		if input.Org != "" {
+			org, err := syntax.ParseDID(input.Org)
+			if err != nil {
+				return nil, searchRecordsOutput{}, fmt.Errorf("invalid org: %w", err)
+			}
+			q.Org = org
+		}
+		if input.Collection != "" {
+			collection, err := syntax.ParseNSID(input.Collection)
+			if err != nil {
+				return nil, searchRecordsOutput{}, fmt.Errorf("invalid collection: %w", err)
+			}
+			q.Collections = []syntax.NSID{collection}
+		}
+
+		page, err := searcher.Search(ctx, caller, q)
+		if errors.Is(err, search.ErrOrgRequired) {
+			return nil, searchRecordsOutput{}, fmt.Errorf("org is required")
+		}
+		if err != nil {
+			return nil, searchRecordsOutput{}, fmt.Errorf("searching records: %w", err)
+		}
+
+		out := searchRecordsOutput{Hits: make([]searchRecordsHit, len(page.Matches))}
+		for i, m := range page.Matches {
+			out.Hits[i] = searchRecordsHit{
+				URI:     m.URI.String(),
+				Space:   m.Record.Space.String(),
+				CID:     m.Record.Cid.String(),
+				Value:   m.Record.Value,
+				Snippet: m.Snippet,
+			}
+		}
+		return nil, out, nil
 	}
 }
 

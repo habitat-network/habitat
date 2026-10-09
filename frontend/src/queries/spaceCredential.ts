@@ -1,32 +1,9 @@
 import type { AuthManager } from "internal";
-import { createDpopProof, resolveSpaceHost } from "internal";
+import { createSpaceSignatureHeaders, resolveSpaceHost } from "internal";
 import { xrpc, type Agent, type SpaceRefString } from "@atproto/lex";
 import { SpaceRef } from "@atproto/syntax";
 import { queryOptions } from "@tanstack/react-query";
 import { com } from "api";
-
-// fetchWithBearer makes a JSON request against `host` using an arbitrary
-// bearer token (a delegation token or space credential) rather than the
-// caller's own OAuth session. Used for the credential exchange itself and for
-// endpoints (like getBlob) that don't return lex-typed JSON.
-export async function fetchWithBearer(
-  host: string,
-  path: string,
-  token: string,
-  init?: RequestInit,
-) {
-  const res = await fetch(`${host}${path}`, {
-    ...init,
-    headers: { ...init?.headers, Authorization: `Bearer ${token}` },
-  });
-  const body = await res.json().catch(() => undefined);
-  if (!res.ok) {
-    throw new Error(
-      body?.message || body?.error || `request failed: ${res.status}`,
-    );
-  }
-  return body;
-}
 
 export interface SpaceCredential {
   // The signed space credential, sent as a bearer token to `host`.
@@ -37,6 +14,9 @@ export interface SpaceCredential {
   // com.atproto.space.* read for this space is served here, per
   // bluesky-social/proposals#0016.
   host: string;
+  // The space authority's DID, signed as the audience on every request that
+  // presents the credential.
+  audience: string;
 }
 
 // spaceCredentialQueryOptions fetches a credential for reading `space`
@@ -59,27 +39,25 @@ export function spaceCredentialQueryOptions(
       );
       const { token: delegationToken } = response.body;
       const host = await resolveSpaceHost(SpaceRef.parse(space).spaceDid);
-      const path = "/xrpc/com.atproto.space.getSpaceCredential";
-      // The atproto spaces protocol requires a DPoP proof binding the minted
-      // credential to a key the caller holds (see
-      // lexicons/com/atproto/space/getSpaceCredential.json), so a
+      // The atproto spaces protocol requires an HTTP message signature over
+      // the delegation token, made by the key to bind the minted credential
+      // to (see lexicons/com/atproto/space/getSpaceCredential.json), so a
       // spaces-capable PDS talked to directly (bypassing pear's proxy)
       // rejects this call without one. No credential exists yet at this
-      // exchange step — it's the delegation token being exchanged for one —
-      // so the proof carries no "ath" claim (that's only for proving
-      // possession of a key already bound to an existing credential).
-      const dpopProof = await createDpopProof("POST", `${host}${path}`);
-      const { credential } = await fetchWithBearer(
-        host,
-        path,
-        delegationToken,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", DPoP: dpopProof },
-          body: JSON.stringify({ space }),
-        },
+      // exchange step, so no audience is signed — the signature's keyid
+      // carries the confirmation key instead.
+      const {
+        body: { credential },
+      } = await xrpc(
+        signedAgent(host, delegationToken),
+        com.atproto.space.getSpaceCredential.main,
+        { body: { space: space as SpaceRefString } },
       );
-      return { credential: credential as string, host };
+      return {
+        credential,
+        host,
+        audience: SpaceRef.parse(space).spaceDid,
+      };
     },
     // Credentials are short-lived, server-signed tokens; treat as fresh for a
     // few minutes instead of re-exchanging on every read of the space.
@@ -87,39 +65,47 @@ export function spaceCredentialQueryOptions(
   });
 }
 
-// spaceCredentialHeaders builds the Authorization + DPoP headers needed to
-// present cred on a `method url` request. A space credential reads a whole
-// space and is shown to every repo host in it — as a bearer token it would be
-// a shared secret, since any host given one could replay it against every
-// other host in the space. So per the permissioned-data proposal
-// (github.com/bluesky-social/proposals/0016-permissioned-data), it's
-// presented via the DPoP scheme with a fresh proof (binding the credential's
-// hash into "ath") on every request, not just the exchange that minted it.
+// spaceCredentialHeaders builds the Authorization + signature headers needed
+// to present cred on a request. A space credential reads a whole space and is
+// shown to every repo host in it — as a bearer token it would be a shared
+// secret, since any host given one could replay it against every other host in
+// the space. So per the permissioned-data proposal
+// (github.com/bluesky-social/proposals/0016-permissioned-data), every request
+// carries a fresh HTTP message signature over the credential and the audience
+// DID it is addressed to, made by the key the credential is bound to.
 export async function spaceCredentialHeaders(
   cred: SpaceCredential,
-  method: string,
-  url: string,
 ): Promise<HeadersInit> {
-  const proof = await createDpopProof(method, url, cred.credential);
-  return { Authorization: `DPoP ${cred.credential}`, DPoP: proof };
+  return createSpaceSignatureHeaders(
+    `Bearer ${cred.credential}`,
+    cred.audience,
+  );
+}
+
+// signedAgent is an xrpc Agent that sends requests to `host` with `token` as
+// the bearer, adding a fresh space signature over it per request (and over
+// `audience`, when given) instead of using the caller's own OAuth session.
+function signedAgent(host: string, token: string, audience?: string): Agent {
+  return {
+    fetchHandler: async (path, init) => {
+      const headers = new Headers(init.headers);
+      const sigHeaders = await createSpaceSignatureHeaders(
+        `Bearer ${token}`,
+        audience,
+      );
+      for (const [key, value] of Object.entries(sigHeaders)) {
+        headers.set(key, value);
+      }
+      return fetch(`${host}${path}`, { ...init, headers });
+    },
+  };
 }
 
 // spaceAgent turns a space credential into an xrpc Agent: requests are sent
-// to the space's own resolved host (not this pear instance), DPoP-presenting
+// to the space's own resolved host (not this pear instance), signing
 // the credential per request, so a lexicon-typed, lex-decoded read (e.g.
 // com.atproto.space.listRecords) can be made the same way an
 // authManager-backed one would.
 export function spaceAgent(cred: SpaceCredential): Agent {
-  return {
-    fetchHandler: async (path, init) => {
-      const url = `${cred.host}${path}`;
-      const method = init.method ?? "GET";
-      const headers = new Headers(init.headers);
-      const auth = await spaceCredentialHeaders(cred, method, url);
-      for (const [key, value] of new Headers(auth)) {
-        headers.set(key, value);
-      }
-      return fetch(url, { ...init, headers });
-    },
-  };
+  return signedAgent(cred.host, cred.credential, cred.audience);
 }

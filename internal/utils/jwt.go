@@ -35,20 +35,46 @@ func ServiceAuthToken(
 	}).SignedString(privateKey)
 }
 
+// SpaceCredentialOpt customizes a space credential.
+type SpaceCredentialOpt func(claims jwt.MapClaims)
+
+// WithConfirmationKey binds the credential to a P-256 did:key via cnf.kid
+// (RFC 7800): it is only usable with a request signature by that key.
+func WithConfirmationKey(didKey string) SpaceCredentialOpt {
+	return func(claims jwt.MapClaims) {
+		claims["cnf"] = map[string]any{"kid": didKey}
+	}
+}
+
+const (
+	// DefaultSpaceCredentialTTL is the lifetime of a minted space credential.
+	// Short expiry is the primary revocation mechanism for space credentials.
+	DefaultSpaceCredentialTTL = 10 * time.Minute
+	// MaxSpaceCredentialTTL is the longest a space credential may live.
+	MaxSpaceCredentialTTL = 60 * time.Minute
+)
+
 func SpaceCredential(
 	privateKey atcrypto.PrivateKey,
 	kid string,
 	space habitat_syntax.SpaceURI,
+	opts ...SpaceCredentialOpt,
 ) (string, error) {
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"iss": space.SpaceOwner(),
+		"sub": space,
+		"iat": jwt.NewNumericDate(now),
+		"exp": jwt.NewNumericDate(now.Add(DefaultSpaceCredentialTTL)),
+		// Random unique identifier, used for revocation.
+		"jti": RandomNonce(16),
+	}
+	for _, opt := range opts {
+		opt(claims)
+	}
 	return new(jwt.Token{
 		Method: jwt.GetSigningMethod("ES256K"),
-		Claims: jwt.MapClaims{
-			"iss": space.SpaceOwner(),
-			"sub": space,
-			"iat": jwt.NewNumericDate(time.Now()),
-			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)),
-			"jti": RandomNonce(16),
-		},
+		Claims: claims,
 		Header: map[string]any{
 			"typ": "atproto-space-credential+jwt",
 			"kid": kid,

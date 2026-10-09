@@ -9,6 +9,7 @@ type NetworkHabitatSpaceSearchRecordsParams struct {
 	Collection []string `json:"collection,omitempty"`
 	Cursor     string   `json:"cursor,omitempty"`
 	Limit      int64    `json:"limit,omitempty"`
+	Org        string   `json:"org,omitempty"`
 	Q          string   `json:"q"`
 	Repo       string   `json:"repo,omitempty"`
 	Space      string   `json:"space,omitempty"`

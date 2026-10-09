@@ -46,7 +46,7 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
         com.atproto.space.listSpaces.main,
         {
           validateResponse: false,
-          params: { type: MEMBERS_SPACE_TYPE as NsidString },
+          params: { spaceType: MEMBERS_SPACE_TYPE as NsidString },
         },
       );
       const orgs: OrgSummary[] = [];
@@ -271,7 +271,7 @@ export function orgProfileQueryOptions(
           const blobParams = new URLSearchParams({ space: aboutSpace, cid });
           const blobUrl = `${cred.host}/xrpc/com.atproto.space.getBlob?${blobParams}`;
           const blobRes = await fetch(blobUrl, {
-            headers: await spaceCredentialHeaders(cred, "GET", blobUrl),
+            headers: await spaceCredentialHeaders(cred),
           });
           if (blobRes.ok) {
             profile.avatarUrl = URL.createObjectURL(await blobRes.blob());

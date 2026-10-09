@@ -11,7 +11,9 @@ type $nsid = typeof $nsid
 export { $nsid }
 
 export const $params = /*#__PURE__*/ l.params({
-  type: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'nsid' })),
+  spaceType: /*#__PURE__*/ l.optional(
+    /*#__PURE__*/ l.string({ format: 'nsid' }),
+  ),
   did: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'did' })),
   limit: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.withDefault(
@@ -55,11 +57,6 @@ type SpaceView = {
    * URI of the space.
    */
   uri: l.AtUriString
-
-  /**
-   * Whether the authenticated user is the owner of the space.
-   */
-  isOwner: boolean
 }
 
 export type { SpaceView }
@@ -67,10 +64,7 @@ export type { SpaceView }
 const spaceView = /*#__PURE__*/ l.typedObject<SpaceView>(
   $nsid,
   'spaceView',
-  /*#__PURE__*/ l.object({
-    uri: /*#__PURE__*/ l.string({ format: 'at-uri' }),
-    isOwner: /*#__PURE__*/ l.boolean(),
-  }),
+  /*#__PURE__*/ l.object({ uri: /*#__PURE__*/ l.string({ format: 'at-uri' }) }),
 )
 
 export { spaceView }

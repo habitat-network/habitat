@@ -1,6 +1,7 @@
 package sap
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -39,12 +40,24 @@ func (s *SapServer) HandleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rev, err := syntax.ParseTID(input.Rev)
+	// Prefer repoRev, the field the lexicon now requires; fall back to the
+	// deprecated rev so hosts that predate the rename still sync.
+	repoRev := input.RepoRev
+	if repoRev == "" {
+		repoRev = input.Rev
+	}
+	rev, err := syntax.ParseTID(repoRev)
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "invalid rev", err)
 		return
 	}
-	if err := s.s.NotifyWrite(ctx, space.URI(), repo, rev, input.Hash); err != nil {
+	spaceRev, prevSpaceRev, ok := parseSpaceRevs(ctx, w, input.SpaceRev, input.PrevSpaceRev)
+	if !ok {
+		return
+	}
+	if err := s.s.NotifyWrite(
+		ctx, space.URI(), repo, rev, input.Hash, spaceRev, prevSpaceRev,
+	); err != nil {
 		httpx.WriteServerError(ctx, w, err)
 		return
 	}
@@ -70,4 +83,29 @@ func (s *SapServer) HandleNotifySpaceDeleted(w http.ResponseWriter, r *http.Requ
 // ServeHTTP implements [http.Handler].
 func (s *SapServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
+}
+
+// parseSpaceRevs parses the optional space revision pair on a notifyWrite,
+// replying 400 when either is present but not a TID.
+func parseSpaceRevs(
+	ctx context.Context,
+	w http.ResponseWriter,
+	spaceRev string,
+	prevSpaceRev string,
+) (syntax.TID, syntax.TID, bool) {
+	var rev, prev syntax.TID
+	var err error
+	if spaceRev != "" {
+		if rev, err = syntax.ParseTID(spaceRev); err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "invalid spaceRev", err)
+			return "", "", false
+		}
+	}
+	if prevSpaceRev != "" {
+		if prev, err = syntax.ParseTID(prevSpaceRev); err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "invalid prevSpaceRev", err)
+			return "", "", false
+		}
+	}
+	return rev, prev, true
 }

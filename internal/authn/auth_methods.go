@@ -13,6 +13,9 @@ type CredentialInfo struct {
 	Subject syntax.DID
 	Org     org.Org
 	Space   habitat_syntax.SpaceURI
+	// Audience is the verified Atproto-Space-Audience of a key-bound space
+	// credential request; empty for unbound credentials.
+	Audience string
 	// Method names the auth method that produced this credential. Each Method
 	// sets it on the credential it returns, so provenance holds however the
 	// Method was reached: through EndpointOptions.Validate, or called

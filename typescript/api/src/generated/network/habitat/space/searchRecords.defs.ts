@@ -12,6 +12,7 @@ export { $nsid }
 
 export const $params = /*#__PURE__*/ l.params({
   q: /*#__PURE__*/ l.string(),
+  org: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'did' })),
   space: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'at-uri' })),
   collection: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ format: 'nsid' })),
@@ -41,7 +42,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Full-text search over the records in the permissioned spaces the caller can read, most relevant first. Without a space, searches every space the caller can read. Callable with OAuth, service auth, or a space credential; a space credential can only search its own space. */
+/** Full-text search over the records in the permissioned spaces the caller can read, most relevant first. Searches one org at a time: the spaces the org owns that the caller can read. Callable with OAuth, service auth, or a space credential; a space credential can only search its own space. */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output, ['SpaceNotFound'])
 
 export { main }

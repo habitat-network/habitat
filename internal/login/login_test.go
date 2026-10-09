@@ -32,7 +32,7 @@ func TestPDSProvider_Authorize(t *testing.T) {
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
 
-	redirect, state, err := p.Authorize(
+	redirect, _, state, err := p.Authorize(
 		context.Background(),
 		"did:web:pds.example.com",
 	)
@@ -65,7 +65,7 @@ func TestPDSProvider_Exchange(t *testing.T) {
 	)
 
 	// Obtain valid state from Authorize.
-	_, state, err := p.Authorize(
+	_, _, state, err := p.Authorize(
 		t.Context(),
 		"did:web:pds.example.com",
 	)

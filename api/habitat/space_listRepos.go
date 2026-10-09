@@ -24,8 +24,10 @@ type NetworkHabitatSpaceListReposOutput struct {
 type NetworkHabitatSpaceListReposRepo struct {
 	LexiconTypeID string       `json:"$type"`
 	Did           string       `json:"did"`
-	Hash          atdata.Bytes `json:"hash,omitempty"`
+	Hash          atdata.Bytes `json:"hash"`
+	RepoRev       string       `json:"repoRev"`
 	Rev           string       `json:"rev,omitempty"`
+	SpaceRev      string       `json:"spaceRev"`
 }
 
 // MarshalJSON sets $type to "network.habitat.space.listRepos#repo" before encoding.

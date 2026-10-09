@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "query",
-      "description": "Full-text search over the records in the permissioned spaces the caller can read, most relevant first. Without a space, searches every space the caller can read. Callable with OAuth, service auth, or a space credential; a space credential can only search its own space.",
+      "description": "Full-text search over the records in the permissioned spaces the caller can read, most relevant first. Searches one org at a time: the spaces the org owns that the caller can read. Callable with OAuth, service auth, or a space credential; a space credential can only search its own space.",
       "parameters": {
         "type": "params",
         "required": ["q"],
@@ -12,6 +12,11 @@
           "q": {
             "type": "string",
             "description": "The text to search for. Free-form; not a query syntax."
+          },
+          "org": {
+            "type": "string",
+            "format": "did",
+            "description": "Only search the spaces this org owns, and only the collections it surfaces in search: the defaults plus those its admins configured. Required unless space is given, which implies its owner."
           },
           "space": {
             "type": "string",
@@ -62,7 +67,11 @@
           }
         }
       },
-      "errors": [{ "name": "SpaceNotFound" }]
+      "errors": [
+        {
+          "name": "SpaceNotFound"
+        }
+      ]
     },
     "record": {
       "type": "object",

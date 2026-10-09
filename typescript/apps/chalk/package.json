@@ -59,7 +59,7 @@
     "msw": "^2.11.5",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:",
+    "vitest": "^4.1.11",
     "wrangler": "^4.125.0"
   }
 }

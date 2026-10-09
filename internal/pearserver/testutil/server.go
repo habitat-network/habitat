@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -23,6 +24,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
+	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -48,8 +50,11 @@ type TestServer struct {
 	NangoClient      *FakeNangoClient
 	PDSForwarding    *forwarding.PDSForwarding
 	EmailDomainStore *emaildomain.Store
+	Directory        identity.Directory
 	// SearchIndex backs searchRecords; search is off when it is nil.
 	SearchIndex search.Index
+	// SearchConfig stores the collections each org surfaces in search.
+	SearchConfig *searchconfig.Store
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -110,6 +115,15 @@ func WithSearchIndex(index search.Index) utils.Opt[TestServer] {
 func WithPDSForwarding(f *forwarding.PDSForwarding) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.PDSForwarding = f
+	}
+}
+
+// WithDirectory supplies the identity directory RegisterNotify resolves
+// service identifiers through, so a test can publish a DID document naming the
+// endpoint its syncer should be delivered to.
+func WithDirectory(dir identity.Directory) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.Directory = dir
 	}
 }
 
@@ -187,18 +201,30 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		)
 	}
 
+	if ts.Directory == nil {
+		// Empty by default: most tests never register a notify subscriber, and
+		// a resolution attempt against it should fail rather than hit the
+		// network. Tests that do register one supply their own via
+		// WithDirectory.
+		ts.Directory = identity.NewMockDirectory()
+	}
+
 	emailDomainStore, err := emaildomain.NewStore(ts.DB)
 	require.NoError(t, err)
 	ts.EmailDomainStore = emailDomainStore
 
+	ts.SearchConfig = searchconfig.NewStore(ts.SpaceStore)
 	var searcher *search.Searcher
 	if ts.SearchIndex != nil {
-		searcher = search.NewSearcher(ts.SearchIndex, os, ts.SpaceStore)
+		searcher = search.NewSearcher(
+			ts.SearchIndex, os, ts.SpaceStore, search.WithCollections(ts.SearchConfig),
+		)
 	}
 
 	ts.Server = pearserver.New(
 		"pear.example.com",
 		ts.Validator,
+		ts.Directory,
 		ts.Hive,
 		ts.HostKey,
 		blobStore,
@@ -212,6 +238,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		ts.PDSForwarding,
 		emailDomainStore,
 		searcher,
+		ts.SearchConfig,
 	)
 	ts.PermStore = ps
 	return &ts

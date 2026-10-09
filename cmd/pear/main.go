@@ -50,6 +50,7 @@ import (
 	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
+	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"go.opentelemetry.io/otel/trace"
 
@@ -197,6 +198,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			"atproto-accept-labelers",
 			"atproto-proxy",
 			"DPoP",
+			"Signature",
+			"Signature-Input",
+			"atproto-space-audience",
 		}),
 		handlers.MaxAge(86400),
 		handlers.ExposedHeaders([]string{"DPoP-Nonce"}),
@@ -311,6 +315,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// like any other syncer, so the spaces store notifies it alongside the
 	// registered ones.
 	notifiers := spaces.Notifiers{notifier}
+	blobBucket, err := blob.OpenBucket(startupCtx, cmd.String(fBlobBucket))
+	if err != nil {
+		return fmt.Errorf("open blob bucket: %w", err)
+	}
+	defer func() { _ = blobBucket.Close() }()
+	blobStore := spaces.NewBlobStore(blobBucket)
+
 	var searchIndex search.Index
 	var searchIndexer *search.Indexer
 	if meilisearchURL := cmd.String(fMeilisearchURL); meilisearchURL != "" {
@@ -323,7 +334,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		if err != nil {
 			return fmt.Errorf("setup search index: %w", err)
 		}
-		searchIndexer = search.NewIndexer(searchIndex)
+		searchIndexer = search.NewIndexer(searchIndex, search.WithBlobs(blobStore))
 		notifiers = append(notifiers, searchIndexer)
 	}
 
@@ -345,13 +356,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}); err != nil {
 		return fmt.Errorf("migrate database: %w", err)
 	}
-
-	blobBucket, err := blob.OpenBucket(startupCtx, cmd.String(fBlobBucket))
-	if err != nil {
-		return fmt.Errorf("open blob bucket: %w", err)
-	}
-	defer func() { _ = blobBucket.Close() }()
-	blobStore := spaces.NewBlobStore(blobBucket)
 
 	opensocialStore, err := opensocial.NewStore(
 		database.WithContext(startupCtx), spacesStore, blobStore, hive,
@@ -442,9 +446,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		defaultDir,
 	)
 
+	searchConfigStore := searchconfig.NewStore(spacesStore)
 	var searcher *search.Searcher
 	if searchIndex != nil {
-		searcher = search.NewSearcher(searchIndex, opensocialStore, spacesStore)
+		searcher = search.NewSearcher(
+			searchIndex, opensocialStore, spacesStore,
+			search.WithCollections(searchConfigStore),
+			search.WithEveryoneOrg(everyoneOrg.DID()),
+		)
 	}
 
 	// Consolidated server owning the opensocial, simplespace, relationship,
@@ -452,6 +461,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	pearApp := pearserver.New(
 		domain,
 		validator,
+		defaultDir,
 		hive,
 		hostKey,
 		blobStore,
@@ -465,6 +475,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		pdsForwarding,
 		emailDomainStore,
 		searcher,
+		searchConfigStore,
 	)
 
 	repo, err := repo.NewRepo(database.WithContext(startupCtx))
@@ -478,10 +489,17 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
+	// A nil *search.Searcher in an interface would be non-nil, so only set it
+	// when search is configured.
+	var mcpSearcher mcpserver.RecordSearcher
+	if searcher != nil {
+		mcpSearcher = searcher
+	}
 	mcpServer := mcpserver.New(
 		oauthServer,
 		spacesStore,
 		permStore,
+		mcpSearcher,
 		nangoClient,
 		opensocialStore,
 		mcpGatewayStore,
@@ -639,6 +657,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	// Spaces
 	mux.PathPrefix("/xrpc/network.habitat.space.").Handler(pearApp)
+
+	// Search configuration (which collections an org surfaces in search)
+	mux.PathPrefix("/xrpc/network.habitat.search.").Handler(pearApp)
 
 	// Simplespace
 	mux.PathPrefix("/xrpc/network.habitat.simplespace.").Handler(pearApp)

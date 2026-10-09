@@ -174,7 +174,7 @@ describe("listMyOrgIds", () => {
       http.get(
         "http://sap-internal.test/proxy/network.habitat.space.listSpaces",
         ({ request }) => {
-          expect(new URL(request.url).searchParams.get("type")).toBe(
+          expect(new URL(request.url).searchParams.get("spaceType")).toBe(
             "community.opensocial.members",
           );
           return HttpResponse.json({

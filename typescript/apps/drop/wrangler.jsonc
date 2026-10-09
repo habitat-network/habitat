@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "drop",
+  "main": "src/server/entry.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "drop",
+      // Placeholder: replace with the id `wrangler d1 create drop` prints
+      // (see README.md's deployment section).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  // Runs the sync passes that have come due (src/server/sync.ts's
+  // runDueSpaces). Inbound space notifications and uploads sync their own
+  // spaces straight away; this catches up everything else.
+  "triggers": { "crons": ["* * * * *"] },
+  // These `vars` are the real deployment's values, not local dev's — same
+  // reason as chalk's wrangler.jsonc: `@cloudflare/vite-plugin` bakes the
+  // top-level config into the build regardless of `--env`, so local dev
+  // overrides them via `.dev.vars` instead. DROP_SESSION_SECRET and
+  // DROP_CREDENTIALS_KEY are wrangler secrets, not vars (see README.md).
+  "vars": {
+    "DROP_BASE_URL": "https://drop.habitat.network",
+    "DROP_HABITAT_URL": "https://pear.habitat.network",
+  },
+  "dev": { "port": 5178 },
+}

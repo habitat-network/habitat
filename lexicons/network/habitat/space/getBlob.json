@@ -7,12 +7,17 @@
       "description": "Get a blob stored within a permissioned space, addressed by its CID. Requires read access to the space.",
       "parameters": {
         "type": "params",
-        "required": ["space", "cid"],
+        "required": ["space", "repo", "cid"],
         "properties": {
           "space": {
             "type": "string",
             "format": "at-uri",
             "description": "Reference to the space the blob belongs to."
+          },
+          "repo": {
+            "type": "string",
+            "format": "did",
+            "description": "The DID of the account whose repo holds the blob."
           },
           "cid": {
             "type": "string",
@@ -25,8 +30,24 @@
         "encoding": "*/*"
       },
       "errors": [
-        { "name": "BlobNotFound" },
-        { "name": "SpaceNotFound" }
+        {
+          "name": "BlobNotFound"
+        },
+        {
+          "name": "SpaceNotFound"
+        },
+        {
+          "name": "RepoNotFound"
+        },
+        {
+          "name": "RepoTakendown"
+        },
+        {
+          "name": "RepoSuspended"
+        },
+        {
+          "name": "RepoDeactivated"
+        }
       ]
     }
   }

@@ -19,31 +19,70 @@ import (
 // registration is the GORM model for a persisted notify registration. A
 // registration keyed on an empty Repo subscribes to writes from every repo in
 // the space; a registration with a Repo subscribes to that repo only.
+//
+// Audience, not Endpoint, identifies a registration: it is the service
+// identifier the subscriber registered under, and it is what the delivery's
+// service-auth JWT is addressed to. Endpoint is only where the call goes, and
+// is a plain column so that two services resolving to the same address stay
+// distinct registrations. Registrations predating the service field carry their
+// endpoint URL as the audience; see the audience migration.
 type registration struct {
-	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	Repo      syntax.DID              `gorm:"primaryKey"`
-	Endpoint  string                  `gorm:"primaryKey"`
+	Space    habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Repo     syntax.DID              `gorm:"primaryKey"`
+	Audience string                  `gorm:"primaryKey"`
+	Endpoint string
+	// Registrations predating the column were all made through
+	// network.habitat.space.registerNotify.
+	Namespace Namespace `gorm:"default:network.habitat.space"`
 	ExpiresAt time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
+// Namespace is the lexicon namespace a registration was made through. It
+// decides which methods the registration's notifications are delivered as, and
+// how their service-auth JWT is addressed (see Registration.audience).
+type Namespace string
+
+const (
+	// NamespaceHabitat is network.habitat.space.registerNotify.
+	NamespaceHabitat Namespace = "network.habitat.space"
+	// NamespaceAtproto is com.atproto.space.registerNotify.
+	NamespaceAtproto Namespace = "com.atproto.space"
+)
+
+// method names the notification method name (e.g. "notifyWrite") in ns.
+func (ns Namespace) method(name string) syntax.NSID {
+	return syntax.NSID(string(ns) + "." + name)
+}
+
 // Registration is the public view of a persisted notify registration.
 type Registration struct {
-	Space     habitat_syntax.SpaceURI
-	Repo      syntax.DID // empty subscribes to the whole space
-	Endpoint  string
+	Space habitat_syntax.SpaceURI
+	Repo  syntax.DID // empty subscribes to the whole space
+	// Audience is the service identifier deliveries are addressed to.
+	Audience string
+	// Endpoint is the resolved delivery address notifyWrite is sent to.
+	Endpoint string
+	// Namespace is the lexicon namespace the registration was made through.
+	Namespace Namespace
+	// ExpiresAt is when the registration lapses unless renewed.
 	ExpiresAt time.Time
 }
 
 // Store persists syncer registrations.
 type Store interface {
-	// Register upserts a registration for (space, repo, endpoint), refreshing
-	// its expiry to expiresAt. An empty repo registers for the whole space.
+	// Register upserts a registration for (space, repo, audience), refreshing
+	// its expiry to expiresAt and recording endpoint as the address to deliver
+	// to and ns as the namespace it was made through. An empty repo registers for the whole space; an audience equal to
+	// the endpoint URL marks a registration made through the deprecated
+	// endpoint field.
 	Register(
 		ctx context.Context,
+		ns Namespace,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
+		audience string,
 		endpoint string,
 		expiresAt time.Time,
 	) error
@@ -75,20 +114,29 @@ func NewStore(db *gorm.DB) (*store, error) {
 
 func (s *store) Register(
 	ctx context.Context,
+	ns Namespace,
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
+	audience string,
 	endpoint string,
 	expiresAt time.Time,
 ) error {
-	// Upsert on the (space, repo, endpoint) key so re-registering refreshes the
-	// expiry rather than accumulating duplicates.
+	// Upsert on the (space, repo, audience) key so re-registering refreshes the
+	// expiry rather than accumulating duplicates, and so a subscriber whose
+	// service now resolves to a different address updates in place.
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "space"}, {Name: "repo"}, {Name: "endpoint"}},
-		DoUpdates: clause.AssignmentColumns([]string{"expires_at", "updated_at"}),
+		Columns: []clause.Column{
+			{Name: "space"}, {Name: "repo"}, {Name: "audience"},
+		},
+		DoUpdates: clause.AssignmentColumns(
+			[]string{"endpoint", "namespace", "expires_at", "updated_at"},
+		),
 	}).Create(&registration{
 		Space:     space,
 		Repo:      repo,
+		Audience:  audience,
 		Endpoint:  strings.TrimRight(endpoint, "/"),
+		Namespace: ns,
 		ExpiresAt: expiresAt,
 	}).Error
 }
@@ -123,7 +171,9 @@ func (s *store) list(query *gorm.DB) ([]Registration, error) {
 		regs[i] = Registration{
 			Space:     row.Space,
 			Repo:      row.Repo,
+			Audience:  row.Audience,
 			Endpoint:  row.Endpoint,
+			Namespace: row.Namespace,
 			ExpiresAt: row.ExpiresAt,
 		}
 	}

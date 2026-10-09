@@ -9,11 +9,11 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["space", "repo", "rev", "hash"],
+          "required": ["space", "repo", "repoRev", "hash"],
           "properties": {
             "space": {
               "type": "string",
-              "format": "at-uri",
+              "format": "space-ref",
               "description": "Reference to the space."
             },
             "repo": {
@@ -23,11 +23,27 @@
             },
             "rev": {
               "type": "string",
-              "description": "The revision of the write."
+              "description": "The repo revision after the write.",
+              "format": "tid"
+            },
+            "repoRev": {
+              "type": "string",
+              "description": "The repo revision after the write.",
+              "format": "tid"
             },
             "hash": {
               "type": "bytes",
               "description": "The repo's current commit hash (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's hash for listRepos."
+            },
+            "spaceRev": {
+              "type": "string",
+              "format": "tid",
+              "description": "The space revision assigned by the space host. Present only on notifications forwarded to syncers."
+            },
+            "prevSpaceRev": {
+              "type": "string",
+              "format": "tid",
+              "description": "The previous space revision. Omitted on the first update in a space. A gap indicates missed notifications; recover using listRepos with cursor."
             }
           }
         }

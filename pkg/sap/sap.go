@@ -55,11 +55,18 @@ type Config struct {
 	// repo-host read fails for lack of a credential.
 	Directory identity.Directory
 
-	// Endpoint is sap's public base URL, registered with space hosts as the
-	// destination for notifyWrite / notifySpaceDeleted. When empty, sap does
-	// not register for notifications; the caller must route them some other
-	// way.
+	// Endpoint is sap's public base URL. It is the origin sap publishes as its
+	// notify service endpoint in the DID document at /.well-known/did.json,
+	// which is how space hosts find sap to deliver notifyWrite /
+	// notifySpaceDeleted to. When empty, sap does not register for
+	// notifications; the caller must route them some other way.
 	Endpoint string
+
+	// ServiceID is the service fragment sap publishes that endpoint under in
+	// its DID document — the second half of the service identifier space hosts
+	// are given when sap registers with them. When empty, DefaultServiceName
+	// is used. See NewServiceIdentity.
+	ServiceID string
 
 	// Parallelism is the sync worker pool size (default 5).
 	Parallelism int
@@ -145,7 +152,11 @@ func New(config Config) (*Sap, error) {
 	// registration is disabled.
 	var crawlNotify crawl.Notify
 	if config.Endpoint != "" {
-		registrar, err = register.New(config.DB, credentials, sessions, config.Endpoint)
+		service, err := NewServiceIdentity(config.Endpoint, config.ServiceID)
+		if err != nil {
+			return nil, fmt.Errorf("service identity: %w", err)
+		}
+		registrar, err = register.New(config.DB, credentials, sessions, service.Ref())
 		if err != nil {
 			return nil, fmt.Errorf("create registrar: %w", err)
 		}
@@ -280,19 +291,23 @@ func (s *Sap) Sessions(ctx context.Context) ([]syntax.DID, error) {
 
 // NotifyWrite reacts to a host's notifyWrite: the repo advanced to rev with
 // commit hash (sha256 of its LtHash state; may be nil). The repo is synced
-// incrementally and re-verified.
+// incrementally and re-verified. spaceRev and prevSpaceRev are the space
+// host's revision pair for the write (empty from hosts that predate them);
+// a gap in the sequence triggers a catch-up of the whole space.
 func (s *Sap) NotifyWrite(
 	ctx context.Context,
 	spaceURI syntax.URI,
 	repo syntax.DID,
 	rev syntax.TID,
 	hash []byte,
+	spaceRev syntax.TID,
+	prevSpaceRev syntax.TID,
 ) error {
 	space, err := habitat_syntax.ParseSpaceURI(spaceURI.String())
 	if err != nil {
 		return fmt.Errorf("parse space: %w", err)
 	}
-	return s.engine.NotifyWrite(ctx, space, repo, rev, hash)
+	return s.engine.NotifyWrite(ctx, space, repo, rev, hash, spaceRev, prevSpaceRev)
 }
 
 // TrackSpace tracks a space sap wouldn't discover through a session's crawl —

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -48,6 +49,11 @@ func (p *PearServer) GetLatestCommit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if httpx.IsComAtprotoRequest(r) {
+		signed := commit.ToComAtprotoXRPC()
+		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSpaceGetLatestCommitOutput{Commit: signed})
+		return
+	}
 	signed := commit.ToXRPC()
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetLatestCommitOutput{
 		Commit: &signed,
