@@ -45,6 +45,7 @@ export const OPENSOCIAL_ACTIONS: {
 ];
 
 export const ACTION_MCP_CONFIGURE = "mcp.configure";
+export const ACTION_ROLE_ASSIGN = "role.assign";
 export const ACTION_COMMUNITY_CONFIGURE = "community.configure";
 
 // hasOpensocialAction reports whether a member holding userRoles may perform
@@ -63,4 +64,40 @@ export function hasOpensocialAction(
   }
   const binding = bindings.find((b) => b.action === action);
   return (binding?.roles ?? []).some((role) => userRoles.includes(role));
+}
+
+// assignableRoles returns the union, across every role userRoles holds, of
+// the roles they may grant/revoke via role.assign (the permissions record's
+// assignable bindings). Mirrors Store.AssignableRoles (Go): a community with
+// no permissions record at all (surfaced here as empty bindings and empty
+// assignable) falls back to letting its admins assign any declared role.
+export function assignableRoles(
+  bindings: { action: string; roles: string[] }[],
+  assignable: { role: string; roles: string[] }[],
+  userRoles: string[],
+  declaredRoles: string[],
+): string[] {
+  if (bindings.length === 0 && assignable.length === 0) {
+    return userRoles.includes("admin") ? declaredRoles : [];
+  }
+  const result = new Set<string>();
+  for (const binding of assignable) {
+    if (!userRoles.includes(binding.role)) continue;
+    for (const role of binding.roles) result.add(role);
+  }
+  return [...result];
+}
+
+// canAssignRoles reports whether the role UI should be shown: the member must
+// hold the role.assign action and be permitted to assign at least one role.
+export function canAssignRoles(
+  bindings: { action: string; roles: string[] }[],
+  assignable: { role: string; roles: string[] }[],
+  userRoles: string[],
+  declaredRoles: string[],
+): boolean {
+  return (
+    hasOpensocialAction(bindings, userRoles, ACTION_ROLE_ASSIGN) &&
+    assignableRoles(bindings, assignable, userRoles, declaredRoles).length > 0
+  );
 }

@@ -2,8 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   orgMembersQueryOptions,
+  orgPermissionsQueryOptions,
   orgRolesQueryOptions,
 } from "@/queries/opensocial";
+import { canAssignRoles } from "@/lib/opensocialActions";
 import { profilesQueryOptions } from "@/queries/profiles";
 import { DidHoverCard } from "@/components/DidHoverCard";
 import { InviteMemberDialog } from "@/components/InviteMemberDialog";
@@ -45,6 +47,9 @@ function OrgMembers() {
   const { data: roles = [] } = useQuery(
     orgRolesQueryOptions(org, authManager, queryClient),
   );
+  const { data: permissions } = useQuery(
+    orgPermissionsQueryOptions(org, authManager, queryClient),
+  );
   const { data: profiles } = useQuery(
     profilesQueryOptions(
       members.map((m) => m.did),
@@ -56,6 +61,17 @@ function OrgMembers() {
   const isAdmin = members.some(
     (m) =>
       m.did === authManager.getAuthInfo()?.did && m.roles.includes("admin"),
+  );
+
+  const userRoles =
+    members.find((m) => m.did === authManager.getAuthInfo()?.did)?.roles ?? [];
+  // The role UI is gated on the org's assign configuration (role.assign
+  // binding + assignable roles), not on holding the admin role.
+  const canAssign = canAssignRoles(
+    permissions?.bindings ?? [],
+    permissions?.assignable ?? [],
+    userRoles,
+    roles.map((r) => r.rkey),
   );
 
   return (
@@ -71,7 +87,7 @@ function OrgMembers() {
           <TableRow>
             <TableHead>Member</TableHead>
             <TableHead>Roles</TableHead>
-            {isAdmin && <TableHead />}
+            {(isAdmin || canAssign) && <TableHead />}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -103,21 +119,25 @@ function OrgMembers() {
                   ))}
                 </div>
               </TableCell>
-              {isAdmin && (
+              {(isAdmin || canAssign) && (
                 <TableCell className="text-right">
                   <div className="flex gap-2 justify-end">
-                    <AssignRolesDialog
-                      org={org}
-                      memberDid={member.did}
-                      currentRoles={member.roles}
-                      roles={roles}
-                      authManager={authManager}
-                    />
-                    <EjectMemberButton
-                      org={org}
-                      memberDid={member.did}
-                      authManager={authManager}
-                    />
+                    {canAssign && (
+                      <AssignRolesDialog
+                        org={org}
+                        memberDid={member.did}
+                        currentRoles={member.roles}
+                        roles={roles}
+                        authManager={authManager}
+                      />
+                    )}
+                    {isAdmin && (
+                      <EjectMemberButton
+                        org={org}
+                        memberDid={member.did}
+                        authManager={authManager}
+                      />
+                    )}
                   </div>
                 </TableCell>
               )}
