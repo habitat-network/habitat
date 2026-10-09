@@ -136,3 +136,31 @@ func TestSerializeRepoCAR_NoRecords(t *testing.T) {
 	// Only the signed commit and index roots; no record blocks.
 	require.Equal(t, 2, blockCount)
 }
+
+// TestSerializeRepoCAR_BlocksFollowIndexOrder verifies record blocks follow
+// the index's canonical DAG-CBOR key order (shortest key first, then
+// bytewise), which differs from plain lexicographic order when paths differ
+// in length.
+func TestSerializeRepoCAR_BlocksFollowIndexOrder(t *testing.T) {
+	t.Parallel()
+
+	long := testRecordBlock(t, "network.habitat.a", "long-rkey", map[string]any{"n": 1})
+	short := testRecordBlock(t, "network.habitat.b", "s", map[string]any{"n": 2})
+	carBytes, err := SerializeRepoCAR(testCommit(), []recordBlock{long, short})
+	require.NoError(t, err)
+
+	reader, err := car.NewCarReader(bytes.NewReader(carBytes))
+	require.NoError(t, err)
+	var order []cid.Cid
+	for {
+		blk, err := reader.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		order = append(order, blk.Cid())
+	}
+	// commit, index, then "network.habitat.b/s" before the longer
+	// "network.habitat.a/long-rkey".
+	require.Equal(t, []cid.Cid{short.Cid, long.Cid}, order[2:])
+}
