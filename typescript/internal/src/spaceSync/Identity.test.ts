@@ -112,7 +112,7 @@ describe("Identity.layer", () => {
       );
       const identity = yield* Identity;
       expect((yield* identity.resolve(did)).pds).toBe("https://pds.test");
-      // Cloudflare Workers throw on "error"; see ManualRedirectDidWebResolver.
+      // Cloudflare Workers throw on "error"; see NoRedirectDidWebResolver.
       expect(redirectMode).toBe("manual");
     }).pipe(Effect.provide(webLayer)),
   );
@@ -142,7 +142,9 @@ describe("Identity.layer", () => {
         const doc = yield* Effect.promise(() => docWith());
         let hits = 0;
         server.use(
-          http.get("https://plc.test/:did", () => {
+          http.get("https://plc.test/:did", ({ request }) => {
+            // Cloudflare Workers throw on "error"; see NoRedirectDidPlcResolver.
+            expect(request.redirect).toBe("manual");
             hits++;
             return HttpResponse.json(doc);
           }),

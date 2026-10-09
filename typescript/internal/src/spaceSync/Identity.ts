@@ -3,6 +3,7 @@ import type { DidString } from "@atproto/syntax";
 import {
   DOC_PATH,
   type DidDocument,
+  DidPlcResolver,
   DidWebResolver,
   IdResolver,
   PoorlyFormattedDidError,
@@ -13,6 +14,7 @@ import {
 import { Cache, Context, Duration, Effect, Exit, Layer } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { IdentityError, errorMessage } from "./errors";
+import { fetchNoRedirect } from "./wire";
 
 export interface ResolvedIdentity {
   readonly did: DidString;
@@ -70,34 +72,45 @@ export const identityFromDoc = Effect.fnUntraced(function* (
 });
 
 /** Matches the library's own default. */
-const DID_WEB_TIMEOUT_MS = 3000;
+const DID_TIMEOUT_MS = 3000;
 
-/**
- * did:web resolution that refuses redirects with `redirect: "manual"` and a
- * status check. The library's resolver passes `redirect: "error"`, which
- * Cloudflare Workers reject outright ("error" isn't implemented at the edge),
- * so every did:web lookup would fail there. Otherwise the same as
- * DidWebResolver: no did:web paths, and plain http for localhost.
- */
-export class ManualRedirectDidWebResolver extends DidWebResolver {
+const DID_DOC_ACCEPT = "application/did+ld+json,application/json";
+
+// The library's did:web and did:plc resolvers fetch with `redirect: "error"`,
+// which Cloudflare Workers reject outright, so every lookup would fail there.
+// These two behave the same but refuse redirects through fetchNoRedirect.
+
+/** did:web: no did:web paths, and plain http for localhost, as upstream. */
+export class NoRedirectDidWebResolver extends DidWebResolver {
   override async resolveNoCheck(did: string): Promise<unknown> {
     const parts = did.split(":").slice(2).map(decodeURIComponent);
     if (parts.length < 1 || !parts[0]) throw new PoorlyFormattedDidError(did);
     if (parts.length > 1) throw new UnsupportedDidWebPathError(did);
     const url = new URL(`https://${parts[0]}${DOC_PATH}`);
     if (url.hostname === "localhost") url.protocol = "http";
-    const res = await fetch(url, {
+    const res = await fetchNoRedirect(url, {
       signal: AbortSignal.timeout(this.timeout),
-      redirect: "manual",
-      headers: { accept: "application/did+ld+json,application/json" },
+      headers: { accept: DID_DOC_ACCEPT },
     });
-    if (
-      res.type === "opaqueredirect" ||
-      (res.status >= 300 && res.status < 400)
-    )
-      throw new Error(`did:web document for ${did} redirected`);
     // Positively not found, versus e.g. a network error (which throws).
     if (!res.ok) return null;
+    return res.json();
+  }
+}
+
+/** did:plc: a 404 is not found, any other failure throws, as upstream. */
+export class NoRedirectDidPlcResolver extends DidPlcResolver {
+  override async resolveNoCheck(did: string): Promise<unknown> {
+    const res = await fetchNoRedirect(
+      new URL(`/${encodeURIComponent(did)}`, this.plcUrl),
+      {
+        signal: AbortSignal.timeout(this.timeout),
+        headers: { accept: DID_DOC_ACCEPT },
+      },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok)
+      throw Object.assign(new Error(res.statusText), { status: res.status });
     return res.json();
   }
 }
@@ -118,10 +131,14 @@ export class Identity extends Context.Service<
     Identity,
     Effect.gen(function* () {
       const { plcUrl } = yield* SpaceSyncConfig;
-      const resolver = new IdResolver({ plcUrl, timeout: DID_WEB_TIMEOUT_MS });
+      const resolver = new IdResolver({ plcUrl, timeout: DID_TIMEOUT_MS });
       resolver.did.methods.set(
         "web",
-        new ManualRedirectDidWebResolver(DID_WEB_TIMEOUT_MS),
+        new NoRedirectDidWebResolver(DID_TIMEOUT_MS),
+      );
+      resolver.did.methods.set(
+        "plc",
+        new NoRedirectDidPlcResolver(plcUrl, DID_TIMEOUT_MS),
       );
       const cache = yield* Cache.makeWith(
         (did: DidString) =>
