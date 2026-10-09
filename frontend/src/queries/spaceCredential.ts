@@ -5,29 +5,6 @@ import { SpaceRef } from "@atproto/syntax";
 import { queryOptions } from "@tanstack/react-query";
 import { com } from "api";
 
-// fetchWithBearer makes a JSON request against `host` using an arbitrary
-// bearer token (a delegation token or space credential) rather than the
-// caller's own OAuth session. Used for the credential exchange itself and for
-// endpoints (like getBlob) that don't return lex-typed JSON.
-export async function fetchWithBearer(
-  host: string,
-  path: string,
-  token: string,
-  init?: RequestInit,
-) {
-  const res = await fetch(`${host}${path}`, {
-    ...init,
-    headers: { ...init?.headers, Authorization: `Bearer ${token}` },
-  });
-  const body = await res.json().catch(() => undefined);
-  if (!res.ok) {
-    throw new Error(
-      body?.message || body?.error || `request failed: ${res.status}`,
-    );
-  }
-  return body;
-}
-
 export interface SpaceCredential {
   // The signed space credential, sent as a bearer token to `host`.
   credential: string;
@@ -62,7 +39,6 @@ export function spaceCredentialQueryOptions(
       );
       const { token: delegationToken } = response.body;
       const host = await resolveSpaceHost(SpaceRef.parse(space).spaceDid);
-      const path = "/xrpc/com.atproto.space.getSpaceCredential";
       // The atproto spaces protocol requires an HTTP message signature over
       // the delegation token, made by the key to bind the minted credential
       // to (see lexicons/com/atproto/space/getSpaceCredential.json), so a
@@ -70,21 +46,15 @@ export function spaceCredentialQueryOptions(
       // rejects this call without one. No credential exists yet at this
       // exchange step, so no audience is signed — the signature's keyid
       // carries the confirmation key instead.
-      const sigHeaders = await createSpaceSignatureHeaders(
-        `Bearer ${delegationToken}`,
-      );
-      const { credential } = await fetchWithBearer(
-        host,
-        path,
-        delegationToken,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...sigHeaders },
-          body: JSON.stringify({ space }),
-        },
+      const {
+        body: { credential },
+      } = await xrpc(
+        signedAgent(host, delegationToken),
+        com.atproto.space.getSpaceCredential.main,
+        { body: { space: space as SpaceRefString } },
       );
       return {
-        credential: credential as string,
+        credential,
         host,
         audience: SpaceRef.parse(space).spaceDid,
       };
@@ -112,21 +82,30 @@ export async function spaceCredentialHeaders(
   );
 }
 
+// signedAgent is an xrpc Agent that sends requests to `host` with `token` as
+// the bearer, adding a fresh space signature over it per request (and over
+// `audience`, when given) instead of using the caller's own OAuth session.
+function signedAgent(host: string, token: string, audience?: string): Agent {
+  return {
+    fetchHandler: async (path, init) => {
+      const headers = new Headers(init.headers);
+      const sigHeaders = await createSpaceSignatureHeaders(
+        `Bearer ${token}`,
+        audience,
+      );
+      for (const [key, value] of Object.entries(sigHeaders)) {
+        headers.set(key, value);
+      }
+      return fetch(`${host}${path}`, { ...init, headers });
+    },
+  };
+}
+
 // spaceAgent turns a space credential into an xrpc Agent: requests are sent
 // to the space's own resolved host (not this pear instance), signing
 // the credential per request, so a lexicon-typed, lex-decoded read (e.g.
 // com.atproto.space.listRecords) can be made the same way an
 // authManager-backed one would.
 export function spaceAgent(cred: SpaceCredential): Agent {
-  return {
-    fetchHandler: async (path, init) => {
-      const url = `${cred.host}${path}`;
-      const headers = new Headers(init.headers);
-      const auth = await spaceCredentialHeaders(cred);
-      for (const [key, value] of new Headers(auth)) {
-        headers.set(key, value);
-      }
-      return fetch(url, { ...init, headers });
-    },
-  };
+  return signedAgent(cred.host, cred.credential, cred.audience);
 }

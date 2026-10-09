@@ -12,6 +12,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
+	"github.com/habitat-network/habitat/internal/httpsig"
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -46,7 +47,19 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
 		return
 	}
-	token, err := utils.SpaceCredential(privKey, kid, spaceURI)
+	var opts []utils.SpaceCredentialOpt
+	if httpsig.HasSignature(r) {
+		// The syncer opted in to key binding: it must prove it holds the key
+		// by signing the delegation token it is exchanging, and the credential
+		// is then bound to that key.
+		signer, err := httpsig.Verify(r, "authorization")
+		if err != nil {
+			httpx.WriteInvalidRequest(ctx, w, "invalid request signature", err)
+			return
+		}
+		opts = append(opts, utils.WithConfirmationKey(signer))
+	}
+	token, err := utils.SpaceCredential(privKey, kid, spaceURI, opts...)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign token: %w", err))
 		return
