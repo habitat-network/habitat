@@ -11,7 +11,9 @@ import { InvalidSpaceRefError } from "./errors";
 /**
  * An xrpc Agent for `service` that adds the space signature headers from
  * `sign` to every request. Redirects are refused: the signature is addressed
- * to one host and must not be replayed to another.
+ * to one host and must not be replayed to another. That's done with
+ * `redirect: "manual"` and a status check rather than `redirect: "error"`,
+ * which Cloudflare Workers reject outright.
  */
 export const signedAgent = (
   service: string,
@@ -21,11 +23,17 @@ export const signedAgent = (
     const headers = new Headers(init.headers);
     for (const [name, value] of Object.entries(await sign()))
       headers.set(name, value);
-    return fetch(new URL(path, service), {
+    const res = await fetch(new URL(path, service), {
       ...init,
       headers,
-      redirect: "error",
+      redirect: "manual",
     });
+    if (
+      res.type === "opaqueredirect" ||
+      (res.status >= 300 && res.status < 400)
+    )
+      throw new Error(`refused redirect from ${service}${path}`);
+    return res;
   },
 });
 

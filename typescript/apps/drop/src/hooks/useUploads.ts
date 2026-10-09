@@ -48,7 +48,16 @@ export function useUploads(orgDid: string) {
       if (!next) break;
       active.current++;
       send(next.id, next.file, update)
-        .then(async () => {
+        .then(async ({ syncError }) => {
+          if (syncError) {
+            // Stored in the org, but the first sync pass failed, so it isn't
+            // listed yet. Say so rather than let it look like a clean upload.
+            toast.add({
+              type: "warning",
+              title: `${next.file.name} was uploaded but hasn't synced`,
+              description: syncError,
+            });
+          }
           await queryClient.invalidateQueries({ queryKey: ["files", orgDid] });
           remove(next.id);
         })
@@ -108,7 +117,7 @@ function send(
   id: string,
   file: File,
   update: (id: string, patch: Partial<Upload>) => void,
-): Promise<void> {
+): Promise<{ syncError?: string }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `/api/upload?${new URLSearchParams({ name: file.name })}`);
@@ -121,7 +130,15 @@ function send(
     };
     xhr.upload.onload = () => update(id, { progress: 1, status: "processing" });
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) return resolve();
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          return resolve(
+            JSON.parse(xhr.responseText) as { syncError?: string },
+          );
+        } catch {
+          return resolve({});
+        }
+      }
       let message = `Upload failed (${xhr.status})`;
       try {
         message =

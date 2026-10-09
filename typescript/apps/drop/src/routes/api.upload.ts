@@ -39,14 +39,14 @@ export const Route = createFileRoute("/api/upload")({
         const mimeType =
           request.headers.get("content-type") || "application/octet-stream";
         try {
-          const { space } = await upload(env, {
+          const result = await upload(env, {
             orgDid: currentOrg as DidString,
             memberDid: did as DidString,
             name,
             mimeType,
             bytes,
           });
-          return Response.json({ space });
+          return Response.json(result);
         } catch (err) {
           console.error("[drop] upload", err);
           return Response.json(

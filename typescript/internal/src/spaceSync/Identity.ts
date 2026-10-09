@@ -1,8 +1,12 @@
 import { getServiceEndpoint } from "@atproto/common-web";
 import type { DidString } from "@atproto/syntax";
 import {
+  DOC_PATH,
   type DidDocument,
+  DidWebResolver,
   IdResolver,
+  PoorlyFormattedDidError,
+  UnsupportedDidWebPathError,
   getKey,
   getPds,
 } from "@atproto/identity";
@@ -65,6 +69,39 @@ export const identityFromDoc = Effect.fnUntraced(function* (
   return { did, pds, signingKey, spaceHost };
 });
 
+/** Matches the library's own default. */
+const DID_WEB_TIMEOUT_MS = 3000;
+
+/**
+ * did:web resolution that refuses redirects with `redirect: "manual"` and a
+ * status check. The library's resolver passes `redirect: "error"`, which
+ * Cloudflare Workers reject outright ("error" isn't implemented at the edge),
+ * so every did:web lookup would fail there. Otherwise the same as
+ * DidWebResolver: no did:web paths, and plain http for localhost.
+ */
+export class ManualRedirectDidWebResolver extends DidWebResolver {
+  override async resolveNoCheck(did: string): Promise<unknown> {
+    const parts = did.split(":").slice(2).map(decodeURIComponent);
+    if (parts.length < 1 || !parts[0]) throw new PoorlyFormattedDidError(did);
+    if (parts.length > 1) throw new UnsupportedDidWebPathError(did);
+    const url = new URL(`https://${parts[0]}${DOC_PATH}`);
+    if (url.hostname === "localhost") url.protocol = "http";
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(this.timeout),
+      redirect: "manual",
+      headers: { accept: "application/did+ld+json,application/json" },
+    });
+    if (
+      res.type === "opaqueredirect" ||
+      (res.status >= 300 && res.status < 400)
+    )
+      throw new Error(`did:web document for ${did} redirected`);
+    // Positively not found, versus e.g. a network error (which throws).
+    if (!res.ok) return null;
+    return res.json();
+  }
+}
+
 export class Identity extends Context.Service<
   Identity,
   {
@@ -81,7 +118,11 @@ export class Identity extends Context.Service<
     Identity,
     Effect.gen(function* () {
       const { plcUrl } = yield* SpaceSyncConfig;
-      const resolver = new IdResolver({ plcUrl });
+      const resolver = new IdResolver({ plcUrl, timeout: DID_WEB_TIMEOUT_MS });
+      resolver.did.methods.set(
+        "web",
+        new ManualRedirectDidWebResolver(DID_WEB_TIMEOUT_MS),
+      );
       const cache = yield* Cache.makeWith(
         (did: DidString) =>
           Effect.tryPromise({

@@ -120,11 +120,12 @@ export async function connectOrg(env: Env, orgDid: DidString): Promise<void> {
 // uploads its blob, and writes the record that names the file and keeps the
 // blob from being garbage collected. The list itself is only ever filled in
 // by the syncer: this waits (briefly) for the new space's first pass rather
-// than writing the row itself.
+// than writing the row itself. If that pass failed, syncError says why: the
+// file is stored either way, but it won't be listed until a retry succeeds.
 export async function upload(
   env: Env,
   input: UploadInput,
-): Promise<{ space: SpaceRefString }> {
+): Promise<{ space: SpaceRefString; syncError?: string }> {
   const agent = await createOAuthClient(env).restore(input.orgDid);
   const space = await createFileSpace(agent, input.orgDid);
   const { blob } = await uploadBlob(agent, input.bytes, input.mimeType);
@@ -142,6 +143,11 @@ export async function upload(
     ]);
   } finally {
     finishInBackground(syncer, [space]);
+  }
+  const state = await new DrizzleSyncStore(getDb(env)).getSpace(space);
+  if (state?.lastError && state.lastFullPassAt === undefined) {
+    console.error("[drop] first sync of", space, "failed:", state.lastError);
+    return { space, syncError: state.lastError };
   }
   return { space };
 }
