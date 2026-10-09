@@ -3,6 +3,7 @@ package spacecommit
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -127,4 +128,35 @@ func TestVerify_RejectsTampering(t *testing.T) {
 		Verify(c, testSpace, author, hash, otherPub),
 		ErrInvalidCommit,
 	)
+}
+
+// TestVerify_ReferenceCommit verifies a commit signed by @atproto/space's
+// RepoCommit.sign over one record, so pear's MAC, ctx and set hash match the
+// reference implementation.
+func TestVerify_ReferenceCommit(t *testing.T) {
+	unhex := func(s string) []byte {
+		b, err := hex.DecodeString(s)
+		require.NoError(t, err)
+		return b
+	}
+	pub, err := atcrypto.ParsePublicDIDKey(
+		"did:key:zQ3shZhBTTmmjTovByuQtnJvR9fwUiVzGjyEC98a2koEoLg2R",
+	)
+	require.NoError(t, err)
+
+	var h LtHash
+	h.Add("com.example.post/abc/bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm")
+	hash := unhex("6cb32db48754ba72b4328f802ce90a6c9ff84804c41076c0325823c0d034e313")
+	require.Equal(t, hash, h.Sum())
+
+	c := SignedCommit{
+		Ver:  Version,
+		Hash: hash,
+		Ikm:  unhex("af34107628358684fe404b35b639cb8aaa3a8671b5947d92962aadddd9bbfe6f"),
+		Mac:  unhex("dee40db9c6058291640fac51190ad22038731fedc82cfe2ba9dd23666aa98e4f"),
+		Sig: unhex("1974da58ead1b2c5e3ff3dd5fbbd5c2bd333bf87d88fa8d3f79e612726f8559c" +
+			"69df0a597205c962403ce6702b30d6f5dca95e8b69c8eb2dc40ac62746fcad70"),
+		Rev: "3lart",
+	}
+	require.NoError(t, Verify(c, testSpace, "did:plc:alice", hash, pub))
 }
