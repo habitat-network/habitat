@@ -16,18 +16,19 @@ the spaces sync protocol, not a reader of its own writes.
   admin _connects_ an org by running the same flow with the org's DID, which
   pear routes through its opensocial admin approval. Sessions for members and
   orgs live in D1 (`oauth_sessions`), sealed with `DROP_CREDENTIALS_KEY`.
-- **SyncHub** (`src/server/syncHub.ts`): one Durable Object hosting the
-  `SpaceSyncer` and making every call that uses an org's credentials
-  (create space, upload blob, put record, delegation tokens). An alarm keeps
-  it resident and restarts the syncer after eviction.
+- **Sync** (`src/server/sync.ts`): there's no long-lived process. Each
+  upload, org connect, inbound space notification, and download builds a
+  `SpaceSyncer` for that request only and disposes it once its passes are
+  done (in `waitUntil`). A cron trigger (every minute) runs whatever has come
+  due in D1. All of the syncer's state lives in D1, so each fresh syncer
+  picks up where the last left off.
 - **Stores** (`src/db/`): drizzle/D1 implementations of the syncer's
   `SyncStore` (`syncStore.ts`) and of the OAuth client's state and session
   stores (`oauthStores.ts`).
 - **Sink** (`src/server/sink.ts`): applies verified batches to the `files`
-  table and mirrors each blob into R2 (`FILES`, keyed by CID). Downloads are
-  served from R2.
-- **Live updates**: the sink pings browsers over a WebSocket held by
-  SyncHub (`/api/live`), and the list refetches.
+  table. Blobs aren't copied: downloads fetch them from the org's space on
+  demand.
+- **Live updates**: the file list polls every 10 seconds.
 
 Uploads are capped at 500 KiB, which is pear's `uploadBlob` limit.
 
@@ -39,7 +40,6 @@ overrides them in `.dev.vars`). See chalk's README for why.
 
 ```bash
 pnpm exec wrangler d1 create drop          # put the id in wrangler.jsonc
-pnpm exec wrangler r2 bucket create drop-files
 pnpm exec wrangler d1 migrations apply drop --remote
 
 pnpm exec wrangler secret put DROP_SESSION_SECRET   # 32+ characters

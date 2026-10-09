@@ -48,9 +48,11 @@ export function clientMetadata(baseUrl: string): OAuthClientMetadataInput {
 
 // Token refreshes rotate the refresh token, so two concurrent refreshes of
 // the same session would leave one of them holding a revoked token. This
-// lock serializes them within an isolate; org sessions are only ever used
-// from the SyncHub Durable Object (one isolate), which is what makes this
-// sufficient for them.
+// lock serializes them within an isolate only. Requests and cron runs in
+// different isolates can still race on an org's session; the loser's
+// refresh fails and that request (or pass) errors until the session is
+// re-read. Acceptable for a demo; a real deployment would want a lock in
+// D1 or a single-isolate home for org credentials.
 const locks = new Map<string, Promise<unknown>>();
 const requestLock: RuntimeLock = async (name, fn) => {
   const prev = locks.get(name) ?? Promise.resolve();

@@ -1,12 +1,11 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Card, Spinner } from "internal/components/ui";
+import { Button, Card } from "internal/components/ui";
 import { Search, Upload as UploadIcon } from "lucide-react";
 import { useRef } from "react";
 import { DropOverlay } from "@/components/DropOverlay";
 import { FileTable } from "@/components/FileTable";
 import { UploadTray } from "@/components/UploadTray";
-import { useLiveFiles } from "@/hooks/useLiveFiles";
 import { useUploads } from "@/hooks/useUploads";
 import { useWindowDrop } from "@/hooks/useWindowDrop";
 import { formatBytes, MAX_FILE_BYTES } from "@/lib/files";
@@ -22,8 +21,8 @@ export const Route = createFileRoute("/_member/")({
   },
   // The first page of files comes through the loader (which crosses the SSR
   // boundary) and seeds the query below as initialData; after that the
-  // query owns it, refetched whenever an upload lands or SyncHub says the
-  // org's files changed.
+  // query owns it, refetched whenever an upload lands and polled so other
+  // members' uploads show up too.
   loader: async ({ context }) => ({
     currentOrg: context.currentOrg,
     files: await listFiles(),
@@ -31,27 +30,28 @@ export const Route = createFileRoute("/_member/")({
   component: FilesPage,
 });
 
+// How often the file list is refetched. Synced rows land in D1 as space
+// notifications and the cron trigger run passes, so there's nothing to push.
+const FILES_POLL_MS = 10_000;
+
 function FilesPage() {
   const { currentOrg, files: initialFiles } = Route.useLoaderData();
   const orgName = currentOrg.name ?? currentOrg.did;
-  const { data: files = [], isFetching } = useQuery({
+  const { data: files = [] } = useQuery({
     queryKey: ["files", currentOrg.did],
     queryFn: () => listFiles(),
     initialData: initialFiles,
+    refetchInterval: FILES_POLL_MS,
   });
   const { uploads, add, dismiss } = useUploads(currentOrg.did);
   const dragging = useWindowDrop(add);
-  useLiveFiles(currentOrg.did);
   const input = useRef<HTMLInputElement>(null);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            Files
-            {isFetching && <Spinner className="size-4 text-muted-foreground" />}
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Files</h1>
           <p className="text-sm text-muted-foreground">
             Shared with everyone in {orgName} and indexed for search. Drop files
             anywhere on this page to upload.

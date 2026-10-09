@@ -1,10 +1,12 @@
-// Worker entry point, pointed to by wrangler.jsonc's `main`. Same shape as
-// chalk's: a Durable Object binding must name a class exported by the entry
-// module itself, so this wraps Start's handler and exports SyncHub beside it.
+// Worker entry point, pointed to by wrangler.jsonc's `main`. Wraps Start's
+// fetch handler and adds the cron trigger's scheduled handler, which runs
+// the sync passes that have come due (see src/server/sync.ts).
 import startEntry from "@tanstack/react-start/server-entry";
-
-export { SyncHub } from "./syncHub";
+import { runDueSpaces } from "./sync";
 
 export default {
   fetch: (request) => startEntry.fetch(request),
+  scheduled: (_controller, env, ctx) => {
+    ctx.waitUntil(runDueSpaces(env));
+  },
 } satisfies ExportedHandler<Env>;

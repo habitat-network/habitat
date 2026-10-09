@@ -2,10 +2,10 @@ import { env } from "cloudflare:workers";
 import { jsonToLex, parseCid, type LexMap } from "@atproto/lex";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
 import type { PromiseRepoBatch } from "internal/spaceSync";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { filesForOrg, getDb } from "@/db";
 import { files } from "@/db/schema";
-import { type BlobFetcher, FILE_COLLECTION, FileSink } from "@/server/sink";
+import { FILE_COLLECTION, FileSink } from "@/server/sink";
 
 const ORG = "did:web:org.example" as DidString;
 const SPACE = `at://${ORG}/space/network.habitat.drop/3kfile` as SpaceRefString;
@@ -46,18 +46,10 @@ async function* records(
 describe("FileSink", () => {
   const db = getDb(env);
   const signal = new AbortController().signal;
-  let fetchBlob: ReturnType<typeof vi.fn<BlobFetcher>>;
-  let onChange: ReturnType<typeof vi.fn<(orgDid: string) => void>>;
-  let sink: FileSink;
+  const sink = new FileSink({ db });
 
   beforeEach(async () => {
     await db.delete(files);
-    await env.FILES.delete(BLOB_CID);
-    fetchBlob = vi.fn<BlobFetcher>(async () =>
-      new TextEncoder().encode("hello world"),
-    );
-    onChange = vi.fn<(orgDid: string) => void>();
-    sink = new FileSink({ db, bucket: env.FILES, fetchBlob, onChange });
   });
 
   const ops = (
@@ -70,7 +62,7 @@ describe("FileSink", () => {
     changes,
   });
 
-  it("indexes a created file and mirrors its blob into R2", async () => {
+  it("indexes a created file", async () => {
     await sink.apply(
       ops([
         {
@@ -95,13 +87,9 @@ describe("FileSink", () => {
         createdAt: Date.parse("2026-10-08T12:00:00.000Z"),
       },
     ]);
-    expect(fetchBlob).toHaveBeenCalledWith(SPACE, ORG, BLOB_CID);
-    expect(await (await env.FILES.get(BLOB_CID))?.text()).toBe("hello world");
-    expect(onChange).toHaveBeenCalledWith(ORG);
   });
 
-  it("skips the blob fetch when R2 already has it, and replays idempotently", async () => {
-    await env.FILES.put(BLOB_CID, "hello world");
+  it("replays a batch idempotently", async () => {
     const batch = ops([
       {
         uri: URI,
@@ -113,7 +101,6 @@ describe("FileSink", () => {
     ]);
     await sink.apply(batch, signal);
     await sink.apply(batch, signal);
-    expect(fetchBlob).not.toHaveBeenCalled();
     expect(await filesForOrg(db, ORG)).toHaveLength(1);
   });
 

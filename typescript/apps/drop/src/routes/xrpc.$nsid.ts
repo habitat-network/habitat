@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
-import { syncHub } from "@/server/syncHub";
+import { notifySpaceDeleted, notifyWrite } from "@/server/sync";
 
 // Inbound space notifications from space hosts. The body and Authorization
 // header go to the syncer untouched: it verifies the service-auth JWT
@@ -16,14 +16,13 @@ export const Route = createFileRoute("/xrpc/$nsid")({
         } catch {
           return xrpcError(400, "InvalidRequest", "body must be JSON");
         }
-        const hub = syncHub(env);
         try {
           switch (params.nsid) {
             case "com.atproto.space.notifyWrite":
-              await hub.notifyWrite(body, authorization);
+              await notifyWrite(env, body, authorization);
               break;
             case "com.atproto.space.notifySpaceDeleted":
-              await hub.notifySpaceDeleted(body, authorization);
+              await notifySpaceDeleted(env, body, authorization);
               break;
             default:
               return xrpcError(501, "MethodNotImplemented", params.nsid);

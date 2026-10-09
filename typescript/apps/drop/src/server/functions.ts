@@ -19,7 +19,7 @@ import {
 import { fetchOrgName, listMyOrgIds } from "./habitat";
 import { createOAuthClient, OAUTH_SCOPE } from "./oauth";
 import { useAppSession } from "./session";
-import { syncHub } from "./syncHub";
+import { connectOrg } from "./sync";
 
 // Every export below is a createServerFn wrapper, safe to import from route
 // components: the client bundle only gets RPC stubs (see chalk's
@@ -68,7 +68,7 @@ export const completeOAuth = createServerFn({ method: "POST" })
       name,
       connectedBy: appState.memberDid,
     });
-    await syncHub(env).connectOrg(orgDid);
+    await connectOrg(env, orgDid);
     await selectOrg(env, appState.memberDid as DidString, orgDid);
     return { to: "/" };
   });

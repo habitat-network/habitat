@@ -92,7 +92,7 @@ export const syncRepos = sqliteTable(
 // is what the file list reads. Keyed by the record's own URI; `cid` is the
 // record's CID so a replayed batch (delivery is at-least-once) is a no-op
 // update. orgDid is the space authority — each file is its own org space.
-// blobCid names the R2 object holding the file's bytes (see sink.ts).
+// blobCid is the CID of the file's blob in its space (see api.download.ts).
 export const files = sqliteTable(
   "files",
   {

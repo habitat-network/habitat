@@ -16,22 +16,8 @@ export const FILE_COLLECTION = "network.habitat.drop.file";
 
 type FileRow = typeof files.$inferInsert;
 
-// BlobFetcher reads a blob's bytes from the space it was written to — the
-// syncer's own getBlob, which signs the request with the space credential it
-// already holds.
-export type BlobFetcher = (
-  space: SpaceRefString,
-  did: DidString,
-  cid: string,
-) => Promise<Uint8Array>;
-
 export interface FileSinkOptions {
   db: Db;
-  bucket: R2Bucket;
-  fetchBlob: BlobFetcher;
-  // Called with the org whose file list changed, after the batch has been
-  // written — the SyncHub uses it to tell open browsers to refetch.
-  onChange?: (orgDid: string) => void;
 }
 
 // toFileRow maps one synced record to its files row, or undefined if it isn't
@@ -78,14 +64,12 @@ function recordUri(
 
 // FileSink is internal/spaceSync's SyncSink for Drop: it keeps the files
 // table equal to the set of network.habitat.drop.file records across every
-// synced space, and mirrors each referenced blob into R2 (keyed by CID) so
-// the download route never has to reach the org's space host.
+// synced space. Blobs aren't copied: downloads read them from the org's
+// space host (see src/routes/api.download.ts).
 //
-// Each batch is applied as one D1 batch (a single transaction) after every
-// blob it needs is in R2, so an aborted or failed apply leaves the table as
-// it was, and a row is never visible before its bytes are downloadable.
-// Delivery is at-least-once; upserting by uri (and putting R2 objects by
-// content address) makes a replay a no-op.
+// Each batch is applied as one D1 batch (a single transaction), so an
+// aborted or failed apply leaves the table as it was. Delivery is
+// at-least-once; upserting by uri makes a replay a no-op.
 export class FileSink implements PromiseSyncSink {
   constructor(private opts: FileSinkOptions) {}
 
@@ -108,7 +92,6 @@ export class FileSink implements PromiseSyncSink {
             if (row) upserts.push(row);
           }
         }
-        await this.mirrorBlobs(batch.space, batch.did, upserts, signal);
         signal.throwIfAborted();
         await this.write(upserts, deletes);
         break;
@@ -128,7 +111,6 @@ export class FileSink implements PromiseSyncSink {
           const row = toFileRow(uri, record.cid.toString(), record.record);
           if (row) upserts.push(row);
         }
-        await this.mirrorBlobs(batch.space, batch.did, upserts, signal);
         signal.throwIfAborted();
         // Everything this repo had in the space that the reset didn't list
         // is gone.
@@ -156,7 +138,6 @@ export class FileSink implements PromiseSyncSink {
         await db.delete(files).where(eq(files.space, batch.space));
         break;
     }
-    this.opts.onChange?.(SpaceRef.parse(batch.space).spaceDid);
   }
 
   private upsert(row: FileRow) {
@@ -178,26 +159,5 @@ export class FileSink implements PromiseSyncSink {
     if (statements.length === 0) return;
     const [first, ...rest] = statements;
     await db.batch([first, ...rest]);
-  }
-
-  // mirrorBlobs copies each row's blob into R2 unless it's already there —
-  // the upload path (src/server/syncHub.ts) puts the bytes in R2 itself, so
-  // this only fetches blobs written by another Drop deployment, or ones lost
-  // from the bucket.
-  private async mirrorBlobs(
-    space: SpaceRefString,
-    did: DidString,
-    rows: FileRow[],
-    signal: AbortSignal,
-  ) {
-    const { bucket, fetchBlob } = this.opts;
-    for (const row of rows) {
-      signal.throwIfAborted();
-      if (await bucket.head(row.blobCid)) continue;
-      const bytes = await fetchBlob(space, did, row.blobCid);
-      await bucket.put(row.blobCid, bytes, {
-        httpMetadata: { contentType: row.mimeType },
-      });
-    }
   }
 }

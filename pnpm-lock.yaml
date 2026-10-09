@@ -710,6 +710,9 @@ importers:
       drizzle-orm:
         specifier: 0.45.3
         version: 0.45.3(@cloudflare/workers-types@5.20260825.1)
+      effect:
+        specifier: ^4.0.2
+        version: 4.0.2
       internal:
         specifier: workspace:*
         version: link:../../internal

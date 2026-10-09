@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
 import type { DidString } from "@atproto/syntax";
 import { useAppSession } from "@/server/session";
-import { syncHub } from "@/server/syncHub";
+import { upload } from "@/server/sync";
 import { MAX_FILE_BYTES } from "@/lib/files";
 
 // POST /api/upload?name=<file name> with the file's bytes as the body (and
@@ -39,7 +39,7 @@ export const Route = createFileRoute("/api/upload")({
         const mimeType =
           request.headers.get("content-type") || "application/octet-stream";
         try {
-          const { space } = await syncHub(env).upload({
+          const { space } = await upload(env, {
             orgDid: currentOrg as DidString,
             memberDid: did as DidString,
             name,

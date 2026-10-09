@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
-import { serviceDid } from "@/server/syncHub";
+import { serviceDid } from "@/server/sync";
 
 // Drop's did:web document. registerNotify subscribes this DID to a space's
 // writes, and the space host delivers notifyWrite/notifySpaceDeleted to the

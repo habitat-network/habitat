@@ -15,7 +15,6 @@ import { Route as DotwellKnownDidDotjsonRouteImport } from './routes/[.]well-kno
 import { Route as MemberIndexRouteImport } from './routes/_member/index'
 import { Route as MemberOrgsRouteImport } from './routes/_member/orgs'
 import { Route as ApiDownloadRouteImport } from './routes/api.download'
-import { Route as ApiLiveRouteImport } from './routes/api.live'
 import { Route as ApiUploadRouteImport } from './routes/api.upload'
 import { Route as OauthCallbackRouteImport } from './routes/oauth.callback'
 import { Route as OauthClientMetadataDotjsonRouteImport } from './routes/oauth.client-metadata[.]json'
@@ -50,11 +49,6 @@ const ApiDownloadRoute = ApiDownloadRouteImport.update({
   path: '/api/download',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiLiveRoute = ApiLiveRouteImport.update({
-  id: '/api/live',
-  path: '/api/live',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiUploadRoute = ApiUploadRouteImport.update({
   id: '/api/upload',
   path: '/api/upload',
@@ -83,7 +77,6 @@ export interface FileRoutesByFullPath {
   '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
   '/orgs': typeof MemberOrgsRoute
   '/api/download': typeof ApiDownloadRoute
-  '/api/live': typeof ApiLiveRoute
   '/api/upload': typeof ApiUploadRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
@@ -94,7 +87,6 @@ export interface FileRoutesByTo {
   '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
   '/orgs': typeof MemberOrgsRoute
   '/api/download': typeof ApiDownloadRoute
-  '/api/live': typeof ApiLiveRoute
   '/api/upload': typeof ApiUploadRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
@@ -108,7 +100,6 @@ export interface FileRoutesById {
   '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
   '/_member/orgs': typeof MemberOrgsRoute
   '/api/download': typeof ApiDownloadRoute
-  '/api/live': typeof ApiLiveRoute
   '/api/upload': typeof ApiUploadRoute
   '/oauth/callback': typeof OauthCallbackRoute
   '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
@@ -123,7 +114,6 @@ export interface FileRouteTypes {
     | '/.well-known/did.json'
     | '/orgs'
     | '/api/download'
-    | '/api/live'
     | '/api/upload'
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
@@ -134,7 +124,6 @@ export interface FileRouteTypes {
     | '/.well-known/did.json'
     | '/orgs'
     | '/api/download'
-    | '/api/live'
     | '/api/upload'
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
@@ -147,7 +136,6 @@ export interface FileRouteTypes {
     | '/.well-known/did.json'
     | '/_member/orgs'
     | '/api/download'
-    | '/api/live'
     | '/api/upload'
     | '/oauth/callback'
     | '/oauth/client-metadata.json'
@@ -160,7 +148,6 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   DotwellKnownDidDotjsonRoute: typeof DotwellKnownDidDotjsonRoute
   ApiDownloadRoute: typeof ApiDownloadRoute
-  ApiLiveRoute: typeof ApiLiveRoute
   ApiUploadRoute: typeof ApiUploadRoute
   OauthCallbackRoute: typeof OauthCallbackRoute
   OauthClientMetadataDotjsonRoute: typeof OauthClientMetadataDotjsonRoute
@@ -209,13 +196,6 @@ declare module '@tanstack/react-router' {
       path: '/api/download'
       fullPath: '/api/download'
       preLoaderRoute: typeof ApiDownloadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/live': {
-      id: '/api/live'
-      path: '/api/live'
-      fullPath: '/api/live'
-      preLoaderRoute: typeof ApiLiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/upload': {
@@ -267,7 +247,6 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   DotwellKnownDidDotjsonRoute: DotwellKnownDidDotjsonRoute,
   ApiDownloadRoute: ApiDownloadRoute,
-  ApiLiveRoute: ApiLiveRoute,
   ApiUploadRoute: ApiUploadRoute,
   OauthCallbackRoute: OauthCallbackRoute,
   OauthClientMetadataDotjsonRoute: OauthClientMetadataDotjsonRoute,
