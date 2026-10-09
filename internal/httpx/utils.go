@@ -5,9 +5,18 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 )
+
+// IsComAtprotoRequest reports whether the request was made against a
+// com.atproto.* XRPC method rather than its network.habitat.* equivalent, so
+// handlers shared by both namespaces can encode the matching output type (and
+// therefore the matching $type values).
+func IsComAtprotoRequest(r *http.Request) bool {
+	return strings.HasPrefix(r.URL.Path, "/xrpc/com.atproto.")
+}
 
 func WriteJSON(ctx context.Context, w http.ResponseWriter, v any) {
 	bytes, err := json.Marshal(v)
