@@ -81,17 +81,33 @@ func (p *PearServer) registerRoutes() {
 
 	// com.atproto aliases for the permissioned-data proposal's official NSIDs
 	// (proposal 0016). Same handlers as the network.habitat registrations
-	// above; com.atproto.simplespace.putMember aliases addMember.
-	p.router.HandleFunc("/xrpc/com.atproto.space.listSpaces", p.ListSpaces)
-	p.router.HandleFunc("/xrpc/com.atproto.space.listRepos", p.ListRepos)
+	// above; com.atproto.simplespace.putMember aliases addMember. Responses
+	// carrying typed defs are renamed to their com.atproto.space defs.
+	p.router.HandleFunc(
+		"/xrpc/com.atproto.space.listSpaces",
+		withComAtprotoSpaceTypes(p.ListSpaces),
+	)
+	p.router.HandleFunc("/xrpc/com.atproto.space.listRepos", withComAtprotoSpaceTypes(p.ListRepos))
 	p.router.HandleFunc("/xrpc/com.atproto.space.putRecord", p.PutRecord)
-	p.router.HandleFunc("/xrpc/com.atproto.space.applyWrites", p.ApplyWrites)
-	p.router.HandleFunc("/xrpc/com.atproto.space.getRecord", p.GetRecord)
+	p.router.HandleFunc(
+		"/xrpc/com.atproto.space.applyWrites",
+		withComAtprotoSpaceTypes(p.ApplyWrites),
+	)
+	p.router.HandleFunc("/xrpc/com.atproto.space.getRecord", withComAtprotoSpaceTypes(p.GetRecord))
 	p.router.HandleFunc("/xrpc/com.atproto.space.getBlob", p.GetBlob)
-	p.router.HandleFunc("/xrpc/com.atproto.space.listRecords", p.ListRecords)
+	p.router.HandleFunc(
+		"/xrpc/com.atproto.space.listRecords",
+		withComAtprotoSpaceTypes(p.ListRecords),
+	)
 	p.router.HandleFunc("/xrpc/com.atproto.space.deleteRecord", p.DeleteRecord)
-	p.router.HandleFunc("/xrpc/com.atproto.space.listRepoOps", p.ListRepoOps)
-	p.router.HandleFunc("/xrpc/com.atproto.space.getLatestCommit", p.GetLatestCommit)
+	p.router.HandleFunc(
+		"/xrpc/com.atproto.space.listRepoOps",
+		withComAtprotoSpaceTypes(p.ListRepoOps),
+	)
+	p.router.HandleFunc(
+		"/xrpc/com.atproto.space.getLatestCommit",
+		withComAtprotoSpaceTypes(p.GetLatestCommit),
+	)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getRepo", p.GetRepo)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getDelegationToken", p.GetDelegationToken)
 	p.router.HandleFunc("/xrpc/com.atproto.space.getSpaceCredential", p.GetSpaceCredential)
