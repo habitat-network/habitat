@@ -65,6 +65,7 @@ import (
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"

@@ -255,7 +255,10 @@ func TestLoginRouterWorkOS(t *testing.T) {
 		t.Helper()
 		p := login_testutil.NewPassthroughProvider(t)
 		for _, id := range workosOrgIDs {
-			p.Profile.ExternalOrgs = append(p.Profile.ExternalOrgs, login.ExternalOrg{ID: id, Name: id})
+			p.Profile.ExternalOrgs = append(
+				p.Profile.ExternalOrgs,
+				login.ExternalOrg{ID: id, Name: id},
+			)
 		}
 		router := org.LoginRouter{
 			WorkOS: p, OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,

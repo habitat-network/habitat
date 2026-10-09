@@ -71,7 +71,9 @@ func TestWorkOSProvider_Exchange(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "alice@acme.com", loginID)
 		require.Equal(t, Profile{
-			Name: "Alice A", Picture: "https://pic", ExternalOrgs: []ExternalOrg{{ID: "org_1", Name: "Acme"}},
+			Name:         "Alice A",
+			Picture:      "https://pic",
+			ExternalOrgs: []ExternalOrg{{ID: "org_1", Name: "Acme"}},
 		}, profile)
 	})
 
