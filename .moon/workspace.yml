@@ -11,6 +11,7 @@ projects:
     go/api: api
     xrpc-openapi-gen: typescript/xrpc-openapi-gen
     api-docs: api-docs
+    terraform: terraform
   globs:
   - cmd/*
   - typescript/apps/*
