@@ -56,7 +56,7 @@ func TestAudienceDownRestoresEndpointKeyOnSQLite(t *testing.T) {
 	// migration in one transaction, so the steps have to run together rather
 	// than one Exec each.
 	down := strings.Join(
-		downSection(t, "sqlite/20260929235402_notify_registration_audience.sql"), ";\n",
+		downSection(t, "sqlite/20261006000000_notify_registration_audience.sql"), ";\n",
 	)
 	require.NoError(t, db.Transaction(func(tx *gorm.DB) error {
 		return tx.Exec(down).Error
@@ -79,8 +79,8 @@ func TestAudienceDownRestoresEndpointKeyOnSQLite(t *testing.T) {
 // losing its Down section, which goose needs to roll back.
 func TestDownSectionsExistForBothDialects(t *testing.T) {
 	for _, path := range []string{
-		"sqlite/20260929235402_notify_registration_audience.sql",
-		"postgres/20260929235420_notify_registration_audience.sql",
+		"sqlite/20261006000000_notify_registration_audience.sql",
+		"postgres/20261006000000_notify_registration_audience.sql",
 	} {
 		require.NotEmpty(t, downSection(t, path), "%s has no Down statements", path)
 	}
