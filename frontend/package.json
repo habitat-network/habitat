@@ -45,6 +45,7 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "jsdom": "catalog:",
+    "msw": "^2.15.0",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-generate-file": "^0.3.1",

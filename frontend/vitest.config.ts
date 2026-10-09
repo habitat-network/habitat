@@ -9,5 +9,10 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    env: {
+      VITE_BASE_URL: "https://app.test/",
+      VITE_HABITAT_DOMAIN: "pear.test",
+    },
   },
 });

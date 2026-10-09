@@ -333,6 +333,9 @@ importers:
       jsdom:
         specifier: 'catalog:'
         version: 30.0.1(@noble/hashes@2.3.0)
+      msw:
+        specifier: ^2.15.0
+        version: 2.15.0(@types/node@22.20.4)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
