@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
+import { SYNCER_SERVICE_ID } from "internal/spaceSync";
 import { serviceDid } from "@/server/sync";
 
 // Drop's did:web document. registerNotify subscribes this DID to a space's
@@ -15,7 +16,7 @@ export const Route = createFileRoute("/.well-known/did.json")({
           id,
           service: [
             {
-              id: "#atproto_space_syncer",
+              id: `#${SYNCER_SERVICE_ID}`,
               type: "AtprotoSpaceSyncer",
               serviceEndpoint: env.DROP_BASE_URL.replace(/\/+$/, ""),
             },

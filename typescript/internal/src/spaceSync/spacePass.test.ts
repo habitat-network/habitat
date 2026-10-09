@@ -46,7 +46,9 @@ describe("SpacePass.run", () => {
           yield* track(space);
           const events = yield* runSpacePass(space.ref, true);
           expect(events.map((e) => e._tag)).toEqual(["Reset", "Reset"]);
-          expect(space.registrations).toEqual([SERVICE_DID]);
+          expect(space.registrations).toEqual([
+            `${SERVICE_DID}#atproto_space_syncer`,
+          ]);
           const state = yield* stateOf(space);
           expect(state.spaceRev).toBe(space.spaceRevOf(bob.did));
           expect(state.failures).toBe(0);

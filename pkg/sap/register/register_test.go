@@ -18,6 +18,10 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
+// sapService is the service identifier the tests register as sap's notify
+// subscriber.
+const sapService = "did:web:sap.example#habitat_space_syncer"
+
 type fakeClients struct{ base *url.URL }
 
 func (f fakeClients) ClientForSpace(
@@ -45,7 +49,10 @@ func TestRegistrarRegistersDueSpaces(t *testing.T) {
 		calls++
 		var in habitat.NetworkHabitatSpaceRegisterNotifyInput
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&in))
-		require.Equal(t, "https://sap.example", in.Endpoint)
+		require.Equal(t, sapService, in.Service)
+		// The deprecated endpoint field is never sent: the service identifier
+		// is what a host needs, and sending both would be ambiguous.
+		require.Empty(t, in.Endpoint)
 		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceRegisterNotifyOutput{
 			ExpiresAt: time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339),
 		})
@@ -56,7 +63,7 @@ func TestRegistrarRegistersDueSpaces(t *testing.T) {
 
 	db := db_testutil.NewDB(t, Models())
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, sapService)
 	require.NoError(t, err)
 
 	reg.sweep(t.Context())
@@ -65,6 +72,7 @@ func TestRegistrarRegistersDueSpaces(t *testing.T) {
 	var row registration
 	require.NoError(t, db.First(&row, "space = ?", space).Error)
 	require.True(t, row.ExpiresAt.After(time.Now()))
+	require.Equal(t, sapService, row.Service)
 
 	// Still fresh: nothing to do on the next sweep.
 	reg.sweep(t.Context())
@@ -88,7 +96,7 @@ func TestRegistrarEnsureRegisteredAlreadyTracked(t *testing.T) {
 
 	db := db_testutil.NewDB(t, Models())
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, sapService)
 	require.NoError(t, err)
 
 	require.NoError(t, reg.EnsureRegistered(t.Context(), space))
@@ -113,7 +121,7 @@ func TestRegistrarDropSpace(t *testing.T) {
 
 	db := db_testutil.NewDB(t, Models())
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
-	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space}, sapService)
 	require.NoError(t, err)
 
 	require.NoError(t, reg.Register(t.Context(), space))
@@ -133,7 +141,7 @@ func TestRegistrarDueSpacesEmpty(t *testing.T) {
 	t.Parallel()
 
 	db := db_testutil.NewDB(t, Models())
-	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, sapService)
 	require.NoError(t, err)
 
 	due, err := reg.dueSpaces(t.Context())
@@ -157,7 +165,7 @@ func TestRegistrarDueSpacesFiltersFresh(t *testing.T) {
 	db := db_testutil.NewDB(t, Models())
 	space1 := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	space2 := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s2")
-	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space1, space2}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: base}, fakeSpaces{space1, space2}, sapService)
 	require.NoError(t, err)
 
 	// Register only space1.
@@ -175,7 +183,7 @@ func TestRegistrarRun(t *testing.T) {
 	t.Parallel()
 
 	db := db_testutil.NewDB(t, Models())
-	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, "https://sap.example")
+	reg, err := New(db, fakeClients{base: &url.URL{}}, fakeSpaces{}, sapService)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())

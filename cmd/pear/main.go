@@ -461,6 +461,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	pearApp := pearserver.New(
 		domain,
 		validator,
+		defaultDir,
 		hive,
 		hostKey,
 		blobStore,

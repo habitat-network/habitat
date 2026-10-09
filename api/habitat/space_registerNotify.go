@@ -4,8 +4,9 @@ package habitat
 
 // NetworkHabitatSpaceRegisterNotifyInput represents the input for network.habitat.space.registerNotify
 type NetworkHabitatSpaceRegisterNotifyInput struct {
-	Endpoint string `json:"endpoint"`
+	Endpoint string `json:"endpoint,omitempty"`
 	Repo     string `json:"repo,omitempty"`
+	Service  string `json:"service,omitempty"`
 	Space    string `json:"space"`
 }
 
