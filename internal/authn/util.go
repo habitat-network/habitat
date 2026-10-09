@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/habitat-network/habitat/internal/httpsig"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -22,6 +23,9 @@ func getBearerJwt(r *http.Request) (token *jwt.Token, err error) {
 func getBearerToken(r *http.Request) string {
 	auth := r.Header.Get("Authorization")
 	if token, ok := strings.CutPrefix(auth, "DPoP "); ok {
+		return token
+	}
+	if token, ok := strings.CutPrefix(auth, httpsig.CredentialScheme+" "); ok {
 		return token
 	}
 	return strings.TrimPrefix(auth, "Bearer ")

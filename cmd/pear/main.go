@@ -198,6 +198,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			"atproto-accept-labelers",
 			"atproto-proxy",
 			"DPoP",
+			"Signature",
+			"Signature-Input",
+			"atproto-space-audience",
 		}),
 		handlers.MaxAge(86400),
 		handlers.ExposedHeaders([]string{"DPoP-Nonce"}),
@@ -458,6 +461,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	pearApp := pearserver.New(
 		domain,
 		validator,
+		defaultDir,
 		hive,
 		hostKey,
 		blobStore,
