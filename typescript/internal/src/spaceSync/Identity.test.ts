@@ -119,4 +119,56 @@ describe("Identity.layer", () => {
         ),
       ),
   );
+
+  it.effect("resolves did:web and refuses redirects", () =>
+    Effect.gen(function* () {
+      const web = "did:web:alice.test";
+      const key = yield* Effect.promise(() => Secp256k1Keypair.create());
+      const doc = yield* Effect.promise(() =>
+        docWith({
+          id: web,
+          verificationMethod: [
+            {
+              id: `${web}#atproto`,
+              type: "Multikey",
+              controller: web,
+              publicKeyMultibase: key.did().slice("did:key:".length),
+            },
+          ],
+        }),
+      );
+      server.use(
+        http.get("https://alice.test/.well-known/did.json", () =>
+          HttpResponse.json(doc),
+        ),
+        http.get(
+          "https://moved.test/.well-known/did.json",
+          () =>
+            new HttpResponse(null, {
+              status: 302,
+              headers: { location: "https://alice.test/.well-known/did.json" },
+            }),
+        ),
+      );
+      const identity = yield* Identity;
+      expect((yield* identity.resolve(web as never)).pds).toBe(
+        "https://pds.test",
+      );
+      const exit = yield* Effect.exit(
+        identity.resolve("did:web:moved.test" as never),
+      );
+      expect(Exit.isFailure(exit)).toBe(true);
+    }).pipe(
+      Effect.provide(
+        Identity.layer.pipe(
+          Layer.provide(
+            spaceSyncConfigLayer({
+              serviceDid: "did:web:s.test",
+              plcUrl: "https://plc.test",
+            }),
+          ),
+        ),
+      ),
+    ),
+  );
 });

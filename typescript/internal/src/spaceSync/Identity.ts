@@ -9,6 +9,46 @@ import {
 import { Cache, Context, Duration, Effect, Exit, Layer } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { IdentityError, errorMessage } from "./errors";
+import { fetchNoRedirect } from "./wire";
+
+const DID_ACCEPT = "application/did+ld+json,application/json";
+
+/**
+ * did:plc and did:web resolvers that fetch via `fetchNoRedirect`.
+ * @atproto/identity's own resolvers pass `redirect: "error"`, which workerd rejects.
+ */
+export const noRedirectDidMethods = (plcUrl: string, timeout: number) => ({
+  plc: {
+    resolveNoCheck: async (did: string): Promise<unknown> => {
+      const res = await fetchNoRedirect(
+        new URL(`/${encodeURIComponent(did)}`, plcUrl),
+        {
+          headers: { accept: DID_ACCEPT },
+          signal: AbortSignal.timeout(timeout),
+        },
+      );
+      if (res.status === 404) return null;
+      if (!res.ok)
+        throw Object.assign(new Error(res.statusText), { status: res.status });
+      return res.json();
+    },
+  },
+  web: {
+    resolveNoCheck: async (did: string): Promise<unknown> => {
+      const parts = did.split(":").slice(2).map(decodeURIComponent);
+      if (parts.length !== 1) throw new Error(`unsupported did:web ${did}`);
+      const url = new URL(`https://${parts[0]}/.well-known/did.json`);
+      if (url.hostname === "localhost") url.protocol = "http";
+      const res = await fetchNoRedirect(url, {
+        headers: { accept: DID_ACCEPT },
+        signal: AbortSignal.timeout(timeout),
+      });
+      // Positively not found, versus due to e.g. network error
+      if (!res.ok) return null;
+      return res.json();
+    },
+  },
+});
 
 export interface ResolvedIdentity {
   readonly did: DidString;
@@ -82,6 +122,10 @@ export class Identity extends Context.Service<
     Effect.gen(function* () {
       const { plcUrl } = yield* SpaceSyncConfig;
       const resolver = new IdResolver({ plcUrl });
+      for (const [method, impl] of Object.entries(
+        noRedirectDidMethods(plcUrl, 3000),
+      ))
+        resolver.did.methods.set(method, impl as never);
       const cache = yield* Cache.makeWith(
         (did: DidString) =>
           Effect.tryPromise({

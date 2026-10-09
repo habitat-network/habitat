@@ -9,6 +9,20 @@ import { Effect } from "effect";
 import { InvalidSpaceRefError } from "./errors";
 
 /**
+ * fetch that refuses redirects. `redirect: "error"` would say the same but
+ * workerd throws on it, so follow nothing and reject any 3xx ourselves.
+ */
+export const fetchNoRedirect = async (
+  input: URL | string,
+  init: RequestInit = {},
+): Promise<Response> => {
+  const res = await fetch(input, { ...init, redirect: "manual" });
+  if (res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400))
+    throw new TypeError(`unexpected redirect (${res.status}) from ${input}`);
+  return res;
+};
+
+/**
  * An xrpc Agent for `service` that adds the space signature headers from
  * `sign` to every request. Redirects are refused: the signature is addressed
  * to one host and must not be replayed to another.
@@ -21,11 +35,7 @@ export const signedAgent = (
     const headers = new Headers(init.headers);
     for (const [name, value] of Object.entries(await sign()))
       headers.set(name, value);
-    return fetch(new URL(path, service), {
-      ...init,
-      headers,
-      redirect: "error",
-    });
+    return fetchNoRedirect(new URL(path, service), { ...init, headers });
   },
 });
 
