@@ -40,8 +40,10 @@ var (
 )
 
 // Signature-Input value for our label: atproto-space=("a" "b");keyid="did:key:...".
+// keyid is optional: a signature presenting a bound credential may omit it,
+// since the credential's cnf.kid names the key (see VerifyBound).
 var sigInputRE = regexp.MustCompile(
-	`^` + Label + `=\(((?:"[a-z0-9-]+"(?: "[a-z0-9-]+")*)?)\);keyid="([^"]+)"$`,
+	`^` + Label + `=\(((?:"[a-z0-9-]+"(?: "[a-z0-9-]+")*)?)\)(?:;keyid="([^"]+)")?$`,
 )
 
 // HasSignature reports whether r carries an atproto-space signature, i.e.
@@ -78,9 +80,23 @@ func Sign(r *http.Request, key atcrypto.PrivateKey, components ...string) error 
 }
 
 // Verify checks r's atproto-space signature, which must cover exactly the
-// given components in order, and returns the did:key that signed it. The
-// caller decides whether that key is the one it expects (cnf.kid).
+// given components in order, and returns the did:key that signed it, named by
+// the signature's keyid parameter. The caller decides whether that key is the
+// one it expects.
 func Verify(r *http.Request, components ...string) (string, error) {
+	return verify(r, "", components)
+}
+
+// VerifyBound checks r's atproto-space signature, which must cover exactly
+// the given components in order, against boundKey: the P-256 did:key a space
+// credential is bound to (its cnf.kid). The signature's keyid parameter may be
+// omitted, as @atproto/space's client does, but must match boundKey if present.
+func VerifyBound(r *http.Request, boundKey string, components ...string) error {
+	_, err := verify(r, boundKey, components)
+	return err
+}
+
+func verify(r *http.Request, boundKey string, components []string) (string, error) {
 	input := r.Header.Get("Signature-Input")
 	if !strings.HasPrefix(input, Label+"=") {
 		return "", ErrNoSignature
@@ -97,7 +113,16 @@ func Verify(r *http.Request, components ...string) (string, error) {
 			components,
 		)
 	}
-	didKey := m[2]
+	keyID := m[2]
+	didKey := keyID
+	switch {
+	case boundKey == "" && keyID == "":
+		return "", fmt.Errorf("%w: missing keyid", ErrInvalidSignature)
+	case boundKey != "" && keyID != "" && keyID != boundKey:
+		return "", fmt.Errorf("%w: keyid does not match the bound key", ErrInvalidSignature)
+	case boundKey != "":
+		didKey = boundKey
+	}
 	if !strings.HasPrefix(didKey, p256DIDKeyPrefix) {
 		return "", fmt.Errorf("%w: keyid must be a P-256 did:key", ErrInvalidSignature)
 	}
@@ -110,11 +135,15 @@ func Verify(r *http.Request, components ...string) (string, error) {
 	if !ok || !strings.HasSuffix(encoded, ":") {
 		return "", fmt.Errorf("%w: malformed Signature", ErrInvalidSignature)
 	}
-	sig, err := base64.StdEncoding.DecodeString(strings.TrimSuffix(encoded, ":"))
+	// Accept padded (RFC 8941) and unpadded (@atproto/space) base64.
+	sig, err := base64.RawStdEncoding.DecodeString(
+		strings.TrimRight(strings.TrimSuffix(encoded, ":"), "="),
+	)
 	if err != nil {
 		return "", fmt.Errorf("%w: decode signature: %w", ErrInvalidSignature, err)
 	}
-	base, err := signatureBase(r, components, paramsValue(components, didKey))
+	// The base covers the parameters as sent, with or without keyid.
+	base, err := signatureBase(r, components, paramsValue(components, keyID))
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrInvalidSignature, err)
 	}
@@ -126,13 +155,18 @@ func Verify(r *http.Request, components ...string) (string, error) {
 }
 
 // paramsValue renders the signature parameters, e.g.
-// ("authorization" "atproto-space-audience");keyid="did:key:...".
+// ("authorization" "atproto-space-audience");keyid="did:key:...". An empty
+// didKey leaves keyid out.
 func paramsValue(components []string, didKey string) string {
 	quoted := make([]string, len(components))
 	for i, c := range components {
 		quoted[i] = `"` + c + `"`
 	}
-	return "(" + strings.Join(quoted, " ") + `);keyid="` + didKey + `"`
+	params := "(" + strings.Join(quoted, " ") + ")"
+	if didKey != "" {
+		params += `;keyid="` + didKey + `"`
+	}
+	return params
 }
 
 // signatureBase builds the RFC 9421 section 2.5 signature base.
