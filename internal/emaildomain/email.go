@@ -20,7 +20,13 @@ type Email string
 // LoginMethod is how members of an email domain prove they own their email.
 type LoginMethod string
 
-const LoginMethodGoogle LoginMethod = "google"
+const (
+	LoginMethodGoogle LoginMethod = "google"
+	// LoginMethodWorkOS signs members in with WorkOS AuthKit; they join the
+	// org only if WorkOS reports them in a WorkOS organization mapped to it
+	// (see Store.HasWorkOSOrg).
+	LoginMethodWorkOS LoginMethod = "workos"
+)
 
 // ParseEmail validates s as a bare email address ("local@domain", with no
 // display name or angle brackets) whose domain is a valid DNS name, and

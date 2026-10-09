@@ -296,6 +296,22 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		loginRouter.Google = googleProvider
 		slog.InfoContext(startupCtx, "google login provider enabled")
 	}
+	workosClientID := cmd.String(fWorkOSClientID)
+	workosAPIKey := cmd.String(fWorkOSAPIKey)
+	if workosClientID != "" && workosAPIKey != "" {
+		workosProvider, err := login.NewWorkOSProvider(
+			workosClientID,
+			workosAPIKey,
+			"https://"+domain+"/oauth-callback",
+			"",
+			nil,
+		)
+		if err != nil {
+			return fmt.Errorf("setup workos login provider: %w", err)
+		}
+		loginRouter.WorkOS = workosProvider
+		slog.InfoContext(startupCtx, "workos login provider enabled")
+	}
 
 	// Habitat's single host signing key signs permissioned-repo commits for repo
 	// owners on external PDSes (habitat-managed owners sign with their own hive

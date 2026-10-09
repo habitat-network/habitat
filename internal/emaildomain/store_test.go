@@ -91,3 +91,25 @@ func TestStore(t *testing.T) {
 		require.False(t, ok)
 	})
 }
+
+func TestStore_WorkOSOrgMapping(t *testing.T) {
+	s, err := emaildomain.NewStore(pear_testutil.NewPearDB(t))
+	require.NoError(t, err)
+	org := syntax.DID("did:web:acme.example.com")
+
+	require.NoError(t, s.CreateWorkOSOrgMapping(t.Context(), "org_1", org))
+	err = s.CreateWorkOSOrgMapping(
+		t.Context(), "org_1", syntax.DID("did:web:other.example.com"),
+	)
+	require.ErrorIs(t, err, emaildomain.ErrWorkOSOrgTaken)
+
+	ok, err := s.HasWorkOSOrg(t.Context(), org, []string{"org_x", "org_1"})
+	require.NoError(t, err)
+	require.True(t, ok)
+	ok, err = s.HasWorkOSOrg(t.Context(), org, []string{"org_x"})
+	require.NoError(t, err)
+	require.False(t, ok)
+	ok, err = s.HasWorkOSOrg(t.Context(), org, nil)
+	require.NoError(t, err)
+	require.False(t, ok)
+}

@@ -226,3 +226,64 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 		require.ErrorContains(t, err, "unsupported login provider")
 	})
 }
+
+func TestLoginRouterWorkOS(t *testing.T) {
+	db := db_testutil.NewDB(
+		t,
+		hive.Models(),
+		login.Models(),
+		instance.Models(),
+		emaildomain.Models(),
+		spaces.Models(),
+		opensocial.Models(),
+	)
+	emailStore, err := emaildomain.NewStore(db)
+	require.NoError(t, err)
+	osStore := opensocial_testutil.NewTestStore(t, opensocial_testutil.WithDB(db))
+	orgDIDStr, err := osStore.NewOrgWithoutCreator(t.Context(), "acme")
+	require.NoError(t, err)
+	orgDID := syntax.DID(orgDIDStr)
+	alice := syntax.DID("did:web:alice.example.com")
+	require.NoError(t, emailStore.CreateDomainMapping(
+		t.Context(), "acme.com", orgDID, emaildomain.LoginMethodWorkOS,
+	))
+	require.NoError(t, emailStore.CreateWorkOSOrgMapping(t.Context(), "org_acme", orgDID))
+	require.NoError(t, emailStore.Provision(t.Context(), "alice@acme.com", orgDID, alice))
+	orgStore := testutil.NewTestStore(t)
+
+	exchange := func(t *testing.T, workosOrgIDs ...string) error {
+		t.Helper()
+		p := login_testutil.NewPassthroughProvider(t)
+		p.Profile = login.Profile{ExternalOrgIDs: workosOrgIDs}
+		router := org.LoginRouter{
+			WorkOS: p, OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,
+		}
+		_, _, state, err := router.Authorize(t.Context(), alice)
+		require.NoError(t, err)
+		require.Equal(t, "alice@acme.com", p.LoginID)
+		return router.Exchange(t.Context(), alice, url.Values{}, state)
+	}
+
+	t.Run("user outside the workos org is rejected and not enrolled", func(t *testing.T) {
+		require.Error(t, exchange(t, "org_other"))
+		require.Error(t, exchange(t))
+		roles, err := osStore.GetUserRoles(t.Context(), orgDID, alice)
+		require.NoError(t, err)
+		require.Empty(t, roles)
+	})
+
+	t.Run("user in the mapped workos org is enrolled", func(t *testing.T) {
+		require.NoError(t, exchange(t, "org_other", "org_acme"))
+		roles, err := osStore.GetUserRoles(t.Context(), orgDID, alice)
+		require.NoError(t, err)
+		require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+	})
+
+	t.Run("workos not configured", func(t *testing.T) {
+		router := org.LoginRouter{
+			OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,
+		}
+		_, _, _, err := router.Authorize(t.Context(), alice)
+		require.Error(t, err)
+	})
+}

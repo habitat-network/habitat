@@ -14,8 +14,11 @@ import (
 )
 
 type LoginRouter struct {
-	Pds      login.Provider
-	Google   login.Provider
+	Pds    login.Provider
+	Google login.Provider
+	// WorkOS signs in members of orgs created with a WorkOS organization
+	// (see emaildomain.LoginMethodWorkOS).
+	WorkOS   login.Provider
 	Password login.Provider
 	OrgStore Store
 	// EmailStore, if set, routes DIDs provisioned via email-domain sign-in
@@ -48,6 +51,8 @@ func (r *LoginRouter) emailProvider(method emaildomain.LoginMethod) login.Provid
 	switch method {
 	case emaildomain.LoginMethodGoogle:
 		return r.Google
+	case emaildomain.LoginMethodWorkOS:
+		return r.WorkOS
 	}
 	return nil
 }
@@ -57,29 +62,29 @@ func (r *LoginRouter) emailProvider(method emaildomain.LoginMethod) login.Provid
 func (r *LoginRouter) emailLogin(
 	ctx context.Context,
 	did syntax.DID,
-) (login.Provider, emaildomain.Email, bool, error) {
+) (login.Provider, emaildomain.LoginMethod, emaildomain.Email, bool, error) {
 	if r.EmailStore == nil {
-		return nil, "", false, nil
+		return nil, "", "", false, nil
 	}
 	method, ok, err := r.EmailStore.GetLoginMethod(ctx, did)
 	if err != nil {
-		return nil, "", false, fmt.Errorf("get email login method: %w", err)
+		return nil, "", "", false, fmt.Errorf("get email login method: %w", err)
 	}
 	if !ok {
-		return nil, "", false, nil
+		return nil, "", "", false, nil
 	}
 	email, ok, err := r.EmailStore.GetEmail(ctx, did)
 	if err != nil {
-		return nil, "", false, fmt.Errorf("get provisioned email: %w", err)
+		return nil, "", "", false, fmt.Errorf("get provisioned email: %w", err)
 	}
 	if !ok {
-		return nil, "", false, fmt.Errorf("no email provisioned for %s", did)
+		return nil, "", "", false, fmt.Errorf("no email provisioned for %s", did)
 	}
 	provider := r.emailProvider(method)
 	if provider == nil {
-		return nil, "", false, fmt.Errorf("unsupported login provider for %s", did)
+		return nil, "", "", false, fmt.Errorf("unsupported login provider for %s", did)
 	}
-	return provider, email, true, nil
+	return provider, method, email, true, nil
 }
 
 // provisionEmailMember adds did to its org now that it has verified its
@@ -104,12 +109,37 @@ func (r *LoginRouter) provisionEmailMember(ctx context.Context, did syntax.DID) 
 	return nil
 }
 
+// checkWorkOSMembership returns an error unless workosOrgIDs, the WorkOS
+// organizations the user belongs to, include one mapped to the org did was
+// provisioned into.
+func (r *LoginRouter) checkWorkOSMembership(
+	ctx context.Context,
+	did syntax.DID,
+	workosOrgIDs []string,
+) error {
+	orgDID, ok, err := r.EmailStore.GetOrgDID(ctx, did)
+	if err != nil {
+		return fmt.Errorf("get provisioned org: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("no org provisioned for %s", did)
+	}
+	member, err := r.EmailStore.HasWorkOSOrg(ctx, orgDID, workosOrgIDs)
+	if err != nil {
+		return err
+	}
+	if !member {
+		return fmt.Errorf("not a member of the workos organization for %s", orgDID)
+	}
+	return nil
+}
+
 func (r *LoginRouter) Authorize(
 	ctx context.Context,
 	did syntax.DID,
 ) (string, string, []byte, error) {
 	// email-domain member login
-	if provider, email, ok, err := r.emailLogin(ctx, did); err != nil {
+	if provider, _, email, ok, err := r.emailLogin(ctx, did); err != nil {
 		return "", "", nil, err
 	} else if ok {
 		return provider.Authorize(ctx, string(email))
@@ -146,7 +176,7 @@ func (r *LoginRouter) Exchange(
 	state []byte,
 ) error {
 	// email-domain member login
-	if provider, email, ok, err := r.emailLogin(ctx, did); err != nil {
+	if provider, method, email, ok, err := r.emailLogin(ctx, did); err != nil {
 		return err
 	} else if ok {
 		loginID, profile, err := provider.Exchange(ctx, query, state)
@@ -155,6 +185,11 @@ func (r *LoginRouter) Exchange(
 		}
 		if !strings.EqualFold(loginID, string(email)) {
 			return fmt.Errorf("login id mismatch: %s != %s", email, loginID)
+		}
+		if method == emaildomain.LoginMethodWorkOS {
+			if err := r.checkWorkOSMembership(ctx, did, profile.ExternalOrgIDs); err != nil {
+				return err
+			}
 		}
 		if err := r.provisionEmailMember(ctx, did); err != nil {
 			return err
