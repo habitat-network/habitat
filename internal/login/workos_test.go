@@ -14,13 +14,13 @@ func newTestWorkOS(t *testing.T, h http.HandlerFunc) Provider {
 	t.Helper()
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
-	p, err := NewWorkOSProvider("client_1", "sk_test", "https://example.com/cb", srv.URL, nil)
+	p, err := NewWorkOSProvider("client_1", "sk_test", "https://example.com/cb", srv.URL)
 	require.NoError(t, err)
 	return p
 }
 
 func TestWorkOSProvider_Authorize(t *testing.T) {
-	p, err := NewWorkOSProvider("client_1", "sk_test", "https://example.com/cb", "", nil)
+	p, err := NewWorkOSProvider("client_1", "sk_test", "https://example.com/cb", "")
 	require.NoError(t, err)
 	redirect, state, providerState, err := p.Authorize(t.Context(), "alice@acme.com")
 	require.NoError(t, err)
@@ -39,18 +39,19 @@ func TestWorkOSProvider_Authorize(t *testing.T) {
 func TestWorkOSProvider_Exchange(t *testing.T) {
 	verified := true
 	p := newTestWorkOS(t, func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "Bearer sk_test", r.Header.Get("Authorization"))
 		switch r.URL.Path {
 		case "/user_management/authenticate":
 			var body map[string]string
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			require.Equal(t, "authorization_code", body["grant_type"])
 			require.Equal(t, "the-code", body["code"])
+			require.Equal(t, "sk_test", body["client_secret"])
 			_ = json.NewEncoder(w).Encode(map[string]any{"user": map[string]any{
 				"id": "user_1", "email": "alice@acme.com", "email_verified": verified,
 				"first_name": "Alice", "last_name": "A", "profile_picture_url": "https://pic",
 			}})
 		case "/user_management/organization_memberships":
+			require.Equal(t, "Bearer sk_test", r.Header.Get("Authorization"))
 			require.Equal(t, "user_1", r.URL.Query().Get("user_id"))
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": []map[string]any{
 				{"organization_id": "org_1", "organization_name": "Acme", "status": "active"},

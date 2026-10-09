@@ -304,7 +304,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			workosAPIKey,
 			"https://"+domain+"/oauth-callback",
 			"",
-			nil,
 		)
 		if err != nil {
 			return fmt.Errorf("setup workos login provider: %w", err)
