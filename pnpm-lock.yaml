@@ -13,8 +13,8 @@ catalogs:
       specifier: 0.0.0-spaces-alpha-20261001173819
       version: 0.0.0-spaces-alpha-20261001173819
     '@atproto/crypto':
-      specifier: 0.0.0-spaces-alpha-20261001173819
-      version: 0.0.0-spaces-alpha-20261001173819
+      specifier: 0.5.7
+      version: 0.5.7
     '@atproto/identity':
       specifier: 0.0.0-spaces-alpha-20261001173819
       version: 0.0.0-spaces-alpha-20261001173819
@@ -861,7 +861,7 @@ importers:
         version: 0.0.0-spaces-alpha-20261001173819
       '@atproto/crypto':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20261001173819
+        version: 0.5.7
       '@atproto/identity':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20261001173819
@@ -1157,6 +1157,10 @@ packages:
 
   '@atproto/crypto@0.0.0-spaces-alpha-20261001173819':
     resolution: {integrity: sha512-VlTQayUz1UYtfy1TLbc+I1/9CpeRt2hRuidPyifuIfRx9BLXgsju7bkwuAIF/LRg0XYo8enh+T+k0ASW248ZEQ==}
+    engines: {node: '>=22'}
+
+  '@atproto/crypto@0.5.7':
+    resolution: {integrity: sha512-r3uizKlzcBVRJ4mQMXlsRVZMSfAcZ9tr/dijnJ95C1aNGvV5k9bQ+Hvu6OLnwsnVTISzYRkgAfJCDNLCrOBilw==}
     engines: {node: '>=22'}
 
   '@atproto/did@0.0.0-spaces-alpha-20261001173819':
@@ -12497,6 +12501,12 @@ snapshots:
       pino: 10.3.1
 
   '@atproto/crypto@0.0.0-spaces-alpha-20261001173819':
+    dependencies:
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      uint8arrays: 5.1.1
+
+  '@atproto/crypto@0.5.7':
     dependencies:
       '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
