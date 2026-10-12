@@ -21,12 +21,10 @@ export interface SpaceSyncOptions {
    * (see syncerServiceRef), and it's checked as `aud` on notifications.
    */
   readonly serviceDid: string;
-  readonly plcUrl: string;
   /**
    * Resolves the DIDs of space authorities and repos. Defaults to the public
-   * PLC / did:web network (via plcUrl); pass e.g. a HabitatIdentityResolver
-   * to resolve identities the public network doesn't know. plcUrl still
-   * applies to notification auth.
+   * did:plc / did:web network; pass e.g. a HabitatIdentityResolver to resolve
+   * identities the public network doesn't know.
    */
   readonly identityResolver?: IdentityResolver;
   /** Max spaces running a pass at once (global). */
@@ -55,7 +53,6 @@ export interface SpaceSyncOptions {
 
 export const defaultSpaceSyncOptions: SpaceSyncOptions = {
   serviceDid: "",
-  plcUrl: "https://plc.directory",
   maxActiveSpaces: 64,
   repoConcurrency: 8,
   schedulerInterval: Duration.seconds(30),

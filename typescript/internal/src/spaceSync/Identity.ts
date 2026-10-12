@@ -11,6 +11,10 @@ import {
   getKey,
   getPds,
 } from "@atproto/identity";
+import type {
+  IdentityInfo,
+  IdentityResolver,
+} from "@atproto-labs/identity-resolver";
 import { Cache, Context, Duration, Effect, Exit, Layer } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { IdentityError, errorMessage } from "./errors";
@@ -115,6 +119,33 @@ export class NoRedirectDidPlcResolver extends DidPlcResolver {
   }
 }
 
+/**
+ * Resolves DIDs through the public did:plc / did:web network, the default when
+ * no `identityResolver` is configured. Only DIDs are resolved: the handle is
+ * taken from the document without bidirectional verification.
+ */
+export const publicIdentityResolver = (
+  plcUrl = "https://plc.directory",
+): IdentityResolver => {
+  const resolver = new IdResolver({ plcUrl, timeout: DID_TIMEOUT_MS });
+  resolver.did.methods.set("web", new NoRedirectDidWebResolver(DID_TIMEOUT_MS));
+  resolver.did.methods.set(
+    "plc",
+    new NoRedirectDidPlcResolver(plcUrl, DID_TIMEOUT_MS),
+  );
+  return {
+    resolve: async (identifier) => {
+      const didDoc = await resolver.did.ensureResolve(identifier);
+      const aka = didDoc.alsoKnownAs?.find((a) => a.startsWith("at://"));
+      return {
+        did: didDoc.id,
+        didDoc,
+        handle: aka ? aka.slice("at://".length) : "handle.invalid",
+      } as IdentityInfo;
+    },
+  };
+};
+
 export class Identity extends Context.Service<
   Identity,
   {
@@ -130,23 +161,14 @@ export class Identity extends Context.Service<
   static readonly layer = Layer.effect(
     Identity,
     Effect.gen(function* () {
-      const { plcUrl, identityResolver } = yield* SpaceSyncConfig;
-      const resolver = new IdResolver({ plcUrl, timeout: DID_TIMEOUT_MS });
-      resolver.did.methods.set(
-        "web",
-        new NoRedirectDidWebResolver(DID_TIMEOUT_MS),
-      );
-      resolver.did.methods.set(
-        "plc",
-        new NoRedirectDidPlcResolver(plcUrl, DID_TIMEOUT_MS),
-      );
+      const config = yield* SpaceSyncConfig;
+      const identityResolver =
+        config.identityResolver ?? publicIdentityResolver();
       const cache = yield* Cache.makeWith(
         (did: DidString) =>
           Effect.tryPromise({
-            try: async (): Promise<DidDocument> =>
-              identityResolver
-                ? ((await identityResolver.resolve(did)).didDoc as DidDocument)
-                : resolver.did.ensureResolve(did),
+            try: async () =>
+              (await identityResolver.resolve(did)).didDoc as DidDocument,
             catch: (error) =>
               new IdentityError({
                 did,

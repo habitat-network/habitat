@@ -3,7 +3,7 @@ import { server } from "../../test/msw";
 import { type SpaceSyncOptions, spaceSyncConfigLayer } from "../config";
 import { Credentials, DelegationSource } from "../Credentials";
 import { CredentialError, errorMessage } from "../errors";
-import { Identity } from "../Identity";
+import { Identity, publicIdentityResolver } from "../Identity";
 import { NotificationAuth } from "../notification";
 import { SpaceClient } from "../SpaceClient";
 import { RepoSync } from "../repoSync";
@@ -20,7 +20,7 @@ export const SERVICE_DID = "did:web:syncer.test";
 export const testConfig = (overrides: Partial<SpaceSyncOptions> = {}) =>
   spaceSyncConfigLayer({
     serviceDid: SERVICE_DID,
-    plcUrl: PLC_URL,
+    identityResolver: publicIdentityResolver(PLC_URL),
     requestRetryBase: Duration.millis(5),
     backoffBase: Duration.millis(50),
     backoffCap: Duration.millis(200),
@@ -70,7 +70,7 @@ export const makeHarness = async (
   server.use(...net.handlers);
   const sink = makeRecordingSink();
   const base = Layer.mergeAll(
-    SpaceClient.layer.pipe(
+    Layer.mergeAll(SpaceClient.layer, NotificationAuth.layer).pipe(
       Layer.provideMerge(Credentials.layer),
       Layer.provideMerge(Identity.layer),
       Layer.provideMerge(fakeDelegation(net)),
@@ -78,7 +78,6 @@ export const makeHarness = async (
     SyncStore.memory,
     sink.layer,
     RepoBackoff.layer,
-    NotificationAuth.layer,
   );
   const layer = SpacePass.layer.pipe(
     Layer.provideMerge(RepoSync.layer),

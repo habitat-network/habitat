@@ -5,7 +5,11 @@ export {
   type SpaceCredential,
 } from "./Credentials";
 export * from "./errors";
-export { Identity, type ResolvedIdentity } from "./Identity";
+export {
+  Identity,
+  publicIdentityResolver,
+  type ResolvedIdentity,
+} from "./Identity";
 export {
   NotificationAuth,
   type NotificationMethod,

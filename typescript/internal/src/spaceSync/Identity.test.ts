@@ -8,7 +8,7 @@ import { HttpResponse, http } from "msw";
 import { describe, expect } from "vitest";
 import { server } from "../test/msw";
 import { spaceSyncConfigLayer } from "./config";
-import { Identity, identityFromDoc } from "./Identity";
+import { Identity, identityFromDoc, publicIdentityResolver } from "./Identity";
 
 const DID = "did:plc:aliceaaaaaaaaaaaaaaaaaaa";
 
@@ -190,7 +190,7 @@ describe("Identity.layer", () => {
             Layer.provide(
               spaceSyncConfigLayer({
                 serviceDid: "did:web:s.test",
-                plcUrl: "https://plc.test",
+                identityResolver: publicIdentityResolver("https://plc.test"),
               }),
             ),
           ),
@@ -242,7 +242,7 @@ describe("Identity.layer", () => {
           Layer.provide(
             spaceSyncConfigLayer({
               serviceDid: "did:web:s.test",
-              plcUrl: "https://plc.test",
+              identityResolver: publicIdentityResolver("https://plc.test"),
             }),
           ),
         ),
