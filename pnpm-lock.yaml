@@ -949,7 +949,7 @@ importers:
     devDependencies:
       '@effect/vitest':
         specifier: ^4.0.2
-        version: 4.0.2(effect@4.0.3)(vitest@5.0.3(@types/node@22.20.5)(jsdom@30.0.1(@noble/hashes@2.3.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))
+        version: 4.0.3(effect@4.0.3)(vitest@5.0.3(@types/node@22.20.5)(jsdom@30.0.1(@noble/hashes@2.3.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))
       '@tailwindcss/typography':
         specifier: 'catalog:'
         version: 0.5.20(tailwindcss@4.3.3)
@@ -2580,10 +2580,10 @@ packages:
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
 
-  '@effect/vitest@4.0.2':
-    resolution: {integrity: sha512-Zb72nu7iUy3rNdBp9J1Xu5oUQGwJ8cOYsUwmYgujj88aqyvASRDjOS01SjlcPViqf77csduetKdCJTVndMNfzw==}
+  '@effect/vitest@4.0.3':
+    resolution: {integrity: sha512-jsIkpssf0CFuOeycW2sQZkWx0qzlsRv+JIkzd9qQpoFDcHC9JZFSdIjEBAhsdp20pDy4Y/b2vT/ew7wXZxvEig==}
     peerDependencies:
-      effect: ^4.0.2
+      effect: ^4.0.3
       vitest: '>=5.0.0 <6.0.0'
 
   '@emnapi/core@1.11.2':
@@ -15027,7 +15027,7 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@effect/vitest@4.0.2(effect@4.0.3)(vitest@5.0.3(@types/node@22.20.5)(jsdom@30.0.1(@noble/hashes@2.3.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))':
+  '@effect/vitest@4.0.3(effect@4.0.3)(vitest@5.0.3(@types/node@22.20.5)(jsdom@30.0.1(@noble/hashes@2.3.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))':
     dependencies:
       effect: 4.0.3
       vitest: 5.0.3(@types/node@22.20.5)(jsdom@30.0.1(@noble/hashes@2.3.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
