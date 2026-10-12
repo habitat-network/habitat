@@ -18,6 +18,10 @@
                         "domain": {
                             "type": "string",
                             "description": "Email domain whose users sign in to this org, e.g. \"acme.com\"."
+                        },
+                        "workosOrgId": {
+                            "type": "string",
+                            "description": "Optional WorkOS organization ID (e.g. \"org_01...\"). If set, members sign in with WorkOS AuthKit instead of Google and must belong to this WorkOS organization to join the org."
                         }
                     }
                 }

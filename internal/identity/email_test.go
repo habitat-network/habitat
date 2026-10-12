@@ -244,3 +244,19 @@ func TestResolveIdentityEmailDisabled(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 }
+
+func TestEmailResolverUnaffiliated(t *testing.T) {
+	f := newEmailFixture(t)
+	resolver := NewEmailResolver(
+		f.resolver.db, f.emailStore, f.hive, WithUnaffiliatedMinting(),
+	)
+	ident, err := resolver.ResolveEmailIdentity(t.Context(), "alice@other.com")
+	require.NoError(t, err)
+	require.Contains(t, ident.Handle.String(), ".people.")
+
+	orgDID, ok, err := f.emailStore.GetOrgDID(t.Context(), ident.DID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Empty(t, orgDID)
+	require.Equal(t, 0, f.memberships(t))
+}

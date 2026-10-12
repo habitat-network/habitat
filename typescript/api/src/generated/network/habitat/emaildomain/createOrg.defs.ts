@@ -17,6 +17,7 @@ export type $Params = l.InferOutput<typeof $params>
 export const $input = /*#__PURE__*/ l.jsonPayload({
   handle: /*#__PURE__*/ l.string(),
   domain: /*#__PURE__*/ l.string(),
+  workosOrgId: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>

@@ -17,6 +17,7 @@ import (
 // in E2E tests.
 type PassthroughProvider struct {
 	LoginID     string
+	Profile     login.Profile
 	RedirectURI string
 	Server      *httptest.Server
 }
@@ -53,7 +54,7 @@ func (p *PassthroughProvider) Exchange(
 	query url.Values,
 	state []byte,
 ) (loginID string, profile login.Profile, err error) {
-	return p.LoginID, login.Profile{}, nil
+	return p.LoginID, p.Profile, nil
 }
 
 var _ login.Provider = (*PassthroughProvider)(nil)

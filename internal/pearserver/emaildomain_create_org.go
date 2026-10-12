@@ -51,9 +51,11 @@ func (p *PearServer) CreateEmailDomainOrg(w http.ResponseWriter, r *http.Request
 		httpx.WriteServerError(ctx, w, fmt.Errorf("new org: %w", err))
 		return
 	}
-	err = p.emailDomainStore.CreateDomainMapping(
-		ctx, domain.String(), syntax.DID(org), emaildomain.LoginMethodGoogle,
-	)
+	method := emaildomain.LoginMethodGoogle
+	if input.WorkosOrgId != "" {
+		method = emaildomain.LoginMethodWorkOS
+	}
+	err = p.emailDomainStore.CreateDomainMapping(ctx, domain.String(), syntax.DID(org), method)
 	if errors.Is(err, emaildomain.ErrDomainTaken) {
 		writeDomainTaken(ctx, w)
 		return
@@ -61,6 +63,20 @@ func (p *PearServer) CreateEmailDomainOrg(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("create domain mapping: %w", err))
 		return
+	}
+	if input.WorkosOrgId != "" {
+		err = p.emailDomainStore.CreateWorkOSOrgMapping(ctx, input.WorkosOrgId, syntax.DID(org))
+		if errors.Is(err, emaildomain.ErrWorkOSOrgTaken) {
+			httpx.WriteError(
+				ctx, w, "WorkOSOrgTaken",
+				"workos organization is already mapped to an org", http.StatusConflict,
+			)
+			return
+		}
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("create workos org mapping: %w", err))
+			return
+		}
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatEmaildomainCreateOrgOutput{Org: org})
 }

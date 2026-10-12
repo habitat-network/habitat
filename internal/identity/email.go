@@ -13,6 +13,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 const (
@@ -35,14 +36,32 @@ type EmailResolver struct {
 	db         *gorm.DB
 	emailStore *emaildomain.Store
 	hive       hive.Hive
+	// unaffiliated mints identities for emails whose domain isn't mapped,
+	// leaving org placement to sign-in (see WithUnaffiliatedMinting).
+	unaffiliated bool
+}
+
+// unaffiliatedLabel is the handle label unaffiliated members are minted
+// beneath, e.g. "alice.people.<memberDomain>". Their org is decided by
+// sign-in, after the handle is fixed.
+const unaffiliatedLabel = "people"
+
+// WithUnaffiliatedMinting makes the resolver mint an identity for an email
+// whose domain isn't mapped, with no org. Sign-in via WorkOS then places it
+// in the WorkOS organization's org, or a new one (see org.LoginRouter).
+func WithUnaffiliatedMinting() utils.Opt[EmailResolver] {
+	return func(r *EmailResolver) { r.unaffiliated = true }
 }
 
 func NewEmailResolver(
 	db *gorm.DB,
 	emailStore *emaildomain.Store,
 	h hive.Hive,
+	opts ...utils.Opt[EmailResolver],
 ) *EmailResolver {
-	return &EmailResolver{db: db, emailStore: emailStore, hive: h}
+	return new(utils.ResolveOptions(
+		EmailResolver{db: db, emailStore: emailStore, hive: h}, opts,
+	))
 }
 
 // ResolveEmailIdentity returns the identity provisioned for email, minting
@@ -61,16 +80,21 @@ func (r *EmailResolver) ResolveEmailIdentity(
 	if err != nil {
 		return nil, fmt.Errorf("lookup email domain: %w", err)
 	}
-	if !ok {
+	orgLabel := unaffiliatedLabel
+	switch {
+	case ok:
+		orgIdent, err := r.hive.LookupDID(ctx, orgDID)
+		if err != nil {
+			return nil, fmt.Errorf("lookup org identity: %w", err)
+		}
+		// Org handles are a single label minted as "<label>.<memberDomain>";
+		// members are minted beneath it, e.g. "alice.acme.<memberDomain>".
+		orgLabel, _, _ = strings.Cut(orgIdent.Handle.String(), ".")
+	case r.unaffiliated:
+		orgDID = "" // placed in an org on sign-in
+	default:
 		return nil, identity.ErrDIDNotFound
 	}
-	orgIdent, err := r.hive.LookupDID(ctx, orgDID)
-	if err != nil {
-		return nil, fmt.Errorf("lookup org identity: %w", err)
-	}
-	// Org handles are a single label minted as "<label>.<memberDomain>";
-	// members are minted beneath it, e.g. "alice.acme.<memberDomain>".
-	orgLabel, _, _ := strings.Cut(orgIdent.Handle.String(), ".")
 
 	var minted *identity.Identity
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
