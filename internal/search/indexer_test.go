@@ -508,7 +508,12 @@ func minimalPDF(text string) string {
 	for _, off := range offsets {
 		fmt.Fprintf(&sb, "%010d 00000 n \n", off)
 	}
-	fmt.Fprintf(&sb, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objs)+1, xref)
+	fmt.Fprintf(
+		&sb,
+		"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n",
+		len(objs)+1,
+		xref,
+	)
 	return sb.String()
 }
 
