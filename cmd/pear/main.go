@@ -503,6 +503,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		nangoClient,
 		opensocialStore,
 		mcpGatewayStore,
+		blobStore,
 		mcpOrigin,
 		oauthServer.MCPIssuer(),
 	)
