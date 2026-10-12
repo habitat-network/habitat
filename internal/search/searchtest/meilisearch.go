@@ -32,13 +32,25 @@ var (
 // NewIndex returns a [search.Meilisearch] over a fresh index. Tests share one
 // Meilisearch server, from [URLEnv] or a container started on first use, and
 // each gets its own index in it.
-func NewIndex(t *testing.T) *search.Meilisearch {
+func NewIndex(t *testing.T, opts ...search.MeilisearchOption) *search.Meilisearch {
 	t.Helper()
-	url := serverURL(t)
+	return OpenIndex(t, NewUID(t), opts...)
+}
+
+// NewUID returns a fresh index name for [OpenIndex].
+func NewUID(t *testing.T) string {
+	t.Helper()
 	suffix := make([]byte, 8)
 	_, err := rand.Read(suffix)
 	require.NoError(t, err)
-	idx, err := search.NewMeilisearch(t.Context(), url, "", "test_"+hex.EncodeToString(suffix))
+	return "test_" + hex.EncodeToString(suffix)
+}
+
+// OpenIndex returns a [search.Meilisearch] over the index uid on the shared
+// server, so a test can open one index again with different options.
+func OpenIndex(t *testing.T, uid string, opts ...search.MeilisearchOption) *search.Meilisearch {
+	t.Helper()
+	idx, err := search.NewMeilisearch(t.Context(), serverURL(t), "", uid, opts...)
 	require.NoError(t, err)
 	return idx
 }
@@ -48,6 +60,9 @@ func serverURL(t *testing.T) string {
 	if url := os.Getenv(URLEnv); url != "" {
 		return url
 	}
+	// The container can only reach host ports named when it starts, so the
+	// fake embedder starts first.
+	embedderPort := startEmbedder(t)
 	startOnce.Do(func() {
 		// The container outlives the test that started it, since later
 		// tests share it; testcontainers' reaper removes it after the run.
@@ -57,8 +72,14 @@ func serverURL(t *testing.T) string {
 			ContainerRequest: testcontainers.ContainerRequest{
 				Image:        image,
 				ExposedPorts: []string{"7700/tcp"},
-				Env:          map[string]string{"MEILI_NO_ANALYTICS": "true"},
-				WaitingFor:   wait.ForHTTP("/health").WithPort("7700/tcp"),
+				Env: map[string]string{
+					"MEILI_NO_ANALYTICS": "true",
+					// The fake embedder is on the host, at an internal IP
+					// Meilisearch otherwise refuses to call.
+					"MEILI_EXPERIMENTAL_ALLOWED_IP_NETWORKS": "any",
+				},
+				WaitingFor:      wait.ForHTTP("/health").WithPort("7700/tcp"),
+				HostAccessPorts: []int{embedderPort},
 			},
 			Started: true,
 		})

@@ -89,28 +89,122 @@ type Meilisearch struct {
 	index   meilisearch.IndexManager
 	cursors meilisearch.IndexManager
 	client  meilisearch.ServiceManager
+	// embedder, when set, makes searches hybrid; see [WithEmbedder].
+	embedder *Embedder
 }
 
 var _ Index = (*Meilisearch)(nil)
 
+// Embedder is an OpenAI-compatible embeddings API that Meilisearch calls
+// itself to embed each document's text and each query, for hybrid search.
+// Any server implementing POST /v1/embeddings works, such as Ollama
+// (http://localhost:11434/v1/embeddings) or Microsoft Foundry
+// (https://<resource>.openai.azure.com/openai/v1/embeddings).
+type Embedder struct {
+	// URL is the full embeddings endpoint, including the /embeddings path.
+	URL string
+	// APIKey, when set, is sent as a bearer token.
+	APIKey string
+	// Model is sent as the request's model; for Foundry, the deployment name.
+	Model string
+	// Dimensions is the embeddings' size. Zero lets Meilisearch infer it by
+	// embedding a test string.
+	Dimensions int
+	// SemanticRatio weighs semantic against keyword results, from 0 (keyword
+	// only) to 1 (semantic only).
+	SemanticRatio float64
+	// MinScore drops hits whose ranking score, from 0 to 1, is below it. A
+	// semantic search ranks every document by similarity, so without it a
+	// query also returns every unrelated document it may read, last. A good
+	// value depends on the model. Zero keeps every hit.
+	MinScore float64
+}
+
+const (
+	// embedderName is the Meilisearch embedder documents are embedded with.
+	embedderName = "default"
+	// embedTemplateMaxBytes caps how much of a document's text is embedded.
+	// Meilisearch's default of 400 bytes would only embed its opening.
+	embedTemplateMaxBytes = 8000
+)
+
+// settings returns e as a Meilisearch REST embedder. The REST source, rather
+// than the openAi one, accepts any model name, which Ollama and Foundry
+// deployments need.
+func (e Embedder) settings() meilisearch.Embedder {
+	return meilisearch.Embedder{
+		Source:                   meilisearch.RestEmbedderSource,
+		URL:                      e.URL,
+		APIKey:                   e.APIKey,
+		Dimensions:               e.Dimensions,
+		DocumentTemplate:         "{{doc.text}}",
+		DocumentTemplateMaxBytes: embedTemplateMaxBytes,
+		Request: map[string]any{
+			"model": e.Model,
+			"input": []string{"{{text}}", "{{..}}"},
+		},
+		Response: map[string]any{
+			"data": []any{
+				map[string]any{"embedding": "{{embedding}}"},
+				"{{..}}",
+			},
+		},
+	}
+}
+
+// MeilisearchOption configures a [Meilisearch].
+type MeilisearchOption func(*Meilisearch)
+
+// WithEmbedder makes searches hybrid, combining keyword matches with
+// semantic matches from embeddings e computes. Without it, any embedder
+// configured on the index earlier is removed and searches are keyword only.
+func WithEmbedder(e Embedder) MeilisearchOption {
+	return func(m *Meilisearch) { m.embedder = &e }
+}
+
 // NewMeilisearch returns an Index stored in the Meilisearch indexes uid and
 // uid_cursors on the server at host, creating and configuring them if
 // needed.
-func NewMeilisearch(ctx context.Context, host, apiKey, uid string) (*Meilisearch, error) {
+func NewMeilisearch(
+	ctx context.Context,
+	host, apiKey, uid string,
+	opts ...MeilisearchOption,
+) (*Meilisearch, error) {
 	client := meilisearch.New(host, meilisearch.WithAPIKey(apiKey))
 	m := &Meilisearch{
 		index:   client.Index(uid),
 		cursors: client.Index(uid + "_cursors"),
 		client:  client,
 	}
-	if err := m.setup(ctx, uid, &meilisearch.Settings{
+	for _, opt := range opts {
+		opt(m)
+	}
+	settings := &meilisearch.Settings{
 		SearchableAttributes: []string{"text"},
 		FilterableAttributes: []string{
 			"space_owner", "space_type", "space_key", "repo", "collection",
 			"user_readers", "community_role_readers", "public",
 		},
-	}); err != nil {
+	}
+	if m.embedder != nil {
+		// Meilisearch re-embeds every document when the embedder changes.
+		settings.Embedders = map[string]meilisearch.Embedder{
+			embedderName: m.embedder.settings(),
+		}
+	}
+	if err := m.setup(ctx, uid, settings); err != nil {
 		return nil, err
+	}
+	if m.embedder == nil {
+		// Embedders are omitted from settings when empty, so drop one left
+		// from an earlier configuration explicitly.
+		info, err := m.index.ResetEmbeddersWithContext(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("reset meilisearch embedders: %w", err)
+		}
+		if err := m.wait(ctx, info); err != nil {
+			return nil, fmt.Errorf("reset meilisearch embedders: %w", err)
+		}
 	}
 	if err := m.setup(ctx, uid+"_cursors", &meilisearch.Settings{
 		FilterableAttributes: []string{"space"},
@@ -363,7 +457,7 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 		snippetLength = DefaultSnippetLength
 	}
 	snippetLength = min(snippetLength, MaxSnippetLength)
-	resp, err := m.index.SearchWithContext(ctx, q.Text, &meilisearch.SearchRequest{
+	req := &meilisearch.SearchRequest{
 		Offset: int64(offset),
 		// One extra hit tells whether there is another page.
 		Limit:            int64(limit + 1),
@@ -377,7 +471,15 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 		CropLength:            int64(snippetLength),
 		HighlightPreTag:       "<mark>",
 		HighlightPostTag:      "</mark>",
-	})
+	}
+	if m.embedder != nil {
+		req.Hybrid = &meilisearch.SearchRequestHybrid{
+			Embedder:      embedderName,
+			SemanticRatio: m.embedder.SemanticRatio,
+		}
+		req.RankingScoreThreshold = m.embedder.MinScore
+	}
+	resp, err := m.index.SearchWithContext(ctx, q.Text, req)
 	if err != nil {
 		return Result{}, fmt.Errorf("search: %w", err)
 	}
