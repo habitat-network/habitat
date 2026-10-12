@@ -91,6 +91,8 @@ type Server struct {
 //   - spacesStore and permStore back the "get_record" tool: permStore checks
 //     the caller holds at least a reader role on the record's space before
 //     spacesStore returns the record.
+//   - blobs and permStore back the "get_blob" tool: permStore checks the caller
+//     holds at least a reader role on the blob's space before blobs returns it.
 //   - searcher backs the "search_records" tool, which searches as the caller.
 //     It may be nil when search isn't configured, in which case the tool isn't
 //     offered.
@@ -113,6 +115,7 @@ func New(
 	nangoClient NangoClient,
 	orgRecords OrgMcpServerStore,
 	manualServers ManualServerSource,
+	blobs spaces.BlobStore,
 	origin string,
 	authServer string,
 ) *Server {
@@ -122,6 +125,11 @@ func New(
 		Name:        "get_record",
 		Description: "Get a single Habitat record by its space record URI.",
 	}, getRecordHandler(spacesStore, permStore))
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name: "get_blob",
+		Description: "Get a blob in a Habitat space by its CID: text for text-like blobs, " +
+			"base64 for others, or only metadata if it is too large.",
+	}, getBlobHandler(blobs, permStore))
 	if searcher != nil {
 		mcp.AddTool(mcpServer, &mcp.Tool{
 			Name: "search_records",

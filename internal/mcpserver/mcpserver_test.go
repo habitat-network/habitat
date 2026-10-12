@@ -1,7 +1,9 @@
 package mcpserver
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/ipfs/go-cid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
@@ -109,6 +112,7 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 		nil,
 		newFakeNangoClient(),
 		newFakeOrgMcpServerStore(),
+		nil,
 		nil,
 		"https://habitat.example",
 		"https://habitat.example/mcp",
@@ -215,6 +219,7 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 		srv := New(
 			fakeTokens{}, spacesStore, permStore, s,
 			newFakeNangoClient(), newFakeOrgMcpServerStore(), nil,
+			nil,
 			"https://habitat.example", "https://habitat.example/mcp",
 		)
 		return httptest.NewServer(srv.Handler())
@@ -284,5 +289,94 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 		for _, tool := range tools.Tools {
 			require.NotEqual(t, "search_records", tool.Name)
 		}
+	})
+}
+
+func TestMCPServerGetBlobTool(t *testing.T) {
+	ctx := t.Context()
+	spacesStore, permStore := setupStores(t)
+	blobs := spaces_testutil.NewTestBlobStore(t)
+
+	owner := syntax.DID("did:plc:owner")
+	other := syntax.DID("did:plc:other")
+	spaceURI, err := spacesStore.CreateSpace(
+		ctx, owner, syntax.NSID("network.habitat.space.type"), habitat_syntax.SpaceKey("test"),
+	)
+	require.NoError(t, err)
+
+	textCid, _, err := blobs.PutBlob(ctx, "text/plain; charset=utf-8", []byte("hello blob"))
+	require.NoError(t, err)
+	binData := []byte{0x00, 0x01, 0xfe, 0xff}
+	binCid, _, err := blobs.PutBlob(ctx, "image/png", binData)
+	require.NoError(t, err)
+	bigCid, _, err := blobs.PutBlob(
+		ctx, "text/plain", bytes.Repeat([]byte("a"), maxBlobContentBytes+1),
+	)
+	require.NoError(t, err)
+	missingCid, err := cid.Decode("bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy")
+	require.NoError(t, err)
+
+	srv := New(
+		fakeTokens{}, spacesStore, permStore, nil,
+		newFakeNangoClient(), newFakeOrgMcpServerStore(), nil, blobs,
+		"https://habitat.example", "https://habitat.example/mcp",
+	)
+	httpServer := httptest.NewServer(srv.Handler())
+	defer httpServer.Close()
+
+	call := func(t *testing.T, caller syntax.DID, space string, c string) *mcp.CallToolResult {
+		t.Helper()
+		session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+		require.NoError(t, err)
+		defer func() { _ = session.Close() }()
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "get_blob",
+			Arguments: map[string]any{"space": space, "cid": c},
+		})
+		require.NoError(t, err)
+		return result
+	}
+
+	t.Run("text blob is returned as text", func(t *testing.T) {
+		result := call(t, owner, spaceURI.String(), textCid.String())
+		require.False(t, result.IsError, "%+v", result)
+		require.Equal(t, map[string]any{
+			"cid":      textCid.String(),
+			"mimeType": "text/plain; charset=utf-8",
+			"size":     float64(len("hello blob")),
+			"text":     "hello blob",
+		}, result.StructuredContent)
+	})
+
+	t.Run("binary blob is returned as base64", func(t *testing.T) {
+		result := call(t, owner, spaceURI.String(), binCid.String())
+		require.False(t, result.IsError, "%+v", result)
+		require.Equal(t, map[string]any{
+			"cid":      binCid.String(),
+			"mimeType": "image/png",
+			"size":     float64(len(binData)),
+			"base64":   base64.StdEncoding.EncodeToString(binData),
+		}, result.StructuredContent)
+	})
+
+	t.Run("oversized blob returns metadata only", func(t *testing.T) {
+		result := call(t, owner, spaceURI.String(), bigCid.String())
+		require.False(t, result.IsError, "%+v", result)
+		out, ok := result.StructuredContent.(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, float64(maxBlobContentBytes+1), out["size"])
+		require.NotEmpty(t, out["note"])
+		require.NotContains(t, out, "text")
+		require.NotContains(t, out, "base64")
+	})
+
+	t.Run("caller without a grant is rejected", func(t *testing.T) {
+		require.True(t, call(t, other, spaceURI.String(), textCid.String()).IsError)
+	})
+
+	t.Run("invalid input and missing blob are rejected", func(t *testing.T) {
+		require.True(t, call(t, owner, "not-a-uri", textCid.String()).IsError)
+		require.True(t, call(t, owner, spaceURI.String(), "not-a-cid").IsError)
+		require.True(t, call(t, owner, spaceURI.String(), missingCid.String()).IsError)
 	})
 }

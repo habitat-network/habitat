@@ -2,12 +2,16 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
+	"mime"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
+	"github.com/ipfs/go-cid"
 	"go.opentelemetry.io/otel/trace"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
@@ -74,6 +78,105 @@ func getRecordHandler(
 		}
 
 		return nil, getRecordOutput{URI: input.URI, Value: record.Value}, nil
+	}
+}
+
+// maxBlobContentBytes is the largest blob whose content the "get_blob" tool
+// returns inline; larger blobs are described by their metadata only.
+const maxBlobContentBytes = 256 << 10
+
+type getBlobInput struct {
+	Space string `json:"space" jsonschema:"the space URI the blob belongs to, e.g. at://did:plc:abc/space/network.habitat.example/3jz"`
+	CID   string `json:"cid"   jsonschema:"the CID of the blob to fetch"`
+}
+
+type getBlobOutput struct {
+	CID      string `json:"cid"`
+	MimeType string `json:"mimeType"`
+	Size     int    `json:"size"`
+	// Text is the blob's content, set for text-like blobs within the size cap.
+	Text string `json:"text,omitempty"`
+	// Base64 is the blob's content, set for other blobs within the size cap.
+	Base64 string `json:"base64,omitempty"`
+	// Note explains why no content is returned, if that is the case.
+	Note string `json:"note,omitempty"`
+}
+
+// isTextMimeType reports whether blobs of mimeType are returned as text rather
+// than base64.
+func isTextMimeType(mimeType string) bool {
+	mt, _, err := mime.ParseMediaType(mimeType)
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(mt, "text/") ||
+		mt == "application/json" || strings.HasSuffix(mt, "+json") ||
+		mt == "application/xml" || strings.HasSuffix(mt, "+xml")
+}
+
+// getBlobHandler implements the "get_blob" MCP tool: check the caller holds at
+// least a reader role on the space, as the getBlob endpoint does, then read the
+// blob from the blob store. Text-like blobs come back as text, other blobs
+// base64-encoded, and either only up to maxBlobContentBytes.
+func getBlobHandler(
+	blobs spaces.BlobStore,
+	permStore perms.Store,
+) mcp.ToolHandlerFor[getBlobInput, getBlobOutput] {
+	return func(
+		ctx context.Context,
+		_ *mcp.CallToolRequest,
+		input getBlobInput,
+	) (*mcp.CallToolResult, getBlobOutput, error) {
+		tokenInfo := auth.TokenInfoFromContext(ctx)
+		if tokenInfo == nil || tokenInfo.UserID == "" {
+			return nil, getBlobOutput{}, fmt.Errorf("missing authenticated caller")
+		}
+		caller := syntax.DID(tokenInfo.UserID)
+
+		spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
+		if err != nil {
+			return nil, getBlobOutput{}, fmt.Errorf("invalid space: %w", err)
+		}
+		c, err := cid.Parse(input.CID)
+		if err != nil {
+			return nil, getBlobOutput{}, fmt.Errorf("invalid cid: %w", err)
+		}
+
+		ok, err := permStore.CheckUserHasSpaceRole(
+			ctx, caller, spaceURI, habitat_syntax.SpaceRoleReader,
+		)
+		if err != nil {
+			return nil, getBlobOutput{}, fmt.Errorf("checking permission: %w", err)
+		}
+		if !ok {
+			return nil, getBlobOutput{}, habitat_err.ErrUnauthorized
+		}
+
+		mimeType, data, err := blobs.GetBlob(ctx, c)
+		if errors.Is(err, spaces.ErrBlobNotFound) {
+			return nil, getBlobOutput{}, fmt.Errorf("blob not found")
+		}
+		if err != nil {
+			return nil, getBlobOutput{}, fmt.Errorf("getting blob: %w", err)
+		}
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+
+		out := getBlobOutput{CID: c.String(), MimeType: mimeType, Size: len(data)}
+		switch {
+		case len(data) > maxBlobContentBytes:
+			out.Note = fmt.Sprintf(
+				"blob is larger than %d bytes; content not returned", maxBlobContentBytes,
+			)
+		case isTextMimeType(mimeType) && utf8.Valid(data):
+			out.Text = string(data)
+		case isTextMimeType(mimeType):
+			out.Note = "blob is not valid UTF-8; content not returned"
+		default:
+			out.Base64 = base64.StdEncoding.EncodeToString(data)
+		}
+		return nil, out, nil
 	}
 }
 
