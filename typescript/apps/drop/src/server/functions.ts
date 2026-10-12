@@ -1,10 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
-import { ensureValidDid, type DidString } from "@atproto/syntax";
+import {
+  ensureValidDid,
+  type DidString,
+  type SpaceRefString,
+} from "@atproto/syntax";
 import { env } from "cloudflare:workers";
 import {
   connectedOrgNames,
   filesForOrg,
   getDb,
+  fileByUri,
   isConnectedOrg,
   upsertConnectedOrg,
   type FileSummary,
@@ -19,7 +24,7 @@ import {
 import { fetchOrgName, listMyOrgIds } from "./habitat";
 import { createOAuthClient, OAUTH_SCOPE } from "./oauth";
 import { useAppSession } from "./session";
-import { connectOrg } from "./sync";
+import { connectOrg, deleteFile } from "./sync";
 
 // Every export below is a createServerFn wrapper, safe to import from route
 // components: the client bundle only gets RPC stubs (see chalk's
@@ -212,3 +217,18 @@ export const listFiles = createServerFn({ method: "GET" }).handler(
     }));
   },
 );
+
+// deleteFileByUri deletes one of the current org's files by deleting its
+// record. Any member of the org may delete, matching who can see the file.
+export const deleteFileByUri = createServerFn({ method: "POST" })
+  .validator((input: { uri: string }) => input)
+  .handler(async ({ data }) => {
+    const { currentOrg } = await requireOrg();
+    const file = await fileByUri(getDb(env), data.uri);
+    // A file in another org looks the same as one that doesn't exist.
+    if (!file || file.orgDid !== currentOrg) throw new Error("File not found");
+    await deleteFile(env, {
+      orgDid: currentOrg,
+      space: file.space as SpaceRefString,
+    });
+  });

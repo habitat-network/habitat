@@ -11,6 +11,7 @@ import { getDb } from "@/db";
 import { DrizzleSyncStore } from "@/db/syncStore";
 import {
   createFileSpace,
+  deleteFileRecord,
   getDelegationToken,
   listOrgFileSpaces,
   putFileRecord,
@@ -150,6 +151,29 @@ export async function upload(
     return { space, syncError: state.lastError };
   }
   return { space };
+}
+
+// deleteFile deletes the record that names a file, which is all deleting a
+// file takes: the blob is no longer referenced, so pear garbage collects it.
+// Like upload, the synced list is only ever changed by the syncer, so this
+// runs a pass for the file's space (waiting briefly) and the row disappears
+// through the sink's normal delete handling.
+export async function deleteFile(
+  env: Env,
+  input: { orgDid: DidString; space: SpaceRefString },
+): Promise<void> {
+  const agent = await createOAuthClient(env).restore(input.orgDid);
+  await deleteFileRecord(agent, input.orgDid, input.space);
+  const syncer = requestSyncer(env);
+  try {
+    await syncer.watch(input.space);
+    await Promise.race([
+      syncer.awaitIdle(input.space),
+      new Promise((resolve) => setTimeout(resolve, UPLOAD_SYNC_WAIT_MS)),
+    ]);
+  } finally {
+    finishInBackground(syncer, [input.space]);
+  }
 }
 
 // Inbound space notifications from the Worker's XRPC route, with their raw

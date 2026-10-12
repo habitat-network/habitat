@@ -142,6 +142,20 @@ export async function putFileRecord(
   return { uri: body.uri, cid: body.cid };
 }
 
+// deleteFileRecord removes a file's record from the org's repo in its space.
+// The blob it referenced is left for pear to garbage collect once nothing
+// references it; there's no direct blob deletion. Succeeds whether or not
+// the record was still there.
+export async function deleteFileRecord(
+  orgAgent: Agent,
+  orgDid: DidString,
+  space: SpaceRefString,
+): Promise<void> {
+  await xrpc(orgAgent, com.atproto.space.deleteRecord.main, {
+    body: { space, repo: orgDid, collection: FILE_COLLECTION, rkey: "self" },
+  });
+}
+
 // getDelegationToken mints a delegation token for a space from the
 // subject's own PDS — the input the syncer exchanges for a space credential.
 export async function getDelegationToken(
