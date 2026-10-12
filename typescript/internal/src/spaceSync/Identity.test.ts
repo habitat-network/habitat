@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
+import type { IdentityResolver } from "@atproto-labs/identity-resolver";
 import { Secp256k1Keypair } from "@atproto/crypto";
 import type { DidDocument } from "@atproto/identity";
 import { Effect, Exit, Layer } from "effect";
@@ -7,7 +8,7 @@ import { HttpResponse, http } from "msw";
 import { describe, expect } from "vitest";
 import { server } from "../test/msw";
 import { spaceSyncConfigLayer } from "./config";
-import { Identity, identityFromDoc } from "./Identity";
+import { Identity, identityFromDoc, publicIdentityResolver } from "./Identity";
 
 const DID = "did:plc:aliceaaaaaaaaaaaaaaaaaaa";
 
@@ -117,6 +118,36 @@ describe("Identity.layer", () => {
     }).pipe(Effect.provide(webLayer)),
   );
 
+  it.effect(
+    "resolves through the caller's identityResolver when given one",
+    () =>
+      Effect.gen(function* () {
+        const did = "did:web:org.test";
+        const doc = JSON.parse(
+          JSON.stringify(yield* Effect.promise(() => docWith())).replaceAll(
+            DID,
+            did,
+          ),
+        ) as DidDocument;
+        const identityResolver = {
+          resolve: async () => ({ did, didDoc: doc, handle: "org.test" }),
+        } as IdentityResolver;
+        const identity = yield* Identity.pipe(
+          Effect.provide(
+            Identity.layer.pipe(
+              Layer.provide(
+                spaceSyncConfigLayer({
+                  serviceDid: "did:web:s.test",
+                  identityResolver,
+                }),
+              ),
+            ),
+          ),
+        );
+        expect((yield* identity.resolve(did)).pds).toBe("https://pds.test");
+      }),
+  );
+
   it.effect("refuses a redirected did:web document", () =>
     Effect.gen(function* () {
       server.use(
@@ -159,7 +190,7 @@ describe("Identity.layer", () => {
             Layer.provide(
               spaceSyncConfigLayer({
                 serviceDid: "did:web:s.test",
-                plcUrl: "https://plc.test",
+                identityResolver: publicIdentityResolver("https://plc.test"),
               }),
             ),
           ),
@@ -211,7 +242,7 @@ describe("Identity.layer", () => {
           Layer.provide(
             spaceSyncConfigLayer({
               serviceDid: "did:web:s.test",
-              plcUrl: "https://plc.test",
+              identityResolver: publicIdentityResolver("https://plc.test"),
             }),
           ),
         ),
