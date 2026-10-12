@@ -117,6 +117,39 @@ describe("Identity.layer", () => {
     }).pipe(Effect.provide(webLayer)),
   );
 
+  it.effect(
+    "resolves through the Habitat instance when habitatUrl is set",
+    () =>
+      Effect.gen(function* () {
+        const did = "did:web:org.test";
+        const doc = JSON.parse(
+          JSON.stringify(yield* Effect.promise(() => docWith())).replaceAll(
+            DID,
+            did,
+          ),
+        ) as DidDocument;
+        server.use(
+          http.get(
+            "https://pear.test/xrpc/com.atproto.identity.resolveIdentity",
+            () => HttpResponse.json({ did, didDoc: doc, handle: "org.test" }),
+          ),
+        );
+        const identity = yield* Identity;
+        expect((yield* identity.resolve(did)).pds).toBe("https://pds.test");
+      }).pipe(
+        Effect.provide(
+          Identity.layer.pipe(
+            Layer.provide(
+              spaceSyncConfigLayer({
+                serviceDid: "did:web:s.test",
+                habitatUrl: "https://pear.test",
+              }),
+            ),
+          ),
+        ),
+      ),
+  );
+
   it.effect("refuses a redirected did:web document", () =>
     Effect.gen(function* () {
       server.use(

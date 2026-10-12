@@ -68,6 +68,8 @@ function newSyncer(
   const oauth = createOAuthClient(env);
   return createSpaceSyncer({
     serviceDid: serviceDid(env),
+    // Resolve space authorities (org DIDs) through pear too, not just OAuth.
+    habitatUrl: env.DROP_HABITAT_URL,
     backoffCap: BACKOFF_CAP,
     store: new DrizzleSyncStore(db),
     sink: new FileSink({ db }),

@@ -11,6 +11,7 @@ import {
   getKey,
   getPds,
 } from "@atproto/identity";
+import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import { Cache, Context, Duration, Effect, Exit, Layer } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { IdentityError, errorMessage } from "./errors";
@@ -130,7 +131,10 @@ export class Identity extends Context.Service<
   static readonly layer = Layer.effect(
     Identity,
     Effect.gen(function* () {
-      const { plcUrl } = yield* SpaceSyncConfig;
+      const { plcUrl, habitatUrl } = yield* SpaceSyncConfig;
+      const habitat = habitatUrl
+        ? new HabitatIdentityResolver(habitatUrl)
+        : undefined;
       const resolver = new IdResolver({ plcUrl, timeout: DID_TIMEOUT_MS });
       resolver.did.methods.set(
         "web",
@@ -143,7 +147,10 @@ export class Identity extends Context.Service<
       const cache = yield* Cache.makeWith(
         (did: DidString) =>
           Effect.tryPromise({
-            try: () => resolver.did.ensureResolve(did),
+            try: async (): Promise<DidDocument> =>
+              habitat
+                ? ((await habitat.resolve(did)).didDoc as DidDocument)
+                : resolver.did.ensureResolve(did),
             catch: (error) =>
               new IdentityError({
                 did,

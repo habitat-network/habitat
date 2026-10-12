@@ -21,6 +21,12 @@ export interface SpaceSyncOptions {
    */
   readonly serviceDid: string;
   readonly plcUrl: string;
+  /**
+   * A Habitat instance to resolve DIDs through (its resolveIdentity endpoint)
+   * instead of the public PLC / did:web network. It knows identities the
+   * public network doesn't (org did:webs) and points `#atproto_pds` at itself.
+   */
+  readonly habitatUrl?: string;
   /** Max spaces running a pass at once (global). */
   readonly maxActiveSpaces: number;
   /** Max repos synced at once within one space pass. */
