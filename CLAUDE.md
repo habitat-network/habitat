@@ -119,6 +119,7 @@ moon run <project>:format      # format a projects
 - `HABITAT_OAUTH_SERVER_SECRET`, `HABITAT_OAUTH_CLIENT_SECRET`, `HABITAT_PDS_CRED_ENCRYPT_KEY` — OAuth/encryption secrets (generate with `cmd/keygen`)
 - `HABITAT_GOOGLE_CLIENT_ID` / `HABITAT_GOOGLE_CLIENT_SECRET` — Google Sign-In login method
 - `HABITAT_MEILISEARCH_URL` / `HABITAT_MEILISEARCH_API_KEY` — Meilisearch for space record search (`pear:dev` sets the URL and runs `root:meilisearch` on :7700); search is off when unset
+- `HABITAT_EMBEDDER_URL` / `HABITAT_EMBEDDER_API_KEY` / `HABITAT_EMBEDDER_MODEL` — OpenAI-compatible embeddings endpoint Meilisearch calls for hybrid search (locally Ollama, e.g. `http://localhost:11434/v1/embeddings` with `nomic-embed-text`; in prod Microsoft Foundry's `/openai/v1/embeddings` with the deployment name as model); keyword-only when unset. Tune with `HABITAT_SEARCH_SEMANTIC_RATIO` and `HABITAT_SEARCH_MIN_SCORE`
 - `HABITAT_ADMIN_PASSWORD` — preset instance admin password (random + printed once if unset)
 
 ## Code conventions

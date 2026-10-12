@@ -325,11 +325,25 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	var searchIndex search.Index
 	var searchIndexer *search.Indexer
 	if meilisearchURL := cmd.String(fMeilisearchURL); meilisearchURL != "" {
+		var indexOpts []search.MeilisearchOption
+		// With an embedder, Meilisearch embeds records and queries itself and
+		// searches are hybrid.
+		if embedderURL := cmd.String(fEmbedderURL); embedderURL != "" {
+			indexOpts = append(indexOpts, search.WithEmbedder(search.Embedder{
+				URL:           embedderURL,
+				APIKey:        cmd.String(fEmbedderAPIKey),
+				Model:         cmd.String(fEmbedderModel),
+				Dimensions:    int(cmd.Int(fEmbedderDimensions)),
+				SemanticRatio: cmd.Float(fSemanticRatio),
+				MinScore:      cmd.Float(fSearchMinScore),
+			}))
+		}
 		searchIndex, err = search.NewMeilisearch(
 			startupCtx,
 			meilisearchURL,
 			cmd.String(fMeilisearchAPIKey),
 			cmd.String(fMeilisearchIndex),
+			indexOpts...,
 		)
 		if err != nil {
 			return fmt.Errorf("setup search index: %w", err)
