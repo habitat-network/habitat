@@ -24,6 +24,12 @@ export const $params = /*#__PURE__*/ l.params({
       25,
     ),
   ),
+  snippetLength: /*#__PURE__*/ l.optional(
+    /*#__PURE__*/ l.withDefault(
+      /*#__PURE__*/ l.integer({ minimum: 1, maximum: 1000 }),
+      30,
+    ),
+  ),
   cursor: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
 })
 

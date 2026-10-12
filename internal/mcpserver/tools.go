@@ -326,11 +326,19 @@ func getBlobHandler(
 // matching the searchRecords endpoint.
 const maxSearchLimit = 100
 
+// defaultMCPSnippetLength is the snippet size in words when the caller gives
+// none. It is much larger than the searchRecords endpoint's default so agents
+// get substantial context around each match.
+const defaultMCPSnippetLength = 300
+
 type searchRecordsInput struct {
 	Query      string `json:"query"                jsonschema:"the text to search for"`
 	Org        string `json:"org,omitempty"        jsonschema:"DID of the org whose spaces to search"`
 	Collection string `json:"collection,omitempty" jsonschema:"only return records of this collection NSID"`
 	Limit      int    `json:"limit,omitempty"      jsonschema:"maximum number of hits to return, up to 100"`
+	// SnippetLength is a pointer so an omitted value, which takes the default,
+	// differs from an explicit zero, which is rejected.
+	SnippetLength *int `json:"snippet_length,omitempty" jsonschema:"approximate number of words of context in each hit's snippet, 1 to 1000; defaults to 300"`
 }
 
 type searchRecordsHit struct {
@@ -370,7 +378,16 @@ func searchRecordsHandler(
 				"limit must be between 1 and %d", maxSearchLimit,
 			)
 		}
-		q := search.Query{Text: input.Query, Limit: input.Limit}
+		snippetLength := defaultMCPSnippetLength
+		if input.SnippetLength != nil {
+			snippetLength = *input.SnippetLength
+		}
+		if snippetLength < 1 || snippetLength > search.MaxSnippetLength {
+			return nil, searchRecordsOutput{}, fmt.Errorf(
+				"snippet_length must be between 1 and %d", search.MaxSnippetLength,
+			)
+		}
+		q := search.Query{Text: input.Query, Limit: input.Limit, SnippetLength: snippetLength}
 		if input.Org != "" {
 			org, err := syntax.ParseDID(input.Org)
 			if err != nil {

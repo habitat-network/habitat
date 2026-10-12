@@ -106,6 +106,17 @@ func TestServer_SearchRecords(t *testing.T) {
 		require.ElementsMatch(t, []string{readableURI, readableNote}, uris(out))
 	})
 
+	t.Run("snippet length", func(t *testing.T) {
+		code, out := search(url.Values{"q": {"pie"}, "snippetLength": {"5"}})
+		require.Equal(t, http.StatusOK, code)
+		require.Len(t, out.Records, 1)
+
+		for _, bad := range []string{"-1", "1001"} {
+			code, _ = search(url.Values{"q": {"pie"}, "snippetLength": {bad}})
+			require.Equal(t, http.StatusBadRequest, code, bad)
+		}
+	})
+
 	t.Run("pages", func(t *testing.T) {
 		code, out := search(url.Values{"q": {"apple"}, "limit": {"1"}})
 		require.Equal(t, http.StatusOK, code)

@@ -27,8 +27,6 @@ const (
 	// accessPageSize is how many documents SetSpaceAccess reads and rewrites
 	// at a time.
 	accessPageSize = 1000
-	// snippetWords is about how many words of context a hit's snippet keeps.
-	snippetWords = 30
 )
 
 // meiliDoc is a [Document] as stored in Meilisearch.
@@ -360,6 +358,11 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 	if limit <= 0 {
 		limit = DefaultLimit
 	}
+	snippetLength := q.SnippetLength
+	if snippetLength <= 0 {
+		snippetLength = DefaultSnippetLength
+	}
+	snippetLength = min(snippetLength, MaxSnippetLength)
 	resp, err := m.index.SearchWithContext(ctx, q.Text, &meilisearch.SearchRequest{
 		Offset: int64(offset),
 		// One extra hit tells whether there is another page.
@@ -371,7 +374,7 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 		},
 		AttributesToCrop:      []string{"text"},
 		AttributesToHighlight: []string{"text"},
-		CropLength:            snippetWords,
+		CropLength:            int64(snippetLength),
 		HighlightPreTag:       "<mark>",
 		HighlightPostTag:      "</mark>",
 	})

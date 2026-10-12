@@ -2,6 +2,7 @@ package search_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -76,6 +77,30 @@ func TestMeilisearchMatchesEveryWord(t *testing.T) {
 	require.Equal(t, syntax.DID("did:plc:user"), hit.Repo)
 	require.Equal(t, syntax.NSID("network.habitat.note"), hit.Collection)
 	require.Contains(t, hit.Snippet, "<mark>budget</mark>")
+}
+
+func TestMeilisearchSnippetLength(t *testing.T) {
+	idx := searchtest.NewIndex(t)
+	var words []string
+	for i := range 300 {
+		words = append(words, fmt.Sprintf("filler%d", i))
+	}
+	text := strings.Join(words[:150], " ") + " needle " + strings.Join(words[150:], " ")
+	require.NoError(t, idx.Put(t.Context(), doc(spaceA, "1", "3kaaaaaaaaaa2", text)))
+
+	snippetWords := func(length int) int {
+		res := search_(t, idx, asAlice(search.Query{Text: "needle", SnippetLength: length}))
+		require.Len(t, res.Hits, 1)
+		require.Contains(t, res.Hits[0].Snippet, "<mark>needle</mark>")
+		return len(strings.Fields(res.Hits[0].Snippet))
+	}
+	small := snippetWords(0) // zero takes the default.
+	require.Equal(t, small, snippetWords(search.DefaultSnippetLength))
+	require.Less(t, small, 50)
+	large := snippetWords(200)
+	require.Greater(t, large, 150)
+	// Past the maximum the snippet is clamped, not rejected.
+	require.Greater(t, snippetWords(search.MaxSnippetLength+500), large)
 }
 
 func TestMeilisearchFiltersByAccess(t *testing.T) {

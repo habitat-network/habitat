@@ -83,6 +83,10 @@ type Query struct {
 	Also []Scope
 	// Limit caps the hits returned; zero means [DefaultLimit].
 	Limit int
+	// SnippetLength is about how many words of context each hit's snippet
+	// keeps; zero means [DefaultSnippetLength]. Values above [MaxSnippetLength]
+	// are clamped to it.
+	SnippetLength int
 	// Cursor continues a previous result's [Result.Cursor].
 	Cursor string
 }
@@ -96,6 +100,14 @@ type Scope struct {
 
 // DefaultLimit is the page size used when [Query.Limit] is zero.
 const DefaultLimit = 25
+
+const (
+	// DefaultSnippetLength is the snippet size in words used when
+	// [Query.SnippetLength] is zero.
+	DefaultSnippetLength = 30
+	// MaxSnippetLength is the largest snippet size in words.
+	MaxSnippetLength = 1000
+)
 
 // Hit is one matching document.
 type Hit struct {
