@@ -287,7 +287,11 @@ func TestMeilisearchHybridMatchesMeaning(t *testing.T) {
 	hybrid := searchtest.NewIndex(t, search.WithEmbedder(searchtest.Embedder(t, 0.5, 0)))
 	require.NoError(t, hybrid.Put(t.Context(), car, fruit))
 	// Semantic search ranks every document, so the unrelated one comes last.
-	require.Equal(t, []habitat_syntax.SpaceRecordURI{car.URI, fruit.URI}, uris(search_(t, hybrid, q)))
+	require.Equal(
+		t,
+		[]habitat_syntax.SpaceRecordURI{car.URI, fruit.URI},
+		uris(search_(t, hybrid, q)),
+	)
 
 	// A minimum score drops it.
 	thresholded := searchtest.NewIndex(t, search.WithEmbedder(searchtest.Embedder(t, 0.5, 0.6)))
