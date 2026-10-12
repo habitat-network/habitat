@@ -119,7 +119,7 @@ describe("Identity.layer", () => {
   );
 
   it.effect(
-    "resolves through the Habitat instance when given an identityResolver",
+    "resolves through the caller's identityResolver when given one",
     () =>
       Effect.gen(function* () {
         const did = "did:web:org.test";
@@ -129,26 +129,23 @@ describe("Identity.layer", () => {
             did,
           ),
         ) as DidDocument;
-        const identity = yield* Identity;
-        expect((yield* identity.resolve(did)).pds).toBe("https://pds.test");
-      }).pipe(
-        Effect.provide(
-          Identity.layer.pipe(
-            Layer.provide(
-              spaceSyncConfigLayer({
-                serviceDid: "did:web:s.test",
-                identityResolver: {
-                  resolve: async () => ({
-                    did,
-                    didDoc: doc,
-                    handle: "org.test",
-                  }),
-                } as IdentityResolver,
-              }),
+        const identityResolver = {
+          resolve: async () => ({ did, didDoc: doc, handle: "org.test" }),
+        } as IdentityResolver;
+        const identity = yield* Identity.pipe(
+          Effect.provide(
+            Identity.layer.pipe(
+              Layer.provide(
+                spaceSyncConfigLayer({
+                  serviceDid: "did:web:s.test",
+                  identityResolver,
+                }),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+        expect((yield* identity.resolve(did)).pds).toBe("https://pds.test");
+      }),
   );
 
   it.effect("refuses a redirected did:web document", () =>
