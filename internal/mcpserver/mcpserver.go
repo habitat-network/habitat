@@ -91,7 +91,8 @@ type Server struct {
 //   - spacesStore and permStore back the "get_record" tool: permStore checks
 //     the caller holds at least a reader role on the record's space before
 //     spacesStore returns the record.
-//   - blobs and permStore back the "get_blob" tool: permStore checks the caller
+//   - blobs and permStore back blob reads, offered both as a resource template
+//     (resources/read) and the "get_blob" tool: permStore checks the caller
 //     holds at least a reader role on the blob's space before blobs returns it.
 //   - searcher backs the "search_records" tool, which searches as the caller.
 //     It may be nil when search isn't configured, in which case the tool isn't
@@ -127,9 +128,14 @@ func New(
 	}, getRecordHandler(spacesStore, permStore))
 	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name: "get_blob",
-		Description: "Get a blob in a Habitat space by its CID: text for text-like blobs, " +
-			"base64 for others, or only metadata if it is too large.",
+		Description: "Get a blob in a Habitat space by its CID, returned as an embedded " +
+			"resource: text for text-like blobs, binary otherwise.",
 	}, getBlobHandler(blobs, permStore))
+	mcpServer.AddResourceTemplate(&mcp.ResourceTemplate{
+		Name:        "blob",
+		Description: "A blob in a Habitat space, addressed by space URI and CID.",
+		URITemplate: blobResourceTemplate,
+	}, blobResourceHandler(blobs, permStore))
 	if searcher != nil {
 		mcp.AddTool(mcpServer, &mcp.Tool{
 			Name: "search_records",

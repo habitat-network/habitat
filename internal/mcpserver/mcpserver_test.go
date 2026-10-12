@@ -3,7 +3,6 @@ package mcpserver
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,6 +19,7 @@ import (
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/ipfs/go-cid"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
@@ -324,7 +324,7 @@ func TestMCPServerGetBlobTool(t *testing.T) {
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
 
-	call := func(t *testing.T, caller syntax.DID, space string, c string) *mcp.CallToolResult {
+	callTool := func(t *testing.T, caller syntax.DID, space string, c string) *mcp.CallToolResult {
 		t.Helper()
 		session, err := connectAs(t, ctx, httpServer.URL, caller.String())
 		require.NoError(t, err)
@@ -336,47 +336,65 @@ func TestMCPServerGetBlobTool(t *testing.T) {
 		require.NoError(t, err)
 		return result
 	}
+	readResource := func(t *testing.T, caller syntax.DID, uri string) (*mcp.ReadResourceResult, error) {
+		t.Helper()
+		session, err := connectAs(t, ctx, httpServer.URL, caller.String())
+		require.NoError(t, err)
+		defer func() { _ = session.Close() }()
+		return session.ReadResource(ctx, &mcp.ReadResourceParams{URI: uri})
+	}
 
-	t.Run("text blob is returned as text", func(t *testing.T) {
-		result := call(t, owner, spaceURI.String(), textCid.String())
-		require.False(t, result.IsError, "%+v", result)
-		require.Equal(t, map[string]any{
-			"cid":      textCid.String(),
-			"mimeType": "text/plain; charset=utf-8",
-			"size":     float64(len("hello blob")),
-			"text":     "hello blob",
-		}, result.StructuredContent)
+	t.Run("resource read returns text", func(t *testing.T) {
+		uri := blobResourceURI(spaceURI, textCid)
+		res, err := readResource(t, owner, uri)
+		require.NoError(t, err)
+		require.Equal(t, []*mcp.ResourceContents{{
+			URI: uri, MIMEType: "text/plain; charset=utf-8", Text: "hello blob",
+		}}, res.Contents)
 	})
 
-	t.Run("binary blob is returned as base64", func(t *testing.T) {
-		result := call(t, owner, spaceURI.String(), binCid.String())
-		require.False(t, result.IsError, "%+v", result)
-		require.Equal(t, map[string]any{
-			"cid":      binCid.String(),
-			"mimeType": "image/png",
-			"size":     float64(len(binData)),
-			"base64":   base64.StdEncoding.EncodeToString(binData),
-		}, result.StructuredContent)
+	t.Run("resource read returns binary", func(t *testing.T) {
+		uri := blobResourceURI(spaceURI, binCid)
+		res, err := readResource(t, owner, uri)
+		require.NoError(t, err)
+		require.Equal(t, []*mcp.ResourceContents{{
+			URI: uri, MIMEType: "image/png", Blob: binData,
+		}}, res.Contents)
 	})
 
-	t.Run("oversized blob returns metadata only", func(t *testing.T) {
-		result := call(t, owner, spaceURI.String(), bigCid.String())
+	t.Run("resource read rejects oversized, ungranted and missing blobs", func(t *testing.T) {
+		_, err := readResource(t, owner, blobResourceURI(spaceURI, bigCid))
+		require.Error(t, err)
+		_, err = readResource(t, other, blobResourceURI(spaceURI, textCid))
+		require.Error(t, err)
+		_, err = readResource(t, owner, blobResourceURI(spaceURI, missingCid))
+		var rpcErr *jsonrpc.Error
+		require.ErrorAs(t, err, &rpcErr)
+		require.Equal(t, mcp.CodeResourceNotFound, rpcErr.Code)
+	})
+
+	t.Run("tool returns an embedded resource", func(t *testing.T) {
+		result := callTool(t, owner, spaceURI.String(), binCid.String())
 		require.False(t, result.IsError, "%+v", result)
-		out, ok := result.StructuredContent.(map[string]any)
+		require.Len(t, result.Content, 1)
+		embedded, ok := result.Content[0].(*mcp.EmbeddedResource)
 		require.True(t, ok)
-		require.Equal(t, float64(maxBlobContentBytes+1), out["size"])
-		require.NotEmpty(t, out["note"])
-		require.NotContains(t, out, "text")
-		require.NotContains(t, out, "base64")
+		require.Equal(t, &mcp.ResourceContents{
+			URI: blobResourceURI(spaceURI, binCid), MIMEType: "image/png", Blob: binData,
+		}, embedded.Resource)
+
+		result = callTool(t, owner, spaceURI.String(), textCid.String())
+		require.False(t, result.IsError, "%+v", result)
+		embedded, ok = result.Content[0].(*mcp.EmbeddedResource)
+		require.True(t, ok)
+		require.Equal(t, "hello blob", embedded.Resource.Text)
 	})
 
-	t.Run("caller without a grant is rejected", func(t *testing.T) {
-		require.True(t, call(t, other, spaceURI.String(), textCid.String()).IsError)
-	})
-
-	t.Run("invalid input and missing blob are rejected", func(t *testing.T) {
-		require.True(t, call(t, owner, "not-a-uri", textCid.String()).IsError)
-		require.True(t, call(t, owner, spaceURI.String(), "not-a-cid").IsError)
-		require.True(t, call(t, owner, spaceURI.String(), missingCid.String()).IsError)
+	t.Run("tool rejects ungranted, invalid, oversized and missing", func(t *testing.T) {
+		require.True(t, callTool(t, other, spaceURI.String(), textCid.String()).IsError)
+		require.True(t, callTool(t, owner, "not-a-uri", textCid.String()).IsError)
+		require.True(t, callTool(t, owner, spaceURI.String(), "not-a-cid").IsError)
+		require.True(t, callTool(t, owner, spaceURI.String(), bigCid.String()).IsError)
+		require.True(t, callTool(t, owner, spaceURI.String(), missingCid.String()).IsError)
 	})
 }

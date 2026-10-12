@@ -2,12 +2,12 @@ package mcpserver
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/url"
 	"strings"
 	"unicode/utf8"
 
@@ -81,29 +81,42 @@ func getRecordHandler(
 	}
 }
 
-// maxBlobContentBytes is the largest blob whose content the "get_blob" tool
-// returns inline; larger blobs are described by their metadata only.
+// maxBlobContentBytes is the largest blob whose content the blob resource
+// and the "get_blob" tool return; larger blobs are not served.
 const maxBlobContentBytes = 256 << 10
 
-type getBlobInput struct {
-	Space string `json:"space" jsonschema:"the space URI the blob belongs to, e.g. at://did:plc:abc/space/network.habitat.example/3jz"`
-	CID   string `json:"cid"   jsonschema:"the CID of the blob to fetch"`
+// blobURIScheme is the scheme of blob resource URIs, which look like
+// habitat-blob:///?space=<space uri>&cid=<cid> and are matched by
+// blobResourceTemplate.
+const blobURIScheme = "habitat-blob"
+
+const blobResourceTemplate = blobURIScheme + ":///{?space,cid}"
+
+// blobResourceURI builds the resource URI of the blob c in space.
+func blobResourceURI(space habitat_syntax.SpaceURI, c cid.Cid) string {
+	q := url.Values{"space": {space.String()}, "cid": {c.String()}}
+	return (&url.URL{Scheme: blobURIScheme, Path: "/", RawQuery: q.Encode()}).String()
 }
 
-type getBlobOutput struct {
-	CID      string `json:"cid"`
-	MimeType string `json:"mimeType"`
-	Size     int    `json:"size"`
-	// Text is the blob's content, set for text-like blobs within the size cap.
-	Text string `json:"text,omitempty"`
-	// Base64 is the blob's content, set for other blobs within the size cap.
-	Base64 string `json:"base64,omitempty"`
-	// Note explains why no content is returned, if that is the case.
-	Note string `json:"note,omitempty"`
+// parseBlobResourceURI is the inverse of blobResourceURI.
+func parseBlobResourceURI(raw string) (habitat_syntax.SpaceURI, cid.Cid, error) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != blobURIScheme {
+		return "", cid.Undef, fmt.Errorf("not a %s uri", blobURIScheme)
+	}
+	spaceURI, err := habitat_syntax.ParseSpaceURI(u.Query().Get("space"))
+	if err != nil {
+		return "", cid.Undef, fmt.Errorf("invalid space: %w", err)
+	}
+	c, err := cid.Parse(u.Query().Get("cid"))
+	if err != nil {
+		return "", cid.Undef, fmt.Errorf("invalid cid: %w", err)
+	}
+	return spaceURI, c, nil
 }
 
 // isTextMimeType reports whether blobs of mimeType are returned as text rather
-// than base64.
+// than binary.
 func isTextMimeType(mimeType string) bool {
 	mt, _, err := mime.ParseMediaType(mimeType)
 	if err != nil {
@@ -114,69 +127,122 @@ func isTextMimeType(mimeType string) bool {
 		mt == "application/xml" || strings.HasSuffix(mt, "+xml")
 }
 
-// getBlobHandler implements the "get_blob" MCP tool: check the caller holds at
-// least a reader role on the space, as the getBlob endpoint does, then read the
-// blob from the blob store. Text-like blobs come back as text, other blobs
-// base64-encoded, and either only up to maxBlobContentBytes.
+// readBlob checks that caller holds at least a reader role on space, as the
+// getBlob endpoint does, then reads the blob from blobs. A blob that is missing
+// (spaces.ErrBlobNotFound) or larger than maxBlobContentBytes yields an error, and the returned
+// contents carry the blob as text if it is text-like and valid UTF-8, else as
+// binary.
+func readBlob(
+	ctx context.Context,
+	blobs spaces.BlobStore,
+	permStore perms.Store,
+	caller syntax.DID,
+	space habitat_syntax.SpaceURI,
+	c cid.Cid,
+	uri string,
+) (*mcp.ResourceContents, error) {
+	ok, err := permStore.CheckUserHasSpaceRole(ctx, caller, space, habitat_syntax.SpaceRoleReader)
+	if err != nil {
+		return nil, fmt.Errorf("checking permission: %w", err)
+	}
+	if !ok {
+		return nil, habitat_err.ErrUnauthorized
+	}
+
+	mimeType, data, err := blobs.GetBlob(ctx, c)
+	if errors.Is(err, spaces.ErrBlobNotFound) {
+		return nil, err
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting blob: %w", err)
+	}
+	if len(data) > maxBlobContentBytes {
+		return nil, fmt.Errorf(
+			"blob is %d bytes, larger than the %d byte limit", len(data), maxBlobContentBytes,
+		)
+	}
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	contents := &mcp.ResourceContents{URI: uri, MIMEType: mimeType}
+	if isTextMimeType(mimeType) && utf8.Valid(data) {
+		contents.Text = string(data)
+	} else {
+		contents.Blob = data
+	}
+	return contents, nil
+}
+
+// blobResourceHandler serves blob resources (see blobResourceTemplate) as
+// resources/read results, so MCP clients can read blobs by URI. The Blob of a
+// binary blob is base64-encoded on the wire by the SDK.
+func blobResourceHandler(blobs spaces.BlobStore, permStore perms.Store) mcp.ResourceHandler {
+	return func(
+		ctx context.Context, req *mcp.ReadResourceRequest,
+	) (*mcp.ReadResourceResult, error) {
+		tokenInfo := auth.TokenInfoFromContext(ctx)
+		if tokenInfo == nil || tokenInfo.UserID == "" {
+			return nil, fmt.Errorf("missing authenticated caller")
+		}
+		space, c, err := parseBlobResourceURI(req.Params.URI)
+		if err != nil {
+			return nil, fmt.Errorf("invalid blob uri: %w", err)
+		}
+		contents, err := readBlob(
+			ctx, blobs, permStore, syntax.DID(tokenInfo.UserID), space, c, req.Params.URI,
+		)
+		if errors.Is(err, spaces.ErrBlobNotFound) {
+			return nil, mcp.ResourceNotFoundError(req.Params.URI)
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{contents}}, nil
+	}
+}
+
+type getBlobInput struct {
+	Space string `json:"space" jsonschema:"the space URI the blob belongs to, e.g. at://did:plc:abc/space/network.habitat.example/3jz"`
+	CID   string `json:"cid"   jsonschema:"the CID of the blob to fetch"`
+}
+
+// getBlobHandler implements the "get_blob" MCP tool, for clients that only
+// support tools: it returns the same contents as reading the blob resource, as
+// an embedded resource.
 func getBlobHandler(
 	blobs spaces.BlobStore,
 	permStore perms.Store,
-) mcp.ToolHandlerFor[getBlobInput, getBlobOutput] {
+) mcp.ToolHandlerFor[getBlobInput, any] {
 	return func(
 		ctx context.Context,
 		_ *mcp.CallToolRequest,
 		input getBlobInput,
-	) (*mcp.CallToolResult, getBlobOutput, error) {
+	) (*mcp.CallToolResult, any, error) {
 		tokenInfo := auth.TokenInfoFromContext(ctx)
 		if tokenInfo == nil || tokenInfo.UserID == "" {
-			return nil, getBlobOutput{}, fmt.Errorf("missing authenticated caller")
+			return nil, nil, fmt.Errorf("missing authenticated caller")
 		}
-		caller := syntax.DID(tokenInfo.UserID)
-
-		spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
+		space, err := habitat_syntax.ParseSpaceURI(input.Space)
 		if err != nil {
-			return nil, getBlobOutput{}, fmt.Errorf("invalid space: %w", err)
+			return nil, nil, fmt.Errorf("invalid space: %w", err)
 		}
 		c, err := cid.Parse(input.CID)
 		if err != nil {
-			return nil, getBlobOutput{}, fmt.Errorf("invalid cid: %w", err)
+			return nil, nil, fmt.Errorf("invalid cid: %w", err)
 		}
-
-		ok, err := permStore.CheckUserHasSpaceRole(
-			ctx, caller, spaceURI, habitat_syntax.SpaceRoleReader,
+		contents, err := readBlob(
+			ctx, blobs, permStore, syntax.DID(tokenInfo.UserID), space, c,
+			blobResourceURI(space, c),
 		)
-		if err != nil {
-			return nil, getBlobOutput{}, fmt.Errorf("checking permission: %w", err)
-		}
-		if !ok {
-			return nil, getBlobOutput{}, habitat_err.ErrUnauthorized
-		}
-
-		mimeType, data, err := blobs.GetBlob(ctx, c)
 		if errors.Is(err, spaces.ErrBlobNotFound) {
-			return nil, getBlobOutput{}, fmt.Errorf("blob not found")
+			return nil, nil, fmt.Errorf("blob not found")
 		}
 		if err != nil {
-			return nil, getBlobOutput{}, fmt.Errorf("getting blob: %w", err)
+			return nil, nil, err
 		}
-		if mimeType == "" {
-			mimeType = "application/octet-stream"
-		}
-
-		out := getBlobOutput{CID: c.String(), MimeType: mimeType, Size: len(data)}
-		switch {
-		case len(data) > maxBlobContentBytes:
-			out.Note = fmt.Sprintf(
-				"blob is larger than %d bytes; content not returned", maxBlobContentBytes,
-			)
-		case isTextMimeType(mimeType) && utf8.Valid(data):
-			out.Text = string(data)
-		case isTextMimeType(mimeType):
-			out.Note = "blob is not valid UTF-8; content not returned"
-		default:
-			out.Base64 = base64.StdEncoding.EncodeToString(data)
-		}
-		return nil, out, nil
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.EmbeddedResource{Resource: contents}},
+		}, nil, nil
 	}
 }
 
