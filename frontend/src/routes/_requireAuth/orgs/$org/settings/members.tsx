@@ -52,7 +52,9 @@ function OrgMembers() {
   );
   const { data: profiles } = useQuery(
     profilesQueryOptions(
+      org,
       members.map((m) => m.did),
+      authManager,
       queryClient,
     ),
   );
@@ -94,7 +96,7 @@ function OrgMembers() {
           {members.map((member) => (
             <TableRow key={member.did}>
               <TableCell>
-                <DidHoverCard did={member.did}>
+                <DidHoverCard did={member.did} org={org}>
                   <div className="flex items-center gap-2">
                     <UserAvatar
                       actor={
