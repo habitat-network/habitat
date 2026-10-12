@@ -24,18 +24,22 @@ const SettingsLink = () => {
   );
 };
 
-const ProfileLink = () => {
+// ProfileAvatar links the signed-in user's avatar to their profile page for
+// the current org; outside an org there is no profile to edit, so it renders
+// the avatar unlinked.
+const ProfileAvatar = ({ profile }: { profile: Actor }) => {
   const { org } = useParams({ strict: false });
-  if (!org) return null;
+  const avatar = <UserAvatar actor={profile} />;
+  if (!org) return avatar;
   return (
-    <li>
-      <Button
-        variant="link"
-        render={<Link to="/orgs/$org/profile" params={{ org }} />}
-      >
-        Profile
-      </Button>
-    </li>
+    <Link
+      to="/orgs/$org/profile"
+      params={{ org }}
+      aria-label="Your profile"
+      title="Your profile"
+    >
+      {avatar}
+    </Link>
   );
 };
 
@@ -75,7 +79,6 @@ const Header = ({ profile, authManager, onLogout }: HeaderProps) => {
                 <OrgSwitcher authManager={authManager} />
               </li>
               <SpacesLink />
-              <ProfileLink />
               <SettingsLink />
             </>
           )}
@@ -87,7 +90,7 @@ const Header = ({ profile, authManager, onLogout }: HeaderProps) => {
                 Devtools
               </Button>
             )}
-            <UserAvatar actor={profile} />
+            <ProfileAvatar profile={profile} />
             <li>
               <Button onClick={onLogout}>Logout</Button>
             </li>
