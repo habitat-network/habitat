@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
+import type { IdentityResolver } from "@atproto-labs/identity-resolver";
 import { Secp256k1Keypair } from "@atproto/crypto";
 import type { DidDocument } from "@atproto/identity";
-import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import { Effect, Exit, Layer } from "effect";
 import { HttpResponse, http } from "msw";
 import { describe, expect } from "vitest";
@@ -129,12 +129,6 @@ describe("Identity.layer", () => {
             did,
           ),
         ) as DidDocument;
-        server.use(
-          http.get(
-            "https://pear.test/xrpc/com.atproto.identity.resolveIdentity",
-            () => HttpResponse.json({ did, didDoc: doc, handle: "org.test" }),
-          ),
-        );
         const identity = yield* Identity;
         expect((yield* identity.resolve(did)).pds).toBe("https://pds.test");
       }).pipe(
@@ -143,9 +137,13 @@ describe("Identity.layer", () => {
             Layer.provide(
               spaceSyncConfigLayer({
                 serviceDid: "did:web:s.test",
-                identityResolver: new HabitatIdentityResolver(
-                  "https://pear.test",
-                ),
+                identityResolver: {
+                  resolve: async () => ({
+                    did,
+                    didDoc: doc,
+                    handle: "org.test",
+                  }),
+                } as IdentityResolver,
               }),
             ),
           ),
