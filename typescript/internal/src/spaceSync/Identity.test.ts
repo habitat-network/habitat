@@ -2,6 +2,7 @@
 import { it } from "@effect/vitest";
 import { Secp256k1Keypair } from "@atproto/crypto";
 import type { DidDocument } from "@atproto/identity";
+import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import { Effect, Exit, Layer } from "effect";
 import { HttpResponse, http } from "msw";
 import { describe, expect } from "vitest";
@@ -118,7 +119,7 @@ describe("Identity.layer", () => {
   );
 
   it.effect(
-    "resolves through the Habitat instance when habitatUrl is set",
+    "resolves through the Habitat instance when given an identityResolver",
     () =>
       Effect.gen(function* () {
         const did = "did:web:org.test";
@@ -142,7 +143,9 @@ describe("Identity.layer", () => {
             Layer.provide(
               spaceSyncConfigLayer({
                 serviceDid: "did:web:s.test",
-                habitatUrl: "https://pear.test",
+                identityResolver: new HabitatIdentityResolver(
+                  "https://pear.test",
+                ),
               }),
             ),
           ),

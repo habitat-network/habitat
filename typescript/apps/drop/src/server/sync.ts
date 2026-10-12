@@ -1,5 +1,6 @@
 import { waitUntil } from "cloudflare:workers";
 import { type DidString, SpaceRef, type SpaceRefString } from "@atproto/syntax";
+import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import { Duration } from "effect";
 import {
   createSpaceSyncer,
@@ -69,7 +70,7 @@ function newSyncer(
   return createSpaceSyncer({
     serviceDid: serviceDid(env),
     // Resolve space authorities (org DIDs) through pear too, not just OAuth.
-    habitatUrl: env.DROP_HABITAT_URL,
+    identityResolver: new HabitatIdentityResolver(env.DROP_HABITAT_URL),
     backoffCap: BACKOFF_CAP,
     store: new DrizzleSyncStore(db),
     sink: new FileSink({ db }),

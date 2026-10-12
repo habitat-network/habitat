@@ -1,3 +1,4 @@
+import type { IdentityResolver } from "@atproto-labs/identity-resolver";
 import { Context, Duration, Layer } from "effect";
 
 /**
@@ -22,11 +23,12 @@ export interface SpaceSyncOptions {
   readonly serviceDid: string;
   readonly plcUrl: string;
   /**
-   * A Habitat instance to resolve DIDs through (its resolveIdentity endpoint)
-   * instead of the public PLC / did:web network. It knows identities the
-   * public network doesn't (org did:webs) and points `#atproto_pds` at itself.
+   * Resolves the DIDs of space authorities and repos. Defaults to the public
+   * PLC / did:web network (via plcUrl); pass e.g. a HabitatIdentityResolver
+   * to resolve identities the public network doesn't know. plcUrl still
+   * applies to notification auth.
    */
-  readonly habitatUrl?: string;
+  readonly identityResolver?: IdentityResolver;
   /** Max spaces running a pass at once (global). */
   readonly maxActiveSpaces: number;
   /** Max repos synced at once within one space pass. */

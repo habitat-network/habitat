@@ -853,6 +853,9 @@ importers:
 
   typescript/internal:
     dependencies:
+      '@atproto-labs/identity-resolver':
+        specifier: ^0.4.5
+        version: 0.4.10
       '@atproto/api':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20261001173819
