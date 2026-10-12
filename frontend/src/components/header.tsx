@@ -24,6 +24,21 @@ const SettingsLink = () => {
   );
 };
 
+const ProfileLink = () => {
+  const { org } = useParams({ strict: false });
+  if (!org) return null;
+  return (
+    <li>
+      <Button
+        variant="link"
+        render={<Link to="/orgs/$org/profile" params={{ org }} />}
+      >
+        Profile
+      </Button>
+    </li>
+  );
+};
+
 // SpacesLink goes to the current org's spaces when the route names an org,
 // and to the all-spaces page otherwise.
 const SpacesLink = () => {
@@ -60,6 +75,7 @@ const Header = ({ profile, authManager, onLogout }: HeaderProps) => {
                 <OrgSwitcher authManager={authManager} />
               </li>
               <SpacesLink />
+              <ProfileLink />
               <SettingsLink />
             </>
           )}
