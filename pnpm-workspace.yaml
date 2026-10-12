@@ -32,7 +32,7 @@ catalog:
   '@atproto/api': 0.0.0-spaces-alpha-20261001173819
   '@atproto/common-web': 0.0.0-spaces-alpha-20261001173819
   '@atproto/crypto': 0.0.0-spaces-alpha-20261001173819
-  '@atproto/identity': 0.0.0-spaces-alpha-20261001173819
+  '@atproto/identity': 0.5.16
   '@atproto/lex': 0.0.0-spaces-alpha-20261001173819
   '@atproto/lex-server': 0.0.0-spaces-alpha-20261001173819
   '@atproto/lexicon': 0.0.0-spaces-alpha-20261001173819
