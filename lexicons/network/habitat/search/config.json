@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.search.config",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Surfaces one collection in search results for an org. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not surfaced in search, unless it is a default collection.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["updatedAt"],
+        "properties": {
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

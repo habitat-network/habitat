@@ -11,6 +11,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/did"
+	"github.com/habitat-network/habitat/internal/httpsig"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -102,5 +104,93 @@ func TestSpaceCredentialAuthMethod(t *testing.T) {
 		credInfo, ok := method.Validate(httptest.NewRecorder(), r)
 		require.False(t, ok)
 		require.Nil(t, credInfo)
+	})
+
+	const space = "at://did:web:pear.com/space/com.test.space/abc"
+
+	t.Run("expires in 10 minutes with a random jti", func(t *testing.T) {
+		claimsOf := func(token string) jwt.MapClaims {
+			claims := jwt.MapClaims{}
+			_, _, err := jwt.NewParser().ParseUnverified(token, claims)
+			require.NoError(t, err)
+			return claims
+		}
+		a, err := utils.SpaceCredential(hostKey, "#atproto_space", space)
+		require.NoError(t, err)
+		b, err := utils.SpaceCredential(hostKey, "#atproto_space", space)
+		require.NoError(t, err)
+		ca, cb := claimsOf(a), claimsOf(b)
+		require.InDelta(t, ca["iat"], ca["exp"].(float64)-600, 0)
+		require.NotEmpty(t, ca["jti"])
+		require.NotEqual(t, ca["jti"], cb["jti"])
+	})
+
+	t.Run("still accepts an older one hour credential", func(t *testing.T) {
+		now := time.Now()
+		token, err := new(jwt.Token{
+			Method: jwt.GetSigningMethod("ES256K"),
+			Claims: jwt.MapClaims{
+				"iss": "did:web:pear.com",
+				"sub": space,
+				"iat": jwt.NewNumericDate(now),
+				"exp": jwt.NewNumericDate(now.Add(time.Hour)),
+				"jti": "legacy",
+			},
+			Header: map[string]any{
+				"typ": "atproto-space-credential+jwt", "kid": "#atproto_space", "alg": "ES256K",
+			},
+		}).SignedString(hostKey)
+		require.NoError(t, err)
+		_, ok := method.Validate(httptest.NewRecorder(), newAuthenticatedRequest(token))
+		require.True(t, ok)
+	})
+}
+
+func TestSpaceCredentialAuthMethod_KeyBinding(t *testing.T) {
+	hostKey, _ := atcrypto.GeneratePrivateKeyK256()
+	hostPubKey, _ := hostKey.PublicKey()
+	dir := identity.NewMockDirectory()
+	dir.Insert(
+		*did.Web("pear.com").AtprotoKey(hostPubKey.Multibase()).ATProtoSpaceKey(hostPubKey.Multibase()).Build(),
+	)
+	method := authn.NewSpaceCredentialAuthMethod(dir)
+	space := habitat_syntax.SpaceURI("at://did:web:pear.com/space/com.test.space/abc")
+
+	syncerKey, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	syncerPub, err := syncerKey.PublicKey()
+	require.NoError(t, err)
+	bound, err := utils.SpaceCredential(
+		hostKey, "#atproto_space", space, utils.WithConfirmationKey(syncerPub.DIDKey()),
+	)
+	require.NoError(t, err)
+
+	signed := func(key atcrypto.PrivateKey, audience string) *http.Request {
+		r := httptest.NewRequest("GET", "/", http.NoBody)
+		r.Header.Set("Authorization", "Atproto-Space "+bound)
+		r.Header.Set(httpsig.AudienceHeader, audience)
+		require.NoError(t, httpsig.Sign(r, key, "authorization", "atproto-space-audience"))
+		return r
+	}
+
+	t.Run("signed by bound key", func(t *testing.T) {
+		r := signed(syncerKey, "did:web:pear.com")
+		require.True(t, method.CanHandle(r))
+		info, ok := method.Validate(httptest.NewRecorder(), r)
+		require.True(t, ok)
+		require.Equal(t, space, info.Space)
+		require.Equal(t, "did:web:pear.com", info.Audience)
+	})
+
+	t.Run("unsigned bound credential rejected", func(t *testing.T) {
+		_, ok := method.Validate(httptest.NewRecorder(), newAuthenticatedRequest(bound))
+		require.False(t, ok)
+	})
+
+	t.Run("signed by other key rejected", func(t *testing.T) {
+		other, err := atcrypto.GeneratePrivateKeyP256()
+		require.NoError(t, err)
+		_, ok := method.Validate(httptest.NewRecorder(), signed(other, "did:web:pear.com"))
+		require.False(t, ok)
 	})
 }

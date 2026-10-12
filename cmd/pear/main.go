@@ -49,6 +49,8 @@ import (
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/habitat-network/habitat/internal/perms"
+	"github.com/habitat-network/habitat/internal/search"
+	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"go.opentelemetry.io/otel/trace"
 
@@ -196,6 +198,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			"atproto-accept-labelers",
 			"atproto-proxy",
 			"DPoP",
+			"Signature",
+			"Signature-Input",
+			"atproto-space-audience",
 		}),
 		handlers.MaxAge(86400),
 		handlers.ExposedHeaders([]string{"DPoP-Nonce"}),
@@ -306,21 +311,55 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	notifier := notify.NewNotifier(notifyStore, httpx.NewClient(), hive)
 
-	spacesStore, err := spaces.NewStore(
-		database.WithContext(startupCtx),
-		notifier,
-		spacecommit.NewAuthority(hostKey, hive),
-	)
-	if err != nil {
-		return fmt.Errorf("setup spaces store: %w", err)
-	}
-
+	// With Meilisearch configured, the search indexer follows space writes
+	// like any other syncer, so the spaces store notifies it alongside the
+	// registered ones.
+	notifiers := spaces.Notifiers{notifier}
 	blobBucket, err := blob.OpenBucket(startupCtx, cmd.String(fBlobBucket))
 	if err != nil {
 		return fmt.Errorf("open blob bucket: %w", err)
 	}
 	defer func() { _ = blobBucket.Close() }()
 	blobStore := spaces.NewBlobStore(blobBucket)
+
+	var searchIndex search.Index
+	var searchIndexer *search.Indexer
+	if meilisearchURL := cmd.String(fMeilisearchURL); meilisearchURL != "" {
+		var indexOpts []search.MeilisearchOption
+		// With an embedder, Meilisearch embeds records and queries itself and
+		// searches are hybrid.
+		if embedderURL := cmd.String(fEmbedderURL); embedderURL != "" {
+			indexOpts = append(indexOpts, search.WithEmbedder(search.Embedder{
+				URL:           embedderURL,
+				APIKey:        cmd.String(fEmbedderAPIKey),
+				Model:         cmd.String(fEmbedderModel),
+				Dimensions:    int(cmd.Int(fEmbedderDimensions)),
+				SemanticRatio: cmd.Float(fSemanticRatio),
+				MinScore:      cmd.Float(fSearchMinScore),
+			}))
+		}
+		searchIndex, err = search.NewMeilisearch(
+			startupCtx,
+			meilisearchURL,
+			cmd.String(fMeilisearchAPIKey),
+			cmd.String(fMeilisearchIndex),
+			indexOpts...,
+		)
+		if err != nil {
+			return fmt.Errorf("setup search index: %w", err)
+		}
+		searchIndexer = search.NewIndexer(searchIndex, search.WithBlobs(blobStore))
+		notifiers = append(notifiers, searchIndexer)
+	}
+
+	spacesStore, err := spaces.NewStore(
+		database.WithContext(startupCtx),
+		notifiers,
+		spacecommit.NewAuthority(hostKey, hive),
+	)
+	if err != nil {
+		return fmt.Errorf("setup spaces store: %w", err)
+	}
 
 	opensocialStore, err := opensocial.NewStore(
 		database.WithContext(startupCtx), spacesStore, blobStore, hive,
@@ -422,11 +461,22 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		defaultDir,
 	)
 
+	searchConfigStore := searchconfig.NewStore(spacesStore)
+	var searcher *search.Searcher
+	if searchIndex != nil {
+		searcher = search.NewSearcher(
+			searchIndex, opensocialStore, spacesStore,
+			search.WithCollections(searchConfigStore),
+			search.WithEveryoneOrg(everyoneOrg.DID()),
+		)
+	}
+
 	// Consolidated server owning the opensocial, simplespace, relationship,
 	// spaces, and registerNotify handler routes.
 	pearApp := pearserver.New(
 		domain,
 		validator,
+		defaultDir,
 		hive,
 		hostKey,
 		blobStore,
@@ -439,6 +489,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		mcpGatewayStore,
 		pdsForwarding,
 		emailDomainStore,
+		searcher,
+		searchConfigStore,
 	)
 
 	repo, err := repo.NewRepo(database.WithContext(startupCtx))
@@ -452,13 +504,21 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	pearStore := pear.NewPear(hiveDir, permissions, repo)
+	// A nil *search.Searcher in an interface would be non-nil, so only set it
+	// when search is configured.
+	var mcpSearcher mcpserver.RecordSearcher
+	if searcher != nil {
+		mcpSearcher = searcher
+	}
 	mcpServer := mcpserver.New(
 		oauthServer,
 		spacesStore,
 		permStore,
+		mcpSearcher,
 		nangoClient,
 		opensocialStore,
 		mcpGatewayStore,
+		blobStore,
 		mcpOrigin,
 		oauthServer.MCPIssuer(),
 	)
@@ -488,6 +548,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", pearApp.CreateOrg)
 	mux.HandleFunc("/xrpc/network.habitat.emaildomain.createOrg", pearApp.CreateEmailDomainOrg)
 	mux.PathPrefix("/xrpc/community.opensocial.").Handler(pearApp)
+	// The rest of network.habitat.opensocial.* (e.g. getProfiles) is handled by
+	// pearApp via registerRoutes in internal/pearserver/routes.go. Without this
+	// mount those requests fall through to the catch-all libp2p handler below
+	// and 404, so mount the whole NSID family rather than listing each route.
+	mux.PathPrefix("/xrpc/network.habitat.opensocial.").Handler(pearApp)
 	// Server-side client-metadata proxy for the management frontend
 	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
 	// MCP gateway routes (network.habitat.mcp.*) are handled by pearApp via
@@ -614,6 +679,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// Spaces
 	mux.PathPrefix("/xrpc/network.habitat.space.").Handler(pearApp)
 
+	// Search configuration (which collections an org surfaces in search)
+	mux.PathPrefix("/xrpc/network.habitat.search.").Handler(pearApp)
+
 	// Simplespace
 	mux.PathPrefix("/xrpc/network.habitat.simplespace.").Handler(pearApp)
 
@@ -653,6 +721,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	eg.Go(func() error {
 		return oauthGC.Run(egCtx)
 	})
+	if searchIndexer != nil {
+		eg.Go(func() error {
+			return searchIndexer.Run(egCtx, spacesStore, permStore)
+		})
+	}
 	eg.Go(func() error {
 		slog.InfoContext(egCtx, "starting server", "port", port)
 		if httpsCerts == "" {

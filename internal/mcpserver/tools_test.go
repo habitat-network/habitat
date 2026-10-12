@@ -142,8 +142,10 @@ func TestMCPServerToolsList_MergesConnectedServerTools(t *testing.T) {
 		fakeTokens{},
 		spacesStore,
 		permStore,
+		nil,
 		nangoClient,
 		orgRecords,
+		nil,
 		nil,
 		"https://habitat.example",
 		"https://habitat.example/mcp",
@@ -184,8 +186,10 @@ func TestMCPServerToolsList_SkipsUnreachableConnectedServer(t *testing.T) {
 		fakeTokens{},
 		spacesStore,
 		permStore,
+		nil,
 		nangoClient,
 		orgRecords,
+		nil,
 		nil,
 		"https://habitat.example",
 		"https://habitat.example/mcp",
@@ -205,7 +209,7 @@ func TestMCPServerToolsList_SkipsUnreachableConnectedServer(t *testing.T) {
 		names[i] = tool.Name
 	}
 	require.Contains(t, names, "get_record")
-	require.Len(t, names, 1) // the unreachable connected server contributed nothing
+	require.Len(t, names, 2) // the unreachable connected server contributed nothing
 }
 
 func TestMCPServerToolsList_SkipsConnectionWithNoMatchingRecord(t *testing.T) {
@@ -223,8 +227,10 @@ func TestMCPServerToolsList_SkipsConnectionWithNoMatchingRecord(t *testing.T) {
 		fakeTokens{},
 		spacesStore,
 		permStore,
+		nil,
 		nangoClient,
 		newFakeOrgMcpServerStore(),
+		nil,
 		nil,
 		"https://habitat.example",
 		"https://habitat.example/mcp",
@@ -243,7 +249,7 @@ func TestMCPServerToolsList_SkipsConnectionWithNoMatchingRecord(t *testing.T) {
 	for i, tool := range result.Tools {
 		names[i] = tool.Name
 	}
-	require.Equal(t, []string{"get_record"}, names)
+	require.Equal(t, []string{"get_blob", "get_record"}, names)
 }
 
 func TestMCPServerToolsCall_ProxiesToConnectedServer(t *testing.T) {
@@ -262,8 +268,10 @@ func TestMCPServerToolsCall_ProxiesToConnectedServer(t *testing.T) {
 		fakeTokens{},
 		spacesStore,
 		permStore,
+		nil,
 		nangoClient,
 		orgRecords,
+		nil,
 		nil,
 		"https://habitat.example",
 		"https://habitat.example/mcp",
@@ -287,7 +295,8 @@ func TestMCPServerToolsCall_UnknownNamespacedToolFallsThrough(t *testing.T) {
 	caller := "did:plc:caller"
 
 	srv := New(
-		fakeTokens{}, spacesStore, permStore, newFakeNangoClient(), newFakeOrgMcpServerStore(),
+		fakeTokens{}, spacesStore, permStore, nil, newFakeNangoClient(), newFakeOrgMcpServerStore(),
+		nil,
 		nil,
 		"https://habitat.example",
 		"https://habitat.example/mcp",
@@ -352,9 +361,11 @@ func TestMCPServerTools_ManualServer(t *testing.T) {
 		fakeTokens{},
 		spacesStore,
 		permStore,
+		nil,
 		newFakeNangoClient(),
 		newFakeOrgMcpServerStore(),
 		manual,
+		nil,
 		"https://habitat.example",
 		"https://habitat.example/mcp",
 	)

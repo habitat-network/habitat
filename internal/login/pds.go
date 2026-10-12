@@ -40,7 +40,7 @@ func NewPDSProvider(
 func (p *pdsProvider) Authorize(
 	ctx context.Context,
 	loginHint string,
-) (string, []byte, error) {
+) (string, string, []byte, error) {
 	// TODO if login hint is empty (like when authing an org), we need to redirect to a page that let's the user
 	// enter their handle so we can resolve the right pds to auth with.
 
@@ -49,31 +49,31 @@ func (p *pdsProvider) Authorize(
 	// use the identity as-is.
 	did, err := syntax.ParseDID(loginHint)
 	if err != nil {
-		return "", nil, fmt.Errorf("parse loginID: %w", err)
+		return "", "", nil, fmt.Errorf("parse loginID: %w", err)
 	}
 	id, err := p.dir.LookupDID(ctx, did)
 	if err != nil {
-		return "", nil, fmt.Errorf("lookup loginID: %w", err)
+		return "", "", nil, fmt.Errorf("lookup loginID: %w", err)
 	}
 
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return "", nil, fmt.Errorf("generate dpop key: %w", err)
+		return "", "", nil, fmt.Errorf("generate dpop key: %w", err)
 	}
 	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
 	redirect, state, err := p.oauthClient.Authorize(ctx, dpopClient, id)
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 	dpopKeyBytes, err := dpopKey.Bytes()
 	if err != nil {
-		return "", nil, fmt.Errorf("serialize dpop key: %w", err)
+		return "", "", nil, fmt.Errorf("serialize dpop key: %w", err)
 	}
 	stateBytes, err := json.Marshal(pdsProviderState{DpopKey: dpopKeyBytes, AuthorizeState: *state})
 	if err != nil {
-		return "", nil, fmt.Errorf("marshal pds provider state: %w", err)
+		return "", "", nil, fmt.Errorf("marshal pds provider state: %w", err)
 	}
-	return redirect, stateBytes, nil
+	return redirect, state.State, stateBytes, nil
 }
 
 func (p *pdsProvider) Exchange(

@@ -58,7 +58,7 @@ var _ Provider = (*PasswordLoginProvider)(nil)
 func (p *PasswordLoginProvider) Authorize(
 	ctx context.Context,
 	loginHint string,
-) (string, []byte, error) {
+) (string, string, []byte, error) {
 	// loginHint is the member's LoginID, which for password login is their DID
 	// (see CreateNewMemberIdentity), not a human-readable handle. Resolve it to
 	// a handle so the login page (typescript/apps/pear-pages) can display
@@ -76,7 +76,7 @@ func (p *PasswordLoginProvider) Authorize(
 	redirect := "https://" + p.pearDomain + "/ui/login/habitat?handle=" + url.QueryEscape(
 		display,
 	)
-	return redirect, nil, nil
+	return redirect, "", nil, nil
 }
 
 func (p *PasswordLoginProvider) issueToken(did syntax.DID) (string, error) {

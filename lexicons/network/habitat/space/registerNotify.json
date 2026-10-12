@@ -4,12 +4,12 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Register an endpoint to be notified of writes. On a space host, subscribes to all repos in the space; on a repo host with a `repo`, subscribes to that repo only. Authenticated with a space credential.",
+      "description": "Register a service to be notified of writes. On a space host, subscribes to all repos in the space; on a repo host with a `repo`, subscribes to that repo only. Authenticated with a space credential. Prefer `service`: the registering service is named by its service identifier rather than a bare URL, because notifyWrite is delivered with service auth addressed to that identifier and the delivery endpoint is resolved from the service's DID document. `endpoint` is deprecated and kept only for callers that predate `service`.",
       "input": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["space", "endpoint"],
+          "required": ["space"],
           "properties": {
             "space": {
               "type": "string",
@@ -21,10 +21,14 @@
               "format": "did",
               "description": "The DID of a specific repo to subscribe to (repo host). Omit to subscribe to the whole space (space host)."
             },
+            "service": {
+              "type": "string",
+              "description": "Service identifier of the subscriber: a DID with an optional service fragment naming the entry in its DID document to deliver to (e.g. 'did:web:syncer.example.com#habitat_space_syncer'). notifyWrite calls are addressed to this identifier, and the delivery endpoint is resolved from the service's DID document. Takes precedence over the deprecated `endpoint` when both are given; one of the two is required."
+            },
             "endpoint": {
               "type": "string",
               "format": "uri",
-              "description": "The endpoint to which notifyWrite events should be delivered."
+              "description": "Deprecated: the endpoint to which notifyWrite events should be delivered. Superseded by `service`, which resolves the delivery endpoint from the service's DID document and addresses notifications to the service identifier instead of this URL."
             }
           }
         }
@@ -43,7 +47,13 @@
           }
         }
       },
-      "errors": [{ "name": "SpaceNotFound" }]
+      "errors": [
+        { "name": "SpaceNotFound" },
+        {
+          "name": "ServiceNotResolvable",
+          "description": "The service identifier could not be resolved to a DID document with a matching service endpoint."
+        }
+      ]
     }
   }
 }

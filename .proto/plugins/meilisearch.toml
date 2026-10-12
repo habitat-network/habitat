@@ -1,0 +1,45 @@
+# A TOML plugin for proto:
+# https://moonrepo.dev/docs/proto/non-wasm-plugin
+#
+# Asset naming mirrors meilisearch's own install script:
+# https://github.com/meilisearch/meilisearch/blob/latest/download-latest.sh
+#
+# There is no per-asset checksum file published alongside the release binaries,
+# so checksum verification is omitted (same as the atlas plugin).
+
+name = "meilisearch"
+type = "cli"
+
+[plugin]
+description = "Fast, typo-tolerant search engine."
+homepage-url = "https://www.meilisearch.com/"
+repository-url = "https://github.com/meilisearch/meilisearch"
+
+[resolve]
+git-url = "https://github.com/meilisearch/meilisearch"
+
+[platform.linux]
+archs = ["x86_64", "aarch64"]
+download-file = "meilisearch-linux-{arch}"
+
+[platform.macos]
+archs = ["x86_64", "aarch64"]
+download-file = "meilisearch-macos-{arch}"
+
+[platform.windows]
+archs = ["x86_64"]
+download-file = "meilisearch-windows-{arch}.exe"
+
+[install]
+download-url = "https://github.com/meilisearch/meilisearch/releases/download/v{version}/{download_file}"
+unpack = false
+
+# Maps Rust's ARCH constants onto Meilisearch's naming. Apple Silicon is renamed
+# per-platform below because Meilisearch ships it as "apple-silicon" on macOS but
+# "aarch64" on Linux.
+[install.arch]
+x86_64 = "amd64"
+aarch64 = "aarch64"
+
+[platform.macos.arch]
+aarch64 = "apple-silicon"

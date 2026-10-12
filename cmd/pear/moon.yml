@@ -21,8 +21,11 @@ tasks:
       HABITAT_UI_DEV_PROXY: 'http://localhost:6010'
       HABITAT_ADMIN_PASSWORD: 'password'
       HABITAT_SPACE_SIGNING_KEY: 'z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd'
+      # Served by root:meilisearch, which runs without a master key.
+      HABITAT_MEILISEARCH_URL: 'http://localhost:7700'
     deps:
     - root:caddy
+    - root:meilisearch
     - ngrok
     - pear-pages:dev
   ngrok:

@@ -1,0 +1,46 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.search.listCollections",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List the collections an org surfaces in search results: those its admins configured, and the defaults every org includes. Requires service-auth. Requires the community.configure action.",
+      "parameters": {
+        "type": "params",
+        "required": ["org"],
+        "properties": {
+          "org": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the community whose search configuration to list."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["collections", "defaults"],
+          "properties": {
+            "collections": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "nsid"
+              },
+              "description": "Collections the org's admins added."
+            },
+            "defaults": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "nsid"
+              },
+              "description": "Collections always included in search results, whatever the org configures."
+            }
+          }
+        }
+      }
+    }
+  }
+}

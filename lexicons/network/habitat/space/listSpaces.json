@@ -8,7 +8,12 @@
       "parameters": {
         "type": "params",
         "properties": {
-          "type": {
+          "spaceType": {
+            "type": "string",
+            "format": "nsid",
+            "description": "Filter to spaces of this type. Required if the caller's OAuth scope is narrower than `space:*`."
+          },
+          "spaceType": {
             "type": "string",
             "format": "nsid",
             "description": "Filter to spaces of this type. Required if the caller's OAuth scope is narrower than `space:*`."
@@ -52,16 +57,12 @@
     },
     "spaceView": {
       "type": "object",
-      "required": ["uri", "isOwner"],
+      "required": ["uri"],
       "properties": {
         "uri": {
           "type": "string",
           "format": "at-uri",
           "description": "URI of the space."
-        },
-        "isOwner": {
-          "type": "boolean",
-          "description": "Whether the authenticated user is the owner of the space."
         }
       }
     }

@@ -26,7 +26,7 @@ export function OrgItem({
   return (
     <Item
       variant="outline"
-      render={<Link to="/opensocial/$org" params={{ org: org.did }} />}
+      render={<Link to="/orgs/$org/settings" params={{ org: org.did }} />}
     >
       <ItemMedia>
         <OrgAvatar

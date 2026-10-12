@@ -30,7 +30,7 @@ export {
   resolveSpaceHost,
   resolveDidService,
 } from "./atprotoDirectory";
-export { createDpopProof } from "./dpop";
+export { createSpaceSignatureHeaders } from "./spaceSignature";
 export {
   SidebarGroup,
   SidebarGroupLabel,

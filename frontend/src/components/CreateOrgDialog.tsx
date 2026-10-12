@@ -41,7 +41,7 @@ export function CreateOrgDialog({ authManager }: { authManager: AuthManager }) {
       await queryClient.invalidateQueries({ queryKey: ["opensocial"] });
       setOpen(false);
       setHandle("");
-      await navigate({ to: "/opensocial/$org", params: { org } });
+      await navigate({ to: "/orgs/$org/settings", params: { org } });
       // Router loader results are cached independent of the query client
       // (see __root's hour-long staleTime), so invalidating before
       // navigating away doesn't reach the /opensocial route's own loader

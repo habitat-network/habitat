@@ -24,8 +24,8 @@ export const $params = /*#__PURE__*/ l.params({
 export type $Params = l.InferOutput<typeof $params>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
-  cursor: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
   repos: /*#__PURE__*/ l.array(/*#__PURE__*/ l.ref<Repo>((() => repo) as any)),
+  cursor: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
 })
 
 export type $Output<B = l.BinaryData> = l.InferPayload<typeof $output, B>
@@ -34,7 +34,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** List the known repos that hold data in a space (the writer set), with each repo's current rev and commit hash. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth. */
+/** List the known repos that hold data in a space (the writer set), with each repo's current repoRev and commit hash. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth. */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output, ['SpaceNotFound'])
 
 export { main }
@@ -56,12 +56,17 @@ type Repo = {
   /**
    * The repo's current revision (TID), as last reported to the authority. May lag the repo host, which is the source of truth.
    */
-  rev: l.TidString
+  repoRev: l.TidString
 
   /**
    * The repo's current commit hash (sha256 of the LtHash state), as last reported to the authority.
    */
   hash: Uint8Array
+
+  /**
+   * The space revision at which this repo was last updated.
+   */
+  spaceRev: l.TidString
 }
 
 export type { Repo }
@@ -71,8 +76,9 @@ const repo = /*#__PURE__*/ l.typedObject<Repo>(
   'repo',
   /*#__PURE__*/ l.object({
     did: /*#__PURE__*/ l.string({ format: 'did' }),
-    rev: /*#__PURE__*/ l.string({ format: 'tid' }),
+    repoRev: /*#__PURE__*/ l.string({ format: 'tid' }),
     hash: /*#__PURE__*/ l.bytes(),
+    spaceRev: /*#__PURE__*/ l.string({ format: 'tid' }),
   }),
 )
 

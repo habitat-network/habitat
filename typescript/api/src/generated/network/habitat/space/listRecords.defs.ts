@@ -18,7 +18,7 @@ export const $params = /*#__PURE__*/ l.params({
   ),
   limit: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.withDefault(
-      /*#__PURE__*/ l.integer({ minimum: 1, maximum: 100 }),
+      /*#__PURE__*/ l.integer({ minimum: 1, maximum: 1000 }),
       50,
     ),
   ),

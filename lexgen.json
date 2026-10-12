@@ -10,5 +10,11 @@
     "prefix": "community.opensocial",
     "outdir": "api/opensocial",
     "import": "github.com/habitat-network/habitat/api/opensocial"
+  },
+  {
+    "package": "comatproto",
+    "prefix": "com.atproto",
+    "outdir": "api/comatproto",
+    "import": "github.com/habitat-network/habitat/api/comatproto"
   }
 ]

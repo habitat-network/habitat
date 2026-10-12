@@ -12,6 +12,7 @@ export { $nsid }
 
 export const $params = /*#__PURE__*/ l.params({
   space: /*#__PURE__*/ l.string({ format: 'at-uri' }),
+  repo: /*#__PURE__*/ l.string({ format: 'did' }),
   cid: /*#__PURE__*/ l.string({ format: 'cid' }),
 })
 
@@ -29,6 +30,10 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
 const main = /*#__PURE__*/ l.query($nsid, $params, $output, [
   'BlobNotFound',
   'SpaceNotFound',
+  'RepoNotFound',
+  'RepoTakendown',
+  'RepoSuspended',
+  'RepoDeactivated',
 ])
 
 export { main }

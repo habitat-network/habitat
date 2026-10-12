@@ -6,8 +6,11 @@ import "github.com/bluesky-social/indigo/atproto/atdata"
 
 // NetworkHabitatSpaceNotifyWriteInput represents the input for network.habitat.space.notifyWrite
 type NetworkHabitatSpaceNotifyWriteInput struct {
-	Hash  atdata.Bytes `json:"hash"`
-	Repo  string       `json:"repo"`
-	Rev   string       `json:"rev"`
-	Space string       `json:"space"`
+	Hash         atdata.Bytes `json:"hash"`
+	PrevSpaceRev string       `json:"prevSpaceRev,omitempty"`
+	Repo         string       `json:"repo"`
+	RepoRev      string       `json:"repoRev"`
+	Rev          string       `json:"rev,omitempty"`
+	Space        string       `json:"space"`
+	SpaceRev     string       `json:"spaceRev,omitempty"`
 }

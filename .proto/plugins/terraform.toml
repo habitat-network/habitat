@@ -1,0 +1,50 @@
+# A TOML plugin for proto:
+# https://moonrepo.dev/docs/proto/non-wasm-plugin
+#
+# Asset naming mirrors HashiCorp's published release layout:
+# https://releases.hashicorp.com/terraform/
+#
+# HashiCorp publishes a single SHA256SUMS manifest per release rather than a
+# per-asset checksum file, so checksum verification is possible here (unlike
+# the meilisearch plugin).
+
+name = "terraform"
+type = "cli"
+
+[plugin]
+description = "Declaratively provision and manage infrastructure."
+homepage-url = "https://www.terraform.io/"
+repository-url = "https://github.com/hashicorp/terraform"
+
+[resolve]
+git-url = "https://github.com/hashicorp/terraform"
+
+[platform.linux]
+archs = ["x86_64", "aarch64"]
+download-file = "terraform_{version}_linux_{arch}.zip"
+
+[platform.macos]
+archs = ["x86_64", "aarch64"]
+download-file = "terraform_{version}_darwin_{arch}.zip"
+
+[platform.windows]
+archs = ["x86_64", "aarch64"]
+download-file = "terraform_{version}_windows_{arch}.zip"
+
+[install]
+download-url = "https://releases.hashicorp.com/terraform/{version}/{download_file}"
+checksum-url = "https://releases.hashicorp.com/terraform/{version}/terraform_{version}_SHA256SUMS"
+unpack = true
+
+# Maps Rust's ARCH constants onto Go's, which is what HashiCorp's release
+# assets are named after.
+[install.arch]
+aarch64 = "arm64"
+x86_64 = "amd64"
+
+[install.exes.terraform]
+exe-path = "terraform"
+primary = true
+
+[detect]
+version-files = [".terraform-version"]

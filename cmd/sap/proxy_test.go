@@ -70,7 +70,11 @@ func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 		DPoPPrivateKeyMultibase: testDPoPKey(t),
 	}))
 
-	server := NewSapServer(s, oauthApp, "https://example.com", ConfiguredClientMetadata{}, "")
+	service, err := sap.NewServiceIdentity("https://example.com", "")
+	require.NoError(t, err)
+	server := NewSapServer(
+		s, oauthApp, "https://example.com", service, ConfiguredClientMetadata{}, "",
+	)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/proxy/", server.handleProxy)
 	httpServer := httptest.NewServer(mux)

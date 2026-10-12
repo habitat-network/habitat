@@ -81,6 +81,10 @@ type Tracker interface {
 		rev syntax.TID,
 		hash []byte,
 	) error
+	// RecordSpaceRev notes that every repo in the space was listed as of rev,
+	// the space host's revision at the time of the listing (empty if the host
+	// doesn't report one).
+	RecordSpaceRev(ctx context.Context, space habitat_syntax.SpaceURI, rev syntax.TID) error
 }
 
 // Notify subscribes sap to a discovered space's push notifications. Satisfied
@@ -359,11 +363,17 @@ func (c *Crawler) enumerateRepos(
 
 	for _, r := range output.Repos {
 		did := syntax.DID(r.Did)
-		if err := c.tracker.Check(ctx, space, did, syntax.TID(r.Rev), r.Hash); err != nil {
+		// Prefer repoRev, the field the lexicon now requires; fall back to the
+		// deprecated rev so hosts that predate the rename still sync.
+		rev := r.RepoRev
+		if rev == "" {
+			rev = r.Rev
+		}
+		if err := c.tracker.Check(ctx, space, did, syntax.TID(rev), r.Hash); err != nil {
 			return err
 		}
 	}
-	return nil
+	return c.tracker.RecordSpaceRev(ctx, space, syntax.TID(output.Cursor))
 }
 
 // detachCancel returns a context that keeps ctx's cancellation but starts a

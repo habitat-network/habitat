@@ -108,11 +108,13 @@ func appendVec(b, field []byte) []byte {
 	return append(b, field...)
 }
 
-// mac computes HMAC-SHA256(HKDF-SHA256(ikm, info=ctx), hash), binding the repo
+// mac computes HMAC-SHA256(HKDF-Expand(ikm, info=ctx, 32), hash), binding the repo
 // hash to the commit's context without the signature covering the hash.
 func mac(ikm, ctx, hash []byte) ([]byte, error) {
+	// HKDF-Expand only (RFC 5869 §2.3): ikm is already uniformly random, so it
+	// is used directly as the pseudorandom key, with no extract step.
 	key := make([]byte, sha256.Size)
-	if _, err := io.ReadFull(hkdf.New(sha256.New, ikm, nil, ctx), key); err != nil {
+	if _, err := io.ReadFull(hkdf.Expand(sha256.New, ikm, ctx), key); err != nil {
 		return nil, fmt.Errorf("derive mac key: %w", err)
 	}
 	m := hmac.New(sha256.New, key)

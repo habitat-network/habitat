@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -55,6 +56,31 @@ func (p *PearServer) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if httpx.IsComAtprotoRequest(r) {
+		ops := make([]comatproto.ComAtprotoSpaceListRepoOpsOpEntry, len(records))
+		for i, rec := range records {
+			ops[i] = comatproto.ComAtprotoSpaceListRepoOpsOpEntry{
+				Rev:        rec.Rev,
+				Collection: rec.Collection.String(),
+				Rkey:       rec.Rkey.String(),
+				Prev:       rec.Prev,
+				Cid:        rec.Cid.String(),
+			}
+			if !params.ExcludeValues {
+				ops[i].Value = rec.Value
+			}
+		}
+		output := comatproto.ComAtprotoSpaceListRepoOpsOutput{Ops: ops}
+		if len(records) > 0 {
+			output.Cursor = records[len(records)-1].Rev
+		}
+		if commit != nil {
+			signed := commit.ToComAtprotoXRPC()
+			output.Commit = &signed
+		}
+		httpx.WriteJSON(r.Context(), w, output)
+		return
+	}
 	ops := make([]habitat.NetworkHabitatSpaceListRepoOpsOpEntry, len(records))
 	for i, rec := range records {
 		ops[i] = habitat.NetworkHabitatSpaceListRepoOpsOpEntry{

@@ -1,0 +1,24 @@
+{
+  "extends": "../../../tsconfig.options.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@habitat-network/habitat": ["../../habitat/src/index.ts"]
+    },
+    "types": ["vite/client", "node"],
+    "outDir": "../../../.moon/cache/types/typescript/apps/drop"
+  },
+  "include": ["src/**/*", "../../globals.d.ts", "worker-configuration.d.ts"],
+  "references": [
+    {
+      "path": "../../api"
+    },
+    {
+      "path": "../../internal"
+    },
+    {
+      "path": "../../habitat"
+    }
+  ]
+}

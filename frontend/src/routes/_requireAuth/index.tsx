@@ -1,145 +1,19 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { xrpc } from "@atproto/lex";
-import { network } from "api";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  Item,
-  ItemGroup,
-  ItemHeader,
-  ItemTitle,
-} from "internal/components/ui";
-import Avatar from "boring-avatars";
+import { createFileRoute } from "@tanstack/react-router";
+import { myOrgsQueryOptions } from "@/queries/opensocial";
+import { getLastOrg } from "@/lib/selectedOrg";
 
-import { Search } from "lucide-react";
-
+// The index page only routes: to the org the user last visited if they still
+// belong to it, else their first org, else the orgs page so they can create
+// or join one.
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
-    const { authManager } = context;
-    const appData = await xrpc(
-      authManager,
-      network.habitat.listConnectedApps.main,
-      { params: {} },
-    ).catch(() => ({ body: { apps: [] } }));
-
-    const apps = appData.body.apps.filter(
-      (app) => app.clientUri !== import.meta.env.VITE_BASE_URL,
+    const { authManager, queryClient } = context;
+    const orgs = await queryClient.ensureQueryData(
+      myOrgsQueryOptions(authManager),
     );
-
-    let orgName: string | undefined;
-    try {
-      const meta = await xrpc(
-        authManager,
-        network.habitat.org.getMetadata.main,
-        { params: {} },
-      );
-      orgName = meta.body.name;
-    } catch {
-      // Not a member of an org
-    }
-
-    return {
-      apps,
-      orgName,
-    };
-  },
-  component() {
-    return <AuthenticatedHome />;
+    const last = getLastOrg();
+    const org = orgs.find((o) => o.did === last)?.did ?? orgs[0]?.did;
+    if (!org) throw Route.redirect({ to: "/orgs" });
+    throw Route.redirect({ to: "/orgs/$org", params: { org } });
   },
 });
-
-interface RecentlyUsedProps {
-  apps: network.habitat.listConnectedApps.App[];
-}
-
-function RecentlyUsed({ apps }: RecentlyUsedProps) {
-  return (
-    <Card size="sm" className="flex-1 min-w-128">
-      <CardHeader>
-        <CardTitle>Recently used</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ItemGroup className="grid grid-cols-3">
-          {apps
-            .filter((app) => Boolean(app.clientUri))
-            .map((app) => (
-              <Item
-                key={app.clientID}
-                render={<Link to={app.clientUri} />}
-                variant="muted"
-              >
-                <ItemHeader className="rounded bg-background p-2">
-                  {app.logoUri ? (
-                    <img
-                      src={app.logoUri}
-                      alt={app.name}
-                      className="w-12 h-12 object-contain mx-auto"
-                    />
-                  ) : (
-                    <Avatar
-                      className="mx-auto"
-                      name={app.clientID}
-                      variant="sunset"
-                      square
-                    />
-                  )}
-                </ItemHeader>
-                <ItemTitle className="text-xs text-center truncate w-full px-1">
-                  {app.name || app.clientID || app.clientUri}
-                </ItemTitle>
-              </Item>
-            ))}
-        </ItemGroup>
-      </CardContent>
-    </Card>
-  );
-}
-
-function AuthenticatedHome() {
-  const { apps } = Route.useLoaderData()!;
-
-  // For now, don't require the user to be registered with a habitat service. If they do have one,
-  // requests will still be routed there, but allow them to use the centralized one by default.
-
-  return (
-    <>
-      <div className="flex-1 flex flex-col gap-4 justify-center min-h-[60vh]">
-        <h1 className="text-2xl">Welcome to Habitat!</h1>
-        <InputGroup>
-          <InputGroupInput
-            disabled
-            placeholder="Search your data for anything... coming soon!"
-          />
-          <InputGroupAddon>
-            <Search />
-          </InputGroupAddon>
-        </InputGroup>
-      </div>
-      {apps.length > 0 ? (
-        <div className="flex gap-4 flex-wrap">
-          <RecentlyUsed apps={apps} />
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">
-            Looks like there&rsquo;s nothing here!{" "}
-            <a
-              href="https://habitat.network/habitat/api/docs/habitat"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline text-primary"
-            >
-              Read the docs
-            </a>{" "}
-            to get started building.
-          </CardContent>
-        </Card>
-      )}
-    </>
-  );
-}

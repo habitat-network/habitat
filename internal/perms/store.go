@@ -103,6 +103,22 @@ type Store interface {
 		role habitat_syntax.SpaceRole,
 		filterType *syntax.NSID,
 	) ([]habitat_syntax.SpaceURI, error)
+	// ListDependentSpaces returns the spaces whose roles spaceRelations grant,
+	// directly or through other such spaces, to holders of a role on space:
+	// the spaces whose users change when space's do.
+	ListDependentSpaces(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+	) ([]habitat_syntax.SpaceURI, error)
+
+	// ListInheritingSpaces returns the spaces on which holders of role on space
+	// also hold role, directly or transitively through spaceRelations and
+	// built-in role implications. space itself is excluded.
+	ListInheritingSpaces(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		role habitat_syntax.SpaceRole,
+	) ([]habitat_syntax.SpaceURI, error)
 
 	// WithTx returns a copy of the store scoped to the given transaction, so
 	// its DB writes participate in a caller-managed transaction rather than
@@ -532,6 +548,73 @@ func (s *store) ListObjects(
 			return nil, fmt.Errorf("perms: list objects: %w", err)
 		}
 		if filterType != nil && uri.SpaceType() != *filterType {
+			continue
+		}
+		spaceURIs = append(spaceURIs, uri)
+	}
+	return spaceURIs, nil
+}
+
+// ListDependentSpaces implements [Store].
+func (s *store) ListDependentSpaces(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+) ([]habitat_syntax.SpaceURI, error) {
+	seen := map[habitat_syntax.SpaceURI]bool{space: true}
+	var dependents []habitat_syntax.SpaceURI
+	// Breadth-first over spaceRelation tuples, whose user is a userset
+	// naming a role on the subject space.
+	for queue := []habitat_syntax.SpaceURI{space}; len(queue) > 0; queue = queue[1:] {
+		for _, relation := range fgaRelationFromRole {
+			tuples, err := s.fga.Read(ctx, fgastore.Tuple{
+				User:   fgastore.SpaceUsersetString(queue[0], relation),
+				Object: fgastore.TypeSpace + ":",
+			})
+			if err != nil {
+				return nil, fmt.Errorf("perms: list dependent spaces: %w", err)
+			}
+			for _, t := range tuples {
+				uri, err := fgastore.ParseSpaceObjectKey(t.Object)
+				if err != nil {
+					return nil, fmt.Errorf("perms: list dependent spaces: %w", err)
+				}
+				if !seen[uri] {
+					seen[uri] = true
+					dependents = append(dependents, uri)
+					queue = append(queue, uri)
+				}
+			}
+		}
+	}
+	return dependents, nil
+}
+
+// ListInheritingSpaces implements [Store]. It asks OpenFGA which spaces the
+// userset "all holders of role on space" holds role on, which resolves
+// transitive spaceRelations and role implications.
+func (s *store) ListInheritingSpaces(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	role habitat_syntax.SpaceRole,
+) ([]habitat_syntax.SpaceURI, error) {
+	keys, err := s.fga.ListObjects(
+		ctx,
+		fgastore.SpaceUsersetString(space, fgaRelationFromRole[role]),
+		fgaRelationFromRole[role],
+		fgastore.TypeSpace,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("perms: list inheriting spaces: %w", err)
+	}
+
+	spaceURIs := make([]habitat_syntax.SpaceURI, 0, len(keys))
+	for _, key := range keys {
+		uri, err := fgastore.ParseSpaceObjectKey(key)
+		if err != nil {
+			return nil, fmt.Errorf("perms: list inheriting spaces: %w", err)
+		}
+		// A userset trivially holds its own role on the space it is defined on.
+		if uri == space {
 			continue
 		}
 		spaceURIs = append(spaceURIs, uri)

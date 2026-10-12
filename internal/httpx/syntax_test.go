@@ -117,3 +117,75 @@ func TestParseSpaceURIInput_InvalidFormat(t *testing.T) {
 		w.Body.String(),
 	)
 }
+
+func TestParseServiceRefInput_Valid(t *testing.T) {
+	w := httptest.NewRecorder()
+	did, serviceID, ok := ParseServiceRefInput(
+		t.Context(),
+		w,
+		"did:web:sync.example.com#habitat_space_syncer",
+		"service identifier",
+	)
+	require.True(t, ok)
+	require.Equal(t, syntax.DID("did:web:sync.example.com"), did)
+	require.Equal(t, "habitat_space_syncer", serviceID)
+	require.Equal(t, 0, w.Body.Len())
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+// TestParseServiceRefInput_BareDID covers the fragment-free form: a bare DID
+// names an account, which is served by its personal data server.
+func TestParseServiceRefInput_BareDID(t *testing.T) {
+	w := httptest.NewRecorder()
+	did, serviceID, ok := ParseServiceRefInput(
+		t.Context(),
+		w,
+		"did:plc:someone",
+		"service identifier",
+	)
+	require.True(t, ok)
+	require.Equal(t, syntax.DID("did:plc:someone"), did)
+	require.Equal(t, "atproto_pds", serviceID)
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestParseServiceRefInput_InvalidDID(t *testing.T) {
+	w := httptest.NewRecorder()
+	_, _, ok := ParseServiceRefInput(
+		t.Context(),
+		w,
+		"not-a-did#habitat_space_syncer",
+		"service identifier",
+	)
+	require.False(t, ok)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.JSONEq(
+		t,
+		`{"error":"InvalidRequest", "message": "failed to parse service identifier"}`,
+		w.Body.String(),
+	)
+}
+
+func TestParseServiceRefInput_MalformedFragment(t *testing.T) {
+	// An empty fragment, a second "#", or whitespace each make the reference
+	// ambiguous or unresolvable, so all are rejected rather than resolved.
+	for _, input := range []string{
+		"did:web:sync.example.com#",
+		"did:web:sync.example.com#a#b",
+		"did:web:sync.example.com#has space",
+	} {
+		t.Run(input, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			_, _, ok := ParseServiceRefInput(
+				t.Context(), w, input, "service identifier",
+			)
+			require.False(t, ok)
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			require.JSONEq(
+				t,
+				`{"error":"InvalidRequest", "message": "malformed service identifier"}`,
+				w.Body.String(),
+			)
+		})
+	}
+}

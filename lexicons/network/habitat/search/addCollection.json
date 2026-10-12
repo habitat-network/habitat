@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.search.addCollection",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Surface a collection in search results for the org, by writing its search config record. Adding a collection that is already configured succeeds without change. Requires service-auth. Requires the community.configure action.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["org", "collection"],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community to configure."
+            },
+            "collection": {
+              "type": "string",
+              "format": "nsid"
+            }
+          }
+        }
+      }
+    }
+  }
+}

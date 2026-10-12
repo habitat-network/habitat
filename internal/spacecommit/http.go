@@ -3,6 +3,7 @@ package spacecommit
 import (
 	"github.com/bluesky-social/indigo/atproto/atdata"
 
+	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
 )
 
@@ -33,5 +34,18 @@ func FromXRPC(c habitat.NetworkHabitatSpaceDefsSignedCommit) SignedCommit {
 		Sig:           c.Sig,
 		Rev:           c.Rev,
 		HabitatSigned: c.HabitatSigned,
+	}
+}
+
+// ToComAtprotoXRPC is ToXRPC for the com.atproto.space.defs#signedCommit type.
+// The habitatSigned flag is a network.habitat extension and is not carried.
+func (c SignedCommit) ToComAtprotoXRPC() comatproto.ComAtprotoSpaceDefsSignedCommit {
+	return comatproto.ComAtprotoSpaceDefsSignedCommit{
+		Ver:  int64(c.Ver),
+		Hash: atdata.Bytes(c.Hash),
+		Ikm:  atdata.Bytes(c.Ikm),
+		Mac:  atdata.Bytes(c.Mac),
+		Sig:  atdata.Bytes(c.Sig),
+		Rev:  c.Rev,
 	}
 }

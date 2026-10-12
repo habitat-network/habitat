@@ -32,6 +32,7 @@ exclude:
     - ^internal/node # Pass-throughs
     - internal/org/public.go
     - testutil/
+    - internal/search/searchtest # Test helper that starts Meilisearch
     - internal/pear # Outdated will remove this package soon
     - api/
     # Each service names its GORM models in a `migrations` package, which the

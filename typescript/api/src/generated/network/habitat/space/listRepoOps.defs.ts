@@ -14,13 +14,14 @@ export { $nsid }
 export const $params = /*#__PURE__*/ l.params({
   space: /*#__PURE__*/ l.string({ format: 'at-uri' }),
   repo: /*#__PURE__*/ l.string({ format: 'did' }),
-  since: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
+  since: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string({ format: 'tid' })),
   limit: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.withDefault(
       /*#__PURE__*/ l.integer({ minimum: 1, maximum: 1000 }),
       100,
     ),
   ),
+  cursor: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
   excludeValues: /*#__PURE__*/ l.optional(
     /*#__PURE__*/ l.withDefault(/*#__PURE__*/ l.boolean(), false),
   ),
@@ -65,7 +66,7 @@ export { $lxm }
 /** A single operation in a permissioned repo's oplog. cid is null for deletes; prev is null for creates. Operations sharing the same rev belong to the same batch. value carries the record's current value for creates and updates, unless excludeValues was set or the value is stale (superseded by a later operation). */
 type OpEntry = {
   $type?: 'network.habitat.space.listRepoOps#opEntry'
-  rev: string
+  rev: l.TidString
   collection: l.NsidString
   rkey: l.RecordKeyString
   cid: l.CidString | null
@@ -84,7 +85,7 @@ const opEntry = /*#__PURE__*/ l.typedObject<OpEntry>(
   $nsid,
   'opEntry',
   /*#__PURE__*/ l.object({
-    rev: /*#__PURE__*/ l.string(),
+    rev: /*#__PURE__*/ l.string({ format: 'tid' }),
     collection: /*#__PURE__*/ l.string({ format: 'nsid' }),
     rkey: /*#__PURE__*/ l.string({ format: 'record-key' }),
     cid: /*#__PURE__*/ l.nullable(/*#__PURE__*/ l.string({ format: 'cid' })),
