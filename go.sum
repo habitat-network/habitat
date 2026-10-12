@@ -193,8 +193,6 @@ github.com/frankban/quicktest v1.14.6 h1:7Xjx+VpznH+oBnejlPUj8oUpdxnVs4f8XU8WnHk
 github.com/frankban/quicktest v1.14.6/go.mod h1:4ptaffx2x8+WTWXmUCuVU6aPUX1/Mz7zb5vbUoiM6w0=
 github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k=
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
-github.com/fxamacker/cbor/v2 v2.9.4 h1:xwjVlxEMR3S605oUlgBjKLTTeGFciYPGYCtF/35LKGo=
-github.com/fxamacker/cbor/v2 v2.9.4/go.mod h1:vM4b+DJCtHn+zz7h3FFp/hDAI9WNWCsZj23V5ytsSxQ=
 github.com/fxamacker/cbor/v2 v2.9.6 h1:NHZPxuUjJXQjX9itA785y/5NKSlI4HQ+S7noZsmI7hs=
 github.com/fxamacker/cbor/v2 v2.9.6/go.mod h1:4EaZp6ClVunETjQ4GHmGNzysDK91Lr+r6Yz6tJqzVCw=
 github.com/gammazero/chanqueue v1.1.2 h1:dZEsxlyANZMyeTRemABqZF8QM9BnE4NBI43Oh3y5fIU=
@@ -434,8 +432,6 @@ github.com/libp2p/go-reuseport v0.4.0 h1:nR5KU7hD0WxXCJbmw7r2rhRYruNRl2koHw8fQsc
 github.com/libp2p/go-reuseport v0.4.0/go.mod h1:ZtI03j/wO5hZVDFo2jKywN6bYKWLOy8Se6DrI2E1cLU=
 github.com/libp2p/go-yamux/v5 v5.1.0 h1:8Qlxj4E9JGJAQVW6+uj2o7mqkqsIVlSUGmTWhlXzoHE=
 github.com/libp2p/go-yamux/v5 v5.1.0/go.mod h1:tgIQ07ObtRR/I0IWsFOyQIL9/dR5UXgc2s8xKmNZv1o=
-github.com/lmittmann/tint v1.2.0 h1:AogHRHy8HUJUnNJBHJlYa+fR4YY8mko2cnCp67xn9JY=
-github.com/lmittmann/tint v1.2.0/go.mod h1:HIS3gSy7qNwGCj+5oRjAutErFBl4BzdQP6cJZ0NfMwE=
 github.com/lmittmann/tint v1.2.1 h1:zOadah+f+nSm3jZM044jOsqh0+vSfgG/d9Ota9a/TLE=
 github.com/lmittmann/tint v1.2.1/go.mod h1:HIS3gSy7qNwGCj+5oRjAutErFBl4BzdQP6cJZ0NfMwE=
 github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e h1:Q6MvJtQK/iRcRtzAscm/zF23XxJlbECiGPyRicsX+Ak=
