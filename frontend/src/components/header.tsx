@@ -1,7 +1,9 @@
 import { Link, useParams } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Actor, UserAvatar, type AuthManager } from "internal";
 import { Button } from "internal/components/ui";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
+import { profileQueryOptions } from "@/queries/profiles";
 
 interface HeaderProps {
   profile?: Actor;
@@ -27,9 +29,21 @@ const SettingsLink = () => {
 // ProfileAvatar links the signed-in user's avatar to their profile page for
 // the current org; outside an org there is no profile to edit, so it renders
 // the avatar unlinked.
-const ProfileAvatar = ({ profile }: { profile: Actor }) => {
+const ProfileAvatar = ({
+  profile,
+  authManager,
+}: {
+  profile: Actor;
+  authManager: AuthManager;
+}) => {
   const { org } = useParams({ strict: false });
-  const avatar = <UserAvatar actor={profile} />;
+  // Habitat's getProfiles is scoped to an org, so outside one the avatar falls
+  // back to the bare DID.
+  const { data } = useQuery({
+    ...profileQueryOptions(org ?? "", profile.did, authManager),
+    enabled: !!org,
+  });
+  const avatar = <UserAvatar actor={data ?? profile} />;
   if (!org) return avatar;
   return (
     <Link
@@ -90,7 +104,7 @@ const Header = ({ profile, authManager, onLogout }: HeaderProps) => {
                 Devtools
               </Button>
             )}
-            <ProfileAvatar profile={profile} />
+            <ProfileAvatar profile={profile} authManager={authManager} />
             <li>
               <Button onClick={onLogout}>Logout</Button>
             </li>

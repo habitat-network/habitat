@@ -28,7 +28,9 @@ export function PendingOrgInvites({
   );
   const { data: profiles } = useQuery(
     profilesQueryOptions(
+      org,
       invites.map((invite) => invite.invitee),
+      authManager,
       queryClient,
     ),
   );
@@ -52,7 +54,7 @@ export function PendingOrgInvites({
           {invites.map((invite) => (
             <TableRow key={invite.id}>
               <TableCell>
-                <DidHoverCard did={invite.invitee}>
+                <DidHoverCard did={invite.invitee} org={org}>
                   <div className="flex items-center gap-2">
                     <UserAvatar
                       actor={
