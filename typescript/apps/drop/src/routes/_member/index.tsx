@@ -37,8 +37,9 @@ const FILES_POLL_MS = 10_000;
 function FilesPage() {
   const { currentOrg, files: initialFiles } = Route.useLoaderData();
   const orgName = currentOrg.name ?? currentOrg.did;
+  const queryKey = ["files", currentOrg.did];
   const { data: files = [] } = useQuery({
-    queryKey: ["files", currentOrg.did],
+    queryKey,
     queryFn: () => listFiles(),
     initialData: initialFiles,
     refetchInterval: FILES_POLL_MS,
@@ -79,7 +80,7 @@ function FilesPage() {
         <EmptyState onBrowse={() => input.current?.click()} />
       ) : (
         <Card className="overflow-hidden p-0">
-          <FileTable files={files} />
+          <FileTable files={files} queryKey={queryKey} />
         </Card>
       )}
 
