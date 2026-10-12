@@ -8,9 +8,7 @@
     {
       "binding": "DB",
       "database_name": "drop",
-      // Placeholder: replace with the id `wrangler d1 create drop` prints
-      // (see README.md's deployment section).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "6b294689-d211-48c5-ba18-7c96d912fccc",
       "migrations_dir": "drizzle",
     },
   ],
