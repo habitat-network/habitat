@@ -39,7 +39,7 @@ func (p *PearServer) NotifyCredentialRevoked(w http.ResponseWriter, r *http.Requ
 		httpx.WriteUnauthorized(ctx, w, "only the space authority can revoke credentials", nil)
 		return
 	}
-	if len(input.Jtis) == 0 {
+	if len(input.Credentials) == 0 {
 		httpx.WriteInvalidRequest(ctx, w, "jtis is required", nil)
 		return
 	}

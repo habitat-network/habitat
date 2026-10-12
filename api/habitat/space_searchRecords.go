@@ -6,13 +6,14 @@ import "encoding/json"
 
 // NetworkHabitatSpaceSearchRecordsParams represents the input parameters for network.habitat.space.searchRecords
 type NetworkHabitatSpaceSearchRecordsParams struct {
-	Collection []string `json:"collection,omitempty"`
-	Cursor     string   `json:"cursor,omitempty"`
-	Limit      int64    `json:"limit,omitempty"`
-	Org        string   `json:"org,omitempty"`
-	Q          string   `json:"q"`
-	Repo       string   `json:"repo,omitempty"`
-	Space      string   `json:"space,omitempty"`
+	Collection    []string `json:"collection,omitempty"`
+	Cursor        string   `json:"cursor,omitempty"`
+	Limit         int64    `json:"limit,omitempty"`
+	Org           string   `json:"org,omitempty"`
+	Q             string   `json:"q"`
+	Repo          string   `json:"repo,omitempty"`
+	SnippetLength int64    `json:"snippetLength,omitempty"`
+	Space         string   `json:"space,omitempty"`
 }
 
 // NetworkHabitatSpaceSearchRecordsOutput represents the output for network.habitat.space.searchRecords

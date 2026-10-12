@@ -9,11 +9,11 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["space", "repo", "rev", "hash"],
+          "required": ["space", "repo", "repoRev", "hash"],
           "properties": {
             "space": {
               "type": "string",
-              "format": "at-uri",
+              "format": "space-ref",
               "description": "Reference to the space."
             },
             "repo": {
@@ -23,7 +23,13 @@
             },
             "rev": {
               "type": "string",
-              "description": "The revision of the write."
+              "description": "The repo revision after the write.",
+              "format": "tid"
+            },
+            "repoRev": {
+              "type": "string",
+              "description": "The repo revision after the write.",
+              "format": "tid"
             },
             "hash": {
               "type": "bytes",
@@ -32,12 +38,12 @@
             "spaceRev": {
               "type": "string",
               "format": "tid",
-              "description": "The space's revision after this write, assigned by the space host. Set on notifications forwarded by the space host to syncers; absent on repo-host-to-space-host notifications."
+              "description": "The space revision assigned by the space host. Present only on notifications forwarded to syncers."
             },
             "prevSpaceRev": {
               "type": "string",
               "format": "tid",
-              "description": "The space's revision before this write. A syncer whose last seen space revision differs from this has missed a notification and should catch up with listRepos since that revision. Empty for the space's first write."
+              "description": "The previous space revision. Omitted on the first update in a space. A gap indicates missed notifications; recover using listRepos with cursor."
             }
           }
         }

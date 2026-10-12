@@ -46,7 +46,7 @@ export function myOrgsQueryOptions(authManager: AuthManager) {
         com.atproto.space.listSpaces.main,
         {
           validateResponse: false,
-          params: { type: MEMBERS_SPACE_TYPE as NsidString },
+          params: { spaceType: MEMBERS_SPACE_TYPE as NsidString },
         },
       );
       const orgs: OrgSummary[] = [];
@@ -595,4 +595,71 @@ export async function createInvite(
     },
   );
   return response.body;
+}
+
+export interface MemberProfile {
+  displayName?: string;
+  bio?: string;
+  avatarUrl?: string;
+}
+
+// myMemberProfileQueryOptions fetches the calling user's profile within an
+// org, exactly as other members see it (network.habitat.opensocial.getProfiles):
+// their community.opensocial.memberProfile record if they have one, else their
+// public Bluesky profile.
+export function myMemberProfileQueryOptions(
+  org: string,
+  authManager: AuthManager,
+) {
+  ensureValidDid(org);
+  const did = authManager.getAuthInfo()!.did as DidString;
+  return queryOptions({
+    queryKey: ["opensocial", "memberProfile", org, did],
+    queryFn: async (): Promise<MemberProfile> => {
+      const response = await xrpc(
+        pearAgent(authManager),
+        network.habitat.opensocial.getProfiles.main,
+        { params: { org: org as DidString, dids: [did] } },
+      );
+      const view = response.body.profiles.find((p) => p.did === did);
+      return {
+        displayName: view?.displayName,
+        bio: view?.bio,
+        avatarUrl: view?.avatarUrl,
+      };
+    },
+  });
+}
+
+// putMemberProfile writes the calling user's own
+// community.opensocial.memberProfile record into the org's members space —
+// authored under their own credentials, keyed by their DID, which is where
+// getProfiles reads it from.
+export async function putMemberProfile(
+  authManager: AuthManager,
+  org: string,
+  profile: MemberProfile,
+) {
+  ensureValidDid(org);
+  const did = authManager.getAuthInfo()!.did as DidString;
+  const membersSpace = new SpaceRef(
+    org,
+    "community.opensocial.members",
+    "self",
+  ).toString();
+  await xrpc(authManager, com.atproto.space.putRecord.main, {
+    body: {
+      space: membersSpace as SpaceRefString,
+      repo: did,
+      collection: "community.opensocial.memberProfile" as NsidString,
+      rkey: did,
+      record: {
+        $type: "community.opensocial.memberProfile",
+        displayName: profile.displayName || undefined,
+        bio: profile.bio || undefined,
+        avatarUrl: profile.avatarUrl || undefined,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+  });
 }

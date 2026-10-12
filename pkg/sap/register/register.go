@@ -33,7 +33,7 @@ const (
 // host says it expires.
 type registration struct {
 	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	Endpoint  string
+	Service   string
 	ExpiresAt time.Time
 	UpdatedAt time.Time
 }
@@ -57,14 +57,18 @@ type Spaces interface {
 // registrations before they expire and retries any the crawl-time attempt
 // missed.
 type Registrar struct {
-	db       *gorm.DB
-	clients  Clients
-	spaces   Spaces
-	endpoint string // sap's public base URL, registered as the notify endpoint
+	db      *gorm.DB
+	clients Clients
+	spaces  Spaces
+	// service is sap's service identifier (a DID with a service fragment),
+	// registered as the notify subscriber. The host resolves it to sap's
+	// delivery endpoint through the DID document sap publishes, and addresses
+	// deliveries to it.
+	service string
 }
 
-func New(db *gorm.DB, clients Clients, spaces Spaces, endpoint string) (*Registrar, error) {
-	return &Registrar{db: db, clients: clients, spaces: spaces, endpoint: endpoint}, nil
+func New(db *gorm.DB, clients Clients, spaces Spaces, service string) (*Registrar, error) {
+	return &Registrar{db: db, clients: clients, spaces: spaces, service: service}, nil
 }
 
 // WithTx returns a Registrar scoped to the given transaction.
@@ -167,8 +171,8 @@ func (r *Registrar) Register(ctx context.Context, space habitat_syntax.SpaceURI)
 	var out habitat.NetworkHabitatSpaceRegisterNotifyOutput
 	if err := client.Post(ctx, "network.habitat.space.registerNotify",
 		habitat.NetworkHabitatSpaceRegisterNotifyInput{
-			Space:    space.String(),
-			Endpoint: r.endpoint,
+			Space:   space.String(),
+			Service: r.service,
 		}, &out); err != nil {
 		return fmt.Errorf("registerNotify: %w", err)
 	}
@@ -180,16 +184,19 @@ func (r *Registrar) Register(ctx context.Context, space habitat_syntax.SpaceURI)
 	if err := r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "space"}},
-			DoUpdates: clause.AssignmentColumns([]string{"endpoint", "expires_at", "updated_at"}),
+			DoUpdates: clause.AssignmentColumns([]string{"service", "expires_at", "updated_at"}),
 		}).
 		Create(&registration{
 			Space:     space,
-			Endpoint:  r.endpoint,
+			Service:   r.service,
 			ExpiresAt: expiresAt,
 		}).Error; err != nil {
 		return fmt.Errorf("save registration: %w", err)
 	}
-	slog.InfoContext(ctx, "registered notify", "space", space, "expires_at", expiresAt)
+	slog.InfoContext(
+		ctx, "registered notify",
+		"space", space, "service", r.service, "expires_at", expiresAt,
+	)
 	return nil
 }
 

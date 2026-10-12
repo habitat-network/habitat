@@ -198,6 +198,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			"atproto-accept-labelers",
 			"atproto-proxy",
 			"DPoP",
+			"Signature",
+			"Signature-Input",
+			"atproto-space-audience",
 		}),
 		handlers.MaxAge(86400),
 		handlers.ExposedHeaders([]string{"DPoP-Nonce"}),
@@ -458,6 +461,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	pearApp := pearserver.New(
 		domain,
 		validator,
+		defaultDir,
 		hive,
 		hostKey,
 		blobStore,
@@ -499,6 +503,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		nangoClient,
 		opensocialStore,
 		mcpGatewayStore,
+		blobStore,
 		mcpOrigin,
 		oauthServer.MCPIssuer(),
 	)
@@ -528,6 +533,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", pearApp.CreateOrg)
 	mux.HandleFunc("/xrpc/network.habitat.emaildomain.createOrg", pearApp.CreateEmailDomainOrg)
 	mux.PathPrefix("/xrpc/community.opensocial.").Handler(pearApp)
+	// The rest of network.habitat.opensocial.* (e.g. getProfiles) is handled by
+	// pearApp via registerRoutes in internal/pearserver/routes.go. Without this
+	// mount those requests fall through to the catch-all libp2p handler below
+	// and 404, so mount the whole NSID family rather than listing each route.
+	mux.PathPrefix("/xrpc/network.habitat.opensocial.").Handler(pearApp)
 	// Server-side client-metadata proxy for the management frontend
 	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
 	// MCP gateway routes (network.habitat.mcp.*) are handled by pearApp via

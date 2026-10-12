@@ -5,5 +5,6 @@ package habitat
 // NetworkHabitatSpaceGetBlobParams represents the input parameters for network.habitat.space.getBlob
 type NetworkHabitatSpaceGetBlobParams struct {
 	Cid   string `json:"cid"`
+	Repo  string `json:"repo"`
 	Space string `json:"space"`
 }

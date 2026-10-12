@@ -16,7 +16,10 @@ export type $Params = l.InferOutput<typeof $params>
 
 export const $input = /*#__PURE__*/ l.jsonPayload({
   space: /*#__PURE__*/ l.string({ format: 'space-ref' }),
-  jtis: /*#__PURE__*/ l.array(/*#__PURE__*/ l.string(), { minLength: 1 }),
+  credentials: /*#__PURE__*/ l.array(/*#__PURE__*/ l.string({ minLength: 1 }), {
+    minLength: 1,
+    maxLength: 100,
+  }),
 })
 
 export type $Input<B = l.BinaryData> = l.InferPayload<typeof $input, B>
@@ -30,10 +33,8 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Notify a repo host that outstanding space credentials were revoked. Sent by the space authority. The repo host MUST reject a credential whose jti has been revoked for that space, and retain the revocation for at least 60 minutes (the maximum credential lifetime). Idempotent, so the authority may safely retry delivery. Authenticated with service auth from the space authority. */
-const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output, [
-  'SpaceNotFound',
-])
+/** Notify a repo host that the space authority has revoked one or more credentials. Authenticated with service auth from the space authority, addressed to the repo DID. */
+const main = /*#__PURE__*/ l.procedure($nsid, $params, $input, $output)
 
 export { main }
 

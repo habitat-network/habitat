@@ -4,6 +4,7 @@ package habitat
 
 // NetworkHabitatSpaceGetRepoParams represents the input parameters for network.habitat.space.getRepo
 type NetworkHabitatSpaceGetRepoParams struct {
-	Repo  string `json:"repo"`
-	Space string `json:"space"`
+	ExcludeValues bool   `json:"excludeValues,omitempty"`
+	Repo          string `json:"repo"`
+	Space         string `json:"space"`
 }

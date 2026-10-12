@@ -58,7 +58,7 @@ Served by Habitat in both the space host and repo host roles, since it is both f
 
 | Endpoint                                                                                  | Status | Notes                                                                                            |
 | ----------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------ |
-| [`network.habitat.space.registerNotify`](/docs/api/network-habitat-space-register-notify) | 🟢     | Space host only, space credential only. Registrations expire after 24 hours and must be renewed. |
+| [`network.habitat.space.registerNotify`](/docs/api/network-habitat-space-register-notify) | 🟢     | Space host only, space credential only. Registrations expire after 24 hours and must be renewed. Subscribers are identified by `service` (a DID with an optional service fragment, e.g. `did:web:syncer.example.com#habitat_space_syncer`); the delivery endpoint is resolved from that DID document and the service-auth `aud` is the identifier. The older `endpoint` field still works but is deprecated. |
 
 ## Credentials
 

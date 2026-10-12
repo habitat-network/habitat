@@ -11,11 +11,20 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
 	sap_testutil "github.com/habitat-network/habitat/pkg/sap/testutil"
 	"github.com/stretchr/testify/require"
 )
+
+// testEndpoint is the public base URL the test server publishes as its notify
+// service endpoint, so a space host knows where to deliver notifyWrite calls.
+const testEndpoint = "https://sap.example.com"
+
+// testService is the service identifier the test server is addressed by: the
+// did:web DID it serves its DID document under, plus the service fragment.
+const testService = "did:web:sap.example.com#habitat_space_syncer"
 
 // newTestServer wires up a sap server with a fresh in-memory-backed OAuth
 // client app, suitable for exercising handleAddSession/handleOAuthCallback
@@ -38,7 +47,26 @@ func newTestServer(t *testing.T) *server {
 	s, err := sap.New(sap.Config{DB: db, OAuthClient: oauthApp, Directory: oauthApp.Dir})
 	require.NoError(t, err)
 
-	return NewSapServer(s, oauthApp, "https://example.com", ConfiguredClientMetadata{}, "")
+	service, err := sap.NewServiceIdentity(testEndpoint, "")
+	require.NoError(t, err)
+
+	return NewSapServer(s, oauthApp, testEndpoint, service, ConfiguredClientMetadata{}, "")
+}
+
+// newTestServerWithServiceName builds a test server publishing its notify
+// service under the given name, the way --service-name configures a deployment.
+func newTestServerWithServiceName(t *testing.T, name string) *server {
+	t.Helper()
+	srv := newTestServer(t)
+	service, err := sap.NewServiceIdentity(testEndpoint, name)
+	require.NoError(t, err)
+	srv.service = service
+	// The DID document is built from the service identity, so it has to be
+	// rebuilt when the identity is overridden.
+	srv.didDoc = did.NewHandler(
+		did.New(service.DID).Syncer(service.Name, testEndpoint).Build(),
+	)
+	return srv
 }
 
 func TestHandleAddSessionWithoutReturnToUnaffected(t *testing.T) {
@@ -436,6 +464,108 @@ func TestHandleNotifyWriteRejectsMissingOrInvalidAuth(t *testing.T) {
 	w = httptest.NewRecorder()
 	srv.handleNotifyWrite(w, req)
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// TestHandleDIDDoc pins the document a space host resolves sap's service
+// identifier against: it has to name the endpoint deliveries go to, under the
+// exact service fragment sap registers itself by.
+func TestHandleDIDDoc(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/did.json", http.NoBody)
+	w := httptest.NewRecorder()
+	srv.handleDIDDoc(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "application/did+ld+json", w.Header().Get("Content-Type"))
+
+	// Decoded as a raw document, since @context is not part of indigo's type.
+	var doc struct {
+		Context []string `json:"@context"`
+		identity.DIDDocument
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &doc))
+
+	// @context comes from internal/did, so sap publishes the same context as
+	// every other habitat-hosted identity.
+	require.Equal(
+		t,
+		[]string{
+			"https://www.w3.org/ns/did/v1",
+			"https://w3id.org/security/multikey/v1",
+			"https://w3id.org/security/suites/secp256k1-2019/v1",
+		},
+		doc.Context,
+	)
+	require.Equal(t, syntax.DID("did:web:sap.example.com"), doc.DID)
+	require.Len(t, doc.Service, 1)
+	require.Equal(t, "#habitat_space_syncer", doc.Service[0].ID)
+	require.Equal(t, "HabitatSpaceSyncer", doc.Service[0].Type)
+	require.Equal(t, testEndpoint, doc.Service[0].ServiceEndpoint)
+	// A syncer subscribes to notifications rather than serving an account, so
+	// it has no key to publish.
+	require.Empty(t, doc.VerificationMethod)
+}
+
+// TestDIDDocResolvesToRegisteredService checks the two halves agree: the
+// identifier sap registers with space hosts must resolve, through the document
+// sap serves, back to the endpoint it publishes. If either the DID or the
+// service name drifts, registration breaks in production only.
+func TestDIDDocResolvesToRegisteredService(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/did.json", http.NoBody)
+	w := httptest.NewRecorder()
+	srv.handleDIDDoc(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var doc identity.DIDDocument
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &doc))
+
+	// A space host parses the document exactly as it would any other identity.
+	ident := identity.ParseIdentity(&doc)
+	resolved := ident.GetServiceEndpoint(srv.service.Name)
+	require.Equal(t, testEndpoint, resolved)
+	require.Equal(
+		t, testService, srv.service.Ref(),
+		"registered service identifier must match what the document publishes",
+	)
+}
+
+// TestHandleDIDDocHonorsConfiguredServiceName covers a deployment publishing
+// under a different service name, which is what the --service-name flag is for.
+func TestHandleDIDDocHonorsConfiguredServiceName(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServerWithServiceName(t, "atproto_space_syncer")
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/did.json", http.NoBody)
+	w := httptest.NewRecorder()
+	srv.handleDIDDoc(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var doc identity.DIDDocument
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &doc))
+	ident := identity.ParseIdentity(&doc)
+	require.Equal(t, testEndpoint, ident.GetServiceEndpoint("atproto_space_syncer"))
+	// The old fragment is no longer published, so a stale registration naming
+	// it would fail to resolve rather than silently keep working.
+	require.Empty(t, ident.GetServiceEndpoint("habitat_space_syncer"))
+}
+
+// TestNotifyValidatorAudienceIsServiceIdentifier pins that deliveries are
+// checked against the service identifier, not the endpoint URL, matching what
+// space hosts now sign into their notifyWrite JWTs.
+func TestNotifyValidatorAudienceIsServiceIdentifier(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	require.Equal(t, testService, srv.notifyValidator.Audience)
+	require.NotEqual(t, testEndpoint, srv.notifyValidator.Audience)
 }
 
 func TestBasicAuthMiddlewareRejectsMissingOrWrongPassword(t *testing.T) {

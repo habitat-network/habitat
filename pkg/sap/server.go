@@ -40,7 +40,13 @@ func (s *SapServer) HandleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rev, err := syntax.ParseTID(input.Rev)
+	// Prefer repoRev, the field the lexicon now requires; fall back to the
+	// deprecated rev so hosts that predate the rename still sync.
+	repoRev := input.RepoRev
+	if repoRev == "" {
+		repoRev = input.Rev
+	}
+	rev, err := syntax.ParseTID(repoRev)
 	if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "invalid rev", err)
 		return

@@ -4,6 +4,6 @@ package habitat
 
 // NetworkHabitatSpaceNotifyCredentialRevokedInput represents the input for network.habitat.space.notifyCredentialRevoked
 type NetworkHabitatSpaceNotifyCredentialRevokedInput struct {
-	Jtis  []string `json:"jtis"`
-	Space string   `json:"space"`
+	Credentials []string `json:"credentials"`
+	Space       string   `json:"space"`
 }

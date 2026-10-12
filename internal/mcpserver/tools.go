@@ -2,12 +2,17 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"mime"
 	"net/http"
+	"net/url"
 	"strings"
+	"unicode/utf8"
 
+	"github.com/ipfs/go-cid"
 	"go.opentelemetry.io/otel/trace"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
@@ -31,9 +36,97 @@ type getRecordOutput struct {
 	Value any    `json:"value"`
 }
 
-// getRecordHandler implements the "get_record" MCP tool: check the caller
-// holds at least a reader role on the record's space, then read the record
-// straight from the space store.
+// recordURIScheme is the scheme of record resource URIs, which look like
+// habitat-record:///?uri=<space record uri> and are matched by
+// recordResourceTemplate.
+const recordURIScheme = "habitat-record"
+
+const recordResourceTemplate = recordURIScheme + ":///{?uri}"
+
+// recordResourceURI builds the resource URI of the record at recordURI.
+func recordResourceURI(recordURI string) string {
+	q := url.Values{"uri": {recordURI}}
+	return (&url.URL{Scheme: recordURIScheme, Path: "/", RawQuery: q.Encode()}).String()
+}
+
+// parseRecordResourceURI is the inverse of recordResourceURI.
+func parseRecordResourceURI(raw string) (string, error) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != recordURIScheme {
+		return "", fmt.Errorf("not a %s uri", recordURIScheme)
+	}
+	return u.Query().Get("uri"), nil
+}
+
+// readRecord checks the caller holds at least a reader role on the record's
+// space, then reads the record straight from the space store and returns it
+// as application/json resource contents with the given resource uri.
+func readRecord(
+	ctx context.Context,
+	store spaces.Store,
+	permStore perms.Store,
+	caller syntax.DID,
+	recordURIStr string,
+	resourceURI string,
+) (*mcp.ResourceContents, error) {
+	recordURI, err := habitat_syntax.ParseSpaceRecordURI(recordURIStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid uri: %w", err)
+	}
+	spaceURI := recordURI.SpaceURI()
+
+	ok, err := permStore.CheckUserHasSpaceRole(
+		ctx, caller, spaceURI, habitat_syntax.SpaceRoleReader,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("checking permission: %w", err)
+	}
+	if !ok {
+		return nil, habitat_err.ErrUnauthorized
+	}
+
+	record, err := store.GetRecord(
+		ctx, spaceURI, recordURI.Repo(), recordURI.Collection(), recordURI.Rkey(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("getting record: %w", err)
+	}
+	text, err := json.Marshal(record.Value)
+	if err != nil {
+		return nil, fmt.Errorf("encoding record: %w", err)
+	}
+	return &mcp.ResourceContents{
+		URI: resourceURI, MIMEType: "application/json", Text: string(text),
+	}, nil
+}
+
+// recordResourceHandler serves record resources (see recordResourceTemplate)
+// as resources/read results, so MCP clients can read records by URI.
+func recordResourceHandler(store spaces.Store, permStore perms.Store) mcp.ResourceHandler {
+	return func(
+		ctx context.Context, req *mcp.ReadResourceRequest,
+	) (*mcp.ReadResourceResult, error) {
+		tokenInfo := auth.TokenInfoFromContext(ctx)
+		if tokenInfo == nil || tokenInfo.UserID == "" {
+			return nil, fmt.Errorf("missing authenticated caller")
+		}
+		recordURI, err := parseRecordResourceURI(req.Params.URI)
+		if err != nil {
+			return nil, fmt.Errorf("invalid record uri: %w", err)
+		}
+		contents, err := readRecord(
+			ctx, store, permStore, syntax.DID(tokenInfo.UserID), recordURI, req.Params.URI,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{contents}}, nil
+	}
+}
+
+// getRecordHandler implements the "get_record" MCP tool: read the record as
+// readRecord does, returning it both as structured output and as an embedded
+// resource matching what reading the record resource returns.
 func getRecordHandler(
 	store spaces.Store,
 	permStore perms.Store,
@@ -47,33 +140,185 @@ func getRecordHandler(
 		if tokenInfo == nil || tokenInfo.UserID == "" {
 			return nil, getRecordOutput{}, fmt.Errorf("missing authenticated caller")
 		}
-		caller := syntax.DID(tokenInfo.UserID)
-
-		recordURI, err := habitat_syntax.ParseSpaceRecordURI(input.URI)
-		if err != nil {
-			return nil, getRecordOutput{}, fmt.Errorf("invalid uri: %w", err)
-		}
-		spaceURI := recordURI.SpaceURI()
-		owner := recordURI.Repo()
-		collection := recordURI.Collection()
-		rkey := recordURI.Rkey()
-
-		ok, err := permStore.CheckUserHasSpaceRole(
-			ctx, caller, spaceURI, habitat_syntax.SpaceRoleReader,
+		contents, err := readRecord(
+			ctx, store, permStore, syntax.DID(tokenInfo.UserID), input.URI,
+			recordResourceURI(input.URI),
 		)
 		if err != nil {
-			return nil, getRecordOutput{}, fmt.Errorf("checking permission: %w", err)
+			return nil, getRecordOutput{}, err
 		}
-		if !ok {
-			return nil, getRecordOutput{}, habitat_err.ErrUnauthorized
+		var value any
+		if err := json.Unmarshal([]byte(contents.Text), &value); err != nil {
+			return nil, getRecordOutput{}, fmt.Errorf("decoding record: %w", err)
 		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.EmbeddedResource{Resource: contents}},
+		}, getRecordOutput{URI: input.URI, Value: value}, nil
+	}
+}
 
-		record, err := store.GetRecord(ctx, spaceURI, owner, collection, rkey)
+// maxBlobContentBytes is the largest blob whose content the blob resource
+// and the "get_blob" tool return; larger blobs are not served.
+const maxBlobContentBytes = 256 << 10
+
+// blobURIScheme is the scheme of blob resource URIs, which look like
+// habitat-blob:///?space=<space uri>&cid=<cid> and are matched by
+// blobResourceTemplate.
+const blobURIScheme = "habitat-blob"
+
+const blobResourceTemplate = blobURIScheme + ":///{?space,cid}"
+
+// blobResourceURI builds the resource URI of the blob c in space.
+func blobResourceURI(space habitat_syntax.SpaceURI, c cid.Cid) string {
+	q := url.Values{"space": {space.String()}, "cid": {c.String()}}
+	return (&url.URL{Scheme: blobURIScheme, Path: "/", RawQuery: q.Encode()}).String()
+}
+
+// parseBlobResourceURI is the inverse of blobResourceURI.
+func parseBlobResourceURI(raw string) (habitat_syntax.SpaceURI, cid.Cid, error) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != blobURIScheme {
+		return "", cid.Undef, fmt.Errorf("not a %s uri", blobURIScheme)
+	}
+	spaceURI, err := habitat_syntax.ParseSpaceURI(u.Query().Get("space"))
+	if err != nil {
+		return "", cid.Undef, fmt.Errorf("invalid space: %w", err)
+	}
+	c, err := cid.Parse(u.Query().Get("cid"))
+	if err != nil {
+		return "", cid.Undef, fmt.Errorf("invalid cid: %w", err)
+	}
+	return spaceURI, c, nil
+}
+
+// isTextMimeType reports whether blobs of mimeType are returned as text rather
+// than binary.
+func isTextMimeType(mimeType string) bool {
+	mt, _, err := mime.ParseMediaType(mimeType)
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(mt, "text/") ||
+		mt == "application/json" || strings.HasSuffix(mt, "+json") ||
+		mt == "application/xml" || strings.HasSuffix(mt, "+xml")
+}
+
+// readBlob checks that caller holds at least a reader role on space, as the
+// getBlob endpoint does, then reads the blob from blobs. A blob that is missing
+// (spaces.ErrBlobNotFound) or larger than maxBlobContentBytes yields an error, and the returned
+// contents carry the blob as text if it is text-like and valid UTF-8, else as
+// binary.
+func readBlob(
+	ctx context.Context,
+	blobs spaces.BlobStore,
+	permStore perms.Store,
+	caller syntax.DID,
+	space habitat_syntax.SpaceURI,
+	c cid.Cid,
+	uri string,
+) (*mcp.ResourceContents, error) {
+	ok, err := permStore.CheckUserHasSpaceRole(ctx, caller, space, habitat_syntax.SpaceRoleReader)
+	if err != nil {
+		return nil, fmt.Errorf("checking permission: %w", err)
+	}
+	if !ok {
+		return nil, habitat_err.ErrUnauthorized
+	}
+
+	mimeType, data, err := blobs.GetBlob(ctx, c)
+	if errors.Is(err, spaces.ErrBlobNotFound) {
+		return nil, err
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting blob: %w", err)
+	}
+	if len(data) > maxBlobContentBytes {
+		return nil, fmt.Errorf(
+			"blob is %d bytes, larger than the %d byte limit", len(data), maxBlobContentBytes,
+		)
+	}
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	contents := &mcp.ResourceContents{URI: uri, MIMEType: mimeType}
+	if isTextMimeType(mimeType) && utf8.Valid(data) {
+		contents.Text = string(data)
+	} else {
+		contents.Blob = data
+	}
+	return contents, nil
+}
+
+// blobResourceHandler serves blob resources (see blobResourceTemplate) as
+// resources/read results, so MCP clients can read blobs by URI. The Blob of a
+// binary blob is base64-encoded on the wire by the SDK.
+func blobResourceHandler(blobs spaces.BlobStore, permStore perms.Store) mcp.ResourceHandler {
+	return func(
+		ctx context.Context, req *mcp.ReadResourceRequest,
+	) (*mcp.ReadResourceResult, error) {
+		tokenInfo := auth.TokenInfoFromContext(ctx)
+		if tokenInfo == nil || tokenInfo.UserID == "" {
+			return nil, fmt.Errorf("missing authenticated caller")
+		}
+		space, c, err := parseBlobResourceURI(req.Params.URI)
 		if err != nil {
-			return nil, getRecordOutput{}, fmt.Errorf("getting record: %w", err)
+			return nil, fmt.Errorf("invalid blob uri: %w", err)
 		}
+		contents, err := readBlob(
+			ctx, blobs, permStore, syntax.DID(tokenInfo.UserID), space, c, req.Params.URI,
+		)
+		if errors.Is(err, spaces.ErrBlobNotFound) {
+			return nil, mcp.ResourceNotFoundError(req.Params.URI)
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{contents}}, nil
+	}
+}
 
-		return nil, getRecordOutput{URI: input.URI, Value: record.Value}, nil
+type getBlobInput struct {
+	Space string `json:"space" jsonschema:"the space URI the blob belongs to, e.g. at://did:plc:abc/space/network.habitat.example/3jz"`
+	CID   string `json:"cid"   jsonschema:"the CID of the blob to fetch"`
+}
+
+// getBlobHandler implements the "get_blob" MCP tool, for clients that only
+// support tools: it returns the same contents as reading the blob resource, as
+// an embedded resource.
+func getBlobHandler(
+	blobs spaces.BlobStore,
+	permStore perms.Store,
+) mcp.ToolHandlerFor[getBlobInput, any] {
+	return func(
+		ctx context.Context,
+		_ *mcp.CallToolRequest,
+		input getBlobInput,
+	) (*mcp.CallToolResult, any, error) {
+		tokenInfo := auth.TokenInfoFromContext(ctx)
+		if tokenInfo == nil || tokenInfo.UserID == "" {
+			return nil, nil, fmt.Errorf("missing authenticated caller")
+		}
+		space, err := habitat_syntax.ParseSpaceURI(input.Space)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid space: %w", err)
+		}
+		c, err := cid.Parse(input.CID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid cid: %w", err)
+		}
+		contents, err := readBlob(
+			ctx, blobs, permStore, syntax.DID(tokenInfo.UserID), space, c,
+			blobResourceURI(space, c),
+		)
+		if errors.Is(err, spaces.ErrBlobNotFound) {
+			return nil, nil, fmt.Errorf("blob not found")
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.EmbeddedResource{Resource: contents}},
+		}, nil, nil
 	}
 }
 
@@ -81,11 +326,19 @@ func getRecordHandler(
 // matching the searchRecords endpoint.
 const maxSearchLimit = 100
 
+// defaultMCPSnippetLength is the snippet size in words when the caller gives
+// none. It is much larger than the searchRecords endpoint's default so agents
+// get substantial context around each match.
+const defaultMCPSnippetLength = 300
+
 type searchRecordsInput struct {
 	Query      string `json:"query"                jsonschema:"the text to search for"`
 	Org        string `json:"org,omitempty"        jsonschema:"DID of the org whose spaces to search"`
 	Collection string `json:"collection,omitempty" jsonschema:"only return records of this collection NSID"`
 	Limit      int    `json:"limit,omitempty"      jsonschema:"maximum number of hits to return, up to 100"`
+	// SnippetLength is a pointer so an omitted value, which takes the default,
+	// differs from an explicit zero, which is rejected.
+	SnippetLength *int `json:"snippet_length,omitempty" jsonschema:"approximate number of words of context in each hit's snippet, 1 to 1000; defaults to 300"`
 }
 
 type searchRecordsHit struct {
@@ -125,7 +378,16 @@ func searchRecordsHandler(
 				"limit must be between 1 and %d", maxSearchLimit,
 			)
 		}
-		q := search.Query{Text: input.Query, Limit: input.Limit}
+		snippetLength := defaultMCPSnippetLength
+		if input.SnippetLength != nil {
+			snippetLength = *input.SnippetLength
+		}
+		if snippetLength < 1 || snippetLength > search.MaxSnippetLength {
+			return nil, searchRecordsOutput{}, fmt.Errorf(
+				"snippet_length must be between 1 and %d", search.MaxSnippetLength,
+			)
+		}
+		q := search.Query{Text: input.Query, Limit: input.Limit, SnippetLength: snippetLength}
 		if input.Org != "" {
 			org, err := syntax.ParseDID(input.Org)
 			if err != nil {

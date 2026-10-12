@@ -34,6 +34,7 @@ catalog:
   '@atproto/crypto': 0.0.0-spaces-alpha-20261001173819
   '@atproto/identity': 0.0.0-spaces-alpha-20261001173819
   '@atproto/lex': 0.0.0-spaces-alpha-20261001173819
+  '@atproto/lex-server': 0.0.0-spaces-alpha-20261001173819
   '@atproto/lexicon': 0.0.0-spaces-alpha-20261001173819
   '@atproto/oauth-types': 0.0.0-spaces-alpha-20261001173819
   '@atproto/syntax': 0.0.0-spaces-alpha-20261001173819
@@ -88,6 +89,7 @@ minimumReleaseAgeExclude:
   - '@atproto/lex-json@0.0.0-spaces-alpha-20261001173819'
   - '@atproto/lex-resolver@0.0.0-spaces-alpha-20261001173819'
   - '@atproto/lex-schema@0.0.0-spaces-alpha-20261001173819'
+  - '@atproto/lex-server@0.0.0-spaces-alpha-20261001173819'
   - '@atproto/lex@0.0.0-spaces-alpha-20261001173819'
   - '@atproto/lexicon@0.0.0-spaces-alpha-20261001173819'
   - '@atproto/repo@0.0.0-spaces-alpha-20261001173819'

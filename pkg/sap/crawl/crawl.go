@@ -363,7 +363,13 @@ func (c *Crawler) enumerateRepos(
 
 	for _, r := range output.Repos {
 		did := syntax.DID(r.Did)
-		if err := c.tracker.Check(ctx, space, did, syntax.TID(r.Rev), r.Hash); err != nil {
+		// Prefer repoRev, the field the lexicon now requires; fall back to the
+		// deprecated rev so hosts that predate the rename still sync.
+		rev := r.RepoRev
+		if rev == "" {
+			rev = r.Rev
+		}
+		if err := c.tracker.Check(ctx, space, did, syntax.TID(rev), r.Hash); err != nil {
 			return err
 		}
 	}

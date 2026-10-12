@@ -1,0 +1,42 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.drop.file",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "A file shared to an org through Drop. Each file is its own org space (type 'network.habitat.drop'); this record holds the file under the literal key 'self'. Referencing the blob here is what keeps the uploaded blob from being garbage collected.",
+            "key": "literal:self",
+            "record": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "file",
+                    "createdAt"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 1024,
+                        "description": "The file's original name, including its extension."
+                    },
+                    "file": {
+                        "type": "blob",
+                        "accept": [
+                            "*/*"
+                        ],
+                        "description": "The file's contents."
+                    },
+                    "uploadedBy": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "The member who uploaded the file. The record itself is written by the org."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        }
+    }
+}

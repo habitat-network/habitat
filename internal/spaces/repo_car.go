@@ -104,16 +104,23 @@ func writeCARBlock(w io.Writer, blockCID cid.Cid, data []byte) error {
 // SerializeRepoCAR serializes a permissioned repo to CAR per
 // com.atproto.space.getRepo. commit is the repo's signed head commit, and blocks
 // are its current records. The CAR declares two roots in order — the signed
-// commit, then the DRISL index — followed by the record blocks in lexicographic
-// order by "{collection}/{rkey}".
+// commit, then the DRISL index — followed by the record blocks in the index's
+// canonical DAG-CBOR key order (shortest "{collection}/{rkey}" first, then
+// bytewise).
 func SerializeRepoCAR(
 	commit spacecommit.SignedCommit,
 	blocks []recordBlock,
 ) ([]byte, error) {
+	// Record blocks MUST follow the index's entries, whose keys are in
+	// canonical DAG-CBOR map order: shortest key first, then bytewise.
 	sorted := append([]recordBlock(nil), blocks...)
 	sort.Slice(sorted, func(i, j int) bool {
-		return recordPath(sorted[i].Collection, sorted[i].Rkey) <
-			recordPath(sorted[j].Collection, sorted[j].Rkey)
+		a := recordPath(sorted[i].Collection, sorted[i].Rkey)
+		b := recordPath(sorted[j].Collection, sorted[j].Rkey)
+		if len(a) != len(b) {
+			return len(a) < len(b)
+		}
+		return a < b
 	})
 
 	commitBytes, commitCID, err := signedCommitBlock(commit)

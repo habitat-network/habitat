@@ -6,6 +6,7 @@ import "encoding/json"
 
 // NetworkHabitatSpaceListRepoOpsParams represents the input parameters for network.habitat.space.listRepoOps
 type NetworkHabitatSpaceListRepoOpsParams struct {
+	Cursor        string `json:"cursor,omitempty"`
 	ExcludeValues bool   `json:"excludeValues,omitempty"`
 	Limit         int64  `json:"limit,omitempty"`
 	Repo          string `json:"repo"`

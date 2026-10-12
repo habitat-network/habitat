@@ -12,7 +12,7 @@ export const Route = createFileRoute(
     context.queryClient.fetchQuery(
       spacesListQueryOptions(context.authManager, {
         did: params.spaceOwner,
-        type: params.spaceType,
+        spaceType: params.spaceType,
       }),
     ),
   component: SpacesByOwnerAndType,

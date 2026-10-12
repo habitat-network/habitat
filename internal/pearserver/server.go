@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
 
@@ -31,6 +32,10 @@ type PearServer struct {
 
 	validator authn.RequestValidator
 	decoder   *schema.Decoder
+
+	// dir resolves identities named by the service identifiers
+	// registerNotify accepts, to find the endpoint to deliver to.
+	dir identity.Directory
 
 	hive      hive.Hive
 	hostKey   atcrypto.PrivateKey
@@ -65,6 +70,7 @@ type PearServer struct {
 func New(
 	domain string,
 	validator authn.RequestValidator,
+	dir identity.Directory,
 	hive hive.Hive,
 	hostKey atcrypto.PrivateKey,
 	blobStore spaces.BlobStore,
@@ -85,6 +91,7 @@ func New(
 		domain:           domain,
 		validator:        validator,
 		decoder:          schema.NewDecoder(),
+		dir:              dir,
 		hive:             hive,
 		hostKey:          hostKey,
 		blobStore:        blobStore,

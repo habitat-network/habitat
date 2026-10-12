@@ -108,7 +108,7 @@ export async function listMyOrgIds(client: SapClient): Promise<DidString[]> {
   const { spaces } = await client.call<{ spaces: { uri: string }[] }>(
     "network.habitat.space.listSpaces",
     "GET",
-    { type: "community.opensocial.members" },
+    { spaceType: "community.opensocial.members" },
   );
   const orgs: DidString[] = [];
   for (const space of spaces) {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -33,8 +34,8 @@ func (p *PearServer) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		filterOwner = &ownerDid
 	}
 	var filterType *syntax.NSID
-	if params.Type != "" {
-		t, ok := httpx.ParseNSIDInput(ctx, w, params.Type, "type filter")
+	if params.SpaceType != "" {
+		t, ok := httpx.ParseNSIDInput(ctx, w, params.SpaceType, "type filter")
 		if !ok {
 			return
 		}
@@ -50,11 +51,18 @@ func (p *PearServer) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list spaces: %w", err))
 		return
 	}
+	if httpx.IsComAtprotoRequest(r) {
+		views := make([]comatproto.ComAtprotoSpaceListSpacesSpaceView, len(spaces))
+		for i, uri := range spaces {
+			views[i] = comatproto.ComAtprotoSpaceListSpacesSpaceView{Uri: uri.String()}
+		}
+		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSpaceListSpacesOutput{Spaces: views})
+		return
+	}
 	views := make([]habitat.NetworkHabitatSpaceListSpacesSpaceView, len(spaces))
 	for i, uri := range spaces {
 		views[i] = habitat.NetworkHabitatSpaceListSpacesSpaceView{
-			Uri:     uri.String(),
-			IsOwner: uri.SpaceOwner() == credInfo.Subject,
+			Uri: uri.String(),
 		}
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceListSpacesOutput{

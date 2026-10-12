@@ -6,6 +6,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	"github.com/habitat-network/habitat/api/comatproto"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -49,6 +50,21 @@ func (p *PearServer) ListRecords(w http.ResponseWriter, r *http.Request) {
 	records, err := p.spacesStore.ListRecords(r.Context(), spaceURI, repo, filterCollection)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("list records: %w", err))
+		return
+	}
+	if httpx.IsComAtprotoRequest(r) {
+		views := make([]comatproto.ComAtprotoSpaceListRecordsRecord, len(records))
+		for i, rec := range records {
+			views[i] = comatproto.ComAtprotoSpaceListRecordsRecord{
+				Collection: rec.Collection.String(),
+				Rkey:       rec.Rkey.String(),
+				Cid:        rec.Cid.String(),
+			}
+			if !params.ExcludeValues {
+				views[i].Value = rec.Value
+			}
+		}
+		httpx.WriteJSON(ctx, w, comatproto.ComAtprotoSpaceListRecordsOutput{Records: views})
 		return
 	}
 	recViews := make([]habitat.NetworkHabitatSpaceListRecordsRecord, len(records))

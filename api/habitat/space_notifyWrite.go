@@ -9,7 +9,8 @@ type NetworkHabitatSpaceNotifyWriteInput struct {
 	Hash         atdata.Bytes `json:"hash"`
 	PrevSpaceRev string       `json:"prevSpaceRev,omitempty"`
 	Repo         string       `json:"repo"`
-	Rev          string       `json:"rev"`
+	RepoRev      string       `json:"repoRev"`
+	Rev          string       `json:"rev,omitempty"`
 	Space        string       `json:"space"`
 	SpaceRev     string       `json:"spaceRev,omitempty"`
 }

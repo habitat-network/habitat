@@ -24,6 +24,25 @@ const SettingsLink = () => {
   );
 };
 
+// ProfileAvatar links the signed-in user's avatar to their profile page for
+// the current org; outside an org there is no profile to edit, so it renders
+// the avatar unlinked.
+const ProfileAvatar = ({ profile }: { profile: Actor }) => {
+  const { org } = useParams({ strict: false });
+  const avatar = <UserAvatar actor={profile} />;
+  if (!org) return avatar;
+  return (
+    <Link
+      to="/orgs/$org/profile"
+      params={{ org }}
+      aria-label="Your profile"
+      title="Your profile"
+    >
+      {avatar}
+    </Link>
+  );
+};
+
 // SpacesLink goes to the current org's spaces when the route names an org,
 // and to the all-spaces page otherwise.
 const SpacesLink = () => {
@@ -71,7 +90,7 @@ const Header = ({ profile, authManager, onLogout }: HeaderProps) => {
                 Devtools
               </Button>
             )}
-            <UserAvatar actor={profile} />
+            <ProfileAvatar profile={profile} />
             <li>
               <Button onClick={onLogout}>Logout</Button>
             </li>

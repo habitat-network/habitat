@@ -35,6 +35,7 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
 /** Get the current signed commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output, [
   'SpaceNotFound',
+  'RepoNotFound',
   'RepoTakendown',
   'RepoSuspended',
   'RepoDeactivated',

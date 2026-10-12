@@ -9,8 +9,10 @@ import (
 	"log/slog"
 	"mime"
 	"strings"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
+	"github.com/dslipak/pdf"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/net/html"
 
@@ -29,6 +31,9 @@ const (
 	// maxBlobTextBytes caps the blob text added to one record's document, over
 	// all of its blobs.
 	maxBlobTextBytes = 256 << 10
+	// pdfExtractTimeout bounds how long text extraction from one PDF may take,
+	// since pathological files can make the parser very slow.
+	pdfExtractTimeout = 10 * time.Second
 )
 
 // blobExtractors maps the mime types whose blob content is indexed to the
@@ -39,6 +44,7 @@ var blobExtractors = map[string]func(context.Context, []byte) string{
 	"text/markdown":    textFromPlain,
 	"text/html":        textFromHTML,
 	"application/json": textFromJSON,
+	"application/pdf":  textFromPDF,
 }
 
 // blobTypeSupported reports whether the content of blobs of mimeType is
@@ -136,6 +142,46 @@ func textFromHTML(ctx context.Context, data []byte) string {
 func isHiddenTag(name []byte) bool {
 	s := string(name)
 	return s == "script" || s == "style"
+}
+
+// textFromPDF returns the plain text of a PDF. The parser can panic or run for
+// a long time on malformed files, so it runs in its own goroutine under a
+// timeout with panics recovered; any failure yields no text. The abandoned
+// goroutine on timeout is bounded by the blob size cap.
+func textFromPDF(ctx context.Context, data []byte) string {
+	ctx, cancel := context.WithTimeout(ctx, pdfExtractTimeout)
+	defer cancel()
+	out := make(chan string, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.DebugContext(ctx, "search: pdf blob parse panicked", "panic", r)
+				out <- ""
+			}
+		}()
+		r, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
+		if err != nil {
+			slog.DebugContext(ctx, "search: pdf blob open failed", "err", err)
+			out <- ""
+			return
+		}
+		plain, err := r.GetPlainText()
+		if err != nil {
+			slog.DebugContext(ctx, "search: pdf blob text failed", "err", err)
+			out <- ""
+			return
+		}
+		// Read only up to the cap, so a huge text layer stops early.
+		b, _ := io.ReadAll(io.LimitReader(plain, maxBlobTextBytes))
+		out <- string(b)
+	}()
+	select {
+	case text := <-out:
+		return text
+	case <-ctx.Done():
+		slog.DebugContext(ctx, "search: pdf blob extraction timed out")
+		return ""
+	}
 }
 
 // textFromJSON returns the prose strings of a JSON document, as [ExtractText]
