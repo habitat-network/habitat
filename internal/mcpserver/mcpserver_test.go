@@ -137,6 +137,44 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 		}, result.StructuredContent)
 	})
 
+	t.Run("tool also returns an embedded resource", func(t *testing.T) {
+		session, err := connectAs(t, ctx, httpServer.URL, owner.String())
+		require.NoError(t, err)
+		defer func() { _ = session.Close() }()
+
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "get_record",
+			Arguments: map[string]any{"uri": recordURI.String()},
+		})
+		require.NoError(t, err)
+		require.Len(t, result.Content, 1)
+		embedded, ok := result.Content[0].(*mcp.EmbeddedResource)
+		require.True(t, ok)
+		require.Equal(t, &mcp.ResourceContents{
+			URI:      recordResourceURI(recordURI.String()),
+			MIMEType: "application/json",
+			Text:     `{"hello":"world"}`,
+		}, embedded.Resource)
+	})
+
+	t.Run("record resource is readable by the owner only", func(t *testing.T) {
+		uri := recordResourceURI(recordURI.String())
+		session, err := connectAs(t, ctx, httpServer.URL, owner.String())
+		require.NoError(t, err)
+		defer func() { _ = session.Close() }()
+		res, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: uri})
+		require.NoError(t, err)
+		require.Equal(t, []*mcp.ResourceContents{{
+			URI: uri, MIMEType: "application/json", Text: `{"hello":"world"}`,
+		}}, res.Contents)
+
+		otherSession, err := connectAs(t, ctx, httpServer.URL, other.String())
+		require.NoError(t, err)
+		defer func() { _ = otherSession.Close() }()
+		_, err = otherSession.ReadResource(ctx, &mcp.ReadResourceParams{URI: uri})
+		require.Error(t, err)
+	})
+
 	t.Run("non-owner without a grant is rejected", func(t *testing.T) {
 		session, err := connectAs(t, ctx, httpServer.URL, other.String())
 		require.NoError(t, err)

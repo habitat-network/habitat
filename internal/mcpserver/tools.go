@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -35,9 +36,97 @@ type getRecordOutput struct {
 	Value any    `json:"value"`
 }
 
-// getRecordHandler implements the "get_record" MCP tool: check the caller
-// holds at least a reader role on the record's space, then read the record
-// straight from the space store.
+// recordURIScheme is the scheme of record resource URIs, which look like
+// habitat-record:///?uri=<space record uri> and are matched by
+// recordResourceTemplate.
+const recordURIScheme = "habitat-record"
+
+const recordResourceTemplate = recordURIScheme + ":///{?uri}"
+
+// recordResourceURI builds the resource URI of the record at recordURI.
+func recordResourceURI(recordURI string) string {
+	q := url.Values{"uri": {recordURI}}
+	return (&url.URL{Scheme: recordURIScheme, Path: "/", RawQuery: q.Encode()}).String()
+}
+
+// parseRecordResourceURI is the inverse of recordResourceURI.
+func parseRecordResourceURI(raw string) (string, error) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != recordURIScheme {
+		return "", fmt.Errorf("not a %s uri", recordURIScheme)
+	}
+	return u.Query().Get("uri"), nil
+}
+
+// readRecord checks the caller holds at least a reader role on the record's
+// space, then reads the record straight from the space store and returns it
+// as application/json resource contents with the given resource uri.
+func readRecord(
+	ctx context.Context,
+	store spaces.Store,
+	permStore perms.Store,
+	caller syntax.DID,
+	recordURIStr string,
+	resourceURI string,
+) (*mcp.ResourceContents, error) {
+	recordURI, err := habitat_syntax.ParseSpaceRecordURI(recordURIStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid uri: %w", err)
+	}
+	spaceURI := recordURI.SpaceURI()
+
+	ok, err := permStore.CheckUserHasSpaceRole(
+		ctx, caller, spaceURI, habitat_syntax.SpaceRoleReader,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("checking permission: %w", err)
+	}
+	if !ok {
+		return nil, habitat_err.ErrUnauthorized
+	}
+
+	record, err := store.GetRecord(
+		ctx, spaceURI, recordURI.Repo(), recordURI.Collection(), recordURI.Rkey(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("getting record: %w", err)
+	}
+	text, err := json.Marshal(record.Value)
+	if err != nil {
+		return nil, fmt.Errorf("encoding record: %w", err)
+	}
+	return &mcp.ResourceContents{
+		URI: resourceURI, MIMEType: "application/json", Text: string(text),
+	}, nil
+}
+
+// recordResourceHandler serves record resources (see recordResourceTemplate)
+// as resources/read results, so MCP clients can read records by URI.
+func recordResourceHandler(store spaces.Store, permStore perms.Store) mcp.ResourceHandler {
+	return func(
+		ctx context.Context, req *mcp.ReadResourceRequest,
+	) (*mcp.ReadResourceResult, error) {
+		tokenInfo := auth.TokenInfoFromContext(ctx)
+		if tokenInfo == nil || tokenInfo.UserID == "" {
+			return nil, fmt.Errorf("missing authenticated caller")
+		}
+		recordURI, err := parseRecordResourceURI(req.Params.URI)
+		if err != nil {
+			return nil, fmt.Errorf("invalid record uri: %w", err)
+		}
+		contents, err := readRecord(
+			ctx, store, permStore, syntax.DID(tokenInfo.UserID), recordURI, req.Params.URI,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{contents}}, nil
+	}
+}
+
+// getRecordHandler implements the "get_record" MCP tool: read the record as
+// readRecord does, returning it both as structured output and as an embedded
+// resource matching what reading the record resource returns.
 func getRecordHandler(
 	store spaces.Store,
 	permStore perms.Store,
@@ -51,33 +140,20 @@ func getRecordHandler(
 		if tokenInfo == nil || tokenInfo.UserID == "" {
 			return nil, getRecordOutput{}, fmt.Errorf("missing authenticated caller")
 		}
-		caller := syntax.DID(tokenInfo.UserID)
-
-		recordURI, err := habitat_syntax.ParseSpaceRecordURI(input.URI)
-		if err != nil {
-			return nil, getRecordOutput{}, fmt.Errorf("invalid uri: %w", err)
-		}
-		spaceURI := recordURI.SpaceURI()
-		owner := recordURI.Repo()
-		collection := recordURI.Collection()
-		rkey := recordURI.Rkey()
-
-		ok, err := permStore.CheckUserHasSpaceRole(
-			ctx, caller, spaceURI, habitat_syntax.SpaceRoleReader,
+		contents, err := readRecord(
+			ctx, store, permStore, syntax.DID(tokenInfo.UserID), input.URI,
+			recordResourceURI(input.URI),
 		)
 		if err != nil {
-			return nil, getRecordOutput{}, fmt.Errorf("checking permission: %w", err)
+			return nil, getRecordOutput{}, err
 		}
-		if !ok {
-			return nil, getRecordOutput{}, habitat_err.ErrUnauthorized
+		var value any
+		if err := json.Unmarshal([]byte(contents.Text), &value); err != nil {
+			return nil, getRecordOutput{}, fmt.Errorf("decoding record: %w", err)
 		}
-
-		record, err := store.GetRecord(ctx, spaceURI, owner, collection, rkey)
-		if err != nil {
-			return nil, getRecordOutput{}, fmt.Errorf("getting record: %w", err)
-		}
-
-		return nil, getRecordOutput{URI: input.URI, Value: record.Value}, nil
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.EmbeddedResource{Resource: contents}},
+		}, getRecordOutput{URI: input.URI, Value: value}, nil
 	}
 }
 

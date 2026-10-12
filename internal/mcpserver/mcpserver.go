@@ -88,7 +88,8 @@ type Server struct {
 //
 //   - tokens validates bearer tokens presented to the MCP endpoint (in
 //     production, *oauthserver.OAuthServer).
-//   - spacesStore and permStore back the "get_record" tool: permStore checks
+//   - spacesStore and permStore back record reads, offered both as a resource
+//     template (resources/read) and the "get_record" tool: permStore checks
 //     the caller holds at least a reader role on the record's space before
 //     spacesStore returns the record.
 //   - blobs and permStore back blob reads, offered both as a resource template
@@ -123,9 +124,16 @@ func New(
 	impl := &mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}
 	mcpServer := mcp.NewServer(impl, nil)
 	mcp.AddTool(mcpServer, &mcp.Tool{
-		Name:        "get_record",
-		Description: "Get a single Habitat record by its space record URI.",
+		Name: "get_record",
+		Description: "Get a single Habitat record by its space record URI, returned as " +
+			"an embedded JSON resource.",
 	}, getRecordHandler(spacesStore, permStore))
+	mcpServer.AddResourceTemplate(&mcp.ResourceTemplate{
+		Name:        "record",
+		Description: "A Habitat record, addressed by its space record URI.",
+		MIMEType:    "application/json",
+		URITemplate: recordResourceTemplate,
+	}, recordResourceHandler(spacesStore, permStore))
 	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name: "get_blob",
 		Description: "Get a blob in a Habitat space by its CID, returned as an embedded " +
