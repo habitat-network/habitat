@@ -8,7 +8,7 @@ import {
   setCurrentOrg,
 } from "@/server/functions.server";
 import { getDb, upsertConnectedOrg } from "@/db";
-import { SapClient } from "@/server/sapClient";
+import { HabitatClient } from "@/server/habitatClient";
 import { Button } from "internal/components/ui";
 import { ensureValidDid } from "@atproto/syntax";
 
@@ -25,7 +25,7 @@ const connectOrgFn = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<{ orgName: string } | null> => {
     const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const client = new HabitatClient(env, did);
     const orgName = await fetchOrgName(client, data.orgDid);
     if (orgName === null) return null;
     await upsertConnectedOrg(getDb(env), {

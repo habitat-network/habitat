@@ -10,9 +10,10 @@
   // v2 deletes SapChannel: it held an outbound WebSocket to sap's /channel
   // open for its entire lifetime, and Durable Object "duration" billing
   // charges continuously for wall-clock time an object has an open
-  // connection — not CPU time — regardless of how idle it is. sap's outbox
-  // now reaches chalk via a webhook POST to /webhook/sap instead (see
-  // src/routes/webhook.sap.ts), an ordinary momentary Worker request.
+  // connection — not CPU time — regardless of how idle it is. chalk now
+  // syncs doc spaces itself (src/server/sync.ts), driven by inbound space
+  // notifications and the cron trigger below — ordinary momentary Worker
+  // invocations.
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["DocRoom", "SapChannel"] },
     { "tag": "v2", "deleted_classes": ["SapChannel"] },
@@ -25,11 +26,14 @@
       "migrations_dir": "drizzle",
     },
   ],
+  // Runs the sync passes that have come due (src/server/sync.ts's
+  // runDueSpaces). Inbound space notifications and newly created spaces
+  // sync straight away; this catches up everything else.
+  "triggers": { "crons": ["* * * * *"] },
   // These `vars` are the real deployment's values, not local dev's — see
-  // the note below on why. CHALK_SESSION_SECRET, CHALK_SAP_INTERNAL_AUTH_SECRET,
-  // and CHALK_SAP_WEBHOOK_SECRET are wrangler secrets, not vars (set with
-  // `wrangler secret put <NAME>`; see README.md's deployment section), so
-  // they aren't listed here.
+  // the note below on why. CHALK_SESSION_SECRET and CHALK_CREDENTIALS_KEY
+  // are wrangler secrets, not vars (set with `wrangler secret put <NAME>`;
+  // see README.md's deployment section), so they aren't listed here.
   //
   // Named environments (`wrangler.jsonc`'s `env.*`, `wrangler deploy --env
   // production`) don't work for this app: `@cloudflare/vite-plugin`'s
@@ -44,7 +48,7 @@
   // supports.
   "vars": {
     "CHALK_BASE_URL": "https://chalk.habitat.network",
-    "CHALK_SAP_INTERNAL_URL": "https://sap-953995456319.us-west1.run.app",
+    "CHALK_HABITAT_URL": "https://pear.habitat.network",
   },
   "dev": { "port": 5177 },
 }

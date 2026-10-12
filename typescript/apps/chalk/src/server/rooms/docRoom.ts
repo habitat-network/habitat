@@ -4,7 +4,7 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import * as syncProtocol from "y-protocols/sync";
 import * as awarenessProtocol from "y-protocols/awareness";
-import { SapClient, getSpaceBlob } from "../sapClient";
+import { HabitatClient } from "../habitatClient";
 import { renderDoc } from "../../render";
 import { docByUri, getDb, upsertDoc } from "../../db";
 
@@ -129,7 +129,7 @@ export class DocRoom extends DurableObject<Env> {
       // Registered only after the load above applies: an "updateV2"
       // listener attached earlier would fire onUpdate for this restore on
       // every cold start/hibernation wake, needlessly re-scheduling a
-      // member/owner flush (and its SapClient upload) for content that
+      // member/owner flush (and its HabitatClient upload) for content that
       // hasn't actually changed.
       //
       // Pushed onto `pending` rather than awaited here directly: Yjs's
@@ -184,7 +184,7 @@ export class DocRoom extends DurableObject<Env> {
 
   // seedIdentity records spaceUri/ownerDid without touching the document.
   // createDoc calls this so the owner-republish alarm knows the owner before
-  // the webhook (src/server/webhook.ts) would supply it. It is deliberately not an
+  // the syncer (src/server/sink.ts) would supply it. It is deliberately not an
   // `applyEdit` with an empty update: there is no such thing as a
   // zero-length Yjs update — `Y.applyUpdateV2` throws "Unexpected end of
   // array" on `new Uint8Array(0)` — and even a well-formed empty update
@@ -195,22 +195,21 @@ export class DocRoom extends DurableObject<Env> {
     await this.rememberIdentity(id);
   }
 
-  async applyRemote(id: DocIdentity, cid: string): Promise<void> {
+  // applyRemote merges a synced network.habitat.docs.crdt record's state
+  // into the room. The record only carries a blob *reference*, so the sink
+  // (src/server/sink.ts) reads the bytes out of the space with the syncer's
+  // own space credential before calling this — not with the owner's
+  // session, which chalk may not hold (e.g. an org that was never
+  // connected).
+  async applyRemote(id: DocIdentity, update: Uint8Array): Promise<void> {
     await this.rememberIdentity(id);
-    // A putRecord'd network.habitat.docs.crdt record carries a blob
-    // *reference*, not the update's bytes inline, so the bytes have to be
-    // fetched separately via getBlob. That read uses a space credential sap
-    // mints through any of its sessions with access to the space (see
-    // getSpaceBlob), not the owner's own session — sap may track none for
-    // the owner (e.g. an org that was never connected).
     const ownerDid = this.id?.ownerDid;
     if (!ownerDid) return;
-    const bytes = await getSpaceBlob(this.env, id.spaceUri, cid);
     // No transaction origin: this update is already the merged/canonical
-    // state as sap has it, not a specific member's edit, so onUpdate below
+    // state as its space has it, not a specific member's edit, so onUpdate below
     // must not attribute it to (and re-flush it back into) anyone's repo —
     // only the owner-republish scheduling applies.
-    Y.applyUpdateV2(this.ydoc, bytes);
+    Y.applyUpdateV2(this.ydoc, update);
     await this.flushPending();
   }
 
@@ -263,7 +262,7 @@ export class DocRoom extends DurableObject<Env> {
   // an editor's tab sits open, instead of being billed Durable Object
   // "duration" continuously for as long as the connection is held — the
   // same wall-clock-not-CPU-time cost that made SapChannel's WebSocket to
-  // sap expensive (see src/server/webhook.ts's replacement of that). The
+  // sap expensive. The
   // Worker route that forwards here (src/routes/ws.$docId.ts) has already
   // done the auth/access check and set these two headers; DocRoom itself
   // has no ACL.
@@ -422,7 +421,7 @@ export class DocRoom extends DurableObject<Env> {
       );
       if (due > now) continue;
       // Flush first, delete only once it has actually landed. A throwing
-      // flush (sap down, a failed putRecord) makes Cloudflare retry this
+      // flush (pear down, a failed putRecord) makes Cloudflare retry this
       // alarm, and deleting up front would leave that retry with nothing to
       // flush — the edit would never reach the member's repo. Both flushes
       // are safe to repeat: uploadBlob is content-addressed, and pear's
@@ -448,7 +447,7 @@ export class DocRoom extends DurableObject<Env> {
   // missing everything that predates this batch.
   private async flushMember(memberDid: string): Promise<void> {
     if (!this.id) return;
-    const client = new SapClient(this.env, memberDid);
+    const client = new HabitatClient(this.env, memberDid);
     const blob = await client.uploadBlob(
       Y.encodeStateAsUpdateV2(this.ydoc),
       "application/octet-stream",
@@ -464,16 +463,16 @@ export class DocRoom extends DurableObject<Env> {
 
   // republishCanonical writes the merged markdown + CRDT snapshot back under
   // the doc owner's own repo. This is itself a network.habitat.docs.crdt
-  // write, so it comes back through the webhook looking like a fresh delta.
+  // write, so it comes back through the syncer looking like a fresh delta.
   // It does not loop: pear's PutRecord skips advancing the record (and the
   // notifyWrite it would cause) when a write does not change the record's
   // CID (see internal/spaces/store.go), so a no-op republish produces no
-  // outbox event.
+  // synced change.
   private async republishCanonical(): Promise<void> {
     const ownerDid = this.id?.ownerDid;
     if (!this.id || !ownerDid) return;
     const rendered = renderDoc(this.ydoc);
-    const client = new SapClient(this.env, ownerDid);
+    const client = new HabitatClient(this.env, ownerDid);
     const blob = await client.uploadBlob(
       Y.encodeStateAsUpdateV2(this.ydoc),
       "application/octet-stream",

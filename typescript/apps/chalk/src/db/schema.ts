@@ -33,7 +33,7 @@ export const docs = sqliteTable(
 );
 
 // docAccess mirrors network.habitat.relationship.userRelation records synced
-// from the outbox (see sapChannel.ts's handleOutboxMessage): one row per live
+// from the doc spaces (see sink.ts's handleUserRelation): one row per live
 // grant, keyed by (subjectDid, spaceUri) since a user holds at most one role
 // on a given space. The relation record's own URI is kept as a plain column
 // (indexed, not the key) purely so a delete tombstone — which carries only
@@ -105,8 +105,8 @@ export const connectedOrgs = sqliteTable(
 // whose readers/writers are inherited from the doc space via
 // spaceRelation records.
 //
-// Keyed by the record's own AT-URI, which is what the outbox delivers on
-// both a write and a delete tombstone. cid is stored alongside so a reply
+// Keyed by the record's own AT-URI, which is what the syncer delivers on
+// both a write and a delete. cid is stored alongside so a reply
 // can build the com.atproto.repo.strongRef it needs to reference this
 // comment without an extra read. docSpaceUri (not the
 // comments space's URI) is stored so listing a doc's comments is a single
@@ -142,4 +142,61 @@ export const commentReplies = sqliteTable(
     createdAt: integer("created_at").notNull(),
   },
   (t) => [index("comment_replies_thread").on(t.docSpaceUri, t.commentUri)],
+);
+
+// --- OAuth (src/server/oauth.ts) -------------------------------------------
+//
+// chalk is its own atproto OAuth client of the Habitat instance, the same way
+// Drop is (see typescript/apps/drop/src/db/schema.ts). It holds sessions for
+// members (everything chalk does on a member's behalf: creating docs,
+// sharing, comments, flushing their edits) and for orgs a member has
+// connected (managing an org doc's sharing, minting its delegation tokens).
+// Both live in oauth_sessions keyed by DID. `value` is the session's JSON
+// (token set plus the DPoP private key), sealed with CHALK_CREDENTIALS_KEY
+// (src/server/seal.ts), since it's a bearer credential for that DID.
+
+// oauthStates holds in-flight authorization requests, keyed by the OAuth
+// `state` parameter. Expired rows are swept whenever a new one is written
+// (see DrizzleStateStore).
+export const oauthStates = sqliteTable("oauth_states", {
+  key: text("key").primaryKey(),
+  value: bytes("value").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+});
+
+export const oauthSessions = sqliteTable("oauth_sessions", {
+  did: text("did").primaryKey(),
+  value: bytes("value").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// --- Space sync (internal/spaceSync's SyncStore, src/db/syncStore.ts) -------
+
+// syncSpaces is SpaceState: one row per watched space. Times are epoch ms.
+export const syncSpaces = sqliteTable(
+  "sync_spaces",
+  {
+    space: text("space").primaryKey(),
+    authority: text("authority").notNull(),
+    spaceRev: text("space_rev"),
+    registrationExpiresAt: integer("registration_expires_at"),
+    nextDueAt: integer("next_due_at").notNull(),
+    lastFullPassAt: integer("last_full_pass_at"),
+    failures: integer("failures").notNull(),
+    lastError: text("last_error"),
+  },
+  (t) => [index("sync_spaces_due").on(t.nextDueAt)],
+);
+
+// syncRepos is RepoState: the last verified revision of each writer's repo
+// in a space, plus its 2048-byte LtHash state.
+export const syncRepos = sqliteTable(
+  "sync_repos",
+  {
+    space: text("space").notNull(),
+    did: text("did").notNull(),
+    rev: text("rev").notNull(),
+    ltHash: bytes("lt_hash").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.space, t.did] })],
 );
