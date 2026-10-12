@@ -1030,6 +1030,12 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 			Delete(&spaceRecord{}).Error; err != nil {
 			return err
 		}
+		// And the blob references those records held.
+		if err := tx.
+			Where("space = ?", uri).
+			Delete(&blobRef{}).Error; err != nil {
+			return err
+		}
 
 		// Drop the permissioned repos along with the records they cached a
 		// hash of. They are the writer set listSpaces reads, so leaving them
@@ -1300,26 +1306,33 @@ func setBlobRefs(
 // It rebuilds each record's refs from its stored value, so it is safe to run
 // more than once.
 func BackfillBlobRefs(tx *gorm.DB) error {
-	var records []spaceRecord
-	err := tx.FindInBatches(&records, 500, func(_ *gorm.DB, _ int) error {
+	// spaceRecord has a composite primary key, which FindInBatches can't page
+	// by, so page by rev, which is unique per record.
+	const batchSize = 500
+	var after syntax.TID
+	for {
+		var records []spaceRecord
+		if err := tx.Where("rev > ?", after).Order("rev").Limit(batchSize).
+			Find(&records).Error; err != nil {
+			return fmt.Errorf("backfill blob refs: list records: %w", err)
+		}
 		for _, r := range records {
 			parsed, err := atdata.UnmarshalCBOR(r.Value)
 			if err != nil {
-				return fmt.Errorf("decode record %s/%s/%s/%s: %w",
+				return fmt.Errorf("backfill blob refs: decode record %s/%s/%s/%s: %w",
 					r.Space, r.Repo, r.Collection, r.Rkey, err)
 			}
 			if err := setBlobRefs(
 				tx, r.Space, r.Repo, r.Collection, r.Rkey, atdata.ExtractBlobs(parsed),
 			); err != nil {
-				return err
+				return fmt.Errorf("backfill blob refs: %w", err)
 			}
 		}
-		return nil
-	}).Error
-	if err != nil {
-		return fmt.Errorf("backfill blob refs: %w", err)
+		if len(records) < batchSize {
+			return nil
+		}
+		after = records[len(records)-1].Rev
 	}
-	return nil
 }
 
 // BlobReferenced implements [Store].

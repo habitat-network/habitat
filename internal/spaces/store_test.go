@@ -1,6 +1,7 @@
 package spaces_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -1582,4 +1583,56 @@ func TestListReposSince(t *testing.T) {
 		"",
 	)
 	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
+}
+
+// TestBackfillBlobRefs_PagesThroughAllRecords pins that the backfill covers
+// more records than one batch.
+func TestBackfillBlobRefs_PagesThroughAllRecords(t *testing.T) {
+	d := db_testutil.NewDB(t, spaces.Models())
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(d))
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	value := spaces_testutil.MustMarshalRecord(
+		t, blobValue("bafkreihdwdcefgh4dqkjv67uzcmw37nwqfknnagwmjb44agkh4lphqzgxq"))
+	const records = 1100
+	for i := range records {
+		_, _, err := s.PutRecord(
+			t.Context(), uri, owner, "network.habitat.note",
+			syntax.RecordKey(fmt.Sprintf("rkey%d", i)), value,
+		)
+		require.NoError(t, err)
+	}
+	require.NoError(t, d.Exec("DELETE FROM blob_refs").Error)
+
+	require.NoError(t, spaces.BackfillBlobRefs(d))
+
+	var count int64
+	require.NoError(t, d.Table("blob_refs").Count(&count).Error)
+	require.EqualValues(t, records, count)
+}
+
+// TestDeleteSpace_ClearsBlobReferences pins that deleting a space drops the
+// blob references of its records.
+func TestDeleteSpace_ClearsBlobReferences(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+
+	blobCID := "bafkreihdwdcefgh4dqkjv67uzcmw37nwqfknnagwmjb44agkh4lphqzgxq"
+	_, _, err = s.PutRecord(
+		t.Context(), uri, owner, "network.habitat.note", "rkey",
+		spaces_testutil.MustMarshalRecord(t, blobValue(blobCID)),
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, s.DeleteSpace(t.Context(), uri))
+
+	c, err := cid.Decode(blobCID)
+	require.NoError(t, err)
+	referenced, err := s.BlobReferenced(t.Context(), uri, c)
+	require.NoError(t, err)
+	require.False(t, referenced)
 }
