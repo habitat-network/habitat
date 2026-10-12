@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
@@ -34,6 +35,10 @@ type PearMigrationContext struct {
 	// Spaces is nil where no spaces store has been built, such as in tests
 	// that only need the schema, so migrations that use it must not run there.
 	Spaces spaces.Store
+	// Opensocial is nil where no opensocial store has been built, such as in
+	// tests that only need the schema, so migrations that use it must not run
+	// there.
+	Opensocial *opensocial.Store
 }
 
 type pearMigrationContextKey struct{}
@@ -56,6 +61,9 @@ func GetPearMigrationContext(ctx context.Context, tx *sql.Tx) (PearMigrationCont
 	scoped := PearMigrationContext{DB: gormTx}
 	if mc.Spaces != nil {
 		scoped.Spaces = mc.Spaces.WithTx(gormTx)
+	}
+	if mc.Opensocial != nil {
+		scoped.Opensocial = mc.Opensocial.WithTx(gormTx)
 	}
 	return scoped, nil
 }
