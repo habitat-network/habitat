@@ -408,7 +408,7 @@ func TestMCPServerGetBlobTool(t *testing.T) {
 		_, err = readResource(t, owner, blobResourceURI(spaceURI, missingCid))
 		var rpcErr *jsonrpc.Error
 		require.ErrorAs(t, err, &rpcErr)
-		require.Equal(t, mcp.CodeResourceNotFound, rpcErr.Code)
+		require.Equal(t, jsonrpc.CodeInvalidParams, rpcErr.Code)
 	})
 
 	t.Run("tool returns an embedded resource", func(t *testing.T) {
