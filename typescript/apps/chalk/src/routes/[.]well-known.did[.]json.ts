@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
 import { SYNCER_SERVICE_ID } from "internal/spaceSync";
+import { trimTrailingSlashes } from "@/server/oauth";
 import { serviceDid } from "@/server/sync";
 
 // chalk's did:web document. registerNotify subscribes this DID to a space's
@@ -18,7 +19,7 @@ export const Route = createFileRoute("/.well-known/did.json")({
             {
               id: `#${SYNCER_SERVICE_ID}`,
               type: "AtprotoSpaceSyncer",
-              serviceEndpoint: env.CHALK_BASE_URL.replace(/\/+$/, ""),
+              serviceEndpoint: trimTrailingSlashes(env.CHALK_BASE_URL),
             },
           ],
         });

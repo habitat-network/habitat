@@ -31,8 +31,17 @@ export const OAUTH_SCOPE = [
 export const CALLBACK_PATH = "/oauth/callback";
 export const CLIENT_METADATA_PATH = "/oauth/client-metadata.json";
 
+// trimTrailingSlashes drops any trailing slashes from url. A loop rather
+// than url.replace(/\/+$/, ""), which CodeQL flags as polynomial-time on a
+// long run of slashes.
+export function trimTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url[end - 1] === "/") end--;
+  return url.slice(0, end);
+}
+
 export function clientMetadata(baseUrl: string): OAuthClientMetadataInput {
-  const origin = baseUrl.replace(/\/+$/, "");
+  const origin = trimTrailingSlashes(baseUrl);
   return {
     client_id: `${origin}${CLIENT_METADATA_PATH}`,
     client_name: "Chalk",
