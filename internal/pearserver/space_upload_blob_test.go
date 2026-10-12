@@ -14,6 +14,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
+	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 )
 
 func TestServer_UploadBlob(t *testing.T) {
@@ -40,6 +41,28 @@ func TestServer_UploadBlob(t *testing.T) {
 		var out habitat.NetworkHabitatRepoUploadBlobOutput
 		require.NoError(t, json.NewDecoder(upW.Body).Decode(&out))
 		require.NotEmpty(t, out.Cid)
+
+		// GetBlob authorizes by checking the requested cid is referenced by some
+		// record in the space, so put one that references the uploaded blob.
+		_, _, err = store.PutRecord(
+			t.Context(),
+			uri,
+			org,
+			groupTp,
+			"",
+			spaces_testutil.MustMarshalRecord(
+				t, map[string]any{
+					"$type": groupTp.String(),
+					"image": map[string]any{
+						"$type":    "blob",
+						"ref":      map[string]any{"$link": out.Cid},
+						"mimeType": "text/plain",
+						"size":     float64(len("hello blobs")),
+					},
+				},
+			),
+		)
+		require.NoError(t, err)
 
 		// Get it back through the space.
 		getW := httptest.NewRecorder()
