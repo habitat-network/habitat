@@ -15,7 +15,7 @@ require (
 	github.com/ipfs/go-cid v0.6.2
 	github.com/ipld/go-car v0.6.3
 	github.com/libp2p/go-libp2p v0.49.0
-	github.com/lmittmann/tint v1.2.0
+	github.com/lmittmann/tint v1.2.1
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/multiformats/go-multiaddr v0.16.1
