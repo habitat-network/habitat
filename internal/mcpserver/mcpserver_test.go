@@ -282,6 +282,7 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 		require.Equal(t, owner, searcher.caller)
 		require.Equal(t, search.Query{
 			Text: "hello", Org: org, Collections: []syntax.NSID{collection}, Limit: 5,
+			SnippetLength: defaultMCPSnippetLength,
 		}, searcher.query)
 
 		out, ok := result.StructuredContent.(map[string]any)
@@ -296,6 +297,20 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 		require.Equal(t, "<mark>hello</mark>", hit["snippet"])
 	})
 
+	t.Run("snippet length is configurable", func(t *testing.T) {
+		session, err := connectAs(t, ctx, httpServer.URL, owner.String())
+		require.NoError(t, err)
+		defer func() { _ = session.Close() }()
+
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "search_records",
+			Arguments: map[string]any{"query": "hello", "org": org.String(), "snippet_length": 500},
+		})
+		require.NoError(t, err)
+		require.False(t, result.IsError, "%+v", result)
+		require.Equal(t, 500, searcher.query.SnippetLength)
+	})
+
 	t.Run("invalid input is rejected", func(t *testing.T) {
 		session, err := connectAs(t, ctx, httpServer.URL, owner.String())
 		require.NoError(t, err)
@@ -306,6 +321,8 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 			{"query": "x", "org": "not-a-did"},
 			{"query": "x", "collection": "nope"},
 			{"query": "x", "limit": 101},
+			{"query": "x", "snippet_length": 0},
+			{"query": "x", "snippet_length": 1001},
 		} {
 			result, err := session.CallTool(ctx, &mcp.CallToolParams{
 				Name: "search_records", Arguments: args,

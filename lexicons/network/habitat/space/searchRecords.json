@@ -43,6 +43,13 @@
             "default": 25,
             "description": "The maximum number of records to return. A page can hold fewer, even when more follow."
           },
+          "snippetLength": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 30,
+            "description": "About how many words of context each record's snippet keeps around the matches."
+          },
           "cursor": {
             "type": "string"
           }

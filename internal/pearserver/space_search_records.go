@@ -42,10 +42,20 @@ func (p *PearServer) SearchRecords(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
+	if params.SnippetLength < 0 || params.SnippetLength > search.MaxSnippetLength {
+		httpx.WriteInvalidRequest(
+			ctx,
+			w,
+			fmt.Sprintf("snippetLength must be between 1 and %d", search.MaxSnippetLength),
+			nil,
+		)
+		return
+	}
 	q := search.Query{
-		Text:   params.Q,
-		Limit:  int(params.Limit),
-		Cursor: params.Cursor,
+		Text:          params.Q,
+		Limit:         int(params.Limit),
+		SnippetLength: int(params.SnippetLength),
+		Cursor:        params.Cursor,
 	}
 	for _, c := range params.Collection {
 		collection, ok := httpx.ParseNSIDInput(ctx, w, c, "collection filter")
