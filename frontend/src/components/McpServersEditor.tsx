@@ -158,9 +158,9 @@ function OrgMcpUrl({ org }: { org: DidString }) {
           onClick={async () => {
             try {
               await navigator.clipboard.writeText(url);
-              toast.success("Copied MCP URL");
+              toast.add({ type: "success", title: "Copied MCP URL" });
             } catch {
-              toast.error("Couldn't copy the MCP URL");
+              toast.add({ type: "error", title: "Failed to copy MCP URL" });
             }
           }}
         >
