@@ -80,8 +80,8 @@ func TestServer_UploadBlob(t *testing.T) {
 	})
 
 	t.Run("rejects an oversized blob", func(t *testing.T) {
-		// 500 KiB upload limit + 1 byte must be rejected.
-		oversized := make([]byte, 500*1024+1)
+		// 5 MiB upload limit + 1 byte must be rejected.
+		oversized := make([]byte, 5<<20+1)
 		upReq := httptest.NewRequest(
 			http.MethodPost,
 			"/xrpc/network.habitat.repo.uploadBlob",
