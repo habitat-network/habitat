@@ -44,8 +44,9 @@ type spaceRecord struct {
 	Collection syntax.NSID             `gorm:"primaryKey"`
 	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
 	Value      []byte
-	// ValueJSON is the same record as JSON in the native JSON column. It is
-	// written alongside Value so records can be queried; reads still use Value.
+	// ValueJSON is the same record as JSON in the native JSON column, written
+	// alongside Value. Reads use it; Value is only the fallback for a row whose
+	// ValueJSON is NULL.
 	ValueJSON datatypes.JSON
 	Rev       syntax.TID `gorm:"uniqueIndex"`
 	Cid       string
@@ -850,7 +851,7 @@ func (s *store) GetRecord(
 		return nil, err
 	}
 
-	value, err := atdata.UnmarshalCBOR(row.Value)
+	value, err := row.decode()
 	if err != nil {
 		return nil, err
 	}
@@ -888,7 +889,7 @@ func (s *store) GetRecords(
 
 	records := make([]Record, 0, len(rows))
 	for _, row := range rows {
-		value, err := atdata.UnmarshalCBOR(row.Value)
+		value, err := row.decode()
 		if err != nil {
 			// A record that can no longer be decoded (e.g. written before
 			// write-time validation existed) shouldn't take down the whole
@@ -938,7 +939,7 @@ func (s *store) ListRecords(
 
 	records := make([]Record, 0, len(rows))
 	for _, row := range rows {
-		value, err := atdata.UnmarshalCBOR(row.Value)
+		value, err := row.decode()
 		if err != nil {
 			// A record that can no longer be decoded (e.g. written before
 			// write-time validation existed) shouldn't take down the whole
@@ -1008,11 +1009,15 @@ func (s *store) RepoSnapshot(
 		}
 		blocks = make([]recordBlock, len(rows))
 		for i, row := range rows {
+			raw, err := row.cbor()
+			if err != nil {
+				return fmt.Errorf("record %s/%s: %w", row.Collection, row.Rkey, err)
+			}
 			blocks[i] = recordBlock{
 				Collection: row.Collection,
 				Rkey:       row.Rkey,
 				Cid:        cid.MustParse(row.Cid),
-				Bytes:      row.Value,
+				Bytes:      raw,
 			}
 		}
 		return nil
@@ -1116,7 +1121,7 @@ func (s *store) ListRepoOps(
 
 	records = make([]Record, len(rows))
 	for i, row := range rows {
-		value, err := atdata.UnmarshalCBOR(row.Value)
+		value, err := row.decode()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1326,7 +1331,7 @@ func BackfillBlobRefs(tx *gorm.DB) error {
 			return fmt.Errorf("backfill blob refs: list records: %w", err)
 		}
 		for _, r := range records {
-			parsed, err := atdata.UnmarshalCBOR(r.Value)
+			parsed, err := r.decode()
 			if err != nil {
 				return fmt.Errorf("backfill blob refs: decode record %s/%s/%s/%s: %w",
 					r.Space, r.Repo, r.Collection, r.Rkey, err)
