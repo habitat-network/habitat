@@ -25,10 +25,10 @@ func (p *PearServer) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
-	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 500*1024))
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 5<<20))
 	var tooLarge *http.MaxBytesError
 	if errors.As(err, &tooLarge) {
-		httpx.WriteError(ctx, w, "BlobTooLarge", "max 500kb", http.StatusRequestEntityTooLarge)
+		httpx.WriteError(ctx, w, "BlobTooLarge", "max 5MB", http.StatusRequestEntityTooLarge)
 		return
 	} else if err != nil {
 		httpx.WriteInvalidRequest(ctx, w, "failed to read request body", err)

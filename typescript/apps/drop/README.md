@@ -30,7 +30,7 @@ the spaces sync protocol, not a reader of its own writes.
   demand.
 - **Live updates**: the file list polls every 10 seconds.
 
-Uploads are capped at 500 KiB, which is pear's `uploadBlob` limit.
+Uploads are capped at 5 MiB, which is pear's `uploadBlob` limit.
 
 ## Deploy to Cloudflare Workers
 
