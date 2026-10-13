@@ -236,7 +236,11 @@ func (m *Meilisearch) EmbedderReady() bool {
 // awaitEmbedder marks the embedder ready once its settings task succeeds.
 func (m *Meilisearch) awaitEmbedder(ctx context.Context, info *meilisearch.TaskInfo) {
 	if err := m.wait(ctx, info); err != nil {
-		slog.Error("meilisearch embedder not applied; searches stay keyword only", "error", err)
+		slog.ErrorContext(
+			ctx,
+			"meilisearch embedder not applied; searches stay keyword only",
+			"error", err,
+		)
 		return
 	}
 	m.embedderReady.Store(true)
