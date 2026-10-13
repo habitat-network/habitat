@@ -9,7 +9,7 @@ import {
   type SpaceState,
 } from "internal/spaceSync";
 import { getDb } from "@/db";
-import { DrizzleSyncStore } from "@/db/syncStore";
+import { DrizzleSyncStore } from "internal/spaceSync/drizzle";
 import {
   createFileSpace,
   deleteFileRecord,

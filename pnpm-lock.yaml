@@ -934,6 +934,9 @@ importers:
       date-fns:
         specifier: ^4.4.0
         version: 4.4.0
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(@cloudflare/workers-types@5.20261008.1)
       effect:
         specifier: ^4.0.2
         version: 4.0.3

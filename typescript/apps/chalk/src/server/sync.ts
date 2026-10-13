@@ -9,7 +9,7 @@ import {
   type SpaceState,
 } from "internal/spaceSync";
 import { docAccessSubjects, docByUri, getDb } from "../db";
-import { DrizzleSyncStore } from "../db/syncStore";
+import { DrizzleSyncStore } from "internal/spaceSync/drizzle";
 import { COMMENTS_SPACE_TYPE, docSpaceUriForComments } from "./comments.server";
 import { DOCS_SPACE_TYPE } from "./functions.server";
 import { HabitatClient } from "./habitatClient";

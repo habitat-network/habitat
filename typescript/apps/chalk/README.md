@@ -52,8 +52,9 @@ sap in between:
   connecting an org watch the relevant spaces; space hosts then notify
   chalk of writes at `/xrpc/com.atproto.space.notifyWrite`, and a cron
   trigger (every minute) runs whatever has come due. All of the syncer's
-  state lives in D1, so each short-lived syncer picks up where the last
-  left off. Delegation tokens are minted as the space authority, falling
+  state lives in D1 (through `DrizzleSyncStore` from
+  `internal/spaceSync/drizzle`, shared with Drop), so each short-lived
+  syncer picks up where the last left off. Delegation tokens are minted as the space authority, falling
   back to members with a grant on the doc.
 - **Sink** (`src/server/sink.ts`): applies verified batches to the D1
   mirror (docs, access grants, comments) and merges crdt records into each
