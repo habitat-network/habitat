@@ -1,7 +1,8 @@
-h1:UCQHIiXGFBsE4y1BjTI4STazJwGRoRogM7s2Yfz92+E=
+h1:pACF9ImR4eXJJhqWGPxexpFd0e34cNvsm2vv/rSLtFA=
 20260522005939_init.sql h1:KUJYrNB1nXExOKZnn9/cDQw4vjS53DzmQZCuhaZYmNw=
 20260925150000_baseline.sql h1:RGgjF3jiIujGjOvwEajH4/GIDqcmsgCZ+bVO2BQRtrw=
 20260930210855_add_blob_refs.sql h1:MC0VH6ehP/wN+C1xuaaXUGusuBWsyNAKPFSpbQVkSAk=
 20261005235000_space_revisions.sql h1:VLC2vBFzU/0hI1EuPg4xUSFg1spvVFy8F23NwMphQZs=
 20261006000000_notify_registration_audience.sql h1:xCueaUrxNRI1UATm6gG5VOGmUn4LGpEnQIo/viO0uaY=
 20261009183623_notify_registration_namespace.sql h1:hthjyyjDZa66R3VBqfdr+QJK48rX0xidI09J4QerWhs=
+20261009190000_space_record_value_json.sql h1:mF83t25x8KJZ409YXcV3KAJRbFNwsEXtRb+1ppE0e5w=

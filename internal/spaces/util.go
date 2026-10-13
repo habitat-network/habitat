@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
+	"gorm.io/datatypes"
 )
 
 // MarshaledRecord is a record value that has been validated against the
@@ -34,4 +35,17 @@ func MarshalRecord(value any) (MarshaledRecord, error) {
 		return nil, ErrRecordTooLarge
 	}
 	return MarshaledRecord(bytes), nil
+}
+
+// cborToJSON re-encodes a CBOR record value as JSON text for the JSON column.
+func cborToJSON(value []byte) (datatypes.JSON, error) {
+	record, err := atdata.UnmarshalCBOR(value)
+	if err != nil {
+		return nil, fmt.Errorf("decode record cbor: %w", err)
+	}
+	out, err := json.Marshal(record)
+	if err != nil {
+		return nil, fmt.Errorf("encode record json: %w", err)
+	}
+	return datatypes.JSON(out), nil
 }
