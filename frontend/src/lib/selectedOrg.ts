@@ -7,8 +7,9 @@ interface LastOrgState {
 }
 
 // useLastOrgStore remembers the most recently visited org, persisted to
-// localStorage, only so the index page can redirect to it. The current org is
-// always read from the route (/orgs/$org/...), never from here.
+// localStorage, so the index page can redirect to it and pages that aren't
+// org-scoped (e.g. /spaces) can keep the header's org links. Org-scoped pages
+// always read the current org from the route (/orgs/$org/...), never from here.
 export const useLastOrgStore = create<LastOrgState>()(
   persist(
     (set) => ({
