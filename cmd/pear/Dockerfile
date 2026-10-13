@@ -16,11 +16,12 @@ RUN npm install -g pnpm@11.5.1
 # Copy the lockfile and manifests before any source so the install layer stays
 # cached when unrelated files change. --frozen-lockfile only validates the
 # projects the filter selects, so this needs the workspace root plus pear-pages
-# and its workspace deps (internal -> api), not all 12 members.
+# and its workspace deps (internal -> api, habitat), not all 12 members.
 COPY --parents pnpm-lock.yaml pnpm-workspace.yaml package.json \
 	typescript/apps/pear-pages/package.json \
 	typescript/internal/package.json \
-	typescript/api/package.json ./
+	typescript/api/package.json \
+	typescript/habitat/package.json ./
 
 # The cache mount keeps pnpm's content-addressable store across builds, so a
 # lockfile change re-links packages instead of re-downloading them.
@@ -32,9 +33,10 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 # back to 12 projects, and pnpm would silently redo the install unfiltered
 # before running vite (it verifies node_modules against the workspace first).
 COPY --parents tsconfig.options.json typescript/globals.d.ts \
-	typescript/apps/pear-pages typescript/internal typescript/api ./
+	typescript/apps/pear-pages typescript/internal typescript/api \
+	typescript/habitat ./
 
-# pear-pages consumes `internal` (and transitively `api`) from source, so those
+# pear-pages consumes `internal` (and transitively `api` and `habitat`) from source, so those
 # do not need to be pre-built.
 RUN pnpm --filter pear-pages exec vite build --outDir /app/internal/webui/dist
 
