@@ -1,4 +1,4 @@
-h1:yo5ixsaNymBUNX46kMD9BjFjmgexEp1pyG/J3vEs7+8=
+h1:AaJA85cvJGG/3RqTdak/a5xD1+o6yUqPiAH/Td33/sg=
 20260522005939_init.sql h1:KUJYrNB1nXExOKZnn9/cDQw4vjS53DzmQZCuhaZYmNw=
 20260925150000_baseline.sql h1:dYIU2WiY1zE9g0HIcM/dIseGSXdpyPaAFy/iA8UExHA=
 20260930210856_add_blob_refs.sql h1:jeks2KFCY939KoLd7BXaFx3/DFENDOKJsqXDRv7Yi/A=
@@ -6,3 +6,4 @@ h1:yo5ixsaNymBUNX46kMD9BjFjmgexEp1pyG/J3vEs7+8=
 20261006000000_notify_registration_audience.sql h1:qlOiU96JgRq9JOqPnXgHTaoLWizirLNIe7RswA07Eh4=
 20261009183623_notify_registration_namespace.sql h1:Qiyy9m9tkGy4/4QsA0evuKV80SluR9pcf2Mwlqu3zVg=
 20261009190000_space_record_value_json.sql h1:WYyDJLtH+B6EJS7CkuMbZtSVn4gNx9pWfdfKab5Tp38=
+20261009190300_drop_space_record_value.sql h1:sKQbAmNFsHJUr8O5XSOQiDjkFjxrzfQAxdxQ4kfxuqc=
