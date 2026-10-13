@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
@@ -1330,7 +1331,7 @@ func BackfillBlobRefs(tx *gorm.DB) error {
 			return fmt.Errorf("backfill blob refs: list records: %w", err)
 		}
 		for _, r := range records {
-			parsed, err := atdata.UnmarshalCBOR(r.Value)
+			parsed, err := r.decode()
 			if err != nil {
 				return fmt.Errorf("backfill blob refs: decode record %s/%s/%s/%s: %w",
 					r.Space, r.Repo, r.Collection, r.Rkey, err)
