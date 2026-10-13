@@ -467,7 +467,7 @@ func TestMCPServerRejectsInvalidOrgPath(t *testing.T) {
 	)
 
 	for _, path := range []string{Path, Path + "/", Path + "/not-a-did"} {
-		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req := httptest.NewRequest(http.MethodPost, path, http.NoBody)
 		req.Header.Set("Authorization", "Bearer did:plc:owner")
 		rec := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(rec, req)
@@ -484,7 +484,7 @@ func TestMCPServerProtectedResourceMetadataIsPerOrg(t *testing.T) {
 	)
 
 	req := httptest.NewRequest(
-		http.MethodGet, ProtectedResourceMetadataPath+"/"+testOrg.String(), nil,
+		http.MethodGet, ProtectedResourceMetadataPath+"/"+testOrg.String(), http.NoBody,
 	)
 	rec := httptest.NewRecorder()
 	srv.ProtectedResourceMetadataHandler().ServeHTTP(rec, req)
@@ -492,7 +492,7 @@ func TestMCPServerProtectedResourceMetadataIsPerOrg(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `"resource":"https://habitat.example/mcp/did:plc:org"`)
 
 	// An unauthenticated request is pointed at its own org's metadata.
-	req = httptest.NewRequest(http.MethodPost, Path+"/"+testOrg.String(), nil)
+	req = httptest.NewRequest(http.MethodPost, Path+"/"+testOrg.String(), http.NoBody)
 	rec = httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rec, req)
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
