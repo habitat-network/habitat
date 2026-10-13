@@ -72,60 +72,101 @@ export function McpServersEditor({
   authManager: AuthManager;
 }) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">
-          MCP servers ({servers.length})
-        </h2>
-        {canConfigureMcp && (
-          <AddServerDialog org={org} authManager={authManager} />
-        )}
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {servers.map(({ server, connected }) => (
-            <TableRow key={server.id}>
-              <TableCell className="font-medium">{server.name}</TableCell>
-              <TableCell className="text-muted-foreground">
-                {server.description}
-              </TableCell>
-              <TableCell>
-                <ConnectionCell
-                  org={org}
-                  server={server}
-                  connected={connected}
-                  authManager={authManager}
-                />
-              </TableCell>
-              <TableCell className="text-right">
-                {canConfigureMcp && (
-                  <RemoveServerButton
+    <div className="flex flex-col gap-6">
+      <OrgMcpUrl org={org} />
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">
+            MCP servers ({servers.length})
+          </h2>
+          {canConfigureMcp && (
+            <AddServerDialog org={org} authManager={authManager} />
+          )}
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {servers.map(({ server, connected }) => (
+              <TableRow key={server.id}>
+                <TableCell className="font-medium">{server.name}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {server.description}
+                </TableCell>
+                <TableCell>
+                  <ConnectionCell
                     org={org}
-                    id={server.id}
-                    name={server.name}
+                    server={server}
+                    connected={connected}
                     authManager={authManager}
                   />
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-          {servers.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={4} className="text-muted-foreground">
-                No MCP servers configured yet.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+                </TableCell>
+                <TableCell className="text-right">
+                  {canConfigureMcp && (
+                    <RemoveServerButton
+                      org={org}
+                      id={server.id}
+                      name={server.name}
+                      authManager={authManager}
+                    />
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+            {servers.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-muted-foreground">
+                  No MCP servers configured yet.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// orgMcpUrl is the org's MCP endpoint (mcpserver.Path + "/" + org in Go),
+// served from the API origin. The org is identified by DID since the
+// frontend has no org handle to prefer.
+function orgMcpUrl(org: DidString) {
+  return `https://${import.meta.env.VITE_HABITAT_DOMAIN}/mcp/${org}`;
+}
+
+// OrgMcpUrl shows the org's MCP URL with a copy button, for adding to MCP
+// clients.
+function OrgMcpUrl({ org }: { org: DidString }) {
+  const url = orgMcpUrl(org);
+  return (
+    <div className="flex flex-col gap-2">
+      <h2 className="text-base font-semibold">MCP URL</h2>
+      <p className="text-sm text-muted-foreground">
+        Add this URL to your MCP client to use this org&apos;s data and
+        connected servers.
+      </p>
+      <div className="flex gap-2">
+        <Input readOnly value={url} className="font-mono" />
+        <Button
+          variant="outline"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(url);
+              toast.success("Copied MCP URL");
+            } catch {
+              toast.error("Couldn't copy the MCP URL");
+            }
+          }}
+        >
+          Copy
+        </Button>
+      </div>
     </div>
   );
 }
