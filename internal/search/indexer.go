@@ -477,6 +477,12 @@ func (x *Indexer) apply(
 		if blobText := x.blobText(ctx, op.Value); blobText != "" {
 			text = strings.TrimSpace(text + " " + blobText)
 		}
+		if text == "" {
+			// Nothing to search or embed, and embeddings APIs reject empty
+			// input. Deleting also drops a version of the record that had text.
+			deleted = append(deleted, uri)
+			continue
+		}
 		docs = append(docs, Document{
 			URI:        uri,
 			Space:      space,

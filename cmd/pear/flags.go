@@ -29,6 +29,12 @@ var (
 	fMeilisearchURL     = "meilisearch_url"
 	fMeilisearchAPIKey  = "meilisearch_api_key"
 	fMeilisearchIndex   = "meilisearch_index"
+	fEmbedderURL        = "embedder_url"
+	fEmbedderAPIKey     = "embedder_api_key"
+	fEmbedderModel      = "embedder_model"
+	fEmbedderDimensions = "embedder_dimensions"
+	fSemanticRatio      = "search_semantic_ratio"
+	fSearchMinScore     = "search_min_score"
 )
 
 var profiles []string
@@ -161,6 +167,37 @@ func getFlags() []cli.Flag {
 			Usage:   "Name of the Meilisearch index of space records; cursors go in <name>_cursors",
 			Value:   "space_records",
 			Sources: getSources(fMeilisearchIndex),
+		},
+		&cli.StringFlag{
+			Name:    fEmbedderURL,
+			Usage:   "OpenAI-compatible embeddings endpoint Meilisearch calls to embed records and queries for hybrid search (e.g. http://localhost:11434/v1/embeddings for Ollama, https://<resource>.openai.azure.com/openai/v1/embeddings for Microsoft Foundry). It must be reachable from the Meilisearch server. If unset, search is keyword only.",
+			Sources: getSources(fEmbedderURL),
+		},
+		&cli.StringFlag{
+			Name:    fEmbedderAPIKey,
+			Usage:   "API key sent as a bearer token to the embeddings endpoint",
+			Sources: getSources(fEmbedderAPIKey),
+		},
+		&cli.StringFlag{
+			Name:    fEmbedderModel,
+			Usage:   "Embedding model to request; for Microsoft Foundry, the deployment name",
+			Sources: getSources(fEmbedderModel),
+		},
+		&cli.IntFlag{
+			Name:    fEmbedderDimensions,
+			Usage:   "Size of the model's embeddings. If unset, Meilisearch infers it.",
+			Sources: getSources(fEmbedderDimensions),
+		},
+		&cli.FloatFlag{
+			Name:    fSemanticRatio,
+			Usage:   "With an embedder, how much hybrid search weighs semantic over keyword matches, from 0 (keyword only) to 1 (semantic only)",
+			Value:   0.5,
+			Sources: getSources(fSemanticRatio),
+		},
+		&cli.FloatFlag{
+			Name:    fSearchMinScore,
+			Usage:   "With an embedder, drop hybrid search hits ranked below this score, from 0 to 1. Semantic search ranks every record, so without it unrelated records trail the results. A good value depends on the model. 0 keeps every hit.",
+			Sources: getSources(fSearchMinScore),
 		},
 	}
 }

@@ -2,6 +2,7 @@ package search_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -76,6 +77,30 @@ func TestMeilisearchMatchesEveryWord(t *testing.T) {
 	require.Equal(t, syntax.DID("did:plc:user"), hit.Repo)
 	require.Equal(t, syntax.NSID("network.habitat.note"), hit.Collection)
 	require.Contains(t, hit.Snippet, "<mark>budget</mark>")
+}
+
+func TestMeilisearchSnippetLength(t *testing.T) {
+	idx := searchtest.NewIndex(t)
+	var words []string
+	for i := range 300 {
+		words = append(words, fmt.Sprintf("filler%d", i))
+	}
+	text := strings.Join(words[:150], " ") + " needle " + strings.Join(words[150:], " ")
+	require.NoError(t, idx.Put(t.Context(), doc(spaceA, "1", "3kaaaaaaaaaa2", text)))
+
+	snippetWords := func(length int) int {
+		res := search_(t, idx, asAlice(search.Query{Text: "needle", SnippetLength: length}))
+		require.Len(t, res.Hits, 1)
+		require.Contains(t, res.Hits[0].Snippet, "<mark>needle</mark>")
+		return len(strings.Fields(res.Hits[0].Snippet))
+	}
+	small := snippetWords(0) // zero takes the default.
+	require.Equal(t, small, snippetWords(search.DefaultSnippetLength))
+	require.Less(t, small, 50)
+	large := snippetWords(200)
+	require.Greater(t, large, 150)
+	// Past the maximum the snippet is clamped, not rejected.
+	require.Greater(t, snippetWords(search.MaxSnippetLength+500), large)
 }
 
 func TestMeilisearchFiltersByAccess(t *testing.T) {
@@ -247,4 +272,49 @@ func TestMeilisearchTreatsInputAsPlainText(t *testing.T) {
 		Reader: &search.Reader{Users: []syntax.DID{`x" OR public = false OR user_readers = "x`}},
 	})
 	require.Empty(t, res.Hits)
+}
+
+func TestMeilisearchHybridMatchesMeaning(t *testing.T) {
+	car := doc(spaceA, "car", "3kaaaaaaaaaa2", "i drive an automobile")
+	fruit := doc(spaceA, "fruit", "3kaaaaaaaaaa2", "banana bread")
+	q := asAlice(search.Query{Text: "car"})
+
+	// Keyword search alone doesn't know automobile means car.
+	keyword := searchtest.NewIndex(t)
+	require.NoError(t, keyword.Put(t.Context(), car, fruit))
+	require.Empty(t, uris(search_(t, keyword, q)))
+
+	hybrid := searchtest.NewIndex(t, search.WithEmbedder(searchtest.Embedder(t, 0.5, 0)))
+	require.NoError(t, hybrid.Put(t.Context(), car, fruit))
+	// Semantic search ranks every document, so the unrelated one comes last.
+	require.Equal(
+		t,
+		[]habitat_syntax.SpaceRecordURI{car.URI, fruit.URI},
+		uris(search_(t, hybrid, q)),
+	)
+
+	// A minimum score drops it.
+	thresholded := searchtest.NewIndex(t, search.WithEmbedder(searchtest.Embedder(t, 0.5, 0.6)))
+	require.NoError(t, thresholded.Put(t.Context(), car, fruit))
+	require.Equal(t, []habitat_syntax.SpaceRecordURI{car.URI}, uris(search_(t, thresholded, q)))
+
+	// Filters still apply to semantic matches.
+	res := search_(t, hybrid, search.Query{
+		Text:   "car",
+		Reader: &search.Reader{Users: []syntax.DID{"did:plc:mallory"}},
+	})
+	require.Empty(t, res.Hits)
+}
+
+func TestMeilisearchDropsEmbedderWhenUnconfigured(t *testing.T) {
+	car := doc(spaceA, "car", "3kaaaaaaaaaa2", "i drive an automobile")
+	uid := searchtest.NewUID(t)
+	idx := searchtest.OpenIndex(t, uid, search.WithEmbedder(searchtest.Embedder(t, 1, 0)))
+	require.NoError(t, idx.Put(t.Context(), car))
+	require.NotEmpty(t, search_(t, idx, asAlice(search.Query{Text: "car"})).Hits)
+
+	// Reopening the same index without an embedder goes back to keyword
+	// search.
+	reopened := searchtest.OpenIndex(t, uid)
+	require.Empty(t, search_(t, reopened, asAlice(search.Query{Text: "car"})).Hits)
 }

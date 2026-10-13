@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -250,6 +251,29 @@ func TestIndexerFollowsWritesAndDeletes(t *testing.T) {
 	require.Empty(t, cursors)
 }
 
+func TestIndexerSkipsRecordsWithoutText(t *testing.T) {
+	it := setupIndexer(t)
+	ctx := t.Context()
+	space, err := it.store.CreateSpace(ctx, testOrg, testType, "a")
+	require.NoError(t, err)
+
+	put(t, it.store, space, "k1", "has text")
+	put(t, it.store, space, "k2", "later cleared")
+	put(t, it.store, space, "k3", "")
+	it.drain(ctx)
+	require.Equal(t, map[habitat_syntax.SpaceRecordURI]string{
+		recordURI(space, "k1"): "has text",
+		recordURI(space, "k2"): "later cleared",
+	}, it.idx.texts())
+
+	// A record that loses its text leaves the index.
+	put(t, it.store, space, "k2", "")
+	it.drain(ctx)
+	require.Equal(t, map[habitat_syntax.SpaceRecordURI]string{
+		recordURI(space, "k1"): "has text",
+	}, it.idx.texts())
+}
+
 func TestIndexerPagesThroughRepo(t *testing.T) {
 	it := setupIndexer(t)
 	ctx := t.Context()
@@ -454,6 +478,7 @@ func TestIndexerIndexesBlobContent(t *testing.T) {
 		upload("text/plain; charset=utf-8", "plain words"),
 		upload("text/html", htmlBody),
 		upload("application/json", `{"title":"json words"}`),
+		upload("application/pdf", minimalPDF("pdf words")),
 		upload("image/png", "not indexed"),
 	)
 	it.drain(ctx)
@@ -462,6 +487,7 @@ func TestIndexerIndexesBlobContent(t *testing.T) {
 	require.Contains(t, text, "plain words")
 	require.Contains(t, text, "html words")
 	require.Contains(t, text, "json words")
+	require.Contains(t, text, "pdf words")
 	require.NotContains(t, text, "nope")
 	require.NotContains(t, text, ".x{}")
 	require.NotContains(t, text, "not indexed")
@@ -480,4 +506,42 @@ func TestIndexerIndexesBlobContent(t *testing.T) {
 		it.drain(ctx)
 		require.Equal(t, "note", it.idx.texts()[recordURI(space, "k2")])
 	})
+}
+
+// minimalPDF returns a one-page PDF whose only content is text.
+func minimalPDF(text string) string {
+	stream := "BT /F1 12 Tf 72 720 Td (" + text + ") Tj ET"
+	objs := []string{
+		"<< /Type /Catalog /Pages 2 0 R >>",
+		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] " +
+			"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+		fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(stream), stream),
+		"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+	}
+	var sb strings.Builder
+	sb.WriteString("%PDF-1.4\n")
+	offsets := make([]int, len(objs))
+	for i, o := range objs {
+		offsets[i] = sb.Len()
+		fmt.Fprintf(&sb, "%d 0 obj\n%s\nendobj\n", i+1, o)
+	}
+	xref := sb.Len()
+	fmt.Fprintf(&sb, "xref\n0 %d\n0000000000 65535 f \n", len(objs)+1)
+	for _, off := range offsets {
+		fmt.Fprintf(&sb, "%010d 00000 n \n", off)
+	}
+	fmt.Fprintf(
+		&sb,
+		"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n",
+		len(objs)+1,
+		xref,
+	)
+	return sb.String()
+}
+
+func TestTextFromPDF(t *testing.T) {
+	require.Contains(t, textFromPDF(t.Context(), []byte(minimalPDF("hello pdf"))), "hello pdf")
+	require.Empty(t, textFromPDF(t.Context(), []byte("%PDF-1.4 garbage")))
+	require.Empty(t, textFromPDF(t.Context(), nil))
 }

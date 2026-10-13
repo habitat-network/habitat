@@ -1,3 +1,4 @@
+import type { IdentityResolver } from "@atproto-labs/identity-resolver";
 import { Context, Duration, Layer } from "effect";
 
 /**
@@ -20,7 +21,12 @@ export interface SpaceSyncOptions {
    * (see syncerServiceRef), and it's checked as `aud` on notifications.
    */
   readonly serviceDid: string;
-  readonly plcUrl: string;
+  /**
+   * Resolves the DIDs of space authorities and repos. Defaults to the public
+   * did:plc / did:web network; pass e.g. a HabitatIdentityResolver to resolve
+   * identities the public network doesn't know.
+   */
+  readonly identityResolver?: IdentityResolver;
   /** Max spaces running a pass at once (global). */
   readonly maxActiveSpaces: number;
   /** Max repos synced at once within one space pass. */
@@ -47,7 +53,6 @@ export interface SpaceSyncOptions {
 
 export const defaultSpaceSyncOptions: SpaceSyncOptions = {
   serviceDid: "",
-  plcUrl: "https://plc.directory",
   maxActiveSpaces: 64,
   repoConcurrency: 8,
   schedulerInterval: Duration.seconds(30),

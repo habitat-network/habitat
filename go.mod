@@ -4,6 +4,7 @@ go 1.26.3
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260818202247-4b983a7e86c8
+	github.com/dslipak/pdf v0.0.2
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-querystring v1.1.0
@@ -15,7 +16,7 @@ require (
 	github.com/ipfs/go-cid v0.6.2
 	github.com/ipld/go-car v0.6.3
 	github.com/libp2p/go-libp2p v0.49.0
-	github.com/lmittmann/tint v1.2.0
+	github.com/lmittmann/tint v1.2.1
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/multiformats/go-multiaddr v0.16.1
@@ -311,7 +312,7 @@ require (
 	github.com/bradenaw/juniper v0.15.3
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/fxamacker/cbor/v2 v2.9.4
+	github.com/fxamacker/cbor/v2 v2.9.6
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect

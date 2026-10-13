@@ -43,6 +43,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@atproto-labs/identity-resolver": "^0.4.5",
     "@atproto/api": "catalog:",
     "@atproto/common-web": "catalog:",
     "@atproto/identity": "catalog:",

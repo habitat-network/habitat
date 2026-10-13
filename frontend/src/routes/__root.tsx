@@ -1,7 +1,6 @@
 import type { AuthManager } from "internal";
 import Header from "@/components/header";
 import { type QueryClient } from "@tanstack/react-query";
-import { AtpAgent } from "@atproto/api";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Toaster } from "internal/components/ui";
@@ -21,16 +20,9 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       return { profile: undefined };
     }
 
-    const profileResult = await new AtpAgent({
-      service: "https://public.api.bsky.app",
-    })
-      .getProfile({ actor: authInfo.did })
-      .then(
-        (r) => r.data,
-        () => ({ did: authInfo.did }),
-      );
-
-    return { profile: profileResult };
+    // getProfiles is scoped to an org, which the root route doesn't know, so
+    // the header resolves the full profile itself (see ProfileAvatar).
+    return { profile: { did: authInfo.did } };
   },
   staleTime: 1000 * 60 * 60,
   component() {

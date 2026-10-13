@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { publicIdentityResolver } from "./Identity";
 import type { VerifiedRecord } from "@atproto/space";
 import { describe, expect, it } from "vitest";
 import { server } from "../test/msw";
@@ -49,7 +50,7 @@ describe("createSpaceSyncer", () => {
     const applied: Array<{ tag: string; records?: string[] }> = [];
     const syncer = createSpaceSyncer({
       serviceDid: SERVICE_DID,
-      plcUrl: PLC_URL,
+      identityResolver: publicIdentityResolver(PLC_URL),
       store: memoryStore(),
       delegation: { issue: (s) => net.delegationTokenFor(s) },
       sink: {

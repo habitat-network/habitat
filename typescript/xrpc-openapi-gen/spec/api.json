@@ -10292,6 +10292,18 @@
             }
           },
           {
+            "name": "snippetLength",
+            "in": "query",
+            "description": "About how many words of context each record's snippet keeps around the matches.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 30
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,

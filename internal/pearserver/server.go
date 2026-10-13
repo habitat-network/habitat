@@ -115,3 +115,12 @@ func New(
 func (p *PearServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.router.ServeHTTP(w, r)
 }
+
+// Handles reports whether PearServer's own router has a route for r. It is
+// meant to be used as a mux.MatcherFunc so a parent router delegates exactly
+// the requests PearServer owns, and passes everything else along to its own
+// routes, instead of mounting PearServer under a handful of path prefixes that
+// have to be kept in sync with registerRoutes.
+func (p *PearServer) Handles(r *http.Request, _ *mux.RouteMatch) bool {
+	return p.router.Match(r, &mux.RouteMatch{})
+}

@@ -45,4 +45,8 @@ tasks:
     args:
     - --db-path
     - .meilisearch
+    # Meilisearch refuses to call embedders at internal IPs unless allowed, so
+    # allow loopback for a local Ollama (HABITAT_EMBEDDER_URL).
+    - --experimental-allowed-ip-networks
+    - 127.0.0.0/8,::1/128
     preset: server
