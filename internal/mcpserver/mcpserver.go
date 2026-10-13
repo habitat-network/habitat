@@ -14,6 +14,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/nango"
@@ -75,7 +76,7 @@ type ManualServerSource interface {
 const ProtectedResourceMetadataPath = "/.well-known/oauth-protected-resource/mcp"
 
 // Path is the prefix under which Server.Handler should be mounted. Each org's
-// MCP endpoint lives at Path + "/" + <org DID>, so tools such as
+// MCP endpoint lives at Path + "/" + <org DID or handle>, so tools such as
 // "search_records" know which org they act on.
 const Path = "/mcp"
 
@@ -87,14 +88,14 @@ type Server struct {
 	handler    http.Handler
 }
 
-// orgFromPath extracts the org DID from p, the path of a request to an org's
-// MCP endpoint (Path + "/" + <org DID>).
-func orgFromPath(p, prefix string) (syntax.DID, error) {
+// orgFromPath extracts the org identifier (a DID or handle) from p, the path
+// of a request to an org's MCP endpoint (Path + "/" + <org DID or handle>).
+func orgFromPath(p, prefix string) (syntax.AtIdentifier, error) {
 	raw, ok := strings.CutPrefix(p, prefix+"/")
 	if !ok {
 		return "", fmt.Errorf("path %q is not under %s", p, prefix)
 	}
-	return syntax.ParseDID(strings.TrimSuffix(raw, "/"))
+	return syntax.ParseAtIdentifier(strings.TrimSuffix(raw, "/"))
 }
 
 // New constructs the MCP server and its authenticated streamable-HTTP
@@ -120,6 +121,7 @@ func orgFromPath(p, prefix string) (syntax.DID, error) {
 //     this server's own tools/list response, namespaced by the server's name
 //     (see namespaceTool), and tools/call for a namespaced tool is proxied
 //     straight through to that server.
+//   - dir resolves an org handle in the endpoint's path to its DID.
 //   - origin is this server's public origin (an https URL with no path), used
 //     to build the resource identifier in the protected resource metadata.
 //   - authServer is the issuer of the authorization server (internal/oauthserver)
@@ -133,6 +135,7 @@ func New(
 	orgRecords OrgMcpServerStore,
 	manualServers ManualServerSource,
 	blobs spaces.BlobStore,
+	dir identity.Directory,
 	origin string,
 	authServer string,
 ) *Server {
@@ -175,11 +178,18 @@ func New(
 	}
 
 	streamable := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
-		org, err := orgFromPath(r.URL.Path, Path)
+		orgID, err := orgFromPath(r.URL.Path, Path)
 		if err != nil {
 			return nil
 		}
-		return newMCPServer(org)
+		// Resolved here, after the bearer check, so unauthenticated requests
+		// can't trigger directory lookups.
+		ident, err := dir.Lookup(r.Context(), orgID)
+		if err != nil {
+			slog.WarnContext(r.Context(), "mcp: resolving org", "org", orgID.String(), "err", err)
+			return nil
+		}
+		return newMCPServer(ident.DID)
 	}, &mcp.StreamableHTTPOptions{
 		// pear runs behind a reverse proxy (Caddy locally, Cloud Run in prod),
 		// so requests reach it from a loopback address carrying the public Host

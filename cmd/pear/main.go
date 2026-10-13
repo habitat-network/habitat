@@ -518,6 +518,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		opensocialStore,
 		mcpGatewayStore,
 		blobStore,
+		hiveDir,
 		mcpOrigin,
 		oauthServer.MCPIssuer(),
 	)

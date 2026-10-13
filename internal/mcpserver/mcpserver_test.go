@@ -9,6 +9,7 @@ import (
 
 	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -75,6 +76,16 @@ func setupStores(t *testing.T) (spaces.Store, perms.Store) {
 // testOrg is the org every test client connects to the MCP server as scoped to.
 const testOrg = syntax.DID("did:plc:org")
 
+// testOrgHandle is a handle that resolves to testOrg in newTestDirectory.
+const testOrgHandle = syntax.Handle("org.example.com")
+
+// newTestDirectory returns an identity directory knowing testOrg by DID and handle.
+func newTestDirectory() identity.Directory {
+	dir := identity.NewMockDirectory()
+	dir.Insert(identity.Identity{DID: testOrg, Handle: testOrgHandle})
+	return dir
+}
+
 // connectAs connects to testOrg's MCP endpoint on the server at serverURL.
 func connectAs(
 	t *testing.T,
@@ -118,6 +129,7 @@ func TestMCPServerGetRecordTool(t *testing.T) {
 		newFakeOrgMcpServerStore(),
 		nil,
 		nil,
+		newTestDirectory(),
 		"https://habitat.example",
 		"https://habitat.example/mcp",
 	)
@@ -262,7 +274,7 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 			fakeTokens{}, spacesStore, permStore, s,
 			newFakeNangoClient(), newFakeOrgMcpServerStore(), nil,
 			nil,
-			"https://habitat.example", "https://habitat.example/mcp",
+			newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 		)
 		return httptest.NewServer(srv.Handler())
 	}
@@ -378,7 +390,7 @@ func TestMCPServerGetBlobTool(t *testing.T) {
 	srv := New(
 		fakeTokens{}, spacesStore, permStore, nil,
 		newFakeNangoClient(), newFakeOrgMcpServerStore(), nil, blobs,
-		"https://habitat.example", "https://habitat.example/mcp",
+		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 	)
 	httpServer := httptest.NewServer(srv.Handler())
 	defer httpServer.Close()
@@ -463,10 +475,10 @@ func TestMCPServerRejectsInvalidOrgPath(t *testing.T) {
 	srv := New(
 		fakeTokens{}, spacesStore, permStore, nil,
 		newFakeNangoClient(), newFakeOrgMcpServerStore(), nil, nil,
-		"https://habitat.example", "https://habitat.example/mcp",
+		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 	)
 
-	for _, path := range []string{Path, Path + "/", Path + "/not-a-did"} {
+	for _, path := range []string{Path, Path + "/", Path + "/not-a-did!"} {
 		req := httptest.NewRequest(http.MethodPost, path, http.NoBody)
 		req.Header.Set("Authorization", "Bearer did:plc:owner")
 		rec := httptest.NewRecorder()
@@ -480,7 +492,7 @@ func TestMCPServerProtectedResourceMetadataIsPerOrg(t *testing.T) {
 	srv := New(
 		fakeTokens{}, spacesStore, permStore, nil,
 		newFakeNangoClient(), newFakeOrgMcpServerStore(), nil, nil,
-		"https://habitat.example", "https://habitat.example/mcp",
+		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
 	)
 
 	req := httptest.NewRequest(
@@ -498,4 +510,32 @@ func TestMCPServerProtectedResourceMetadataIsPerOrg(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
 	require.Contains(t, rec.Header().Get("WWW-Authenticate"),
 		"https://habitat.example"+ProtectedResourceMetadataPath+"/"+testOrg.String())
+}
+
+func TestMCPServerOrgByHandle(t *testing.T) {
+	ctx := t.Context()
+	spacesStore, permStore := setupStores(t)
+	searcher := &fakeRecordSearcher{}
+	srv := New(
+		fakeTokens{}, spacesStore, permStore, searcher,
+		newFakeNangoClient(), newFakeOrgMcpServerStore(), nil, nil,
+		newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
+	)
+	httpServer := httptest.NewServer(srv.Handler())
+	defer httpServer.Close()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:   httpServer.URL + Path + "/" + testOrgHandle.String(),
+		HTTPClient: &http.Client{Transport: bearerTransport{token: "did:plc:owner"}},
+	}, nil)
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "search_records", Arguments: map[string]any{"query": "hello"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError, "%+v", result)
+	require.Equal(t, testOrg, searcher.query.Org)
 }
