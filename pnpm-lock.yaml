@@ -19,8 +19,8 @@ catalogs:
       specifier: 0.0.0-spaces-alpha-20261001173819
       version: 0.0.0-spaces-alpha-20261001173819
     '@atproto/lex':
-      specifier: 0.0.0-spaces-alpha-20261001173819
-      version: 0.0.0-spaces-alpha-20261001173819
+      specifier: 0.3.14
+      version: 0.3.14
     '@atproto/lex-server':
       specifier: 0.0.0-spaces-alpha-20261001173819
       version: 0.0.0-spaces-alpha-20261001173819
@@ -244,7 +244,7 @@ importers:
         version: 0.0.0-spaces-alpha-20261001173819
       '@atproto/lex':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20261001173819
+        version: 0.3.14
       '@atproto/oauth-types':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20261001173819
@@ -359,7 +359,7 @@ importers:
     dependencies:
       '@atproto/lex':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20261001173819
+        version: 0.3.14
 
   typescript/apps/chalk:
     dependencies:
@@ -516,7 +516,7 @@ importers:
         version: 0.0.0-spaces-alpha-20261001173819
       '@atproto/lex':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20261001173819
+        version: 0.3.14
       '@chainsafe/libp2p-gossipsub':
         specifier: 14.1.2
         version: 14.1.2
@@ -688,7 +688,7 @@ importers:
         version: 0.2.4
       '@atproto/lex':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20261001173819
+        version: 0.3.14
       '@atproto/oauth-client':
         specifier: 0.0.0-spaces-alpha-20261001173819
         version: 0.0.0-spaces-alpha-20261001173819
@@ -873,7 +873,7 @@ importers:
         version: 0.0.0-spaces-alpha-20261001173819
       '@atproto/lex':
         specifier: 'catalog:'
-        version: 0.0.0-spaces-alpha-20261001173819
+        version: 0.3.14
       '@atproto/lex-server':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20261001173819
@@ -1229,8 +1229,8 @@ packages:
     resolution: {integrity: sha512-c8N4P+u4PDsjTOlNf8UKfMNBwh8W8ZDGo5iMWAHNEMxhUOotW1Qh+v0b6MB1qvprRy5BT5eZSVUIoYCvdRFk4w==}
     engines: {node: '>=22'}
 
-  '@atproto/lex@0.0.0-spaces-alpha-20261001173819':
-    resolution: {integrity: sha512-9S2kzWVDyBFkOKBeTxUG4ujiVSCrzZt4OUVthMLpZMRmoyb2npgYxubvxyf6HlEYhsaa0w2dEXEKMllqIncyMA==}
+  '@atproto/lex@0.3.14':
+    resolution: {integrity: sha512-J3Tu85i5wNaZRy6Oov+pB00Sy/g9R9voG5yQ07nnUGi7RtglkpJLeSUZhYGpqwR9ckxvhcKfBFbNVzaCvnzLUA==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -12628,7 +12628,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@atproto/lex@0.0.0-spaces-alpha-20261001173819':
+  '@atproto/lex@0.3.14':
     dependencies:
       '@atproto/lex-builder': 0.0.0-spaces-alpha-20261001173819
       '@atproto/lex-client': 0.0.0-spaces-alpha-20261001173819
