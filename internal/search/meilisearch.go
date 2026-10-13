@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -91,6 +93,10 @@ type Meilisearch struct {
 	client  meilisearch.ServiceManager
 	// embedder, when set, makes searches hybrid; see [WithEmbedder].
 	embedder *Embedder
+	// embedderReady is set once Meilisearch has applied the embedder settings
+	// and re-embedded the existing documents. Until then searches are keyword
+	// only, as a hybrid search would fail on an embedder that doesn't exist yet.
+	embedderReady atomic.Bool
 }
 
 var _ Index = (*Meilisearch)(nil)
@@ -186,16 +192,22 @@ func NewMeilisearch(
 			"user_readers", "community_role_readers", "public",
 		},
 	}
-	if m.embedder != nil {
-		// Meilisearch re-embeds every document when the embedder changes.
-		settings.Embedders = map[string]meilisearch.Embedder{
-			embedderName: m.embedder.settings(),
-		}
-	}
 	if err := m.setup(ctx, uid, settings); err != nil {
 		return nil, err
 	}
-	if m.embedder == nil {
+	if m.embedder != nil {
+		// Meilisearch re-embeds every document when the embedder changes,
+		// which can take long, so don't block on it. Searches stay keyword
+		// only until it finishes; documents without embeddings yet still
+		// match by keyword.
+		info, err := m.index.UpdateEmbeddersWithContext(ctx, map[string]meilisearch.Embedder{
+			embedderName: m.embedder.settings(),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("configure meilisearch embedders: %w", err)
+		}
+		go m.awaitEmbedder(context.WithoutCancel(ctx), info)
+	} else {
 		// Embedders are omitted from settings when empty, so drop one left
 		// from an earlier configuration explicitly.
 		info, err := m.index.ResetEmbeddersWithContext(ctx)
@@ -212,6 +224,26 @@ func NewMeilisearch(
 		return nil, err
 	}
 	return m, nil
+}
+
+// EmbedderReady reports whether searches are using the embedder: true once
+// Meilisearch has applied it, or when none is configured and there is nothing
+// to wait for. Until then searches are keyword only.
+func (m *Meilisearch) EmbedderReady() bool {
+	return m.embedder == nil || m.embedderReady.Load()
+}
+
+// awaitEmbedder marks the embedder ready once its settings task succeeds.
+func (m *Meilisearch) awaitEmbedder(ctx context.Context, info *meilisearch.TaskInfo) {
+	if err := m.wait(ctx, info); err != nil {
+		slog.ErrorContext(
+			ctx,
+			"meilisearch embedder not applied; searches stay keyword only",
+			"error", err,
+		)
+		return
+	}
+	m.embedderReady.Store(true)
 }
 
 // setup creates the index uid if it doesn't exist and applies settings.
@@ -472,7 +504,7 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 		HighlightPreTag:       "<mark>",
 		HighlightPostTag:      "</mark>",
 	}
-	if m.embedder != nil {
+	if m.embedder != nil && m.embedderReady.Load() {
 		req.Hybrid = &meilisearch.SearchRequestHybrid{
 			Embedder:      embedderName,
 			SemanticRatio: m.embedder.SemanticRatio,
