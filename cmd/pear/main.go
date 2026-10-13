@@ -492,6 +492,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		searchConfigStore,
 	)
 
+	// PearServer owns a large slice of the XRPC surface. Mounting it as a
+	// matcher rather than under path prefixes means the routes it serves are
+	// declared once, in internal/pearserver/routes.go, instead of being
+	// duplicated here and drifting out of sync. Anything PearServer does not
+	// route falls through to the rest of this mux.
+	mux.MatcherFunc(pearApp.Handles).Handler(pearApp)
+
 	repo, err := repo.NewRepo(database.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup repo: %w", err)
@@ -544,19 +551,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
 
 	// Server for opensocial community routes
-	mux.HandleFunc("/xrpc/network.habitat.opensocial.createOrg", pearApp.CreateOrg)
 	mux.HandleFunc("/xrpc/network.habitat.emaildomain.createOrg", pearApp.CreateEmailDomainOrg)
-	mux.PathPrefix("/xrpc/community.opensocial.").Handler(pearApp)
-	// The rest of network.habitat.opensocial.* (e.g. getProfiles) is handled by
-	// pearApp via registerRoutes in internal/pearserver/routes.go. Without this
-	// mount those requests fall through to the catch-all libp2p handler below
-	// and 404, so mount the whole NSID family rather than listing each route.
-	mux.PathPrefix("/xrpc/network.habitat.opensocial.").Handler(pearApp)
 	// Server-side client-metadata proxy for the management frontend
 	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
-	// MCP gateway routes (network.habitat.mcp.*) are handled by pearApp via
-	// registerRoutes in internal/pearserver/routes.go.
-	mux.PathPrefix("/xrpc/network.habitat.mcp.").Handler(pearApp)
 
 	cliqueServer := clique.NewServer(cliqueStore, validator)
 	pearServer := pear.NewServer(
@@ -662,7 +659,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
-	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearApp.UploadBlob)
 
 	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
@@ -675,23 +671,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
-	// Spaces
-	mux.PathPrefix("/xrpc/network.habitat.space.").Handler(pearApp)
-
-	// Search configuration (which collections an org surfaces in search)
-	mux.PathPrefix("/xrpc/network.habitat.search.").Handler(pearApp)
-
-	// Simplespace
-	mux.PathPrefix("/xrpc/network.habitat.simplespace.").Handler(pearApp)
-
-	// Relationships
-	mux.PathPrefix("/xrpc/network.habitat.relationship.").Handler(pearApp)
-
-	// Proposal 0016 aliases: the official com.atproto NSIDs served by the same
-	// pearApp handlers as their network.habitat counterparts above.
-	mux.PathPrefix("/xrpc/com.atproto.space.").Handler(pearApp)
-	mux.PathPrefix("/xrpc/com.atproto.simplespace.").Handler(pearApp)
-
+	// The methods PearServer does not register are forwarded to the PDS that
+	// hosts them; it is mounted after the PearServer matcher above, which is
+	// what lets com.atproto.repo.uploadBlob be served locally instead.
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
 

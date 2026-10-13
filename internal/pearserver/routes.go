@@ -103,6 +103,7 @@ func (p *PearServer) registerRoutes() {
 
 	// com.atproto.server aliases
 	p.router.HandleFunc("/xrpc/com.atproto.server.getSession", p.GetSession)
+
 	p.router.HandleFunc("/xrpc/com.atproto.simplespace.createSpace", p.CreateSpace)
 	p.router.HandleFunc("/xrpc/com.atproto.simplespace.putMember", p.AddMember)
 	p.router.HandleFunc("/xrpc/com.atproto.simplespace.removeMember", p.RemoveMember)
