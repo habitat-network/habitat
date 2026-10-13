@@ -133,11 +133,14 @@ const (
 // deployments need.
 func (e Embedder) settings() meilisearch.Embedder {
 	return meilisearch.Embedder{
-		Source:                   meilisearch.RestEmbedderSource,
-		URL:                      e.URL,
-		APIKey:                   e.APIKey,
-		Dimensions:               e.Dimensions,
-		DocumentTemplate:         "{{doc.text}}",
+		Source:     meilisearch.RestEmbedderSource,
+		URL:        e.URL,
+		APIKey:     e.APIKey,
+		Dimensions: e.Dimensions,
+		// The indexer skips records with no text, but ones indexed before it
+		// did would otherwise render an empty input, which embeddings APIs
+		// such as Azure OpenAI reject.
+		DocumentTemplate:         `{% if doc.text != "" %}{{doc.text}}{% else %}{{doc.uri}}{% endif %}`,
 		DocumentTemplateMaxBytes: embedTemplateMaxBytes,
 		Request: map[string]any{
 			"model": e.Model,

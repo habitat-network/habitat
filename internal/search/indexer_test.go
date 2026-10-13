@@ -251,6 +251,29 @@ func TestIndexerFollowsWritesAndDeletes(t *testing.T) {
 	require.Empty(t, cursors)
 }
 
+func TestIndexerSkipsRecordsWithoutText(t *testing.T) {
+	it := setupIndexer(t)
+	ctx := t.Context()
+	space, err := it.store.CreateSpace(ctx, testOrg, testType, "a")
+	require.NoError(t, err)
+
+	put(t, it.store, space, "k1", "has text")
+	put(t, it.store, space, "k2", "later cleared")
+	put(t, it.store, space, "k3", "")
+	it.drain(ctx)
+	require.Equal(t, map[habitat_syntax.SpaceRecordURI]string{
+		recordURI(space, "k1"): "has text",
+		recordURI(space, "k2"): "later cleared",
+	}, it.idx.texts())
+
+	// A record that loses its text leaves the index.
+	put(t, it.store, space, "k2", "")
+	it.drain(ctx)
+	require.Equal(t, map[habitat_syntax.SpaceRecordURI]string{
+		recordURI(space, "k1"): "has text",
+	}, it.idx.texts())
+}
+
 func TestIndexerPagesThroughRepo(t *testing.T) {
 	it := setupIndexer(t)
 	ctx := t.Context()
