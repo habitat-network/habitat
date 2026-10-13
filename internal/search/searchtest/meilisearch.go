@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -52,6 +53,9 @@ func OpenIndex(t *testing.T, uid string, opts ...search.MeilisearchOption) *sear
 	t.Helper()
 	idx, err := search.NewMeilisearch(t.Context(), serverURL(t), "", uid, opts...)
 	require.NoError(t, err)
+	// The embedder is applied in the background; tests of hybrid search need
+	// it in place.
+	require.Eventually(t, idx.EmbedderReady, time.Minute, 20*time.Millisecond)
 	return idx
 }
 
