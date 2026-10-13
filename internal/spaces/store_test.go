@@ -1,6 +1,7 @@
 package spaces_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -1635,4 +1636,41 @@ func TestDeleteSpace_ClearsBlobReferences(t *testing.T) {
 	referenced, err := s.BlobReferenced(t.Context(), uri, c)
 	require.NoError(t, err)
 	require.False(t, referenced)
+}
+
+// TestWritesStoreValueJSON checks that PutRecord and ApplyWrites write the
+// record's JSON alongside its CBOR value.
+func TestWritesStoreValueJSON(t *testing.T) {
+	db := db_testutil.NewDB(t, spaces.Models())
+	s := spaces_testutil.NewTestStore(t, spaces_testutil.WithDB(db))
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "json")
+	require.NoError(t, err)
+	coll := syntax.NSID("network.habitat.note")
+
+	_, _, err = s.PutRecord(t.Context(), uri, alice, coll, "put",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"text": "put", "n": 1}))
+	require.NoError(t, err)
+	_, err = s.ApplyWrites(t.Context(), uri, alice, []spaces.Write{{
+		Action: spaces.WriteCreate, Collection: coll, Rkey: "batch",
+		Value: spaces_testutil.MustMarshalRecord(t, map[string]any{"text": "batch"}),
+	}})
+	require.NoError(t, err)
+
+	for rkey, want := range map[string]string{
+		"put":   `{"n":1,"text":"put"}`,
+		"batch": `{"text":"batch"}`,
+	} {
+		var got string
+		require.NoError(t, db.Raw(
+			"SELECT value_json FROM space_records WHERE rkey = ?", rkey).Scan(&got).Error)
+		require.JSONEq(t, want, got, rkey)
+		// The column is queryable with the database's JSON functions.
+		var text string
+		require.NoError(t, db.Raw(
+			"SELECT json_extract(value_json, '$.text') FROM space_records WHERE rkey = ?",
+			rkey).Scan(&text).Error)
+		var parsed map[string]any
+		require.NoError(t, json.Unmarshal([]byte(want), &parsed))
+		require.Equal(t, parsed["text"], text)
+	}
 }
