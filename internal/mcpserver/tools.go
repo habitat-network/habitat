@@ -333,7 +333,6 @@ const defaultMCPSnippetLength = 300
 
 type searchRecordsInput struct {
 	Query      string `json:"query"                jsonschema:"the text to search for"`
-	Org        string `json:"org,omitempty"        jsonschema:"DID of the org whose spaces to search"`
 	Collection string `json:"collection,omitempty" jsonschema:"only return records of this collection NSID"`
 	Limit      int    `json:"limit,omitempty"      jsonschema:"maximum number of hits to return, up to 100"`
 	// SnippetLength is a pointer so an omitted value, which takes the default,
@@ -355,9 +354,11 @@ type searchRecordsOutput struct {
 
 // searchRecordsHandler implements the "search_records" MCP tool: run the same
 // search as the searchRecords endpoint as the authenticated caller, so the
-// index only matches records they may read.
+// index only matches records they may read. The search is scoped to org, the
+// org the MCP endpoint was reached through.
 func searchRecordsHandler(
 	searcher RecordSearcher,
+	org syntax.DID,
 ) mcp.ToolHandlerFor[searchRecordsInput, searchRecordsOutput] {
 	return func(
 		ctx context.Context,
@@ -387,13 +388,8 @@ func searchRecordsHandler(
 				"snippet_length must be between 1 and %d", search.MaxSnippetLength,
 			)
 		}
-		q := search.Query{Text: input.Query, Limit: input.Limit, SnippetLength: snippetLength}
-		if input.Org != "" {
-			org, err := syntax.ParseDID(input.Org)
-			if err != nil {
-				return nil, searchRecordsOutput{}, fmt.Errorf("invalid org: %w", err)
-			}
-			q.Org = org
+		q := search.Query{
+			Text: input.Query, Org: org, Limit: input.Limit, SnippetLength: snippetLength,
 		}
 		if input.Collection != "" {
 			collection, err := syntax.ParseNSID(input.Collection)
@@ -404,9 +400,6 @@ func searchRecordsHandler(
 		}
 
 		page, err := searcher.Search(ctx, caller, q)
-		if errors.Is(err, search.ErrOrgRequired) {
-			return nil, searchRecordsOutput{}, fmt.Errorf("org is required")
-		}
 		if err != nil {
 			return nil, searchRecordsOutput{}, fmt.Errorf("searching records: %w", err)
 		}

@@ -147,6 +147,7 @@ func TestMCPServerToolsList_MergesConnectedServerTools(t *testing.T) {
 		orgRecords,
 		nil,
 		nil,
+		newTestDirectory(),
 		"https://habitat.example",
 		"https://habitat.example/mcp",
 	)
@@ -191,6 +192,7 @@ func TestMCPServerToolsList_SkipsUnreachableConnectedServer(t *testing.T) {
 		orgRecords,
 		nil,
 		nil,
+		newTestDirectory(),
 		"https://habitat.example",
 		"https://habitat.example/mcp",
 	)
@@ -232,6 +234,7 @@ func TestMCPServerToolsList_SkipsConnectionWithNoMatchingRecord(t *testing.T) {
 		newFakeOrgMcpServerStore(),
 		nil,
 		nil,
+		newTestDirectory(),
 		"https://habitat.example",
 		"https://habitat.example/mcp",
 	)
@@ -273,6 +276,7 @@ func TestMCPServerToolsCall_ProxiesToConnectedServer(t *testing.T) {
 		orgRecords,
 		nil,
 		nil,
+		newTestDirectory(),
 		"https://habitat.example",
 		"https://habitat.example/mcp",
 	)
@@ -298,6 +302,7 @@ func TestMCPServerToolsCall_UnknownNamespacedToolFallsThrough(t *testing.T) {
 		fakeTokens{}, spacesStore, permStore, nil, newFakeNangoClient(), newFakeOrgMcpServerStore(),
 		nil,
 		nil,
+		newTestDirectory(),
 		"https://habitat.example",
 		"https://habitat.example/mcp",
 	)
@@ -366,6 +371,7 @@ func TestMCPServerTools_ManualServer(t *testing.T) {
 		newFakeOrgMcpServerStore(),
 		manual,
 		nil,
+		newTestDirectory(),
 		"https://habitat.example",
 		"https://habitat.example/mcp",
 	)
