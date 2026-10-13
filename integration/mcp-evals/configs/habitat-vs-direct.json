@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "habitat": {
+      "type": "http",
+      "url": "https://pear.habitat.network/mcp"
+    },
+    "granola": {
+      "type": "http",
+      "url": "https://mcp.granola.ai/mcp"
+    }
+  }
+}

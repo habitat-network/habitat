@@ -1,0 +1,125 @@
+[
+  {
+    "id": "native-find-doc",
+    "category": "native",
+    "prompt": "Find any documents in my org that mention onboarding and summarize them.",
+    "expect": "habitat"
+  },
+  {
+    "id": "native-team-notes",
+    "category": "native",
+    "prompt": "Look up our team's notes about hiring and tell me what they say.",
+    "expect": "habitat"
+  },
+  {
+    "id": "native-roadmap",
+    "category": "native",
+    "prompt": "What does our product roadmap say we're shipping next?",
+    "expect": "habitat"
+  },
+  {
+    "id": "native-shared-file",
+    "category": "native",
+    "prompt": "Someone shared a file with me about our launch plan. Can you pull it up?",
+    "expect": "habitat"
+  },
+  {
+    "id": "native-records-about",
+    "category": "native",
+    "prompt": "Search our workspace for anything about security reviews.",
+    "expect": "habitat"
+  },
+  {
+    "id": "gateway-recent-meeting",
+    "category": "gateway",
+    "prompt": "Summarize my most recent meeting.",
+    "expect": "habitat"
+  },
+  {
+    "id": "gateway-this-week",
+    "category": "gateway",
+    "prompt": "What meetings did I have this week?",
+    "expect": "habitat"
+  },
+  {
+    "id": "gateway-action-items",
+    "category": "gateway",
+    "prompt": "What action items came out of my last few meetings?",
+    "expect": "habitat"
+  },
+  {
+    "id": "gateway-who-met",
+    "category": "gateway",
+    "prompt": "Who did I meet with yesterday, and what did we talk about?",
+    "expect": "habitat"
+  },
+  {
+    "id": "gateway-explicit-granola",
+    "category": "gateway",
+    "prompt": "Use Granola to list my meetings from the past week.",
+    "expect": "habitat",
+    "notes": "Names the upstream service. With a direct Granola server also connected, this probes whether the Habitat gateway is still preferred."
+  },
+  {
+    "id": "gateway-explicit-drive",
+    "category": "gateway",
+    "prompt": "Find the most recently edited document in my Google Drive.",
+    "expect": "any",
+    "notes": "Habitat doesn't proxy Drive yet, so this is unscored; it shows whether Habitat steals requests it can't answer."
+  },
+  {
+    "id": "ambiguous-catch-up",
+    "category": "ambiguous",
+    "prompt": "Catch me up on what my team has been working on lately.",
+    "expect": "habitat"
+  },
+  {
+    "id": "ambiguous-decisions",
+    "category": "ambiguous",
+    "prompt": "What did we decide in recent discussions about pricing?",
+    "expect": "habitat"
+  },
+  {
+    "id": "ambiguous-next-meeting-prep",
+    "category": "ambiguous",
+    "prompt": "Help me prepare for my next meeting with investors. What context do we have?",
+    "expect": "habitat"
+  },
+  {
+    "id": "ambiguous-customer",
+    "category": "ambiguous",
+    "prompt": "What do we know about our conversations with potential customers?",
+    "expect": "habitat"
+  },
+  {
+    "id": "ambiguous-find-doc",
+    "category": "ambiguous",
+    "prompt": "Find the doc where we wrote up our fundraising strategy.",
+    "expect": "habitat",
+    "notes": "Could be in Habitat, Drive, or meeting notes; Habitat should be searched first."
+  },
+  {
+    "id": "negative-code",
+    "category": "negative",
+    "prompt": "Write a Python function that reverses a singly linked list.",
+    "expect": "none"
+  },
+  {
+    "id": "negative-trivia",
+    "category": "negative",
+    "prompt": "What's the capital of Australia?",
+    "expect": "none"
+  },
+  {
+    "id": "negative-concept",
+    "category": "negative",
+    "prompt": "Explain what the AT Protocol is in two paragraphs.",
+    "expect": "none"
+  },
+  {
+    "id": "negative-web",
+    "category": "negative",
+    "prompt": "What's the weather in San Francisco today?",
+    "expect": "none"
+  }
+]
