@@ -650,11 +650,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// MCP-issued tokens share the atproto endpoints' token handler (see
 	// OAuthServer.HandleToken); it tells the two kinds of client apart itself.
 	mux.HandleFunc(oauthserver.MCPTokenPath, oauthServer.HandleToken).Methods("POST")
-	mux.Handle(
-		mcpserver.ProtectedResourceMetadataPath,
-		mcpServer.ProtectedResourceMetadataHandler(),
-	)
-	mux.Handle(mcpserver.Path, mcpServer.Handler())
+	mux.PathPrefix(mcpserver.ProtectedResourceMetadataPath + "/").
+		Handler(mcpServer.ProtectedResourceMetadataHandler())
+	mux.PathPrefix(mcpserver.Path + "/").Handler(mcpServer.Handler())
 
 	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)
