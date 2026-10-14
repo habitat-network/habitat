@@ -93,7 +93,7 @@ func requireStartupHealthy(t *testing.T, dbDSN string) {
 	key := base64.StdEncoding.EncodeToString(encrypt.TestKey)
 	signingKey, err := atcrypto.GeneratePrivateKeyK256()
 	require.NoError(t, err)
-	cmd := &cli.Command{Flags: getFlags(), Action: run}
+	cmd := &cli.Command{Flags: getFlags(), Action: serve}
 	args := []string{
 		"pear",
 		"--domain=localhost",
@@ -105,7 +105,7 @@ func requireStartupHealthy(t *testing.T, dbDSN string) {
 		"--space_signing_key=" + signingKey.Multibase(),
 	}
 
-	// run() blocks until ctx is cancelled; drive it on a goroutine and surface
+	// serve() blocks until ctx is cancelled; drive it on a goroutine and surface
 	// any startup error via the channel so a failed boot fails the test.
 	errCh := make(chan error, 1)
 	go func() { errCh <- cmd.Run(ctx, args) }()

@@ -80,7 +80,10 @@ func (r *Registry) List() []Task {
 	for _, t := range r.tasks {
 		out = append(out, t)
 	}
-	slices.SortFunc(out, func(a, b Task) int { return strings.Compare(string(a.Name), string(b.Name)) })
+	slices.SortFunc(
+		out,
+		func(a, b Task) int { return strings.Compare(string(a.Name), string(b.Name)) },
+	)
 	return out
 }
 
