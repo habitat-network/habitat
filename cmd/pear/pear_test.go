@@ -93,9 +93,10 @@ func requireStartupHealthy(t *testing.T, dbDSN string) {
 	key := base64.StdEncoding.EncodeToString(encrypt.TestKey)
 	signingKey, err := atcrypto.GeneratePrivateKeyK256()
 	require.NoError(t, err)
-	cmd := &cli.Command{Flags: getFlags(), Action: serve}
+	cmd := &cli.Command{Flags: getFlags(), Commands: commands()}
 	args := []string{
 		"pear",
+		"serve",
 		"--domain=localhost",
 		"--db=" + dbDSN,
 		"--port=" + port,

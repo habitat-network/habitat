@@ -10,14 +10,17 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/cmd/pear/migrations"
-	"github.com/habitat-network/habitat/internal/db"
-	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
 func commands() []*cli.Command {
 	return []*cli.Command{
+		{
+			Name:   "serve",
+			Usage:  "Run the pear server",
+			Action: serve,
+		},
 		{
 			Name:   "migrate",
 			Usage:  "Apply pending database migrations and exit",
@@ -32,44 +35,18 @@ func commands() []*cli.Command {
 	}
 }
 
-// setupCommandComponents builds the database and spaces layer for the migrate
-// and run commands, which share the server's configuration but don't serve.
-func setupCommandComponents(
-	ctx context.Context,
-	cmd *cli.Command,
-) (*gorm.DB, *spacesComponents, error) {
-	database, err := db.New(cmd.String(fDB))
-	if err != nil {
-		return nil, nil, fmt.Errorf("setup database: %w", err)
-	}
-	domain := cmd.String(fDomain)
-	hiveDomain := cmd.String(fHiveDomain)
-	if hiveDomain == "" {
-		hiveDomain = domain
-	}
-	h, err := hive.NewHive(hiveDomain, domain, database.WithContext(ctx))
-	if err != nil {
-		return nil, nil, fmt.Errorf("setup hive: %w", err)
-	}
-	sp, err := setupSpaces(ctx, cmd, database, h)
-	if err != nil {
-		return nil, nil, err
-	}
-	return database, sp, nil
-}
-
 func migrate(ctx context.Context, cmd *cli.Command) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	database, sp, err := setupCommandComponents(ctx, cmd)
+	c, err := setupComponents(ctx, cmd)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = sp.Close() }()
+	defer func() { _ = c.Close() }()
 	if err := migrations.Run(ctx, migrations.PearMigrationContext{
-		DB:     database,
-		Spaces: sp.spacesStore,
+		DB:     c.database,
+		Spaces: c.spacesStore,
 	}); err != nil {
 		return fmt.Errorf("migrate database: %w", err)
 	}
@@ -100,15 +77,15 @@ func taskAction(
 		ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 
-		database, sp, err := setupCommandComponents(ctx, cmd)
+		c, err := setupComponents(ctx, cmd)
 		if err != nil {
 			return err
 		}
-		defer func() { _ = sp.Close() }()
+		defer func() { _ = c.Close() }()
 		return fn(ctx, cmd, taskEnv{
-			DB:     database,
-			Spaces: sp.spacesStore,
-			Search: sp.searchIndex,
+			DB:     c.database,
+			Spaces: c.spacesStore,
+			Search: c.searchIndex,
 		})
 	}
 }

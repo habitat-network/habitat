@@ -180,7 +180,8 @@ resource "google_cloud_run_v2_service" "pear" {
 }
 
 // Cloud Run jobs that run the pear image's operator commands: `migrate` applies database
-// migrations and `run <task>` runs a task subcommand from cmd/pear/tasks.go (backfills, reindexing). They
+// migrations and `run <task>` runs a task subcommand from cmd/pear/tasks.go (backfills,
+// reindexing). They
 // share the service's environment, secrets, Cloud SQL and VPC wiring. Run one with
 //
 //   gcloud run jobs execute pear-run --region us-west1 --args=run,<task>,<task args...>

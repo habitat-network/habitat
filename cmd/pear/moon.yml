@@ -29,6 +29,7 @@ tasks:
   dev:
     args:
       - --
+      - serve
       - --pds_oauth_client_uri
       - ${NGROK_DOMAIN}
     env: *devEnv
