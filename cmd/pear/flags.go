@@ -11,7 +11,6 @@ var (
 	fDomain             = "domain"
 	fServiceName        = "service_name"
 	fDB                 = "db"
-	fAutoMigrate        = "auto_migrate"
 	fPort               = "port"
 	fHttpsCerts         = "httpscerts"
 	fPdsCredEncryptKey  = "pds_cred_encrypt_key"
@@ -141,12 +140,6 @@ func getFlags() []cli.Flag {
 			Usage:   "Database connection string",
 			Value:   "sqlite://repo.db",
 			Sources: getSources(fDB),
-		},
-		&cli.BoolFlag{
-			Name:    fAutoMigrate,
-			Usage:   "Apply pending database migrations when the server starts. Turn off when the migrate command runs them separately, e.g. as a Cloud Run job.",
-			Value:   true,
-			Sources: getSources(fAutoMigrate),
 		},
 		&cli.StringFlag{
 			Name:    fBlobBucket,

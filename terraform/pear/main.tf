@@ -59,7 +59,6 @@ locals {
 
   plain_env = {
     HABITAT_DOMAIN              = "pear.habitat.network"
-    HABITAT_AUTO_MIGRATE        = "false" // pear-migrate runs in Cloud Build before deploy
     HABITAT_HIVE_DOMAIN         = "id.habitat.network"
     HABITAT_BLOB_BUCKET         = "gs://pear-blobs"
     HABITAT_GOOGLE_CLIENT_ID    = "953995456319-667186r9ng84t5m4ibdne3380idub1ha.apps.googleusercontent.com"
@@ -188,7 +187,7 @@ resource "google_cloud_run_v2_service" "pear" {
 //
 // The jobs' image is ignored below like the service's: the Cloud Build trigger (cloudbuild.tf)
 // points them at each new image and executes pear-migrate before the services are updated, so
-// the service doesn't migrate on boot (HABITAT_AUTO_MIGRATE=false). Apply this before the
+// the service itself never migrates. Apply this before the
 // first build that includes those steps, since the jobs must exist.
 resource "google_cloud_run_v2_job" "pear_migrate" {
   name                = "pear-migrate"

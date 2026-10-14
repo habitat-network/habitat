@@ -69,8 +69,6 @@ import (
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
 	"gorm.io/gorm"
-
-	"github.com/habitat-network/habitat/cmd/pear/migrations"
 )
 
 func main() {
@@ -306,19 +304,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	defer func() { _ = sp.Close() }()
 	hostKey, notifyStore, blobStore := sp.hostKey, sp.notifyStore, sp.blobStore
 	searchIndex, searchIndexer, spacesStore := sp.searchIndex, sp.searchIndexer, sp.spacesStore
-
-	// The database is migrated once the components migrations may use are built,
-	// so they don't construct their own. None of the stores built so far query
-	// their tables while being constructed. With auto_migrate off, the migrate
-	// command applies migrations instead (e.g. as a Cloud Run job before deploy).
-	if cmd.Bool(fAutoMigrate) {
-		if err := migrations.Run(startupCtx, migrations.PearMigrationContext{
-			DB:     database,
-			Spaces: spacesStore,
-		}); err != nil {
-			return fmt.Errorf("migrate database: %w", err)
-		}
-	}
 
 	opensocialStore, err := opensocial.NewStore(
 		database.WithContext(startupCtx), spacesStore, blobStore, hive,
