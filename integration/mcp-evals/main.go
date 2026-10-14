@@ -45,7 +45,10 @@ func run() error {
 	)
 	runs := flag.Int("runs", 5, "runs per scenario per setup")
 	concurrency := flag.Int("concurrency", 3, "runs in flight at once")
-	model := flag.String("model", "", "model passed to claude --model (default: the CLI's default)")
+	model := flag.String(
+		"model", "haiku",
+		"model passed to claude --model; the cheapest by default, empty for the CLI's default",
+	)
 	maxTurns := flag.Int("max-turns", 15, "claude --max-turns per run")
 	maxBudget := flag.Float64("max-budget-usd", 1, "claude --max-budget-usd per run (0 for none)")
 	timeout := flag.Duration("timeout", 5*time.Minute, "timeout per run")
@@ -141,7 +144,7 @@ func runJobs(
 				results = append(results, r)
 				fmt.Fprintf(os.Stderr, "[%d/%d] %s %s #%d: %s (first: %s)\n",
 					len(results), len(jobs), r.Setup, r.Scenario, r.Run, r.Outcome,
-					cmp.Or(r.FirstDataSource, "none"))
+					cmp.Or(r.FirstTool, "none"))
 				mu.Unlock()
 			}
 		})

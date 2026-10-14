@@ -1,70 +1,62 @@
 # mcp-evals
 
-Measures whether agents invoke Habitat's MCP server (`internal/mcpserver`), its
-own tools or the connected servers it proxies as a gateway, when they need
-data. Each scenario's prompt runs through headless Claude Code (`claude -p`)
-under each setup, and the run is scored on whether Habitat was invoked and how
-strongly it was preferred over duplicate tools. Read-only for now.
+Measures whether agents call Habitat's search tool
+(`mcp__habitat__search_records`, see `internal/mcpserver`) whenever a prompt
+needs company context, and leave Habitat alone when it doesn't. Each
+scenario's prompt runs through headless Claude Code (`claude -p`) and is
+scored on which tools it called.
 
-Not part of `moon ci`: runs cost money, results vary between runs, and they
-depend on your real connected accounts. Run it by hand before and after
+Not part of `moon ci`: runs use model quota, results vary between runs, and
+they depend on your real connected accounts. Run it by hand before and after
 changing tool descriptions or server instructions.
 
-## Setups (`setups.json`)
+Runs use `haiku` by default to save quota; pass `-model sonnet` (or `-model ""`
+for the CLI's default) to check a result holds on a stronger model. Compare
+results only across runs on the same model. The report's "est. API cost" is
+Claude Code's API-price estimate; when you're logged in with a claude.ai
+subscription, runs draw on its usage limits instead of being billed.
 
-- `habitat-only`: just Habitat (`--strict-mcp-config`).
-- `habitat-vs-direct`: Habitat plus a direct Granola server
-  (`--strict-mcp-config`), i.e. the same meetings offered by a competing tool.
-  More competing servers (e.g. Google Drive) to come.
+## Setup
 
-Every setup's MCP config must name the Habitat server `habitat`.
-
-## One-time auth
+`setups.json` lists the MCP configs to run under; for now just
+`habitat-only` (`configs/habitat-only.json`, an org's Habitat MCP endpoint
+with `--strict-mcp-config`). The config must name the server `habitat`.
 
 Headless runs reuse the OAuth tokens Claude Code has stored for each server
 (keyed by server name and URL), but can't complete an OAuth flow themselves.
-Before the first run (and again if a server's URL changes), from this
-directory run `claude --mcp-config configs/habitat-vs-direct.json`, open
-`/mcp`, and authenticate `habitat` and `granola`.
+Before the first run (and again if the URL changes), from this directory run
+`claude --mcp-config configs/habitat-only.json`, open `/mcp`, and authenticate
+`habitat`.
 
-Each setup runs a cheap preflight first and stops with the failing servers'
-status if any of its `require_tool_prefixes` has no tools.
+Each setup runs a cheap preflight first and stops if it doesn't offer
+`search_records`, e.g. because Habitat needs auth or search isn't configured.
 
 ## Running
 
 ```bash
 cd integration/mcp-evals
-go run .                                    # all setups × scenarios × 5 runs
-go run . -setup habitat-only -runs 1        # quick pass
-go run . -scenario gateway-recent-meeting -model haiku
+go run .                         # every scenario × 5 runs
+go run . -runs 1                 # quick pass
+go run . -scenario roadmap-cuts -model sonnet
 ```
 
 Results go to `tmp/<timestamp>/` (gitignored, and the transcripts contain your
 real data):
 
-- `summary.md`: pass rates by setup and category, plus where each scenario's
-  runs went first (also printed to stdout)
+- `summary.md`: pass rates, and the first tool each scenario's runs called
+  (also printed to stdout)
 - `results.jsonl`: one scored run per line, including the tool sequence and
   any `ToolSearch` queries (the words to put in tool descriptions)
 - `transcripts/<setup>/<scenario>-<run>.jsonl`: raw stream-json for each run
 
-## Scoring
+## Scenarios and scoring
 
-Tool calls are classified as `habitat` (Habitat's own tools), `habitat-gateway`
-(connected servers' tools proxied through Habitat), `mcp:<server>`,
-`builtin:<tool>`, or `meta` (e.g. `ToolSearch`, `Agent`; skipped when finding the first
-data call). A scenario's `expect` decides pass/fail:
+Each scenario in `scenarios.json` is an `id`, a `prompt` and an `expect`:
 
-- `habitat`: Habitat is invoked at all (either kind). Also calling a direct
-  duplicate (e.g. direct Granola) still passes.
-- `none`: Habitat is never called (negative controls).
-- `any`: reported but not scored.
-
-Two more rates show how strongly Habitat is preferred, beyond the pass rate:
-
-- **habitat first**: the first data call went to Habitat.
-- **habitat exclusive**: Habitat was used and no other MCP server was, i.e. it
-  won over any duplicate tools.
+- `search`: the prompt needs company context (contracts, roadmap, policies,
+  past conversations, ...), so it passes if `search_records` is called at all.
+- `none`: the prompt needs no company context, so it passes if no Habitat tool
+  is called.
 
 Runs that time out, exceed the budget or end in an error count as errors and
 are left out of pass rates.
@@ -73,5 +65,6 @@ are left out of pass rates.
 
 Each run happens in a fresh empty directory with `--setting-sources project`,
 so your plugins, hooks, project `.mcp.json` and repo CLAUDE.md stay out of the
-run. Local-write tools (`Bash`, `Write`, `Edit`) and the Granola `sign_out`
-tools are disallowed. Your user-level `~/.claude/CLAUDE.md` may still load.
+run. Local-write tools (`Bash`, `Write`, `Edit`) and Habitat's proxied Granola
+`sign_out` tool are disallowed. Your user-level `~/.claude/CLAUDE.md` may
+still load.

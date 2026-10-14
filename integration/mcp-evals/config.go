@@ -11,41 +11,23 @@ import (
 // ScenarioID names a scenario.
 type ScenarioID string
 
-// Category groups scenarios for reporting.
-type Category string
-
-const (
-	// CategoryNative asks for data Habitat stores itself.
-	CategoryNative Category = "native"
-	// CategoryGateway asks for data a connected server holds.
-	CategoryGateway Category = "gateway"
-	// CategoryAmbiguous could be answered from several sources.
-	CategoryAmbiguous Category = "ambiguous"
-	// CategoryNegative shouldn't touch Habitat at all.
-	CategoryNegative Category = "negative"
-)
-
 // Expectation is how a scenario's run is scored.
 type Expectation string
 
 const (
-	// ExpectHabitat passes when Habitat is invoked at all, even alongside
-	// duplicate tools from other servers.
-	ExpectHabitat Expectation = "habitat"
-	// ExpectNone passes when Habitat is never called.
+	// ExpectSearch passes when Habitat's search tool (searchTool) is called:
+	// the prompt needs company context.
+	ExpectSearch Expectation = "search"
+	// ExpectNone passes when no Habitat tool is called: the prompt needs no
+	// company context.
 	ExpectNone Expectation = "none"
-	// ExpectAny is reported but not scored.
-	ExpectAny Expectation = "any"
 )
 
 // Scenario is one prompt to run.
 type Scenario struct {
-	ID       ScenarioID  `json:"id"`
-	Category Category    `json:"category"`
-	Prompt   string      `json:"prompt"`
-	Expect   Expectation `json:"expect"`
-	// Notes explains what the scenario probes; not used when running.
-	Notes string `json:"notes,omitempty"`
+	ID     ScenarioID  `json:"id"`
+	Prompt string      `json:"prompt"`
+	Expect Expectation `json:"expect"`
 }
 
 // SetupName names a setup.
@@ -102,13 +84,8 @@ func loadScenarios(path string) ([]Scenario, error) {
 		if s.Prompt == "" {
 			errs = append(errs, errors.New("missing prompt"))
 		}
-		switch s.Category {
-		case CategoryNative, CategoryGateway, CategoryAmbiguous, CategoryNegative:
-		default:
-			errs = append(errs, fmt.Errorf("unknown category %q", s.Category))
-		}
 		switch s.Expect {
-		case ExpectHabitat, ExpectNone, ExpectAny:
+		case ExpectSearch, ExpectNone:
 		default:
 			errs = append(errs, fmt.Errorf("unknown expect %q", s.Expect))
 		}

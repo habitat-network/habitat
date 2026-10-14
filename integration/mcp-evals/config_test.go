@@ -35,12 +35,11 @@ func TestLoadScenariosValidates(t *testing.T) {
 		name    string
 		content string
 	}{
-		{"unknown category", `[{"id":"a","category":"bogus","prompt":"p","expect":"habitat"}]`},
-		{"unknown expectation", `[{"id":"a","category":"native","prompt":"p","expect":"maybe"}]`},
-		{"missing prompt", `[{"id":"a","category":"native","expect":"habitat"}]`},
+		{"unknown expectation", `[{"id":"a","prompt":"p","expect":"maybe"}]`},
+		{"missing prompt", `[{"id":"a","expect":"search"}]`},
 		{
 			"duplicate id",
-			`[{"id":"a","category":"native","prompt":"p","expect":"habitat"},{"id":"a","category":"native","prompt":"q","expect":"habitat"}]`,
+			`[{"id":"a","prompt":"p","expect":"search"},{"id":"a","prompt":"q","expect":"none"}]`,
 		},
 		{"invalid json", `[`},
 	}

@@ -3,14 +3,6 @@
     "name": "habitat-only",
     "mcp_config": "configs/habitat-only.json",
     "strict": true,
-    "require_tool_prefixes": ["mcp__habitat__"]
-  },
-  {
-    "name": "habitat-vs-direct",
-    "mcp_config": "configs/habitat-vs-direct.json",
-    "strict": true,
-    "require_tool_prefixes": ["mcp__habitat__", "mcp__granola__"],
-    "allowed_tools": ["mcp__granola"],
-    "disallowed_tools": ["mcp__granola__sign_out"]
+    "require_tool_prefixes": ["mcp__habitat__search_records"]
   }
 ]

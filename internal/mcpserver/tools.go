@@ -332,7 +332,7 @@ const maxSearchLimit = 100
 const defaultMCPSnippetLength = 300
 
 type searchRecordsInput struct {
-	Query      string `json:"query"                jsonschema:"the text to search for"`
+	Query      string `json:"query"                jsonschema:"a few keywords to search for, not a full question"`
 	Collection string `json:"collection,omitempty" jsonschema:"only return records of this collection NSID"`
 	Limit      int    `json:"limit,omitempty"      jsonschema:"maximum number of hits to return, up to 100"`
 	// SnippetLength is a pointer so an omitted value, which takes the default,

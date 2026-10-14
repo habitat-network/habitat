@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,115 +15,75 @@ func calls(names ...string) []ToolCall {
 }
 
 func TestScoreRunOutcomes(t *testing.T) {
-	okResult := &ResultSummary{NumTurns: 2, CostUSD: 0.1}
+	ok := &ResultSummary{NumTurns: 2}
 	tests := []struct {
 		name      string
 		expect    Expectation
 		t         Transcript
 		want      Outcome
-		wantFirst Source
-		wantCalls int
-		// wantExclusive: Habitat was used and no other MCP server was.
-		wantExclusive bool
+		wantFirst string
 	}{
 		{
-			name:   "habitat first after meta passes",
-			expect: ExpectHabitat,
-			t: Transcript{
-				Calls:  calls("ToolSearch", "mcp__habitat__search_records", "WebSearch"),
-				Result: okResult,
-			},
-			want:          OutcomePass,
-			wantFirst:     SourceHabitat,
-			wantCalls:     2,
-			wantExclusive: true,
-		},
-		{
-			name:   "direct server first still passes if habitat used later",
-			expect: ExpectHabitat,
-			t: Transcript{
-				Calls:  calls("mcp__granola__list_meetings", "mcp__habitat__search_records"),
-				Result: okResult,
-			},
+			name:      "search after meta tools passes",
+			expect:    ExpectSearch,
+			t:         Transcript{Calls: calls("ToolSearch", searchTool, "WebSearch"), Result: ok},
 			want:      OutcomePass,
-			wantFirst: "mcp:granola",
-			wantCalls: 2,
+			wantFirst: searchTool,
 		},
 		{
-			name:   "direct server only fails",
-			expect: ExpectHabitat,
-			t: Transcript{
-				Calls:  calls("mcp__granola__list_meetings", "WebSearch"),
-				Result: okResult,
-			},
-			want:      OutcomeFail,
-			wantFirst: "mcp:granola",
-			wantCalls: 2,
+			name:      "search after another tool passes",
+			expect:    ExpectSearch,
+			t:         Transcript{Calls: calls("WebSearch", searchTool), Result: ok},
+			want:      OutcomePass,
+			wantFirst: "WebSearch",
 		},
 		{
-			name:      "no data calls fails habitat expectation",
-			expect:    ExpectHabitat,
-			t:         Transcript{Calls: calls("ToolSearch"), Result: okResult},
+			name:      "other habitat tools without search fail",
+			expect:    ExpectSearch,
+			t:         Transcript{Calls: calls("mcp__habitat__get_record"), Result: ok},
 			want:      OutcomeFail,
-			wantFirst: "",
+			wantFirst: "mcp__habitat__get_record",
+		},
+		{
+			name:   "no tool calls fails",
+			expect: ExpectSearch,
+			t:      Transcript{Calls: calls("ToolSearch"), Result: ok},
+			want:   OutcomeFail,
 		},
 		{
 			name:      "negative without habitat passes",
 			expect:    ExpectNone,
-			t:         Transcript{Calls: calls("WebSearch"), Result: okResult},
+			t:         Transcript{Calls: calls("WebSearch"), Result: ok},
 			want:      OutcomePass,
-			wantFirst: "builtin:WebSearch",
-			wantCalls: 1,
+			wantFirst: "WebSearch",
 		},
 		{
-			name:   "negative touching habitat fails",
-			expect: ExpectNone,
-			t: Transcript{
-				Calls:  calls("WebSearch", "mcp__habitat__Granola_list_meetings"),
-				Result: okResult,
-			},
-			want:          OutcomeFail,
-			wantFirst:     "builtin:WebSearch",
-			wantCalls:     2,
-			wantExclusive: true,
+			name:      "negative calling any habitat tool fails",
+			expect:    ExpectNone,
+			t:         Transcript{Calls: calls("mcp__habitat__get_blob"), Result: ok},
+			want:      OutcomeFail,
+			wantFirst: "mcp__habitat__get_blob",
 		},
 		{
-			name:   "any is unscored",
-			expect: ExpectAny,
-			t: Transcript{
-				Calls:  calls("mcp__claude_ai_Google_Drive__search"),
-				Result: okResult,
-			},
-			want:      OutcomeUnscored,
-			wantFirst: "mcp:claude_ai_Google_Drive",
-			wantCalls: 1,
-		},
-		{
-			name:   "missing result is an error",
-			expect: ExpectHabitat,
-			t:      Transcript{Calls: calls("mcp__habitat__search_records")},
-			want:   OutcomeError,
-			// The call still happened, so it is still reported.
-			wantFirst:     SourceHabitat,
-			wantCalls:     1,
-			wantExclusive: true,
-		},
-		{
-			name:      "errored result is an error",
-			expect:    ExpectHabitat,
-			t:         Transcript{Result: &ResultSummary{IsError: true}},
+			name:      "missing result is an error",
+			expect:    ExpectSearch,
+			t:         Transcript{Calls: calls(searchTool)},
 			want:      OutcomeError,
-			wantFirst: "",
+			wantFirst: searchTool,
+		},
+		{
+			name:   "errored result is an error",
+			expect: ExpectSearch,
+			t:      Transcript{Result: &ResultSummary{IsError: true}},
+			want:   OutcomeError,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sc := Scenario{ID: "s", Category: CategoryGateway, Prompt: "p", Expect: tt.expect}
+			sc := Scenario{ID: "s", Prompt: "p", Expect: tt.expect}
 			got := scoreRun("setup", sc, 1, tt.t)
 			require.Equal(t, tt.want, got.Outcome)
-			require.Equal(t, tt.wantFirst, got.FirstDataSource)
-			require.Equal(t, tt.wantCalls, got.DataCalls)
-			require.Equal(t, tt.wantExclusive, got.HabitatExclusive)
+			require.Equal(t, tt.wantFirst, got.FirstTool)
 			require.Equal(t, SetupName("setup"), got.Setup)
 			require.Equal(t, ScenarioID("s"), got.Scenario)
 		})
@@ -132,7 +91,7 @@ func TestScoreRunOutcomes(t *testing.T) {
 }
 
 func TestScoreRunRecordsUnusableTranscriptError(t *testing.T) {
-	sc := Scenario{ID: "s", Category: CategoryNative, Prompt: "p", Expect: ExpectHabitat}
+	sc := Scenario{ID: "s", Prompt: "p", Expect: ExpectSearch}
 	got := scoreRunError("setup", sc, 2, errString("claude exited 1"))
 	require.Equal(t, OutcomeError, got.Outcome)
 	require.Equal(t, "claude exited 1", got.Error)
@@ -143,90 +102,31 @@ type errString string
 
 func (e errString) Error() string { return string(e) }
 
-func TestSummarizeAggregatesBySetupAndCategory(t *testing.T) {
+func TestRenderMarkdownSummarizesBySetupAndScenario(t *testing.T) {
 	results := []RunResult{
 		{
-			Setup:            "a",
-			Scenario:         "s1",
-			Category:         CategoryGateway,
-			Expect:           ExpectHabitat,
-			Outcome:          OutcomePass,
-			FirstDataSource:  SourceHabitatGateway,
-			UsedHabitat:      true,
-			HabitatExclusive: true,
-			DataCalls:        2,
-			CostUSD:          0.1,
+			Setup:     "a",
+			Scenario:  "s1",
+			Expect:    ExpectSearch,
+			Outcome:   OutcomePass,
+			FirstTool: searchTool,
+			CostUSD:   0.1,
 		},
 		{
-			Setup:           "a",
-			Scenario:        "s1",
-			Category:        CategoryGateway,
-			Expect:          ExpectHabitat,
-			Outcome:         OutcomePass,
-			FirstDataSource: "mcp:granola",
-			UsedHabitat:     true,
-			DataCalls:       4,
-			CostUSD:         0.3,
+			Setup:     "a",
+			Scenario:  "s1",
+			Expect:    ExpectSearch,
+			Outcome:   OutcomeFail,
+			FirstTool: "WebSearch",
+			CostUSD:   0.2,
 		},
-		{
-			Setup:    "a",
-			Scenario: "s2",
-			Category: CategoryGateway,
-			Expect:   ExpectHabitat,
-			Outcome:  OutcomeError,
-			CostUSD:  0.05,
-		},
-		{
-			Setup:       "a",
-			Scenario:    "n1",
-			Category:    CategoryNegative,
-			Expect:      ExpectNone,
-			Outcome:     OutcomeFail,
-			UsedHabitat: true,
-			DataCalls:   1,
-		},
-		{
-			Setup:            "b",
-			Scenario:         "s1",
-			Category:         CategoryGateway,
-			Expect:           ExpectHabitat,
-			Outcome:          OutcomePass,
-			FirstDataSource:  SourceHabitat,
-			UsedHabitat:      true,
-			HabitatExclusive: true,
-			DataCalls:        1,
-		},
+		{Setup: "a", Scenario: "s2", Expect: ExpectSearch, Outcome: OutcomeError},
+		{Setup: "a", Scenario: "n1", Expect: ExpectNone, Outcome: OutcomePass},
 	}
-	got := summarize(results)
-	require.Equal(t, []SummaryRow{
-		{
-			Setup: "a", Category: CategoryGateway, Runs: 3, Errors: 1, Scored: 2, Passed: 2,
-			HabitatFirst: 1, HabitatExclusive: 1, HabitatAny: 2, MeanDataCalls: 3, CostUSD: 0.45,
-		},
-		{
-			Setup: "a", Category: CategoryNegative, Runs: 1, Scored: 1, Passed: 0,
-			HabitatAny: 1, MeanDataCalls: 1,
-		},
-		{
-			Setup: "b", Category: CategoryGateway, Runs: 1, Scored: 1, Passed: 1,
-			HabitatFirst: 1, HabitatExclusive: 1, HabitatAny: 1, MeanDataCalls: 1,
-		},
-	}, roundCosts(got))
-
 	md := renderMarkdown(results)
-	require.Contains(t, md, "| a | gateway | 3 | 1 | 100% | 50% | 50% |")
-	require.Contains(t, md, "| a | s1 | gateway | habitat | 2/2 | 0 | 1/2 |")
-	require.True(
-		t,
-		strings.Contains(md, "mcp:granola"),
-		"first-source breakdown lists direct servers",
-	)
-}
-
-// roundCosts trims float noise from summed costs so rows compare exactly.
-func roundCosts(rows []SummaryRow) []SummaryRow {
-	for i := range rows {
-		rows[i].CostUSD = float64(int(rows[i].CostUSD*1000+0.5)) / 1000
-	}
-	return rows
+	require.Contains(t, md, "| a | search | 3 | 1 | 1/2 (50%) |")
+	require.Contains(t, md, "| a | none | 1 | 0 | 1/1 (100%) |")
+	require.Contains(t, md, "| a | s1 | search | 1/2 | 0 | WebSearch×1, "+searchTool+"×1 |")
+	require.Contains(t, md, "| a | n1 | none | 1/1 | 0 | (none)×1 |")
+	require.Contains(t, md, "$0.30")
 }
