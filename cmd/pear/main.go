@@ -76,6 +76,12 @@ import (
 // maintains the search index.
 const searchIndexLockKey db.LockKey = 0x68616269_74617401
 
+// searchIndexPrefix names the Meilisearch indexes of space records:
+// generation n is <prefix>_g<n> with cursors in <prefix>_g<n>_cursors, and
+// <prefix>_generations says which is current. The index from before
+// generations was named <prefix>, so changing it would orphan that index.
+const searchIndexPrefix = "space_records"
+
 func main() {
 	cmd := &cli.Command{
 		Flags:  getFlags(),
@@ -348,7 +354,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			startupCtx,
 			meilisearchURL,
 			cmd.String(fMeilisearchAPIKey),
-			cmd.String(fMeilisearchIndex),
+			searchIndexPrefix,
 			db.NewLock(database, searchIndexLockKey),
 			search.WithIndexOptions(indexOpts...),
 			search.WithIndexerOptions(search.WithBlobs(blobStore)),
