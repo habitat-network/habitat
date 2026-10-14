@@ -68,14 +68,16 @@ import (
 	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
+	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/cmd/pear/migrations"
 )
 
 func main() {
 	cmd := &cli.Command{
-		Flags:  getFlags(),
-		Action: run,
+		Flags:    getFlags(),
+		Commands: commands(),
+		Action:   serve,
 	}
 	ctx := context.Background()
 	if err := cmd.Run(ctx, os.Args); err != nil {
@@ -84,7 +86,7 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, cmd *cli.Command) error {
+func serve(ctx context.Context, cmd *cli.Command) error {
 	port := cmd.String(fPort)
 	httpsCerts := cmd.String(fHttpsCerts)
 
@@ -297,78 +299,25 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		slog.InfoContext(startupCtx, "google login provider enabled")
 	}
 
-	// Habitat's single host signing key signs permissioned-repo commits for repo
-	// owners on external PDSes (habitat-managed owners sign with their own hive
-	// key instead). Optional: if unset, host-signed commits are omitted.
-	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
+	sp, err := setupSpaces(startupCtx, cmd, database, hive)
 	if err != nil {
-		return fmt.Errorf("parse space-host signing key: %w", err)
+		return err
 	}
-
-	notifyStore, err := notify.NewStore(database.WithContext(startupCtx))
-	if err != nil {
-		return fmt.Errorf("setup notify store: %w", err)
-	}
-	notifier := notify.NewNotifier(notifyStore, httpx.NewClient(), hive)
-
-	// With Meilisearch configured, the search indexer follows space writes
-	// like any other syncer, so the spaces store notifies it alongside the
-	// registered ones.
-	notifiers := spaces.Notifiers{notifier}
-	blobBucket, err := blob.OpenBucket(startupCtx, cmd.String(fBlobBucket))
-	if err != nil {
-		return fmt.Errorf("open blob bucket: %w", err)
-	}
-	defer func() { _ = blobBucket.Close() }()
-	blobStore := spaces.NewBlobStore(blobBucket)
-
-	var searchIndex search.Index
-	var searchIndexer *search.Indexer
-	if meilisearchURL := cmd.String(fMeilisearchURL); meilisearchURL != "" {
-		var indexOpts []search.MeilisearchOption
-		// With an embedder, Meilisearch embeds records and queries itself and
-		// searches are hybrid.
-		if embedderURL := cmd.String(fEmbedderURL); embedderURL != "" {
-			indexOpts = append(indexOpts, search.WithEmbedder(search.Embedder{
-				URL:           embedderURL,
-				APIKey:        cmd.String(fEmbedderAPIKey),
-				Model:         cmd.String(fEmbedderModel),
-				Dimensions:    int(cmd.Int(fEmbedderDimensions)),
-				SemanticRatio: cmd.Float(fSemanticRatio),
-				MinScore:      cmd.Float(fSearchMinScore),
-			}))
-		}
-		searchIndex, err = search.NewMeilisearch(
-			startupCtx,
-			meilisearchURL,
-			cmd.String(fMeilisearchAPIKey),
-			cmd.String(fMeilisearchIndex),
-			indexOpts...,
-		)
-		if err != nil {
-			return fmt.Errorf("setup search index: %w", err)
-		}
-		searchIndexer = search.NewIndexer(searchIndex, search.WithBlobs(blobStore))
-		notifiers = append(notifiers, searchIndexer)
-	}
-
-	spacesStore, err := spaces.NewStore(
-		database.WithContext(startupCtx),
-		notifiers,
-		spacecommit.NewAuthority(hostKey, hive),
-	)
-	if err != nil {
-		return fmt.Errorf("setup spaces store: %w", err)
-	}
+	defer func() { _ = sp.Close() }()
+	hostKey, notifyStore, blobStore := sp.hostKey, sp.notifyStore, sp.blobStore
+	searchIndex, searchIndexer, spacesStore := sp.searchIndex, sp.searchIndexer, sp.spacesStore
 
 	// The database is migrated once the components migrations may use are built,
 	// so they don't construct their own. None of the stores built so far query
-	// their tables while being constructed.
-	if err := migrations.Run(startupCtx, migrations.PearMigrationContext{
-		DB:     database,
-		Spaces: spacesStore,
-	}); err != nil {
-		return fmt.Errorf("migrate database: %w", err)
+	// their tables while being constructed. With auto_migrate off, the migrate
+	// command applies migrations instead (e.g. as a Cloud Run job before deploy).
+	if cmd.Bool(fAutoMigrate) {
+		if err := migrations.Run(startupCtx, migrations.PearMigrationContext{
+			DB:     database,
+			Spaces: spacesStore,
+		}); err != nil {
+			return fmt.Errorf("migrate database: %w", err)
+		}
 	}
 
 	opensocialStore, err := opensocial.NewStore(
@@ -789,4 +738,100 @@ func setupInstanceAdminPassword(ctx context.Context, cmd *cli.Command) (string, 
 		return "", err
 	}
 	return passwordHash, nil
+}
+
+// spacesComponents holds the stores the spaces layer is built from, shared by
+// the server and the migrate and run commands.
+type spacesComponents struct {
+	hostKey       atcrypto.PrivateKey
+	notifyStore   notify.Store
+	blobBucket    *blob.Bucket
+	blobStore     spaces.BlobStore
+	searchIndex   search.Index
+	searchIndexer *search.Indexer
+	spacesStore   spaces.Store
+}
+
+// Close releases the blob bucket.
+func (c *spacesComponents) Close() error { return c.blobBucket.Close() }
+
+// setupSpaces builds the spaces store and everything it notifies or signs with.
+func setupSpaces(
+	ctx context.Context,
+	cmd *cli.Command,
+	database *gorm.DB,
+	hive hive.Hive,
+) (*spacesComponents, error) {
+	// Habitat's single host signing key signs permissioned-repo commits for repo
+	// owners on external PDSes (habitat-managed owners sign with their own hive
+	// key instead). Optional: if unset, host-signed commits are omitted.
+	hostKey, err := atcrypto.ParsePrivateMultibase(cmd.String(fSpaceSigningKey))
+	if err != nil {
+		return nil, fmt.Errorf("parse space-host signing key: %w", err)
+	}
+
+	notifyStore, err := notify.NewStore(database.WithContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("setup notify store: %w", err)
+	}
+	notifier := notify.NewNotifier(notifyStore, httpx.NewClient(), hive)
+
+	// With Meilisearch configured, the search indexer follows space writes
+	// like any other syncer, so the spaces store notifies it alongside the
+	// registered ones.
+	notifiers := spaces.Notifiers{notifier}
+	blobBucket, err := blob.OpenBucket(ctx, cmd.String(fBlobBucket))
+	if err != nil {
+		return nil, fmt.Errorf("open blob bucket: %w", err)
+	}
+	blobStore := spaces.NewBlobStore(blobBucket)
+
+	var searchIndex search.Index
+	var searchIndexer *search.Indexer
+	if meilisearchURL := cmd.String(fMeilisearchURL); meilisearchURL != "" {
+		var indexOpts []search.MeilisearchOption
+		// With an embedder, Meilisearch embeds records and queries itself and
+		// searches are hybrid.
+		if embedderURL := cmd.String(fEmbedderURL); embedderURL != "" {
+			indexOpts = append(indexOpts, search.WithEmbedder(search.Embedder{
+				URL:           embedderURL,
+				APIKey:        cmd.String(fEmbedderAPIKey),
+				Model:         cmd.String(fEmbedderModel),
+				Dimensions:    int(cmd.Int(fEmbedderDimensions)),
+				SemanticRatio: cmd.Float(fSemanticRatio),
+				MinScore:      cmd.Float(fSearchMinScore),
+			}))
+		}
+		searchIndex, err = search.NewMeilisearch(
+			ctx,
+			meilisearchURL,
+			cmd.String(fMeilisearchAPIKey),
+			cmd.String(fMeilisearchIndex),
+			indexOpts...,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("setup search index: %w", err)
+		}
+		searchIndexer = search.NewIndexer(searchIndex, search.WithBlobs(blobStore))
+		notifiers = append(notifiers, searchIndexer)
+	}
+
+	spacesStore, err := spaces.NewStore(
+		database.WithContext(ctx),
+		notifiers,
+		spacecommit.NewAuthority(hostKey, hive),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("setup spaces store: %w", err)
+	}
+
+	return &spacesComponents{
+		hostKey:       hostKey,
+		notifyStore:   notifyStore,
+		blobBucket:    blobBucket,
+		blobStore:     blobStore,
+		searchIndex:   searchIndex,
+		searchIndexer: searchIndexer,
+		spacesStore:   spacesStore,
+	}, nil
 }

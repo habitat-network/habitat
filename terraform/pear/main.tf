@@ -178,3 +178,176 @@ resource "google_cloud_run_v2_service" "pear" {
     ]
   }
 }
+
+// Cloud Run jobs that run the pear image's operator commands: `migrate` applies database
+// migrations and `run <task>` runs a task from internal/tasks (backfills, reindexing). They
+// share the service's environment, secrets, Cloud SQL and VPC wiring. Run one with
+//
+//   gcloud run jobs execute pear-run --region us-west1 --args=run,<task>,<task args...>
+//
+// The jobs' image is ignored below like the service's: after a build, point them at it with
+// `gcloud run jobs update pear-migrate --image=...` (and pear-run), then execute pear-migrate
+// before the new revision takes traffic. Once that is wired into Cloud Build, set
+// HABITAT_AUTO_MIGRATE=false on the service so revisions stop migrating on boot.
+resource "google_cloud_run_v2_job" "pear_migrate" {
+  name                = "pear-migrate"
+  location            = var.region
+  deletion_protection = true
+
+  template {
+    template {
+      service_account = "953995456319-compute@developer.gserviceaccount.com"
+      timeout         = "1800s"
+      max_retries     = 0
+
+      vpc_access {
+        network_interfaces {
+          network    = "default"
+          subnetwork = "default"
+        }
+        egress = "PRIVATE_RANGES_ONLY"
+      }
+
+      volumes {
+        name = "cloudsql"
+        cloud_sql_instance {
+          instances = [local.cloudsql_instance]
+        }
+      }
+
+      containers {
+        image   = google_cloud_run_v2_service.pear.template[0].containers[0].image
+        command = ["/app/pear"]
+        args    = ["migrate"]
+
+        resources {
+          limits = {
+            cpu    = "1000m"
+            memory = "512Mi"
+          }
+        }
+
+        volume_mounts {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
+        }
+
+        dynamic "env" {
+          for_each = local.plain_env
+          content {
+            name  = env.key
+            value = env.value
+          }
+        }
+
+        dynamic "env" {
+          for_each = local.secret_env
+          content {
+            name = env.key
+            value_source {
+              secret_key_ref {
+                secret  = env.value
+                version = "latest"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].template[0].containers[0].image,
+      template[0].labels,
+      template[0].annotations,
+      labels,
+      annotations,
+      client,
+      client_version,
+    ]
+  }
+}
+
+// `pear run` with no task prints usage and fails; pass the task with --args at execute time.
+resource "google_cloud_run_v2_job" "pear_run" {
+  name                = "pear-run"
+  location            = var.region
+  deletion_protection = true
+
+  template {
+    template {
+      service_account = "953995456319-compute@developer.gserviceaccount.com"
+      // Backfills can be long; Cloud Run jobs allow up to 24h.
+      timeout     = "21600s"
+      max_retries = 0
+
+      vpc_access {
+        network_interfaces {
+          network    = "default"
+          subnetwork = "default"
+        }
+        egress = "PRIVATE_RANGES_ONLY"
+      }
+
+      volumes {
+        name = "cloudsql"
+        cloud_sql_instance {
+          instances = [local.cloudsql_instance]
+        }
+      }
+
+      containers {
+        image   = google_cloud_run_v2_service.pear.template[0].containers[0].image
+        command = ["/app/pear"]
+        args    = ["run", "--list"]
+
+        resources {
+          limits = {
+            cpu    = "1000m"
+            memory = "1024Mi"
+          }
+        }
+
+        volume_mounts {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
+        }
+
+        dynamic "env" {
+          for_each = local.plain_env
+          content {
+            name  = env.key
+            value = env.value
+          }
+        }
+
+        dynamic "env" {
+          for_each = local.secret_env
+          content {
+            name = env.key
+            value_source {
+              secret_key_ref {
+                secret  = env.value
+                version = "latest"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].template[0].containers[0].image,
+      template[0].template[0].containers[0].args,
+      template[0].labels,
+      template[0].annotations,
+      labels,
+      annotations,
+      client,
+      client_version,
+    ]
+  }
+}
