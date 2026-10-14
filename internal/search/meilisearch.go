@@ -174,27 +174,19 @@ func NewMeilisearch(
 	opts ...MeilisearchOption,
 ) (*Meilisearch, error) {
 	client := meilisearch.New(host, meilisearch.WithAPIKey(apiKey))
-	m := &Meilisearch{
-		index:   client.Index(uid),
-		cursors: client.Index(uid + "_cursors"),
-		client:  client,
-	}
-	for _, opt := range opts {
-		opt(m)
-	}
-	settings := &meilisearch.Settings{
-		SearchableAttributes: []string{"text"},
-		FilterableAttributes: []string{
-			"space_owner", "space_type", "space_key", "repo", "collection",
-			"user_readers", "community_role_readers", "public",
-		},
-	}
-	if m.embedder != nil {
-		// Meilisearch re-embeds every document when the embedder changes.
-		settings.Embedders = map[string]meilisearch.Embedder{
-			embedderName: m.embedder.settings(),
-		}
-	}
+	return createMeilisearch(ctx, client, uid, opts...)
+}
+
+// createMeilisearch returns the Index stored in uid and uid_cursors, creating
+// them if needed and applying the settings opts describe.
+func createMeilisearch(
+	ctx context.Context,
+	client meilisearch.ServiceManager,
+	uid string,
+	opts ...MeilisearchOption,
+) (*Meilisearch, error) {
+	m := newMeilisearchOn(client, uid, opts...)
+	settings := indexSettings(m.embedder)
 	if err := m.setup(ctx, uid, settings); err != nil {
 		return nil, err
 	}
@@ -215,6 +207,65 @@ func NewMeilisearch(
 		return nil, err
 	}
 	return m, nil
+}
+
+// openMeilisearch returns the Index stored in uid and uid_cursors as they
+// are, without creating or configuring them, so opening an index never
+// starts a reindex. Searches are hybrid only when opts has an embedder and
+// uid was built with one.
+func openMeilisearch(
+	ctx context.Context,
+	client meilisearch.ServiceManager,
+	uid string,
+	opts ...MeilisearchOption,
+) (*Meilisearch, error) {
+	m := newMeilisearchOn(client, uid, opts...)
+	if m.embedder == nil {
+		return m, nil
+	}
+	embedders, err := m.index.GetEmbeddersWithContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get meilisearch embedders of %s: %w", uid, err)
+	}
+	if _, ok := embedders[embedderName]; !ok {
+		m.embedder = nil
+	}
+	return m, nil
+}
+
+func newMeilisearchOn(
+	client meilisearch.ServiceManager,
+	uid string,
+	opts ...MeilisearchOption,
+) *Meilisearch {
+	m := &Meilisearch{
+		index:   client.Index(uid),
+		cursors: client.Index(uid + "_cursors"),
+		client:  client,
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// indexSettings returns the settings of the document index, searching with
+// embedder when it is set.
+func indexSettings(embedder *Embedder) *meilisearch.Settings {
+	settings := &meilisearch.Settings{
+		SearchableAttributes: []string{"text"},
+		FilterableAttributes: []string{
+			"space_owner", "space_type", "space_key", "repo", "collection",
+			"user_readers", "community_role_readers", "public",
+		},
+	}
+	if embedder != nil {
+		// Meilisearch re-embeds every document when the embedder changes.
+		settings.Embedders = map[string]meilisearch.Embedder{
+			embedderName: embedder.settings(),
+		}
+	}
+	return settings
 }
 
 // setup creates the index uid if it doesn't exist and applies settings.
@@ -637,7 +688,16 @@ func (e *taskError) Error() string {
 // wait blocks until the task behind info has been applied, so the index
 // reads its own writes.
 func (m *Meilisearch) wait(ctx context.Context, info *meilisearch.TaskInfo) error {
-	task, err := m.client.WaitForTaskWithContext(ctx, info.TaskUID, taskPollInterval)
+	return waitTask(ctx, m.client, info)
+}
+
+// waitTask blocks until the task behind info has been applied.
+func waitTask(
+	ctx context.Context,
+	client meilisearch.ServiceManager,
+	info *meilisearch.TaskInfo,
+) error {
+	task, err := client.WaitForTaskWithContext(ctx, info.TaskUID, taskPollInterval)
 	if err != nil {
 		return fmt.Errorf("wait for meilisearch task: %w", err)
 	}

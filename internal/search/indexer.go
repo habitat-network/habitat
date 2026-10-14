@@ -100,6 +100,8 @@ type Indexer struct {
 	mu      sync.Mutex
 	order   []job
 	pending map[job]bool
+	// running counts jobs popped from the queue that haven't finished.
+	running int
 	wake    chan struct{}
 }
 
@@ -185,7 +187,38 @@ func (x *Indexer) next() (job, bool) {
 	j := x.order[0]
 	x.order = x.order[1:]
 	delete(x.pending, j)
+	x.running++
 	return j, true
+}
+
+// done marks a job popped by next as finished.
+func (x *Indexer) done() {
+	x.mu.Lock()
+	x.running--
+	x.mu.Unlock()
+}
+
+// idle reports whether no job is queued or running.
+func (x *Indexer) idle() bool {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	return len(x.order) == 0 && x.running == 0
+}
+
+// CaughtUp reports whether the index holds every repo up to its head and no
+// space that was deleted, with nothing left to do: what a new index must
+// reach before searches move to it.
+func (x *Indexer) CaughtUp(ctx context.Context, source RepoSource) (bool, error) {
+	if !x.idle() {
+		return false, nil
+	}
+	stale, deleted, err := x.staleWork(ctx, source)
+	if err != nil {
+		return false, err
+	}
+	// The queue may have filled while the index was compared, but then the
+	// next check sees it.
+	return len(stale) == 0 && len(deleted) == 0 && x.idle(), nil
 }
 
 // Run indexes queued repos, reading records from source and permissions from
@@ -224,6 +257,7 @@ func (x *Indexer) drain(ctx context.Context, source RepoSource, perms PermSource
 		case jobDeleteSpace:
 			err = x.index.DeleteSpace(ctx, j.space)
 		}
+		x.done()
 		if err != nil {
 			slog.ErrorContext(ctx, "search indexing failed",
 				"space", j.space, "repo", j.repo, "err", err)
@@ -240,13 +274,32 @@ func (x *Indexer) sweep(ctx context.Context, source RepoSource) {
 }
 
 func (x *Indexer) queueStale(ctx context.Context, source RepoSource) error {
-	heads, err := source.ListRepoHeads(ctx)
+	stale, deleted, err := x.staleWork(ctx, source)
 	if err != nil {
 		return err
 	}
+	for _, j := range stale {
+		x.enqueue(j)
+	}
+	for _, space := range deleted {
+		x.enqueue(job{kind: jobDeleteSpace, space: space})
+	}
+	return nil
+}
+
+// staleWork returns a job for every repo the index is behind on, and every
+// indexed space that no longer exists.
+func (x *Indexer) staleWork(
+	ctx context.Context,
+	source RepoSource,
+) ([]job, []habitat_syntax.SpaceURI, error) {
+	heads, err := source.ListRepoHeads(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	cursors, err := x.index.Cursors(ctx)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	type repoKey struct {
 		space habitat_syntax.SpaceURI
@@ -271,28 +324,35 @@ func (x *Indexer) queueStale(ctx context.Context, source RepoSource) error {
 		exists[space] = ok
 		return ok, nil
 	}
+	var stale []job
 	for _, h := range heads {
 		if indexed[repoKey{h.Space, h.Repo}] >= h.Rev.String() {
 			continue
 		}
 		ok, err := spaceExists(h.Space)
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 		if ok {
-			x.enqueue(job{kind: jobIndexRepo, space: h.Space, repo: h.Repo})
+			stale = append(stale, job{kind: jobIndexRepo, space: h.Space, repo: h.Repo})
 		}
 	}
+	var deleted []habitat_syntax.SpaceURI
+	seen := map[habitat_syntax.SpaceURI]bool{}
 	for k := range indexed {
+		if seen[k.space] {
+			continue
+		}
+		seen[k.space] = true
 		ok, err := spaceExists(k.space)
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 		if !ok {
-			x.enqueue(job{kind: jobDeleteSpace, space: k.space})
+			deleted = append(deleted, k.space)
 		}
 	}
-	return nil
+	return stale, deleted, nil
 }
 
 // indexRepo indexes repo's ops since its cursor, page by page, until it

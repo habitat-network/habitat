@@ -60,7 +60,7 @@ type Page struct {
 // [Reader], so the index only matches what they may read, and returns
 // records from the spaces store rather than the index.
 type Searcher struct {
-	index       Index
+	index       Searchable
 	communities CommunitySource
 	records     RecordGetter
 	collections CollectionSource
@@ -88,7 +88,7 @@ func WithEveryoneOrg(did syntax.DID) SearcherOption {
 // NewSearcher returns a Searcher over index, resolving callers' community
 // roles with communities and loading matched records from records.
 func NewSearcher(
-	index Index,
+	index Searchable,
 	communities CommunitySource,
 	records RecordGetter,
 	opts ...SearcherOption,

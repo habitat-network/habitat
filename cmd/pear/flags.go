@@ -164,7 +164,7 @@ func getFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:    fMeilisearchIndex,
-			Usage:   "Name of the Meilisearch index of space records; cursors go in <name>_cursors",
+			Usage:   "Prefix of the Meilisearch indexes of space records: generation n is <name>_g<n> with cursors in <name>_g<n>_cursors, and <name>_generations says which is current",
 			Value:   "space_records",
 			Sources: getSources(fMeilisearchIndex),
 		},

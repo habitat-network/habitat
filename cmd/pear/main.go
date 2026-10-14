@@ -72,6 +72,10 @@ import (
 	"github.com/habitat-network/habitat/cmd/pear/migrations"
 )
 
+// searchIndexLockKey names the database lock held by the one pear that
+// maintains the search index.
+const searchIndexLockKey db.LockKey = 0x68616269_74617401
+
 func main() {
 	cmd := &cli.Command{
 		Flags:  getFlags(),
@@ -322,8 +326,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	defer func() { _ = blobBucket.Close() }()
 	blobStore := spaces.NewBlobStore(blobBucket)
 
-	var searchIndex search.Index
-	var searchIndexer *search.Indexer
+	// The search index is kept as generations, so a deploy that changes how
+	// it is built builds a new one beside the one searches read. One pear at
+	// a time maintains it, under a database lock.
+	var searchIndex *search.Generations
 	if meilisearchURL := cmd.String(fMeilisearchURL); meilisearchURL != "" {
 		var indexOpts []search.MeilisearchOption
 		// With an embedder, Meilisearch embeds records and queries itself and
@@ -338,18 +344,19 @@ func run(ctx context.Context, cmd *cli.Command) error {
 				MinScore:      cmd.Float(fSearchMinScore),
 			}))
 		}
-		searchIndex, err = search.NewMeilisearch(
+		searchIndex, err = search.NewGenerations(
 			startupCtx,
 			meilisearchURL,
 			cmd.String(fMeilisearchAPIKey),
 			cmd.String(fMeilisearchIndex),
-			indexOpts...,
+			db.NewLock(database, searchIndexLockKey),
+			search.WithIndexOptions(indexOpts...),
+			search.WithIndexerOptions(search.WithBlobs(blobStore)),
 		)
 		if err != nil {
 			return fmt.Errorf("setup search index: %w", err)
 		}
-		searchIndexer = search.NewIndexer(searchIndex, search.WithBlobs(blobStore))
-		notifiers = append(notifiers, searchIndexer)
+		notifiers = append(notifiers, searchIndex)
 	}
 
 	spacesStore, err := spaces.NewStore(
@@ -701,9 +708,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	eg.Go(func() error {
 		return oauthGC.Run(egCtx)
 	})
-	if searchIndexer != nil {
+	if searchIndex != nil {
 		eg.Go(func() error {
-			return searchIndexer.Run(egCtx, spacesStore, permStore)
+			return searchIndex.Run(egCtx, spacesStore, permStore)
 		})
 	}
 	eg.Go(func() error {
