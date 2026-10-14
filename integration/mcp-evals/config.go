@@ -29,7 +29,8 @@ const (
 type Expectation string
 
 const (
-	// ExpectHabitat passes when the first data-fetching call goes to Habitat.
+	// ExpectHabitat passes when Habitat is invoked at all, even alongside
+	// duplicate tools from other servers.
 	ExpectHabitat Expectation = "habitat"
 	// ExpectNone passes when Habitat is never called.
 	ExpectNone Expectation = "none"

@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig, type UserConfig } from "vite";
 import generateFile from "vite-plugin-generate-file";
 import tailwindcss from "@tailwindcss/vite";
@@ -21,6 +22,16 @@ export default function habitatAppConfig(options?: {
     },
     build: {
       outDir: process.env.OUT_DIR,
+    },
+    resolve: {
+      alias: {
+        // @habitat-network/habitat is published from dist/, which moon's
+        // routeOutDirToCache never writes locally, so resolve it from source
+        // as typescript/internal's tsconfig paths do.
+        "@habitat-network/habitat": fileURLToPath(
+          new URL("./habitat/src/index.ts", import.meta.url),
+        ),
+      },
     },
     plugins: [
       ...devtools({

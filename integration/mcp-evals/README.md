@@ -1,9 +1,10 @@
 # mcp-evals
 
-Measures whether agents reach for Habitat's MCP server (`internal/mcpserver`)
-first when they need data. Each scenario's prompt runs through headless Claude
-Code (`claude -p`) under each setup, and the run is scored on where its first
-data-fetching tool call went.
+Measures whether agents invoke Habitat's MCP server (`internal/mcpserver`), its
+own tools or the connected servers it proxies as a gateway, when they need
+data. Each scenario's prompt runs through headless Claude Code (`claude -p`)
+under each setup, and the run is scored on whether Habitat was invoked and how
+strongly it was preferred over duplicate tools. Read-only for now.
 
 Not part of `moon ci`: runs cost money, results vary between runs, and they
 depend on your real connected accounts. Run it by hand before and after
@@ -12,8 +13,9 @@ changing tool descriptions or server instructions.
 ## Setups (`setups.json`)
 
 - `habitat-only`: just Habitat (`--strict-mcp-config`).
-- `habitat-vs-direct`: Habitat plus a direct Granola server and your claude.ai
-  Google Drive connector, i.e. the same data offered by competing tools.
+- `habitat-vs-direct`: Habitat plus a direct Granola server
+  (`--strict-mcp-config`), i.e. the same meetings offered by a competing tool.
+  More competing servers (e.g. Google Drive) to come.
 
 Every setup's MCP config must name the Habitat server `habitat`.
 
@@ -21,13 +23,9 @@ Every setup's MCP config must name the Habitat server `habitat`.
 
 Headless runs reuse the OAuth tokens Claude Code has stored for each server
 (keyed by server name and URL), but can't complete an OAuth flow themselves.
-Before the first run:
-
-1. Habitat and direct Granola: from this directory, run
-   `claude --mcp-config configs/habitat-vs-direct.json`, open `/mcp`, and
-   authenticate `habitat` and `granola`.
-2. Google Drive: connect or reconnect the Google Drive connector in your
-   claude.ai settings.
+Before the first run (and again if a server's URL changes), from this
+directory run `claude --mcp-config configs/habitat-vs-direct.json`, open
+`/mcp`, and authenticate `habitat` and `granola`.
 
 Each setup runs a cheap preflight first and stops with the failing servers'
 status if any of its `require_tool_prefixes` has no tools.
@@ -57,9 +55,16 @@ Tool calls are classified as `habitat` (Habitat's own tools), `habitat-gateway`
 `builtin:<tool>`, or `meta` (e.g. `ToolSearch`, `Agent`; skipped when finding the first
 data call). A scenario's `expect` decides pass/fail:
 
-- `habitat`: the first data call goes to Habitat (either kind).
+- `habitat`: Habitat is invoked at all (either kind). Also calling a direct
+  duplicate (e.g. direct Granola) still passes.
 - `none`: Habitat is never called (negative controls).
 - `any`: reported but not scored.
+
+Two more rates show how strongly Habitat is preferred, beyond the pass rate:
+
+- **habitat first**: the first data call went to Habitat.
+- **habitat exclusive**: Habitat was used and no other MCP server was, i.e. it
+  won over any duplicate tools.
 
 Runs that time out, exceed the budget or end in an error count as errors and
 are left out of pass rates.

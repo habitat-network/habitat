@@ -8,13 +8,9 @@
   {
     "name": "habitat-vs-direct",
     "mcp_config": "configs/habitat-vs-direct.json",
-    "strict": false,
-    "require_tool_prefixes": [
-      "mcp__habitat__",
-      "mcp__granola__",
-      "mcp__claude_ai_Google_Drive__"
-    ],
-    "allowed_tools": ["mcp__granola", "mcp__claude_ai_Google_Drive"],
-    "disallowed_tools": ["mcp__granola__sign_out", "mcp__claude_ai_Claude_Docs"]
+    "strict": true,
+    "require_tool_prefixes": ["mcp__habitat__", "mcp__granola__"],
+    "allowed_tools": ["mcp__granola"],
+    "disallowed_tools": ["mcp__granola__sign_out"]
   }
 ]

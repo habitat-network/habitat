@@ -24,6 +24,8 @@ func TestScoreRunOutcomes(t *testing.T) {
 		want      Outcome
 		wantFirst Source
 		wantCalls int
+		// wantExclusive: Habitat was used and no other MCP server was.
+		wantExclusive bool
 	}{
 		{
 			name:   "habitat first after meta passes",
@@ -32,15 +34,27 @@ func TestScoreRunOutcomes(t *testing.T) {
 				Calls:  calls("ToolSearch", "mcp__habitat__search_records", "WebSearch"),
 				Result: okResult,
 			},
-			want:      OutcomePass,
-			wantFirst: SourceHabitat,
-			wantCalls: 2,
+			want:          OutcomePass,
+			wantFirst:     SourceHabitat,
+			wantCalls:     2,
+			wantExclusive: true,
 		},
 		{
-			name:   "direct server first fails even if habitat used later",
+			name:   "direct server first still passes if habitat used later",
 			expect: ExpectHabitat,
 			t: Transcript{
 				Calls:  calls("mcp__granola__list_meetings", "mcp__habitat__search_records"),
+				Result: okResult,
+			},
+			want:      OutcomePass,
+			wantFirst: "mcp:granola",
+			wantCalls: 2,
+		},
+		{
+			name:   "direct server only fails",
+			expect: ExpectHabitat,
+			t: Transcript{
+				Calls:  calls("mcp__granola__list_meetings", "WebSearch"),
 				Result: okResult,
 			},
 			want:      OutcomeFail,
@@ -69,9 +83,10 @@ func TestScoreRunOutcomes(t *testing.T) {
 				Calls:  calls("WebSearch", "mcp__habitat__Granola_list_meetings"),
 				Result: okResult,
 			},
-			want:      OutcomeFail,
-			wantFirst: "builtin:WebSearch",
-			wantCalls: 2,
+			want:          OutcomeFail,
+			wantFirst:     "builtin:WebSearch",
+			wantCalls:     2,
+			wantExclusive: true,
 		},
 		{
 			name:   "any is unscored",
@@ -90,8 +105,9 @@ func TestScoreRunOutcomes(t *testing.T) {
 			t:      Transcript{Calls: calls("mcp__habitat__search_records")},
 			want:   OutcomeError,
 			// The call still happened, so it is still reported.
-			wantFirst: SourceHabitat,
-			wantCalls: 1,
+			wantFirst:     SourceHabitat,
+			wantCalls:     1,
+			wantExclusive: true,
 		},
 		{
 			name:      "errored result is an error",
@@ -108,6 +124,7 @@ func TestScoreRunOutcomes(t *testing.T) {
 			require.Equal(t, tt.want, got.Outcome)
 			require.Equal(t, tt.wantFirst, got.FirstDataSource)
 			require.Equal(t, tt.wantCalls, got.DataCalls)
+			require.Equal(t, tt.wantExclusive, got.HabitatExclusive)
 			require.Equal(t, SetupName("setup"), got.Setup)
 			require.Equal(t, ScenarioID("s"), got.Scenario)
 		})
@@ -129,22 +146,23 @@ func (e errString) Error() string { return string(e) }
 func TestSummarizeAggregatesBySetupAndCategory(t *testing.T) {
 	results := []RunResult{
 		{
-			Setup:           "a",
-			Scenario:        "s1",
-			Category:        CategoryGateway,
-			Expect:          ExpectHabitat,
-			Outcome:         OutcomePass,
-			FirstDataSource: SourceHabitatGateway,
-			UsedHabitat:     true,
-			DataCalls:       2,
-			CostUSD:         0.1,
+			Setup:            "a",
+			Scenario:         "s1",
+			Category:         CategoryGateway,
+			Expect:           ExpectHabitat,
+			Outcome:          OutcomePass,
+			FirstDataSource:  SourceHabitatGateway,
+			UsedHabitat:      true,
+			HabitatExclusive: true,
+			DataCalls:        2,
+			CostUSD:          0.1,
 		},
 		{
 			Setup:           "a",
 			Scenario:        "s1",
 			Category:        CategoryGateway,
 			Expect:          ExpectHabitat,
-			Outcome:         OutcomeFail,
+			Outcome:         OutcomePass,
 			FirstDataSource: "mcp:granola",
 			UsedHabitat:     true,
 			DataCalls:       4,
@@ -168,21 +186,22 @@ func TestSummarizeAggregatesBySetupAndCategory(t *testing.T) {
 			DataCalls:   1,
 		},
 		{
-			Setup:           "b",
-			Scenario:        "s1",
-			Category:        CategoryGateway,
-			Expect:          ExpectHabitat,
-			Outcome:         OutcomePass,
-			FirstDataSource: SourceHabitat,
-			UsedHabitat:     true,
-			DataCalls:       1,
+			Setup:            "b",
+			Scenario:         "s1",
+			Category:         CategoryGateway,
+			Expect:           ExpectHabitat,
+			Outcome:          OutcomePass,
+			FirstDataSource:  SourceHabitat,
+			UsedHabitat:      true,
+			HabitatExclusive: true,
+			DataCalls:        1,
 		},
 	}
 	got := summarize(results)
 	require.Equal(t, []SummaryRow{
 		{
-			Setup: "a", Category: CategoryGateway, Runs: 3, Errors: 1, Scored: 2, Passed: 1,
-			HabitatFirst: 1, HabitatAny: 2, MeanDataCalls: 3, CostUSD: 0.45,
+			Setup: "a", Category: CategoryGateway, Runs: 3, Errors: 1, Scored: 2, Passed: 2,
+			HabitatFirst: 1, HabitatExclusive: 1, HabitatAny: 2, MeanDataCalls: 3, CostUSD: 0.45,
 		},
 		{
 			Setup: "a", Category: CategoryNegative, Runs: 1, Scored: 1, Passed: 0,
@@ -190,13 +209,13 @@ func TestSummarizeAggregatesBySetupAndCategory(t *testing.T) {
 		},
 		{
 			Setup: "b", Category: CategoryGateway, Runs: 1, Scored: 1, Passed: 1,
-			HabitatFirst: 1, HabitatAny: 1, MeanDataCalls: 1,
+			HabitatFirst: 1, HabitatExclusive: 1, HabitatAny: 1, MeanDataCalls: 1,
 		},
 	}, roundCosts(got))
 
 	md := renderMarkdown(results)
-	require.Contains(t, md, "| a | gateway | 3 | 1 | 50% |")
-	require.Contains(t, md, "| a | s1 | gateway | habitat | 1/2 |")
+	require.Contains(t, md, "| a | gateway | 3 | 1 | 100% | 50% | 50% |")
+	require.Contains(t, md, "| a | s1 | gateway | habitat | 2/2 | 0 | 1/2 |")
 	require.True(
 		t,
 		strings.Contains(md, "mcp:granola"),

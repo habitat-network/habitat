@@ -2,8 +2,8 @@
 // first when fetching data. It runs each scenario's prompt through headless
 // Claude Code under each setup (a set of MCP servers, e.g. Habitat alone, or
 // Habitat alongside direct connections to the same upstream services),
-// records which tools the model called, and scores whether its first
-// data-fetching call went to Habitat. See README.md.
+// records which tools the model called, and scores whether it invoked Habitat
+// (and how strongly it preferred Habitat over duplicate tools). See README.md.
 package main
 
 import (

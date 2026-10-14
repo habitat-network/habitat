@@ -34,6 +34,9 @@ type RunResult struct {
 	FirstDataSource Source `json:"first_data_source"`
 	// UsedHabitat is true if any call went to Habitat.
 	UsedHabitat bool `json:"used_habitat"`
+	// HabitatExclusive is true if Habitat was used and no other MCP server
+	// was, i.e. the model preferred Habitat over any duplicate tools.
+	HabitatExclusive bool `json:"habitat_exclusive"`
 	// DataCalls counts non-meta tool calls.
 	DataCalls int `json:"data_calls"`
 	// ToolSequence is every call's tool name, in order.
@@ -53,6 +56,7 @@ func scoreRun(setup SetupName, sc Scenario, run int, t Transcript) RunResult {
 	r := RunResult{
 		Setup: setup, Scenario: sc.ID, Category: sc.Category, Expect: sc.Expect, Run: run,
 	}
+	usedOtherMCP := false
 	for _, call := range t.Calls {
 		r.ToolSequence = append(r.ToolSequence, call.Name)
 		if call.Name == "ToolSearch" {
@@ -70,8 +74,11 @@ func scoreRun(setup SetupName, sc Scenario, run int, t Transcript) RunResult {
 		}
 		if src.isHabitat() {
 			r.UsedHabitat = true
+		} else if strings.HasPrefix(string(src), "mcp:") {
+			usedOtherMCP = true
 		}
 	}
+	r.HabitatExclusive = r.UsedHabitat && !usedOtherMCP
 	if t.Result != nil {
 		r.NumTurns = t.Result.NumTurns
 		r.CostUSD = t.Result.CostUSD
@@ -87,7 +94,10 @@ func scoreRun(setup SetupName, sc Scenario, run int, t Transcript) RunResult {
 		r.Outcome, r.Error = OutcomeError, "result is_error: "+t.Result.Text
 	case sc.Expect == ExpectAny:
 		r.Outcome = OutcomeUnscored
-	case sc.Expect == ExpectHabitat && r.FirstDataSource.isHabitat(),
+	// Habitat being invoked at all passes for now, even alongside duplicate
+	// tools from other servers; FirstDataSource and HabitatExclusive measure
+	// how strongly it's preferred.
+	case sc.Expect == ExpectHabitat && r.UsedHabitat,
 		sc.Expect == ExpectNone && !r.UsedHabitat:
 		r.Outcome = OutcomePass
 	default:
@@ -123,11 +133,12 @@ type SummaryRow struct {
 	// Scored and Passed count non-error runs whose scenario is scored.
 	Scored int
 	Passed int
-	// HabitatFirst and HabitatAny count non-error runs.
-	HabitatFirst  int
-	HabitatAny    int
-	MeanDataCalls float64
-	CostUSD       float64
+	// HabitatFirst, HabitatExclusive and HabitatAny count non-error runs.
+	HabitatFirst     int
+	HabitatExclusive int
+	HabitatAny       int
+	MeanDataCalls    float64
+	CostUSD          float64
 }
 
 type summaryKey struct {
@@ -163,6 +174,9 @@ func summarize(results []RunResult) []SummaryRow {
 		}
 		if r.FirstDataSource.isHabitat() {
 			row.HabitatFirst++
+		}
+		if r.HabitatExclusive {
+			row.HabitatExclusive++
 		}
 		if r.UsedHabitat {
 			row.HabitatAny++
@@ -200,17 +214,19 @@ func renderMarkdown(results []RunResult) string {
 	var b strings.Builder
 	b.WriteString("## Summary by setup and category\n\n")
 	b.WriteString(
-		"Pass: first data call went to Habitat (or, for negative, Habitat never called). " +
-			"Habitat first/any are over non-error runs.\n\n",
+		"Pass: Habitat was invoked at all (for negative, never invoked). Habitat first: the " +
+			"first data call went to Habitat. Habitat exclusive: Habitat used and no other MCP " +
+			"server was. Rates other than pass are over non-error runs.\n\n",
 	)
-	b.WriteString("| setup | category | runs | errors | pass | habitat first | habitat any " +
-		"| mean data calls | cost |\n")
-	b.WriteString("|---|---|---|---|---|---|---|---|---|\n")
+	b.WriteString("| setup | category | runs | errors | pass | habitat first | habitat exclusive " +
+		"| habitat any | mean data calls | cost |\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|---|---|\n")
 	for _, row := range summarize(results) {
 		ok := row.Runs - row.Errors
-		fmt.Fprintf(&b, "| %s | %s | %d | %d | %s | %s | %s | %.1f | $%.2f |\n",
+		fmt.Fprintf(&b, "| %s | %s | %d | %d | %s | %s | %s | %s | %.1f | $%.2f |\n",
 			row.Setup, row.Category, row.Runs, row.Errors, percent(row.Passed, row.Scored),
-			percent(row.HabitatFirst, ok), percent(row.HabitatAny, ok),
+			percent(row.HabitatFirst, ok), percent(row.HabitatExclusive, ok),
+			percent(row.HabitatAny, ok),
 			row.MeanDataCalls, row.CostUSD)
 	}
 
@@ -223,6 +239,7 @@ func renderMarkdown(results []RunResult) string {
 		expect         Expectation
 		passed, scored int
 		errors         int
+		exclusive      int
 		first          map[Source]int
 	}
 	aggs := map[scenarioKey]*scenarioAgg{}
@@ -245,6 +262,9 @@ func renderMarkdown(results []RunResult) string {
 		case OutcomeFail:
 			a.scored++
 		}
+		if r.HabitatExclusive {
+			a.exclusive++
+		}
 		src := r.FirstDataSource
 		if src == "" {
 			src = "(none)"
@@ -255,17 +275,21 @@ func renderMarkdown(results []RunResult) string {
 
 	b.WriteString("\n## By scenario\n\n")
 	b.WriteString(
-		"| setup | scenario | category | expect | passed | errors | first data source |\n",
+		"| setup | scenario | category | expect | passed | errors | habitat exclusive " +
+			"| first data source |\n",
 	)
-	b.WriteString("|---|---|---|---|---|---|---|\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|\n")
 	for _, k := range keys {
 		a := aggs[k]
 		passed := "-"
 		if a.scored > 0 {
 			passed = fmt.Sprintf("%d/%d", a.passed, a.scored)
 		}
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %d | %s |\n",
-			k.setup, k.scenario, a.category, a.expect, passed, a.errors, formatCounts(a.first))
+		// Every non-error run is counted in a.first.
+		ok := sumCounts(a.first)
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %d | %d/%d | %s |\n",
+			k.setup, k.scenario, a.category, a.expect, passed, a.errors, a.exclusive, ok,
+			formatCounts(a.first))
 	}
 	return b.String()
 }
@@ -282,4 +306,12 @@ func formatCounts(counts map[Source]int) string {
 		parts[i] = fmt.Sprintf("%s×%d", s, counts[s])
 	}
 	return strings.Join(parts, ", ")
+}
+
+func sumCounts(counts map[Source]int) int {
+	n := 0
+	for _, c := range counts {
+		n += c
+	}
+	return n
 }

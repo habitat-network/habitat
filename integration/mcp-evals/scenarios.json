@@ -61,13 +61,6 @@
     "notes": "Names the upstream service. With a direct Granola server also connected, this probes whether the Habitat gateway is still preferred."
   },
   {
-    "id": "gateway-explicit-drive",
-    "category": "gateway",
-    "prompt": "Find the most recently edited document in my Google Drive.",
-    "expect": "any",
-    "notes": "Habitat doesn't proxy Drive yet, so this is unscored; it shows whether Habitat steals requests it can't answer."
-  },
-  {
     "id": "ambiguous-catch-up",
     "category": "ambiguous",
     "prompt": "Catch me up on what my team has been working on lately.",
