@@ -2,12 +2,9 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
 	"os/signal"
 	"syscall"
-	"text/tabwriter"
 
 	"github.com/urfave/cli/v3"
 	"gorm.io/gorm"
@@ -15,10 +12,9 @@ import (
 	"github.com/habitat-network/habitat/cmd/pear/migrations"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/tasks"
+	"github.com/habitat-network/habitat/internal/search"
+	"github.com/habitat-network/habitat/internal/spaces"
 )
-
-const fList = "list"
 
 func commands() []*cli.Command {
 	return []*cli.Command{
@@ -28,13 +24,10 @@ func commands() []*cli.Command {
 			Action: migrate,
 		},
 		{
-			Name:      "run",
-			Usage:     "Run a registered task (backfills and other operator-run work)",
-			ArgsUsage: "<task> [task args...]",
-			Flags: []cli.Flag{
-				&cli.BoolFlag{Name: fList, Usage: "List the registered tasks and exit"},
-			},
-			Action: runTask,
+			Name:  "run",
+			Usage: "Run a task (backfills and other operator-run work); see `pear run --help`",
+			// Each task is a subcommand, so adding one is adding it to taskCommands.
+			Commands: taskCommands(),
 		},
 	}
 }
@@ -83,32 +76,39 @@ func migrate(ctx context.Context, cmd *cli.Command) error {
 	return nil
 }
 
-func runTask(ctx context.Context, cmd *cli.Command) error {
-	registry := tasks.All()
-	if cmd.Bool(fList) {
-		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-		for _, t := range registry.List() {
-			_, _ = fmt.Fprintf(w, "%s\t%s\n", t.Name, t.Description)
+// taskEnv holds the pear components a task can use. pear builds them once, so
+// tasks don't construct their own. Add a field when a task needs a component
+// that isn't available yet.
+type taskEnv struct {
+	DB     *gorm.DB
+	Spaces spaces.Store
+	// Search is nil where search isn't configured (no --meilisearch_url), so
+	// tasks that use it must check.
+	Search search.Index
+}
+
+// taskAction adapts a task to a urfave action: it builds the taskEnv, then
+// runs fn with the task's own flags and args available on cmd. Tasks that can
+// run more than once must be idempotent or safe to resume, since Cloud Run
+// retries failed jobs.
+//
+//nolint:unused // used by tasks as they are added to taskCommands
+func taskAction(
+	fn func(ctx context.Context, cmd *cli.Command, env taskEnv) error,
+) cli.ActionFunc {
+	return func(ctx context.Context, cmd *cli.Command) error {
+		ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+
+		database, sp, err := setupCommandComponents(ctx, cmd)
+		if err != nil {
+			return err
 		}
-		return w.Flush()
+		defer func() { _ = sp.Close() }()
+		return fn(ctx, cmd, taskEnv{
+			DB:     database,
+			Spaces: sp.spacesStore,
+			Search: sp.searchIndex,
+		})
 	}
-	if cmd.Args().Len() == 0 {
-		return errors.New("usage: pear run <task> [args...] (see pear run --list)")
-	}
-	name := tasks.Name(cmd.Args().First())
-	args := cmd.Args().Tail()
-
-	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	database, sp, err := setupCommandComponents(ctx, cmd)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = sp.Close() }()
-	return registry.Run(ctx, name, tasks.Env{
-		DB:     database,
-		Spaces: sp.spacesStore,
-		Search: sp.searchIndex,
-	}, args)
 }

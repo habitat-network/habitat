@@ -180,7 +180,7 @@ resource "google_cloud_run_v2_service" "pear" {
 }
 
 // Cloud Run jobs that run the pear image's operator commands: `migrate` applies database
-// migrations and `run <task>` runs a task from internal/tasks (backfills, reindexing). They
+// migrations and `run <task>` runs a task subcommand from cmd/pear/tasks.go (backfills, reindexing). They
 // share the service's environment, secrets, Cloud SQL and VPC wiring. Run one with
 //
 //   gcloud run jobs execute pear-run --region us-west1 --args=run,<task>,<task args...>
@@ -269,7 +269,7 @@ resource "google_cloud_run_v2_job" "pear_migrate" {
   }
 }
 
-// `pear run` with no task prints usage and fails; pass the task with --args at execute time.
+// `pear run` with no task prints usage; pass the task with --args at execute time.
 resource "google_cloud_run_v2_job" "pear_run" {
   name                = "pear-run"
   location            = var.region
@@ -300,7 +300,7 @@ resource "google_cloud_run_v2_job" "pear_run" {
       containers {
         image   = google_cloud_run_v2_service.pear.template[0].containers[0].image
         command = ["/app/pear"]
-        args    = ["run", "--list"]
+        args    = ["run", "--help"]
 
         resources {
           limits = {
