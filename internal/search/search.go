@@ -12,6 +12,7 @@ package search
 
 import (
 	"context"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -29,8 +30,24 @@ type Document struct {
 	Rev syntax.TID
 	// Text is the record's extracted text; see [ExtractText].
 	Text string
+	// Blobs is the text of the blobs the record references, which is
+	// searched as part of the record.
+	Blobs []BlobText
+	// Users are the people the record is about, such as its owner, for
+	// filtering.
+	Users []syntax.DID
+	// Date is when the record was last changed, for filtering and sorting;
+	// zero when it has none.
+	Date time.Time
 	// Access is who may read the document: its space's Access.
 	Access Access
+}
+
+// BlobText is the extracted text of one blob a record references.
+type BlobText struct {
+	// CID is the blob's CID, as a string.
+	CID  string
+	Text string
 }
 
 // CommunityRole names the members of an opensocial community holding the

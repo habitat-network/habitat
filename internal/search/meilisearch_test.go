@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/meilisearch/meilisearch-go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/internal/search"
@@ -317,4 +318,87 @@ func TestMeilisearchDropsEmbedderWhenUnconfigured(t *testing.T) {
 	// search.
 	reopened := searchtest.OpenIndex(t, uid)
 	require.Empty(t, search_(t, reopened, asAlice(search.Query{Text: "car"})).Hits)
+}
+
+// longText is about n chunks of filler with word in the middle of the last.
+func longText(n int, word string) string {
+	filler := strings.TrimSpace(strings.Repeat("lorem ipsum dolor ", 110))
+	paras := make([]string, 0, n+1)
+	for range n {
+		paras = append(paras, filler)
+	}
+	return strings.Join(append(paras, "the "+word+" is here"), "\n\n")
+}
+
+func TestMeilisearchChunksLongText(t *testing.T) {
+	idx := searchtest.NewIndex(t)
+	ctx := t.Context()
+	d := doc(spaceA, "1", "3kaaaaaaaaaa2", longText(5, "zebra"))
+	d.Blobs = []search.BlobText{{CID: "bafyblob", Text: longText(3, "giraffe")}}
+	require.NoError(t, idx.Put(ctx, d))
+
+	// The record matches once, though many chunks hold "lorem".
+	res := search_(t, idx, asAlice(search.Query{Text: "lorem"}))
+	require.Equal(t, []habitat_syntax.SpaceRecordURI{d.URI}, uris(res))
+	// The snippet comes from the chunk that matched.
+	res = search_(t, idx, asAlice(search.Query{Text: "zebra"}))
+	require.Len(t, res.Hits, 1)
+	require.Contains(t, res.Hits[0].Snippet, "<mark>zebra</mark>")
+	require.Len(t, search_(t, idx, asAlice(search.Query{Text: "giraffe"})).Hits, 1)
+
+	// A shorter revision drops the chunks it no longer has.
+	d.Rev = "3kaaaaaaaaaa3"
+	d.Text = "short now"
+	d.Blobs = nil
+	require.NoError(t, idx.Put(ctx, d))
+	for _, word := range []string{"lorem", "zebra", "giraffe"} {
+		require.Empty(t, search_(t, idx, asAlice(search.Query{Text: word})).Hits, word)
+	}
+	require.Len(t, search_(t, idx, asAlice(search.Query{Text: "short"})).Hits, 1)
+
+	// Deleting the record deletes every chunk.
+	d.Rev = "3kaaaaaaaaaa4"
+	d.Text = longText(3, "zebra")
+	require.NoError(t, idx.Put(ctx, d))
+	require.NoError(t, idx.Delete(ctx, d.URI))
+	require.Empty(t, search_(t, idx, asAlice(search.Query{Text: "lorem"})).Hits)
+}
+
+func TestMeilisearchReadsALegacyIndex(t *testing.T) {
+	ctx := t.Context()
+	uid := searchtest.NewUID(t)
+	client := meilisearch.New(searchtest.URL(t))
+	task, err := client.CreateIndexWithContext(ctx, &meilisearch.IndexConfig{
+		Uid: uid, PrimaryKey: "id",
+	})
+	require.NoError(t, err)
+	_, err = client.WaitForTaskWithContext(ctx, task.TaskUID, 0)
+	require.NoError(t, err)
+	legacy := client.Index(uid)
+	task, err = legacy.UpdateSettingsWithContext(ctx, &meilisearch.Settings{
+		SearchableAttributes: []string{"text"},
+		FilterableAttributes: []string{"public", "user_readers", "community_role_readers"},
+	})
+	require.NoError(t, err)
+	_, err = client.WaitForTaskWithContext(ctx, task.TaskUID, 0)
+	require.NoError(t, err)
+	task, err = legacy.AddDocumentsWithContext(ctx, []map[string]any{{
+		"id": "old", "uri": "at://old", "text": "apples", "public": true,
+	}}, nil)
+	require.NoError(t, err)
+	_, err = client.WaitForTaskWithContext(ctx, task.TaskUID, 0)
+	require.NoError(t, err)
+
+	idx, err := search.OpenMeilisearch(ctx, searchtest.URL(t), "", uid)
+	require.NoError(t, err)
+	res := search_(t, idx, asAlice(search.Query{Text: "apples"}))
+	require.Len(t, res.Hits, 1)
+	require.Contains(t, res.Hits[0].Snippet, "<mark>apples</mark>")
+	// Writes wait for a reindex rather than mixing projections.
+	require.ErrorIs(
+		t,
+		idx.Put(ctx, doc(spaceA, "1", "3kaaaaaaaaaa2", "pears")),
+		search.ErrLegacyIndex,
+	)
+	require.ErrorIs(t, idx.Delete(ctx, "at://old"), search.ErrLegacyIndex)
 }
