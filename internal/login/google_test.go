@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/keyval"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 )
 
 // makeIDToken builds a Google-shaped ID token carrying claims, unsigned
@@ -51,7 +52,7 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 		"https://example.com/callback",
 		testutil.NewDB(t, Models()),
 		encrypt.TestKey,
-		newTestKV(t),
+		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 	gp := p.(*googleProvider)
@@ -78,7 +79,7 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 		"https://example.com/callback",
 		testutil.NewDB(t, Models()),
 		encrypt.TestKey,
-		newTestKV(t),
+		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 

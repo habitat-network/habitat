@@ -10,19 +10,11 @@ import (
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/keyval"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
 )
-
-// newTestKV returns a keyval store over its own throwaway database, namespaced
-// as pear namespaces the login providers'.
-func newTestKV(t *testing.T) keyval.Store {
-	t.Helper()
-	kv, err := keyval.New(t.Context(), testutil.NewDB(t, keyval.Models()))
-	require.NoError(t, err)
-	return kv.Namespace("login")
-}
 
 // --- pdsProvider ---
 
@@ -37,7 +29,7 @@ func TestPDSProvider_Authorize(t *testing.T) {
 	}
 	client := pdsclient.NewDummyOAuthClient(t, clientMetadata)
 	defer client.Close()
-	kv := newTestKV(t)
+	kv := keyval_testutil.New(t)
 	p := NewPDSProvider(
 		client,
 		credStore,
@@ -80,7 +72,7 @@ func TestPDSProvider_Exchange(t *testing.T) {
 		client,
 		credStore,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
-		newTestKV(t),
+		keyval_testutil.New(t),
 	)
 
 	// Obtain valid state from Authorize.

@@ -10,26 +10,17 @@ import (
 
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/keyval"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/ory/fosite"
 	"github.com/stretchr/testify/require"
 )
-
-// testKV returns a keyval store, namespaced as pear namespaces it for the OAuth
-// server, over its own throwaway database.
-func testKV(t *testing.T) keyval.Store {
-	t.Helper()
-	kv, err := keyval.New(t.Context(), testutil.NewDB(t, keyval.Models()))
-	require.NoError(t, err)
-	return kv.Namespace("oauth")
-}
 
 func TestGetClient(t *testing.T) {
 	store, err := newStore(
 		testutil.NewDB(t, Models()),
 		nil,
 		clientmetadata.NewResolver(),
-		testKV(t),
+		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 
@@ -64,7 +55,7 @@ func TestGetClientRedirectUriPortNotMatched(t *testing.T) {
 		testutil.NewDB(t, Models()),
 		nil,
 		clientmetadata.NewResolver(),
-		testKV(t),
+		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 
@@ -86,7 +77,7 @@ func TestGetClientRedirectUriPortNotMatched(t *testing.T) {
 // subject update, and is gone once deleted.
 func TestStorePARSessionRoundTrip(t *testing.T) {
 	store, err := newStore(
-		testutil.NewDB(t, Models()), nil, clientmetadata.NewResolver(), testKV(t),
+		testutil.NewDB(t, Models()), nil, clientmetadata.NewResolver(), keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 	ctx := t.Context()

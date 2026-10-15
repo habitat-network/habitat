@@ -7,6 +7,7 @@ import (
 
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -37,7 +38,7 @@ func TestNormalizeLoopbackRedirect(t *testing.T) {
 			"http://pds.url",
 		),
 		dbtestutil.NewDB(t, Models()),
-		testKV(t),
+		keyval_testutil.New(t),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
