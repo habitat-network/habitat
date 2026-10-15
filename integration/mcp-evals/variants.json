@@ -3,6 +3,11 @@
     "id": "builtin"
   },
   {
+    "id": "single-turn",
+    "instructions": "Habitat holds this user's organizational knowledge base: documents, notes, policies, files, plans, decisions and other data records shared within their org.\n\nWhenever a question is about the user's company, team, colleagues, customers, projects or past discussions, call search_records before searching local files or the web. Call search_records with a few keywords as its query argument, e.g. {\"query\": \"pricing decision\"}, then read results in full with get_record or get_blob. If nothing relevant turns up after a few searches, say so instead of guessing.\n\nTools prefixed with an app's name (for example Granola) are the org's connected apps, reached through Habitat. Use them for data that lives in those apps, such as meeting notes.",
+    "search_description": "Search your organization's knowledge in Habitat: documents, notes, policies, files, roadmaps, decisions and other data records shared with you. Use this first for any question about your company, team, customers or past work. Returns matching records with snippets; use get_record for the full content."
+  },
+  {
     "id": "no-instructions",
     "instructions": ""
   },

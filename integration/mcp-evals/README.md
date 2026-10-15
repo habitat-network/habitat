@@ -23,13 +23,25 @@ subscription, runs draw on its usage limits instead of being billed.
 with `--strict-mcp-config`). The config must name the server `habitat`.
 
 Headless runs reuse the OAuth tokens Claude Code has stored for each server
-(keyed by server name and URL), but can't complete an OAuth flow themselves.
+(keyed by server name and a hash of its config, including `headers`), but can't complete an OAuth flow themselves.
 Before the first run (and again if the URL changes), from this directory run
 `claude --mcp-config configs/habitat-only.json`, open `/mcp`, and authenticate
 `habitat`.
 
 Each setup runs a cheap preflight first and stops if it doesn't offer
-`search_records`, e.g. because Habitat needs auth or search isn't configured.
+`search_records` (e.g. Habitat needs auth or search isn't configured), or, with
+`require_search_hits`, if searching for it finds nothing.
+
+### Seeding the org
+
+Scenarios assume the org holds the documents in `fixtures/org/`, about a
+fictional company, Kestrel. Each holds a fact found nowhere else (the table is
+in `docs/superpowers/plans/2026-10-15-mcp-multi-turn-eval.md`), which
+`answer_contains` checks for. Upload every file through Drop in the org the
+setup points at; `habitat-only`'s preflight checks a search for "Kestrel"
+finds them. If uploads don't show up in search, check your membership has the
+`member` role: Drop shares files with members, and an org's first admin may
+only have `admin`.
 
 ## Running
 
@@ -67,7 +79,8 @@ real data):
   (also printed to stdout)
 - `results.jsonl`: one scored run per line, including the tool sequence and
   any `ToolSearch` queries (the words to put in tool descriptions)
-- `transcripts/<setup>/<scenario>-<run>.jsonl`: raw stream-json for each run
+- `transcripts/<setup>/<scenario>-<run>.jsonl`: raw stream-json for each run,
+  or `<scenario>-<run>-t<turn>.jsonl` for each turn of a multi-turn one
 
 ## Scenarios and scoring
 
@@ -78,8 +91,19 @@ Each scenario in `scenarios.json` is an `id`, a `prompt` and an `expect`:
 - `none`: the prompt needs no company context, so it passes if no Habitat tool
   is called.
 
-Runs that time out, exceed the budget or end in an error count as errors and
-are left out of pass rates.
+An optional `answer_contains` also requires the answer to contain one of its
+strings (case-insensitively), e.g. a planted fact.
+
+A multi-turn scenario has `turns` instead: a list of `{prompt, expect,
+answer_contains}`, sent in order in one session (each turn a `claude -p`
+process resuming the last, in the same directory). Each turn is scored on
+its own calls, so a later `search` turn passes only if it searched again. The
+summary's "Later turns" section gives pass rates for turns 2+, where earlier
+context could stand in for searching, and how many conversations passed every
+turn. The eval deletes each conversation's saved session afterwards.
+
+Turns that time out, exceed the budget or end in an error count as errors and
+are left out of pass rates; after a turn fails to run, its conversation stops.
 
 ## Isolation
 

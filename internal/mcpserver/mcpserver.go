@@ -85,18 +85,21 @@ const Path = "/mcp"
 // are the main place to tell agents when to reach for Habitat. They're only
 // sent when "search_records" is offered, since they direct agents to it.
 // integration/mcp-evals measures how well they work; rerun it after editing.
-const serverInstructions = `Habitat holds this user's organizational knowledge base: documents, notes, policies, files, plans, decisions and other data records shared within their org.
+const serverInstructions = `Habitat holds this user's organizational knowledge base: documents, notes, policies, files, plans, decisions and other data records shared within their org, including files they've uploaded.
 
-Whenever a question is about the user's company, team, colleagues, customers, projects or past discussions, call search_records before searching local files or the web. Search with a few keywords, then read results in full with get_record or get_blob. If nothing relevant turns up after a few searches, say so instead of guessing.
+Whenever a question is about the user's company, team, customers, projects or past discussions, call search_records before searching local files or the web. Search again for each new question in a conversation, even if you searched earlier: earlier results only cover what you searched for then. When a question touches a kind of document the org likely has (a pitch deck, strategy, thesis, roadmap, research, policy), search for that document and read it, rather than reconstructing it from notes or other sources.
 
-Tools prefixed with an app's name (for example Granola) are the org's connected apps, reached through Habitat. Use them for data that lives in those apps, such as meeting notes.`
+Call search_records with a few keywords as its query argument, e.g. {"query": "pricing decision"}, then read relevant results in full with get_record or get_blob. If nothing relevant turns up after a few searches, say so instead of guessing.
+
+Tools prefixed with an app's name are the org's connected apps, reached through Habitat. Use them for data that lives in those apps.`
 
 // searchRecordsDescription is the "search_records" tool's description. Like
 // serverInstructions, it says when to search, not just how.
 const searchRecordsDescription = "Search your organization's knowledge in Habitat: documents, " +
 	"notes, policies, files, roadmaps, decisions and other data records shared with you. Use " +
-	"this first for any question about your company, team, customers or past work. Returns " +
-	"matching records with snippets; use get_record for the full content."
+	"this first for any question about your company, team, customers or past work, and search " +
+	"again whenever the conversation turns to a new topic; earlier results don't cover it. " +
+	"Returns matching records with snippets; use get_record for the full content."
 
 // Server exposes pear's data as an MCP server over streamable HTTP, guarded
 // by bearer tokens issued by internal/oauthserver.

@@ -42,6 +42,16 @@ func TestLoadScenariosValidates(t *testing.T) {
 			`[{"id":"a","prompt":"p","expect":"search"},{"id":"a","prompt":"q","expect":"none"}]`,
 		},
 		{"invalid json", `[`},
+		{
+			"prompt and turns",
+			`[{"id":"a","prompt":"p","expect":"search","turns":[{"prompt":"q","expect":"none"}]}]`,
+		},
+		{
+			"turn missing prompt",
+			`[{"id":"a","turns":[{"prompt":"q","expect":"none"},{"expect":"none"}]}]`,
+		},
+		{"turn unknown expectation", `[{"id":"a","turns":[{"prompt":"q","expect":"maybe"}]}]`},
+		{"neither prompt nor turns", `[{"id":"a","expect":"search"}]`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -73,4 +83,20 @@ func TestLoadSetupsValidates(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestLoadScenariosNormalizesToTurns(t *testing.T) {
+	path := writeFile(t, t.TempDir(), "scenarios.json", `[
+		{"id":"one","prompt":"p","expect":"search","answer_contains":["x"]},
+		{"id":"two","turns":[
+			{"prompt":"q1","expect":"search"},
+			{"prompt":"q2","expect":"none","answer_contains":["y"]}]}]`)
+	got, err := loadScenarios(path)
+	require.NoError(t, err)
+	require.Equal(t, []Turn{{Prompt: "p", Expect: ExpectSearch, AnswerContains: []string{"x"}}},
+		got[0].Turns, "a single-turn scenario is one turn")
+	require.Equal(t, []Turn{
+		{Prompt: "q1", Expect: ExpectSearch},
+		{Prompt: "q2", Expect: ExpectNone, AnswerContains: []string{"y"}},
+	}, got[1].Turns)
 }

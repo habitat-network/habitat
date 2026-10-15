@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // Transcript is what the eval needs from one `claude -p --output-format
@@ -36,6 +37,8 @@ type ToolCall struct {
 	Input json.RawMessage `json:"input,omitempty"`
 	// Subagent is true if a subagent (rather than the main loop) made the call.
 	Subagent bool `json:"subagent,omitempty"`
+	// Result is the text of the call's tool_result, empty if it has none.
+	Result string `json:"result,omitempty"`
 }
 
 // ResultSummary is the final result line of a run.
@@ -71,13 +74,41 @@ type streamLine struct {
 
 type contentBlock struct {
 	Type  string          `json:"type"`
+	ID    string          `json:"id"`
 	Name  string          `json:"name"`
 	Input json.RawMessage `json:"input"`
+	// ToolUseID and Content are set on tool_result blocks. Content is either
+	// a string or a list of content blocks.
+	ToolUseID string          `json:"tool_use_id"`
+	Content   json.RawMessage `json:"content"`
+	Text      string          `json:"text"`
+}
+
+// resultText returns a tool_result's content as text: a string as is, or a
+// list's text blocks joined.
+func resultText(content json.RawMessage) string {
+	var s string
+	if json.Unmarshal(content, &s) == nil {
+		return s
+	}
+	var blocks []contentBlock
+	if json.Unmarshal(content, &blocks) != nil {
+		return ""
+	}
+	var texts []string
+	for _, b := range blocks {
+		if b.Type == "text" {
+			texts = append(texts, b.Text)
+		}
+	}
+	return strings.Join(texts, "\n")
 }
 
 // parseTranscript reads stream-json output line by line.
 func parseTranscript(r io.Reader) (Transcript, error) {
 	var t Transcript
+	// callIndex finds a tool_result's call by its tool_use id.
+	callIndex := map[string]int{}
 	scanner := bufio.NewScanner(r)
 	// Tool results (e.g. meeting transcripts) can make single lines large.
 	scanner.Buffer(make([]byte, 0, 1<<20), 64<<20)
@@ -103,11 +134,24 @@ func parseTranscript(r io.Reader) (Transcript, error) {
 				if b.Type != "tool_use" {
 					continue
 				}
+				callIndex[b.ID] = len(t.Calls)
 				t.Calls = append(t.Calls, ToolCall{
 					Name:     b.Name,
 					Input:    b.Input,
 					Subagent: line.ParentToolUseID != nil,
 				})
+			}
+		case line.Type == "user" && line.Message != nil:
+			// A user message's content may be a plain string (the prompt), which
+			// holds no tool results.
+			var blocks []contentBlock
+			if json.Unmarshal(line.Message.Content, &blocks) != nil {
+				continue
+			}
+			for _, b := range blocks {
+				if i, ok := callIndex[b.ToolUseID]; ok && b.Type == "tool_result" {
+					t.Calls[i].Result = resultText(b.Content)
+				}
 			}
 		case line.Type == "result":
 			t.Result = &ResultSummary{

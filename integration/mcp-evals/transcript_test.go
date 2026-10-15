@@ -61,3 +61,18 @@ func TestParseTranscriptWithoutResult(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, got.Result)
 }
+
+func TestParseTranscriptAttachesToolResults(t *testing.T) {
+	got, err := parseTranscript(strings.NewReader(
+		`{"type":"assistant","message":{"content":[` +
+			`{"type":"tool_use","id":"a","name":"mcp__habitat__search_records","input":{}},` +
+			`{"type":"tool_use","id":"b","name":"Read","input":{}}]}}` + "\n" +
+			`{"type":"user","message":{"content":[` +
+			`{"type":"tool_result","tool_use_id":"a","content":[{"type":"text","text":"{\"hits\":[{\"uri\":\"x\"}]}"}]},` +
+			`{"type":"tool_result","tool_use_id":"b","content":"file text"}]}}` + "\n",
+	))
+	require.NoError(t, err)
+	require.Len(t, got.Calls, 2)
+	require.Equal(t, `{"hits":[{"uri":"x"}]}`, got.Calls[0].Result, "text blocks are joined")
+	require.Equal(t, "file text", got.Calls[1].Result, "string content is kept as is")
+}

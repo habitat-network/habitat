@@ -23,11 +23,28 @@ const (
 	ExpectNone Expectation = "none"
 )
 
-// Scenario is one prompt to run.
+// Scenario is one conversation to run: either a single prompt (Prompt,
+// Expect, AnswerContains) or several Turns. loadScenarios normalizes both to
+// Turns, which is what the rest of the harness reads.
 type Scenario struct {
-	ID     ScenarioID  `json:"id"`
+	ID             ScenarioID  `json:"id"`
+	Prompt         string      `json:"prompt,omitempty"`
+	Expect         Expectation `json:"expect,omitempty"`
+	AnswerContains []string    `json:"answer_contains,omitempty"`
+	// Turns are the user messages of a multi-turn conversation, sent in order
+	// in one session.
+	Turns []Turn `json:"turns,omitempty"`
+}
+
+// Turn is one user message in a scenario's conversation, scored on what the
+// model did in response to it alone.
+type Turn struct {
 	Prompt string      `json:"prompt"`
 	Expect Expectation `json:"expect"`
+	// AnswerContains, if set, also requires the turn's answer to contain one
+	// of these strings (case-insensitively), e.g. a fact only a Habitat record
+	// holds.
+	AnswerContains []string `json:"answer_contains,omitempty"`
 }
 
 // SetupName names a setup.
@@ -47,6 +64,10 @@ type Setup struct {
 	// by claudeRunner.preflight, so a server needing auth fails the setup
 	// rather than silently skewing results.
 	RequireToolPrefixes []string `json:"require_tool_prefixes"`
+	// RequireSearchHits, if set, is a query search_records must find
+	// something for, checked by claudeRunner.preflight, so an org that hasn't
+	// been seeded (see README) fails the setup.
+	RequireSearchHits string `json:"require_search_hits,omitempty"`
 	// DisallowedTools are hidden from the model, on top of the runner's
 	// defaults.
 	DisallowedTools []string `json:"disallowed_tools,omitempty"`
@@ -72,7 +93,8 @@ func loadScenarios(path string) ([]Scenario, error) {
 		return nil, err
 	}
 	seen := map[ScenarioID]bool{}
-	for _, s := range scenarios {
+	for i := range scenarios {
+		s := &scenarios[i]
 		var errs []error
 		if s.ID == "" {
 			errs = append(errs, errors.New("missing id"))
@@ -81,13 +103,24 @@ func loadScenarios(path string) ([]Scenario, error) {
 			errs = append(errs, errors.New("duplicate id"))
 		}
 		seen[s.ID] = true
-		if s.Prompt == "" {
+		single := s.Prompt != "" || s.Expect != "" || len(s.AnswerContains) > 0
+		switch {
+		case single && len(s.Turns) > 0:
+			errs = append(errs, errors.New("has both prompt and turns"))
+		case single:
+			s.Turns = []Turn{{Prompt: s.Prompt, Expect: s.Expect, AnswerContains: s.AnswerContains}}
+		case len(s.Turns) == 0:
 			errs = append(errs, errors.New("missing prompt"))
 		}
-		switch s.Expect {
-		case ExpectSearch, ExpectNone:
-		default:
-			errs = append(errs, fmt.Errorf("unknown expect %q", s.Expect))
+		for n, turn := range s.Turns {
+			if turn.Prompt == "" {
+				errs = append(errs, fmt.Errorf("turn %d: missing prompt", n+1))
+			}
+			switch turn.Expect {
+			case ExpectSearch, ExpectNone:
+			default:
+				errs = append(errs, fmt.Errorf("turn %d: unknown expect %q", n+1, turn.Expect))
+			}
 		}
 		if err := errors.Join(errs...); err != nil {
 			return nil, fmt.Errorf("scenario %q: %w", s.ID, err)
