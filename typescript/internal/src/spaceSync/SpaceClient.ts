@@ -26,7 +26,7 @@ import {
 import { SpaceSyncConfig } from "./config";
 import { Credentials } from "./Credentials";
 import { CredentialError, XrpcError, errorMessage } from "./errors";
-import { Identity } from "./Identity";
+import { Identity, requirePds } from "./Identity";
 import { failureStatus, signedAgent } from "./wire";
 
 export type SpaceCallError = XrpcError | CredentialError;
@@ -105,14 +105,31 @@ export class SpaceClient extends Context.Service<
                 }),
             ),
           );
+          // The authority's own repo lives on its space host when it has no
+          // PDS: a single service is both repo host and space host.
+          const ownRepo =
+            !resolved.pds && target.audience === target.space.spaceDid;
+          const host =
+            target.hostOf === "repo" && !ownRepo
+              ? yield* requirePds(resolved).pipe(
+                  Effect.mapError(
+                    (e) =>
+                      new XrpcError({
+                        method: target.method.nsid,
+                        status: 0,
+                        error: "IdentityError",
+                        message: e.message,
+                        transient: true,
+                      }),
+                  ),
+                )
+              : resolved.spaceHost;
           const credential = yield* credentials.get(target.space);
-          const agent = signedAgent(
-            target.hostOf === "repo" ? resolved.pds : resolved.spaceHost,
-            () =>
-              createSpaceSigHeaders(credential.key, {
-                authorization: `Atproto-Space ${credential.token}`,
-                audience: target.audience,
-              }),
+          const agent = signedAgent(host, () =>
+            createSpaceSigHeaders(credential.key, {
+              authorization: `Atproto-Space ${credential.token}`,
+              audience: target.audience,
+            }),
           );
           return yield* Effect.tryPromise({
             try: (signal) => run(agent, signal),

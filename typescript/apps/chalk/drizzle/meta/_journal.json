@@ -43,6 +43,13 @@
       "when": 1789067756949,
       "tag": "0005_tidy_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791847329436,
+      "tag": "0006_space_sync",
+      "breakpoints": true
     }
   ]
 }

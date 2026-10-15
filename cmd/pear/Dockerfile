@@ -74,4 +74,4 @@ WORKDIR /app
 COPY --from=build /app/bin/pear /app/pear
 
 # Run the binary
-CMD ["/app/pear"]
+CMD ["/app/pear", "serve"]

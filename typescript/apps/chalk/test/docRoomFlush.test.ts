@@ -7,6 +7,8 @@ import { beforeEach, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import type { DocRoom } from "../src/server/rooms/docRoom";
 
+vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
+
 const URI = "at://did:web:alice.example/space/network.habitat.docs/flush";
 const ID = { spaceUri: URI, ownerDid: "did:web:alice.example" };
 
@@ -31,7 +33,7 @@ function updateFrom(fn: (d: Y.Doc) => void): Uint8Array {
   return Y.encodeStateAsUpdateV2(d);
 }
 
-it("does not write to sap before the debounce fires", async () => {
+it("does not write to pear before the debounce fires", async () => {
   const stub = env.DOC.get(env.DOC.idFromName(URI));
   await runInDurableObject(stub, (r: DocRoom) =>
     r.applyEdit(
@@ -133,7 +135,7 @@ it("flushes each member to their own repo separately", async () => {
   });
 });
 
-it("keeps the pending flush when the sap write fails", async () => {
+it("keeps the pending flush when the pear write fails", async () => {
   const uri = URI + "-retry";
   const stub = env.DOC.get(env.DOC.idFromName(uri));
   await runInDurableObject(stub, (r: DocRoom) =>
@@ -143,11 +145,11 @@ it("keeps the pending flush when the sap write fails", async () => {
       updateFrom((d) => d.getText("body").insert(0, "x")),
     ),
   );
-  // sap is down for this alarm. The entry must survive so the alarm retry
+  // pear is down for this alarm. The entry must survive so the alarm retry
   // Cloudflare schedules after a thrown handler actually has something left
   // to flush — otherwise this edit is never written to the member's repo.
   fetchMock.mockImplementation(async () => {
-    throw new Error("sap is down");
+    throw new Error("pear is down");
   });
   await new Promise((resolve) => setTimeout(resolve, 2100)); // see the note above
   await runDurableObjectAlarm(stub).catch(() => {});
