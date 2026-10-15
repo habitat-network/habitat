@@ -37,6 +37,7 @@ func TestNormalizeLoopbackRedirect(t *testing.T) {
 			"http://pds.url",
 		),
 		dbtestutil.NewDB(t, Models()),
+		testKV(t),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",

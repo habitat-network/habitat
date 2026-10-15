@@ -2,16 +2,27 @@ package login
 
 import (
 	"context"
-	"encoding/json"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"net/url"
 	"testing"
 
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
 )
+
+// newTestKV returns a keyval store over its own throwaway database, namespaced
+// as pear namespaces the login providers'.
+func newTestKV(t *testing.T) keyval.Store {
+	t.Helper()
+	kv, err := keyval.New(t.Context(), testutil.NewDB(t, keyval.Models()))
+	require.NoError(t, err)
+	return kv.Namespace("login")
+}
 
 // --- pdsProvider ---
 
@@ -26,25 +37,32 @@ func TestPDSProvider_Authorize(t *testing.T) {
 	}
 	client := pdsclient.NewDummyOAuthClient(t, clientMetadata)
 	defer client.Close()
+	kv := newTestKV(t)
 	p := NewPDSProvider(
 		client,
 		credStore,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
+		kv,
 	)
 
-	redirect, _, state, err := p.Authorize(
+	redirect, _, key, err := p.Authorize(
 		context.Background(),
 		"did:web:pds.example.com",
 	)
 	require.NoError(t, err)
 	require.Contains(t, redirect, "/authorize")
-	require.NotEmpty(t, state)
+	require.NotEmpty(t, key)
 
-	// state must round-trip through Exchange — verify it's valid JSON with expected fields
+	// The state is stored server-side under the returned key, and the DPoP
+	// private key's bytes survive the JSON round trip unchanged.
 	var s pdsProviderState
-	require.NoError(t, unmarshalProviderState(state, &s))
-	require.NotEmpty(t, s.DpopKey)
+	require.NoError(t, kv.Get(t.Context(), key, &s))
 	require.Equal(t, "dummyVerifier", s.AuthorizeState.Verifier)
+	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), s.DpopKey)
+	require.NoError(t, err)
+	roundTripped, err := dpopKey.Bytes()
+	require.NoError(t, err)
+	require.Equal(t, s.DpopKey, roundTripped)
 }
 
 func TestPDSProvider_Exchange(t *testing.T) {
@@ -62,10 +80,11 @@ func TestPDSProvider_Exchange(t *testing.T) {
 		client,
 		credStore,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
+		newTestKV(t),
 	)
 
 	// Obtain valid state from Authorize.
-	_, _, state, err := p.Authorize(
+	_, _, key, err := p.Authorize(
 		t.Context(),
 		"did:web:pds.example.com",
 	)
@@ -74,7 +93,7 @@ func TestPDSProvider_Exchange(t *testing.T) {
 	loginID, _, err := p.Exchange(
 		t.Context(),
 		url.Values{"code": {"dummyCode"}, "iss": {"https://pds.example.com"}},
-		state,
+		key,
 	)
 	require.NoError(t, err)
 	// from dummy oauth client
@@ -84,9 +103,12 @@ func TestPDSProvider_Exchange(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "dummy_refresh_token", creds.RefreshToken)
 	require.NotNil(t, creds.DpopKey)
-}
 
-// unmarshalProviderState is a test helper to inspect the opaque pds state bytes.
-func unmarshalProviderState(b []byte, s *pdsProviderState) error {
-	return json.Unmarshal(b, s)
+	// The state is single-use: replaying the same callback must fail.
+	_, _, err = p.Exchange(
+		t.Context(),
+		url.Values{"code": {"dummyCode"}, "iss": {"https://pds.example.com"}},
+		key,
+	)
+	require.ErrorIs(t, err, keyval.ErrNotFound)
 }

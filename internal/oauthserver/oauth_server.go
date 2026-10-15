@@ -24,6 +24,7 @@ import (
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/ory/fosite"
@@ -48,7 +49,7 @@ const (
 	// trusting the `state` the PDS echoes back — that state belongs to
 	// pdsclient's own OAuth flow, not to ours.
 	requestKeyCookie = "request_key"
-	// providerStateCookie holds the opaque login-provider state for one redirect hop.
+	// providerStateCookie holds the key of the login-provider state, held server-side, for one redirect hop.
 	providerStateCookie = "provider_state"
 	// loginHopsCookie holds, keyed by the OAuth `state` each login-provider hop
 	// will echo back on its callback, the request key and provider state that
@@ -61,8 +62,8 @@ const (
 
 // loginHop is the flow a provider redirect was started for.
 type loginHop struct {
-	RequestKey    string `json:"r"`
-	ProviderState []byte `json:"p"`
+	RequestKey       string `json:"r"`
+	ProviderStateKey string `json:"p"`
 }
 
 // saveLoginHop records the provider hop just started for requestKey, both as
@@ -72,14 +73,14 @@ func saveLoginHop(
 	session *sessions.Session,
 	requestKey string,
 	state string,
-	providerState []byte,
+	providerStateKey string,
 ) {
-	session.Values[providerStateCookie] = providerState
+	session.Values[providerStateCookie] = providerStateKey
 	if state == "" {
 		return
 	}
 	hops := loadLoginHops(session)
-	hops[state] = loginHop{RequestKey: requestKey, ProviderState: providerState}
+	hops[state] = loginHop{RequestKey: requestKey, ProviderStateKey: providerStateKey}
 	if b, err := json.Marshal(hops); err == nil {
 		session.Values[loginHopsCookie] = string(b)
 	}
@@ -100,7 +101,7 @@ func restoreLoginHop(session *sessions.Session, state string) bool {
 		session.Values[loginHopsCookie] = string(b)
 	}
 	session.Values[requestKeyCookie] = hop.RequestKey
-	session.Values[providerStateCookie] = hop.ProviderState
+	session.Values[providerStateCookie] = hop.ProviderStateKey
 	return true
 }
 
@@ -158,6 +159,8 @@ type OAuthServer struct {
 //   - loginRouter: Routes login flows by DID service endpoint
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
 //   - db: GORM database connection for storing OAuth sessions
+//   - kv: short-lived OAuth flow state (pushed requests, authorization codes);
+//     the caller passes a store already namespaced for this server
 //   - issuer: this server's issuer origin (an https URL with no path), from
 //     which the endpoint URLs in the discovery metadata and the token endpoint
 //     URL (used to validate the "aud" claim of JWT Bearer assertions) are built
@@ -173,6 +176,7 @@ func NewOAuthServer(
 	loginRouter *org.LoginRouter,
 	directory identity.Directory,
 	db *gorm.DB,
+	kv keyval.Store,
 	meter metric.Meter,
 	orgStore org.Store,
 	issuer string,
@@ -204,7 +208,7 @@ func NewOAuthServer(
 	strategy := compose.NewOAuth2JWTStrategy(func(ctx context.Context) (any, error) {
 		return privateKey, nil
 	}, oauth2.NewHMACSHAStrategy(&hmac.HMACStrategy{Config: config}, config), config)
-	storage, err := newStore(db, approvedJwtBearerClients, clientmetadata.NewResolver())
+	storage, err := newStore(db, approvedJwtBearerClients, clientmetadata.NewResolver(), kv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}
@@ -310,7 +314,7 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, opensocialPath, http.StatusSeeOther)
 		return
 	}
-	redirect, state, providerState, err := o.loginRouter.Authorize(
+	redirect, state, providerStateKey, err := o.loginRouter.Authorize(
 		ctx,
 		syntax.DID(requester.GetSession().GetSubject()),
 	)
@@ -319,7 +323,7 @@ func (o *OAuthServer) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to begin login: %w", err))
 		return
 	}
-	saveLoginHop(session, requestKey, state, providerState)
+	saveLoginHop(session, requestKey, state, providerStateKey)
 	if err := session.Save(r, w); err != nil {
 		o.metrics.authorizeErr(ctx, err, "save_cookie")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
@@ -491,7 +495,7 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	providerState, _ := cookie.Values[providerStateCookie].([]byte)
+	providerStateKey, _ := cookie.Values[providerStateCookie].(string)
 	cookie.Values[providerStateCookie] = nil
 	did := syntax.DID(requester.GetSession().GetSubject())
 
@@ -506,12 +510,12 @@ func (o *OAuthServer) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		// org/member branching doesn't apply here — the admin's membership
 		// was already verified by HandleOpensocial before this PDS login
 		// began, and the subject stays the org DID throughout.
-		if _, _, err := o.loginRouter.Pds.Exchange(ctx, r.URL.Query(), providerState); err != nil {
+		if _, _, err := o.loginRouter.Pds.Exchange(ctx, r.URL.Query(), providerStateKey); err != nil {
 			o.metrics.callbackErr(ctx, err, "complete_login")
 			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
 			return
 		}
-	} else if err := o.loginRouter.Exchange(ctx, did, r.URL.Query(), providerState); err != nil {
+	} else if err := o.loginRouter.Exchange(ctx, did, r.URL.Query(), providerStateKey); err != nil {
 		o.metrics.callbackErr(ctx, err, "complete_login")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to complete login: %w", err))
 		return
@@ -913,12 +917,12 @@ func (o *OAuthServer) HandleOpensocial(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteUnauthorized(ctx, w, "not an admin of this org", nil)
 		return
 	}
-	redirectURL, state, providerState, err := o.loginRouter.Pds.Authorize(ctx, memberID.String())
+	redirectURL, state, providerStateKey, err := o.loginRouter.Pds.Authorize(ctx, memberID.String())
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to get authorize url: %w", err))
 		return
 	}
-	saveLoginHop(session, requestKey, state, providerState)
+	saveLoginHop(session, requestKey, state, providerStateKey)
 	if err := session.Save(r, w); err != nil {
 		o.metrics.callbackErr(ctx, err, "save_cookie")
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))

@@ -39,6 +39,7 @@ import (
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/mcpserver"
@@ -275,26 +276,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	loginRouter := &org.LoginRouter{
-		Pds:        login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
 		Password:   passwordProvider,
 		OrgStore:   orgStore,
 		EmailStore: emailDomainStore,
-	}
-	googleClientID := cmd.String(fGoogleClientID)
-	googleClientSecret := cmd.String(fGoogleClientSecret)
-	if googleClientID != "" && googleClientSecret != "" {
-		googleProvider, err := login.NewGoogleProvider(
-			googleClientID,
-			googleClientSecret,
-			"https://"+domain+"/oauth-callback",
-			database.WithContext(startupCtx),
-			credKey,
-		)
-		if err != nil {
-			return fmt.Errorf("setup google login provider: %w", err)
-		}
-		loginRouter.Google = googleProvider
-		slog.InfoContext(startupCtx, "google login provider enabled")
 	}
 
 	// Habitat's single host signing key signs permissioned-repo commits for repo
@@ -371,6 +355,40 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("migrate database: %w", err)
 	}
 
+	// Built after the migrations so keyval.New finds the table they created.
+	// Failing here is fatal: a store that silently failed to build would turn
+	// every Put into a runtime error later.
+	kv, err := keyval.New(startupCtx, database)
+	if err != nil {
+		return fmt.Errorf("setup keyval store: %w", err)
+	}
+
+	// The PDS and Google providers keep their flow state in the keyval store,
+	// so they are wired in once it exists.
+	loginRouter.Pds = login.NewPDSProvider(
+		oauthClient,
+		pdsCredStore,
+		defaultDir,
+		kv.Namespace("login"),
+	)
+	googleClientID := cmd.String(fGoogleClientID)
+	googleClientSecret := cmd.String(fGoogleClientSecret)
+	if googleClientID != "" && googleClientSecret != "" {
+		googleProvider, err := login.NewGoogleProvider(
+			googleClientID,
+			googleClientSecret,
+			"https://"+domain+"/oauth-callback",
+			database.WithContext(startupCtx),
+			credKey,
+			kv.Namespace("login"),
+		)
+		if err != nil {
+			return fmt.Errorf("setup google login provider: %w", err)
+		}
+		loginRouter.Google = googleProvider
+		slog.InfoContext(startupCtx, "google login provider enabled")
+	}
+
 	opensocialStore, err := opensocial.NewStore(
 		database.WithContext(startupCtx), spacesStore, blobStore, hive,
 	)
@@ -401,6 +419,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		// OAuth server needs privileged access to lookup hive-hosted identities
 		hiveDir,
 		database.WithContext(startupCtx),
+		kv.Namespace("oauth"),
 		meter,
 		orgStore,
 		"https://"+domain,

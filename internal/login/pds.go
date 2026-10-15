@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -13,17 +12,20 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type pdsProvider struct {
 	oauthClient pdsclient.PdsOAuthClient
 	credStore   pdscred.PDSCredentialStore
 	dir         identity.Directory
+	kv          keyval.Store
 }
 
-// pdsProviderState is the opaque flash state for the PDS login flow.
+// pdsProviderState is the flow state for the PDS login flow.
 type pdsProviderState struct {
 	DpopKey        []byte                   `json:"dpop_key"`
 	AuthorizeState pdsclient.AuthorizeState `json:"authorize_state"`
@@ -33,14 +35,15 @@ func NewPDSProvider(
 	oauthClient pdsclient.PdsOAuthClient,
 	credStore pdscred.PDSCredentialStore,
 	dir identity.Directory,
+	kv keyval.Store,
 ) Provider {
-	return &pdsProvider{oauthClient: oauthClient, credStore: credStore, dir: dir}
+	return &pdsProvider{oauthClient: oauthClient, credStore: credStore, dir: dir, kv: kv}
 }
 
 func (p *pdsProvider) Authorize(
 	ctx context.Context,
 	loginHint string,
-) (string, string, []byte, error) {
+) (string, string, string, error) {
 	// TODO if login hint is empty (like when authing an org), we need to redirect to a page that let's the user
 	// enter their handle so we can resolve the right pds to auth with.
 
@@ -49,43 +52,49 @@ func (p *pdsProvider) Authorize(
 	// use the identity as-is.
 	did, err := syntax.ParseDID(loginHint)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("parse loginID: %w", err)
+		return "", "", "", fmt.Errorf("parse loginID: %w", err)
 	}
 	id, err := p.dir.LookupDID(ctx, did)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("lookup loginID: %w", err)
+		return "", "", "", fmt.Errorf("lookup loginID: %w", err)
 	}
 
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("generate dpop key: %w", err)
+		return "", "", "", fmt.Errorf("generate dpop key: %w", err)
 	}
 	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
 	redirect, state, err := p.oauthClient.Authorize(ctx, dpopClient, id)
 	if err != nil {
-		return "", "", nil, err
+		return "", "", "", err
 	}
 	dpopKeyBytes, err := dpopKey.Bytes()
 	if err != nil {
-		return "", "", nil, fmt.Errorf("serialize dpop key: %w", err)
+		return "", "", "", fmt.Errorf("serialize dpop key: %w", err)
 	}
-	stateBytes, err := json.Marshal(pdsProviderState{DpopKey: dpopKeyBytes, AuthorizeState: *state})
-	if err != nil {
-		return "", "", nil, fmt.Errorf("marshal pds provider state: %w", err)
+	key := utils.RandomNonce(32)
+	if err := p.kv.Put(
+		ctx,
+		key,
+		pdsProviderState{DpopKey: dpopKeyBytes, AuthorizeState: *state},
+		loginStateTTL,
+	); err != nil {
+		return "", "", "", fmt.Errorf("store pds provider state: %w", err)
 	}
-	return redirect, state.State, stateBytes, nil
+	return redirect, state.State, key, nil
 }
 
 func (p *pdsProvider) Exchange(
 	ctx context.Context,
 	query url.Values,
-	stateBytes []byte,
+	providerStateKey string,
 ) (loginID string, profile Profile, err error) {
 	code := query.Get("code")
 	issuer := query.Get("iss")
 	var s pdsProviderState
-	if err := json.Unmarshal(stateBytes, &s); err != nil {
-		return "", Profile{}, fmt.Errorf("unmarshal pds provider state: %w", err)
+	// Consume, not Get: the state is single-use, so replaying the callback fails.
+	if err := p.kv.Consume(ctx, providerStateKey, &s); err != nil {
+		return "", Profile{}, fmt.Errorf("pds provider state: %w", err)
 	}
 	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), s.DpopKey)
 	if err != nil {

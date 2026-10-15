@@ -69,7 +69,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
 			[]byte("not valid base64"),
-			nil, nil, nil, noop.Meter{}, testStore(t),
+			nil, nil, nil, nil, noop.Meter{}, testStore(t),
 			"https://habitat.example",
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
@@ -92,6 +92,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		},
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		db,
+		testKV(t),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
@@ -193,6 +194,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		},
 		dummyDir,
 		db,
+		testKV(t),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
@@ -304,6 +306,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		},
 		dummyDir,
 		db,
+		testKV(t),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
@@ -519,6 +522,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		},
 		h, // the OAuth server resolves handles/DIDs via hive, not a public directory
 		db,
+		testKV(t),
 		noop.Meter{},
 		orgStore,
 		"https://habitat.example",
@@ -657,6 +661,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 		},
 		dummyDir,
 		db,
+		testKV(t),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
@@ -859,6 +864,7 @@ func TestValidate(t *testing.T) {
 			},
 			dummyDir,
 			db,
+			testKV(t),
 			noop.Meter{},
 			st,
 			"https://habitat.example",
@@ -977,6 +983,7 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			},
 			dummyDir,
 			db,
+			testKV(t),
 			noop.Meter{},
 			st,
 			"https://habitat.example",
@@ -1084,6 +1091,7 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 		},
 		dir,
 		db,
+		testKV(t),
 		noop.Meter{},
 		orgStore,
 		"https://habitat.example",
@@ -1256,6 +1264,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		},
 		dummyDir,
 		db,
+		testKV(t),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
@@ -1380,6 +1389,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 		},
 		dummyDir,
 		db,
+		testKV(t),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
@@ -1526,6 +1536,7 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 		},
 		dummyDir,
 		db,
+		testKV(t),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
@@ -1628,6 +1639,7 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 		&org.LoginRouter{Pds: p},
 		dummyDir,
 		db,
+		testKV(t),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
@@ -1675,7 +1687,7 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 	require.Len(t, output.Apps, 1, "unresolvable client should be omitted from the response")
 }
 
-// statefulProvider is a [login.Provider] whose flow state carries the same
+// statefulProvider is a [login.Provider] whose flow state key is bound to the
 // `state` it sends through the redirect, like the Google and PDS providers.
 type statefulProvider struct {
 	redirectBase string
@@ -1686,19 +1698,18 @@ type statefulProvider struct {
 func (p *statefulProvider) Authorize(
 	_ context.Context,
 	loginHint string,
-) (string, string, []byte, error) {
+) (string, string, string, error) {
 	p.loginID = loginHint
-	state := []byte(`{"state":"outer-state"}`)
-	return p.redirectBase + "/provider?state=outer-state", "outer-state", state, nil
+	return p.redirectBase + "/provider?state=outer-state", "outer-state", "outer-key", nil
 }
 
 func (p *statefulProvider) Exchange(
 	_ context.Context,
 	query url.Values,
-	state []byte,
+	providerStateKey string,
 ) (string, login.Profile, error) {
-	if string(state) != `{"state":"outer-state"}` || query.Get("state") != "outer-state" {
-		return "", login.Profile{}, fmt.Errorf("callback got another flow's state: %s", state)
+	if providerStateKey != "outer-key" || query.Get("state") != "outer-state" {
+		return "", login.Profile{}, fmt.Errorf("callback got another flow's state: %s", providerStateKey)
 	}
 	return p.loginID, login.Profile{}, nil
 }
@@ -1728,6 +1739,7 @@ func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
 		&org.LoginRouter{Pds: pds},
 		dummyDir,
 		db,
+		testKV(t),
 		noop.Meter{},
 		testStore(t),
 		"https://habitat.example",
@@ -1761,7 +1773,7 @@ func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
 			session, err := oauthServer.sessionStore.Get(r, sessionName)
 			require.NoError(t, err)
 			session.Values[requestKeyCookie] = "nested-request-key"
-			session.Values[providerStateCookie] = []byte(`{"state":"nested-state"}`)
+			session.Values[providerStateCookie] = "nested-key"
 			require.NoError(t, session.Save(r, w))
 			http.Redirect(
 				w, r, pds.redirectURI+"?code=dummy&state=outer-state", http.StatusSeeOther,

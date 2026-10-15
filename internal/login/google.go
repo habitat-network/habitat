@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -14,6 +13,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/keyval"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type Credentials struct {
@@ -28,7 +29,13 @@ type googleProvider struct {
 	oauthCfg      *oauth2.Config
 	db            *gorm.DB
 	encryptionKey []byte
+	kv            keyval.Store
 }
+
+// loginStateTTL bounds how long a provider's flow state stays redeemable. It
+// matches the OAuth session cookie's MaxAge (oauthserver), so a stored entry
+// never outlives the cookie that references it.
+const loginStateTTL = 10 * time.Minute
 
 type googleProviderState struct {
 	Verifier string `json:"verifier"`
@@ -39,6 +46,7 @@ func NewGoogleProvider(
 	clientID, clientSecret, redirectURL string,
 	db *gorm.DB,
 	encryptionKey []byte,
+	kv keyval.Store,
 ) (Provider, error) {
 	if encryptionKey == nil {
 		return nil, fmt.Errorf("encryption key is required")
@@ -56,22 +64,25 @@ func NewGoogleProvider(
 		},
 		db:            db,
 		encryptionKey: encryptionKey,
+		kv:            kv,
 	}, nil
 }
 
 func (p *googleProvider) Authorize(
 	ctx context.Context,
 	loginHint string,
-) (string, string, []byte, error) {
+) (string, string, string, error) {
 	verifier := oauth2.GenerateVerifier()
 	state := make([]byte, 16)
 	if _, err := rand.Read(state); err != nil {
-		return "", "", nil, fmt.Errorf("generate state: %w", err)
+		return "", "", "", fmt.Errorf("generate state: %w", err)
 	}
 	stateStr := hex.EncodeToString(state)
-	stateBytes, err := json.Marshal(googleProviderState{Verifier: verifier, State: stateStr})
-	if err != nil {
-		return "", "", nil, fmt.Errorf("marshal google state: %w", err)
+	key := utils.RandomNonce(32)
+	if err := p.kv.Put(
+		ctx, key, googleProviderState{Verifier: verifier, State: stateStr}, loginStateTTL,
+	); err != nil {
+		return "", "", "", fmt.Errorf("store google state: %w", err)
 	}
 	authURL := p.oauthCfg.AuthCodeURL(
 		stateStr,
@@ -81,18 +92,19 @@ func (p *googleProvider) Authorize(
 		oauth2.SetAuthURLParam("prompt", "select_account"),
 	)
 
-	return authURL, stateStr, stateBytes, nil
+	return authURL, stateStr, key, nil
 }
 
 func (p *googleProvider) Exchange(
 	ctx context.Context,
 	query url.Values,
-	stateBytes []byte,
+	providerStateKey string,
 ) (loginID string, profile Profile, err error) {
 	code := query.Get("code")
 	var s googleProviderState
-	if err := json.Unmarshal(stateBytes, &s); err != nil {
-		return "", Profile{}, fmt.Errorf("unmarshal google state: %w", err)
+	// Consume, not Get: the state is single-use, so replaying the callback fails.
+	if err := p.kv.Consume(ctx, providerStateKey, &s); err != nil {
+		return "", Profile{}, fmt.Errorf("google state: %w", err)
 	}
 	if s.State != query.Get("state") {
 		return "", Profile{}, fmt.Errorf("google state mismatch")

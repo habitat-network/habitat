@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+	"github.com/habitat-network/habitat/internal/keyval"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -44,11 +45,14 @@ func TestValidator(t *testing.T) {
 		opensocial_testutil.WithSpaceStore(sp),
 	)
 
+	kv, err := keyval.New(t.Context(), db)
+	require.NoError(t, err)
 	oauth, err := oauthserver.NewOAuthServer(
 		encrypt.TestKey,
 		&org.LoginRouter{},
 		nil,
 		db,
+		kv.Namespace("oauth"),
 		noop.Meter{},
 		nil,
 		"https://issuer.com",

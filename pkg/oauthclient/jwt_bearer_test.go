@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+	"github.com/habitat-network/habitat/internal/keyval"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -121,11 +122,14 @@ func setupJWTBearerTestServer(
 	}))
 	t.Cleanup(server.Close)
 
+	kv, err := keyval.New(t.Context(), db)
+	require.NoError(t, err)
 	oauthServer, err = oauthserver.NewOAuthServer(
 		bytes,
 		&org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
 		dummyDir,
 		db,
+		kv.Namespace("oauth"),
 		noop.Meter{},
 		jwtBearerTestOrgStore(t),
 		jwtBearerIssuer,

@@ -41,14 +41,7 @@ func (c *Collector) Run(ctx context.Context) error {
 
 func (c *Collector) clean(ctx context.Context) {
 	var deleted int64
-	result := c.db.WithContext(ctx).Where("expires_at < ?", time.Now()).Delete(&OAuthRequest{})
-	if result.Error != nil {
-		slog.WarnContext(ctx, "failed to clean expired OAuth requests", "err", result.Error)
-	} else {
-		deleted += result.RowsAffected
-	}
-
-	result = c.db.WithContext(ctx).Where("expires_at < ?", time.Now()).Delete(&OAuthSession{})
+	result := c.db.WithContext(ctx).Where("expires_at < ?", time.Now()).Delete(&OAuthSession{})
 	if result.Error != nil {
 		slog.WarnContext(ctx, "failed to clean expired OAuth sessions", "err", result.Error)
 	} else {

@@ -37,7 +37,7 @@ func TestLoginProvider_Authorize(t *testing.T) {
 	p := newTestLoginProvider(t)
 	redirect, _, state, err := p.Authorize(context.Background(), "did:web:alice.example.com")
 	require.NoError(t, err)
-	require.Nil(t, state)
+	require.Empty(t, state)
 	// loginHint is resolved from a DID to a handle (from the dummy directory)
 	// so the login page can display something readable.
 	require.Equal(
@@ -51,7 +51,7 @@ func TestLoginProvider_Authorize_EmptyLoginHint(t *testing.T) {
 	p := newTestLoginProvider(t)
 	redirect, _, state, err := p.Authorize(context.Background(), "")
 	require.NoError(t, err)
-	require.Nil(t, state)
+	require.Empty(t, state)
 	require.Equal(t, "https://pear.example.com/ui/login/habitat?handle=", redirect)
 }
 
@@ -61,14 +61,14 @@ func TestLoginProvider_ExchangeRoundTrip(t *testing.T) {
 	token, err := p.issueToken(did)
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
-	loginID, _, err := p.Exchange(context.Background(), url.Values{"code": {token}}, nil)
+	loginID, _, err := p.Exchange(context.Background(), url.Values{"code": {token}}, "")
 	require.NoError(t, err)
 	require.Equal(t, did.String(), loginID)
 }
 
 func TestLoginProvider_Exchange_InvalidToken(t *testing.T) {
 	p := newTestLoginProvider(t)
-	_, _, err := p.Exchange(context.Background(), url.Values{"code": {"not-a-jwt"}}, nil)
+	_, _, err := p.Exchange(context.Background(), url.Values{"code": {"not-a-jwt"}}, "")
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
@@ -83,7 +83,7 @@ func TestLoginProvider_Exchange_WrongSigningSecret(t *testing.T) {
 	tok, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	require.NoError(t, err)
 
-	_, _, err = p.Exchange(context.Background(), url.Values{"code": {tok}}, nil)
+	_, _, err = p.Exchange(context.Background(), url.Values{"code": {tok}}, "")
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
@@ -96,7 +96,7 @@ func TestLoginProvider_Exchange_ExpiredToken(t *testing.T) {
 	tok, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	require.NoError(t, err)
 
-	_, _, err = p.Exchange(context.Background(), url.Values{"code": {tok}}, nil)
+	_, _, err = p.Exchange(context.Background(), url.Values{"code": {tok}}, "")
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
@@ -125,7 +125,7 @@ func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 	require.Equal(t, callbackUrl.Path, "/oauth-callback")
 
 	code := callbackUrl.Query().Get("code")
-	loginID, _, err := p.Exchange(t.Context(), url.Values{"code": {code}}, nil)
+	loginID, _, err := p.Exchange(t.Context(), url.Values{"code": {code}}, "")
 	require.NoError(t, err)
 	// from dummy directory
 	require.Equal(t, "did:web:example.did.com", loginID)
