@@ -1709,7 +1709,10 @@ func (p *statefulProvider) Exchange(
 	providerStateKey string,
 ) (string, login.Profile, error) {
 	if providerStateKey != "outer-key" || query.Get("state") != "outer-state" {
-		return "", login.Profile{}, fmt.Errorf("callback got another flow's state: %s", providerStateKey)
+		return "", login.Profile{}, fmt.Errorf(
+			"callback got another flow's state: %s",
+			providerStateKey,
+		)
 	}
 	return p.loginID, login.Profile{}, nil
 }

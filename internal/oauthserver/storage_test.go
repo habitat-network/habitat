@@ -25,7 +25,12 @@ func testKV(t *testing.T) keyval.Store {
 }
 
 func TestGetClient(t *testing.T) {
-	store, err := newStore(testutil.NewDB(t, Models()), nil, clientmetadata.NewResolver(), testKV(t))
+	store, err := newStore(
+		testutil.NewDB(t, Models()),
+		nil,
+		clientmetadata.NewResolver(),
+		testKV(t),
+	)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +60,12 @@ func TestGetClient(t *testing.T) {
 // localhost-metadata-synthesis behavior itself is covered by
 // clientmetadata.TestResolverFetchMetadataLocalhost.
 func TestGetClientRedirectUriPortNotMatched(t *testing.T) {
-	store, err := newStore(testutil.NewDB(t, Models()), nil, clientmetadata.NewResolver(), testKV(t))
+	store, err := newStore(
+		testutil.NewDB(t, Models()),
+		nil,
+		clientmetadata.NewResolver(),
+		testKV(t),
+	)
 	require.NoError(t, err)
 
 	client, err := store.GetClient(
