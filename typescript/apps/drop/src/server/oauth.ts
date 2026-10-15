@@ -49,7 +49,7 @@ export function clientMetadata(
   baseUrl: string,
   assertionKey?: string,
 ): OAuthClientMetadataInput {
-  const origin = baseUrl.replace(/\/+$/, "");
+  const origin = trimTrailingSlashes(baseUrl);
   return {
     client_id: `${origin}${CLIENT_METADATA_PATH}`,
     client_name: "Drop",
