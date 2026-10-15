@@ -1,14 +1,17 @@
-// Package searchconfig stores how each org's collections are searched, as
-// network.habitat.search.config records in the org's opensocial members
-// space, keyed by collection NSID. A collection with a record is surfaced in
-// search results for the spaces the org owns; [DefaultCollections] are
-// surfaced for every org without one.
+// Package searchconfig stores how each org's collections are indexed and
+// searched, as network.habitat.search.config records in the org's opensocial
+// members space, keyed by collection NSID. A collection with a record is
+// indexed and searched in the spaces the org owns, as the record says;
+// [DefaultCollections] are for every org, and a record for one overrides
+// its default config.
 package searchconfig
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"maps"
 	"slices"
 	"time"
 
@@ -16,12 +19,13 @@ import (
 
 	habitat_api "github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/opensocial"
+	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 // Collection is the collection search config records are written to.
-const Collection = "network.habitat.search.config"
+const Collection = search.ConfigCollection
 
 // DefaultCollections are included in search results for every org, whether or
 // not its admins configure them. They are a code-level list so a new
@@ -52,9 +56,18 @@ func space(org syntax.DID) habitat_syntax.SpaceURI {
 	return habitat_syntax.ConstructSpaceURI(org, opensocial.MembersSpaceType, "self")
 }
 
-// Add surfaces collection in org's search results by writing its config
-// record. Adding one that is already configured does nothing.
+// Add indexes and searches collection for org by writing its config record,
+// which configures nothing so the collection gets the default config. Adding
+// one that is already configured does nothing, and keeps its config.
 func (s *Store) Add(ctx context.Context, org syntax.DID, collection syntax.NSID) error {
+	_, err := s.spaces.GetRecord(
+		ctx, space(org), org, Collection, syntax.RecordKey(collection),
+	)
+	if err == nil {
+		return nil
+	} else if !errors.Is(err, spaces.ErrRecordNotFound) {
+		return fmt.Errorf("get search config record: %w", err)
+	}
 	recordBytes, err := spaces.MarshalRecord(habitat_api.NetworkHabitatSearchConfig{
 		UpdatedAt: time.Now().Format(time.RFC3339),
 	})
@@ -89,27 +102,62 @@ func (s *Store) Remove(ctx context.Context, org syntax.DID, collection syntax.NS
 }
 
 // List returns the collections org's admins configured, sorted. It excludes
-// [DefaultCollections].
+// [DefaultCollections] unless a record overrides one.
 func (s *Store) List(ctx context.Context, org syntax.DID) ([]syntax.NSID, error) {
-	collection := syntax.NSID(Collection)
+	records, err := s.records(ctx, org)
+	if err != nil {
+		return nil, err
+	}
+	return slices.Sorted(maps.Keys(records)), nil
+}
+
+// Configs implements [search.ConfigSource]: a [search.DefaultConfig] for each
+// of [DefaultCollections], and the config each of org's records gives. A
+// record that can't be parsed gets the default config, and is logged.
+func (s *Store) Configs(
+	ctx context.Context,
+	org syntax.DID,
+) (map[syntax.NSID]search.CollectionConfig, error) {
+	records, err := s.records(ctx, org)
+	if err != nil {
+		return nil, err
+	}
+	configs := make(map[syntax.NSID]search.CollectionConfig, len(DefaultCollections)+len(records))
+	for _, c := range DefaultCollections {
+		configs[c] = search.DefaultConfig()
+	}
+	for c, record := range records {
+		cfg, err := search.ParseConfig(record.Value, record.Rev)
+		if err != nil {
+			slog.WarnContext(ctx, "search: using the default config for an invalid one",
+				"org", org, "collection", c, "err", err)
+			cfg = search.DefaultConfig()
+			// Still a new version, so a fix to it is picked up.
+			cfg.Rev = record.Rev
+		}
+		configs[c] = cfg
+	}
+	return configs, nil
+}
+
+// records returns org's config records by collection.
+func (s *Store) records(
+	ctx context.Context,
+	org syntax.DID,
+) (map[syntax.NSID]spaces.Record, error) {
+	collection := Collection
 	records, err := s.spaces.ListRecords(ctx, space(org), org, &collection)
 	if err != nil {
 		return nil, fmt.Errorf("list search config records: %w", err)
 	}
-	collections := make([]syntax.NSID, 0, len(records))
+	out := make(map[syntax.NSID]spaces.Record, len(records))
 	for _, record := range records {
 		nsid, err := syntax.ParseNSID(string(record.Rkey))
 		if err != nil {
-			// Not written by Add, so not a collection config.
+			// Not keyed by a collection, so not a collection config.
 			continue
 		}
-		collections = append(collections, nsid)
+		out[nsid] = record
 	}
-	slices.Sort(collections)
-	return collections, nil
-}
-
-// Collections is [Store.List], for [search.Searcher].
-func (s *Store) Collections(ctx context.Context, org syntax.DID) ([]syntax.NSID, error) {
-	return s.List(ctx, org)
+	return out, nil
 }

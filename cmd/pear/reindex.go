@@ -7,6 +7,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/habitat-network/habitat/internal/search"
+	"github.com/habitat-network/habitat/internal/searchconfig"
 )
 
 // reindexCommand rebuilds the search index with this pear's search settings
@@ -32,5 +33,5 @@ func reindex(ctx context.Context, cmd *cli.Command, env taskEnv) error {
 		search.WithReindexIndexOptions(searchIndexOptions(cmd)...),
 		search.WithReindexIndexerOptions(search.WithBlobs(env.Blobs)),
 	)
-	return r.Reindex(ctx, env.Spaces, env.Perms)
+	return r.Reindex(ctx, env.Spaces, env.Perms, searchconfig.NewStore(env.Spaces))
 }

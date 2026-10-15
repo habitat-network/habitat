@@ -10,20 +10,76 @@ type $nsid = typeof $nsid
 
 export { $nsid }
 
-/** Surfaces one collection in search results for an org. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not surfaced in search, unless it is a default collection. */
+/** Indexes and searches one collection for an org, and says how. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not indexed or searched, unless it is a default collection; a record for a default collection overrides its default config. What a record omits keeps its default. */
 type Main = {
   $type: 'network.habitat.search.config'
   updatedAt: l.DatetimeString
+
+  /**
+   * Where the people a record is about come from, for filtering. Defaults to the record's owner; an empty list sets none.
+   */
+  users?: (
+    l.$Typed<FieldSource> | l.$Typed<MetadataSource> | l.Unknown$TypedObject
+  )[]
+
+  /**
+   * Where the record's date comes from, for filtering and sorting. Defaults to the record's updatedAt, else its createdAt; null sets none.
+   */
+  date?:
+    | l.$Typed<FieldSource>
+    | l.$Typed<MetadataSource>
+    | l.Unknown$TypedObject
+    | null
+
+  /**
+   * The fields to index. When omitted, every string in the record is searchable and nothing is filterable or sortable; when set, unlisted fields are not indexed.
+   */
+  fields?: Field[]
+
+  /**
+   * Whether the text of the blobs a record references is searchable. Defaults to true.
+   */
+  blobs?: boolean
 }
 
 export type { Main }
 
-/** Surfaces one collection in search results for an org. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not surfaced in search, unless it is a default collection. */
+/** Indexes and searches one collection for an org, and says how. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not indexed or searched, unless it is a default collection; a record for a default collection overrides its default config. What a record omits keeps its default. */
 const main = /*#__PURE__*/ l.record<'any', Main>(
   'any',
   $nsid,
   /*#__PURE__*/ l.object({
     updatedAt: /*#__PURE__*/ l.string({ format: 'datetime' }),
+    users: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.array(
+        /*#__PURE__*/ l.typedUnion(
+          [
+            /*#__PURE__*/ l.typedRef<FieldSource>((() => fieldSource) as any),
+            /*#__PURE__*/ l.typedRef<MetadataSource>(
+              (() => metadataSource) as any,
+            ),
+          ],
+          false,
+        ),
+      ),
+    ),
+    date: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.nullable(
+        /*#__PURE__*/ l.typedUnion(
+          [
+            /*#__PURE__*/ l.typedRef<FieldSource>((() => fieldSource) as any),
+            /*#__PURE__*/ l.typedRef<MetadataSource>(
+              (() => metadataSource) as any,
+            ),
+          ],
+          false,
+        ),
+      ),
+    ),
+    fields: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.array(/*#__PURE__*/ l.ref<Field>((() => field) as any)),
+    ),
+    blobs: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.boolean()),
   }),
 )
 
@@ -46,3 +102,118 @@ export const $parse = /*#__PURE__*/ main.parse.bind(main)
 export const $safeParse = /*#__PURE__*/ main.safeParse.bind(main)
 export const $validate = /*#__PURE__*/ main.validate.bind(main)
 export const $safeValidate = /*#__PURE__*/ main.safeValidate.bind(main)
+
+type Field = {
+  $type?: 'network.habitat.search.config#field'
+
+  /**
+   * A dotted path into the record, with [] for each element of an array, such as tags[].name.
+   */
+  path: string
+
+  /**
+   * Makes the field's text searchable, ranked by weight. Normal text is split into chunks.
+   */
+  searchable?: 'high' | 'normal' | 'low' | l.UnknownString
+
+  /**
+   * What the field's values are read as for filtering and sorting; values of another type are skipped.
+   */
+  type?: 'string' | 'number' | 'datetime' | l.UnknownString
+  filterable?: boolean
+  sortable?: boolean
+
+  /**
+   * Where a filterable or sortable number or datetime, or a sortable string, is stored. Fixed once set, and not shared by two fields.
+   */
+  slot?:
+    | 'num_0'
+    | 'num_1'
+    | 'num_2'
+    | 'num_3'
+    | 'date_0'
+    | 'date_1'
+    | 'date_2'
+    | 'date_3'
+    | 'str_0'
+    | 'str_1'
+    | l.UnknownString
+}
+
+export type { Field }
+
+const field = /*#__PURE__*/ l.typedObject<Field>(
+  $nsid,
+  'field',
+  /*#__PURE__*/ l.object({
+    path: /*#__PURE__*/ l.string(),
+    searchable: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.string<{ knownValues: ['high', 'normal', 'low'] }>(),
+    ),
+    type: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.string<{
+        knownValues: ['string', 'number', 'datetime']
+      }>(),
+    ),
+    filterable: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.boolean()),
+    sortable: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.boolean()),
+    slot: /*#__PURE__*/ l.optional(
+      /*#__PURE__*/ l.string<{
+        knownValues: [
+          'num_0',
+          'num_1',
+          'num_2',
+          'num_3',
+          'date_0',
+          'date_1',
+          'date_2',
+          'date_3',
+          'str_0',
+          'str_1',
+        ]
+      }>(),
+    ),
+  }),
+)
+
+export { field }
+
+/** Values from a path into the record, as field paths. */
+type FieldSource = {
+  $type?: 'network.habitat.search.config#fieldSource'
+  path: string
+}
+
+export type { FieldSource }
+
+/** Values from a path into the record, as field paths. */
+const fieldSource = /*#__PURE__*/ l.typedObject<FieldSource>(
+  $nsid,
+  'fieldSource',
+  /*#__PURE__*/ l.object({ path: /*#__PURE__*/ l.string() }),
+)
+
+export { fieldSource }
+
+/** A value from the record's metadata rather than its value. */
+type MetadataSource = {
+  $type?: 'network.habitat.search.config#metadataSource'
+
+  /**
+   * owner is the DID of the repo the record is in.
+   */
+  name: 'owner' | l.UnknownString
+}
+
+export type { MetadataSource }
+
+/** A value from the record's metadata rather than its value. */
+const metadataSource = /*#__PURE__*/ l.typedObject<MetadataSource>(
+  $nsid,
+  'metadataSource',
+  /*#__PURE__*/ l.object({
+    name: /*#__PURE__*/ l.string<{ knownValues: ['owner'] }>(),
+  }),
+)
+
+export { metadataSource }

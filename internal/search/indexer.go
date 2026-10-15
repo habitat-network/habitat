@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"sync"
 	"time"
 
@@ -102,6 +103,10 @@ type Indexer struct {
 	// running counts jobs popped from the queue that haven't finished.
 	running int
 	wake    chan struct{}
+
+	// orgConfigs caches each org's collection configs. Only Run's goroutine
+	// uses it.
+	orgConfigs map[syntax.DID]map[syntax.NSID]CollectionConfig
 }
 
 var _ spaces.Notifier = (*Indexer)(nil)
@@ -116,6 +121,9 @@ const (
 	jobRefreshAccess
 	// jobDeleteSpace removes the space from the index.
 	jobDeleteSpace
+	// jobReproject indexes again every repo in the spaces owned by the
+	// owner of the job's space, after that org's configs changed.
+	jobReproject
 )
 
 // job is a unit of indexing work.
@@ -133,9 +141,10 @@ type IndexerOption func(*Indexer)
 // until [Indexer.Run] is called.
 func NewIndexer(index Index, opts ...IndexerOption) *Indexer {
 	x := &Indexer{
-		index:   index,
-		pending: map[job]bool{},
-		wake:    make(chan struct{}, 1),
+		index:      index,
+		pending:    map[job]bool{},
+		wake:       make(chan struct{}, 1),
+		orgConfigs: map[syntax.DID]map[syntax.NSID]CollectionConfig{},
 	}
 	for _, opt := range opts {
 		opt(x)
@@ -232,12 +241,22 @@ func (x *Indexer) CaughtUp(ctx context.Context, source RepoSource) (bool, error)
 // perms, until ctx is done. It sweeps on start and then every five minutes.
 // Indexing errors are logged and retried on the next notification or sweep,
 // so Run only returns ctx's error.
-func (x *Indexer) Run(ctx context.Context, source RepoSource, perms PermSource) error {
+//
+// Only the collections configs returns for a space's owner are indexed, each
+// as its config says, and a write to an org's configs reindexes that org's
+// repos when they changed. A nil configs indexes every collection with
+// [DefaultConfig].
+func (x *Indexer) Run(
+	ctx context.Context,
+	source RepoSource,
+	perms PermSource,
+	configs ConfigSource,
+) error {
 	ticker := time.NewTicker(sweepInterval)
 	defer ticker.Stop()
 	x.sweep(ctx, source)
 	for {
-		x.drain(ctx, source, perms)
+		x.drain(ctx, source, perms, configs)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -249,7 +268,12 @@ func (x *Indexer) Run(ctx context.Context, source RepoSource, perms PermSource) 
 }
 
 // drain runs queued jobs until none are left or ctx is done.
-func (x *Indexer) drain(ctx context.Context, source RepoSource, perms PermSource) {
+func (x *Indexer) drain(
+	ctx context.Context,
+	source RepoSource,
+	perms PermSource,
+	configs ConfigSource,
+) {
 	for ctx.Err() == nil {
 		j, ok := x.next()
 		if !ok {
@@ -258,11 +282,13 @@ func (x *Indexer) drain(ctx context.Context, source RepoSource, perms PermSource
 		var err error
 		switch j.kind {
 		case jobIndexRepo:
-			err = x.indexRepo(ctx, source, perms, j.space, j.repo)
+			err = x.indexRepo(ctx, source, perms, configs, j.space, j.repo)
 		case jobRefreshAccess:
 			err = x.refreshAccess(ctx, source, perms, j.space)
 		case jobDeleteSpace:
 			err = x.index.DeleteSpace(ctx, j.space)
+		case jobReproject:
+			err = x.reproject(ctx, j.space.SpaceOwner())
 		}
 		x.done()
 		if err != nil {
@@ -368,6 +394,7 @@ func (x *Indexer) indexRepo(
 	ctx context.Context,
 	source RepoSource,
 	perms PermSource,
+	configs ConfigSource,
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
 ) error {
@@ -407,7 +434,7 @@ func (x *Indexer) indexRepo(
 			}
 			access = &a
 		}
-		if err := x.apply(ctx, space, repo, ops, access); err != nil {
+		if err := x.apply(ctx, configs, space, repo, ops, access); err != nil {
 			return err
 		}
 		// Save the cursor only after the index write, so a crash in between
@@ -419,10 +446,106 @@ func (x *Indexer) indexRepo(
 		); err != nil {
 			return err
 		}
+		if changesConfigs(space, ops) {
+			if err := x.refreshConfigs(ctx, configs, space); err != nil {
+				return err
+			}
+		}
 		if len(ops) < opsPageSize {
 			return nil
 		}
 	}
+}
+
+// changesConfigs reports whether ops in space write its owner's configs,
+// which live in the owner's members space.
+func changesConfigs(space habitat_syntax.SpaceURI, ops []spaces.Record) bool {
+	if space.SpaceType() != opensocial.MembersSpaceType {
+		return false
+	}
+	for _, op := range ops {
+		if op.Collection == ConfigCollection {
+			return true
+		}
+	}
+	return false
+}
+
+// configsFor returns org's configs, nil when configs is nil.
+func (x *Indexer) configsFor(
+	ctx context.Context,
+	configs ConfigSource,
+	org syntax.DID,
+) (map[syntax.NSID]CollectionConfig, error) {
+	if configs == nil {
+		return nil, nil
+	}
+	if cfgs, ok := x.orgConfigs[org]; ok {
+		return cfgs, nil
+	}
+	cfgs, err := configs.Configs(ctx, org)
+	if err != nil {
+		return nil, fmt.Errorf("load search configs: %w", err)
+	}
+	x.orgConfigs[org] = cfgs
+	return cfgs, nil
+}
+
+// refreshConfigs reloads the configs of space's owner after a write to them,
+// and queues its repos to be indexed again when they changed. Reindexing
+// replays the write, but then the configs are unchanged, so it stops there.
+//
+// Configs not yet loaded are taken as unchanged: documents indexed before
+// they were loaded may be from configs that changed while the index was
+// behind, which `pear run reindex` brings up to date.
+func (x *Indexer) refreshConfigs(
+	ctx context.Context,
+	configs ConfigSource,
+	space habitat_syntax.SpaceURI,
+) error {
+	if configs == nil {
+		return nil
+	}
+	org := space.SpaceOwner()
+	old, cached := x.orgConfigs[org]
+	cfgs, err := configs.Configs(ctx, org)
+	if err != nil {
+		return fmt.Errorf("load search configs: %w", err)
+	}
+	x.orgConfigs[org] = cfgs
+	if cached && !sameConfigs(old, cfgs) {
+		x.enqueue(job{kind: jobReproject, space: space})
+	}
+	return nil
+}
+
+// sameConfigs reports whether a and b hold the same version of the same
+// collections' configs.
+func sameConfigs(a, b map[syntax.NSID]CollectionConfig) bool {
+	return maps.EqualFunc(a, b, func(x, y CollectionConfig) bool { return x.Rev == y.Rev })
+}
+
+// reproject indexes every repo in org's spaces again from its first op, so
+// its documents follow org's current configs. It runs as its own job, so the
+// cursors it resets aren't then advanced by a job that was part way through.
+func (x *Indexer) reproject(ctx context.Context, org syntax.DID) error {
+	cursors, err := x.index.Cursors(ctx)
+	if err != nil {
+		return err
+	}
+	for _, c := range cursors {
+		if c.Space.SpaceOwner() != org {
+			continue
+		}
+		if err := x.index.SetCursor(
+			ctx,
+			RepoCursor{Space: c.Space, Repo: c.Repo, Rev: ""},
+		); err != nil {
+			return err
+		}
+		x.enqueue(job{kind: jobIndexRepo, space: c.Space, repo: c.Repo})
+	}
+	return nil
 }
 
 // queueAccessRefresh queues recomputing the Access of space and of every
@@ -517,15 +640,22 @@ func hasDocuments(ops []spaces.Record) bool {
 }
 
 // apply writes one page of ops to the index, each document readable per
-// access. The oplog holds one op per record, its latest state, so a page
+// access and projected with its collection's config. A record of a
+// collection with no config is deleted, so removing a config drops its
+// documents. The oplog holds one op per record, its latest state, so a page
 // never touches a record twice.
 func (x *Indexer) apply(
 	ctx context.Context,
+	configs ConfigSource,
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
 	ops []spaces.Record,
 	access *Access,
 ) error {
+	cfgs, err := x.configsFor(ctx, configs, space.SpaceOwner())
+	if err != nil {
+		return err
+	}
 	var docs []Document
 	var deleted []habitat_syntax.SpaceRecordURI
 	for _, op := range ops {
@@ -538,30 +668,35 @@ func (x *Indexer) apply(
 			deleted = append(deleted, uri)
 			continue
 		}
-		text := ExtractText(op.Value)
-		// Blob content is part of the record's document, so it keeps the
-		// record's access and collection and hydrates as the record.
-		blobs := x.blobTexts(ctx, op.Value)
-		if text == "" && len(blobs) == 0 {
-			// Nothing to search or embed, and embeddings APIs reject empty
-			// input. Deleting also drops a version of the record that had text.
-			deleted = append(deleted, uri)
-			continue
+		cfg := DefaultConfig()
+		if configs != nil {
+			var ok bool
+			if cfg, ok = cfgs[op.Collection]; !ok {
+				deleted = append(deleted, uri)
+				continue
+			}
 		}
-		docs = append(docs, Document{
+		d := Document{
 			URI:        uri,
 			Space:      space,
 			Repo:       repo,
 			Collection: op.Collection,
 			Rev:        syntax.TID(op.Rev),
-			Text:       text,
-			Blobs:      blobs,
-			// Collections will choose these through their search config; until
-			// then a record is about its owner, and dated by its own fields.
-			Users:  []syntax.DID{repo},
-			Date:   recordDate(op.Value),
-			Access: *access,
-		})
+			Access:     *access,
+		}
+		project(&d, op.Value, cfg)
+		if !cfg.NoBlobs {
+			// Blob content is part of the record's document, so it keeps the
+			// record's access and collection and hydrates as the record.
+			d.Blobs = x.blobTexts(ctx, op.Value)
+		}
+		if d.Title == "" && d.Text == "" && d.Extra == "" && len(d.Blobs) == 0 {
+			// Nothing to search or embed, and embeddings APIs reject empty
+			// input. Deleting also drops a version of the record that had text.
+			deleted = append(deleted, uri)
+			continue
+		}
+		docs = append(docs, d)
 	}
 	if err := x.index.Put(ctx, docs...); err != nil {
 		return err

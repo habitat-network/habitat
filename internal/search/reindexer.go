@@ -73,16 +73,21 @@ func NewReindexer(host, apiKey, uid string, opts ...ReindexerOption) *Reindexer 
 	return r
 }
 
-// Reindex builds the new index from source and perms, swaps it in, and
-// deletes the old one.
-func (r *Reindexer) Reindex(ctx context.Context, source RepoSource, perms PermSource) error {
+// Reindex builds the new index from source, perms and configs, as
+// [Indexer.Run] does, swaps it in, and deletes the old one.
+func (r *Reindexer) Reindex(
+	ctx context.Context,
+	source RepoSource,
+	perms PermSource,
+	configs ConfigSource,
+) error {
 	next := r.uid + "_next"
 	idx, err := createMeilisearch(ctx, r.client, next, r.indexOpts...)
 	if err != nil {
 		return err
 	}
 	slog.InfoContext(ctx, "search: building new index", "index", next)
-	if err := r.build(ctx, source, perms, idx); err != nil {
+	if err := r.build(ctx, source, perms, configs, idx); err != nil {
 		return err
 	}
 	if err := r.swap(ctx, next); err != nil {
@@ -104,11 +109,12 @@ func (r *Reindexer) build(
 	ctx context.Context,
 	source RepoSource,
 	perms PermSource,
+	configs ConfigSource,
 	idx *Meilisearch,
 ) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 	x := NewIndexer(idx, r.indexerOpts...)
-	eg.Go(func() error { return x.Run(egCtx, source, perms) })
+	eg.Go(func() error { return x.Run(egCtx, source, perms, configs) })
 	eg.Go(func() error {
 		ticker := time.NewTicker(r.interval)
 		defer ticker.Stop()

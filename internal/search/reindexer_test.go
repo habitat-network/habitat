@@ -71,7 +71,7 @@ func (rt *reindexTest) reindex(t *testing.T, opts ...search.MeilisearchOption) {
 	r := search.NewReindexer(searchtest.URL(t), "", rt.uid,
 		search.WithReindexIndexOptions(opts...),
 		search.WithReindexCheckInterval(50*time.Millisecond))
-	require.NoError(t, r.Reindex(ctx, rt.store, rt.perms))
+	require.NoError(t, r.Reindex(ctx, rt.store, rt.perms, nil))
 }
 
 // found returns the URIs of the records index finds for text.

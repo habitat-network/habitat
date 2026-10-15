@@ -4,16 +4,106 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "Surfaces one collection in search results for an org. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not surfaced in search, unless it is a default collection.",
+      "description": "Indexes and searches one collection for an org, and says how. Lives in the org's `members` space, authored by the org DID, keyed by the collection's NSID. A collection with no record here is not indexed or searched, unless it is a default collection; a record for a default collection overrides its default config. What a record omits keeps its default.",
       "key": "any",
       "record": {
         "type": "object",
         "required": ["updatedAt"],
+        "nullable": ["date"],
         "properties": {
           "updatedAt": {
             "type": "string",
             "format": "datetime"
+          },
+          "users": {
+            "type": "array",
+            "description": "Where the people a record is about come from, for filtering. Defaults to the record's owner; an empty list sets none.",
+            "items": {
+              "type": "union",
+              "refs": ["#fieldSource", "#metadataSource"]
+            }
+          },
+          "date": {
+            "type": "union",
+            "description": "Where the record's date comes from, for filtering and sorting. Defaults to the record's updatedAt, else its createdAt; null sets none.",
+            "refs": ["#fieldSource", "#metadataSource"]
+          },
+          "fields": {
+            "type": "array",
+            "description": "The fields to index. When omitted, every string in the record is searchable and nothing is filterable or sortable; when set, unlisted fields are not indexed.",
+            "items": {
+              "type": "ref",
+              "ref": "#field"
+            }
+          },
+          "blobs": {
+            "type": "boolean",
+            "description": "Whether the text of the blobs a record references is searchable. Defaults to true."
           }
+        }
+      }
+    },
+    "field": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "A dotted path into the record, with [] for each element of an array, such as tags[].name."
+        },
+        "searchable": {
+          "type": "string",
+          "description": "Makes the field's text searchable, ranked by weight. Normal text is split into chunks.",
+          "knownValues": ["high", "normal", "low"]
+        },
+        "type": {
+          "type": "string",
+          "description": "What the field's values are read as for filtering and sorting; values of another type are skipped.",
+          "knownValues": ["string", "number", "datetime"]
+        },
+        "filterable": {
+          "type": "boolean"
+        },
+        "sortable": {
+          "type": "boolean"
+        },
+        "slot": {
+          "type": "string",
+          "description": "Where a filterable or sortable number or datetime, or a sortable string, is stored. Fixed once set, and not shared by two fields.",
+          "knownValues": [
+            "num_0",
+            "num_1",
+            "num_2",
+            "num_3",
+            "date_0",
+            "date_1",
+            "date_2",
+            "date_3",
+            "str_0",
+            "str_1"
+          ]
+        }
+      }
+    },
+    "fieldSource": {
+      "type": "object",
+      "description": "Values from a path into the record, as field paths.",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "metadataSource": {
+      "type": "object",
+      "description": "A value from the record's metadata rather than its value.",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "owner is the DID of the repo the record is in.",
+          "knownValues": ["owner"]
         }
       }
     }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/meilisearch/meilisearch-go"
@@ -401,4 +402,50 @@ func TestMeilisearchReadsALegacyIndex(t *testing.T) {
 		search.ErrLegacyIndex,
 	)
 	require.ErrorIs(t, idx.Delete(ctx, "at://old"), search.ErrLegacyIndex)
+}
+
+func TestMeilisearchStoresProjectedFields(t *testing.T) {
+	uid := searchtest.NewUID(t)
+	idx := searchtest.OpenIndex(t, uid)
+	ctx := t.Context()
+	d := doc(spaceA, "1", "3kaaaaaaaaaa2", "the body")
+	d.ConfigRev = "r1"
+	d.Title = "Launch plan"
+	d.Extra = "aside"
+	d.Facets = []string{"status=open"}
+	d.Numbers = map[search.Slot]float64{"num_0": 5}
+	d.Datetimes = map[search.Slot]time.Time{"date_1": time.Unix(1700000000, 0)}
+	d.Strings = map[search.Slot]string{"str_0": "Launch plan"}
+	require.NoError(t, idx.Put(ctx, d))
+	for _, word := range []string{"launch", "body", "aside"} {
+		require.Len(t, search_(t, idx, asAlice(search.Query{Text: word})).Hits, 1, word)
+	}
+
+	res, err := meilisearch.New(searchtest.URL(t)).Index(uid).
+		SearchWithContext(ctx, "launch", &meilisearch.SearchRequest{
+			AttributesToRetrieve: []string{"config_rev", "facets", "num_0", "date_1", "str_0"},
+		})
+	require.NoError(t, err)
+	var stored []map[string]any
+	require.NoError(t, res.Hits.DecodeInto(&stored))
+	require.Len(t, stored, 1)
+	require.Equal(t, map[string]any{
+		"config_rev": "r1",
+		"facets":     []any{"status=open"},
+		"num_0":      float64(5),
+		"date_1":     float64(1700000000),
+		"str_0":      "Launch plan",
+	}, stored[0])
+}
+
+func TestMeilisearchRewritesTheSameRevision(t *testing.T) {
+	idx := searchtest.NewIndex(t)
+	ctx := t.Context()
+	d := doc(spaceA, "1", "3kaaaaaaaaaa2", longText(3, "zebra"))
+	require.NoError(t, idx.Put(ctx, d))
+	// Reprojected at the same revision, with a shorter body.
+	d.Text = "short now"
+	require.NoError(t, idx.Put(ctx, d))
+	require.Empty(t, search_(t, idx, asAlice(search.Query{Text: "lorem"})).Hits)
+	require.Len(t, search_(t, idx, asAlice(search.Query{Text: "short"})).Hits, 1)
 }
