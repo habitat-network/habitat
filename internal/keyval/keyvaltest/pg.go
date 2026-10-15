@@ -33,8 +33,8 @@ var (
 // NewDB returns a handle to a fresh database on the shared Postgres server,
 // from [PGURLEnv] or a container started on first use. The database has no
 // tables: it cannot migrate keyval's models without importing keyval, which
-// would be an import cycle with keyval's own tests, so keyval.New creates the
-// table. Each call gets its own database, so tests that count rows do not see
+// would be an import cycle with keyval's own tests, so callers migrate it
+// themselves. Each call gets its own database, so tests that count rows do not see
 // each other's.
 func NewDB(t *testing.T) *gorm.DB {
 	t.Helper()

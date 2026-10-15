@@ -24,19 +24,15 @@ type store struct {
 
 var _ Store = (*store)(nil)
 
-// New creates the key_values table if it is absent and returns the root store,
-// bound to the empty namespace. Consumers are handed a child from Namespace,
-// never the root.
+// New returns the root store, bound to the empty namespace. Consumers are
+// handed a child from Namespace, never the root.
 //
-// Creating the table here is a no-op in pear, whose migrations have already
-// made it; it lets tests and sap build a working store without migrations.
+// The key_values table must already exist: pear's migrations create it, and
+// tests create it from [Models].
 //
 // On SQLite, which has no triggers, New also sweeps expired rows once. Reads
 // filter on expiry regardless, so the sweep only reclaims space.
 func New(ctx context.Context, d *gorm.DB) (Store, error) {
-	if err := d.WithContext(ctx).AutoMigrate(&entry{}); err != nil {
-		return nil, fmt.Errorf("migrate keyval: %w", err)
-	}
 	if db.DialectOf(d) == db.Sqlite {
 		if err := d.WithContext(ctx).
 			Where("expires_at <= ?", time.Now()).
