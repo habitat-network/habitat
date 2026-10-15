@@ -16,7 +16,9 @@ vi.mock("../src/server/session", () => ({
 }));
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 
-const { requireSession } = await import("../src/server/functions.server");
+const { requireSession, signOutIfUnauthorized } =
+  await import("../src/server/functions.server");
+const { UnauthorizedError } = await import("../src/server/habitatClient");
 
 describe("requireSession", () => {
   beforeEach(() => {
@@ -33,6 +35,38 @@ describe("requireSession", () => {
 
   it("throws when no session DID is set", async () => {
     await expect(requireSession()).rejects.toThrow();
+  });
+});
+
+describe("signOutIfUnauthorized", () => {
+  beforeEach(() => {
+    sessionData.did = "did:plc:member1";
+  });
+
+  it("clears the session and redirects when the member's own session is rejected", async () => {
+    const err = new Error("wrapped", {
+      cause: new UnauthorizedError("did:plc:member1", "401"),
+    });
+    await expect(signOutIfUnauthorized(err)).rejects.toMatchObject({
+      options: { to: "/login" },
+    });
+    expect(sessionData.did).toBeUndefined();
+  });
+
+  it("leaves the login alone when another DID's session is rejected", async () => {
+    await expect(
+      signOutIfUnauthorized(
+        new UnauthorizedError("did:web:org.example", "401"),
+      ),
+    ).resolves.toBeUndefined();
+    expect(sessionData.did).toBe("did:plc:member1");
+  });
+
+  it("leaves the login alone for other errors", async () => {
+    await expect(
+      signOutIfUnauthorized(new Error("boom")),
+    ).resolves.toBeUndefined();
+    expect(sessionData.did).toBe("did:plc:member1");
   });
 });
 

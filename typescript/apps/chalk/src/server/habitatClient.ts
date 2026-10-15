@@ -4,6 +4,33 @@ import type { OAuthSession } from "@atproto/oauth-client";
 // resolved to an identity, i.e. its domain isn't mapped to any org.
 export class EmailDomainNotFoundError extends Error {}
 
+// UnauthorizedError is thrown by HabitatClient when pear no longer accepts
+// the DID's OAuth session: a call came back 401 (after the OAuth client's
+// own refresh-and-retry), or the session couldn't be restored at all
+// (revoked, or its refresh token expired). It carries the DID so the
+// sign-out middleware (src/start.ts) can tell the signed-in member's own
+// session apart from an org's, which failing doesn't end the member's login.
+export class UnauthorizedError extends Error {
+  constructor(
+    readonly did: string,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
+
+// findUnauthorizedError returns the UnauthorizedError in err's cause chain,
+// if any.
+export function findUnauthorizedError(
+  err: unknown,
+): UnauthorizedError | undefined {
+  for (let e = err; e instanceof Error; e = e.cause) {
+    if (e instanceof UnauthorizedError) return e;
+  }
+  return undefined;
+}
+
 // OAuthAppState rides through the OAuth round-trip in the `state` param and
 // tells /oauth/callback which flow just finished: a member signing in, or a
 // signed-in member connecting an org (see startOrgConnect in functions.ts).
@@ -81,9 +108,17 @@ export class HabitatClient {
   // static import would be evaluated then, out of reach of the vi.mock()
   // the tests swap in a fake OAuth client with (test/fakeOAuth.ts).
   private agent(): Promise<OAuthSession> {
-    this.session ??= import("./oauth").then(({ createOAuthClient }) =>
-      createOAuthClient(this.env).restore(this.did),
-    );
+    this.session ??= import("./oauth")
+      .then(({ createOAuthClient }) =>
+        createOAuthClient(this.env).restore(this.did),
+      )
+      .catch((err: unknown) => {
+        throw new UnauthorizedError(
+          this.did,
+          `restoring the OAuth session for ${this.did} failed`,
+          { cause: err },
+        );
+      });
     return this.session;
   }
 
@@ -112,6 +147,12 @@ export class HabitatClient {
     const res = await (
       await this.agent()
     ).fetchHandler(path, { method, body, headers });
+    if (res.status === 401) {
+      throw new UnauthorizedError(
+        this.did,
+        `${nsid} failed (401): ${await res.text()}`,
+      );
+    }
     if (!res.ok) {
       throw new Error(`${nsid} failed (${res.status}): ${await res.text()}`);
     }
@@ -139,6 +180,12 @@ export class HabitatClient {
       headers: { "content-type": mimeType },
       body: bytes as BodyInit,
     });
+    if (res.status === 401) {
+      throw new UnauthorizedError(
+        this.did,
+        `uploadBlob failed (401): ${await res.text()}`,
+      );
+    }
     if (!res.ok) {
       throw new Error(`uploadBlob failed (${res.status}): ${await res.text()}`);
     }
