@@ -19,7 +19,6 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/did"
 	"github.com/habitat-network/habitat/internal/forwarding"
@@ -85,44 +84,11 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 
 	slog.InfoContext(startupCtx, "running with flags", "flags", cmd.FlagNames())
 
-	c, err := setupComponents(startupCtx, cmd)
+	app, err := setupComponents(startupCtx, cmd)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = c.Close() }()
-	database := c.database
-	instanceAdminStore := c.instanceAdminStore
-	instanceAdminServer := c.instanceAdminServer
-	domain := c.domain
-	oauthClient := c.oauthClient
-	hiveDomain := c.hiveDomain
-	hive := c.hive
-	defaultDir := c.defaultDir
-	hiveDir := c.hiveDir
-	pdsClientFactory := c.pdsClientFactory
-	passwordProvider := c.passwordProvider
-	orgStore := c.orgStore
-	emailDomainStore := c.emailDomainStore
-	hostKey := c.hostKey
-	notifyStore := c.notifyStore
-	blobStore := c.blobStore
-	spacesStore := c.spacesStore
-	opensocialStore := c.opensocialStore
-	emailResolver := c.emailResolver
-	mcpOrigin := c.mcpOrigin
-	oauthServer := c.oauthServer
-	oauthGC := c.oauthGC
-	serviceAuth := c.serviceAuth
-	cliqueStore := c.cliqueStore
-	permStore := c.permStore
-	validator := c.validator
-	simpleStore := c.simpleStore
-	nangoClient := c.nangoClient
-	mcpGatewayStore := c.mcpGatewayStore
-	pdsForwarding := c.pdsForwarding
-	searchConfigStore := c.searchConfigStore
-	searchIndexer := c.searchIndexer
-	searcher := c.searcher
+	defer func() { _ = app.Close() }()
 
 	mux := mux.NewRouter()
 
@@ -167,29 +133,11 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	})
 
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
-	mux.Use(forwarding.NewServiceProxy(validator, hive, hiveDir, pdsClientFactory))
+	mux.Use(forwarding.NewServiceProxy(app.Validator, app.Hive, app.HiveDir, app.PDSClientFactory))
 
 	// Consolidated server owning the opensocial, simplespace, relationship,
 	// spaces, and registerNotify handler routes.
-	pearApp := pearserver.New(
-		domain,
-		validator,
-		defaultDir,
-		hive,
-		hostKey,
-		blobStore,
-		spacesStore,
-		opensocialStore,
-		permStore,
-		simpleStore,
-		notifyStore,
-		clientmetadata.NewResolver(),
-		mcpGatewayStore,
-		pdsForwarding,
-		emailDomainStore,
-		searcher,
-		searchConfigStore,
-	)
+	pearApp := pearserver.New(app)
 
 	// PearServer owns a large slice of the XRPC surface. Mounting it as a
 	// matcher rather than under path prefixes means the routes it serves are
@@ -198,46 +146,46 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	// route falls through to the rest of this mux.
 	mux.MatcherFunc(pearApp.Handles).Handler(pearApp)
 
-	repo, err := repo.NewRepo(database.WithContext(startupCtx))
+	repo, err := repo.NewRepo(app.DB.WithContext(startupCtx))
 	if err != nil {
 		return fmt.Errorf("setup repo: %w", err)
 	}
 
-	permissions, err := permissions.NewStore(database, cliqueStore)
+	permissions, err := permissions.NewStore(app.DB, app.CliqueStore)
 	if err != nil {
 		return fmt.Errorf("create permission store: %w", err)
 	}
 
-	pearStore := pear.NewPear(hiveDir, permissions, repo)
+	pearStore := pear.NewPear(app.HiveDir, permissions, repo)
 	// A nil *search.Searcher in an interface would be non-nil, so only set it
 	// when search is configured.
 	var mcpSearcher mcpserver.RecordSearcher
-	if searcher != nil {
-		mcpSearcher = searcher
+	if app.Searcher != nil {
+		mcpSearcher = app.Searcher
 	}
 	mcpServer := mcpserver.New(
-		oauthServer,
-		spacesStore,
-		permStore,
+		app.OAuthServer,
+		app.SpacesStore,
+		app.PermStore,
 		mcpSearcher,
-		nangoClient,
-		opensocialStore,
-		mcpGatewayStore,
-		blobStore,
-		hiveDir,
-		mcpOrigin,
-		oauthServer.MCPIssuer(),
+		app.NangoClient,
+		app.OpensocialStore,
+		app.MCPGatewayStore,
+		app.BlobStore,
+		app.HiveDir,
+		app.MCPOrigin,
+		app.OAuthServer.MCPIssuer(),
 	)
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(
-		orgStore,
-		validator,
-		domain,
-		hiveDir,
-		instanceAdminStore,
+		app.OrgStore,
+		app.Validator,
+		app.Domain,
+		app.HiveDir,
+		app.InstanceAdminStore,
 	)
 	if err != nil {
-		return fmt.Errorf("setup org server for domain %q: %w", domain, err)
+		return fmt.Errorf("setup org server for domain %q: %w", app.Domain, err)
 	}
 	mux.HandleFunc("/xrpc/network.habitat.org.getMetadata", orgServer.GetMetadata)
 	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
@@ -255,30 +203,30 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	// Server-side client-metadata proxy for the management frontend
 	mux.HandleFunc("/client-metadata", pearApp.GetClientMetadata)
 
-	cliqueServer := clique.NewServer(cliqueStore, validator)
+	cliqueServer := clique.NewServer(app.CliqueStore, app.Validator)
 	pearServer := pear.NewServer(
 		pearStore,
-		validator,
-		orgStore,
+		app.Validator,
+		app.OrgStore,
 	)
-	p2pServer, err := p2p.NewServer(startupCtx, serviceAuth, pearStore, meter)
+	p2pServer, err := p2p.NewServer(startupCtx, app.ServiceAuth, pearStore, meter)
 	if err != nil {
 		return fmt.Errorf("setup p2p server: %w", err)
 	}
 
 	idServer, err := habitat_identity.NewServer(
-		hive, validator, orgStore, pdsForwarding, domain,
+		app.Hive, app.Validator, app.OrgStore, app.PDSForwarding, app.Domain,
 		habitat_identity.WithClient(httpx.NewClient()),
-		habitat_identity.WithEmailResolver(emailResolver),
+		habitat_identity.WithEmailResolver(app.EmailResolver),
 	)
 	if err != nil {
 		return fmt.Errorf("setup hive server: %w", err)
 	}
 
-	mux.Host("{opaqueID:.+}." + hiveDomain).
+	mux.Host("{opaqueID:.+}." + app.HiveDomain).
 		Path("/.well-known/did.json").
 		HandlerFunc(idServer.ServeDIDDoc)
-	mux.Host("{handle:.+}." + hiveDomain).
+	mux.Host("{handle:.+}." + app.HiveDomain).
 		Path("/.well-known/atproto-did").
 		HandlerFunc(idServer.ServeHandle)
 	mux.Headers(habitat_identity.HabitatHostHeader, "").
@@ -288,65 +236,65 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		Path("/.well-known/atproto-did").
 		HandlerFunc(idServer.ServeHandle)
 
-	mux.HandleFunc("/admin/login", instanceAdminServer.ServeLoginPage).Methods("GET")
-	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
-	mux.HandleFunc("/admin/logout", instanceAdminServer.HandleLogout).Methods("POST")
-	mux.HandleFunc("/admin", instanceAdminServer.ServeAdminHome).Methods("GET")
-	mux.HandleFunc("/admin/config", instanceAdminServer.ServeConfig).Methods("GET")
-	mux.HandleFunc("/xrpc/network.habitat.admin.getSettings", instanceAdminServer.GetSettings)
-	mux.HandleFunc("/xrpc/network.habitat.admin.updateSettings", instanceAdminServer.UpdateSettings)
-	mux.HandleFunc("/xrpc/network.habitat.admin.issueInvite", instanceAdminServer.IssueInvite)
+	mux.HandleFunc("/admin/login", app.InstanceAdminServer.ServeLoginPage).Methods("GET")
+	mux.HandleFunc("/admin/login", app.InstanceAdminServer.HandleLogin).Methods("POST")
+	mux.HandleFunc("/admin/logout", app.InstanceAdminServer.HandleLogout).Methods("POST")
+	mux.HandleFunc("/admin", app.InstanceAdminServer.ServeAdminHome).Methods("GET")
+	mux.HandleFunc("/admin/config", app.InstanceAdminServer.ServeConfig).Methods("GET")
+	mux.HandleFunc("/xrpc/network.habitat.admin.getSettings", app.InstanceAdminServer.GetSettings)
+	mux.HandleFunc("/xrpc/network.habitat.admin.updateSettings", app.InstanceAdminServer.UpdateSettings)
+	mux.HandleFunc("/xrpc/network.habitat.admin.issueInvite", app.InstanceAdminServer.IssueInvite)
 	mux.HandleFunc(
 		"/xrpc/network.habitat.instance.describeInstance",
-		instanceAdminServer.DescribeInstance,
+		app.InstanceAdminServer.DescribeInstance,
 	)
 
-	hostPublicKey, err := hostKey.PublicKey()
+	hostPublicKey, err := app.HostKey.PublicKey()
 	if err != nil {
 		return fmt.Errorf("failed to get host public key: %w", err)
 	}
 	mux.Handle("/.well-known/did.json", did.NewHandler(
-		did.Web(domain).
+		did.Web(app.Domain).
 			ATProtoSpaceKey(hostPublicKey.Multibase()).
 			HabitatKey(hostPublicKey.Multibase()).
-			Habitat("https://"+domain).
-			ATProtoSpaceHost("https://"+domain).
+			Habitat("https://"+app.Domain).
+			ATProtoSpaceHost("https://"+app.Domain).
 			Build(),
 	))
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
-		httpx.WriteJSON(r.Context(), w, oauthClient.ClientMetadata())
+		httpx.WriteJSON(r.Context(), w, app.OAuthClient.ClientMetadata())
 	})
 
 	mux.HandleFunc(
 		"/.well-known/oauth-authorization-server",
-		oauthServer.HandleAuthServerMetadata,
+		app.OAuthServer.HandleAuthServerMetadata,
 	)
 	mux.HandleFunc(
 		"/.well-known/oauth-protected-resource",
-		oauthServer.HandleProtectedResourceMetadata,
+		app.OAuthServer.HandleProtectedResourceMetadata,
 	)
 
-	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
-	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
-	mux.HandleFunc("/oauth/par", oauthServer.HandlePAR)
-	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsent)
-	mux.HandleFunc("/oauth/opensocial", oauthServer.HandleOpensocial)
-	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
-	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
-	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
+	mux.HandleFunc("/oauth-callback", app.OAuthServer.HandleCallback)
+	mux.HandleFunc("/oauth/authorize", app.OAuthServer.HandleAuthorize)
+	mux.HandleFunc("/oauth/par", app.OAuthServer.HandlePAR)
+	mux.HandleFunc("/oauth/consent", app.OAuthServer.HandleConsent)
+	mux.HandleFunc("/oauth/opensocial", app.OAuthServer.HandleOpensocial)
+	mux.HandleFunc("/oauth/token", app.OAuthServer.HandleToken)
+	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", app.OAuthServer.ListConnectedApps)
+	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", app.PasswordProvider.HandlePasswordLogin)
 
 	// MCP (Model Context Protocol) server. Its endpoints match what MCP
 	// clients expect (dynamic client registration, no PAR) but share
 	// oauthServer's provider, storage, and sign-in with the atproto endpoints
 	// above — see internal/oauthserver/mcp.go.
-	mux.HandleFunc(oauthserver.MCPMetadataPath, oauthServer.HandleMCPMetadata)
-	mux.HandleFunc(oauthserver.MCPRegisterPath, oauthServer.HandleMCPRegister).Methods("POST")
-	mux.HandleFunc(oauthserver.MCPAuthorizePath, oauthServer.HandleMCPAuthorize).Methods("GET")
-	mux.HandleFunc(oauthserver.MCPAuthorizeSubmitPath, oauthServer.HandleMCPAuthorizeSubmit).
+	mux.HandleFunc(oauthserver.MCPMetadataPath, app.OAuthServer.HandleMCPMetadata)
+	mux.HandleFunc(oauthserver.MCPRegisterPath, app.OAuthServer.HandleMCPRegister).Methods("POST")
+	mux.HandleFunc(oauthserver.MCPAuthorizePath, app.OAuthServer.HandleMCPAuthorize).Methods("GET")
+	mux.HandleFunc(oauthserver.MCPAuthorizeSubmitPath, app.OAuthServer.HandleMCPAuthorizeSubmit).
 		Methods("POST")
 	// MCP-issued tokens share the atproto endpoints' token handler (see
 	// OAuthServer.HandleToken); it tells the two kinds of client apart itself.
-	mux.HandleFunc(oauthserver.MCPTokenPath, oauthServer.HandleToken).Methods("POST")
+	mux.HandleFunc(oauthserver.MCPTokenPath, app.OAuthServer.HandleToken).Methods("POST")
 	mux.PathPrefix(mcpserver.ProtectedResourceMetadataPath + "/").
 		Handler(mcpServer.ProtectedResourceMetadataHandler())
 	mux.PathPrefix(mcpserver.Path + "/").Handler(mcpServer.Handler())
@@ -372,8 +320,8 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	// The methods PearServer does not register are forwarded to the PDS that
 	// hosts them; it is mounted after the PearServer matcher above, which is
 	// what lets com.atproto.repo.uploadBlob be served locally instead.
-	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
-	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
+	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(app.PDSForwarding)
+	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(app.PDSForwarding)
 
 	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", idServer.GetServiceAuth)
 	mux.HandleFunc("/xrpc/com.atproto.identity.resolveDid", idServer.ResolveDID)
@@ -398,11 +346,11 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 
 	eg, egCtx := errgroup.WithContext(startupCtx)
 	eg.Go(func() error {
-		return oauthGC.Run(egCtx)
+		return app.OAuthGC.Run(egCtx)
 	})
-	if searchIndexer != nil {
+	if app.SearchIndexer != nil {
 		eg.Go(func() error {
-			return searchIndexer.Run(egCtx, spacesStore, permStore)
+			return app.SearchIndexer.Run(egCtx, app.SpacesStore, app.PermStore)
 		})
 	}
 	eg.Go(func() error {

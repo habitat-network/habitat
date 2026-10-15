@@ -39,14 +39,14 @@ func migrate(ctx context.Context, cmd *cli.Command) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	c, err := setupComponents(ctx, cmd)
+	app, err := setupComponents(ctx, cmd)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = c.Close() }()
+	defer func() { _ = app.Close() }()
 	if err := migrations.Run(ctx, migrations.PearMigrationContext{
-		DB:     c.database,
-		Spaces: c.spacesStore,
+		DB:     app.DB,
+		Spaces: app.SpacesStore,
 	}); err != nil {
 		return fmt.Errorf("migrate database: %w", err)
 	}
@@ -77,15 +77,15 @@ func taskAction(
 		ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 
-		c, err := setupComponents(ctx, cmd)
+		app, err := setupComponents(ctx, cmd)
 		if err != nil {
 			return err
 		}
-		defer func() { _ = c.Close() }()
+		defer func() { _ = app.Close() }()
 		return fn(ctx, cmd, taskEnv{
-			DB:     c.database,
-			Spaces: c.spacesStore,
-			Search: c.searchIndex,
+			DB:     app.DB,
+			Spaces: app.SpacesStore,
+			Search: app.SearchIndex,
 		})
 	}
 }

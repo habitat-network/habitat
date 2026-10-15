@@ -15,6 +15,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/emaildomain"
@@ -32,6 +33,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/pearapp"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
@@ -43,63 +45,11 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
-	"gorm.io/gorm"
 )
 
-// instanceStore is the instance admin store as the instance server and the org
-// server each use it.
-type instanceStore interface {
-	instance.AdminStore
-	instance.PolicyStore
-}
-
-// pearComponents holds everything pear builds from its configuration: the stores and
-// services that the server, the migrate command and tasks share. setupComponents
-// builds it once so each command doesn't construct its own.
-type pearComponents struct {
-	database            *gorm.DB
-	instanceAdminStore  instanceStore
-	instanceAdminServer *instance.Server
-	domain              string
-	oauthClient         pdsclient.PdsOAuthClient
-	hiveDomain          string
-	hive                hive.Hive
-	defaultDir          identity.Directory
-	hiveDir             identity.Directory
-	pdsClientFactory    pdsclient.HttpClientFactory
-	passwordProvider    *login.PasswordLoginProvider
-	orgStore            org.Store
-	emailDomainStore    *emaildomain.Store
-	hostKey             atcrypto.PrivateKeyExportable
-	notifyStore         notify.Store
-	blobStore           spaces.BlobStore
-	spacesStore         spaces.Store
-	opensocialStore     *opensocial.Store
-	emailResolver       *habitat_identity.EmailResolver
-	mcpOrigin           string
-	oauthServer         *oauthserver.OAuthServer
-	oauthGC             *oauthserver.Collector
-	serviceAuth         *authn.AtprotoServiceAuthMethod
-	cliqueStore         clique.Store
-	permStore           perms.Store
-	validator           authn.RequestValidator
-	simpleStore         *simplespace.Store
-	nangoClient         *nango.Client
-	mcpGatewayStore     mcpgateway.Store
-	pdsForwarding       *forwarding.PDSForwarding
-	searchConfigStore   *searchconfig.Store
-	searchIndexer       *search.Indexer
-	searcher            *search.Searcher
-	blobBucket          *blob.Bucket
-	searchIndex         search.Index
-}
-
-// Close releases the resources the components hold.
-func (c *pearComponents) Close() error { return c.blobBucket.Close() }
-
-// setupComponents builds all of pear's components from the command's flags. It
+// setupComponents builds pear's App from the command's flags. It
 // doesn't start anything: the server, migrations and tasks decide what to run.
-func setupComponents(ctx context.Context, cmd *cli.Command) (*pearComponents, error) {
+func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error) {
 	meter := otel.Meter("habitat-meter")
 
 	// The gorm handle is named database so that db keeps referring to
@@ -400,43 +350,44 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearComponents, er
 		)
 	}
 
-	return &pearComponents{
-		database:            database,
-		instanceAdminStore:  instanceAdminStore,
-		instanceAdminServer: instanceAdminServer,
-		domain:              domain,
-		oauthClient:         oauthClient,
-		hiveDomain:          hiveDomain,
-		hive:                hive,
-		defaultDir:          defaultDir,
-		hiveDir:             hiveDir,
-		pdsClientFactory:    pdsClientFactory,
-		passwordProvider:    passwordProvider,
-		orgStore:            orgStore,
-		emailDomainStore:    emailDomainStore,
-		hostKey:             hostKey,
-		notifyStore:         notifyStore,
-		blobStore:           blobStore,
-		spacesStore:         spacesStore,
-		opensocialStore:     opensocialStore,
-		emailResolver:       emailResolver,
-		mcpOrigin:           mcpOrigin,
-		oauthServer:         oauthServer,
-		oauthGC:             oauthGC,
-		serviceAuth:         serviceAuth,
-		cliqueStore:         cliqueStore,
-		permStore:           permStore,
-		validator:           validator,
-		simpleStore:         simpleStore,
-		nangoClient:         nangoClient,
-		mcpGatewayStore:     mcpGatewayStore,
-		pdsForwarding:       pdsForwarding,
-		searchConfigStore:   searchConfigStore,
-		searchIndexer:       searchIndexer,
-		searcher:            searcher,
-		searchIndex:         searchIndex,
-		blobBucket:          blobBucket,
-	}, nil
+	return pearapp.New(
+		database,
+		instanceAdminStore,
+		instanceAdminServer,
+		domain,
+		hiveDomain,
+		mcpOrigin,
+		oauthClient,
+		hive,
+		defaultDir,
+		hiveDir,
+		pdsClientFactory,
+		passwordProvider,
+		orgStore,
+		emailDomainStore,
+		hostKey,
+		notifyStore,
+		blobBucket,
+		blobStore,
+		spacesStore,
+		opensocialStore,
+		emailResolver,
+		oauthServer,
+		oauthGC,
+		serviceAuth,
+		cliqueStore,
+		permStore,
+		validator,
+		simpleStore,
+		nangoClient,
+		mcpGatewayStore,
+		pdsForwarding,
+		clientmetadata.NewResolver(),
+		searchIndex,
+		searchIndexer,
+		searcher,
+		searchConfigStore,
+	), nil
 }
 
 func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
