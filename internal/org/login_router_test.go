@@ -95,7 +95,7 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 		t.Context(),
 		orgID.DID,
 		url.Values{},
-		nil,
+		"",
 	)
 	require.Error(t, err)
 }
@@ -122,7 +122,7 @@ func TestExchange_MismatchLoginID(t *testing.T) {
 		t.Context(),
 		adminID.DID,
 		url.Values{},
-		nil,
+		"",
 	)
 	require.Error(t, err)
 }
@@ -145,7 +145,7 @@ func TestExchange_MissingMember(t *testing.T) {
 		OrgStore: store,
 	}
 
-	err = router.Exchange(t.Context(), adminID.DID, url.Values{}, nil)
+	err = router.Exchange(t.Context(), adminID.DID, url.Values{}, "")
 	require.Error(t, err)
 }
 
@@ -191,7 +191,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 
 		roles, err = osStore.GetUserRoles(t.Context(), orgDID, alice)
 		require.NoError(t, err)
-		require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+		require.Equal(t, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}, roles)
 	})
 
 	t.Run("google email differing only in case is accepted", func(t *testing.T) {
@@ -200,7 +200,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 		router := org.LoginRouter{
 			Google: p, OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,
 		}
-		require.NoError(t, router.Exchange(t.Context(), alice, url.Values{}, nil))
+		require.NoError(t, router.Exchange(t.Context(), alice, url.Values{}, ""))
 	})
 
 	t.Run("mismatched google email is rejected and grants no membership", func(t *testing.T) {
@@ -211,7 +211,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 		router := org.LoginRouter{
 			Google: p, OrgStore: orgStore, EmailStore: emailStore, OpensocialStore: osStore.Store,
 		}
-		require.Error(t, router.Exchange(t.Context(), bob, url.Values{}, nil))
+		require.Error(t, router.Exchange(t.Context(), bob, url.Values{}, ""))
 
 		roles, err := osStore.GetUserRoles(t.Context(), orgDID, bob)
 		require.NoError(t, err)
@@ -222,7 +222,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 		router := org.LoginRouter{OrgStore: orgStore, EmailStore: emailStore}
 		_, _, _, err := router.Authorize(t.Context(), alice)
 		require.ErrorContains(t, err, "unsupported login provider")
-		err = router.Exchange(t.Context(), alice, url.Values{}, nil)
+		err = router.Exchange(t.Context(), alice, url.Values{}, "")
 		require.ErrorContains(t, err, "unsupported login provider")
 	})
 }

@@ -42,4 +42,6 @@ if [[ "${HABITAT_BLOB_BUCKET:-}" == file://* ]]; then
     mkdir -p "${blob_dir%%\?*}"
 fi
 
-exec /app/pear "$@"
+# The server doesn't migrate on startup, so apply pending migrations first.
+/app/pear migrate
+exec /app/pear serve "$@"

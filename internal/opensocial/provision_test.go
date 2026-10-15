@@ -37,7 +37,7 @@ func TestStoreProvisionMember(t *testing.T) {
 	require.NoError(t, s.ProvisionMember(t.Context(), org, first))
 	roles, err := s.GetUserRoles(t.Context(), org, first)
 	require.NoError(t, err)
-	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+	require.Equal(t, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}, roles)
 
 	// ...with an acceptance record authored under their own repo, so the org
 	// shows up in their member spaces.
@@ -56,7 +56,7 @@ func TestStoreProvisionMember(t *testing.T) {
 	require.Equal(t, []string{opensocial.MemberRoleRkey}, roles)
 	roles, err = s.GetUserRoles(t.Context(), org, first)
 	require.NoError(t, err)
-	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+	require.Equal(t, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}, roles)
 }
 
 // ProvisionMember runs on every email-domain sign-in, not just the first, so
@@ -113,7 +113,7 @@ func TestStoreProvisionMemberConcurrentFirstSignIns(t *testing.T) {
 		require.NoError(t, errs[i])
 		roles, err := s.GetUserRoles(t.Context(), org, member)
 		require.NoError(t, err)
-		if slices.Equal(roles, []string{opensocial.AdminRoleRkey}) {
+		if slices.Equal(roles, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}) {
 			admins++
 		} else {
 			require.Equal(t, []string{opensocial.MemberRoleRkey}, roles)

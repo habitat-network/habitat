@@ -1,0 +1,33 @@
+$schema: ../.moon/cache/schemas/project.json
+fileGroups:
+  tf:
+    - '**/*.tf'
+    - '**/.terraform.lock.hcl'
+tasks:
+  format-check:
+    command: terraform
+    args:
+      - fmt
+      - -check
+      - -diff
+      - -recursive
+    inputs:
+      - '@group(tf)'
+  format:
+    command: terraform
+    args:
+      - fmt
+      - -recursive
+    inputs:
+      - '@group(tf)'
+    preset: utility
+  # Each subdirectory is a separate root module. -backend=false skips the GCS state
+  # bucket, so this needs no GCP credentials and never touches real infrastructure.
+  validate:
+    script: |
+      for dir in */; do
+        terraform -chdir="$dir" init -backend=false -input=false -no-color >/dev/null &&
+        terraform -chdir="$dir" validate -no-color || exit 1
+      done
+    inputs:
+      - '@group(tf)'

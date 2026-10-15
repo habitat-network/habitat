@@ -8,7 +8,13 @@ import { HttpResponse, http } from "msw";
 import { describe, expect } from "vitest";
 import { server } from "../test/msw";
 import { spaceSyncConfigLayer } from "./config";
-import { Identity, identityFromDoc, publicIdentityResolver } from "./Identity";
+import {
+  Identity,
+  identityFromDoc,
+  publicIdentityResolver,
+  requirePds,
+  requireVerificationKey,
+} from "./Identity";
 
 const DID = "did:plc:aliceaaaaaaaaaaaaaaaaaaa";
 
@@ -87,6 +93,86 @@ describe("identityFromDoc", () => {
         const exit = yield* Effect.exit(identityFromDoc(DID, doc));
         expect(Exit.isFailure(exit)).toBe(true);
       }),
+  );
+});
+
+describe("identityFromDoc for a bare space authority", () => {
+  // The shape of a pear instance DID: space entries only, no #atproto_pds or #atproto.
+  const authorityDoc = async (): Promise<DidDocument> => {
+    const key = await Secp256k1Keypair.create();
+    return {
+      id: DID,
+      verificationMethod: [
+        {
+          id: `${DID}#atproto_space`,
+          type: "Multikey",
+          controller: DID,
+          publicKeyMultibase: key.did().slice("did:key:".length),
+        },
+      ],
+      service: [
+        {
+          id: "#atproto_space_host",
+          type: "AtprotoSpaceHost",
+          serviceEndpoint: "https://spaces.test",
+        },
+      ],
+    } as DidDocument;
+  };
+
+  it.effect("resolves from #atproto_space_host and #atproto_space alone", () =>
+    Effect.gen(function* () {
+      const id = yield* identityFromDoc(
+        DID,
+        yield* Effect.promise(authorityDoc),
+      );
+      expect(id.spaceHost).toBe("https://spaces.test");
+      expect(id.spaceKey).toMatch(/^did:key:z/);
+      expect(id.pds).toBeUndefined();
+      expect(id.signingKey).toBeUndefined();
+      expect(yield* requireVerificationKey(id)).toBe(id.spaceKey);
+      expect(Exit.isFailure(yield* Effect.exit(requirePds(id)))).toBe(true);
+    }),
+  );
+
+  it.effect("errors when #atproto_space is present but malformed", () =>
+    Effect.gen(function* () {
+      const base = yield* Effect.promise(authorityDoc);
+      const doc = {
+        ...base,
+        verificationMethod: [
+          {
+            id: `${DID}#atproto_space`,
+            type: "Multikey",
+            controller: DID,
+          },
+        ],
+      } as DidDocument;
+      expect(
+        Exit.isFailure(yield* Effect.exit(identityFromDoc(DID, doc))),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect("errors when there is neither a space host nor a PDS", () =>
+    Effect.gen(function* () {
+      const base = yield* Effect.promise(authorityDoc);
+      const doc = { ...base, service: [] } as DidDocument;
+      expect(
+        Exit.isFailure(yield* Effect.exit(identityFromDoc(DID, doc))),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect("prefers #atproto over a missing #atproto_space", () =>
+    Effect.gen(function* () {
+      const id = yield* identityFromDoc(
+        DID,
+        yield* Effect.promise(() => docWith()),
+      );
+      expect(id.spaceKey).toBeUndefined();
+      expect(yield* requireVerificationKey(id)).toBe(id.signingKey);
+    }),
   );
 });
 

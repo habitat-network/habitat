@@ -1,7 +1,7 @@
 import { redirect } from "@tanstack/react-router";
 import { SpaceRef, type DidString } from "@atproto/syntax";
 import { useAppSession } from "./session";
-import type { SapClient } from "./sapClient";
+import { findUnauthorizedError, type HabitatClient } from "./habitatClient";
 import { commentsSpaceUri } from "./comments.server";
 
 // Server-only helpers, kept out of functions.ts so that file can stay
@@ -27,7 +27,7 @@ export const CRDT_COLLECTION = "network.habitat.docs.crdt";
 // resuming a separate org session (see the design doc's "Connecting an
 // org" section for why).
 export async function createDocSpace(
-  client: SapClient,
+  client: HabitatClient,
   did: string,
   currentOrg: string | undefined,
 ): Promise<{ uri: string; ownerDid: string }> {
@@ -62,7 +62,7 @@ export async function createDocSpace(
 // null if the caller isn't a member of the org, or the read otherwise
 // fails, rather than throwing — callers show the raw DID as a fallback.
 export async function fetchOrgName(
-  client: SapClient,
+  client: HabitatClient,
   orgDid: DidString,
 ): Promise<string | null> {
   const aboutSpace = new SpaceRef(
@@ -104,7 +104,9 @@ export function orgMembersSpaceUri(orgDid: string): string {
 // to — every community.opensocial.members space they hold a membership or
 // acceptance record in, same query frontend's Communities page uses
 // (frontend/src/queries/opensocial.ts's myOrgsQueryOptions).
-export async function listMyOrgIds(client: SapClient): Promise<DidString[]> {
+export async function listMyOrgIds(
+  client: HabitatClient,
+): Promise<DidString[]> {
   const { spaces } = await client.call<{ spaces: { uri: string }[] }>(
     "network.habitat.space.listSpaces",
     "GET",
@@ -138,6 +140,20 @@ export async function clearSession(): Promise<void> {
   await session.clear();
 }
 
+// signOutIfUnauthorized ends the login when err says pear no longer accepts
+// the signed-in member's own OAuth session (see UnauthorizedError): it
+// clears the session cookie and throws a redirect to /login. It returns
+// for anything else, including an org session's 401, which isn't the
+// member's login failing; the caller rethrows err then.
+export async function signOutIfUnauthorized(err: unknown): Promise<void> {
+  const unauthorized = findUnauthorizedError(err);
+  if (!unauthorized) return;
+  const session = await useAppSession();
+  if (!session.data.did || session.data.did !== unauthorized.did) return;
+  await session.clear();
+  throw redirect({ to: "/login" });
+}
+
 // setCurrentOrg updates which org (if any) the member is currently acting
 // as — undefined switches back to Personal mode. Mirrors the
 // setCurrentOrgFn session.org-callback.tsx sets right after a fresh OAuth
@@ -166,7 +182,7 @@ export async function sessionDid(): Promise<string | undefined> {
 // endpoint reject the query itself (it requires reader to call), not
 // return { allowed: false } — both outcomes mean "no access" here.
 export async function hasDocAccess(
-  client: SapClient,
+  client: HabitatClient,
   did: string,
   docId: string,
 ): Promise<boolean> {
@@ -186,7 +202,7 @@ export async function hasDocAccess(
 // (including the check endpoint itself rejecting the caller) is "no" —
 // see hasDocAccess for why both outcomes mean the same thing here.
 async function checkRelation(
-  client: SapClient,
+  client: HabitatClient,
   did: string,
   space: string,
   relation: "writer" | "reader",
@@ -230,7 +246,7 @@ export type DocRole = "editor" | "commenter" | "viewer";
 // rejects a write from someone who only holds a lower role regardless of
 // what the client renders.
 export async function docRole(
-  client: SapClient,
+  client: HabitatClient,
   did: string,
   docId: string,
 ): Promise<DocRole | null> {
@@ -262,11 +278,11 @@ export interface UserRelationView {
 // A space that doesn't exist holds no grants, rather than being an error:
 // docs created before comments spaces were introduced have none, and pear
 // rejects any relationship query against a missing space as SpaceNotFound
-// (SapClient surfaces the proxied response body in the error message).
+// (HabitatClient surfaces the proxied response body in the error message).
 // Without this, every sharing path that also looks at a doc's comments
 // space would fail outright for those docs.
 export async function listUserGrants(
-  client: SapClient,
+  client: HabitatClient,
   space: string,
   subjectDid?: string,
 ): Promise<UserRelationView[]> {
@@ -289,7 +305,7 @@ export async function listUserGrants(
 
 // deleteUserGrant removes subjectDid's own grant record on space, if they
 // hold one, returning the deleted record's URI so the caller can drop the
-// matching doc_access row without waiting on the outbox tombstone.
+// matching doc_access row without waiting on the synced delete.
 //
 // deleteRelation takes the relation record's own URI rather than a
 // (did, space) pair, so the URI has to be looked up first — no separate
@@ -303,7 +319,7 @@ export async function listUserGrants(
 // the doc space, so changing across that line would otherwise leave the
 // old grant standing alongside the new one.
 export async function deleteUserGrant(
-  client: SapClient,
+  client: HabitatClient,
   space: string,
   subjectDid: string,
 ): Promise<string | undefined> {

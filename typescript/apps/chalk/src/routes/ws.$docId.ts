@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
 import { hasDocAccess, sessionDid } from "@/server/functions.server";
-import { SapClient } from "@/server/sapClient";
+import { HabitatClient } from "@/server/habitatClient";
 
 // Upgrades a browser's WebSocket request into DocRoom's own Hibernation-API
 // socket (src/server/rooms/docRoom.ts's fetch()) — this route only does the
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/ws/$docId")({
         if (!did) return new Response("unauthorized", { status: 401 });
 
         const allowed = await hasDocAccess(
-          new SapClient(env, did),
+          new HabitatClient(env, did),
           did,
           params.docId,
         );

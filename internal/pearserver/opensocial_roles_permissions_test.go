@@ -174,14 +174,15 @@ func TestServer_AssignRoles(t *testing.T) {
 		code := client.Procedure(
 			ts.Server.AssignRoles,
 			opensocial_api.CommunityOpensocialAssignRolesInput{
-				Org: orgDID, Member: alice.String(), Roles: []string{opensocial.AdminRoleRkey},
+				Org: orgDID, Member: alice.String(),
+				Roles: []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey},
 			},
 			&out,
 		)
 		require.Equal(t, http.StatusForbidden, code)
 	})
 
-	t.Run("admin assigns a member role within bounds", func(t *testing.T) {
+	t.Run("rejects roles that drop the member role", func(t *testing.T) {
 		ts := newOpenSocialServer(t, admin)
 		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
 		require.NoError(t, err)
@@ -199,11 +200,37 @@ func TestServer_AssignRoles(t *testing.T) {
 			},
 			&out,
 		)
+		require.Equal(t, http.StatusBadRequest, code)
+
+		roles, err := ts.OpenSocialStore.GetUserRoles(t.Context(), syntax.DID(orgDID), alice)
+		require.NoError(t, err)
+		require.Equal(t, []string{opensocial.MemberRoleRkey}, roles)
+	})
+
+	t.Run("admin assigns a member role within bounds", func(t *testing.T) {
+		ts := newOpenSocialServer(t, admin)
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
+		require.NoError(
+			t, ts.OpenSocialStore.AssignRoles(
+				t.Context(), syntax.DID(orgDID), alice, []string{opensocial.MemberRoleRkey},
+			),
+		)
+
+		var out struct{}
+		code := client.Procedure(
+			ts.Server.AssignRoles,
+			opensocial_api.CommunityOpensocialAssignRolesInput{
+				Org: orgDID, Member: alice.String(),
+				Roles: []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey},
+			},
+			&out,
+		)
 		require.Equal(t, http.StatusOK, code)
 
 		roles, err := ts.OpenSocialStore.GetUserRoles(t.Context(), syntax.DID(orgDID), alice)
 		require.NoError(t, err)
-		require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+		require.Equal(t, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}, roles)
 	})
 }
 

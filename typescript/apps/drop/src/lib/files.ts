@@ -1,7 +1,7 @@
-// pear's network.habitat.repo.uploadBlob rejects bodies over 500 KiB
+// pear's network.habitat.repo.uploadBlob rejects bodies over 5 MiB
 // (internal/pearserver/space_upload_blob.go), so Drop checks the same limit
 // up front instead of uploading and failing.
-export const MAX_FILE_BYTES = 500 * 1024;
+export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

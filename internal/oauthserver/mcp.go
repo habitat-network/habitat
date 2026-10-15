@@ -51,6 +51,12 @@ func (o *OAuthServer) MCPIssuer() string { return o.issuer + MCPIssuerPath }
 
 func (o *OAuthServer) mcpResource() string { return o.issuer + MCPResourcePath }
 
+// isMCPResource reports whether resource identifies an MCP endpoint of this
+// server: the base resource or one of the per-org endpoints beneath it.
+func (o *OAuthServer) isMCPResource(resource string) bool {
+	return resource == o.mcpResource() || strings.HasPrefix(resource, o.mcpResource()+"/")
+}
+
 // HandleMCPMetadata serves RFC 8414 authorization server metadata for the MCP
 // endpoints.
 func (o *OAuthServer) HandleMCPMetadata(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +171,7 @@ func (o *OAuthServer) HandleMCPAuthorize(w http.ResponseWriter, r *http.Request)
 		o.provider.WriteAuthorizeError(ctx, w, ar, err)
 		return
 	}
-	if resource := r.Form.Get("resource"); resource != "" && resource != o.mcpResource() {
+	if resource := r.Form.Get("resource"); resource != "" && !o.isMCPResource(resource) {
 		o.provider.WriteAuthorizeError(
 			ctx,
 			w,
@@ -266,7 +272,7 @@ func (o *OAuthServer) HandleMCPAuthorizeSubmit(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	redirect, state, providerState, err := o.loginRouter.Authorize(ctx, did)
+	redirect, state, providerStateKey, err := o.loginRouter.Authorize(ctx, did)
 	if err != nil {
 		httpx.WriteError(
 			ctx, w, "InvalidRequest", "Couldn't sign in with that handle. Check it and try again.",
@@ -274,7 +280,7 @@ func (o *OAuthServer) HandleMCPAuthorizeSubmit(w http.ResponseWriter, r *http.Re
 		)
 		return
 	}
-	saveLoginHop(session, requestKey, state, providerState)
+	saveLoginHop(session, requestKey, state, providerStateKey)
 	if err := session.Save(r, w); err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
 		return

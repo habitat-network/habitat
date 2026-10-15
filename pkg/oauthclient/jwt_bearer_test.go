@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -126,6 +127,7 @@ func setupJWTBearerTestServer(
 		&org.LoginRouter{Pds: login_testutil.NewPassthroughProvider(t)},
 		dummyDir,
 		db,
+		keyval_testutil.New(t),
 		noop.Meter{},
 		jwtBearerTestOrgStore(t),
 		jwtBearerIssuer,

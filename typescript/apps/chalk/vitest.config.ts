@@ -29,6 +29,18 @@ const migrations = await readD1Migrations(
 );
 
 export default defineConfig({
+  resolve: {
+    // @habitat-network/habitat resolves to its source, as tsconfig.json's
+    // paths does for the build. An explicit alias rather than
+    // `tsconfigPaths: true`, which changes how the tests' own relative
+    // imports resolve and stops their vi.mock() calls from matching.
+    alias: {
+      "@habitat-network/habitat": path.join(
+        import.meta.dirname,
+        "../../habitat/src/index.ts",
+      ),
+    },
+  },
   test: {
     setupFiles: ["./test/applyMigrations.ts"],
   },
@@ -40,9 +52,8 @@ export default defineConfig({
         bindings: {
           TEST_MIGRATIONS: migrations,
           // Test-only stand-in for the wrangler secret deployed
-          // environments configure; lets test/sapClient.test.ts exercise
-          // sap's basic-auth gate.
-          CHALK_SAP_INTERNAL_AUTH_SECRET: "test-channel-secret",
+          // environments configure (see src/server/seal.ts).
+          CHALK_CREDENTIALS_KEY: "dGVzdC1vbmx5LWNyZWRlbnRpYWxzLWtleS0zMmJ5dGU=",
         },
       },
     }),

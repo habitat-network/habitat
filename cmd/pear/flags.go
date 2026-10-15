@@ -28,7 +28,6 @@ var (
 	fNangoSecretKey     = "nango_secret_key"
 	fMeilisearchURL     = "meilisearch_url"
 	fMeilisearchAPIKey  = "meilisearch_api_key"
-	fMeilisearchIndex   = "meilisearch_index"
 	fEmbedderURL        = "embedder_url"
 	fEmbedderAPIKey     = "embedder_api_key"
 	fEmbedderModel      = "embedder_model"
@@ -161,12 +160,6 @@ func getFlags() []cli.Flag {
 			Name:    fMeilisearchAPIKey,
 			Usage:   "API key for the Meilisearch server",
 			Sources: getSources(fMeilisearchAPIKey),
-		},
-		&cli.StringFlag{
-			Name:    fMeilisearchIndex,
-			Usage:   "Name of the Meilisearch index of space records; cursors go in <name>_cursors",
-			Value:   "space_records",
-			Sources: getSources(fMeilisearchIndex),
 		},
 		&cli.StringFlag{
 			Name:    fEmbedderURL,

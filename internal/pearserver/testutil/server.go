@@ -21,6 +21,7 @@ import (
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pearapp"
 	"github.com/habitat-network/habitat/internal/pearserver"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
@@ -221,25 +222,26 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		)
 	}
 
-	ts.Server = pearserver.New(
-		"pear.example.com",
-		ts.Validator,
-		ts.Directory,
-		ts.Hive,
-		ts.HostKey,
-		blobStore,
-		ts.SpaceStore,
-		os,
-		ps,
-		ss,
-		ts.NotifyStore,
-		clientmetadata.NewResolver(),
-		mcpGatewayStore,
-		ts.PDSForwarding,
-		emailDomainStore,
-		searcher,
-		ts.SearchConfig,
-	)
+	// Only the fields PearServer reads; the rest of pear's App isn't needed here.
+	ts.Server = pearserver.New(&pearapp.App{
+		Domain:           "pear.example.com",
+		Validator:        ts.Validator,
+		DefaultDir:       ts.Directory,
+		Hive:             ts.Hive,
+		HostKey:          ts.HostKey,
+		BlobStore:        blobStore,
+		SpacesStore:      ts.SpaceStore,
+		OpensocialStore:  os,
+		PermStore:        ps,
+		SimpleStore:      ss,
+		NotifyStore:      ts.NotifyStore,
+		ClientMetadata:   clientmetadata.NewResolver(),
+		MCPGatewayStore:  mcpGatewayStore,
+		PDSForwarding:    ts.PDSForwarding,
+		EmailDomainStore: emailDomainStore,
+		Searcher:         searcher,
+		SearchConfig:     ts.SearchConfig,
+	})
 	ts.PermStore = ps
 	return &ts
 }

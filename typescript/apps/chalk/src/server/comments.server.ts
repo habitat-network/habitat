@@ -11,7 +11,9 @@ import {
   type Db,
 } from "../db";
 import { DOCS_SPACE_TYPE } from "./functions.server";
-import type { SapClient } from "./sapClient";
+import { env } from "cloudflare:workers";
+import type { HabitatClient } from "./habitatClient";
+import { watchSpaces } from "./sync";
 
 // Server-only comment helpers, kept out of functions.ts for the same reason
 // functions.server.ts is (see that file's header comment): only
@@ -100,7 +102,7 @@ const SPACE_RELATIONS: {
 ];
 
 // isSpaceAlreadyExists reports whether err is createSpace's expected
-// "the space is already there" error rather than a real failure. SapClient
+// "the space is already there" error rather than a real failure. HabitatClient
 // surfaces a proxied error as an Error carrying the response body, which
 // for this case is pear's {"error": "SpaceAlreadyExists"} (see
 // internal/pearserver/simplespace_create_space.go).
@@ -131,10 +133,10 @@ function isSpaceAlreadyExists(err: unknown): boolean {
 // exactly as createDocSpace does for the doc space itself, with no roles —
 // access comes from the doc space's relations, not org membership. The
 // relations are still set as the owner, which for an org doc is the org's
-// own sap session (see functions.ts's managementClient): the member who
+// own session (see functions.ts's managementClient): the member who
 // created the space holds nothing on it.
 export async function ensureCommentsSpace(
-  client: SapClient,
+  client: HabitatClient,
   docId: string,
   opts: { ownerDid: string; isOrg: boolean },
 ): Promise<string | undefined> {
@@ -199,26 +201,25 @@ export async function ensureCommentsSpace(
     }
   }
 
-  // sap has no way to discover this space on its own until some member's
-  // next session crawl — same reason createDoc tracks the doc space right
-  // after creating it. Without this, a comment/reply written by anyone
+  // Nothing else tells the syncer this space exists until some member's
+  // next sign-in lists it — same reason createDoc watches the doc space
+  // right after creating it. Without this, a comment/reply written by anyone
   // other than whichever chalk instance happens to eagerly mirror its own
-  // writes locally (writeComment/writeReply) stays
-  // invisible to every other chalk instance's D1 mirror until that crawl
-  // catches up.
+  // writes locally (writeComment/writeReply) stays invisible to this
+  // instance's D1 mirror until then.
   try {
-    await client.trackSpace(spaceUri);
+    await watchSpaces(env, [spaceUri]);
   } catch (err) {
     // Best-effort, same as the steps above — a transient failure here
-    // just means this call falls back to relying on the next crawl.
-    console.error("[comments] track comments space", spaceUri, err);
+    // just means this call falls back to relying on the next sign-in.
+    console.error("[comments] watch comments space", spaceUri, err);
   }
 
   return spaceUri;
 }
 
 // docSpaceUriForComments is commentsSpaceUri's inverse: given a comments
-// space's URI, the doc space it belongs to. Used by the outbox consumer,
+// space's URI, the doc space it belongs to. Used by the sync sink,
 // which sees comment records addressed by the comments space and has to
 // file them under the doc the rest of chalk keys everything by.
 export function docSpaceUriForComments(
@@ -335,15 +336,15 @@ export function toCommentView(
 // ensureCommentsSpace), writes the root comment record — including its
 // CRDT anchor, computed client-side from the live Y.Doc before this is
 // ever called, since only a client holding that document can derive it —
-// and mirrors it into D1 immediately rather than waiting on the outbox
-// webhook to deliver the same record back. The webhook's own upsertComment
+// and mirrors it into D1 immediately rather than waiting on the syncer
+// to deliver the same record back. The sink's own upsertComment
 // is a no-op once this has landed (same uri). Caller is responsible for
 // the role check (functions.ts's createComment requires editor before
 // calling this) — pear would reject the putRecord anyway for a
 // non-writer, but checking first turns that into a clear "forbidden"
 // instead of a proxied error.
 export async function writeComment(
-  client: SapClient,
+  client: HabitatClient,
   db: Db,
   did: string,
   docId: string,
@@ -412,7 +413,7 @@ export async function writeComment(
 // why replies don't carry their own anchor). Mirrors eagerly into D1 for
 // the same reason writeComment does.
 export async function writeReply(
-  client: SapClient,
+  client: HabitatClient,
   db: Db,
   did: string,
   docId: string,
@@ -456,7 +457,7 @@ export async function writeReply(
 // itself, which is self-describing: see parseCommentRecordUri) so a
 // mismatched caller gets a clear "forbidden" rather than a proxied 403.
 export async function removeComment(
-  client: SapClient,
+  client: HabitatClient,
   db: Db,
   did: string,
   uri: string,
@@ -469,7 +470,7 @@ export async function removeComment(
     collection: COMMENT_COLLECTION,
     rkey: parsed.rkey,
   });
-  // Drop it locally now rather than waiting on the outbox tombstone, for
+  // Drop it locally now rather than waiting on the synced delete, for
   // the same reason writeComment mirrors eagerly.
   await deleteComment(db, uri);
 }
@@ -477,7 +478,7 @@ export async function removeComment(
 // removeReply deletes one reply record and its D1 mirror row — same
 // author-only rule as removeComment.
 export async function removeReply(
-  client: SapClient,
+  client: HabitatClient,
   db: Db,
   did: string,
   uri: string,

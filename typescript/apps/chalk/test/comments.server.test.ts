@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import {
@@ -13,7 +13,13 @@ import {
   writeReply,
   COMMENT_REPLY_COLLECTION,
 } from "../src/server/comments.server";
-import { SapClient } from "../src/server/sapClient";
+import { HabitatClient } from "../src/server/habitatClient";
+
+vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
+const { watchSpaces } = vi.hoisted(() => ({
+  watchSpaces: vi.fn(async () => {}),
+}));
+vi.mock("../src/server/sync", () => ({ watchSpaces }));
 import { env as cfEnv } from "cloudflare:test";
 import { commentsForDoc, getDb, repliesForDoc, upsertComment } from "../src/db";
 
@@ -102,9 +108,7 @@ describe("parseCommentRecordUri / parseCommentsRecordUri", () => {
   });
 });
 
-const testEnv = {
-  CHALK_SAP_INTERNAL_URL: "http://sap-internal.test",
-} as Env;
+const testEnv = {} as Env;
 
 describe("ensureCommentsSpace", () => {
   const server = setupServer();
@@ -117,28 +121,23 @@ describe("ensureCommentsSpace", () => {
   it("creates a personal comments space and wires up the inheritance both ways", async () => {
     const setRelationBodies: unknown[] = [];
     let createBody: unknown;
-    let trackedSpace: unknown;
     server.use(
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.simplespace.createSpace",
+        "http://pds.test/xrpc/network.habitat.simplespace.createSpace",
         async ({ request }) => {
           createBody = await request.json();
           return HttpResponse.json({ uri: COMMENTS_SPACE });
         },
       ),
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.relationship.setSpaceRelation",
+        "http://pds.test/xrpc/network.habitat.relationship.setSpaceRelation",
         async ({ request }) => {
           setRelationBodies.push(await request.json());
           return HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` });
         },
       ),
-      http.post("http://sap-internal.test/space/track", async ({ request }) => {
-        trackedSpace = await request.json();
-        return new HttpResponse(null, { status: 200 });
-      }),
     );
-    const client = new SapClient(testEnv, ALICE);
+    const client = new HabitatClient(testEnv, ALICE);
     const result = await ensureCommentsSpace(client, DOC, {
       ownerDid: ALICE,
       isOrg: false,
@@ -180,9 +179,11 @@ describe("ensureCommentsSpace", () => {
         space: COMMENTS_SPACE,
       },
     ]);
-    // sap otherwise has no way to discover the comments space until some
-    // member's next session crawl — see ensureCommentsSpace's comment.
-    expect(trackedSpace).toEqual({ space: COMMENTS_SPACE });
+    // Nothing else tells the syncer the comments space exists until some
+    // member's next sign-in — see ensureCommentsSpace's comment.
+    expect(watchSpaces).toHaveBeenCalledWith(expect.anything(), [
+      COMMENTS_SPACE,
+    ]);
   });
 
   it("creates an org comments space via community.opensocial.createSpace, proxied to the org", async () => {
@@ -192,27 +193,23 @@ describe("ensureCommentsSpace", () => {
     let createBody: unknown;
     server.use(
       http.post(
-        "http://sap-internal.test/proxy/community.opensocial.createSpace",
+        "http://pds.test/xrpc/community.opensocial.createSpace",
         async ({ request }) => {
           createBody = await request.json();
           proxyHeader = request.headers.get("Atproto-Proxy");
-          createCaller = request.headers.get("Habitat-Did");
+          createCaller = request.headers.get("X-Test-Did");
           return HttpResponse.json({ uri: COMMENTS_SPACE });
         },
       ),
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.relationship.setSpaceRelation",
+        "http://pds.test/xrpc/network.habitat.relationship.setSpaceRelation",
         ({ request }) => {
-          relationCallers.push(request.headers.get("Habitat-Did"));
+          relationCallers.push(request.headers.get("X-Test-Did"));
           return HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` });
         },
       ),
-      http.post(
-        "http://sap-internal.test/space/track",
-        () => new HttpResponse(null, { status: 200 }),
-      ),
     );
-    const client = new SapClient(testEnv, ALICE);
+    const client = new HabitatClient(testEnv, ALICE);
     const result = await ensureCommentsSpace(client, DOC, {
       ownerDid: "did:web:org.example",
       isOrg: true,
@@ -233,20 +230,16 @@ describe("ensureCommentsSpace", () => {
   it("is safe to call again once the space and relations already exist", async () => {
     server.use(
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.simplespace.createSpace",
+        "http://pds.test/xrpc/network.habitat.simplespace.createSpace",
         () =>
           HttpResponse.json({ error: "SpaceAlreadyExists" }, { status: 400 }),
       ),
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.relationship.setSpaceRelation",
+        "http://pds.test/xrpc/network.habitat.relationship.setSpaceRelation",
         () => HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` }),
       ),
-      http.post(
-        "http://sap-internal.test/space/track",
-        () => new HttpResponse(null, { status: 200 }),
-      ),
     );
-    const client = new SapClient(testEnv, ALICE);
+    const client = new HabitatClient(testEnv, ALICE);
     const result = await ensureCommentsSpace(client, DOC, {
       ownerDid: ALICE,
       isOrg: false,
@@ -256,11 +249,11 @@ describe("ensureCommentsSpace", () => {
 
   it("returns undefined for a malformed docId without making any calls", async () => {
     server.use(
-      http.post("http://sap-internal.test/proxy/*", () => {
+      http.post("http://pds.test/xrpc/*", () => {
         throw new Error("should not be called");
       }),
     );
-    const client = new SapClient(testEnv, ALICE);
+    const client = new HabitatClient(testEnv, ALICE);
     expect(
       await ensureCommentsSpace(client, "not-a-uri", {
         ownerDid: ALICE,
@@ -289,15 +282,15 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
   it("writeComment creates the comments space, writes the record with its CRDT anchor, and mirrors it (with cid) into D1", async () => {
     server.use(
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.simplespace.createSpace",
+        "http://pds.test/xrpc/network.habitat.simplespace.createSpace",
         () => HttpResponse.json({ uri: COMMENTS_SPACE }),
       ),
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.relationship.setSpaceRelation",
+        "http://pds.test/xrpc/network.habitat.relationship.setSpaceRelation",
         () => HttpResponse.json({ uri: `${COMMENTS_SPACE}/rel` }),
       ),
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.space.putRecord",
+        "http://pds.test/xrpc/network.habitat.space.putRecord",
         async ({ request }) => {
           const body = (await request.json()) as { record: unknown };
           expect(body.record).toMatchObject({
@@ -310,12 +303,8 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
           });
         },
       ),
-      http.post(
-        "http://sap-internal.test/space/track",
-        () => new HttpResponse(null, { status: 200 }),
-      ),
     );
-    const client = new SapClient(testEnv, ALICE);
+    const client = new HabitatClient(testEnv, ALICE);
     const view = await writeComment(client, db(), ALICE, DOC, {
       body: "great point",
       anchorStart: ANCHOR_START,
@@ -345,7 +334,7 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
     let putBody: unknown;
     server.use(
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.space.putRecord",
+        "http://pds.test/xrpc/network.habitat.space.putRecord",
         async ({ request }) => {
           putBody = await request.json();
           return HttpResponse.json({
@@ -354,7 +343,7 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
         },
       ),
     );
-    const client = new SapClient(testEnv, BOB);
+    const client = new HabitatClient(testEnv, BOB);
     const root = {
       uri: `${COMMENTS_SPACE}/${ALICE}/network.habitat.docs.comment/1`,
       cid: "bafycomment1",
@@ -392,14 +381,14 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
     let deleteBody: unknown;
     server.use(
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.space.deleteRecord",
+        "http://pds.test/xrpc/network.habitat.space.deleteRecord",
         async ({ request }) => {
           deleteBody = await request.json();
           return new HttpResponse(null, { status: 200 });
         },
       ),
     );
-    const client = new SapClient(testEnv, ALICE);
+    const client = new HabitatClient(testEnv, ALICE);
     await removeComment(client, db(), ALICE, uri);
     expect(deleteBody).toEqual({
       space: COMMENTS_SPACE,
@@ -412,7 +401,7 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
 
   it("removeComment refuses to delete another author's comment", async () => {
     const uri = `${COMMENTS_SPACE}/${BOB}/network.habitat.docs.comment/1`;
-    const client = new SapClient(testEnv, ALICE);
+    const client = new HabitatClient(testEnv, ALICE);
     await expect(removeComment(client, db(), ALICE, uri)).rejects.toThrow(
       "forbidden",
     );
@@ -420,7 +409,7 @@ describe("writeComment / writeReply / removeComment / removeReply", () => {
 
   it("removeReply refuses to delete another author's reply", async () => {
     const uri = `${COMMENTS_SPACE}/${BOB}/${COMMENT_REPLY_COLLECTION}/1`;
-    const client = new SapClient(testEnv, ALICE);
+    const client = new HabitatClient(testEnv, ALICE);
     await expect(removeReply(client, db(), ALICE, uri)).rejects.toThrow(
       "forbidden",
     );

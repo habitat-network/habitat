@@ -1,0 +1,102 @@
+[
+  {
+    "id": "vendor-contract",
+    "expect": "search",
+    "prompt": "What did our contract with the vendor say about termination?"
+  },
+  {
+    "id": "roadmap-cuts",
+    "expect": "search",
+    "prompt": "What was cut from the product roadmap?"
+  },
+  {
+    "id": "conversation-patterns",
+    "expect": "search",
+    "prompt": "What are some patterns from recent customer conversations?"
+  },
+  {
+    "id": "remote-policy",
+    "expect": "search",
+    "prompt": "What's our policy on working remotely?"
+  },
+  {
+    "id": "system-owner",
+    "expect": "search",
+    "prompt": "Who owns the billing system on our team?"
+  },
+  {
+    "id": "pricing-decision",
+    "expect": "search",
+    "prompt": "What did we decide about pricing?"
+  },
+  {
+    "id": "launch-risks",
+    "expect": "search",
+    "prompt": "What are the open risks for our upcoming launch?"
+  },
+  {
+    "id": "customer-feedback",
+    "expect": "search",
+    "prompt": "What feedback have customers given us recently?"
+  },
+  {
+    "id": "status-update",
+    "expect": "search",
+    "prompt": "Draft a short status update on what the team has been working on this month."
+  },
+  {
+    "id": "postmortem",
+    "expect": "search",
+    "prompt": "Did anyone write up a postmortem for our last outage? What was the root cause?"
+  },
+  {
+    "id": "marketing-budget",
+    "expect": "search",
+    "prompt": "How much did we budget for marketing this year?"
+  },
+  {
+    "id": "investor-prep",
+    "expect": "search",
+    "prompt": "Help me prepare for my investor meeting tomorrow."
+  },
+  {
+    "id": "onboarding-doc",
+    "expect": "search",
+    "prompt": "Where's our onboarding doc for new engineers, and what does it cover?"
+  },
+  {
+    "id": "competitor-notes",
+    "expect": "search",
+    "prompt": "What have we noted internally about our competitors?"
+  },
+  {
+    "id": "last-meeting-actions",
+    "expect": "search",
+    "prompt": "What action items came out of our last planning meeting?"
+  },
+  {
+    "id": "code-snippet",
+    "expect": "none",
+    "prompt": "Write a Python function that reverses a singly linked list."
+  },
+  {
+    "id": "trivia",
+    "expect": "none",
+    "prompt": "What's the capital of Australia?"
+  },
+  {
+    "id": "concept",
+    "expect": "none",
+    "prompt": "Explain what the AT Protocol is in two paragraphs."
+  },
+  {
+    "id": "rewrite",
+    "expect": "none",
+    "prompt": "Make this sentence more concise: \"We are going to be having a meeting on the day of Friday.\""
+  },
+  {
+    "id": "weather",
+    "expect": "none",
+    "prompt": "What's the weather in San Francisco today?"
+  }
+]

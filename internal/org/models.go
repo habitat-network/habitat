@@ -29,10 +29,3 @@ type member struct {
 	// Automatically populated by gorm
 	CreatedAt time.Time
 }
-
-// spentToken tracks consumed single-use invite tokens by their JWT ID, scoped per org.
-type spentToken struct {
-	OrgID      syntax.DID `gorm:"primaryKey"`
-	JTI        string     `gorm:"primaryKey"`
-	ConsumedAt time.Time  `gorm:"not null"`
-}

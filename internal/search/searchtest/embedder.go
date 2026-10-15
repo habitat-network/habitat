@@ -102,6 +102,15 @@ func serveEmbeddings(w http.ResponseWriter, r *http.Request) {
 	}
 	var resp embeddingsResponse
 	for i, text := range req.Input {
+		// Like OpenAI and Azure OpenAI, refuse empty inputs.
+		if strings.TrimSpace(text) == "" {
+			http.Error(
+				w,
+				fmt.Sprintf("Invalid 'input[%d]': input cannot be an empty string.", i),
+				http.StatusBadRequest,
+			)
+			return
+		}
 		resp.Data = append(resp.Data, embeddingData{Embedding: embed(text), Index: i})
 	}
 	w.Header().Set("Content-Type", "application/json")

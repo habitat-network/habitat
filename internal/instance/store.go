@@ -14,6 +14,8 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
 	"gorm.io/gorm"
+
+	"github.com/habitat-network/habitat/internal/keyval"
 )
 
 const (
@@ -91,13 +93,22 @@ type storeImpl struct {
 
 	sessions *sessions.CookieStore
 	db       *gorm.DB
-	domain   string
+	// invites holds one entry per issued, unredeemed invite, keyed by its
+	// JWT ID and expiring with the invite, so a redeemed or lapsed invite is
+	// simply absent.
+	invites keyval.Store
+	domain  string
 }
 
 var _ AdminStore = (*storeImpl)(nil)
 var _ PolicyStore = (*storeImpl)(nil)
 
-func NewStore(db *gorm.DB, secret []byte, domain, passwordHash string) (*storeImpl, error) {
+func NewStore(
+	db *gorm.DB,
+	invites keyval.Store,
+	secret []byte,
+	domain, passwordHash string,
+) (*storeImpl, error) {
 	cookieStore := sessions.NewCookieStore(secret)
 	cookieStore.Options = &sessions.Options{
 		Path:     "/",
@@ -113,6 +124,7 @@ func NewStore(db *gorm.DB, secret []byte, domain, passwordHash string) (*storeIm
 		sessions:     cookieStore,
 		domain:       domain,
 		db:           db,
+		invites:      invites,
 	}, nil
 }
 
@@ -250,10 +262,7 @@ func (s *storeImpl) IssueInvite(ctx context.Context) (string, error) {
 	now := time.Now()
 	expiresAt := now.Add(inviteDuration)
 
-	invite := instanceInvite{
-		Token: jti,
-	}
-	if err := s.db.WithContext(ctx).Create(&invite).Error; err != nil {
+	if err := s.invites.Put(ctx, jti, struct{}{}, inviteDuration); err != nil {
 		return "", err
 	}
 
@@ -275,62 +284,69 @@ func (s *storeImpl) IssueInvite(ctx context.Context) (string, error) {
 	}).CompactSerialize()
 }
 
-// checkInvite parses+verifies the JWT (signature via the instance's
-// SigningSecret, expiry) and loads the corresponding instanceInvite DB row,
-// confirming it exists, is unexpired, and is not yet used. It does not mutate
-// any state. All failure modes collapse into ErrInvalidInvite.
-func (s *storeImpl) checkInvite(ctx context.Context, token string) (*instanceInvite, error) {
+// verifyInvite parses+verifies the JWT (signature via the instance's
+// SigningSecret, expiry) and returns its ID. It does not check that the invite
+// is still unredeemed. All failure modes collapse into ErrInvalidInvite.
+func (s *storeImpl) verifyInvite(ctx context.Context, token string) (string, error) {
 	settings, err := s.getOrCreateSettings(ctx)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	secret, err := base64.StdEncoding.DecodeString(settings.SigningSecret)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
-		return nil, ErrInvalidInvite
+		return "", ErrInvalidInvite
 	}
 	var claims inviteClaims
 	if err := parsed.Claims(secret, &claims); err != nil {
-		return nil, ErrInvalidInvite
+		return "", ErrInvalidInvite
 	}
 	if err := claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
-		return nil, ErrInvalidInvite
+		return "", ErrInvalidInvite
 	}
-
-	var invite instanceInvite
-	if err := s.db.WithContext(ctx).Where("token = ?", claims.ID).First(&invite).Error; err != nil {
-		return nil, ErrInvalidInvite
-	}
-	if invite.UsedAt != nil {
-		return nil, ErrInvalidInvite
-	}
-
-	return &invite, nil
+	return claims.ID, nil
 }
 
+// ValidateInvite confirms the token is a valid invite that has not been
+// redeemed. It does not mutate any state.
 func (s *storeImpl) ValidateInvite(ctx context.Context, token string) error {
-	_, err := s.checkInvite(ctx, token)
-	return err
-}
-
-func (s *storeImpl) MarkInviteUsed(ctx context.Context, token string) error {
-	invite, err := s.checkInvite(ctx, token)
+	jti, err := s.verifyInvite(ctx, token)
 	if err != nil {
 		return err
 	}
+	var issued struct{}
+	if err := s.invites.Get(ctx, jti, &issued); err != nil {
+		return inviteLookupErr(err)
+	}
+	return nil
+}
 
-	now := time.Now()
-	return s.db.WithContext(ctx).Model(&instanceInvite{}).
-		Where("token = ?", invite.Token).
-		Update("used_at", &now).Error
+// MarkInviteUsed redeems the invite. Consuming its entry is a single
+// statement, so of concurrent redemptions exactly one succeeds.
+func (s *storeImpl) MarkInviteUsed(ctx context.Context, token string) error {
+	jti, err := s.verifyInvite(ctx, token)
+	if err != nil {
+		return err
+	}
+	var issued struct{}
+	return inviteLookupErr(s.invites.Consume(ctx, jti, &issued))
+}
+
+// inviteLookupErr maps a missing entry (never issued, already redeemed, or
+// lapsed) to ErrInvalidInvite and passes other errors through.
+func inviteLookupErr(err error) error {
+	if errors.Is(err, keyval.ErrNotFound) {
+		return ErrInvalidInvite
+	}
+	return err
 }
 
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&instanceSettings{}, &instanceInvite{}}
+	return []any{&instanceSettings{}}
 }

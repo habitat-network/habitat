@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
+	"github.com/habitat-network/habitat/internal/pearapp"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
@@ -67,45 +68,27 @@ type PearServer struct {
 
 // New creates a PearServer with the given dependencies and prepares
 // an internal router for future handler registration.
-func New(
-	domain string,
-	validator authn.RequestValidator,
-	dir identity.Directory,
-	hive hive.Hive,
-	hostKey atcrypto.PrivateKey,
-	blobStore spaces.BlobStore,
-	spacesStore spaces.Store,
-	opensocialStore *opensocial.Store,
-	permStore perms.Store,
-	simpleStore *simplespace.Store,
-	notifyStore notify.Store,
-	clientMeta *clientmetadata.Resolver,
-	mcpGatewayStore mcpgateway.Store,
-	pdsForwarding *forwarding.PDSForwarding,
-	emailDomainStore *emaildomain.Store,
-	searcher *search.Searcher,
-	searchConfig *searchconfig.Store,
-) *PearServer {
+func New(app *pearapp.App) *PearServer {
 	ps := &PearServer{
 		router:           mux.NewRouter(),
-		domain:           domain,
-		validator:        validator,
+		domain:           app.Domain,
+		validator:        app.Validator,
 		decoder:          schema.NewDecoder(),
-		dir:              dir,
-		hive:             hive,
-		hostKey:          hostKey,
-		blobStore:        blobStore,
-		spacesStore:      spacesStore,
-		opensocialStore:  opensocialStore,
-		permStore:        permStore,
-		simpleStore:      simpleStore,
-		notifyStore:      notifyStore,
-		clientMeta:       clientMeta,
-		mcpGatewayStore:  mcpGatewayStore,
-		pdsForwarding:    pdsForwarding,
-		emailDomainStore: emailDomainStore,
-		searcher:         searcher,
-		searchConfig:     searchConfig,
+		dir:              app.DefaultDir,
+		hive:             app.Hive,
+		hostKey:          app.HostKey,
+		blobStore:        app.BlobStore,
+		spacesStore:      app.SpacesStore,
+		opensocialStore:  app.OpensocialStore,
+		permStore:        app.PermStore,
+		simpleStore:      app.SimpleStore,
+		notifyStore:      app.NotifyStore,
+		clientMeta:       app.ClientMetadata,
+		mcpGatewayStore:  app.MCPGatewayStore,
+		pdsForwarding:    app.PDSForwarding,
+		emailDomainStore: app.EmailDomainStore,
+		searcher:         app.Searcher,
+		searchConfig:     app.SearchConfig,
 	}
 	ps.registerRoutes()
 	return ps
@@ -114,4 +97,13 @@ func New(
 // ServeHTTP implements http.Handler.
 func (p *PearServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.router.ServeHTTP(w, r)
+}
+
+// Handles reports whether PearServer's own router has a route for r. It is
+// meant to be used as a mux.MatcherFunc so a parent router delegates exactly
+// the requests PearServer owns, and passes everything else along to its own
+// routes, instead of mounting PearServer under a handful of path prefixes that
+// have to be kept in sync with registerRoutes.
+func (p *PearServer) Handles(r *http.Request, _ *mux.RouteMatch) bool {
+	return p.router.Match(r, &mux.RouteMatch{})
 }
