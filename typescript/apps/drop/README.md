@@ -64,8 +64,9 @@ node -e 'const k=require("crypto").generateKeyPairSync("ec",{namedCurve:"P-256"}
   | pnpm exec wrangler secret put DROP_ASSERTION_KEY
 ```
 
-and add Drop's client ID (`DROP_BASE_URL/oauth/client-metadata.json`) to pear's
-`--builtin_app` / `HABITAT_BUILTIN_APP` allow-list. Without the secret Drop
+and have the org approve Drop (an app access record for its client ID, which
+connecting the org creates). Alternatively add Drop's client ID to pear's
+`--builtin_app` / `HABITAT_BUILTIN_APP` allow-list to trust it for every org. Without the secret Drop
 behaves as before. Every call made as an org is retried once on a fresh session after a 401.
 
 ## Local development

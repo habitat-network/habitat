@@ -116,8 +116,9 @@ node -e 'const k=require("crypto").generateKeyPairSync("ec",{namedCurve:"P-256"}
   | pnpm exec wrangler secret put CHALK_ASSERTION_KEY
 ```
 
-and add Chalk's client ID (`CHALK_BASE_URL/oauth/client-metadata.json`) to pear's
-`--builtin_app` / `HABITAT_BUILTIN_APP` allow-list. Without the secret Chalk
+and have the org approve Chalk (an app access record for its client ID, which
+connecting the org creates). Alternatively add Chalk's client ID to pear's
+`--builtin_app` / `HABITAT_BUILTIN_APP` allow-list to trust it for every org. Without the secret Chalk
 behaves as before. Only orgs a member has connected are refreshed (a member's own lost session still means signing in again), and calls are retried once on a fresh session after a 401.
 
 ### Local development
