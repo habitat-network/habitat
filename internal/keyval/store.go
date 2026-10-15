@@ -71,6 +71,40 @@ func (s *store) Put(ctx context.Context, key string, value any, ttl time.Duratio
 	return nil
 }
 
+// PutIfAbsent upserts only over an expired row: when a live row holds the key
+// the conflict's WHERE fails, no row is written, and RowsAffected is zero.
+func (s *store) PutIfAbsent(
+	ctx context.Context,
+	key string,
+	value any,
+	ttl time.Duration,
+) error {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("marshal keyval value: %w", err)
+	}
+	now := time.Now()
+	res := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "namespace"}, {Name: "key"}},
+		DoUpdates: clause.AssignmentColumns([]string{"value", "expires_at"}),
+		Where: clause.Where{Exprs: []clause.Expression{
+			clause.Expr{SQL: "key_values.expires_at <= ?", Vars: []any{now}},
+		}},
+	}).Create(&entry{
+		Namespace: s.namespace,
+		Key:       key,
+		Value:     raw,
+		ExpiresAt: now.Add(ttl),
+	})
+	if res.Error != nil {
+		return fmt.Errorf("put keyval entry if absent: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return ErrAlreadyExists
+	}
+	return nil
+}
+
 func (s *store) Get(ctx context.Context, key string, dst any) error {
 	if dst == nil {
 		return errNilDst

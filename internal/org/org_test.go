@@ -8,10 +8,13 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	jose "github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
@@ -43,6 +46,7 @@ func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 		passwordProvider,
 		fga,
 		NewEveryoneOrg("pear.example.com"),
+		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 	store := st.(*storeImpl)
@@ -415,4 +419,24 @@ func TestIssueIdentityToken_ExpiryTooLate(t *testing.T) {
 
 	_, err := store.IssueIdentityToken(ctx, org.orgID, adminDID, false, time.Now().AddDate(0, 1, 1))
 	require.ErrorIs(t, err, ErrInvalidTokenExpiry)
+}
+
+// A single-use token with no expiry could be replayed after any record of it
+// lapsed, so it is refused rather than recorded.
+func TestIdentityToken_SingleUseWithoutExpiryRefused(t *testing.T) {
+	ctx := context.Background()
+	store, org := newTestOrg(t)
+
+	sig, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.HS256, Key: testSigningSecret},
+		nil,
+	)
+	require.NoError(t, err)
+	token, err := jwt.Signed(sig).
+		Claims(inviteTokenClaims{Claims: jwt.Claims{ID: "no-expiry"}}).
+		CompactSerialize()
+	require.NoError(t, err)
+
+	err = store.ValidateAdminSignedToken(ctx, org.orgID, token)
+	require.ErrorIs(t, err, ErrInvalidToken)
 }

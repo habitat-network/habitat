@@ -25,6 +25,10 @@ import (
 // differently.
 var ErrNotFound = errors.New("keyval: entry not found")
 
+// ErrAlreadyExists is returned by PutIfAbsent when a live entry already holds
+// the key.
+var ErrAlreadyExists = errors.New("keyval: entry already exists")
+
 // KV is the narrow store surface a consumer that only writes and reads its own
 // state depends on.
 type KV interface {
@@ -41,6 +45,11 @@ type KV interface {
 // namespaced child.
 type Store interface {
 	KV
+	// PutIfAbsent is Put that refuses to replace a live entry, returning
+	// [ErrAlreadyExists] instead. An expired entry counts as absent. The check
+	// and the write are one statement, so concurrent callers of the same key
+	// yield exactly one success.
+	PutIfAbsent(ctx context.Context, key string, value any, ttl time.Duration) error
 	// Delete removes the entry under key, returning [ErrNotFound] if there is
 	// no live entry for it.
 	Delete(ctx context.Context, key string) error

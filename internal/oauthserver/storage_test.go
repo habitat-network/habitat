@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/db/testutil"
@@ -119,4 +120,70 @@ func TestStorePARSessionRoundTrip(t *testing.T) {
 	// Updating or deleting a session that is gone is not an error.
 	require.NoError(t, store.UpdatePARSessionSubject(ctx, "urn:req:1", "did:plc:two"))
 	require.NoError(t, store.DeletePARSession(ctx, "urn:req:1"))
+}
+
+// A refresh token session survives the keyval round trip with the expiry the
+// token endpoint reads back, records the connected app, and is gone once
+// rotated.
+func TestStoreRefreshTokenSessionRoundTrip(t *testing.T) {
+	store, err := newStore(
+		testutil.NewDB(t, Models()), nil, clientmetadata.NewResolver(), keyval_testutil.New(t),
+	)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	clientID := "http://localhost/?redirect_uri=" + url.QueryEscape("http://127.0.0.1/callback")
+	client, err := store.GetClient(ctx, clientID)
+	require.NoError(t, err)
+	expiresAt := time.Now().Add(time.Hour).Truncate(time.Second)
+	req := &fosite.Request{
+		Client: client,
+		Session: &session{
+			Subject:               "did:plc:one",
+			Scopes:                []string{"a", "b"},
+			RefreshTokenExpiresAt: expiresAt,
+		},
+	}
+
+	require.NoError(t, store.CreateRefreshTokenSession(ctx, "rt-sig", "at-sig", req))
+
+	got, err := store.GetRefreshTokenSession(ctx, "rt-sig", nil)
+	require.NoError(t, err)
+	gotSession, ok := got.GetSession().(*session)
+	require.True(t, ok)
+	require.Equal(t, "did:plc:one", gotSession.Subject)
+	require.Equal(t, []string{"a", "b"}, gotSession.Scopes)
+	require.WithinDuration(t, expiresAt, gotSession.RefreshTokenExpiresAt, time.Second)
+
+	var app ConnectedApp
+	require.NoError(t, store.db.First(&app, "subject = ?", "did:plc:one").Error)
+	require.Equal(t, "a b", app.Scopes)
+
+	require.NoError(t, store.RotateRefreshToken(ctx, "request-id", "rt-sig"))
+	_, err = store.GetRefreshTokenSession(ctx, "rt-sig", nil)
+	require.ErrorIs(t, err, fosite.ErrNotFound)
+}
+
+// A refresh token session past its expiry reads as missing.
+func TestStoreRefreshTokenSessionExpired(t *testing.T) {
+	store, err := newStore(
+		testutil.NewDB(t, Models()), nil, clientmetadata.NewResolver(), keyval_testutil.New(t),
+	)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	clientID := "http://localhost/?redirect_uri=" + url.QueryEscape("http://127.0.0.1/callback")
+	client, err := store.GetClient(ctx, clientID)
+	require.NoError(t, err)
+	req := &fosite.Request{
+		Client: client,
+		Session: &session{
+			Subject:               "did:plc:one",
+			RefreshTokenExpiresAt: time.Now().Add(-time.Minute),
+		},
+	}
+	require.NoError(t, store.CreateRefreshTokenSession(ctx, "rt-sig", "at-sig", req))
+
+	_, err = store.GetRefreshTokenSession(ctx, "rt-sig", nil)
+	require.ErrorIs(t, err, fosite.ErrNotFound)
 }

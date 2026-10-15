@@ -92,6 +92,63 @@ func runStoreSuite(t *testing.T, open func(t *testing.T) (Store, *gorm.DB)) {
 		require.ErrorIs(t, s.Delete(t.Context(), "key"), ErrNotFound)
 	})
 
+	t.Run("PutIfAbsentKeepsTheFirstWriter", func(t *testing.T) {
+		s, _ := open(t)
+		require.NoError(
+			t,
+			s.PutIfAbsent(t.Context(), "key", payload{Name: "first", N: 1}, time.Minute),
+		)
+		require.ErrorIs(
+			t,
+			s.PutIfAbsent(t.Context(), "key", payload{Name: "second", N: 2}, time.Minute),
+			ErrAlreadyExists,
+		)
+
+		var got payload
+		require.NoError(t, s.Get(t.Context(), "key", &got))
+		require.Equal(t, payload{Name: "first", N: 1}, got)
+	})
+
+	t.Run("PutIfAbsentReplacesAnExpiredEntry", func(t *testing.T) {
+		s, _ := open(t)
+		require.NoError(t, s.Put(t.Context(), "key", payload{Name: "gone", N: 0}, -time.Second))
+
+		require.NoError(
+			t,
+			s.PutIfAbsent(t.Context(), "key", payload{Name: "fresh", N: 1}, time.Minute),
+		)
+
+		var got payload
+		require.NoError(t, s.Get(t.Context(), "key", &got))
+		require.Equal(t, payload{Name: "fresh", N: 1}, got)
+	})
+
+	t.Run("ConcurrentPutIfAbsentYieldsOneWinner", func(t *testing.T) {
+		s, _ := open(t)
+
+		const writers = 8
+		errs := make([]error, writers)
+		var wg sync.WaitGroup
+		for i := range writers {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				errs[i] = s.PutIfAbsent(t.Context(), "key", payload{N: i}, time.Minute)
+			}()
+		}
+		wg.Wait()
+
+		wins := 0
+		for _, err := range errs {
+			if err == nil {
+				wins++
+			} else {
+				require.ErrorIs(t, err, ErrAlreadyExists)
+			}
+		}
+		require.Equal(t, 1, wins)
+	})
+
 	t.Run("ConsumeReturnsAndRemoves", func(t *testing.T) {
 		s, _ := open(t)
 		want := payload{Name: "single-use", N: 1}

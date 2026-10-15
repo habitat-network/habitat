@@ -112,13 +112,20 @@ func (r *requestRecord) pkceForm() url.Values {
 	return v
 }
 
-type OAuthSession struct {
-	Signature string `gorm:"primaryKey"`
-	ClientID  string
-	Subject   string // DID of the user
-	Scopes    string // Space-separated scopes
-	ExpiresAt time.Time
+// refreshRecord is what a refresh token's keyval entry holds: enough to
+// rebuild the session the token endpoint reads back. The entry expires with the
+// token, so ExpiresAt is only echoed back to fosite.
+type refreshRecord struct {
+	ClientID  string    `json:"client_id"`
+	Subject   string    `json:"subject"`
+	Scopes    string    `json:"scopes"` // space-separated
+	ExpiresAt time.Time `json:"expires_at"`
 }
+
+// refreshKey namespaces refresh token signatures among the other entries in the
+// OAuth server's keyval namespace, which are keyed by authorize code signature
+// and PAR request URI.
+func refreshKey(signature string) string { return "refresh/" + signature }
 
 type ConnectedApp struct {
 	Subject  string `gorm:"primaryKey,uniqueIndex:idx_connected_app"` // user DID
@@ -505,15 +512,19 @@ func (s *store) CreateRefreshTokenSession(
 	)
 
 	sess := request.GetSession().(*session)
-	oauthSession := &OAuthSession{
-		Signature: signature,
+	oauthSession := refreshRecord{
 		ClientID:  request.GetClient().GetID(),
 		Subject:   sess.Subject,
 		Scopes:    strings.Join(sess.Scopes, " "),
 		ExpiresAt: sess.GetExpiresAt(fosite.RefreshToken),
 	}
 
-	err := s.db.WithContext(ctx).Create(oauthSession).Error
+	err := s.kv.Put(
+		ctx,
+		refreshKey(signature),
+		oauthSession,
+		time.Until(oauthSession.ExpiresAt),
+	)
 	if err != nil {
 		return err
 	}
@@ -529,7 +540,7 @@ func (s *store) DeleteRefreshTokenSession(ctx context.Context, signature string)
 	ctx, span := tracer.Start(ctx, "DeleteRefreshTokenSession")
 	defer span.End()
 	span.SetAttributes(attribute.String("refresh_signature", signature))
-	return s.db.WithContext(ctx).Delete(&OAuthSession{}, "signature = ?", signature).Error
+	return ignoreNotFound(s.kv.Delete(ctx, refreshKey(signature)))
 }
 
 // GetRefreshTokenSession implements oauth2.CoreStorage.
@@ -542,11 +553,12 @@ func (s *store) GetRefreshTokenSession(
 	defer span.End()
 	span.SetAttributes(attribute.String("refresh_signature", signature))
 
-	var oauthSession OAuthSession
-
-	err := s.db.WithContext(ctx).First(&oauthSession, "signature = ?", signature).Error
-	if err != nil {
-		return nil, errors.Join(fosite.ErrNotFound, err)
+	var oauthSession refreshRecord
+	if err := s.kv.Get(ctx, refreshKey(signature), &oauthSession); err != nil {
+		if errors.Is(err, keyval.ErrNotFound) {
+			return nil, errors.Join(fosite.ErrNotFound, err)
+		}
+		return nil, err
 	}
 
 	client, err := s.GetClient(ctx, oauthSession.ClientID)
@@ -595,5 +607,5 @@ func (s *store) RevokeRefreshToken(_ context.Context, _ string) error {
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&OAuthSession{}, &ConnectedApp{}, &RegisteredClient{}}
+	return []any{&ConnectedApp{}, &RegisteredClient{}}
 }
