@@ -46,6 +46,14 @@ export interface JwtBearerToken {
 // allow-list or its published jwks don't carry the assertion key.
 export class JwtBearerError extends Error {}
 
+// trimTrailingSlashes is a loop rather than url.replace(/\/+$/, ""), which
+// CodeQL flags as polynomial-time on a long run of slashes.
+export function trimTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url[end - 1] === "/") end--;
+  return url.slice(0, end);
+}
+
 function b64url(bytes: ArrayBuffer | Uint8Array): string {
   let s = "";
   for (const b of new Uint8Array(bytes)) s += String.fromCharCode(b);
@@ -93,7 +101,7 @@ export async function requestJwtBearerToken(
   p: JwtBearerParams,
 ): Promise<JwtBearerToken> {
   const doFetch = p.fetch ?? fetch;
-  const base = p.habitatUrl.replace(/\/+$/, "");
+  const base = trimTrailingSlashes(p.habitatUrl);
 
   const metaRes = await doFetch(
     `${base}/.well-known/oauth-authorization-server`,

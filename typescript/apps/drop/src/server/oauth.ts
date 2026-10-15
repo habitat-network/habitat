@@ -10,6 +10,7 @@ import {
   parseAssertionKey,
   publicJwk,
   requestJwtBearerToken,
+  trimTrailingSlashes,
 } from "internal/jwtBearer";
 import type { Agent } from "@atproto/lex";
 import type { OAuthSession, Session } from "@atproto/oauth-client";
@@ -157,7 +158,7 @@ async function mintOrgSession(env: Env, orgDid: string): Promise<void> {
     tokenSet: {
       iss: tok.issuer,
       sub: tok.sub as Session["tokenSet"]["sub"],
-      aud: env.DROP_HABITAT_URL.replace(/\/+$/, ""),
+      aud: trimTrailingSlashes(env.DROP_HABITAT_URL),
       scope: tok.scope as Session["tokenSet"]["scope"],
       access_token: tok.accessToken,
       refresh_token: tok.refreshToken,
