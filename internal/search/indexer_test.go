@@ -151,13 +151,18 @@ func (f *fakeIndex) Cursors(context.Context) ([]RepoCursor, error) {
 	return out, nil
 }
 
-// texts returns the indexed text of each document, by URI.
+// texts returns the indexed text of each document with its blobs' text, by
+// URI.
 func (f *fakeIndex) texts() map[habitat_syntax.SpaceRecordURI]string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	out := map[habitat_syntax.SpaceRecordURI]string{}
 	for u, d := range f.docs {
-		out[u] = d.Text
+		text := d.Text
+		for _, b := range d.Blobs {
+			text += " " + b.Text
+		}
+		out[u] = text
 	}
 	return out
 }

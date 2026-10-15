@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -540,12 +539,10 @@ func (x *Indexer) apply(
 			continue
 		}
 		text := ExtractText(op.Value)
-		// Blob content is part of the record's text, so the document keeps the
+		// Blob content is part of the record's document, so it keeps the
 		// record's access and collection and hydrates as the record.
-		if blobText := x.blobText(ctx, op.Value); blobText != "" {
-			text = strings.TrimSpace(text + " " + blobText)
-		}
-		if text == "" {
+		blobs := x.blobTexts(ctx, op.Value)
+		if text == "" && len(blobs) == 0 {
 			// Nothing to search or embed, and embeddings APIs reject empty
 			// input. Deleting also drops a version of the record that had text.
 			deleted = append(deleted, uri)
@@ -558,7 +555,12 @@ func (x *Indexer) apply(
 			Collection: op.Collection,
 			Rev:        syntax.TID(op.Rev),
 			Text:       text,
-			Access:     *access,
+			Blobs:      blobs,
+			// Collections will choose these through their search config; until
+			// then a record is about its owner, and dated by its own fields.
+			Users:  []syntax.DID{repo},
+			Date:   recordDate(op.Value),
+			Access: *access,
 		})
 	}
 	if err := x.index.Put(ctx, docs...); err != nil {
