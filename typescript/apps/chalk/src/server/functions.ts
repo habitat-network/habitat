@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { DidString } from "@atproto/syntax";
+import type { Actor } from "internal";
 import { env } from "cloudflare:workers";
 import {
   commentsForDoc,
@@ -20,6 +21,7 @@ import {
   createDocSpace,
   docRole,
   fetchOrgName,
+  fetchProfiles,
   listMyOrgIds,
   deleteUserGrant,
   listUserGrants,
@@ -58,6 +60,17 @@ import { watchDocSpacesOf, watchSpaces } from "./sync";
 export const getCaller = createServerFn({ method: "GET" }).handler(async () =>
   requireSession(),
 );
+
+// getProfiles resolves dids to the profiles shown wherever the UI displays a
+// user: as members of the member's current org in org mode, else from
+// Bluesky (see fetchProfiles). A did with no profile is simply absent.
+export const getProfiles = createServerFn({ method: "POST" })
+  .validator((input: { dids: string[] }) => input)
+  .handler(async ({ data }): Promise<Actor[]> => {
+    const { did, currentOrg } = await requireSession();
+    if (data.dids.length === 0) return [];
+    return fetchProfiles(new HabitatClient(env, did), currentOrg, data.dids);
+  });
 
 // signOut clears the session cookie. The session cookie is httpOnly, so
 // the client can't drop it itself — it has to go through the server.

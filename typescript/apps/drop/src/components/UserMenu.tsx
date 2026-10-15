@@ -31,7 +31,12 @@ export function UserMenu({ member }: { member: Member }) {
         description: error.message,
       }),
   });
-  const actor = { did: member.did, handle: member.handle ?? undefined };
+  const actor = {
+    did: member.did,
+    handle: member.handle ?? undefined,
+    displayName: member.displayName ?? undefined,
+    avatar: member.avatar ?? undefined,
+  };
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
@@ -40,7 +45,8 @@ export function UserMenu({ member }: { member: Member }) {
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="truncate">
-            {member.handle ? `@${member.handle}` : member.did}
+            {member.displayName ??
+              (member.handle ? `@${member.handle}` : member.did)}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

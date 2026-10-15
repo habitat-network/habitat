@@ -137,7 +137,11 @@ export class HabitatClient {
     if (method === "GET") {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(payload)) {
-        if (v !== undefined && v !== null) qs.set(k, String(v));
+        if (v === undefined || v === null) continue;
+        // An array param is sent as repeated keys (?dids=a&dids=b), the
+        // XRPC encoding, rather than comma-joined by String().
+        if (Array.isArray(v)) v.forEach((item) => qs.append(k, String(item)));
+        else qs.set(k, String(v));
       }
       path = `${path}?${qs.toString()}`;
     } else {

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { Actor } from "internal";
 import {
   ensureValidDid,
   type DidString,
@@ -16,6 +17,7 @@ import {
 } from "../db";
 import {
   memberSession,
+  orgProfiles,
   requireMember,
   requireOrg,
   resolveHandle,
@@ -81,12 +83,25 @@ export const completeOAuth = createServerFn({ method: "POST" })
 export interface Member {
   did: string;
   handle: string | null;
+  displayName: string | null;
+  avatar: string | null;
 }
 
 export const getMember = createServerFn({ method: "GET" }).handler(
   async (): Promise<Member> => {
-    const { did } = await requireMember();
-    return { did, handle: await resolveHandle(env, did) };
+    const { did, currentOrg } = await requireMember();
+    // Inside an org the member is shown the way the org's other members see
+    // them. Before an org is picked (the org picker itself) there's no org to
+    // ask getProfiles about, so only the handle is resolved.
+    const profile = currentOrg
+      ? (await orgProfiles(env, did, currentOrg, [did])).get(did)
+      : undefined;
+    return {
+      did,
+      handle: profile?.handle ?? (await resolveHandle(env, did)),
+      displayName: profile?.displayName ?? null,
+      avatar: profile?.avatar ?? null,
+    };
   },
 );
 
@@ -195,25 +210,25 @@ export const startOrgConnect = createServerFn({ method: "POST" })
   });
 
 export interface FileView extends FileSummary {
-  uploaderHandle: string | null;
+  // The uploader's profile as a member of the org; null when the file has no
+  // recorded uploader. A bare { did } when their profile couldn't be resolved.
+  uploader: Actor | null;
 }
 
 // listFiles returns the current org's synced files, newest first.
 export const listFiles = createServerFn({ method: "GET" }).handler(
   async (): Promise<FileView[]> => {
-    const { currentOrg } = await requireOrg();
+    const { did, currentOrg } = await requireOrg();
     const rows = await filesForOrg(getDb(env), currentOrg);
     const uploaders = [
       ...new Set(rows.flatMap((r) => (r.uploadedBy ? [r.uploadedBy] : []))),
     ];
-    const handles = new Map(
-      await Promise.all(
-        uploaders.map(async (d) => [d, await resolveHandle(env, d)] as const),
-      ),
-    );
+    const profiles = await orgProfiles(env, did, currentOrg, uploaders);
     return rows.map((r) => ({
       ...r,
-      uploaderHandle: r.uploadedBy ? (handles.get(r.uploadedBy) ?? null) : null,
+      uploader: r.uploadedBy
+        ? (profiles.get(r.uploadedBy) ?? { did: r.uploadedBy })
+        : null,
     }));
   },
 );

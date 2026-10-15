@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserAvatar } from "internal";
 import { Button, Textarea, toast } from "internal/components/ui";
 import { X } from "lucide-react";
-import { useActors } from "internal/hooks";
+import { useChalkActors } from "@/hooks/useChalkActors";
 import {
   createComment,
   createReply,
@@ -80,7 +80,7 @@ export function CommentSidebar({
       ]),
     [comments],
   );
-  const getActor = useActors(authorDids);
+  const getActor = useChalkActors(authorDids);
 
   const [reply, setReply] = useState("");
 

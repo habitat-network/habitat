@@ -1,5 +1,7 @@
 import { redirect } from "@tanstack/react-router";
 import { SpaceRef, type DidString } from "@atproto/syntax";
+import { getProfiles as getBskyProfiles } from "internal/bskyPublicApi";
+import type { Actor } from "internal";
 import { useAppSession } from "./session";
 import { findUnauthorizedError, type HabitatClient } from "./habitatClient";
 import { commentsSpaceUri } from "./comments.server";
@@ -85,6 +87,53 @@ export async function fetchOrgName(
   } catch {
     return null;
   }
+}
+
+// PROFILES_PER_REQUEST is getProfiles' per-call cap on dids (its lexicon's
+// maxLength).
+const PROFILES_PER_REQUEST = 100;
+
+// fetchProfiles resolves dids to profiles for display. In org mode that's
+// Habitat's network.habitat.opensocial.getProfiles, so members are shown the
+// way the org's other members see them; dids that aren't members of the org
+// are omitted by the server. Personal mode has no org to ask, so it falls
+// back to the public Bluesky profiles.
+export async function fetchProfiles(
+  client: HabitatClient,
+  currentOrg: string | undefined,
+  dids: string[],
+): Promise<Actor[]> {
+  const unique = [...new Set(dids)];
+  if (!currentOrg) return getBskyProfiles(unique);
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += PROFILES_PER_REQUEST) {
+    chunks.push(unique.slice(i, i + PROFILES_PER_REQUEST));
+  }
+  const responses = await Promise.all(
+    chunks.map((chunk) =>
+      client.call<{
+        profiles: {
+          did: string;
+          handle: string;
+          displayName?: string;
+          avatarUrl?: string;
+        }[];
+      }>(
+        "network.habitat.opensocial.getProfiles",
+        "GET",
+        { org: currentOrg, dids: chunk },
+        { atprotoProxy: `${currentOrg}#habitat` },
+      ),
+    ),
+  );
+  return responses.flatMap(({ profiles }) =>
+    profiles.map((p) => ({
+      did: p.did,
+      handle: p.handle,
+      displayName: p.displayName,
+      avatar: p.avatarUrl,
+    })),
+  );
 }
 
 // orgMembersSpaceUri returns the URI of orgDid's own
