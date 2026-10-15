@@ -1,8 +1,8 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Actor, UserAvatar, type AuthManager } from "internal";
 import { Button } from "internal/components/ui";
-import { OrgSwitcher } from "@/components/OrgSwitcher";
+import { OrgSwitcher, useCurrentOrg } from "@/components/OrgSwitcher";
 import { profileQueryOptions } from "@/queries/profiles";
 
 interface HeaderProps {
@@ -12,7 +12,7 @@ interface HeaderProps {
 }
 
 const SettingsLink = () => {
-  const { org } = useParams({ strict: false });
+  const org = useCurrentOrg();
   if (!org) return null;
   return (
     <li>
@@ -36,7 +36,7 @@ const ProfileAvatar = ({
   profile: Actor;
   authManager: AuthManager;
 }) => {
-  const { org } = useParams({ strict: false });
+  const org = useCurrentOrg();
   // Habitat's getProfiles is scoped to an org, so outside one the avatar falls
   // back to the bare DID.
   const { data } = useQuery({
@@ -57,27 +57,13 @@ const ProfileAvatar = ({
   );
 };
 
-// SpacesLink goes to the current org's spaces when the route names an org,
-// and to the all-spaces page otherwise.
-const SpacesLink = () => {
-  const { org } = useParams({ strict: false });
-  return (
-    <li>
-      <Button
-        variant="link"
-        render={
-          org ? (
-            <Link to="/spaces/$spaceOwner" params={{ spaceOwner: org }} />
-          ) : (
-            <Link to="/spaces" />
-          )
-        }
-      >
-        Spaces
-      </Button>
-    </li>
-  );
-};
+const SpacesLink = () => (
+  <li>
+    <Button variant="link" render={<Link to="/spaces" />}>
+      Spaces
+    </Button>
+  </li>
+);
 
 const Header = ({ profile, authManager, onLogout }: HeaderProps) => {
   return (
