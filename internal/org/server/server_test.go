@@ -18,6 +18,7 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/instance"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	orgtestutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/stretchr/testify/require"
@@ -476,6 +477,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 	instanceStore, err := instance.NewStore(
 		pear_testutil.NewPearDB(t),
+		keyval_testutil.New(t),
 		[]byte("key"),
 		"passhash",
 		"pear.example.com",

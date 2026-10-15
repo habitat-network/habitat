@@ -73,9 +73,18 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if err != nil {
 		return nil, fmt.Errorf("setup instance admin password: %w", err)
 	}
+	// Requires the migrations (run by `pear migrate`) to have created the table.
+	// Failing here is fatal: a store that silently failed to build would turn
+	// every Put into a runtime error later.
+	kv, err := keyval.New(ctx, database)
+	if err != nil {
+		return nil, fmt.Errorf("setup keyval store: %w", err)
+	}
+
 	// Reuse the oauth server secret
 	instanceAdminStore, err := instance.NewStore(
 		database.WithContext(ctx),
+		kv.Namespace("instance_invite"),
 		oauthSecret,
 		fDomain,
 		passwordHash,
@@ -167,14 +176,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	emailDomainStore, err := emaildomain.NewStore(database.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("setup email domain store: %w", err)
-	}
-
-	// Requires the migrations (run by `pear migrate`) to have created the table.
-	// Failing here is fatal: a store that silently failed to build would turn
-	// every Put into a runtime error later.
-	kv, err := keyval.New(ctx, database)
-	if err != nil {
-		return nil, fmt.Errorf("setup keyval store: %w", err)
 	}
 
 	loginRouter := &org.LoginRouter{
