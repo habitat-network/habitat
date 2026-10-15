@@ -36,7 +36,7 @@ resource "google_cloudbuild_trigger" "pear" {
   build {
     images  = ["$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA"]
     tags    = ["gcp-cloud-build-deploy-cloud-run", "gcp-cloud-build-deploy-cloud-run-managed", "habitat"]
-    timeout = "600s"
+    timeout = "1800s"
 
     substitutions = {
       _AR_HOSTNAME   = "us-west1-docker.pkg.dev"
