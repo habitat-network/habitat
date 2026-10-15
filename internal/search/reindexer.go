@@ -95,6 +95,7 @@ func (r *Reindexer) Reindex(ctx context.Context, source RepoSource, perms PermSo
 			return err
 		}
 	}
+	slog.InfoContext(ctx, "search: reindex done", "index", r.uid)
 	return nil
 }
 
@@ -125,6 +126,7 @@ func (r *Reindexer) build(
 			if caughtUp {
 				return errCaughtUp
 			}
+			slog.InfoContext(egCtx, "search: waiting for new index to catch up")
 		}
 	})
 	if err := eg.Wait(); !errors.Is(err, errCaughtUp) {

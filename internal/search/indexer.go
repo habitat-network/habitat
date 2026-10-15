@@ -207,7 +207,9 @@ func (x *Indexer) idle() bool {
 
 // CaughtUp reports whether the index holds every repo up to its head and no
 // space that was deleted, with nothing left to do: what a new index must
-// reach before searches move to it.
+// reach before searches move to it. When it hasn't, it queues what is left,
+// so an index that misses notifications, such as one a reindex builds,
+// catches up without waiting for the next sweep.
 func (x *Indexer) CaughtUp(ctx context.Context, source RepoSource) (bool, error) {
 	if !x.idle() {
 		return false, nil
@@ -215,6 +217,12 @@ func (x *Indexer) CaughtUp(ctx context.Context, source RepoSource) (bool, error)
 	stale, deleted, err := x.staleWork(ctx, source)
 	if err != nil {
 		return false, err
+	}
+	for _, j := range stale {
+		x.enqueue(j)
+	}
+	for _, space := range deleted {
+		x.enqueue(job{kind: jobDeleteSpace, space: space})
 	}
 	// The queue may have filled while the index was compared, but then the
 	// next check sees it.
