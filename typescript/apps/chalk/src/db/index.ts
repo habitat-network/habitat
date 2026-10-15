@@ -233,6 +233,17 @@ export async function upsertConnectedOrg(
     });
 }
 
+// isConnectedOrg reports whether any member has connected orgDid, i.e. chalk
+// holds (or held) a session for it.
+export async function isConnectedOrg(db: Db, orgDid: string): Promise<boolean> {
+  const [row] = await db
+    .select({ orgDid: connectedOrgs.orgDid })
+    .from(connectedOrgs)
+    .where(eq(connectedOrgs.orgDid, orgDid))
+    .limit(1);
+  return row !== undefined;
+}
+
 // connectedOrgNames maps each already-connected orgDid (among orgIds) to
 // the name recorded for it — an org only needs the OAuth admin-approval
 // round-trip once (any admin's connection covers the whole org, since it's

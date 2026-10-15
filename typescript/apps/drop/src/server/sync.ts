@@ -18,7 +18,7 @@ import {
   putFileRecord,
   uploadBlob,
 } from "./habitat";
-import { createOAuthClient } from "./oauth";
+import { orgAgent } from "./oauth";
 import { FileSink } from "./sink";
 
 // Drop has no long-lived process: every SpaceSyncer here lives for one
@@ -67,7 +67,6 @@ function newSyncer(
   options: Partial<CreateSpaceSyncerOptions> = {},
 ): PromiseSpaceSyncer {
   const db = getDb(env);
-  const oauth = createOAuthClient(env);
   return createSpaceSyncer({
     serviceDid: serviceDid(env),
     // Resolve space authorities (org DIDs) through pear too, not just OAuth.
@@ -81,7 +80,7 @@ function newSyncer(
     delegation: {
       issue: async (space) => {
         const authority = SpaceRef.parse(space).spaceDid;
-        return getDelegationToken(await oauth.restore(authority), space);
+        return getDelegationToken(await orgAgent(env, authority), space);
       },
     },
     ...options,
@@ -110,7 +109,7 @@ function finishInBackground(
 // connectOrg starts syncing every file space the org already owns. Called
 // once an org's session is in place.
 export async function connectOrg(env: Env, orgDid: DidString): Promise<void> {
-  const agent = await createOAuthClient(env).restore(orgDid);
+  const agent = await orgAgent(env, orgDid);
   const spaces = await listOrgFileSpaces(agent, orgDid);
   const syncer = requestSyncer(env);
   try {
@@ -130,7 +129,7 @@ export async function upload(
   env: Env,
   input: UploadInput,
 ): Promise<{ space: SpaceRefString; syncError?: string }> {
-  const agent = await createOAuthClient(env).restore(input.orgDid);
+  const agent = await orgAgent(env, input.orgDid);
   const space = await createFileSpace(agent, input.orgDid);
   const { blob } = await uploadBlob(agent, input.bytes, input.mimeType);
   await putFileRecord(agent, input.orgDid, space, {
@@ -165,7 +164,7 @@ export async function deleteFile(
   env: Env,
   input: { orgDid: DidString; space: SpaceRefString },
 ): Promise<void> {
-  const agent = await createOAuthClient(env).restore(input.orgDid);
+  const agent = await orgAgent(env, input.orgDid);
   await deleteFileRecord(agent, input.orgDid, input.space);
   const syncer = requestSyncer(env);
   try {

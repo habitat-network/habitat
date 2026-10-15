@@ -28,6 +28,10 @@
       "types": "./src/hooks/index.ts",
       "import": "./src/hooks/index.ts"
     },
+    "./jwtBearer": {
+      "types": "./src/jwtBearer.ts",
+      "import": "./src/jwtBearer.ts"
+    },
     "./spaceSync": {
       "types": "./src/spaceSync/index.ts",
       "import": "./src/spaceSync/index.ts"

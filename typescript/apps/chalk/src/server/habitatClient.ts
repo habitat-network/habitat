@@ -101,25 +101,50 @@ export class HabitatClient {
   }
 
   // agent restores the DID's OAuth session once per client, lazily: most
-  // clients are built per request, and some never make a call at all.
+  // clients are built per request, and some never make a call at all. A
+  // session that can't be restored is replaced through the JWT bearer grant
+  // when the DID is an org chalk may mint one for (see refreshOrgSession).
   //
   // ./oauth is imported dynamically because DocRoom imports this module, and
   // so does the Worker entry the tests load before any test file runs: a
   // static import would be evaluated then, out of reach of the vi.mock()
   // the tests swap in a fake OAuth client with (test/fakeOAuth.ts).
   private agent(): Promise<OAuthSession> {
-    this.session ??= import("./oauth")
-      .then(({ createOAuthClient }) =>
-        createOAuthClient(this.env).restore(this.did),
-      )
-      .catch((err: unknown) => {
-        throw new UnauthorizedError(
-          this.did,
-          `restoring the OAuth session for ${this.did} failed`,
-          { cause: err },
-        );
-      });
+    this.session ??= this.restore().catch((err: unknown) => {
+      throw new UnauthorizedError(
+        this.did,
+        `restoring the OAuth session for ${this.did} failed`,
+        { cause: err },
+      );
+    });
     return this.session;
+  }
+
+  private async restore(): Promise<OAuthSession> {
+    const { createOAuthClient, refreshOrgSession } = await import("./oauth");
+    try {
+      return await createOAuthClient(this.env).restore(this.did);
+    } catch (err) {
+      if (!(await refreshOrgSession(this.env, this.did))) throw err;
+      return createOAuthClient(this.env).restore(this.did);
+    }
+  }
+
+  // fetchHandler sends a request through the DID's session. A 401 means
+  // pear no longer accepts it even after the OAuth client's own refresh, so
+  // where the JWT bearer grant can mint a replacement the request is retried
+  // once on it. The caller still sees the 401 if it can't, or the retry
+  // fails too.
+  private async fetchHandler(
+    path: string,
+    init: RequestInit,
+  ): Promise<Response> {
+    const res = await (await this.agent()).fetchHandler(path, init);
+    if (res.status !== 401) return res;
+    const { createOAuthClient, refreshOrgSession } = await import("./oauth");
+    if (!(await refreshOrgSession(this.env, this.did))) return res;
+    this.session = createOAuthClient(this.env).restore(this.did);
+    return (await this.session).fetchHandler(path, init);
   }
 
   async call<T>(
@@ -144,9 +169,7 @@ export class HabitatClient {
       body = JSON.stringify(payload);
       headers["content-type"] = "application/json";
     }
-    const res = await (
-      await this.agent()
-    ).fetchHandler(path, { method, body, headers });
+    const res = await this.fetchHandler(path, { method, body, headers });
     if (res.status === 401) {
       throw new UnauthorizedError(
         this.did,
@@ -173,13 +196,14 @@ export class HabitatClient {
     bytes: Uint8Array,
     mimeType: string,
   ): Promise<{ blob: unknown; cid: string }> {
-    const res = await (
-      await this.agent()
-    ).fetchHandler("/xrpc/network.habitat.repo.uploadBlob", {
-      method: "POST",
-      headers: { "content-type": mimeType },
-      body: bytes as BodyInit,
-    });
+    const res = await this.fetchHandler(
+      "/xrpc/network.habitat.repo.uploadBlob",
+      {
+        method: "POST",
+        headers: { "content-type": mimeType },
+        body: bytes as BodyInit,
+      },
+    );
     if (res.status === 401) {
       throw new UnauthorizedError(
         this.did,
