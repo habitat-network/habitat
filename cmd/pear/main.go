@@ -242,7 +242,10 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/admin", app.InstanceAdminServer.ServeAdminHome).Methods("GET")
 	mux.HandleFunc("/admin/config", app.InstanceAdminServer.ServeConfig).Methods("GET")
 	mux.HandleFunc("/xrpc/network.habitat.admin.getSettings", app.InstanceAdminServer.GetSettings)
-	mux.HandleFunc("/xrpc/network.habitat.admin.updateSettings", app.InstanceAdminServer.UpdateSettings)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.admin.updateSettings",
+		app.InstanceAdminServer.UpdateSettings,
+	)
 	mux.HandleFunc("/xrpc/network.habitat.admin.issueInvite", app.InstanceAdminServer.IssueInvite)
 	mux.HandleFunc(
 		"/xrpc/network.habitat.instance.describeInstance",
@@ -281,7 +284,10 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/opensocial", app.OAuthServer.HandleOpensocial)
 	mux.HandleFunc("/oauth/token", app.OAuthServer.HandleToken)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", app.OAuthServer.ListConnectedApps)
-	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", app.PasswordProvider.HandlePasswordLogin)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.org.loginMember",
+		app.PasswordProvider.HandlePasswordLogin,
+	)
 
 	// MCP (Model Context Protocol) server. Its endpoints match what MCP
 	// clients expect (dynamic client registration, no PAR) but share
