@@ -229,7 +229,7 @@ func TestClient_SendJWTTokenRequest(t *testing.T) {
 // granted it app access.
 func TestClient_SendJWTTokenRequestOrgAppAccess(t *testing.T) {
 	orgs := opensocial_testutil.NewTestStore(t)
-	orgDID, err := orgs.Store.NewOrg(t.Context(), "acme", "did:web:admin.example")
+	orgDID, err := orgs.NewOrg(t.Context(), "acme", "did:web:admin.example")
 	require.NoError(t, err)
 	subject := syntax.DID(orgDID)
 
@@ -250,7 +250,7 @@ func TestClient_SendJWTTokenRequestOrgAppAccess(t *testing.T) {
 	_, err = client.SendJWTTokenRequest(t.Context(), subject.String())
 	require.Error(t, err, "no app access record yet")
 
-	require.NoError(t, orgs.Store.GrantAppAccess(
+	require.NoError(t, orgs.GrantAppAccess(
 		t.Context(), subject, client.Config.ClientID, []string{"atproto"},
 	))
 	sess, err := client.SendJWTTokenRequest(t.Context(), subject.String())
