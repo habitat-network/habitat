@@ -272,7 +272,7 @@ func (o *OAuthServer) HandleMCPAuthorizeSubmit(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	redirect, state, providerState, err := o.loginRouter.Authorize(ctx, did)
+	redirect, state, providerStateKey, err := o.loginRouter.Authorize(ctx, did)
 	if err != nil {
 		httpx.WriteError(
 			ctx, w, "InvalidRequest", "Couldn't sign in with that handle. Check it and try again.",
@@ -280,7 +280,7 @@ func (o *OAuthServer) HandleMCPAuthorizeSubmit(w http.ResponseWriter, r *http.Re
 		)
 		return
 	}
-	saveLoginHop(session, requestKey, state, providerState)
+	saveLoginHop(session, requestKey, state, providerStateKey)
 	if err := session.Save(r, w); err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to save cookie: %w", err))
 		return

@@ -15,6 +15,8 @@ import (
 
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/keyval"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 )
 
 // makeIDToken builds a Google-shaped ID token carrying claims, unsigned
@@ -50,19 +52,21 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 		"https://example.com/callback",
 		testutil.NewDB(t, Models()),
 		encrypt.TestKey,
+		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
+	gp := p.(*googleProvider)
 
-	redirect, _, state, err := p.Authorize(t.Context(), "user@gmail.com")
+	redirect, _, key, err := p.Authorize(t.Context(), "user@gmail.com")
 	require.NoError(t, err)
 	require.Contains(t, redirect, "https://accounts.google.com/o/oauth2/v2/auth")
 	require.Contains(t, redirect, "login_hint=user%40gmail.com")
 	require.Contains(t, redirect, "code_challenge=")
 	require.Contains(t, redirect, "access_type=offline")
-	require.NotEmpty(t, state)
+	require.NotEmpty(t, key)
 
 	var s googleProviderState
-	require.NoError(t, json.Unmarshal(state, &s))
+	require.NoError(t, gp.kv.Get(t.Context(), key, &s))
 	require.NotEmpty(t, s.Verifier)
 	require.NotEmpty(t, s.State)
 }
@@ -75,6 +79,7 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 		"https://example.com/callback",
 		testutil.NewDB(t, Models()),
 		encrypt.TestKey,
+		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 
@@ -107,17 +112,17 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	gp := p.(*googleProvider)
 	gp.oauthCfg.Endpoint.TokenURL = tokenServer.URL
 
-	_, _, state, err := p.Authorize(t.Context(), "")
+	_, _, key, err := p.Authorize(t.Context(), "")
 	require.NoError(t, err)
 
 	var gs googleProviderState
-	require.NoError(t, json.Unmarshal(state, &gs))
+	require.NoError(t, gp.kv.Get(t.Context(), key, &gs))
 
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, tokenServer.Client())
 	loginID, profile, err := p.Exchange(
 		ctx,
 		url.Values{"code": {"auth-code"}, "state": {gs.State}},
-		state,
+		key,
 	)
 	require.NoError(t, err)
 	require.Equal(t, "user@gmail.com", loginID)
@@ -128,6 +133,14 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	require.Equal(t, "ya29.google-access-token", creds.AccessToken)
 	require.Equal(t, "1//google-refresh-token", creds.RefreshToken)
 	require.Equal(t, "user@gmail.com", creds.Email)
+
+	// The state is single-use: replaying the same callback must fail.
+	_, _, err = p.Exchange(
+		ctx,
+		url.Values{"code": {"auth-code"}, "state": {gs.State}},
+		key,
+	)
+	require.ErrorIs(t, err, keyval.ErrNotFound)
 	require.Equal(t, idToken, creds.IDToken)
 }
 

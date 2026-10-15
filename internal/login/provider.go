@@ -20,14 +20,16 @@ type Profile struct {
 type Provider interface {
 	// Authorize starts the auth flow and returns the redirect URL, the OAuth
 	// `state` the callback will echo back (empty if the provider has none),
-	// plus opaque provider-specific state to be stored in the session flash.
-	// The echoed state lets callers tell concurrent, nested flows apart.
+	// plus an opaque key into the provider's own store, under which it saved
+	// whatever state Exchange will need (empty if it saved none). The caller
+	// carries only the key, in the session flash. The echoed state lets
+	// callers tell concurrent, nested flows apart.
 	// loginID is the provider-specific identifier stored on the Member
 	// (e.g. password hash, public ATProto DID, google email).
 	Authorize(
 		ctx context.Context,
 		loginHint string,
-	) (redirectURI string, state string, providerState []byte, err error)
+	) (redirectURI string, state string, providerStateKey string, err error)
 
 	// Exchange exchanges the callback code for credentials and should persist
 	// whatever credentials the provider acquires. The query parameters from the
@@ -38,6 +40,6 @@ type Provider interface {
 	Exchange(
 		ctx context.Context,
 		query url.Values,
-		state []byte,
+		providerStateKey string,
 	) (loginId string, profile Profile, err error)
 }

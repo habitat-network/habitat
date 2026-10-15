@@ -26,6 +26,7 @@ import (
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/nango"
@@ -168,8 +169,21 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		return nil, fmt.Errorf("setup email domain store: %w", err)
 	}
 
+	// Requires the migrations (run by `pear migrate`) to have created the table.
+	// Failing here is fatal: a store that silently failed to build would turn
+	// every Put into a runtime error later.
+	kv, err := keyval.New(ctx, database)
+	if err != nil {
+		return nil, fmt.Errorf("setup keyval store: %w", err)
+	}
+
 	loginRouter := &org.LoginRouter{
-		Pds:        login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
+		Pds: login.NewPDSProvider(
+			oauthClient,
+			pdsCredStore,
+			defaultDir,
+			kv.Namespace("login"),
+		),
 		Password:   passwordProvider,
 		OrgStore:   orgStore,
 		EmailStore: emailDomainStore,
@@ -183,6 +197,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 			"https://"+domain+"/oauth-callback",
 			database.WithContext(ctx),
 			credKey,
+			kv.Namespace("login"),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("setup google login provider: %w", err)
@@ -284,6 +299,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		// OAuth server needs privileged access to lookup hive-hosted identities
 		hiveDir,
 		database.WithContext(ctx),
+		kv.Namespace("oauth"),
 		meter,
 		orgStore,
 		"https://"+domain,
