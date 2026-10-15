@@ -25,6 +25,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
+	"github.com/olgasafonova/mcp-otel-go/mcpotel"
 )
 
 // NangoClient is the subset of Nango's backend API needed to reach a
@@ -175,6 +176,10 @@ func New(
 			}
 		}
 		mcpServer := mcp.NewServer(impl, serverOpts)
+		mcpServer.AddReceivingMiddleware(mcpotel.Middleware(mcpotel.Config{
+			ServiceName:    "habitat-mcp",
+			ServiceVersion: "0.0.1",
+		}))
 		mcp.AddTool(mcpServer, &mcp.Tool{
 			Name: "get_record",
 			Description: "Get a single Habitat record by its space record URI, returned as " +
