@@ -7,6 +7,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { Toaster } from "internal/components/ui";
+import PostHogProvider from "../integrations/posthog/provider";
 import "../index.css";
 
 interface RouterContext {
@@ -29,9 +30,11 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           <HeadContent />
         </head>
         <body className="bg-background text-foreground antialiased">
-          <QueryClientProvider client={queryClient}>
-            <Outlet />
-          </QueryClientProvider>
+          <PostHogProvider>
+            <QueryClientProvider client={queryClient}>
+              <Outlet />
+            </QueryClientProvider>
+          </PostHogProvider>
           <Toaster />
           <Scripts />
         </body>
