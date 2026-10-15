@@ -47,15 +47,6 @@ import (
 	"gocloud.dev/blob"
 )
 
-const (
-	// searchIndexLockKey names the database lock held by the one pear that
-	// indexes writes into the current search generation.
-	searchIndexLockKey db.LockKey = 0x68616269_74617401
-	// searchBuildLockKey names the database lock held by the one
-	// `pear run reindex` building a search generation.
-	searchBuildLockKey db.LockKey = 0x68616269_74617402
-)
-
 // searchIndexPrefix names the Meilisearch indexes of space records:
 // generation n is <prefix>_g<n> with cursors in <prefix>_g<n>_cursors, and
 // <prefix>_generations says which is current. The index from before
@@ -232,8 +223,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 
 	// The search index is kept as generations, so changing how it is built
 	// builds a new one beside the one searches read (see `pear run reindex`).
-	// One pear at a time indexes writes into the current one, under a
-	// database lock.
 	var searchIndex *search.Generations
 	if meilisearchURL := cmd.String(fMeilisearchURL); meilisearchURL != "" {
 		var indexOpts []search.MeilisearchOption
@@ -254,7 +243,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 			meilisearchURL,
 			cmd.String(fMeilisearchAPIKey),
 			searchIndexPrefix,
-			db.NewLock(database, searchIndexLockKey),
 			search.WithIndexOptions(indexOpts...),
 			search.WithIndexerOptions(search.WithBlobs(blobStore)),
 		)

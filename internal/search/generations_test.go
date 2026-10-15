@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
-	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	opensocial_testutil "github.com/habitat-network/habitat/internal/opensocial/testutil"
 	"github.com/habitat-network/habitat/internal/perms"
@@ -22,8 +21,6 @@ import (
 )
 
 const (
-	genLockKey   db.LockKey = 7
-	buildLockKey db.LockKey = 8
 	// genInterval keeps tests from waiting on the production check interval.
 	genInterval = 50 * time.Millisecond
 	genTimeout  = 30 * time.Second
@@ -33,12 +30,9 @@ const (
 // against.
 type genTest struct {
 	prefix string
-	lock   *db.Lock
-	// buildLock is what builds hold.
-	buildLock *db.Lock
-	store     spaces.Store
-	perms     perms.Store
-	space     habitat_syntax.SpaceURI
+	store  spaces.Store
+	perms  perms.Store
+	space  habitat_syntax.SpaceURI
 	// notify forwards the store's notifications to whichever Generations
 	// the test runs.
 	notify *forwardingNotifier
@@ -70,13 +64,11 @@ func setupGenerations(t *testing.T) *genTest {
 	space, err := store.CreateSpace(t.Context(), searchOrg, searchType, "a")
 	require.NoError(t, err)
 	return &genTest{
-		prefix:    searchtest.NewUID(t),
-		lock:      db.NewLock(gdb, genLockKey),
-		buildLock: db.NewLock(gdb, buildLockKey),
-		store:     store,
-		perms:     perms.NewStore(gdb, store, fga, social),
-		space:     space,
-		notify:    notify,
+		prefix: searchtest.NewUID(t),
+		store:  store,
+		perms:  perms.NewStore(gdb, store, fga, social),
+		space:  space,
+		notify: notify,
 	}
 }
 
@@ -85,7 +77,7 @@ func setupGenerations(t *testing.T) *genTest {
 func (gt *genTest) open(t *testing.T, opts ...search.GenerationsOption) *search.Generations {
 	t.Helper()
 	opts = append([]search.GenerationsOption{search.WithCheckInterval(genInterval)}, opts...)
-	g, err := search.NewGenerations(t.Context(), searchtest.URL(t), "", gt.prefix, gt.lock, opts...)
+	g, err := search.NewGenerations(t.Context(), searchtest.URL(t), "", gt.prefix, opts...)
 	require.NoError(t, err)
 	gt.notify.Notifiers = spaces.Notifiers{g}
 	return g
@@ -99,7 +91,7 @@ func (gt *genTest) builder(
 ) *search.Generations {
 	t.Helper()
 	opts = append([]search.GenerationsOption{search.WithCheckInterval(genInterval)}, opts...)
-	g, err := search.NewGenerations(t.Context(), searchtest.URL(t), "", gt.prefix, gt.lock, opts...)
+	g, err := search.NewGenerations(t.Context(), searchtest.URL(t), "", gt.prefix, opts...)
 	require.NoError(t, err)
 	return g
 }
@@ -109,7 +101,7 @@ func (gt *genTest) build(t *testing.T, b *search.Generations, fresh bool) int {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), genTimeout)
 	defer cancel()
-	n, err := b.Build(ctx, gt.buildLock, gt.store, gt.perms, fresh)
+	n, err := b.Build(ctx, gt.store, gt.perms, fresh)
 	require.NoError(t, err)
 	require.Equal(t, n, b.Current())
 	return n
@@ -216,8 +208,8 @@ func TestGenerationsBuildReplacesTheIndexWhenItsSpecChanges(t *testing.T) {
 	require.Equal(t, 0, g.Current())
 	stop := gt.run(t, g)
 	defer stop()
-	// A second process can't take the lock, so it only follows.
-	follower, err := search.NewGenerations(ctx, searchtest.URL(t), "", gt.prefix, gt.lock,
+	// A second process, as during a deploy, moves to a new generation too.
+	follower, err := search.NewGenerations(ctx, searchtest.URL(t), "", gt.prefix,
 		search.WithCheckInterval(genInterval))
 	require.NoError(t, err)
 	stopFollower := gt.run(t, follower)
@@ -264,14 +256,4 @@ func TestGenerationsBuildReplacesTheIndexWhenItsSpecChanges(t *testing.T) {
 	require.Equal(t, 2, n)
 	requireCurrent(t, g, n)
 	require.Len(t, gt.found(t, g, "budget"), 3)
-}
-
-func TestGenerationsBuildRunsOneAtATime(t *testing.T) {
-	gt := setupGenerations(t)
-	_, release, ok, err := gt.buildLock.TryAcquire(t.Context())
-	require.NoError(t, err)
-	require.True(t, ok)
-	defer release()
-	_, err = gt.builder(t).Build(t.Context(), gt.buildLock, gt.store, gt.perms, false)
-	require.ErrorIs(t, err, search.ErrBuildRunning)
 }

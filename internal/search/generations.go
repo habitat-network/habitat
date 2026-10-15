@@ -29,9 +29,9 @@ const (
 	// DefaultKeepGenerations is how many generations older than the current
 	// one are kept for rollback.
 	DefaultKeepGenerations = 1
-	// DefaultCheckInterval is how often a process that doesn't hold the lock
-	// checks for a new current generation and for the lock, and how often a
-	// building generation is checked for having caught up.
+	// DefaultCheckInterval is how often Run checks for a new current
+	// generation, and how often a building generation is checked for having
+	// caught up.
 	DefaultCheckInterval = 30 * time.Second
 	// minDocRatio is the smallest share of the current generation's documents
 	// a new generation must hold to replace it. It only catches a build gone
@@ -44,19 +44,6 @@ const (
 // errFlipped ends leading after a new generation became current, so the
 // leader starts over with it.
 var errFlipped = errors.New("search generation flipped")
-
-// ErrBuildRunning is returned by [Generations.Build] while another process
-// is building a generation.
-var ErrBuildRunning = errors.New("another search generation build is running")
-
-// Lock makes sure one process at a time does a piece of the index's work.
-// [github.com/habitat-network/habitat/internal/db.Lock] implements it.
-type Lock interface {
-	// TryAcquire takes the lock if it is free and reports whether it did.
-	// When it did, held is cancelled once the lock is released or lost, and
-	// release must be called to free it.
-	TryAcquire(ctx context.Context) (held context.Context, release func(), ok bool, err error)
-}
 
 // generationState is which generations exist: searches read Current, and
 // every generation from Min up is kept.
@@ -83,8 +70,7 @@ type generationInfo struct {
 // is kept in prefix_generations, beside the indexes it describes, so a new
 // Meilisearch server starts with no state and builds from scratch.
 //
-// [Generations.Run] indexes writes into the current generation, in one
-// process at a time. A new generation is only built by [Generations.Build],
+// [Generations.Run] indexes writes into the current generation. A new generation is only built by [Generations.Build],
 // which `pear run reindex` calls: it builds the generation beside the
 // current one, sweeping every repo into it, and once it has caught up it
 // becomes current, and the process running Run moves over to it.
@@ -102,7 +88,6 @@ type Generations struct {
 	spec        string
 	keep        int
 	interval    time.Duration
-	lock        Lock
 	state       meilisearch.IndexManager
 
 	mu         sync.RWMutex
@@ -134,8 +119,8 @@ func WithKeepGenerations(n int) GenerationsOption {
 	return func(g *Generations) { g.keep = n }
 }
 
-// WithCheckInterval checks for a new current generation, for the lock and
-// on a building generation every d, rather than [DefaultCheckInterval].
+// WithCheckInterval checks for a new current generation and on a building
+// generation every d, rather than [DefaultCheckInterval].
 func WithCheckInterval(d time.Duration) GenerationsOption {
 	return func(g *Generations) { g.interval = d }
 }
@@ -146,7 +131,6 @@ func WithCheckInterval(d time.Duration) GenerationsOption {
 func NewGenerations(
 	ctx context.Context,
 	host, apiKey, prefix string,
-	lock Lock,
 	opts ...GenerationsOption,
 ) (*Generations, error) {
 	client := meilisearch.New(host, meilisearch.WithAPIKey(apiKey))
@@ -155,7 +139,6 @@ func NewGenerations(
 		prefix:     prefix,
 		keep:       DefaultKeepGenerations,
 		interval:   DefaultCheckInterval,
-		lock:       lock,
 		state:      client.Index(prefix + "_generations"),
 		currentNum: -1,
 	}
@@ -254,32 +237,21 @@ func (g *Generations) refresh(ctx context.Context) error {
 	return nil
 }
 
-// Run indexes writes into the current generation while this process holds
-// the lock, and otherwise follows the current generation for searching, until
-// ctx is done. Errors are logged and retried, so Run only returns ctx's
-// error.
+// Run indexes writes into the current generation, moving to the next one
+// whenever a build makes it current, until ctx is done. Errors are logged and
+// retried, so Run only returns ctx's error.
 func (g *Generations) Run(ctx context.Context, source RepoSource, perms PermSource) error {
 	for {
-		if err := g.refresh(ctx); err != nil {
-			slog.ErrorContext(ctx, "search: refresh current generation failed", "err", err)
+		err := g.lead(ctx, source, perms)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
-		held, release, ok, err := g.lock.TryAcquire(ctx)
+		if errors.Is(err, errFlipped) {
+			// Start over at once with the new current generation.
+			continue
+		}
 		if err != nil {
-			slog.ErrorContext(ctx, "search: acquire index lock failed", "err", err)
-		}
-		if ok {
-			err := g.lead(held, source, perms)
-			release()
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			if errors.Is(err, errFlipped) {
-				// Start over at once with the new current generation.
-				continue
-			}
-			if err != nil {
-				slog.ErrorContext(ctx, "search: maintaining index failed", "err", err)
-			}
+			slog.ErrorContext(ctx, "search: maintaining index failed", "err", err)
 		}
 		select {
 		case <-ctx.Done():
@@ -338,8 +310,9 @@ func (g *Generations) awaitFlip(ctx context.Context, n int) error {
 }
 
 // Build builds a generation with this process's settings and makes it
-// current, returning its number once it is. It holds lock, so only one build
-// runs at a time, and returns [ErrBuildRunning] if another one holds it.
+// current, returning its number once it is. Callers must not run two builds
+// at once: one could delete the other's generation, or flip searches away
+// from it.
 //
 // When the current generation already has these settings there is nothing to
 // build unless fresh is set, which rebuilds from scratch anyway. Otherwise a
@@ -352,21 +325,10 @@ func (g *Generations) awaitFlip(ctx context.Context, n int) error {
 // into whichever generation is current.
 func (g *Generations) Build(
 	ctx context.Context,
-	lock Lock,
 	source RepoSource,
 	perms PermSource,
 	fresh bool,
 ) (int, error) {
-	held, release, ok, err := lock.TryAcquire(ctx)
-	if err != nil {
-		return 0, err
-	}
-	if !ok {
-		return 0, ErrBuildRunning
-	}
-	defer release()
-	ctx = held
-
 	state, gens, err := g.ensureState(ctx)
 	if err != nil {
 		return 0, err
@@ -595,8 +557,8 @@ func (g *Generations) activeIndexers() []*Indexer {
 }
 
 // NotifyWrite implements [spaces.Notifier] by forwarding to the indexer of
-// the current generation. While this process doesn't hold the lock there is
-// none, and the holder's sweep picks the write up, as a build's sweep does.
+// the current generation. A build's sweep picks the write up for the
+// generation it builds.
 func (g *Generations) NotifyWrite(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
