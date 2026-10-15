@@ -144,6 +144,7 @@ func orgFromPath(p, prefix string) (syntax.AtIdentifier, error) {
 //     to build the resource identifier in the protected resource metadata.
 //   - authServer is the issuer of the authorization server (internal/oauthserver)
 //     that issues tokens for this resource.
+//   - opts are optional settings, e.g. WithTextOverrides.
 func New(
 	tokens authn.RawMethod,
 	spacesStore spaces.Store,
@@ -156,14 +157,21 @@ func New(
 	dir identity.Directory,
 	origin string,
 	authServer string,
+	opts ...Option,
 ) *Server {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
 	impl := &mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}
-	newMCPServer := func(org syntax.DID) *mcp.Server {
-		var opts *mcp.ServerOptions
+	newMCPServer := func(org syntax.DID, text TextOverrides) *mcp.Server {
+		var serverOpts *mcp.ServerOptions
 		if searcher != nil {
-			opts = &mcp.ServerOptions{Instructions: serverInstructions}
+			serverOpts = &mcp.ServerOptions{
+				Instructions: textOr(text.Instructions, serverInstructions),
+			}
 		}
-		mcpServer := mcp.NewServer(impl, opts)
+		mcpServer := mcp.NewServer(impl, serverOpts)
 		mcp.AddTool(mcpServer, &mcp.Tool{
 			Name: "get_record",
 			Description: "Get a single Habitat record by its space record URI, returned as " +
@@ -188,7 +196,7 @@ func New(
 		if searcher != nil {
 			mcp.AddTool(mcpServer, &mcp.Tool{
 				Name:        "search_records",
-				Description: searchRecordsDescription,
+				Description: textOr(text.SearchDescription, searchRecordsDescription),
 			}, searchRecordsHandler(searcher, org))
 		}
 		mcpServer.AddReceivingMiddleware(
@@ -210,7 +218,14 @@ func New(
 			slog.WarnContext(r.Context(), "mcp: resolving org", "org", orgID.String(), "err", err)
 			return nil
 		}
-		return newMCPServer(ident.DID)
+		var text TextOverrides
+		if o.textOverrides {
+			if text, err = parseTextOverrides(r.Header.Get(TextOverridesHeader)); err != nil {
+				slog.WarnContext(r.Context(), "mcp: invalid text overrides", "err", err)
+				return nil
+			}
+		}
+		return newMCPServer(ident.DID, text)
 	}, &mcp.StreamableHTTPOptions{
 		// pear runs behind a reverse proxy (Caddy locally, Cloud Run in prod),
 		// so requests reach it from a loopback address carrying the public Host

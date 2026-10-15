@@ -75,6 +75,31 @@
     "prompt": "What action items came out of our last planning meeting?"
   },
   {
+    "id": "renewal-email",
+    "expect": "search",
+    "prompt": "Draft a renewal email to our biggest customer."
+  },
+  {
+    "id": "discount-reply",
+    "expect": "search",
+    "prompt": "A customer just wrote: \"Can you remind me what we agreed to on the discount?\" Write a reply."
+  },
+  {
+    "id": "partner-one-pager",
+    "expect": "search",
+    "prompt": "Write a one-pager introducing our product to a new partner."
+  },
+  {
+    "id": "proposal-background",
+    "expect": "search",
+    "prompt": "Write the background section of a proposal to expand our enterprise plan."
+  },
+  {
+    "id": "one-on-one-prep",
+    "expect": "search",
+    "prompt": "Prepare talking points for my 1:1 with my manager about how my project is going."
+  },
+  {
     "id": "code-snippet",
     "expect": "none",
     "prompt": "Write a Python function that reverses a singly linked list."

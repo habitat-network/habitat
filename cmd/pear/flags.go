@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 
+	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/urfave/cli/v3"
 )
 
@@ -34,6 +35,7 @@ var (
 	fEmbedderDimensions = "embedder_dimensions"
 	fSemanticRatio      = "search_semantic_ratio"
 	fSearchMinScore     = "search_min_score"
+	fMCPTextOverrides   = "mcp_text_overrides"
 )
 
 var profiles []string
@@ -191,6 +193,11 @@ func getFlags() []cli.Flag {
 			Name:    fSearchMinScore,
 			Usage:   "With an embedder, drop hybrid search hits ranked below this score, from 0 to 1. Semantic search ranks every record, so without it unrelated records trail the results. A good value depends on the model. 0 keeps every hit.",
 			Sources: getSources(fSearchMinScore),
+		},
+		&cli.BoolFlag{
+			Name:    fMCPTextOverrides,
+			Usage:   "Development only: let MCP requests reword the server instructions and search tool description with the " + mcpserver.TextOverridesHeader + " header, for integration/mcp-evals.",
+			Sources: getSources(fMCPTextOverrides),
 		},
 	}
 }

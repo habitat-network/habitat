@@ -40,6 +40,26 @@ go run . -runs 1                 # quick pass
 go run . -scenario roadmap-cuts -model sonnet
 ```
 
+### Comparing wordings
+
+`-variants variants.json` runs every setup once per variant, as setups named
+`<setup>@<variant>`, so one summary compares them. A variant replaces the
+server instructions and/or `search_records` description Habitat sends; a field
+left out keeps pear's built-in text, and `""` sends none. The harness sends
+them in the `X-Habitat-Mcp-Text-Overrides` header, which pear only honours
+with `--mcp_text_overrides` (`pear:dev` sets it; restart it after pulling
+this). Without it every variant silently measures the built-in text. The
+header comes from a generated `headersHelper` script rather than the config's
+`headers`, because Claude Code keys stored OAuth tokens on a hash of the
+config including `headers`: a header there would need its own login per
+variant, and a server it reports as needing auth stays skipped for a while
+(`~/.claude/mcp-needs-auth-cache.json`), even under the original config.
+
+```bash
+go run . -variants variants.json -runs 2
+go run . -variants variants.json -variant builtin,neither
+```
+
 Results go to `tmp/<timestamp>/` (gitignored, and the transcripts contain your
 real data):
 

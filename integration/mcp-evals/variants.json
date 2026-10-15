@@ -1,0 +1,22 @@
+[
+  {
+    "id": "builtin"
+  },
+  {
+    "id": "no-instructions",
+    "instructions": ""
+  },
+  {
+    "id": "old-description",
+    "search_description": "Full-text search the Habitat records in this org the caller can read, optionally within one collection."
+  },
+  {
+    "id": "neither",
+    "instructions": "",
+    "search_description": "Full-text search the Habitat records in this org the caller can read, optionally within one collection."
+  },
+  {
+    "id": "short-instructions",
+    "instructions": "Habitat is the user's organization knowledge base. For any question about their company, team, customers or past work, call search_records first."
+  }
+]

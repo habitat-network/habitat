@@ -10,6 +10,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -37,6 +38,12 @@ type job struct {
 func run() error {
 	setupsPath := flag.String("setups", "setups.json", "setups file")
 	scenariosPath := flag.String("scenarios", "scenarios.json", "scenarios file")
+	variantsPath := flag.String(
+		"variants", "",
+		"variants file (e.g. variants.json): run every setup once per wording of Habitat's "+
+			"instructions and search description; needs pear with --mcp_text_overrides",
+	)
+	onlyVariants := flag.String("variant", "", "comma-separated variant ids to run (default all)")
 	onlySetups := flag.String("setup", "", "comma-separated setup names to run (default all)")
 	onlyScenarios := flag.String(
 		"scenario",
@@ -71,6 +78,21 @@ func run() error {
 	}
 	if *outDir == "" {
 		*outDir = filepath.Join("tmp", time.Now().Format("20060102-150405"))
+	}
+	if *variantsPath != "" {
+		variants, err := loadVariants(*variantsPath)
+		if err != nil {
+			return err
+		}
+		variants = filterBy(variants, *onlyVariants, func(v Variant) string { return string(v.ID) })
+		if len(variants) == 0 {
+			return errors.New("nothing to run: 0 variants")
+		}
+		if setups, err = applyVariants(
+			setups, variants, filepath.Join(*outDir, "mcp-configs"),
+		); err != nil {
+			return err
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
