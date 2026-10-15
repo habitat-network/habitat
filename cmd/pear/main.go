@@ -163,6 +163,10 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	if app.Searcher != nil {
 		mcpSearcher = app.Searcher
 	}
+	var mcpOpts []mcpserver.Option
+	if cmd.Bool(fMCPTextOverrides) {
+		mcpOpts = append(mcpOpts, mcpserver.WithTextOverrides())
+	}
 	mcpServer := mcpserver.New(
 		app.OAuthServer,
 		app.SpacesStore,
@@ -175,6 +179,7 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		app.HiveDir,
 		app.MCPOrigin,
 		app.OAuthServer.MCPIssuer(),
+		mcpOpts...,
 	)
 	// Server for org management routes
 	orgServer, err := org_server.NewServer(

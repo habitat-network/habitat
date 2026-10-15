@@ -26,6 +26,7 @@ tasks:
       HABITAT_SPACE_SIGNING_KEY: 'z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd'
       # Served by root:meilisearch, which runs without a master key.
       HABITAT_MEILISEARCH_URL: 'http://localhost:7700'
+      HABITAT_MCP_TEXT_OVERRIDES: 'true'
     options:
       runFromWorkspaceRoot: true
       envFile:

@@ -45,13 +45,18 @@ const (
 	OutcomeError Outcome = "error"
 )
 
-// RunResult is one scored run, written as a line of results.jsonl.
+// RunResult is one scored turn of a run, written as a line of results.jsonl.
+// A single-turn scenario's run is one RunResult with Turn 1.
 type RunResult struct {
 	Setup    SetupName   `json:"setup"`
 	Scenario ScenarioID  `json:"scenario"`
 	Expect   Expectation `json:"expect"`
 	Run      int         `json:"run"`
-	Outcome  Outcome     `json:"outcome"`
+	// Turn is the 1-based turn of the scenario's conversation.
+	Turn    int     `json:"turn"`
+	Outcome Outcome `json:"outcome"`
+	// FailReason says why a failed turn failed.
+	FailReason string `json:"fail_reason,omitempty"`
 	// FirstTool is the first non-meta tool called, empty if none was.
 	FirstTool string `json:"first_tool"`
 	// ToolSequence is every call's tool name, in order.
@@ -67,8 +72,14 @@ type RunResult struct {
 	Error             string   `json:"error,omitempty"`
 }
 
-func scoreRun(setup SetupName, sc Scenario, run int, t Transcript) RunResult {
-	r := RunResult{Setup: setup, Scenario: sc.ID, Expect: sc.Expect, Run: run}
+// scoreTurn scores what the model did in response to one turn, from that
+// turn's transcript alone.
+func scoreTurn(
+	setup SetupName, scenario ScenarioID, run, turnNo int, turn Turn, t Transcript,
+) RunResult {
+	r := RunResult{
+		Setup: setup, Scenario: scenario, Expect: turn.Expect, Run: run, Turn: turnNo,
+	}
 	usedSearch, usedHabitat := false, false
 	for _, call := range t.Calls {
 		r.ToolSequence = append(r.ToolSequence, call.Name)
@@ -96,18 +107,37 @@ func scoreRun(setup SetupName, sc Scenario, run int, t Transcript) RunResult {
 		r.Outcome, r.Error = OutcomeError, "run ended without a result"
 	case t.Result.IsError:
 		r.Outcome, r.Error = OutcomeError, "result is_error: "+t.Result.Text
-	case sc.Expect == ExpectSearch && usedSearch, sc.Expect == ExpectNone && !usedHabitat:
-		r.Outcome = OutcomePass
-	default:
+	case turn.Expect == ExpectSearch && !usedSearch:
+		r.Outcome, r.FailReason = OutcomeFail, "didn't call "+searchTool
+	case turn.Expect == ExpectNone && usedHabitat:
+		r.Outcome, r.FailReason = OutcomeFail, "called a Habitat tool"
+	case !answerContainsAny(r.Answer, turn.AnswerContains):
 		r.Outcome = OutcomeFail
+		r.FailReason = fmt.Sprintf("answer contains none of %q", turn.AnswerContains)
+	default:
+		r.Outcome = OutcomePass
 	}
 	return r
 }
 
-// scoreRunError records a run whose transcript couldn't be produced or read.
-func scoreRunError(setup SetupName, sc Scenario, run int, err error) RunResult {
+// answerContainsAny reports whether answer contains one of want,
+// case-insensitively. An empty want always matches.
+func answerContainsAny(answer string, want []string) bool {
+	if len(want) == 0 {
+		return true
+	}
+	answer = strings.ToLower(answer)
+	return slices.ContainsFunc(want, func(w string) bool {
+		return strings.Contains(answer, strings.ToLower(w))
+	})
+}
+
+// scoreTurnError records a turn whose transcript couldn't be produced or read.
+func scoreTurnError(
+	setup SetupName, scenario ScenarioID, run, turnNo int, turn Turn, err error,
+) RunResult {
 	return RunResult{
-		Setup: setup, Scenario: sc.ID, Expect: sc.Expect, Run: run,
+		Setup: setup, Scenario: scenario, Expect: turn.Expect, Run: run, Turn: turnNo,
 		Outcome: OutcomeError, Error: err.Error(),
 	}
 }
@@ -158,7 +188,9 @@ func (t *tally) passRate() string {
 }
 
 // renderMarkdown renders pass rates by setup and expectation, then by
-// scenario with the first tool each scenario's runs called.
+// scenario turn with the first tool each turn's runs called. With multi-turn
+// scenarios, it adds pass rates for their later turns (2+) and whole
+// conversations.
 func renderMarkdown(results []RunResult) string {
 	type groupKey struct {
 		setup  SetupName
@@ -167,48 +199,118 @@ func renderMarkdown(results []RunResult) string {
 	type scenarioKey struct {
 		setup    SetupName
 		scenario ScenarioID
+		turn     int
 	}
-	groups := map[groupKey]*tally{}
+	type conversationKey struct {
+		setup    SetupName
+		scenario ScenarioID
+		run      int
+	}
+	groups, later := map[groupKey]*tally{}, map[groupKey]*tally{}
 	scenarios := map[scenarioKey]*tally{}
 	expects := map[scenarioKey]Expectation{}
-	var groupOrder []groupKey
+	conversations := map[conversationKey][]Outcome{}
+	var groupOrder, laterOrder []groupKey
 	var scenarioOrder []scenarioKey
+	var conversationOrder []conversationKey
+	add := func(m map[groupKey]*tally, order *[]groupKey, k groupKey, r RunResult) {
+		if m[k] == nil {
+			m[k] = &tally{}
+			*order = append(*order, k)
+		}
+		m[k].add(r)
+	}
 	cost := 0.0
 	for _, r := range results {
 		cost += r.CostUSD
 		gk := groupKey{r.Setup, r.Expect}
-		if groups[gk] == nil {
-			groups[gk] = &tally{}
-			groupOrder = append(groupOrder, gk)
+		add(groups, &groupOrder, gk, r)
+		if r.Turn > 1 {
+			add(later, &laterOrder, gk, r)
 		}
-		groups[gk].add(r)
-		sk := scenarioKey{r.Setup, r.Scenario}
+		sk := scenarioKey{r.Setup, r.Scenario, r.Turn}
 		if scenarios[sk] == nil {
 			scenarios[sk] = &tally{}
 			scenarioOrder = append(scenarioOrder, sk)
 			expects[sk] = r.Expect
 		}
 		scenarios[sk].add(r)
+		ck := conversationKey{r.Setup, r.Scenario, r.Run}
+		if conversations[ck] == nil {
+			conversationOrder = append(conversationOrder, ck)
+		}
+		conversations[ck] = append(conversations[ck], r.Outcome)
 	}
 
 	var b strings.Builder
 	b.WriteString("## Summary\n\n")
-	b.WriteString("Pass: `search` prompts called " + searchTool + "; `none` prompts called no " +
-		"Habitat tool. Errored runs are left out of pass rates.\n\n")
-	b.WriteString("| setup | expect | runs | errors | pass |\n|---|---|---|---|---|\n")
-	for _, k := range groupOrder {
-		g := groups[k]
-		fmt.Fprintf(&b, "| %s | %s | %d | %d | %s |\n",
-			k.setup, k.expect, g.runs, g.errors, g.passRate())
+	b.WriteString("Pass: `search` turns called " + searchTool + "; `none` turns called no " +
+		"Habitat tool; with answer_contains, the answer also had one of its strings. " +
+		"Errored turns are left out of pass rates.\n\n")
+	writeGroups := func(m map[groupKey]*tally, order []groupKey, firstTools bool) {
+		if firstTools {
+			b.WriteString("| setup | expect | runs | errors | pass | first tool |\n" +
+				"|---|---|---|---|---|---|\n")
+		} else {
+			b.WriteString("| setup | expect | runs | errors | pass |\n|---|---|---|---|---|\n")
+		}
+		for _, k := range order {
+			g := m[k]
+			fmt.Fprintf(&b, "| %s | %s | %d | %d | %s |", k.setup, k.expect, g.runs, g.errors,
+				g.passRate())
+			if firstTools {
+				fmt.Fprintf(&b, " %s |", formatCounts(g.firstTools))
+			}
+			b.WriteString("\n")
+		}
+	}
+	writeGroups(groups, groupOrder, false)
+
+	if len(laterOrder) > 0 {
+		b.WriteString("\n## Later turns\n\n")
+		b.WriteString("Turns 2+ of multi-turn scenarios, where earlier turns' context could " +
+			"stand in for searching again.\n\n")
+		writeGroups(later, laterOrder, true)
+
+		// A conversation passes when every turn does, and errors if any did.
+		convs := map[SetupName]*tally{}
+		var convOrder []SetupName
+		for _, k := range conversationOrder {
+			outcomes := conversations[k]
+			if len(outcomes) < 2 {
+				continue
+			}
+			if convs[k.setup] == nil {
+				convs[k.setup] = &tally{}
+				convOrder = append(convOrder, k.setup)
+			}
+			c := convs[k.setup]
+			c.runs++
+			switch {
+			case slices.Contains(outcomes, OutcomeError):
+				c.errors++
+			case slices.Contains(outcomes, OutcomeFail):
+				c.scored++
+			default:
+				c.scored++
+				c.passed++
+			}
+		}
+		b.WriteString("\n| setup | conversations | errors | every turn passed |\n" +
+			"|---|---|---|---|\n")
+		for _, setup := range convOrder {
+			c := convs[setup]
+			fmt.Fprintf(&b, "| %s | %d | %d | %s |\n", setup, c.runs, c.errors, c.passRate())
+		}
 	}
 
 	b.WriteString("\n## By scenario\n\n")
-	b.WriteString("| setup | scenario | expect | passed | errors | first tool |\n" +
-		"|---|---|---|---|---|---|\n")
+	b.WriteString("| setup | scenario | turn | expect | passed | errors | first tool |\n" +
+		"|---|---|---|---|---|---|---|\n")
 	for _, k := range scenarioOrder {
 		s := scenarios[k]
-		fmt.Fprintf(&b, "| %s | %s | %s | %d/%d | %d | %s |\n",
-			k.setup, k.scenario, expects[k], s.passed, s.scored, s.errors,
+		fmt.Fprintf(&b, "| %s | %s | %d | %s | %d/%d | %d | %s |\n",
+			k.setup, k.scenario, k.turn, expects[k], s.passed, s.scored, s.errors,
 			formatCounts(s.firstTools))
 	}
 	fmt.Fprintf(&b, "\nTotal est. API cost: $%.2f\n", cost)
