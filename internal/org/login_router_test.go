@@ -191,7 +191,7 @@ func TestLoginRouterEmailDomain(t *testing.T) {
 
 		roles, err = osStore.GetUserRoles(t.Context(), orgDID, alice)
 		require.NoError(t, err)
-		require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+		require.Equal(t, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}, roles)
 	})
 
 	t.Run("google email differing only in case is accepted", func(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -33,6 +34,16 @@ func (p *PearServer) AssignRoles(w http.ResponseWriter, r *http.Request) {
 	}
 	member, ok := httpx.ParseDIDInput(ctx, w, input.Member, "member")
 	if !ok {
+		return
+	}
+	// Every member must keep the member role, so reject any assignment that
+	// would drop it.
+	if !slices.Contains(input.Roles, opensocial.MemberRoleRkey) {
+		httpx.WriteError(
+			ctx, w, "MemberRoleRequired",
+			"roles must include the member role; every member must have it",
+			http.StatusBadRequest,
+		)
 		return
 	}
 	if !p.requireAction(ctx, w, org, credInfo.Subject, opensocial.ActionRoleAssign) {

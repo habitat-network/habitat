@@ -31,7 +31,7 @@ func TestServer_CreateOrg(t *testing.T) {
 
 		roles, err := ts.OpenSocialStore.GetUserRoles(t.Context(), syntax.DID(out.Org), alice)
 		require.NoError(t, err)
-		require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+		require.Equal(t, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}, roles)
 	})
 
 	t.Run("requires auth", func(t *testing.T) {

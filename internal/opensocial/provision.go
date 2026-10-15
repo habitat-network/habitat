@@ -21,7 +21,7 @@ import (
 // identity.EmailResolver) and there's no invitee session to author the
 // acceptance record under, so the backend authors both records directly.
 //
-// memberDID is granted the admin role if it is the org's first member
+// memberDID is granted the admin and member roles if it is the org's first member
 // (i.e. the org was created via NewOrgWithoutCreator and nobody has joined
 // yet), and the member role otherwise. This check is not race-safe: two
 // concurrent first sign-ins can both observe zero existing members and both
@@ -41,7 +41,7 @@ func (s *Store) ProvisionMember(ctx context.Context, orgDID, memberDID syntax.DI
 		}
 		roles := []string{MemberRoleRkey}
 		if len(existing) == 0 {
-			roles = []string{AdminRoleRkey}
+			roles = []string{MemberRoleRkey, AdminRoleRkey}
 		}
 		// Granting membership is first-sign-in only: the email-domain flow
 		// calls this on every sign-in, and re-writing the record would revert
