@@ -67,3 +67,8 @@ DROP_HABITAT_URL=https://pear.local.habitat.network
 Regenerate the D1 migration after changing `src/db/schema.ts` with
 `pnpm db:generate`, and `worker-configuration.d.ts` after a binding change
 with `pnpm cf-typegen` (also run by `dev`/`build`/`test`).
+
+## Analytics (PostHog)
+
+Optional. Set `VITE_POSTHOG_KEY` (and `VITE_POSTHOG_HOST` for EU/self-hosted;
+defaults to `https://us.i.posthog.com`) at build time. Unset, PostHog is a no-op.

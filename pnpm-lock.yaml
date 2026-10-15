@@ -713,6 +713,9 @@ importers:
       '@habitat-network/habitat':
         specifier: workspace:*
         version: link:../../habitat
+      '@posthog/react':
+        specifier: ^1.11.3
+        version: 1.11.3(@types/react@19.2.18)(posthog-js@1.418.10)(react@19.2.8)
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.8(react@19.2.8)
@@ -737,6 +740,9 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 1.34.0(react@19.2.8)
+      posthog-js:
+        specifier: ^1.418.10
+        version: 1.418.10
       react:
         specifier: 'catalog:'
         version: 19.2.8

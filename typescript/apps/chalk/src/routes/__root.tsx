@@ -8,6 +8,7 @@ import {
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { Toaster } from "internal/components/ui";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import PostHogProvider from "../integrations/posthog/provider";
 import "../index.css";
 
 interface RouterContext {
@@ -30,9 +31,11 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           <HeadContent />
         </head>
         <body>
-          <QueryClientProvider client={queryClient}>
-            <Outlet />
-          </QueryClientProvider>
+          <PostHogProvider>
+            <QueryClientProvider client={queryClient}>
+              <Outlet />
+            </QueryClientProvider>
+          </PostHogProvider>
           <Toaster />
           <TanStackDevtools
             plugins={[
