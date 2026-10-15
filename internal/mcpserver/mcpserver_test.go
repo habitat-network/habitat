@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
@@ -348,13 +349,29 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 		}
 	})
 
-	t.Run("tool is absent when search is not configured", func(t *testing.T) {
+	t.Run("instructions and description say when to search", func(t *testing.T) {
+		session, err := connectAs(t, ctx, httpServer.URL, owner.String())
+		require.NoError(t, err)
+		defer func() { _ = session.Close() }()
+
+		require.Equal(t, serverInstructions, session.InitializeResult().Instructions)
+		tools, err := session.ListTools(ctx, nil)
+		require.NoError(t, err)
+		idx := slices.IndexFunc(tools.Tools, func(tool *mcp.Tool) bool {
+			return tool.Name == "search_records"
+		})
+		require.NotEqual(t, -1, idx)
+		require.Equal(t, searchRecordsDescription, tools.Tools[idx].Description)
+	})
+
+	t.Run("tool and instructions are absent when search is not configured", func(t *testing.T) {
 		noSearch := newHTTPServer(nil)
 		defer noSearch.Close()
 		session, err := connectAs(t, ctx, noSearch.URL, owner.String())
 		require.NoError(t, err)
 		defer func() { _ = session.Close() }()
 
+		require.Empty(t, session.InitializeResult().Instructions)
 		tools, err := session.ListTools(ctx, nil)
 		require.NoError(t, err)
 		for _, tool := range tools.Tools {
