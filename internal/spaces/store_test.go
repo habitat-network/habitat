@@ -1585,6 +1585,32 @@ func TestListReposSince(t *testing.T) {
 	require.ErrorIs(t, err, spaces.ErrSpaceNotFound)
 }
 
+// TestListReposSinceAscendingSpaceRev pins that repos come back in ascending
+// spaceRev order (what clients validate), not DID order.
+func TestListReposSinceAscendingSpaceRev(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "ordered")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	// Write in the reverse of DID order so the two orderings disagree.
+	repos := []syntax.DID{owner, alice}
+	if alice < owner {
+		repos = []syntax.DID{alice, owner}
+	}
+	for i := len(repos) - 1; i >= 0; i-- {
+		_, _, err := s.PutRecord(t.Context(), uri, repos[i], coll, "k",
+			spaces_testutil.MustMarshalRecord(t, map[string]any{"x": 1}))
+		require.NoError(t, err)
+	}
+
+	_, listed, err := s.ListReposSince(t.Context(), uri, "")
+	require.NoError(t, err)
+	require.Len(t, listed, 2)
+	require.Equal(t, repos[len(repos)-1], listed[0].DID)
+	require.Less(t, string(listed[0].SpaceRev), string(listed[1].SpaceRev))
+}
+
 // TestBackfillBlobRefs_PagesThroughAllRecords pins that the backfill covers
 // more records than one batch.
 func TestBackfillBlobRefs_PagesThroughAllRecords(t *testing.T) {
