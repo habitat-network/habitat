@@ -12,6 +12,7 @@ import (
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
@@ -43,6 +44,7 @@ func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 		passwordProvider,
 		fga,
 		NewEveryoneOrg("pear.example.com"),
+		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 	store := st.(*storeImpl)

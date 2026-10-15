@@ -168,6 +168,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		passwordProvider,
 		fgaStore,
 		everyoneOrg,
+		kv.Namespace("org_spent_token"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("setup org store: %w", err)
