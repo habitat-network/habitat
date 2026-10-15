@@ -4,7 +4,7 @@ import type { SpaceRef } from "@atproto/syntax";
 import { com } from "api";
 import { Clock, Context, Effect, Layer, Option } from "effect";
 import { SpaceSyncConfig } from "./config";
-import { Identity } from "./Identity";
+import { Identity, requireVerificationKey } from "./Identity";
 import { NotificationAuthError, WireDecodeError, errorMessage } from "./errors";
 import { SpaceSyncer } from "./SpaceSyncer";
 import { SyncStore } from "./SyncStore";
@@ -170,12 +170,18 @@ export class NotificationAuth extends Context.Service<
                 Effect.mapError((e) => fail(e.message)),
               );
             const cached = yield* resolveWith(identity.resolve);
-            if (yield* signatureValid(jwt, cached.signingKey)) return;
+            const cachedKey = yield* requireVerificationKey(cached).pipe(
+              Effect.mapError((e) => fail(e.message)),
+            );
+            if (yield* signatureValid(jwt, cachedKey)) return;
             // Try a fresh DID document in case the authority rotated its key.
             const fresh = yield* resolveWith(identity.refresh);
+            const freshKey = yield* requireVerificationKey(fresh).pipe(
+              Effect.mapError((e) => fail(e.message)),
+            );
             if (
-              fresh.signingKey === cached.signingKey ||
-              !(yield* signatureValid(jwt, fresh.signingKey))
+              freshKey === cachedKey ||
+              !(yield* signatureValid(jwt, freshKey))
             )
               return yield* fail("Invalid JWT signature");
           },

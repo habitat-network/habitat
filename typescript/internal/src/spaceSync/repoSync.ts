@@ -28,7 +28,7 @@ import {
   type XrpcError,
   errorMessage,
 } from "./errors";
-import { Identity } from "./Identity";
+import { Identity, requireVerificationKey } from "./Identity";
 import { SpaceClient } from "./SpaceClient";
 import { SyncSink } from "./SyncSink";
 import { SyncStore } from "./SyncStore";
@@ -129,12 +129,14 @@ export class RepoSync extends Context.Service<
         ) {
           const run = (key: string) =>
             Effect.promise(() => check(key).catch(() => false));
-          const { signingKey } = yield* identity.resolve(did);
+          const signingKey = yield* identity
+            .resolve(did)
+            .pipe(Effect.flatMap(requireVerificationKey));
           if (yield* run(signingKey)) return true;
-          const fresh = yield* identity.refresh(did);
-          return (
-            fresh.signingKey !== signingKey && (yield* run(fresh.signingKey))
-          );
+          const freshKey = yield* identity
+            .refresh(did)
+            .pipe(Effect.flatMap(requireVerificationKey));
+          return freshKey !== signingKey && (yield* run(freshKey));
         },
         (effect, space, did) =>
           Effect.mapError(
@@ -352,18 +354,20 @@ export class RepoSync extends Context.Service<
           return Option.some<SyncEvent>({ _tag: "Reset", space, did, rev });
         }, Effect.scoped);
 
-        const { signingKey } = yield* identity
-          .resolve(did)
-          .pipe(Effect.mapError((e) => syncError(e.message, e)));
+        const signingKey = yield* identity.resolve(did).pipe(
+          Effect.flatMap(requireVerificationKey),
+          Effect.mapError((e) => syncError(e.message, e)),
+        );
         return yield* download(signingKey).pipe(
           // The key may have rotated: retry once with a fresh one if it changed.
           Effect.catchTag("RepoVerificationError", (first) =>
             identity.refresh(did).pipe(
+              Effect.flatMap(requireVerificationKey),
               Effect.mapError((e) => syncError(e.message, e)),
-              Effect.flatMap((fresh) =>
-                fresh.signingKey === signingKey
+              Effect.flatMap((freshKey) =>
+                freshKey === signingKey
                   ? Effect.fail(syncError(first.message, first))
-                  : download(fresh.signingKey).pipe(
+                  : download(freshKey).pipe(
                       Effect.catchTag("RepoVerificationError", (e) =>
                         Effect.fail(syncError(e.message, e)),
                       ),

@@ -11,13 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as DotwellKnownDidDotjsonRouteImport } from './routes/[.]well-known.did[.]json'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
 import { Route as RequireAuthUriRouteImport } from './routes/_requireAuth/$uri'
 import { Route as RequireAuthOrgsRouteImport } from './routes/_requireAuth/orgs'
-import { Route as SessionCallbackRouteImport } from './routes/session.callback'
+import { Route as OauthCallbackRouteImport } from './routes/oauth.callback'
+import { Route as OauthClientMetadataDotjsonRouteImport } from './routes/oauth.client-metadata[.]json'
 import { Route as SessionOrgCallbackRouteImport } from './routes/session.org-callback'
-import { Route as WebhookSapRouteImport } from './routes/webhook.sap'
 import { Route as WsDocIdRouteImport } from './routes/ws.$docId'
+import { Route as XrpcNsidRouteImport } from './routes/xrpc.$nsid'
 
 const RequireAuthRoute = RequireAuthRouteImport.update({
   id: '/_requireAuth',
@@ -26,6 +28,11 @@ const RequireAuthRoute = RequireAuthRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotwellKnownDidDotjsonRoute = DotwellKnownDidDotjsonRouteImport.update({
+  id: '/.well-known/did.json',
+  path: '/.well-known/did.json',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RequireAuthIndexRoute = RequireAuthIndexRouteImport.update({
@@ -43,19 +50,20 @@ const RequireAuthOrgsRoute = RequireAuthOrgsRouteImport.update({
   path: '/orgs',
   getParentRoute: () => RequireAuthRoute,
 } as any)
-const SessionCallbackRoute = SessionCallbackRouteImport.update({
-  id: '/session/callback',
-  path: '/session/callback',
+const OauthCallbackRoute = OauthCallbackRouteImport.update({
+  id: '/oauth/callback',
+  path: '/oauth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OauthClientMetadataDotjsonRoute =
+  OauthClientMetadataDotjsonRouteImport.update({
+    id: '/oauth/client-metadata.json',
+    path: '/oauth/client-metadata.json',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const SessionOrgCallbackRoute = SessionOrgCallbackRouteImport.update({
   id: '/session/org-callback',
   path: '/session/org-callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const WebhookSapRoute = WebhookSapRouteImport.update({
-  id: '/webhook/sap',
-  path: '/webhook/sap',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WsDocIdRoute = WsDocIdRouteImport.update({
@@ -63,37 +71,48 @@ const WsDocIdRoute = WsDocIdRouteImport.update({
   path: '/ws/$docId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const XrpcNsidRoute = XrpcNsidRouteImport.update({
+  id: '/xrpc/$nsid',
+  path: '/xrpc/$nsid',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof RequireAuthIndexRoute
   '/login': typeof LoginRoute
+  '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
   '/$uri': typeof RequireAuthUriRoute
   '/orgs': typeof RequireAuthOrgsRoute
-  '/session/callback': typeof SessionCallbackRoute
+  '/oauth/callback': typeof OauthCallbackRoute
+  '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
   '/session/org-callback': typeof SessionOrgCallbackRoute
-  '/webhook/sap': typeof WebhookSapRoute
   '/ws/$docId': typeof WsDocIdRoute
+  '/xrpc/$nsid': typeof XrpcNsidRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
   '/$uri': typeof RequireAuthUriRoute
   '/orgs': typeof RequireAuthOrgsRoute
-  '/session/callback': typeof SessionCallbackRoute
+  '/oauth/callback': typeof OauthCallbackRoute
+  '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
   '/session/org-callback': typeof SessionOrgCallbackRoute
-  '/webhook/sap': typeof WebhookSapRoute
   '/ws/$docId': typeof WsDocIdRoute
+  '/xrpc/$nsid': typeof XrpcNsidRoute
   '/': typeof RequireAuthIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/login': typeof LoginRoute
+  '/.well-known/did.json': typeof DotwellKnownDidDotjsonRoute
   '/_requireAuth/$uri': typeof RequireAuthUriRoute
   '/_requireAuth/orgs': typeof RequireAuthOrgsRoute
-  '/session/callback': typeof SessionCallbackRoute
+  '/oauth/callback': typeof OauthCallbackRoute
+  '/oauth/client-metadata.json': typeof OauthClientMetadataDotjsonRoute
   '/session/org-callback': typeof SessionOrgCallbackRoute
-  '/webhook/sap': typeof WebhookSapRoute
   '/ws/$docId': typeof WsDocIdRoute
+  '/xrpc/$nsid': typeof XrpcNsidRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
 }
 export interface FileRouteTypes {
@@ -101,42 +120,50 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/.well-known/did.json'
     | '/$uri'
     | '/orgs'
-    | '/session/callback'
+    | '/oauth/callback'
+    | '/oauth/client-metadata.json'
     | '/session/org-callback'
-    | '/webhook/sap'
     | '/ws/$docId'
+    | '/xrpc/$nsid'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/.well-known/did.json'
     | '/$uri'
     | '/orgs'
-    | '/session/callback'
+    | '/oauth/callback'
+    | '/oauth/client-metadata.json'
     | '/session/org-callback'
-    | '/webhook/sap'
     | '/ws/$docId'
+    | '/xrpc/$nsid'
     | '/'
   id:
     | '__root__'
     | '/_requireAuth'
     | '/login'
+    | '/.well-known/did.json'
     | '/_requireAuth/$uri'
     | '/_requireAuth/orgs'
-    | '/session/callback'
+    | '/oauth/callback'
+    | '/oauth/client-metadata.json'
     | '/session/org-callback'
-    | '/webhook/sap'
     | '/ws/$docId'
+    | '/xrpc/$nsid'
     | '/_requireAuth/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   RequireAuthRoute: typeof RequireAuthRouteWithChildren
   LoginRoute: typeof LoginRoute
-  SessionCallbackRoute: typeof SessionCallbackRoute
+  DotwellKnownDidDotjsonRoute: typeof DotwellKnownDidDotjsonRoute
+  OauthCallbackRoute: typeof OauthCallbackRoute
+  OauthClientMetadataDotjsonRoute: typeof OauthClientMetadataDotjsonRoute
   SessionOrgCallbackRoute: typeof SessionOrgCallbackRoute
-  WebhookSapRoute: typeof WebhookSapRoute
   WsDocIdRoute: typeof WsDocIdRoute
+  XrpcNsidRoute: typeof XrpcNsidRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -153,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/did.json': {
+      id: '/.well-known/did.json'
+      path: '/.well-known/did.json'
+      fullPath: '/.well-known/did.json'
+      preLoaderRoute: typeof DotwellKnownDidDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_requireAuth/': {
@@ -176,11 +210,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthOrgsRouteImport
       parentRoute: typeof RequireAuthRoute
     }
-    '/session/callback': {
-      id: '/session/callback'
-      path: '/session/callback'
-      fullPath: '/session/callback'
-      preLoaderRoute: typeof SessionCallbackRouteImport
+    '/oauth/callback': {
+      id: '/oauth/callback'
+      path: '/oauth/callback'
+      fullPath: '/oauth/callback'
+      preLoaderRoute: typeof OauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/client-metadata.json': {
+      id: '/oauth/client-metadata.json'
+      path: '/oauth/client-metadata.json'
+      fullPath: '/oauth/client-metadata.json'
+      preLoaderRoute: typeof OauthClientMetadataDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/session/org-callback': {
@@ -190,18 +231,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionOrgCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/webhook/sap': {
-      id: '/webhook/sap'
-      path: '/webhook/sap'
-      fullPath: '/webhook/sap'
-      preLoaderRoute: typeof WebhookSapRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/ws/$docId': {
       id: '/ws/$docId'
       path: '/ws/$docId'
       fullPath: '/ws/$docId'
       preLoaderRoute: typeof WsDocIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/xrpc/$nsid': {
+      id: '/xrpc/$nsid'
+      path: '/xrpc/$nsid'
+      fullPath: '/xrpc/$nsid'
+      preLoaderRoute: typeof XrpcNsidRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -226,10 +267,12 @@ const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   RequireAuthRoute: RequireAuthRouteWithChildren,
   LoginRoute: LoginRoute,
-  SessionCallbackRoute: SessionCallbackRoute,
+  DotwellKnownDidDotjsonRoute: DotwellKnownDidDotjsonRoute,
+  OauthCallbackRoute: OauthCallbackRoute,
+  OauthClientMetadataDotjsonRoute: OauthClientMetadataDotjsonRoute,
   SessionOrgCallbackRoute: SessionOrgCallbackRoute,
-  WebhookSapRoute: WebhookSapRoute,
   WsDocIdRoute: WsDocIdRoute,
+  XrpcNsidRoute: XrpcNsidRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -3,7 +3,7 @@ import type { DidString, SpaceRefString } from "@atproto/syntax";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getDb } from "@/db";
 import { syncRepos, syncSpaces } from "@/db/schema";
-import { DrizzleSyncStore } from "@/db/syncStore";
+import { DrizzleSyncStore } from "internal/spaceSync/drizzle";
 import { notifyWrite, runDueSpaces } from "@/server/sync";
 
 // The authority doesn't exist, so every pass here fails; what these check

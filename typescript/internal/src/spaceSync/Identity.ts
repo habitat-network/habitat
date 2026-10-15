@@ -1,4 +1,7 @@
-import { getServiceEndpoint } from "@atproto/common-web";
+import {
+  getServiceEndpoint,
+  getVerificationMaterial,
+} from "@atproto/common-web";
 import type { DidString } from "@atproto/syntax";
 import {
   DOC_PATH,
@@ -8,6 +11,7 @@ import {
   IdResolver,
   PoorlyFormattedDidError,
   UnsupportedDidWebPathError,
+  getDidKeyFromMultibase,
   getKey,
   getPds,
 } from "@atproto/identity";
@@ -22,10 +26,15 @@ import { fetchNoRedirect } from "./wire";
 
 export interface ResolvedIdentity {
   readonly did: DidString;
-  /** Repo host for this DID's space repos. */
-  readonly pds: string;
+  /**
+   * Repo host for this DID's space repos (`#atproto_pds`). Absent for a bare
+   * space authority that only publishes `#atproto_space_host`.
+   */
+  readonly pds?: string;
   /** `#atproto` signing key as a did:key. Verifies commits and service auth. */
-  readonly signingKey: string;
+  readonly signingKey?: string;
+  /** `#atproto_space` key as a did:key, when the authority publishes one. */
+  readonly spaceKey?: string;
   /** Space host when this DID is a space authority (`#atproto_space_host`, else the PDS). */
   readonly spaceHost: string;
 }
@@ -41,24 +50,27 @@ const hasEntry = (
 
 /**
  * Applies the proposal's fallback rules: a missing #atproto_space_host falls back
- * to #atproto_pds, but a present-and-malformed one is an error.
+ * to #atproto_pds, but a present-and-malformed one is an error. Every entry is
+ * optional on its own: a space authority may publish only the space entries, so
+ * a caller that needs the PDS or the `#atproto` key checks for it at the point of use
+ * (see `requirePds` and `requireVerificationKey`).
  */
 export const identityFromDoc = Effect.fnUntraced(function* (
   did: DidString,
   doc: DidDocument,
 ): Effect.fn.Return<ResolvedIdentity, IdentityError> {
   const pds = getPds(doc);
-  if (!pds)
-    return yield* new IdentityError({
-      did,
-      message: "missing #atproto_pds service",
-    });
   const signingKey = getKey(doc);
-  if (!signingKey)
-    return yield* new IdentityError({
-      did,
-      message: "missing #atproto signing key",
-    });
+  let spaceKey: string | undefined;
+  if (hasEntry(doc.verificationMethod, did, "#atproto_space")) {
+    const material = getVerificationMaterial(doc, "atproto_space");
+    spaceKey = material && getDidKeyFromMultibase(material);
+    if (!spaceKey)
+      return yield* new IdentityError({
+        did,
+        message: "malformed #atproto_space key",
+      });
+  }
   let spaceHost = pds;
   if (hasEntry(doc.service, did, "#atproto_space_host")) {
     const endpoint = getServiceEndpoint(doc, {
@@ -72,8 +84,44 @@ export const identityFromDoc = Effect.fnUntraced(function* (
       });
     spaceHost = endpoint;
   }
-  return { did, pds, signingKey, spaceHost };
+  if (!spaceHost)
+    return yield* new IdentityError({
+      did,
+      message: "missing #atproto_space_host and #atproto_pds services",
+    });
+  return { did, pds, signingKey, spaceKey, spaceHost };
 });
+
+/** The DID's repo host, for fetching its space repos. */
+export const requirePds = (
+  identity: ResolvedIdentity,
+): Effect.Effect<string, IdentityError> =>
+  identity.pds
+    ? Effect.succeed(identity.pds)
+    : Effect.fail(
+        new IdentityError({
+          did: identity.did,
+          message: "missing #atproto_pds service",
+        }),
+      );
+
+/**
+ * The key a DID signs with: `#atproto`, else the authority's `#atproto_space`
+ * key. Checks commits and service auth.
+ */
+export const requireVerificationKey = (
+  identity: ResolvedIdentity,
+): Effect.Effect<string, IdentityError> => {
+  const key = identity.signingKey ?? identity.spaceKey;
+  return key
+    ? Effect.succeed(key)
+    : Effect.fail(
+        new IdentityError({
+          did: identity.did,
+          message: "missing #atproto signing key",
+        }),
+      );
+};
 
 /** Matches the library's own default. */
 const DID_TIMEOUT_MS = 3000;

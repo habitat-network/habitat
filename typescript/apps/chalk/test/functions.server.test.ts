@@ -14,6 +14,7 @@ vi.mock("../src/server/session", () => ({
     }),
   })),
 }));
+vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 
 const { requireSession } = await import("../src/server/functions.server");
 
@@ -35,9 +36,7 @@ describe("requireSession", () => {
   });
 });
 
-const testEnv = {
-  CHALK_SAP_INTERNAL_URL: "http://sap-internal.test",
-} as Env;
+const testEnv = {} as Env;
 
 describe("createDocSpace", () => {
   const server = setupServer();
@@ -52,7 +51,7 @@ describe("createDocSpace", () => {
     let proxyHeader: string | null = null;
     server.use(
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.simplespace.createSpace",
+        "http://pds.test/xrpc/network.habitat.simplespace.createSpace",
         async ({ request }) => {
           body = await request.json();
           proxyHeader = request.headers.get("Atproto-Proxy");
@@ -60,9 +59,9 @@ describe("createDocSpace", () => {
         },
       ),
     );
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { createDocSpace } = await import("../src/server/functions.server");
-    const client = new SapClient(testEnv, "did:plc:member1");
+    const client = new HabitatClient(testEnv, "did:plc:member1");
     const result = await createDocSpace(client, "did:plc:member1", undefined);
     expect(body).toEqual({
       did: "did:plc:member1",
@@ -80,7 +79,7 @@ describe("createDocSpace", () => {
     let proxyHeader: string | null = null;
     server.use(
       http.post(
-        "http://sap-internal.test/proxy/community.opensocial.createSpace",
+        "http://pds.test/xrpc/community.opensocial.createSpace",
         async ({ request }) => {
           body = await request.json();
           proxyHeader = request.headers.get("Atproto-Proxy");
@@ -88,9 +87,9 @@ describe("createDocSpace", () => {
         },
       ),
     );
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { createDocSpace } = await import("../src/server/functions.server");
-    const client = new SapClient(testEnv, "did:plc:member1");
+    const client = new HabitatClient(testEnv, "did:plc:member1");
     const result = await createDocSpace(
       client,
       "did:plc:member1",
@@ -122,7 +121,7 @@ describe("fetchOrgName", () => {
     let proxyHeader: string | null = null;
     server.use(
       http.get(
-        "http://sap-internal.test/proxy/network.habitat.space.getRecord",
+        "http://pds.test/xrpc/network.habitat.space.getRecord",
         ({ request }) => {
           params = new URL(request.url).searchParams;
           proxyHeader = request.headers.get("Atproto-Proxy");
@@ -130,9 +129,9 @@ describe("fetchOrgName", () => {
         },
       ),
     );
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { fetchOrgName } = await import("../src/server/functions.server");
-    const client = new SapClient(testEnv, "did:plc:member1");
+    const client = new HabitatClient(testEnv, "did:plc:member1");
     const name = await fetchOrgName(client, "did:web:org.example");
     expect(name).toBe("Acme Corp");
     // No Atproto-Proxy: the about space's own community.opensocial.access
@@ -150,13 +149,13 @@ describe("fetchOrgName", () => {
   it("returns null when the read fails (not a member, org gone, etc.)", async () => {
     server.use(
       http.get(
-        "http://sap-internal.test/proxy/network.habitat.space.getRecord",
+        "http://pds.test/xrpc/network.habitat.space.getRecord",
         () => new HttpResponse("nope", { status: 400 }),
       ),
     );
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { fetchOrgName } = await import("../src/server/functions.server");
-    const client = new SapClient(testEnv, "did:plc:member1");
+    const client = new HabitatClient(testEnv, "did:plc:member1");
     expect(await fetchOrgName(client, "did:web:org.example")).toBeNull();
   });
 });
@@ -172,7 +171,7 @@ describe("listMyOrgIds", () => {
   it("returns the owner DID of every community.opensocial.members space", async () => {
     server.use(
       http.get(
-        "http://sap-internal.test/proxy/network.habitat.space.listSpaces",
+        "http://pds.test/xrpc/network.habitat.space.listSpaces",
         ({ request }) => {
           expect(new URL(request.url).searchParams.get("spaceType")).toBe(
             "community.opensocial.members",
@@ -190,9 +189,9 @@ describe("listMyOrgIds", () => {
         },
       ),
     );
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { listMyOrgIds } = await import("../src/server/functions.server");
-    const client = new SapClient(testEnv, "did:plc:member1");
+    const client = new HabitatClient(testEnv, "did:plc:member1");
     expect(await listMyOrgIds(client)).toEqual([
       "did:web:org1.example",
       "did:web:org2.example",
@@ -220,7 +219,7 @@ describe("docRole", () => {
   function grant(allow: [string, string][]) {
     server.use(
       http.get(
-        "http://sap-internal.test/proxy/network.habitat.relationship.checkUserRelation",
+        "http://pds.test/xrpc/network.habitat.relationship.checkUserRelation",
         ({ request }) => {
           const params = new URL(request.url).searchParams;
           const allowed = allow.some(
@@ -236,9 +235,9 @@ describe("docRole", () => {
 
   async function roleOf(allow: [string, string][]) {
     grant(allow);
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { docRole } = await import("../src/server/functions.server");
-    return docRole(new SapClient(testEnv, BOB), BOB, DOC);
+    return docRole(new HabitatClient(testEnv, BOB), BOB, DOC);
   }
 
   it("is editor for a writer on the doc space", async () => {
@@ -275,11 +274,11 @@ describe("docRole", () => {
 
   it("is null for a malformed docId (no comments space to check)", async () => {
     grant([]);
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { docRole } = await import("../src/server/functions.server");
-    expect(await docRole(new SapClient(testEnv, BOB), BOB, "not-a-uri")).toBe(
-      null,
-    );
+    expect(
+      await docRole(new HabitatClient(testEnv, BOB), BOB, "not-a-uri"),
+    ).toBe(null);
   });
 });
 
@@ -299,7 +298,7 @@ describe("deleteUserGrant", () => {
     const deleted: unknown[] = [];
     server.use(
       http.get(
-        "http://sap-internal.test/proxy/network.habitat.relationship.listRelations",
+        "http://pds.test/xrpc/network.habitat.relationship.listRelations",
         ({ request }) => {
           const params = new URL(request.url).searchParams;
           expect(params.get("space")).toBe(SPACE);
@@ -309,7 +308,7 @@ describe("deleteUserGrant", () => {
         },
       ),
       http.post(
-        "http://sap-internal.test/proxy/network.habitat.relationship.deleteRelation",
+        "http://pds.test/xrpc/network.habitat.relationship.deleteRelation",
         async ({ request }) => {
           deleted.push(await request.json());
           return new HttpResponse(null, { status: 200 });
@@ -323,18 +322,18 @@ describe("deleteUserGrant", () => {
     const deleted = relations([
       { uri: GRANT, subject: BOB, relation: "writer" },
     ]);
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { deleteUserGrant } = await import("../src/server/functions.server");
-    const client = new SapClient(testEnv, BOB);
+    const client = new HabitatClient(testEnv, BOB);
     expect(await deleteUserGrant(client, SPACE, BOB)).toBe(GRANT);
     expect(deleted).toEqual([{ uri: GRANT }]);
   });
 
   it("is a no-op when the subject holds no grant on the space", async () => {
     const deleted = relations([]);
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { deleteUserGrant } = await import("../src/server/functions.server");
-    const client = new SapClient(testEnv, BOB);
+    const client = new HabitatClient(testEnv, BOB);
     expect(await deleteUserGrant(client, SPACE, BOB)).toBeUndefined();
     expect(deleted).toEqual([]);
   });
@@ -344,13 +343,13 @@ describe("deleteUserGrant", () => {
     // rejects any relationship query against it as SpaceNotFound.
     server.use(
       http.get(
-        "http://sap-internal.test/proxy/network.habitat.relationship.listRelations",
+        "http://pds.test/xrpc/network.habitat.relationship.listRelations",
         () => HttpResponse.json({ error: "SpaceNotFound" }, { status: 400 }),
       ),
     );
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { deleteUserGrant } = await import("../src/server/functions.server");
-    const client = new SapClient(testEnv, BOB);
+    const client = new HabitatClient(testEnv, BOB);
     expect(await deleteUserGrant(client, SPACE, BOB)).toBeUndefined();
   });
 });
@@ -370,7 +369,7 @@ describe("listUserGrants", () => {
   function listRelations(response: () => Response) {
     server.use(
       http.get(
-        "http://sap-internal.test/proxy/network.habitat.relationship.listRelations",
+        "http://pds.test/xrpc/network.habitat.relationship.listRelations",
         response,
       ),
     );
@@ -382,9 +381,9 @@ describe("listUserGrants", () => {
         relations: [{ uri: GRANT, subject: BOB, relation: "reader" }],
       }),
     );
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { listUserGrants } = await import("../src/server/functions.server");
-    const client = new SapClient(testEnv, BOB);
+    const client = new HabitatClient(testEnv, BOB);
     expect(await listUserGrants(client, SPACE)).toEqual([
       { uri: GRANT, subject: BOB, relation: "reader" },
     ]);
@@ -394,9 +393,9 @@ describe("listUserGrants", () => {
     listRelations(() =>
       HttpResponse.json({ error: "SpaceNotFound" }, { status: 400 }),
     );
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { listUserGrants } = await import("../src/server/functions.server");
-    const client = new SapClient(testEnv, BOB);
+    const client = new HabitatClient(testEnv, BOB);
     expect(await listUserGrants(client, SPACE)).toEqual([]);
   });
 
@@ -404,9 +403,9 @@ describe("listUserGrants", () => {
     listRelations(() =>
       HttpResponse.json({ error: "Unauthorized" }, { status: 401 }),
     );
-    const { SapClient } = await import("../src/server/sapClient");
+    const { HabitatClient } = await import("../src/server/habitatClient");
     const { listUserGrants } = await import("../src/server/functions.server");
-    const client = new SapClient(testEnv, BOB);
+    const client = new HabitatClient(testEnv, BOB);
     await expect(listUserGrants(client, SPACE)).rejects.toThrow("Unauthorized");
   });
 });

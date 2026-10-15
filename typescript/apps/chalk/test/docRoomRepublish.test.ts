@@ -6,6 +6,8 @@ import {
 import { beforeEach, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import type { DocRoom } from "../src/server/rooms/docRoom";
+
+vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 import { getDb, docByUri, upsertDoc } from "../src/db";
 
 const URI = "at://did:web:alice.example/space/network.habitat.docs/pub";
@@ -45,23 +47,26 @@ it("republishes crdt and markdown under the owner's repo", async () => {
   );
   await new Promise((resolve) => setTimeout(resolve, 2100));
   await runDurableObjectAlarm(stub);
-  const puts = fetchMock.mock.calls
-    .filter((c) => String(c[0]).includes("space.putRecord"))
-    .map(
-      (c) =>
-        JSON.parse(String(c[1].body)) as {
-          space: string;
-          repo: string;
-          collection: string;
-        },
+  // As in the tests below: a background alarm may still be flushing.
+  await vi.waitFor(() => {
+    const puts = fetchMock.mock.calls
+      .filter((c) => String(c[0]).includes("space.putRecord"))
+      .map(
+        (c) =>
+          JSON.parse(String(c[1].body)) as {
+            space: string;
+            repo: string;
+            collection: string;
+          },
+      );
+    const ownerPuts = puts.filter(
+      (p) => p.space === URI && p.repo === "did:web:alice.example",
     );
-  const ownerPuts = puts.filter(
-    (p) => p.space === URI && p.repo === "did:web:alice.example",
-  );
-  expect(ownerPuts.map((p) => p.collection).sort()).toEqual([
-    "network.habitat.docs.crdt",
-    "network.habitat.docs.markdown",
-  ]);
+    expect(ownerPuts.map((p) => p.collection).sort()).toEqual([
+      "network.habitat.docs.crdt",
+      "network.habitat.docs.markdown",
+    ]);
+  });
 });
 
 it("skips republish when the owner is unknown", async () => {
@@ -72,14 +77,19 @@ it("skips republish when the owner is unknown", async () => {
   );
   await new Promise((resolve) => setTimeout(resolve, 2100));
   await runDurableObjectAlarm(stub);
-  const repos = fetchMock.mock.calls
-    .filter((c) => String(c[0]).includes("space.putRecord"))
-    .map(
-      (c) => JSON.parse(String(c[1].body)) as { space: string; repo: string },
-    )
-    .filter((body) => body.space === uri)
-    .map((body) => body.repo);
-  expect(repos).toEqual(["did:web:bob.example"]);
+  // This room's own real alarm can fire during the wait above and still be
+  // mid-flush when runDurableObjectAlarm returns (see docRoomFlush.test.ts),
+  // so wait for the member's write rather than reading the mock once.
+  await vi.waitFor(() => {
+    const repos = fetchMock.mock.calls
+      .filter((c) => String(c[0]).includes("space.putRecord"))
+      .map(
+        (c) => JSON.parse(String(c[1].body)) as { space: string; repo: string },
+      )
+      .filter((body) => body.space === uri)
+      .map((body) => body.repo);
+    expect(repos).toEqual(["did:web:bob.example"]);
+  });
 });
 
 it("writes the rendered title back to the D1 index", async () => {
@@ -100,5 +110,7 @@ it("writes the rendered title back to the D1 index", async () => {
   );
   await new Promise((resolve) => setTimeout(resolve, 2100));
   await runDurableObjectAlarm(stub);
-  expect((await docByUri(getDb(env), uri))?.title).toBe("Hello");
+  await vi.waitFor(async () => {
+    expect((await docByUri(getDb(env), uri))?.title).toBe("Hello");
+  });
 });

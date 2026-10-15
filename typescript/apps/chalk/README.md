@@ -35,15 +35,30 @@ If you prefer not to use Tailwind CSS:
 Chalk builds through `@cloudflare/vite-plugin` (not Nitro): a stateless
 Worker serving routes, SSR, and server functions, with one Durable Object
 class — `DocRoom` (one per document, owns its Yjs state) — plus a D1
-database for the docs index. sap pushes outbox events to chalk via a
-webhook POST to `/webhook/sap` (`src/routes/webhook.sap.ts`, backed by
-`cmd/sap/webhook.go`'s `--webhook-url`/`SAP_WEBHOOK_URL`), rather than
-chalk holding an open connection to sap — an ordinary momentary Worker
-request instead of a Durable Object with a permanently open WebSocket,
-which Durable Object "duration" billing charges for continuously (wall
-clock, not CPU time) for as long as the connection stays open. This only
-works against a sap that can reach the deployed Worker's `/webhook/sap`
-over the public internet — a loopback sap only works for local dev.
+database for the docs index.
+
+Chalk talks to the Habitat instance directly, the same way Drop does — no
+sap in between:
+
+- **OAuth** (`src/server/oauth.ts`): chalk is its own atproto OAuth client.
+  Members sign in with their handle or work email; connecting an org runs
+  the same flow with the org's DID, which pear routes through its
+  opensocial admin approval. Sessions for members and orgs live in D1
+  (`oauth_sessions`), sealed with `CHALK_CREDENTIALS_KEY`, and every call
+  chalk makes as someone goes through `HabitatClient`
+  (`src/server/habitatClient.ts`).
+- **Sync** (`src/server/sync.ts`): doc spaces and their comments spaces are
+  synced with `internal/spaceSync`. Creating a space, signing in, and
+  connecting an org watch the relevant spaces; space hosts then notify
+  chalk of writes at `/xrpc/com.atproto.space.notifyWrite`, and a cron
+  trigger (every minute) runs whatever has come due. All of the syncer's
+  state lives in D1 (through `DrizzleSyncStore` from
+  `internal/spaceSync/drizzle`, shared with Drop), so each short-lived
+  syncer picks up where the last left off. Delegation tokens are minted as the space authority, falling
+  back to members with a grant on the doc.
+- **Sink** (`src/server/sink.ts`): applies verified batches to the D1
+  mirror (docs, access grants, comments) and merges crdt records into each
+  doc's `DocRoom`.
 
 ```bash
 pnpm build
@@ -61,20 +76,10 @@ file after a build with an `env.production` override in place, and by a
 Local dev instead overrides `vars` via `.dev.vars` (gitignored, wins over
 `vars` for `wrangler dev`/`vite dev`) — see that file for the local values.
 
-If sap runs with `--internal-auth-secret` (real deployments should — see
-`cmd/sap/server.go`'s `basicAuthMiddleware`), set
-`CHALK_SAP_INTERNAL_AUTH_SECRET` to match, as a wrangler secret. Every
-`SapClient` call sends it as HTTP basic auth automatically when it's set
-(`sapAuthHeaders` in `sapClient.ts`); a local sap without that flag needs
-no header, which is why local dev's `.dev.vars` sets a placeholder value
-that's simply never read.
-
-sap's webhook consumer sends a bare POST with no custom headers, so the
-`/webhook/sap` endpoint is instead authenticated via a `secret` query
-param baked directly into the URL sap is configured with. Set
-`CHALK_SAP_WEBHOOK_SECRET` as a wrangler secret, and configure sap's
-`SAP_WEBHOOK_URL`/`--webhook-url` as
-`https://<chalk domain>/webhook/sap?secret=<same value>`.
+`CHALK_BASE_URL` must be where the Worker is actually served: it's the
+OAuth client ID's origin (`/oauth/client-metadata.json`) and chalk's
+`did:web` service DID (`/.well-known/did.json`), which space hosts deliver
+notifications to.
 
 First-time setup:
 
@@ -84,14 +89,13 @@ First-time setup:
 pnpm exec wrangler d1 create chalk
 pnpm exec wrangler d1 migrations apply chalk --remote
 
-# All three are wrangler secrets, not vars (see wrangler.jsonc):
-pnpm exec wrangler secret put CHALK_SESSION_SECRET
-pnpm exec wrangler secret put CHALK_SAP_INTERNAL_AUTH_SECRET  # if sap requires it
-pnpm exec wrangler secret put CHALK_SAP_WEBHOOK_SECRET
+# Both are wrangler secrets, not vars (see wrangler.jsonc):
+pnpm exec wrangler secret put CHALK_SESSION_SECRET   # 32+ characters
+pnpm exec wrangler secret put CHALK_CREDENTIALS_KEY  # openssl rand -base64 32
 ```
 
-Update `wrangler.jsonc`'s `vars` (`CHALK_BASE_URL`, `CHALK_SAP_INTERNAL_URL`)
-for the real deployment's domain and sap URL, and its
+Update `wrangler.jsonc`'s `vars` (`CHALK_BASE_URL`, `CHALK_HABITAT_URL`)
+for the real deployment's domain and Habitat instance, and its
 `d1_databases[0].database_id` for the id `wrangler d1 create` printed.
 Durable Object migrations (`migrations` in `wrangler.jsonc`) are applied
 automatically by `wrangler deploy`. Without a custom domain, the Worker is
@@ -102,7 +106,8 @@ Pages → your account) or the `GET /accounts/:id/workers/subdomain` API —
 
 ### Local development
 
-`moon chalk:dev` starts pear, sap, Caddy, and the Worker on port 5177.
+`moon chalk:dev` starts pear, Caddy, and the Worker on port 5177
+(`https://chalk.local.habitat.network`).
 
 The local D1 database starts out empty and nothing in the Workers runtime
 creates its schema, so `dev` applies the migrations in `drizzle/` on every
@@ -129,15 +134,13 @@ pnpm db:generate
 
 One thing does need doing by hand the first time:
 
-```bash
-# CHALK_SESSION_SECRET comes from .dev.vars (gitignored). Create it with:
-echo 'CHALK_SESSION_SECRET=dev-only-32-char-minimum-secret!!' > .dev.vars
 ```
-
-Local sap is started with `SAP_WEBHOOK_URL=http://127.0.0.1:5177/webhook/sap`
-(`cmd/sap/moon.yml`), posting straight to the dev Worker with no secret —
-nothing else on the machine can reach that loopback URL. No manual step is
-needed for inbound outbox events to reach chalk locally.
+# .dev.vars (gitignored) — secrets, plus local overrides of wrangler.jsonc's vars
+CHALK_SESSION_SECRET=dev-only-32-char-minimum-secret!!
+CHALK_CREDENTIALS_KEY=<openssl rand -base64 32>
+CHALK_BASE_URL=https://chalk.local.habitat.network
+CHALK_HABITAT_URL=https://pear.local.habitat.network
+```
 
 Regenerate `worker-configuration.d.ts` (the typed `Env` global) after any
 binding or var change: `pnpm cf-typegen` (also runs automatically before
