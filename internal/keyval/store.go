@@ -27,13 +27,16 @@ var _ Store = (*store)(nil)
 // New returns the root store, bound to the empty namespace. Consumers are
 // handed a child from Namespace, never the root.
 //
-// The key_values table must already exist: pear's migrations create it, and
+// The store's operations need the key_values table: pear's migrations create it, and
 // tests create it from [Models].
 //
-// On SQLite, which has no triggers, New also sweeps expired rows once. Reads
-// filter on expiry regardless, so the sweep only reclaims space.
+// On SQLite, which has no triggers, New also sweeps expired rows once if the
+// table exists. Reads filter on expiry regardless, so the sweep only reclaims
+// space.
 func New(ctx context.Context, d *gorm.DB) (Store, error) {
-	if db.DialectOf(d) == db.Sqlite {
+	// The table may not exist yet: `pear migrate` builds its components, this
+	// store included, before it has created the table.
+	if db.DialectOf(d) == db.Sqlite && d.Migrator().HasTable(&entry{}) {
 		if err := d.WithContext(ctx).
 			Where("expires_at <= ?", time.Now()).
 			Delete(&entry{}).Error; err != nil {
