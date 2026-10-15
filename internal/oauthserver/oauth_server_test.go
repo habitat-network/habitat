@@ -490,6 +490,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		passwordProvider,
 		fgaStore,
 		org.NewEveryoneOrg(pearDomain),
+		keyval_testutil.New(t),
 	)
 	require.NoError(t, err, "failed to setup org store")
 

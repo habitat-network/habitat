@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/alexedwards/argon2id"
 	"go.opentelemetry.io/otel"
@@ -314,7 +313,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if err != nil {
 		return nil, fmt.Errorf("setup oauth server: %w", err)
 	}
-	oauthGC := oauthserver.NewCollector(database.WithContext(ctx), 5*time.Minute)
 
 	serviceAuth := authn.NewServiceAuthMethod(
 		everyoneOrg,
@@ -391,7 +389,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		opensocialStore,
 		emailResolver,
 		oauthServer,
-		oauthGC,
 		serviceAuth,
 		cliqueStore,
 		permStore,

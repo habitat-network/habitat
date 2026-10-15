@@ -64,7 +64,6 @@ type App struct {
 	OpensocialStore     *opensocial.Store
 	EmailResolver       *habitat_identity.EmailResolver
 	OAuthServer         *oauthserver.OAuthServer
-	OAuthGC             *oauthserver.Collector
 	ServiceAuth         *authn.AtprotoServiceAuthMethod
 	CliqueStore         clique.Store
 	PermStore           perms.Store
@@ -107,7 +106,6 @@ func New(
 	opensocialStore *opensocial.Store,
 	emailResolver *habitat_identity.EmailResolver,
 	oauthServer *oauthserver.OAuthServer,
-	oauthGC *oauthserver.Collector,
 	serviceAuth *authn.AtprotoServiceAuthMethod,
 	cliqueStore clique.Store,
 	permStore perms.Store,
@@ -145,7 +143,6 @@ func New(
 		OpensocialStore:     opensocialStore,
 		EmailResolver:       emailResolver,
 		OAuthServer:         oauthServer,
-		OAuthGC:             oauthGC,
 		ServiceAuth:         serviceAuth,
 		CliqueStore:         cliqueStore,
 		PermStore:           permStore,
