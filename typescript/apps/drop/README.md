@@ -22,9 +22,9 @@ the spaces sync protocol, not a reader of its own writes.
   done (in `waitUntil`). A cron trigger (every minute) runs whatever has come
   due in D1. All of the syncer's state lives in D1, so each fresh syncer
   picks up where the last left off.
-- **Stores** (`src/db/`): drizzle/D1 implementations of the syncer's
-  `SyncStore` (`syncStore.ts`) and of the OAuth client's state and session
-  stores (`oauthStores.ts`).
+- **Stores**: the syncer's `SyncStore` is the drizzle/D1 `DrizzleSyncStore`
+  shared with Chalk (`internal/spaceSync/drizzle`); the OAuth client's state
+  and session stores are in `src/db/oauthStores.ts`.
 - **Sink** (`src/server/sink.ts`): applies verified batches to the `files`
   table. Blobs aren't copied: downloads fetch them from the org's space on
   demand.
@@ -67,3 +67,8 @@ DROP_HABITAT_URL=https://pear.local.habitat.network
 Regenerate the D1 migration after changing `src/db/schema.ts` with
 `pnpm db:generate`, and `worker-configuration.d.ts` after a binding change
 with `pnpm cf-typegen` (also run by `dev`/`build`/`test`).
+
+## Analytics (PostHog)
+
+Optional. Set `VITE_POSTHOG_KEY` (and `VITE_POSTHOG_HOST` for EU/self-hosted;
+defaults to `https://us.i.posthog.com`) at build time. Unset, PostHog is a no-op.

@@ -3,7 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@habitat-network/habitat": ["../../habitat/src/index.ts"]
     },
     "types": ["vite/client", "node"],
     "outDir": "../../../.moon/cache/types/typescript/apps/chalk"
@@ -15,6 +16,9 @@
     },
     {
       "path": "../../internal"
+    },
+    {
+      "path": "../../habitat"
     }
   ]
 }

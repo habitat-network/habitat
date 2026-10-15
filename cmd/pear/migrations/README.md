@@ -1,7 +1,12 @@
 # Pear migrations
 
-pear applies its migrations with [goose](https://github.com/pressly/goose) at
-startup (`migrations.Run`), in version order. There are two kinds:
+pear applies its migrations with [goose](https://github.com/pressly/goose)
+(`migrations.Run`), in version order. The server doesn't migrate on startup:
+run `pear migrate` (the `pear-migrate` Cloud Run job, or `moon run pear:migrate`
+locally, which `pear:dev` runs first). One-off backfills that aren't schema-bound
+can be tasks instead: see `cmd/pear/tasks.go` and `pear run --help`.
+
+There are two kinds of migration:
 
 - **Schema migrations** are SQL files in `cmd/pear/migrations/<dialect>`, one
   directory each for Postgres and SQLite. [Atlas](https://atlasgo.io) writes

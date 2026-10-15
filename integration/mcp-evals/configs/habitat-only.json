@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "habitat": {
+      "type": "http",
+      "url": "https://pear.local.habitat.network/mcp/did:web:wxbq0h.pear.local.habitat.network"
+    }
+  }
+}

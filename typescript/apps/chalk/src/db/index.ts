@@ -1,11 +1,14 @@
 import { drizzle } from "drizzle-orm/d1";
+import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import {
   and,
   asc,
   desc,
   eq,
   inArray,
+  gte,
   isNotNull,
+  lt,
   notInArray,
   or,
 } from "drizzle-orm";
@@ -75,7 +78,7 @@ function toSummary(r: typeof docs.$inferSelect): DocSummary {
 
 // docsFor returns the docs a subject can open, per the
 // doc_access rows synced from network.habitat.relationship.userRelation
-// (see outbox.ts), and — in org mode — the doc_org_access rows that share a
+// (see sink.ts), and — in org mode — the doc_org_access rows that share a
 // doc with a whole org.
 //
 // Both modes are the same query, differing only in which docs are in scope.
@@ -166,7 +169,7 @@ export async function upsertDocAccess(
 }
 
 // deleteDocAccess removes a grant by its relation record's URI, in response
-// to the JSON-null tombstone the outbox emits for a deleted record.
+// to a synced delete of that record.
 export async function deleteDocAccess(db: Db, uri: string): Promise<void> {
   await db.delete(docAccess).where(eq(docAccess.uri, uri));
 }
@@ -233,7 +236,7 @@ export async function upsertConnectedOrg(
 // connectedOrgNames maps each already-connected orgDid (among orgIds) to
 // the name recorded for it — an org only needs the OAuth admin-approval
 // round-trip once (any admin's connection covers the whole org, since it's
-// org-wide sap state, not per-member), so the /orgs picker shows an org as
+// org-wide state, not per-member), so the /orgs picker shows an org as
 // already added for every member once one of them has done it, and reuses
 // the name recorded then instead of re-fetching it from the org's PDS on
 // every listMyOrgs call. Callers pass the current member's own org
@@ -271,8 +274,8 @@ export interface CommentRow {
 
 // upsertComment mirrors one network.habitat.docs.comment record — the root
 // of a thread — into the comments table. Keyed by the record's own URI, so
-// re-delivery of the same record from the outbox (which sap retries until
-// chalk 200s — see webhook.ts) updates in place rather than duplicating
+// re-delivery of the same record by the syncer (delivery is at-least-once —
+// see sink.ts) updates in place rather than duplicating
 // the comment. cid is stored so a reply can build the
 // com.atproto.repo.strongRef it needs without a separate read.
 export async function upsertComment(
@@ -343,8 +346,8 @@ export async function commentByUri(
 }
 
 // deleteComment removes a comment by its record URI, in response to either
-// an explicit delete or the JSON-null tombstone the outbox emits for a
-// deleted record. Its replies are left as-is (they reference the URI,
+// an explicit delete or the syncer delivering that record's deletion.
+// Its replies are left as-is (they reference the URI,
 // which still identifies the thread even once the root record is gone) —
 // cleaning those up isn't implemented; deleting a thread's root is not
 // itself a supported operation yet.
@@ -407,4 +410,59 @@ export async function repliesForDoc(
 // deleteCommentReply removes a reply by its record URI.
 export async function deleteCommentReply(db: Db, uri: string): Promise<void> {
   await db.delete(commentReplies).where(eq(commentReplies.uri, uri));
+}
+
+// docAccessSubjects lists every user holding a direct grant on spaceUri, as
+// mirrored in doc_access — the members chalk may hold a session for, which
+// sync.ts's delegation source falls back to when the space authority's own
+// session isn't available.
+export async function docAccessSubjects(
+  db: Db,
+  spaceUri: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ subjectDid: docAccess.subjectDid })
+    .from(docAccess)
+    .where(eq(docAccess.spaceUri, spaceUri));
+  return rows.map((r) => r.subjectDid);
+}
+
+// mirroredRecordUris lists the record URIs under prefix (a space, or one
+// repo within a space) across every table that mirrors synced records —
+// what the sink needs to clear out after a repo reset, a removed repo, or a
+// deleted space. A range scan rather than LIKE, whose pattern D1 caps at 50
+// bytes — shorter than any record URI prefix.
+export async function mirroredRecordUris(
+  db: Db,
+  prefix: string,
+): Promise<string[]> {
+  const under = (col: SQLiteColumn) =>
+    and(gte(col, prefix), lt(col, `${prefix}\uffff`));
+  const results = await Promise.all([
+    db
+      .select({ uri: docAccess.uri })
+      .from(docAccess)
+      .where(under(docAccess.uri)),
+    db
+      .select({ uri: docOrgAccess.uri })
+      .from(docOrgAccess)
+      .where(under(docOrgAccess.uri)),
+    db.select({ uri: comments.uri }).from(comments).where(under(comments.uri)),
+    db
+      .select({ uri: commentReplies.uri })
+      .from(commentReplies)
+      .where(under(commentReplies.uri)),
+  ]);
+  return results.flat().map((r) => r.uri);
+}
+
+// deleteMirroredRecord removes whatever row mirrors the record at uri, in
+// whichever table holds it.
+export async function deleteMirroredRecord(db: Db, uri: string): Promise<void> {
+  await db.batch([
+    db.delete(docAccess).where(eq(docAccess.uri, uri)),
+    db.delete(docOrgAccess).where(eq(docOrgAccess.uri, uri)),
+    db.delete(comments).where(eq(comments.uri, uri)),
+    db.delete(commentReplies).where(eq(commentReplies.uri, uri)),
+  ]);
 }

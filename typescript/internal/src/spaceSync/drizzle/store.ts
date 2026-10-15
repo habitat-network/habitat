@@ -1,14 +1,11 @@
 import { and, asc, eq, lte } from "drizzle-orm";
 import type { DidString, SpaceRefString } from "@atproto/syntax";
-import type {
-  PromiseSyncStore,
-  RepoState,
-  SpaceState,
-} from "internal/spaceSync";
-import type { Db } from "./index";
+import type { DrizzleD1Database } from "drizzle-orm/d1";
+import type { PromiseSyncStore } from "../promise";
+import type { RepoState, SpaceState } from "../types";
 import { syncRepos, syncSpaces } from "./schema";
 
-// DrizzleSyncStore is internal/spaceSync's durable SyncStore port over D1.
+// DrizzleSyncStore is spaceSync's durable SyncStore port over D1.
 // Each method is a single statement (or a D1 batch, which D1 runs as one
 // transaction), which is the atomicity the port asks for.
 
@@ -39,6 +36,10 @@ function toSpaceRow(state: SpaceState): SpaceRow {
     lastError: state.lastError ?? null,
   };
 }
+
+// Any app's D1 database works, whatever else its schema holds, as long as
+// its migrations create syncSpaces and syncRepos (see ./schema).
+type Db = DrizzleD1Database<Record<string, unknown>>;
 
 export class DrizzleSyncStore implements PromiseSyncStore {
   constructor(private db: Db) {}

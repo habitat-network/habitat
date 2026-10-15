@@ -80,6 +80,24 @@ const ProtectedResourceMetadataPath = "/.well-known/oauth-protected-resource/mcp
 // "search_records" know which org they act on.
 const Path = "/mcp"
 
+// serverInstructions are sent to MCP clients on initialize, which typically
+// put them in the model's system prompt even when tools are deferred, so they
+// are the main place to tell agents when to reach for Habitat. They're only
+// sent when "search_records" is offered, since they direct agents to it.
+// integration/mcp-evals measures how well they work; rerun it after editing.
+const serverInstructions = `Habitat holds this user's organizational knowledge base: documents, notes, policies, files, plans, decisions and other data records shared within their org.
+
+Whenever a question is about the user's company, team, colleagues, customers, projects or past discussions, call search_records before searching local files or the web. Search with a few keywords, then read results in full with get_record or get_blob. If nothing relevant turns up after a few searches, say so instead of guessing.
+
+Tools prefixed with an app's name (for example Granola) are the org's connected apps, reached through Habitat. Use them for data that lives in those apps, such as meeting notes.`
+
+// searchRecordsDescription is the "search_records" tool's description. Like
+// serverInstructions, it says when to search, not just how.
+const searchRecordsDescription = "Search your organization's knowledge in Habitat: documents, " +
+	"notes, policies, files, roadmaps, decisions and other data records shared with you. Use " +
+	"this first for any question about your company, team, customers or past work. Returns " +
+	"matching records with snippets; use get_record for the full content."
+
 // Server exposes pear's data as an MCP server over streamable HTTP, guarded
 // by bearer tokens issued by internal/oauthserver.
 type Server struct {
@@ -141,7 +159,11 @@ func New(
 ) *Server {
 	impl := &mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}
 	newMCPServer := func(org syntax.DID) *mcp.Server {
-		mcpServer := mcp.NewServer(impl, nil)
+		var opts *mcp.ServerOptions
+		if searcher != nil {
+			opts = &mcp.ServerOptions{Instructions: serverInstructions}
+		}
+		mcpServer := mcp.NewServer(impl, opts)
 		mcp.AddTool(mcpServer, &mcp.Tool{
 			Name: "get_record",
 			Description: "Get a single Habitat record by its space record URI, returned as " +
@@ -165,9 +187,8 @@ func New(
 		}, blobResourceHandler(blobs, permStore))
 		if searcher != nil {
 			mcp.AddTool(mcpServer, &mcp.Tool{
-				Name: "search_records",
-				Description: "Full-text search the Habitat records in this org the caller can read, " +
-					"optionally within one collection.",
+				Name:        "search_records",
+				Description: searchRecordsDescription,
 			}, searchRecordsHandler(searcher, org))
 		}
 		mcpServer.AddReceivingMiddleware(

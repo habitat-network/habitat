@@ -12,7 +12,8 @@ const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // ~30 days
 // useAppSession wraps TanStack Start's built-in session helper (see
 // https://tanstack.com/start/latest/docs/framework/react/guide/authentication#2-session-management)
 // with chalk's cookie name and secret. The session cookie holds only the
-// member DID; everything else (tokens, refresh) lives in sap.
+// member DID; their OAuth session (tokens, refresh) lives in D1 (oauth_sessions,
+// see src/server/oauth.ts), keyed by that DID.
 export async function useAppSession() {
   const secret = process.env.CHALK_SESSION_SECRET;
   if (!secret) {

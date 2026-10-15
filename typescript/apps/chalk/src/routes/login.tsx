@@ -2,12 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { EMAIL_DOMAIN_NOT_FOUND_MESSAGE, SignInForm } from "internal";
 import { env } from "cloudflare:workers";
-import { EmailDomainNotFoundError, startLogin } from "@/server/sapClient";
+import { EmailDomainNotFoundError, startLogin } from "@/server/habitatClient";
 
 // startLogin itself isn't a TanStack server function (it's a plain async
-// function in sapClient.ts, shared with functions.ts's composition root) —
-// wrap it here at the route boundary so the client only ever gets an RPC
-// stub, never sap's internal URL or the fetch call itself.
+// function in habitatClient.ts, shared with functions.ts's composition root)
+// — wrap it here at the route boundary so the client only ever gets an RPC
+// stub, never the OAuth client itself.
 const startLoginFn = createServerFn({ method: "POST" })
   .validator((input: { handle: string }) => input)
   .handler(async ({ data }) => {

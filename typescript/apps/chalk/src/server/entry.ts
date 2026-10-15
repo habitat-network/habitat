@@ -16,4 +16,12 @@ export default {
   // reads bindings from `cloudflare:workers` at module scope like the rest
   // of this app does, so it needs nothing else from the invocation.
   fetch: (request) => startEntry.fetch(request),
+  // The cron trigger (wrangler.jsonc's `triggers`) runs the sync passes that
+  // have come due (see src/server/sync.ts). Imported lazily so this module's
+  // static graph stays just Start and DocRoom: the tests load it as their
+  // Worker entry before any test file runs, and everything it pulls in
+  // statically is evaluated before a test's vi.mock() can replace it.
+  scheduled: (_controller, env, ctx) => {
+    ctx.waitUntil(import("./sync").then((sync) => sync.runDueSpaces(env)));
+  },
 } satisfies ExportedHandler<Env>;

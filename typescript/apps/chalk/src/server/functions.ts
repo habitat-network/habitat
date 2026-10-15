@@ -41,7 +41,10 @@ import {
   type CommentView,
   type StrongRef,
 } from "./comments.server";
-import { SapClient, startLogin } from "./sapClient";
+import { HabitatClient, startLogin, type OAuthAppState } from "./habitatClient";
+import { createOAuthClient } from "./oauth";
+import { useAppSession } from "./session";
+import { watchDocSpacesOf, watchSpaces } from "./sync";
 
 // Every export below is a createServerFn wrapper — safe to statically
 // import from any client-reachable file (route components included), per
@@ -62,18 +65,70 @@ export const signOut = createServerFn({ method: "POST" }).handler(async () => {
   await clearSession();
 });
 
+// completeOAuth finishes whichever OAuth flow just redirected back to
+// /oauth/callback (see startLogin and startOrgConnect), and says where to
+// send the browser next.
+//
+// - A member sign-in sets the session cookie and goes home.
+// - An org connect checks the session that came back really is the org's
+//   (and that the member who started it is still the one signed in), then
+//   goes on to /session/org-callback, which records the connection.
+//
+// Either way, every doc space the new session can list starts syncing
+// (see watchDocSpacesOf) — best-effort: a hiccup there shouldn't fail the
+// sign-in, and the spaces are picked up again on the next one.
+export const completeOAuth = createServerFn({ method: "POST" })
+  .validator((input: { params: Record<string, string> }) => input)
+  .handler(
+    async ({
+      data,
+    }): Promise<
+      { to: "/" | "/login" } | { to: "/session/org-callback"; orgDid: string }
+    > => {
+      const { session: oauthSession, state } = await createOAuthClient(
+        env,
+      ).callback(new URLSearchParams(data.params));
+      const appState: OAuthAppState = state
+        ? (JSON.parse(state) as OAuthAppState)
+        : { kind: "member" };
+      const session = await useAppSession();
+
+      if (appState.kind === "member") {
+        await session.update({ did: oauthSession.did });
+        await watchBestEffort(oauthSession.did);
+        return { to: "/" };
+      }
+
+      if (session.data.did !== appState.memberDid) return { to: "/login" };
+      if (oauthSession.did !== appState.orgDid) {
+        throw new Error(
+          "Signed in as a different identity than the organization being connected",
+        );
+      }
+      await watchBestEffort(oauthSession.did, oauthSession.did);
+      return { to: "/session/org-callback", orgDid: oauthSession.did };
+    },
+  );
+
+async function watchBestEffort(did: string, owner?: string): Promise<void> {
+  try {
+    await watchDocSpacesOf(env, did, owner);
+  } catch (err) {
+    console.error("[oauth] watch doc spaces of", did, err);
+  }
+}
+
 export const createDoc = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ docId: string; uri: string }> => {
     const { did, currentOrg } = await requireSession();
-    const client = new SapClient(env, did);
+    const client = new HabitatClient(env, did);
 
     const { uri, ownerDid } = await createDocSpace(client, did, currentOrg);
 
     // An org doc space is created with no opensocial access roles (see
     // createDocSpace), so the member who just created it holds nothing on
-    // it — not even enough for the trackSpace call below, which fails its
-    // space-credential check as UserNotAuthorized. Grant them manager with
-    // the org's own credentials (the org owns the space, so it always
+    // it — not even enough to read it, let alone share it. Grant them
+    // manager with the org's own credentials (the org owns the space, so it always
     // qualifies — see managementClient) before anything else touches it.
     if (currentOrg) {
       await managementClient(did, currentOrg).call(
@@ -83,10 +138,10 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
       );
     }
 
-    // sap has no way to discover this space on its own until the member's
-    // next session crawl — tell it explicitly so DocSync's outbox consumer
-    // actually receives events for edits to it.
-    await client.trackSpace(uri);
+    // Nothing else tells the syncer this space exists until the member's
+    // next sign-in lists it — watch it now so edits to it (from this or any
+    // other chalk instance) reach the D1 mirror and the doc's room.
+    await watchSpaces(env, [uri]);
 
     // Create the companion comments space up front rather than on the
     // first comment: a commenter is someone granted writer on it (see
@@ -107,7 +162,7 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     await upsertDoc(db, { spaceUri: uri, docId, ownerDid, title: "Untitled" });
 
     // Record the creator's own grant locally now rather than waiting on the
-    // outbox webhook to sync the matching userRelation record back —
+    // syncer to deliver the matching userRelation record back —
     // without this, the doc the creator just made is hidden from their own
     // listing until that async round-trip lands. Personal docs get owner
     // (simplespace.createSpace grants it); org docs get the manager grant
@@ -121,7 +176,7 @@ export const createDoc = createServerFn({ method: "POST" }).handler(
     });
 
     // Record the room's identity now, so the owner-republish alarm knows the
-    // owner before the webhook (src/server/webhook.ts) delivers it.
+    // owner before the syncer (src/server/sink.ts) delivers it.
     await env.DOC.get(env.DOC.idFromName(uri)).seedIdentity({
       spaceUri: uri,
       ownerDid,
@@ -146,7 +201,7 @@ export const getCurrentOrg = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ did: string; name: string | null } | undefined> => {
     const { did, currentOrg } = await requireSession();
     if (!currentOrg) return undefined;
-    const client = new SapClient(env, did);
+    const client = new HabitatClient(env, did);
     return {
       did: currentOrg,
       name: await fetchOrgName(client, currentOrg as DidString),
@@ -173,7 +228,7 @@ export interface OrgOption {
 export const listMyOrgs = createServerFn({ method: "GET" }).handler(
   async (): Promise<OrgOption[]> => {
     const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const client = new HabitatClient(env, did);
     const orgIds = await listMyOrgIds(client);
     const names = await connectedOrgNames(getDb(env), orgIds);
     return Promise.all(
@@ -208,19 +263,22 @@ export const switchToPersonal = createServerFn({ method: "POST" }).handler(
   },
 );
 
-// startOrgConnect asks sap to begin the opensocial admin sign-in flow for
-// orgDid, telling it to redirect the browser back to chalk's
-// /session/org-callback (with the resolved DID — always orgDid itself,
-// since handleAddSession resolves whatever identifier it's given) once
-// that flow completes. Returns the URL the browser should be sent to next.
-// Mirrors startLogin (sapClient.ts) exactly, but with a DID instead of a
-// handle and a different return_to.
+// startOrgConnect begins the OAuth flow for the org's own identity: pear
+// shows the org's admin-approval page for it (only an admin of the org can
+// complete it), then redirects back to /oauth/callback, which stores the
+// org's session and sends the browser on to /session/org-callback. Returns
+// the URL the browser should be sent to next. Same as startLogin
+// (habitatClient.ts) for a member, but with the org's DID as the login hint.
 export const startOrgConnect = createServerFn({ method: "POST" })
   .validator((input: { orgDid: string }) => input)
   .handler(async ({ data }): Promise<{ redirectUrl: string }> => {
-    await requireSession();
+    const { did } = await requireSession();
     return {
-      redirectUrl: await startLogin(env, data.orgDid, "/session/org-callback"),
+      redirectUrl: await startLogin(env, data.orgDid, {
+        kind: "org",
+        orgDid: data.orgDid,
+        memberDid: did,
+      }),
     };
   });
 
@@ -232,10 +290,10 @@ interface SpaceRelationView {
   relation: string;
 }
 
-// managementClient returns the SapClient to use for calls that manage a
+// managementClient returns the HabitatClient to use for calls that manage a
 // doc's sharing (list/grant/revoke access): in org mode this is the org's
-// own OAuth session (sap already tracks one, established when the org was
-// connected — see startOrgConnect), not the calling member's. The org owns
+// own OAuth session (chalk holds one once the org has been connected — see
+// startOrgConnect), not the calling member's. The org owns
 // its doc spaces outright, so it always passes pear's manager check
 // (CheckUserHasSpaceRole's implicit-owner rule) — unlike an individual
 // member, who may hold no relation on the doc at all until someone with
@@ -246,8 +304,8 @@ interface SpaceRelationView {
 function managementClient(
   did: string,
   currentOrg: string | undefined,
-): SapClient {
-  return new SapClient(env, currentOrg ?? did);
+): HabitatClient {
+  return new HabitatClient(env, currentOrg ?? did);
 }
 
 // A doc grantee holds one of three tiers, which map onto the relations
@@ -353,7 +411,7 @@ export const shareDoc = createServerFn({ method: "POST" })
     if (onComments) {
       const doc = await docByUri(getDb(env), data.docId);
       const ownerDid = doc?.ownerDid ?? did;
-      await ensureCommentsSpace(new SapClient(env, did), data.docId, {
+      await ensureCommentsSpace(new HabitatClient(env, did), data.docId, {
         ownerDid,
         // Same derivation as createComment: an org doc is one owned by the
         // org the caller is currently acting as.
@@ -385,15 +443,15 @@ export const shareDoc = createServerFn({ method: "POST" })
       : undefined;
 
     // Update local doc_access immediately rather than waiting on the
-    // outbox webhook to sync these same records back — without this, the
+    // syncer to deliver these same records back — without this, the
     // newly-shared user's own docsFor query won't show the doc
-    // until that async round-trip lands. The webhook's own upsert/delete
+    // until that async round-trip lands. The sink's own upsert/delete
     // is a no-op once this has already landed (same uri).
     //
     // Keyed by the *doc* space even for a commenter, whose grant record
     // lives on the comments space: doc_access exists to answer "which docs
     // can this subject see", and docsFor joins it against the doc.
-    // The outbox handler maps the same record the same way.
+    // The sink maps the same record the same way.
     const db = getDb(env);
     if (staleUri) await deleteDocAccess(db, staleUri);
     await upsertDocAccess(db, {
@@ -412,7 +470,7 @@ export const getDocRole = createServerFn({ method: "GET" })
   .validator((input: { docId: string }) => input)
   .handler(async ({ data }): Promise<DocRole | null> => {
     const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const client = new HabitatClient(env, did);
     return docRole(client, did, data.docId);
   });
 
@@ -425,7 +483,7 @@ export const getDocInitialState = createServerFn({ method: "GET" })
   .validator((input: { docId: string }) => input)
   .handler(async ({ data }): Promise<Uint8Array> => {
     const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const client = new HabitatClient(env, did);
     if (!(await docRole(client, did, data.docId))) {
       throw new Error("forbidden");
     }
@@ -450,7 +508,7 @@ export const revokeDocAccess = createServerFn({ method: "POST" })
       if (!uri) continue;
 
       // Remove local doc_access immediately rather than waiting on the
-      // outbox webhook to sync this same tombstone back — without this,
+      // syncer to deliver this same delete back — without this,
       // the revoked user keeps seeing the doc in their own listDocs until
       // that async round-trip lands.
       await deleteDocAccess(getDb(env), uri);
@@ -480,9 +538,9 @@ export interface CommentsPayload {
 }
 
 // listComments returns a doc's comment threads from chalk's own D1 mirror
-// rather than reading the comments space on every call: the outbox already
+// rather than reading the comments space on every call: the syncer already
 // delivers every comment/reply record written anywhere in the space (see
-// outbox.ts), and the mirror is what makes this one indexed lookup instead
+// sink.ts), and the mirror is what makes this one indexed lookup instead
 // of a listRecords fan-out across every commenter's repo.
 //
 // The caller still has to hold reader on the *doc* for this to return
@@ -494,7 +552,7 @@ export const listComments = createServerFn({ method: "GET" })
   .validator((input: { docId: string }) => input)
   .handler(async ({ data }): Promise<CommentsPayload> => {
     const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const client = new HabitatClient(env, did);
     if (!(await docRole(client, did, data.docId))) {
       return { comments: [] };
     }
@@ -542,7 +600,7 @@ export const createComment = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<CommentView> => {
     const { did, currentOrg } = await requireSession();
-    const client = new SapClient(env, did);
+    const client = new HabitatClient(env, did);
     if (!canComment(await docRole(client, did, data.docId))) {
       throw new Error("forbidden");
     }
@@ -578,7 +636,7 @@ export const createReply = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<CommentReplyView> => {
     const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const client = new HabitatClient(env, did);
     if (!canComment(await docRole(client, did, data.docId))) {
       throw new Error("forbidden");
     }
@@ -595,7 +653,7 @@ export const deleteCommentFn = createServerFn({ method: "POST" })
   .validator((input: { docId: string; uri: string }) => input)
   .handler(async ({ data }) => {
     const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const client = new HabitatClient(env, did);
     await removeComment(client, getDb(env), did, data.uri);
   });
 
@@ -604,7 +662,7 @@ export const deleteReplyFn = createServerFn({ method: "POST" })
   .validator((input: { docId: string; uri: string }) => input)
   .handler(async ({ data }) => {
     const { did } = await requireSession();
-    const client = new SapClient(env, did);
+    const client = new HabitatClient(env, did);
     await removeReply(client, getDb(env), did, data.uri);
   });
 
@@ -620,7 +678,7 @@ const ORG_ROLE_TO_RELATION: Record<"editor" | "viewer", "writer" | "reader"> = {
 // org's members space as its subject, if any — the single record that
 // backs the "share with everyone at <org>" option.
 async function getOrgSpaceRelation(
-  client: SapClient,
+  client: HabitatClient,
   docId: string,
   currentOrg: string,
 ): Promise<SpaceRelationView | undefined> {
@@ -641,7 +699,7 @@ export const getDocOrgAccess = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<"editor" | "viewer" | null> => {
     const { currentOrg } = await requireSession();
     if (!currentOrg) return null;
-    const client = new SapClient(env, currentOrg);
+    const client = new HabitatClient(env, currentOrg);
     const relation = await getOrgSpaceRelation(client, data.docId, currentOrg);
     if (!relation) return null;
     return relation.relation === "writer" ? "editor" : "viewer";
@@ -662,7 +720,7 @@ export const shareDocWithOrg = createServerFn({ method: "POST" })
     // owns the doc space outright, so this always passes pear's manager
     // check regardless of what the acting member personally holds — see
     // managementClient's comment above for why that matters.
-    const client = new SapClient(env, currentOrg);
+    const client = new HabitatClient(env, currentOrg);
     const { uri } = await client.call<{ uri: string }>(
       "network.habitat.relationship.setSpaceRelation",
       "POST",
@@ -675,9 +733,9 @@ export const shareDocWithOrg = createServerFn({ method: "POST" })
     );
 
     // Record the org-wide grant locally now rather than waiting on the
-    // outbox webhook to sync this same spaceRelation back — without this,
+    // syncer to deliver this same spaceRelation back — without this,
     // the doc doesn't appear in other members' listDocs until that async
-    // round-trip lands. outbox.ts's handleSpaceRelation is a no-op once
+    // round-trip lands. sink.ts's handleSpaceRelation is a no-op once
     // this has already landed (same uri).
     await upsertDocOrgAccess(getDb(env), {
       uri,
@@ -694,7 +752,7 @@ export const revokeDocOrgAccess = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { currentOrg } = await requireSession();
     if (!currentOrg) return;
-    const client = new SapClient(env, currentOrg);
+    const client = new HabitatClient(env, currentOrg);
     const relation = await getOrgSpaceRelation(client, data.docId, currentOrg);
     if (!relation) return;
     await client.call("network.habitat.relationship.deleteRelation", "POST", {
@@ -703,6 +761,6 @@ export const revokeDocOrgAccess = createServerFn({ method: "POST" })
 
     // Drop the local row immediately, for the same reason shareDocWithOrg
     // writes it immediately: otherwise the doc keeps showing up in every
-    // org member's listDocs until the outbox tombstone lands.
+    // org member's listDocs until the synced delete lands.
     await deleteDocOrgAccess(getDb(env), relation.uri);
   });

@@ -4,7 +4,7 @@ import type { SpaceState } from "internal/spaceSync";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getDb } from "@/db";
 import { syncRepos, syncSpaces } from "@/db/schema";
-import { DrizzleSyncStore } from "@/db/syncStore";
+import { DrizzleSyncStore } from "internal/spaceSync/drizzle";
 
 const SPACE =
   "at://did:web:org.example/space/network.habitat.drop/a" as SpaceRefString;
