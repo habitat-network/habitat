@@ -20,8 +20,10 @@ import (
 // container.
 const URLEnv = "HABITAT_TEST_MEILISEARCH_URL"
 
-// image is the Meilisearch version tests run against.
-const image = "getmeili/meilisearch:v1.54.0"
+// image is the Meilisearch version tests run against. Keep it in step with
+// `meilisearch` in .prototools and meilisearch_version in
+// terraform/meilisearch.
+const image = "getmeili/meilisearch:v1.54.2"
 
 var (
 	startOnce sync.Once
@@ -53,6 +55,12 @@ func OpenIndex(t *testing.T, uid string, opts ...search.MeilisearchOption) *sear
 	idx, err := search.NewMeilisearch(t.Context(), serverURL(t), "", uid, opts...)
 	require.NoError(t, err)
 	return idx
+}
+
+// URL returns the URL of the shared Meilisearch server, with no master key.
+func URL(t *testing.T) string {
+	t.Helper()
+	return serverURL(t)
 }
 
 func serverURL(t *testing.T) string {

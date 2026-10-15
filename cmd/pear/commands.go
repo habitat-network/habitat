@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/cmd/pear/migrations"
+	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
@@ -59,6 +60,8 @@ func migrate(ctx context.Context, cmd *cli.Command) error {
 type taskEnv struct {
 	DB     *gorm.DB
 	Spaces spaces.Store
+	Perms  perms.Store
+	Blobs  spaces.BlobStore
 	// Search is nil where search isn't configured (no --meilisearch_url), so
 	// tasks that use it must check.
 	Search search.Index
@@ -68,8 +71,6 @@ type taskEnv struct {
 // runs fn with the task's own flags and args available on cmd. Tasks that can
 // run more than once must be idempotent or safe to resume, since Cloud Run
 // retries failed jobs.
-//
-//nolint:unused // used by tasks as they are added to taskCommands
 func taskAction(
 	fn func(ctx context.Context, cmd *cli.Command, env taskEnv) error,
 ) cli.ActionFunc {
@@ -85,6 +86,8 @@ func taskAction(
 		return fn(ctx, cmd, taskEnv{
 			DB:     app.DB,
 			Spaces: app.SpacesStore,
+			Perms:  app.PermStore,
+			Blobs:  app.BlobStore,
 			Search: app.SearchIndex,
 		})
 	}

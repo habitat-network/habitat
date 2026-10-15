@@ -44,7 +44,8 @@ variable "zone" {
   default = "us-west1-b"
 }
 
-// Keep in step with `meilisearch` in .prototools. Meilisearch indexes are not compatible
+// Keep in step with `meilisearch` in .prototools and the image in
+// internal/search/searchtest. Meilisearch indexes are not compatible
 // across minor versions without a dump/import, so bump deliberately.
 variable "meilisearch_version" {
   type    = string
@@ -176,6 +177,8 @@ resource "google_compute_instance" "meilisearch" {
             MEILI_DB_PATH=/meili_data/data.ms
             MEILI_DUMP_DIR=/meili_data/dumps
             MEILI_SNAPSHOT_DIR=/meili_data/snapshots
+            # A daily snapshot to restore from before and after upgrades.
+            MEILI_SCHEDULE_SNAPSHOT=86400
         - path: /etc/systemd/system/meilisearch.service
           permissions: "0644"
           owner: root
