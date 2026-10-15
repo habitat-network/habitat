@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	genLockKey db.LockKey = 7
+	genLockKey   db.LockKey = 7
+	buildLockKey db.LockKey = 8
 	// genInterval keeps tests from waiting on the production check interval.
 	genInterval = 50 * time.Millisecond
 	genTimeout  = 30 * time.Second
@@ -33,9 +34,11 @@ const (
 type genTest struct {
 	prefix string
 	lock   *db.Lock
-	store  spaces.Store
-	perms  perms.Store
-	space  habitat_syntax.SpaceURI
+	// buildLock is what builds hold.
+	buildLock *db.Lock
+	store     spaces.Store
+	perms     perms.Store
+	space     habitat_syntax.SpaceURI
 	// notify forwards the store's notifications to whichever Generations
 	// the test runs.
 	notify *forwardingNotifier
@@ -67,12 +70,13 @@ func setupGenerations(t *testing.T) *genTest {
 	space, err := store.CreateSpace(t.Context(), searchOrg, searchType, "a")
 	require.NoError(t, err)
 	return &genTest{
-		prefix: searchtest.NewUID(t),
-		lock:   db.NewLock(gdb, genLockKey),
-		store:  store,
-		perms:  perms.NewStore(gdb, store, fga, social),
-		space:  space,
-		notify: notify,
+		prefix:    searchtest.NewUID(t),
+		lock:      db.NewLock(gdb, genLockKey),
+		buildLock: db.NewLock(gdb, buildLockKey),
+		store:     store,
+		perms:     perms.NewStore(gdb, store, fga, social),
+		space:     space,
+		notify:    notify,
 	}
 }
 
@@ -85,6 +89,30 @@ func (gt *genTest) open(t *testing.T, opts ...search.GenerationsOption) *search.
 	require.NoError(t, err)
 	gt.notify.Notifiers = spaces.Notifiers{g}
 	return g
+}
+
+// builder returns Generations for building, with opts, as a `pear run
+// reindex` process would.
+func (gt *genTest) builder(
+	t *testing.T,
+	opts ...search.GenerationsOption,
+) *search.Generations {
+	t.Helper()
+	opts = append([]search.GenerationsOption{search.WithCheckInterval(genInterval)}, opts...)
+	g, err := search.NewGenerations(t.Context(), searchtest.URL(t), "", gt.prefix, gt.lock, opts...)
+	require.NoError(t, err)
+	return g
+}
+
+// build builds with b and returns the generation that became current.
+func (gt *genTest) build(t *testing.T, b *search.Generations, fresh bool) int {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), genTimeout)
+	defer cancel()
+	n, err := b.Build(ctx, gt.buildLock, gt.store, gt.perms, fresh)
+	require.NoError(t, err)
+	require.Equal(t, n, b.Current())
+	return n
 }
 
 // run runs g until the returned stop is called.
@@ -167,7 +195,7 @@ func TestGenerationsBuildsTheFirstGenerationFromScratch(t *testing.T) {
 	}, genTimeout, genInterval, "a write after the build was not indexed")
 }
 
-func TestGenerationsReplacesTheIndexWhenItsSpecChanges(t *testing.T) {
+func TestGenerationsBuildReplacesTheIndexWhenItsSpecChanges(t *testing.T) {
 	gt := setupGenerations(t)
 	ctx := t.Context()
 	// The index from before generations, holding a document the store
@@ -186,54 +214,64 @@ func TestGenerationsReplacesTheIndexWhenItsSpecChanges(t *testing.T) {
 
 	g := gt.open(t)
 	require.Equal(t, 0, g.Current())
-	require.Equal(t, []habitat_syntax.SpaceRecordURI{gt.uri("old")}, gt.found(t, g, "budget"))
-
+	stop := gt.run(t, g)
+	defer stop()
 	// A second process can't take the lock, so it only follows.
 	follower, err := search.NewGenerations(ctx, searchtest.URL(t), "", gt.prefix, gt.lock,
 		search.WithCheckInterval(genInterval))
 	require.NoError(t, err)
-
-	stop := gt.run(t, g)
 	stopFollower := gt.run(t, follower)
+	defer stopFollower()
+	// Running doesn't rebuild the index from before generations.
+	require.Equal(t, []habitat_syntax.SpaceRecordURI{gt.uri("old")}, gt.found(t, g, "budget"))
+
+	require.Equal(t, 1, gt.build(t, gt.builder(t), false))
 	requireCurrent(t, g, 1)
-	require.Equal(t, []habitat_syntax.SpaceRecordURI{gt.uri("k1")}, gt.found(t, g, "budget"))
 	requireCurrent(t, follower, 1)
+	require.Equal(t, []habitat_syntax.SpaceRecordURI{gt.uri("k1")}, gt.found(t, g, "budget"))
 	require.Equal(t, []habitat_syntax.SpaceRecordURI{gt.uri("k1")}, gt.found(t, follower, "budget"))
-	stopFollower()
-	stop()
+	// The running process indexes writes into the new current generation.
+	gt.put(t, "k2", "budget review")
+	require.Eventually(t, func() bool {
+		return len(gt.found(t, g, "budget")) == 2
+	}, genTimeout, genInterval, "a write after the flip was not indexed")
 	// The old index is kept for rollback.
 	require.True(t, indexExists(t, gt.prefix))
 
-	// A deploy that searches with an embedder builds generation 2, and the
-	// index from before generations falls out of the kept range.
-	g = gt.open(t, search.WithIndexOptions(search.WithEmbedder(searchtest.Embedder(t, 0.5, 0))))
-	require.Equal(t, 1, g.Current())
-	stop = gt.run(t, g)
+	// With nothing changed there is nothing to build.
+	require.Equal(t, 1, gt.build(t, gt.builder(t), false))
+	require.False(t, indexExists(t, gt.prefix+"_g2"))
+
+	// Settings with an embedder build generation 2, and the index from before
+	// generations falls out of the kept range.
+	embedder := search.WithIndexOptions(search.WithEmbedder(searchtest.Embedder(t, 0.5, 0)))
+	require.Equal(t, 2, gt.build(t, gt.builder(t, embedder), false))
 	requireCurrent(t, g, 2)
-	require.Equal(t, []habitat_syntax.SpaceRecordURI{gt.uri("k1")}, gt.found(t, g, "budget"))
-	stop()
-	require.Eventually(
-		t,
-		func() bool { return !indexExists(t, gt.prefix) },
-		genTimeout,
-		genInterval,
-	)
+	require.False(t, indexExists(t, gt.prefix))
 	require.True(t, indexExists(t, gt.prefix+"_g1"))
 
-	// Rolling the deploy back catches the kept generation 1 up instead of
-	// building a new one, and drops generation 2.
-	g = gt.open(t)
-	gt.put(t, "k2", "budget written during the rollback")
-	stop = gt.run(t, g)
-	defer stop()
+	// Building with the old settings again, as after a rollback, catches the
+	// kept generation 1 up instead of building a new one, and drops
+	// generation 2.
+	gt.put(t, "k3", "budget written during the rollback")
+	require.Equal(t, 1, gt.build(t, gt.builder(t), false))
 	requireCurrent(t, g, 1)
-	require.Eventually(t, func() bool {
-		return len(gt.found(t, g, "budget")) == 2
-	}, genTimeout, genInterval)
-	require.Eventually(
-		t,
-		func() bool { return !indexExists(t, gt.prefix+"_g2") },
-		genTimeout,
-		genInterval,
-	)
+	require.Len(t, gt.found(t, g, "budget"), 3)
+	require.False(t, indexExists(t, gt.prefix+"_g2"))
+
+	// A fresh build rebuilds even though nothing changed.
+	n := gt.build(t, gt.builder(t), true)
+	require.Equal(t, 2, n)
+	requireCurrent(t, g, n)
+	require.Len(t, gt.found(t, g, "budget"), 3)
+}
+
+func TestGenerationsBuildRunsOneAtATime(t *testing.T) {
+	gt := setupGenerations(t)
+	_, release, ok, err := gt.buildLock.TryAcquire(t.Context())
+	require.NoError(t, err)
+	require.True(t, ok)
+	defer release()
+	_, err = gt.builder(t).Build(t.Context(), gt.buildLock, gt.store, gt.perms, false)
+	require.ErrorIs(t, err, search.ErrBuildRunning)
 }

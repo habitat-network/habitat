@@ -9,6 +9,6 @@ import "github.com/urfave/cli/v3"
 // takes its own flags and args like any urfave subcommand.
 func taskCommands() []*cli.Command {
 	return []*cli.Command{
-		// e.g. reindexCommand(), switchIndexGenerationCommand()
+		reindexCommand(),
 	}
 }
