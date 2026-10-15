@@ -3,28 +3,20 @@ package main
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	"github.com/urfave/cli/v3"
+
+	"github.com/habitat-network/habitat/internal/search"
 )
 
-const fFresh = "fresh"
-
-// reindexCommand builds a search generation with this pear's search settings
-// and makes it current. Run it after a deploy that changes the settings or
-// the embedder, or with --fresh to rebuild the index from scratch. A run
-// stopped part way resumes where it left off when run again. Never run two at
-// once: one can delete the other's build.
+// reindexCommand rebuilds the search index with this pear's search settings
+// and swaps it in. Run it after a deploy that changes the settings or the
+// embedder. A run stopped part way resumes where it left off when run again.
+// Never run two at once: one can delete the other's build.
 func reindexCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "reindex",
-		Usage: "Build a search index generation with this pear's search settings and switch searches to it",
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:  fFresh,
-				Usage: "Rebuild from scratch even if the current generation already has these settings",
-			},
-		},
+		Name:   "reindex",
+		Usage:  "Rebuild the search index with this pear's search settings and switch searches to it",
 		Action: taskAction(reindex),
 	}
 }
@@ -33,15 +25,12 @@ func reindex(ctx context.Context, cmd *cli.Command, env taskEnv) error {
 	if env.Search == nil {
 		return errors.New("search is off: set --meilisearch_url")
 	}
-	n, err := env.Search.Build(
-		ctx,
-		env.Spaces,
-		env.Perms,
-		cmd.Bool(fFresh),
+	r := search.NewReindexer(
+		cmd.String(fMeilisearchURL),
+		cmd.String(fMeilisearchAPIKey),
+		searchIndexName,
+		search.WithReindexIndexOptions(searchIndexOptions(cmd)...),
+		search.WithReindexIndexerOptions(search.WithBlobs(env.Blobs)),
 	)
-	if err != nil {
-		return err
-	}
-	slog.InfoContext(ctx, "search: reindex done", "generation", n)
-	return nil
+	return r.Reindex(ctx, env.Spaces, env.Perms)
 }

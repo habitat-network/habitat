@@ -354,9 +354,9 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	eg.Go(func() error {
 		return app.OAuthGC.Run(egCtx)
 	})
-	if app.SearchIndex != nil {
+	if app.SearchIndexer != nil {
 		eg.Go(func() error {
-			return app.SearchIndex.Run(egCtx, app.SpacesStore, app.PermStore)
+			return app.SearchIndexer.Run(egCtx, app.SpacesStore, app.PermStore)
 		})
 	}
 	eg.Go(func() error {

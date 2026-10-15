@@ -136,12 +136,6 @@ type RepoCursor struct {
 	Rev   string
 }
 
-// Searchable searches documents.
-type Searchable interface {
-	// Search returns the documents matching q, most relevant first.
-	Search(ctx context.Context, q Query) (Result, error)
-}
-
 // Index stores documents and searches them. It also keeps how far it has read
 // each repo, so the cursors are lost exactly when the documents are.
 // Implementations must be safe for concurrent use.

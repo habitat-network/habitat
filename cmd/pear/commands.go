@@ -61,9 +61,10 @@ type taskEnv struct {
 	DB     *gorm.DB
 	Spaces spaces.Store
 	Perms  perms.Store
+	Blobs  spaces.BlobStore
 	// Search is nil where search isn't configured (no --meilisearch_url), so
 	// tasks that use it must check.
-	Search *search.Generations
+	Search search.Index
 }
 
 // taskAction adapts a task to a urfave action: it builds the taskEnv, then
@@ -86,6 +87,7 @@ func taskAction(
 			DB:     app.DB,
 			Spaces: app.SpacesStore,
 			Perms:  app.PermStore,
+			Blobs:  app.BlobStore,
 			Search: app.SearchIndex,
 		})
 	}

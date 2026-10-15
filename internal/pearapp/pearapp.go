@@ -75,7 +75,9 @@ type App struct {
 	PDSForwarding       *forwarding.PDSForwarding
 	ClientMetadata      *clientmetadata.Resolver
 	// SearchIndex is nil when search (--meilisearch_url) is off.
-	SearchIndex *search.Generations
+	SearchIndex search.Index
+	// SearchIndexer is nil when search (--meilisearch_url) is off.
+	SearchIndexer *search.Indexer
 	// Searcher is nil when search (--meilisearch_url) is off.
 	Searcher     *search.Searcher
 	SearchConfig *searchconfig.Store
@@ -115,7 +117,8 @@ func New(
 	mcpGatewayStore mcpgateway.Store,
 	pdsForwarding *forwarding.PDSForwarding,
 	clientMetadata *clientmetadata.Resolver,
-	searchIndex *search.Generations,
+	searchIndex search.Index,
+	searchIndexer *search.Indexer,
 	searcher *search.Searcher,
 	searchConfigStore *searchconfig.Store,
 ) *App {
@@ -153,6 +156,7 @@ func New(
 		PDSForwarding:       pdsForwarding,
 		ClientMetadata:      clientMetadata,
 		SearchIndex:         searchIndex,
+		SearchIndexer:       searchIndexer,
 		Searcher:            searcher,
 		SearchConfig:        searchConfigStore,
 	}

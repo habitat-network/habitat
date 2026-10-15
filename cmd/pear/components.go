@@ -47,11 +47,28 @@ import (
 	"gocloud.dev/blob"
 )
 
-// searchIndexPrefix names the Meilisearch indexes of space records:
-// generation n is <prefix>_g<n> with cursors in <prefix>_g<n>_cursors, and
-// <prefix>_generations says which is current. The index from before
-// generations was named <prefix>, so changing it would orphan that index.
-const searchIndexPrefix = "space_records"
+// searchIndexName names the Meilisearch index of space records; their
+// cursors are in <name>_cursors.
+const searchIndexName = "space_records"
+
+// searchIndexOptions returns the settings of the search index the flags
+// describe.
+func searchIndexOptions(cmd *cli.Command) []search.MeilisearchOption {
+	embedderURL := cmd.String(fEmbedderURL)
+	if embedderURL == "" {
+		return nil
+	}
+	// With an embedder, Meilisearch embeds records and queries itself and
+	// searches are hybrid.
+	return []search.MeilisearchOption{search.WithEmbedder(search.Embedder{
+		URL:           embedderURL,
+		APIKey:        cmd.String(fEmbedderAPIKey),
+		Model:         cmd.String(fEmbedderModel),
+		Dimensions:    int(cmd.Int(fEmbedderDimensions)),
+		SemanticRatio: cmd.Float(fSemanticRatio),
+		MinScore:      cmd.Float(fSearchMinScore),
+	})}
+}
 
 // setupComponents builds pear's App from the command's flags. It
 // doesn't start anything: the server, migrations and tasks decide what to run.
@@ -221,35 +238,23 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	}
 	blobStore := spaces.NewBlobStore(blobBucket)
 
-	// The search index is kept as generations, so changing how it is built
-	// builds a new one beside the one searches read (see `pear run reindex`).
-	var searchIndex *search.Generations
+	// pear opens the search index as it is; `pear run reindex` rebuilds it
+	// when its settings or the embedder change.
+	var searchIndex search.Index
+	var searchIndexer *search.Indexer
 	if meilisearchURL := cmd.String(fMeilisearchURL); meilisearchURL != "" {
-		var indexOpts []search.MeilisearchOption
-		// With an embedder, Meilisearch embeds records and queries itself and
-		// searches are hybrid.
-		if embedderURL := cmd.String(fEmbedderURL); embedderURL != "" {
-			indexOpts = append(indexOpts, search.WithEmbedder(search.Embedder{
-				URL:           embedderURL,
-				APIKey:        cmd.String(fEmbedderAPIKey),
-				Model:         cmd.String(fEmbedderModel),
-				Dimensions:    int(cmd.Int(fEmbedderDimensions)),
-				SemanticRatio: cmd.Float(fSemanticRatio),
-				MinScore:      cmd.Float(fSearchMinScore),
-			}))
-		}
-		searchIndex, err = search.NewGenerations(
+		searchIndex, err = search.OpenMeilisearch(
 			ctx,
 			meilisearchURL,
 			cmd.String(fMeilisearchAPIKey),
-			searchIndexPrefix,
-			search.WithIndexOptions(indexOpts...),
-			search.WithIndexerOptions(search.WithBlobs(blobStore)),
+			searchIndexName,
+			searchIndexOptions(cmd)...,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("setup search index: %w", err)
 		}
-		notifiers = append(notifiers, searchIndex)
+		searchIndexer = search.NewIndexer(searchIndex, search.WithBlobs(blobStore))
+		notifiers = append(notifiers, searchIndexer)
 	}
 
 	spacesStore, err := spaces.NewStore(
@@ -391,6 +396,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		pdsForwarding,
 		clientmetadata.NewResolver(),
 		searchIndex,
+		searchIndexer,
 		searcher,
 		searchConfigStore,
 	), nil

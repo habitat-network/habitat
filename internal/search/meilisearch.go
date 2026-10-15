@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -27,6 +29,9 @@ const (
 	// accessPageSize is how many documents SetSpaceAccess reads and rewrites
 	// at a time.
 	accessPageSize = 1000
+	// embedderRecheckInterval is how often an index opened with
+	// [OpenMeilisearch] rechecks whether it has the embedder.
+	embedderRecheckInterval = 30 * time.Second
 )
 
 // meiliDoc is a [Document] as stored in Meilisearch.
@@ -91,6 +96,17 @@ type Meilisearch struct {
 	client  meilisearch.ServiceManager
 	// embedder, when set, makes searches hybrid; see [WithEmbedder].
 	embedder *Embedder
+	// recheck, when set, means the index may lack the embedder or gain it
+	// later, when a reindex swaps in one built with other settings, so
+	// searches are hybrid only while it has it.
+	recheck *embedderCheck
+}
+
+// embedderCheck caches whether an index has the embedder.
+type embedderCheck struct {
+	mu  sync.Mutex
+	has bool
+	at  time.Time
 }
 
 var _ Index = (*Meilisearch)(nil)
@@ -209,28 +225,72 @@ func createMeilisearch(
 	return m, nil
 }
 
-// openMeilisearch returns the Index stored in uid and uid_cursors as they
-// are, without creating or configuring them, so opening an index never
-// starts a reindex. Searches are hybrid only when opts has an embedder and
-// uid was built with one.
-func openMeilisearch(
+// OpenMeilisearch returns an Index stored in the Meilisearch indexes uid
+// and uid_cursors on the server at host. It creates and configures them only
+// if they don't exist, and otherwise leaves their settings as they are, so
+// opening an index never makes Meilisearch reindex or re-embed it; a
+// [Reindexer] applies new settings. Searches are hybrid only while opts has
+// an embedder and the index was built with one.
+func OpenMeilisearch(
 	ctx context.Context,
-	client meilisearch.ServiceManager,
-	uid string,
+	host, apiKey, uid string,
 	opts ...MeilisearchOption,
 ) (*Meilisearch, error) {
+	client := meilisearch.New(host, meilisearch.WithAPIKey(apiKey))
+	if _, err := client.GetIndexWithContext(ctx, uid); isNotFound(err) {
+		return createMeilisearch(ctx, client, uid, opts...)
+	} else if err != nil {
+		return nil, fmt.Errorf("get meilisearch index %s: %w", uid, err)
+	}
 	m := newMeilisearchOn(client, uid, opts...)
 	if m.embedder == nil {
 		return m, nil
 	}
+	has, err := m.hasEmbedder(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		slog.WarnContext(ctx, "search: the index has no embedder, so searches are keyword only "+
+			"until `pear run reindex` rebuilds it", "index", uid)
+	}
+	m.recheck = &embedderCheck{has: has, at: time.Now()}
+	return m, nil
+}
+
+// hasEmbedder reports whether the index has the embedder.
+func (m *Meilisearch) hasEmbedder(ctx context.Context) (bool, error) {
 	embedders, err := m.index.GetEmbeddersWithContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get meilisearch embedders of %s: %w", uid, err)
+		return false, fmt.Errorf("get meilisearch embedders: %w", err)
 	}
-	if _, ok := embedders[embedderName]; !ok {
-		m.embedder = nil
+	_, ok := embedders[embedderName]
+	return ok, nil
+}
+
+// hybrid reports whether searches are hybrid.
+func (m *Meilisearch) hybrid(ctx context.Context) bool {
+	if m.embedder == nil {
+		return false
 	}
-	return m, nil
+	if m.recheck == nil {
+		return true
+	}
+	c := m.recheck
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if time.Since(c.at) < embedderRecheckInterval {
+		return c.has
+	}
+	has, err := m.hasEmbedder(ctx)
+	if err != nil {
+		// Keep what was known; the next search after the interval retries.
+		slog.WarnContext(ctx, "search: check index embedder failed", "err", err)
+	} else {
+		c.has = has
+	}
+	c.at = time.Now()
+	return c.has
 }
 
 func newMeilisearchOn(
@@ -247,6 +307,13 @@ func newMeilisearchOn(
 		opt(m)
 	}
 	return m
+}
+
+// isNotFound reports whether err is Meilisearch saying what was asked for
+// doesn't exist.
+func isNotFound(err error) bool {
+	var apiErr *meilisearch.Error
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
 }
 
 // indexSettings returns the settings of the document index, searching with
@@ -526,7 +593,7 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 		HighlightPreTag:       "<mark>",
 		HighlightPostTag:      "</mark>",
 	}
-	if m.embedder != nil {
+	if m.hybrid(ctx) {
 		req.Hybrid = &meilisearch.SearchRequestHybrid{
 			Embedder:      embedderName,
 			SemanticRatio: m.embedder.SemanticRatio,
