@@ -1,7 +1,7 @@
 import { redirect } from "@tanstack/react-router";
 import { SpaceRef, type DidString } from "@atproto/syntax";
 import { useAppSession } from "./session";
-import type { HabitatClient } from "./habitatClient";
+import { findUnauthorizedError, type HabitatClient } from "./habitatClient";
 import { commentsSpaceUri } from "./comments.server";
 
 // Server-only helpers, kept out of functions.ts so that file can stay
@@ -138,6 +138,20 @@ export async function requireSession(): Promise<{
 export async function clearSession(): Promise<void> {
   const session = await useAppSession();
   await session.clear();
+}
+
+// signOutIfUnauthorized ends the login when err says pear no longer accepts
+// the signed-in member's own OAuth session (see UnauthorizedError): it
+// clears the session cookie and throws a redirect to /login. It returns
+// for anything else, including an org session's 401, which isn't the
+// member's login failing; the caller rethrows err then.
+export async function signOutIfUnauthorized(err: unknown): Promise<void> {
+  const unauthorized = findUnauthorizedError(err);
+  if (!unauthorized) return;
+  const session = await useAppSession();
+  if (!session.data.did || session.data.did !== unauthorized.did) return;
+  await session.clear();
+  throw redirect({ to: "/login" });
 }
 
 // setCurrentOrg updates which org (if any) the member is currently acting

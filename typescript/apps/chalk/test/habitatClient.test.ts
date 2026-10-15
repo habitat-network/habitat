@@ -4,6 +4,8 @@ import { http, HttpResponse } from "msw";
 import {
   EmailDomainNotFoundError,
   HabitatClient,
+  UnauthorizedError,
+  findUnauthorizedError,
   startLogin,
 } from "../src/server/habitatClient";
 import { authorize } from "./fakeOAuth";
@@ -152,6 +154,34 @@ describe("HabitatClient", () => {
     );
   });
 
+  it("throws UnauthorizedError carrying the DID on a 401", async () => {
+    server.use(
+      http.get("http://pds.test/xrpc/network.habitat.space.listSpaces", () =>
+        HttpResponse.json({ error: "InvalidToken" }, { status: 401 }),
+      ),
+    );
+    const err = await new HabitatClient(testEnv, "did:plc:member1")
+      .call("network.habitat.space.listSpaces", "GET", {})
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnauthorizedError);
+    expect((err as UnauthorizedError).did).toBe("did:plc:member1");
+  });
+
+  it("uploadBlob throws UnauthorizedError on a 401", async () => {
+    server.use(
+      http.post(
+        "http://pds.test/xrpc/network.habitat.repo.uploadBlob",
+        () => new HttpResponse(null, { status: 401 }),
+      ),
+    );
+    await expect(
+      new HabitatClient(testEnv, "did:plc:member1").uploadBlob(
+        new Uint8Array([1]),
+        "application/octet-stream",
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
   // Regression test: a procedure with no output schema (e.g.
   // network.habitat.relationship.deleteRelation) returns an empty 200 body.
   // call() used to do an unconditional res.json(), which throws "Unexpected
@@ -196,5 +226,19 @@ describe("HabitatClient", () => {
       "application/octet-stream",
     );
     expect(out.cid).toBe("bafy123");
+  });
+});
+
+describe("findUnauthorizedError", () => {
+  it("finds an UnauthorizedError anywhere in the cause chain", () => {
+    const unauthorized = new UnauthorizedError("did:plc:member1", "401");
+    expect(
+      findUnauthorizedError(new Error("wrapped", { cause: unauthorized })),
+    ).toBe(unauthorized);
+  });
+
+  it("returns undefined for other errors", () => {
+    expect(findUnauthorizedError(new Error("boom"))).toBeUndefined();
+    expect(findUnauthorizedError("not an error")).toBeUndefined();
   });
 });

@@ -1,6 +1,7 @@
 import { redirect } from "@tanstack/react-router";
 import type { DidString } from "@atproto/syntax";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
+import type { Agent } from "@atproto/lex";
 import type { OAuthSession } from "@atproto/oauth-client";
 import { createOAuthClient } from "./oauth";
 import { useAppSession } from "./session";
@@ -36,21 +37,55 @@ export async function requireOrg(): Promise<{
   return { did, currentOrg };
 }
 
+// MemberUnauthorizedError is thrown by a memberSession agent's calls when
+// pear answers 401, i.e. it no longer accepts the member's own OAuth
+// session even after the OAuth client's own refresh-and-retry. The
+// sign-out middleware (src/start.ts) turns it into a sign-out.
+export class MemberUnauthorizedError extends Error {}
+
 // memberSession restores the member's own OAuth session. A session that
 // can no longer be restored (revoked, or its refresh token expired) means
-// signing in again.
-export async function memberSession(
-  env: Env,
-  did: DidString,
-): Promise<OAuthSession> {
+// signing in again, and so does one pear rejects with a 401 later on: the
+// returned agent throws MemberUnauthorizedError for that. Org sessions
+// aren't wrapped like this, since an org's session failing doesn't end the
+// member's login.
+export async function memberSession(env: Env, did: DidString): Promise<Agent> {
+  let oauthSession: OAuthSession;
   try {
-    return await createOAuthClient(env).restore(did);
+    oauthSession = await createOAuthClient(env).restore(did);
   } catch (err) {
     console.error("[drop] restoring member session", err);
-    const session = await useAppSession();
-    await session.clear();
-    throw redirect({ to: "/login" });
+    return signOut();
   }
+  return {
+    did: oauthSession.did,
+    fetchHandler: async (path, init) => {
+      const res = await oauthSession.fetchHandler(path, init);
+      if (res.status === 401) {
+        throw new MemberUnauthorizedError(
+          `${path} failed (401): ${await res.text()}`,
+        );
+      }
+      return res;
+    },
+  };
+}
+
+// signOutIfUnauthorized ends the login when err (or anything in its cause
+// chain: xrpc() wraps what a fetch handler throws) is a
+// MemberUnauthorizedError. It returns for anything else, which the caller
+// rethrows.
+export async function signOutIfUnauthorized(err: unknown): Promise<void> {
+  for (let e = err; e instanceof Error; e = e.cause) {
+    if (e instanceof MemberUnauthorizedError) await signOut();
+  }
+}
+
+// signOut clears the session cookie and sends the browser to /login.
+async function signOut(): Promise<never> {
+  const session = await useAppSession();
+  await session.clear();
+  throw redirect({ to: "/login" });
 }
 
 // selectOrg makes orgDid the member's working org, after checking with pear
