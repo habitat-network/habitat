@@ -66,6 +66,23 @@ resource "google_cloudbuild_trigger" "pear" {
       args = ["push", "$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA"]
     }
 
+    // Point the Cloud Run jobs (see main.tf) at the new image, then apply migrations with
+    // pear-migrate before any service revision takes traffic. A failed migration fails the
+    // build, so the services keep running the previous revision.
+    step {
+      name       = "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+      id         = "UpdateJobs"
+      entrypoint = "bash"
+      args       = ["-c", "for job in pear-migrate pear-run; do gcloud run jobs update $$job --image=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA --region=$_DEPLOY_REGION --quiet || exit 1; done"]
+    }
+
+    step {
+      name       = "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+      id         = "Migrate"
+      entrypoint = "gcloud"
+      args       = ["run", "jobs", "execute", "pear-migrate", "--region=$_DEPLOY_REGION", "--wait", "--quiet"]
+    }
+
     step {
       name       = "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
       id         = "Deploy"
