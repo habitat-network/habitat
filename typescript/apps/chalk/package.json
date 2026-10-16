@@ -28,6 +28,7 @@
     "@tanstack/react-start": "^1.168.47",
     "@tiptap/core": "^3.28.0",
     "@tiptap/extension-collaboration": "^3.28.0",
+    "@tiptap/extension-collaboration-caret": "^3.30.3",
     "@tiptap/pm": "^3.28.0",
     "@tiptap/react": "^3.28.0",
     "@tiptap/starter-kit": "^3.28.0",
