@@ -104,6 +104,21 @@ func (p *PearServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // the requests PearServer owns, and passes everything else along to its own
 // routes, instead of mounting PearServer under a handful of path prefixes that
 // have to be kept in sync with registerRoutes.
+//
+// On a match it also records the inner route's path template as r.Pattern. The
+// parent route is a bare matcher with no path template, so otel's mux
+// middleware, which runs after matching, would otherwise find no route and
+// name every span "HTTP <method> route not found". The parent router copies r
+// after matching, so the value set here reaches the middleware.
 func (p *PearServer) Handles(r *http.Request, _ *mux.RouteMatch) bool {
-	return p.router.Match(r, &mux.RouteMatch{})
+	var match mux.RouteMatch
+	if !p.router.Match(r, &match) {
+		return false
+	}
+	if match.Route != nil {
+		if tmpl, err := match.Route.GetPathTemplate(); err == nil {
+			r.Pattern = tmpl
+		}
+	}
+	return true
 }
