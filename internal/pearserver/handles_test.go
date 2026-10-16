@@ -13,7 +13,10 @@ import (
 // router, so otel can name spans by route.
 func TestHandlesSetsPattern(t *testing.T) {
 	ps := &PearServer{router: mux.NewRouter()}
-	ps.router.HandleFunc("/xrpc/network.habitat.space.listSpaces", func(http.ResponseWriter, *http.Request) {})
+	ps.router.HandleFunc(
+		"/xrpc/network.habitat.space.listSpaces",
+		func(http.ResponseWriter, *http.Request) {},
+	)
 
 	var got string
 	parent := mux.NewRouter()
