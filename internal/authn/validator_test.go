@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -49,6 +50,7 @@ func TestValidator(t *testing.T) {
 		&org.LoginRouter{},
 		nil,
 		db,
+		keyval_testutil.New(t),
 		noop.Meter{},
 		nil,
 		"https://issuer.com",

@@ -7,6 +7,7 @@ import (
 
 	"github.com/alexedwards/argon2id"
 	"github.com/habitat-network/habitat/internal/db/testutil"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +17,13 @@ func newTestStore(t *testing.T) *storeImpl {
 	hash, err := argon2id.CreateHash("password", argon2id.DefaultParams)
 	require.NoError(t, err)
 
-	store, err := NewStore(testutil.NewDB(t, Models()), []byte("random"), "pear.example.com", hash)
+	store, err := NewStore(
+		testutil.NewDB(t, Models()),
+		keyval_testutil.New(t),
+		[]byte("random"),
+		"pear.example.com",
+		hash,
+	)
 	require.NoError(t, err)
 	return store
 }
@@ -166,6 +173,17 @@ func TestIssueInvite_CanBeRedeemedOnce(t *testing.T) {
 
 	err = s.ValidateInvite(t.Context(), token)
 	require.ErrorIs(t, err, ErrInvalidInvite)
+}
+
+func TestMarkInviteUsed_SecondRedemptionFails(t *testing.T) {
+	s := newTestStore(t)
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly))
+
+	token, err := s.IssueInvite(t.Context())
+	require.NoError(t, err)
+
+	require.NoError(t, s.MarkInviteUsed(t.Context(), token))
+	require.ErrorIs(t, s.MarkInviteUsed(t.Context(), token), ErrInvalidInvite)
 }
 
 func TestValidateInvite_DoesNotConsumeToken(t *testing.T) {

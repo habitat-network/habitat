@@ -26,7 +26,7 @@ func TestExtractText(t *testing.T) {
 	}
 	// Keys are visited in sorted order: body.file has no text, body.tags,
 	// body.text, then title.
-	require.Equal(t, "finance q3 review the plan Quarterly budget", ExtractText(record))
+	require.Equal(t, "finance\nq3\nreview the plan\nQuarterly budget", ExtractText(record))
 }
 
 func TestExtractTextSanitizes(t *testing.T) {

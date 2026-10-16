@@ -46,12 +46,17 @@ func (fakeTokens) ValidateRaw(
 // tests can drive the MCP client as a specific authenticated caller.
 type bearerTransport struct {
 	token string
+	// header is added to every request too.
+	header http.Header
 }
 
 func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
 	if t.token != "" {
 		req.Header.Set("Authorization", "Bearer "+t.token)
+	}
+	for k, v := range t.header {
+		req.Header[k] = v
 	}
 	return http.DefaultTransport.RoundTrip(req)
 }
@@ -270,12 +275,13 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 			},
 		},
 	}
-	newHTTPServer := func(s RecordSearcher) *httptest.Server {
+	newHTTPServer := func(s RecordSearcher, opts ...Option) *httptest.Server {
 		srv := New(
 			fakeTokens{}, spacesStore, permStore, s,
 			newFakeNangoClient(), newFakeOrgMcpServerStore(), nil,
 			nil,
 			newTestDirectory(), "https://habitat.example", "https://habitat.example/mcp",
+			opts...,
 		)
 		return httptest.NewServer(srv.Handler())
 	}
@@ -362,6 +368,71 @@ func TestMCPServerSearchRecordsTool(t *testing.T) {
 		})
 		require.NotEqual(t, -1, idx)
 		require.Equal(t, searchRecordsDescription, tools.Tools[idx].Description)
+	})
+
+	// textSeen connects with header set to TextOverridesHeader and returns
+	// the instructions and search_records description the session sees.
+	textSeen := func(
+		t *testing.T, serverURL, header string,
+	) (instructions, description string, err error) {
+		t.Helper()
+		client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
+		session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+			Endpoint: serverURL + Path + "/" + testOrg.String(),
+			HTTPClient: &http.Client{Transport: bearerTransport{
+				token: owner.String(), header: http.Header{TextOverridesHeader: {header}},
+			}},
+		}, nil)
+		if err != nil {
+			return "", "", err
+		}
+		defer func() { _ = session.Close() }()
+		tools, err := session.ListTools(ctx, nil)
+		require.NoError(t, err)
+		idx := slices.IndexFunc(tools.Tools, func(tool *mcp.Tool) bool {
+			return tool.Name == "search_records"
+		})
+		require.NotEqual(t, -1, idx)
+		return session.InitializeResult().Instructions, tools.Tools[idx].Description, nil
+	}
+	text := func(s string) *string { return &s }
+
+	t.Run("text overrides apply when enabled", func(t *testing.T) {
+		overridable := newHTTPServer(searcher, WithTextOverrides())
+		defer overridable.Close()
+
+		instructions, description, err := textSeen(t, overridable.URL, mustEncode(t, TextOverrides{
+			Instructions: text(
+				"custom instructions",
+			),
+			SearchDescription: text("custom description"),
+		}))
+		require.NoError(t, err)
+		require.Equal(t, "custom instructions", instructions)
+		require.Equal(t, "custom description", description)
+
+		// Empty instructions send none; an unset description keeps the built-in one.
+		instructions, description, err = textSeen(
+			t, overridable.URL, mustEncode(t, TextOverrides{Instructions: text("")}),
+		)
+		require.NoError(t, err)
+		require.Empty(t, instructions)
+		require.Equal(t, searchRecordsDescription, description)
+
+		_, _, err = textSeen(t, overridable.URL, "not base64!")
+		require.Error(t, err, "an invalid override is rejected, not ignored")
+	})
+
+	t.Run("text overrides are ignored unless enabled", func(t *testing.T) {
+		instructions, description, err := textSeen(t, httpServer.URL, mustEncode(t, TextOverrides{
+			Instructions: text(
+				"custom instructions",
+			),
+			SearchDescription: text("custom description"),
+		}))
+		require.NoError(t, err)
+		require.Equal(t, serverInstructions, instructions)
+		require.Equal(t, searchRecordsDescription, description)
 	})
 
 	t.Run("tool and instructions are absent when search is not configured", func(t *testing.T) {

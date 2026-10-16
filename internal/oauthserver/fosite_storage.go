@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
@@ -28,6 +29,9 @@ type store struct {
 	approvedJwtBearerClients ApprovedClientStore
 	appAccess                appAccessChecker
 	clientMeta               *clientmetadata.Resolver
+	// kv holds the short-lived OAuth flow state (pushed authorization requests,
+	// in-flight requests, authorization codes). It must already be namespaced.
+	kv keyval.Store
 }
 
 // appAccessChecker reports whether an org has approved an app (see
@@ -54,31 +58,29 @@ func (s *store) jwtBearerClientAllowed(
 	return s.appAccess.HasAppAccess(ctx, did, issuer)
 }
 
-// OAuthRequest is the single row type backing every short-lived piece of OAuth
-// flow state: pushed authorization requests, in-flight authorization requests
-// bridging the PDS redirect, and issued authorization codes. Which one a row is
-// depends only on what its Key is (a PAR request_uri, a cookie-held request key,
-// or an authorization code signature).
-type OAuthRequest struct {
-	Key      string `gorm:"primaryKey"`
-	ClientID string `gorm:"size:1024"`
+// requestRecord is the serialized value of one in-flight OAuth flow: pushed
+// authorization requests, requests bridging the PDS redirect, and issued
+// authorization codes. fosite types are not serialized directly because they
+// embed a Client and Session whose unexported state does not survive a JSON
+// round trip.
+type requestRecord struct {
+	ClientID string `json:"client_id"`
 	// Subject is the resolved DID this flow authenticates. Empty until the login
 	// hint is resolved (at PAR time) or the handle is resolved (at authorize time).
-	Subject             string    `gorm:"size:255"`
-	Scopes              string    `gorm:"size:512"` // space-separated
-	CodeChallenge       string    `gorm:"size:255"`
-	CodeChallengeMethod string    `gorm:"size:32"`
-	RedirectURI         string    `gorm:"size:1024"`
-	State               string    `gorm:"size:1024"` // the client's own OAuth state param
-	ResponseType        string    `gorm:"size:64"`
-	ResponseMode        string    `gorm:"size:32"`
-	ExpiresAt           time.Time `gorm:"index"`
+	Subject             string `json:"subject"`
+	Scopes              string `json:"scopes"` // space-separated
+	CodeChallenge       string `json:"code_challenge"`
+	CodeChallengeMethod string `json:"code_challenge_method"`
+	RedirectURI         string `json:"redirect_uri"`
+	State               string `json:"state"` // the client's own OAuth state param
+	ResponseType        string `json:"response_type"`
+	ResponseMode        string `json:"response_mode"`
 }
 
 // toAuthorizeRequest rebuilds the fosite.AuthorizeRequest this row was stored
 // from. The redirect URI is parsed rather than left in the form because
 // WriteAuthorizeResponse reads the struct field, not the form.
-func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) *fosite.AuthorizeRequest {
+func (r *requestRecord) toAuthorizeRequest(client fosite.Client) *fosite.AuthorizeRequest {
 	scopes := fosite.Arguments(strings.Fields(r.Scopes))
 	var redirectURI *url.URL
 	redirectURI, _ = url.Parse(r.RedirectURI)
@@ -106,11 +108,10 @@ func (r *OAuthRequest) toAuthorizeRequest(client fosite.Client) *fosite.Authoriz
 	}
 }
 
-// fromRequester populates the OAuthRequest columns from a fosite.Requester.
-func fromRequester(uri string, requester fosite.Requester, expiresAt time.Time) (r *OAuthRequest) {
+// requestRecordFrom populates a requestRecord from a fosite.Requester.
+func requestRecordFrom(requester fosite.Requester) requestRecord {
 	form := requester.GetRequestForm()
-	return &OAuthRequest{
-		Key:                 uri,
+	return requestRecord{
 		ClientID:            requester.GetClient().GetID(),
 		Scopes:              strings.Join(requester.GetRequestedScopes(), " "),
 		CodeChallenge:       form.Get("code_challenge"),
@@ -119,14 +120,13 @@ func fromRequester(uri string, requester fosite.Requester, expiresAt time.Time) 
 		State:               form.Get("state"),
 		ResponseType:        form.Get("response_type"),
 		ResponseMode:        form.Get("response_mode"),
-		ExpiresAt:           expiresAt,
 		Subject:             requester.GetSession().GetSubject(),
 	}
 }
 
 // pkceForm reconstructs the code_challenge/code_challenge_method form values
-// for the PKCE handler from a stored request row.
-func (r *OAuthRequest) pkceForm() url.Values {
+// for the PKCE handler from a stored request record.
+func (r *requestRecord) pkceForm() url.Values {
 	v := url.Values{}
 	if r.CodeChallenge != "" {
 		v.Set("code_challenge", r.CodeChallenge)
@@ -137,13 +137,20 @@ func (r *OAuthRequest) pkceForm() url.Values {
 	return v
 }
 
-type OAuthSession struct {
-	Signature string `gorm:"primaryKey"`
-	ClientID  string
-	Subject   string // DID of the user
-	Scopes    string // Space-separated scopes
-	ExpiresAt time.Time
+// refreshRecord is what a refresh token's keyval entry holds: enough to
+// rebuild the session the token endpoint reads back. The entry expires with the
+// token, so ExpiresAt is only echoed back to fosite.
+type refreshRecord struct {
+	ClientID  string    `json:"client_id"`
+	Subject   string    `json:"subject"`
+	Scopes    string    `json:"scopes"` // space-separated
+	ExpiresAt time.Time `json:"expires_at"`
 }
+
+// refreshKey namespaces refresh token signatures among the other entries in the
+// OAuth server's keyval namespace, which are keyed by authorize code signature
+// and PAR request URI.
+func refreshKey(signature string) string { return "refresh/" + signature }
 
 type ConnectedApp struct {
 	Subject  string `gorm:"primaryKey,uniqueIndex:idx_connected_app"` // user DID
@@ -171,13 +178,14 @@ func newStore(
 	approvedJwtBearerClients ApprovedClientStore,
 	appAccess appAccessChecker,
 	clientMeta *clientmetadata.Resolver,
+	kv keyval.Store,
 ) (*store, error) {
-	// TODO: we need to add a goroutine here that cleans up expired sessions
 	return &store{
 		db:                       db,
 		approvedJwtBearerClients: approvedJwtBearerClients,
 		appAccess:                appAccess,
 		clientMeta:               clientMeta,
+		kv:                       kv,
 	}, nil
 }
 
@@ -196,17 +204,14 @@ const parSessionTTL = 10 * time.Minute
 
 // CreatePARSession implements fosite.PARStorage. It also doubles as the
 // re-store step the authorize flow uses to persist an in-flight request under
-// a fresh key while it bridges the PDS redirect; Save (upsert) rather than
-// Create so re-storing the same key (e.g. once the login hint resolves to a
-// DID) does not hit a duplicate-key error.
+// a fresh key while it bridges the PDS redirect; Put upserts, so re-storing the
+// same key (e.g. once the login hint resolves to a DID) is not an error.
 func (s *store) CreatePARSession(
 	ctx context.Context,
 	requestURI string,
 	request fosite.AuthorizeRequester,
 ) error {
-	return s.db.WithContext(ctx).
-		Create(fromRequester(requestURI, request, time.Now().Add(parSessionTTL))).
-		Error
+	return s.kv.Put(ctx, requestURI, requestRecordFrom(request), parSessionTTL)
 }
 
 // GetPARSession implements fosite.PARStorage.
@@ -214,12 +219,17 @@ func (s *store) GetPARSession(
 	ctx context.Context,
 	requestURI string,
 ) (fosite.AuthorizeRequester, error) {
-	var r OAuthRequest
-	err := s.db.WithContext(ctx).
-		Where("expires_at > ?", time.Now()).
-		First(&r, "key = ?", requestURI).
-		Error
-	if err != nil {
+	return s.getAuthorizeRequest(ctx, requestURI)
+}
+
+// getAuthorizeRequest rebuilds the AuthorizeRequest stored under key, as a
+// PAR session or an authorization code.
+func (s *store) getAuthorizeRequest(
+	ctx context.Context,
+	key string,
+) (*fosite.AuthorizeRequest, error) {
+	var r requestRecord
+	if err := s.kv.Get(ctx, key, &r); err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
 	client, err := s.GetClient(ctx, r.ClientID)
@@ -229,21 +239,38 @@ func (s *store) GetPARSession(
 	return r.toAuthorizeRequest(client), nil
 }
 
+// UpdatePARSessionSubject rewrites the subject on a stored PAR session. A
+// missing or expired session is a no-op, as the row update it replaces was. The
+// entry gets a fresh parSessionTTL: the store cannot report the remaining TTL,
+// and this runs at most once, moments after the session was created.
 func (s *store) UpdatePARSessionSubject(
 	ctx context.Context,
 	requestURI string,
 	subject syntax.DID,
 ) error {
-	return s.db.WithContext(ctx).
-		Model(&OAuthRequest{}).
-		Where("key = ?", requestURI).
-		Update("subject", subject).
-		Error
+	var r requestRecord
+	if err := s.kv.Get(ctx, requestURI, &r); err != nil {
+		if errors.Is(err, keyval.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	r.Subject = subject.String()
+	return s.kv.Put(ctx, requestURI, r, parSessionTTL)
 }
 
-// DeletePARSession implements fosite.PARStorage.
+// DeletePARSession implements fosite.PARStorage. Deleting a session that is
+// already gone is not an error.
 func (s *store) DeletePARSession(ctx context.Context, requestURI string) error {
-	return s.db.WithContext(ctx).Delete(&OAuthRequest{}, "key = ?", requestURI).Error
+	return ignoreNotFound(s.kv.Delete(ctx, requestURI))
+}
+
+// ignoreNotFound treats an absent entry as already deleted.
+func ignoreNotFound(err error) error {
+	if errors.Is(err, keyval.ErrNotFound) {
+		return nil
+	}
+	return err
 }
 
 // ClientAssertionJWTValid implements fosite.Storage. Client assertion JWTs are
@@ -398,14 +425,12 @@ func (s *store) CreateAuthorizeCodeSession(
 	ctx, span := tracer.Start(ctx, "CreateAuthorizeCodeSession")
 	defer span.End()
 	span.SetAttributes(attribute.String("auth_signature", signature))
-	return s.db.WithContext(ctx).
-		Create(
-			fromRequester(
-				signature,
-				requester,
-				requester.GetSession().GetExpiresAt(fosite.AuthorizeCode),
-			),
-		).Error
+	return s.kv.Put(
+		ctx,
+		signature,
+		requestRecordFrom(requester),
+		time.Until(requester.GetSession().GetExpiresAt(fosite.AuthorizeCode)),
+	)
 }
 
 // GetAuthorizeCodeSession implements oauth2.CoreStorage.
@@ -418,24 +443,12 @@ func (s *store) GetAuthorizeCodeSession(
 	defer span.End()
 	span.SetAttributes(attribute.String("auth_signature", signature))
 
-	var r OAuthRequest
-	err = s.db.WithContext(ctx).
-		Where("expires_at > ?", time.Now()).
-		First(&r, "key = ?", signature).
-		Error
-	if err != nil {
-		return nil, errors.Join(fosite.ErrNotFound, err)
-	}
-	client, err := s.GetClient(ctx, r.ClientID)
-	if err != nil {
-		return nil, errors.Join(fosite.ErrNotFound, err)
-	}
-	return r.toAuthorizeRequest(client), nil
+	return s.getAuthorizeRequest(ctx, signature)
 }
 
 // InvalidateAuthorizeCodeSession implements oauth2.CoreStorage.
 func (s *store) InvalidateAuthorizeCodeSession(ctx context.Context, signature string) (err error) {
-	return s.db.WithContext(ctx).Delete(&OAuthRequest{}, "key = ?", signature).Error
+	return ignoreNotFound(s.kv.Delete(ctx, signature))
 }
 
 // CreatePKCERequestSession implements pkce.PKCERequestStorage. It writes the
@@ -446,13 +459,24 @@ func (s *store) CreatePKCERequestSession(
 	signature string,
 	requester fosite.Requester,
 ) error {
+	var r requestRecord
+	if err := s.kv.Get(ctx, signature, &r); err != nil {
+		if errors.Is(err, keyval.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
 	form := requester.GetRequestForm()
-	return s.db.WithContext(ctx).Model(&OAuthRequest{}).
-		Where("key = ?", signature).
-		Updates(map[string]any{
-			"code_challenge":        form.Get("code_challenge"),
-			"code_challenge_method": form.Get("code_challenge_method"),
-		}).Error
+	r.CodeChallenge = form.Get("code_challenge")
+	r.CodeChallengeMethod = form.Get("code_challenge_method")
+	// Re-put with the authorize code's own lifetime so the update does not
+	// extend it.
+	return s.kv.Put(
+		ctx,
+		signature,
+		r,
+		time.Until(requester.GetSession().GetExpiresAt(fosite.AuthorizeCode)),
+	)
 }
 
 // DeletePKCERequestSession implements pkce.PKCERequestStorage. The challenge
@@ -469,8 +493,8 @@ func (s *store) GetPKCERequestSession(
 	signature string,
 	_ fosite.Session,
 ) (fosite.Requester, error) {
-	var r OAuthRequest
-	if err := s.db.WithContext(ctx).First(&r, "key = ?", signature).Error; err != nil {
+	var r requestRecord
+	if err := s.kv.Get(ctx, signature, &r); err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
 	client, err := s.GetClient(ctx, r.ClientID)
@@ -524,15 +548,19 @@ func (s *store) CreateRefreshTokenSession(
 	)
 
 	sess := request.GetSession().(*session)
-	oauthSession := &OAuthSession{
-		Signature: signature,
+	oauthSession := refreshRecord{
 		ClientID:  request.GetClient().GetID(),
 		Subject:   sess.Subject,
 		Scopes:    strings.Join(sess.Scopes, " "),
 		ExpiresAt: sess.GetExpiresAt(fosite.RefreshToken),
 	}
 
-	err := s.db.WithContext(ctx).Create(oauthSession).Error
+	err := s.kv.Put(
+		ctx,
+		refreshKey(signature),
+		oauthSession,
+		time.Until(oauthSession.ExpiresAt),
+	)
 	if err != nil {
 		return err
 	}
@@ -548,7 +576,7 @@ func (s *store) DeleteRefreshTokenSession(ctx context.Context, signature string)
 	ctx, span := tracer.Start(ctx, "DeleteRefreshTokenSession")
 	defer span.End()
 	span.SetAttributes(attribute.String("refresh_signature", signature))
-	return s.db.WithContext(ctx).Delete(&OAuthSession{}, "signature = ?", signature).Error
+	return ignoreNotFound(s.kv.Delete(ctx, refreshKey(signature)))
 }
 
 // GetRefreshTokenSession implements oauth2.CoreStorage.
@@ -561,11 +589,12 @@ func (s *store) GetRefreshTokenSession(
 	defer span.End()
 	span.SetAttributes(attribute.String("refresh_signature", signature))
 
-	var oauthSession OAuthSession
-
-	err := s.db.WithContext(ctx).First(&oauthSession, "signature = ?", signature).Error
-	if err != nil {
-		return nil, errors.Join(fosite.ErrNotFound, err)
+	var oauthSession refreshRecord
+	if err := s.kv.Get(ctx, refreshKey(signature), &oauthSession); err != nil {
+		if errors.Is(err, keyval.ErrNotFound) {
+			return nil, errors.Join(fosite.ErrNotFound, err)
+		}
+		return nil, err
 	}
 
 	client, err := s.GetClient(ctx, oauthSession.ClientID)
@@ -614,5 +643,5 @@ func (s *store) RevokeRefreshToken(_ context.Context, _ string) error {
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&OAuthRequest{}, &OAuthSession{}, &ConnectedApp{}, &RegisteredClient{}}
+	return []any{&ConnectedApp{}, &RegisteredClient{}}
 }

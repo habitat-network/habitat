@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
+	"log/slog"
 
 	"github.com/pressly/goose/v3"
 	"gorm.io/driver/postgres"
@@ -78,6 +79,10 @@ func Up(
 		sqlDB,
 		sqlMigrations,
 		goose.WithGoMigrations(goMigrations...),
+		// goose only logs when verbose. This reports each applied migration
+		// through slog's default logger, which pear's telemetry setup configures.
+		goose.WithVerbose(true),
+		goose.WithSlog(slog.Default()),
 	)
 	if err != nil {
 		return fmt.Errorf("create migration provider: %w", err)

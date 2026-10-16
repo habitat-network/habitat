@@ -25,6 +25,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
+	"github.com/olgasafonova/mcp-otel-go/mcpotel"
 )
 
 // NangoClient is the subset of Nango's backend API needed to reach a
@@ -85,18 +86,21 @@ const Path = "/mcp"
 // are the main place to tell agents when to reach for Habitat. They're only
 // sent when "search_records" is offered, since they direct agents to it.
 // integration/mcp-evals measures how well they work; rerun it after editing.
-const serverInstructions = `Habitat holds this user's organizational knowledge base: documents, notes, policies, files, plans, decisions and other data records shared within their org.
+const serverInstructions = `Habitat holds this user's organizational knowledge base: documents, notes, policies, files, plans, decisions and other data records shared within their org, including files they've uploaded.
 
-Whenever a question is about the user's company, team, colleagues, customers, projects or past discussions, call search_records before searching local files or the web. Search with a few keywords, then read results in full with get_record or get_blob. If nothing relevant turns up after a few searches, say so instead of guessing.
+Whenever a question is about the user's company, team, customers, projects or past discussions, call search_records before searching local files or the web. Search again for each new question in a conversation, even if you searched earlier: earlier results only cover what you searched for then. When a question touches a kind of document the org likely has (a pitch deck, strategy, thesis, roadmap, research, policy), search for that document and read it, rather than reconstructing it from notes or other sources.
 
-Tools prefixed with an app's name (for example Granola) are the org's connected apps, reached through Habitat. Use them for data that lives in those apps, such as meeting notes.`
+Call search_records with a few keywords as its query argument, e.g. {"query": "pricing decision"}, then read relevant results in full with get_record or get_blob. If nothing relevant turns up after a few searches, say so instead of guessing.
+
+Tools prefixed with an app's name are the org's connected apps, reached through Habitat. Use them for data that lives in those apps.`
 
 // searchRecordsDescription is the "search_records" tool's description. Like
 // serverInstructions, it says when to search, not just how.
 const searchRecordsDescription = "Search your organization's knowledge in Habitat: documents, " +
 	"notes, policies, files, roadmaps, decisions and other data records shared with you. Use " +
-	"this first for any question about your company, team, customers or past work. Returns " +
-	"matching records with snippets; use get_record for the full content."
+	"this first for any question about your company, team, customers or past work, and search " +
+	"again whenever the conversation turns to a new topic; earlier results don't cover it. " +
+	"Returns matching records with snippets; use get_record for the full content."
 
 // Server exposes pear's data as an MCP server over streamable HTTP, guarded
 // by bearer tokens issued by internal/oauthserver.
@@ -144,6 +148,7 @@ func orgFromPath(p, prefix string) (syntax.AtIdentifier, error) {
 //     to build the resource identifier in the protected resource metadata.
 //   - authServer is the issuer of the authorization server (internal/oauthserver)
 //     that issues tokens for this resource.
+//   - opts are optional settings, e.g. WithTextOverrides.
 func New(
 	tokens authn.RawMethod,
 	spacesStore spaces.Store,
@@ -156,14 +161,25 @@ func New(
 	dir identity.Directory,
 	origin string,
 	authServer string,
+	opts ...Option,
 ) *Server {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
 	impl := &mcp.Implementation{Name: "habitat-pear", Version: "0.1.0"}
-	newMCPServer := func(org syntax.DID) *mcp.Server {
-		var opts *mcp.ServerOptions
+	newMCPServer := func(org syntax.DID, text TextOverrides) *mcp.Server {
+		var serverOpts *mcp.ServerOptions
 		if searcher != nil {
-			opts = &mcp.ServerOptions{Instructions: serverInstructions}
+			serverOpts = &mcp.ServerOptions{
+				Instructions: textOr(text.Instructions, serverInstructions),
+			}
 		}
-		mcpServer := mcp.NewServer(impl, opts)
+		mcpServer := mcp.NewServer(impl, serverOpts)
+		mcpServer.AddReceivingMiddleware(mcpotel.Middleware(mcpotel.Config{
+			ServiceName:    "habitat-mcp",
+			ServiceVersion: "0.0.1",
+		}))
 		mcp.AddTool(mcpServer, &mcp.Tool{
 			Name: "get_record",
 			Description: "Get a single Habitat record by its space record URI, returned as " +
@@ -188,7 +204,7 @@ func New(
 		if searcher != nil {
 			mcp.AddTool(mcpServer, &mcp.Tool{
 				Name:        "search_records",
-				Description: searchRecordsDescription,
+				Description: textOr(text.SearchDescription, searchRecordsDescription),
 			}, searchRecordsHandler(searcher, org))
 		}
 		mcpServer.AddReceivingMiddleware(
@@ -210,7 +226,14 @@ func New(
 			slog.WarnContext(r.Context(), "mcp: resolving org", "org", orgID.String(), "err", err)
 			return nil
 		}
-		return newMCPServer(ident.DID)
+		var text TextOverrides
+		if o.textOverrides {
+			if text, err = parseTextOverrides(r.Header.Get(TextOverridesHeader)); err != nil {
+				slog.WarnContext(r.Context(), "mcp: invalid text overrides", "err", err)
+				return nil
+			}
+		}
+		return newMCPServer(ident.DID, text)
 	}, &mcp.StreamableHTTPOptions{
 		// pear runs behind a reverse proxy (Caddy locally, Cloud Run in prod),
 		// so requests reach it from a loopback address carrying the public Host

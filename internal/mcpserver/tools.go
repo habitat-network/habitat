@@ -158,8 +158,9 @@ func getRecordHandler(
 }
 
 // maxBlobContentBytes is the largest blob whose content the blob resource
-// and the "get_blob" tool return; larger blobs are not served.
-const maxBlobContentBytes = 256 << 10
+// and the "get_blob" tool return; larger blobs are not served. It matches the
+// upload limit so every uploaded blob can be read back.
+const maxBlobContentBytes = spaces.MaxBlobBytes
 
 // blobURIScheme is the scheme of blob resource URIs, which look like
 // habitat-blob:///?space=<space uri>&cid=<cid> and are matched by

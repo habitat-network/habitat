@@ -3,6 +3,7 @@ package search
 import (
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -12,8 +13,8 @@ import (
 const maxTextBytes = 64 << 10
 
 // ExtractText flattens the human-readable strings of a decoded record (as
-// returned by atdata.UnmarshalCBOR) into one space-separated string for
-// indexing.
+// returned by atdata.UnmarshalCBOR) into one string for indexing, a line per
+// string, so long text is chunked between them.
 //
 // Object keys are visited in sorted order so the result is deterministic.
 // Keys starting with "$" ($type, $link, $bytes) are skipped, as are strings
@@ -50,7 +51,7 @@ func walk(v any, sb *strings.Builder) {
 	case string:
 		if s := clean(val); s != "" && !isIdentifier(s) {
 			sb.WriteString(s)
-			sb.WriteByte(' ')
+			sb.WriteByte('\n')
 		}
 	case map[string]any:
 		keys := make([]string, 0, len(val))
@@ -89,4 +90,22 @@ func isIdentifier(s string) bool {
 	}
 	_, err := syntax.ParseDatetime(s)
 	return err == nil
+}
+
+// dateFields are the record fields [recordDate] reads, best first.
+var dateFields = []string{"updatedAt", "createdAt"}
+
+// recordDate returns when record was last changed, from the first of
+// [dateFields] holding a datetime, or zero when none does.
+func recordDate(record map[string]any) time.Time {
+	for _, f := range dateFields {
+		s, ok := record[f].(string)
+		if !ok {
+			continue
+		}
+		if dt, err := syntax.ParseDatetimeLenient(s); err == nil {
+			return dt.Time()
+		}
+	}
+	return time.Time{}
 }

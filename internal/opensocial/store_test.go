@@ -29,10 +29,10 @@ func TestStore(t *testing.T) {
 	require.NotEmpty(t, orgDIDStr)
 	org := syntax.DID(orgDIDStr)
 
-	// NewOrg bootstraps the creator as an admin.
+	// NewOrg bootstraps the creator as an admin and member.
 	roles, err := s.GetUserRoles(t.Context(), org, creator)
 	require.NoError(t, err)
-	require.Equal(t, []string{opensocial.AdminRoleRkey}, roles)
+	require.Equal(t, []string{opensocial.MemberRoleRkey, opensocial.AdminRoleRkey}, roles)
 
 	// The about space carries the org's profile.
 	_, err = s.SpaceStore.GetRecord(

@@ -70,7 +70,8 @@ func (s *Store) NewOrg(ctx context.Context, handle string, creator syntax.DID) (
 			return err
 		}
 		if err := putMembership(
-			ctx, s.spacesStore.WithTx(tx), orgID.DID, creator, []string{AdminRoleRkey},
+			ctx, s.spacesStore.WithTx(tx), orgID.DID, creator,
+			[]string{MemberRoleRkey, AdminRoleRkey},
 		); err != nil {
 			return err
 		}

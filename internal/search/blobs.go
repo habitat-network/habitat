@@ -29,8 +29,9 @@ const (
 	// are skipped.
 	maxBlobBytes = 5 << 20
 	// maxBlobTextBytes caps the blob text added to one record's document, over
-	// all of its blobs.
-	maxBlobTextBytes = 256 << 10
+	// all of its blobs. Long text is chunked, so its size doesn't dilute
+	// ranking; [maxChunks] caps it too.
+	maxBlobTextBytes = 1 << 20
 	// pdfExtractTimeout bounds how long text extraction from one PDF may take,
 	// since pathological files can make the parser very slow.
 	pdfExtractTimeout = 10 * time.Second
@@ -70,18 +71,19 @@ func WithBlobs(src BlobSource) IndexerOption {
 	return func(x *Indexer) { x.blobs = src }
 }
 
-// blobText returns the text of the supported blobs record references, joined
-// by spaces. Blobs that are missing, too large, unsupported or unreadable are
-// skipped, so one bad blob never stops its record from being indexed.
-func (x *Indexer) blobText(ctx context.Context, record map[string]any) string {
+// blobTexts returns the text of each supported blob record references.
+// Blobs that are missing, too large, unsupported or unreadable are skipped,
+// so one bad blob never stops its record from being indexed.
+func (x *Indexer) blobTexts(ctx context.Context, record map[string]any) []BlobText {
 	if x.blobs == nil {
-		return ""
+		return nil
 	}
-	var sb strings.Builder
+	var out []BlobText
+	total := 0
 	seen := map[string]bool{}
 	for _, ref := range atdata.ExtractBlobs(record) {
 		c := cid.Cid(ref.Ref)
-		if sb.Len() >= maxBlobTextBytes || seen[c.String()] ||
+		if total >= maxBlobTextBytes || seen[c.String()] ||
 			ref.Size > maxBlobBytes || !blobTypeSupported(ref.MimeType) {
 			continue
 		}
@@ -99,12 +101,12 @@ func (x *Indexer) blobText(ctx context.Context, record map[string]any) string {
 		if !ok || len(data) > maxBlobBytes {
 			continue
 		}
-		if text := clean(extract(ctx, data)); text != "" {
-			sb.WriteString(text)
-			sb.WriteByte(' ')
+		if text := truncateUTF8(clean(extract(ctx, data)), maxBlobTextBytes-total); text != "" {
+			out = append(out, BlobText{CID: c.String(), Text: text})
+			total += len(text)
 		}
 	}
-	return truncateUTF8(strings.TrimSpace(sb.String()), maxBlobTextBytes)
+	return out
 }
 
 func textFromPlain(_ context.Context, data []byte) string { return string(data) }

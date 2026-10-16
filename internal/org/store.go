@@ -14,10 +14,10 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/login"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type inviteTokenClaims struct {
@@ -78,6 +78,9 @@ type storeImpl struct {
 	everyone         Org
 	passwordProvider *login.PasswordLoginProvider
 	fga              fgastore.Store
+	// spentTokens records the single-use invite tokens already redeemed, each
+	// until the token itself expires and can no longer be replayed.
+	spentTokens keyval.Store
 }
 
 // NewStore creates a Store that manages multiple orgs on a pear instance.
@@ -89,6 +92,7 @@ func NewStore(
 	passwordProvider *login.PasswordLoginProvider,
 	fga fgastore.Store,
 	everyoneOrg *everyoneOrg,
+	spentTokens keyval.Store,
 ) (Store, error) {
 	return &storeImpl{
 		db:               db,
@@ -98,6 +102,7 @@ func NewStore(
 		everyone:         everyoneOrg,
 		passwordProvider: passwordProvider,
 		fga:              fga,
+		spentTokens:      spentTokens,
 	}, nil
 }
 
@@ -278,6 +283,31 @@ func (s *storeImpl) GetMemberByLoginID(ctx context.Context, loginID string) (*Me
 	}, nil
 }
 
+// spendTokenGrace keeps a spent token's record slightly past the token's
+// expiry, so a redemption right at the boundary cannot slip between the
+// token's own expiry check and the record lapsing.
+const spendTokenGrace = time.Minute
+
+// spendToken records a single-use token as redeemed, returning ErrInvalidToken
+// if it already was. The record lives as long as the token could still be
+// presented, so it never needs cleaning up. A token with no expiry could be
+// replayed forever, which the record cannot outlast, so it is refused.
+func (s *storeImpl) spendToken(
+	ctx context.Context,
+	orgDID syntax.DID,
+	claims inviteTokenClaims,
+) error {
+	if claims.Expiry == nil {
+		return ErrInvalidToken
+	}
+	ttl := time.Until(claims.Expiry.Time()) + spendTokenGrace
+	err := s.spentTokens.PutIfAbsent(ctx, string(orgDID)+"/"+claims.ID, struct{}{}, ttl)
+	if errors.Is(err, keyval.ErrAlreadyExists) {
+		return ErrInvalidToken
+	}
+	return err
+}
+
 func (s *storeImpl) ValidateAdminSignedToken(
 	ctx context.Context,
 	orgDID syntax.DID,
@@ -305,14 +335,8 @@ func (s *storeImpl) ValidateAdminSignedToken(
 		return ErrInvalidToken
 	}
 	if !claims.Reusable {
-		result := s.db.WithContext(ctx).
-			Clauses(clause.OnConflict{DoNothing: true}).
-			Create(&spentToken{OrgID: orgDID, JTI: claims.ID, ConsumedAt: time.Now()})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return ErrInvalidToken
+		if err := s.spendToken(ctx, orgDID, claims); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -392,14 +416,8 @@ func (s *storeImpl) CreateNewMemberIdentity(
 		return nil, ErrInvalidToken
 	}
 	if !claims.Reusable {
-		result := s.db.WithContext(ctx).
-			Clauses(clause.OnConflict{DoNothing: true}).
-			Create(&spentToken{OrgID: orgDID, JTI: claims.ID, ConsumedAt: time.Now()})
-		if result.Error != nil {
-			return nil, result.Error
-		}
-		if result.RowsAffected == 0 {
-			return nil, ErrInvalidToken
+		if err := s.spendToken(ctx, orgDID, claims); err != nil {
+			return nil, err
 		}
 	}
 
@@ -447,5 +465,5 @@ func (s *storeImpl) CreateNewMemberIdentity(
 // Models returns the GORM models this package persists. Their tables are
 // created by db.Migrate.
 func Models() []any {
-	return []any{&organization{}, &member{}, &spentToken{}}
+	return []any{&organization{}, &member{}}
 }

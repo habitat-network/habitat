@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/alexedwards/argon2id"
 	"go.opentelemetry.io/otel"
@@ -26,6 +25,7 @@ import (
 	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/nango"
@@ -46,6 +46,29 @@ import (
 	"github.com/urfave/cli/v3"
 	"gocloud.dev/blob"
 )
+
+// searchIndexName names the Meilisearch index of space records; their
+// cursors are in <name>_cursors.
+const searchIndexName = "space_records"
+
+// searchIndexOptions returns the settings of the search index the flags
+// describe.
+func searchIndexOptions(cmd *cli.Command) []search.MeilisearchOption {
+	embedderURL := cmd.String(fEmbedderURL)
+	if embedderURL == "" {
+		return nil
+	}
+	// With an embedder, Meilisearch embeds records and queries itself and
+	// searches are hybrid.
+	return []search.MeilisearchOption{search.WithEmbedder(search.Embedder{
+		URL:           embedderURL,
+		APIKey:        cmd.String(fEmbedderAPIKey),
+		Model:         cmd.String(fEmbedderModel),
+		Dimensions:    int(cmd.Int(fEmbedderDimensions)),
+		SemanticRatio: cmd.Float(fSemanticRatio),
+		MinScore:      cmd.Float(fSearchMinScore),
+	})}
+}
 
 // setupComponents builds pear's App from the command's flags. It
 // doesn't start anything: the server, migrations and tasks decide what to run.
@@ -72,9 +95,18 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if err != nil {
 		return nil, fmt.Errorf("setup instance admin password: %w", err)
 	}
+	// Requires the migrations (run by `pear migrate`) to have created the table.
+	// Failing here is fatal: a store that silently failed to build would turn
+	// every Put into a runtime error later.
+	kv, err := keyval.New(ctx, database)
+	if err != nil {
+		return nil, fmt.Errorf("setup keyval store: %w", err)
+	}
+
 	// Reuse the oauth server secret
 	instanceAdminStore, err := instance.NewStore(
 		database.WithContext(ctx),
+		kv.Namespace("instance_invite"),
 		oauthSecret,
 		fDomain,
 		passwordHash,
@@ -158,6 +190,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		passwordProvider,
 		fgaStore,
 		everyoneOrg,
+		kv.Namespace("org_spent_token"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("setup org store: %w", err)
@@ -169,7 +202,12 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	}
 
 	loginRouter := &org.LoginRouter{
-		Pds:        login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
+		Pds: login.NewPDSProvider(
+			oauthClient,
+			pdsCredStore,
+			defaultDir,
+			kv.Namespace("login"),
+		),
 		Password:   passwordProvider,
 		OrgStore:   orgStore,
 		EmailStore: emailDomainStore,
@@ -183,6 +221,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 			"https://"+domain+"/oauth-callback",
 			database.WithContext(ctx),
 			credKey,
+			kv.Namespace("login"),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("setup google login provider: %w", err)
@@ -215,28 +254,17 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	}
 	blobStore := spaces.NewBlobStore(blobBucket)
 
+	// pear opens the search index as it is; `pear run reindex` rebuilds it
+	// when its settings or the embedder change.
 	var searchIndex search.Index
 	var searchIndexer *search.Indexer
 	if meilisearchURL := cmd.String(fMeilisearchURL); meilisearchURL != "" {
-		var indexOpts []search.MeilisearchOption
-		// With an embedder, Meilisearch embeds records and queries itself and
-		// searches are hybrid.
-		if embedderURL := cmd.String(fEmbedderURL); embedderURL != "" {
-			indexOpts = append(indexOpts, search.WithEmbedder(search.Embedder{
-				URL:           embedderURL,
-				APIKey:        cmd.String(fEmbedderAPIKey),
-				Model:         cmd.String(fEmbedderModel),
-				Dimensions:    int(cmd.Int(fEmbedderDimensions)),
-				SemanticRatio: cmd.Float(fSemanticRatio),
-				MinScore:      cmd.Float(fSearchMinScore),
-			}))
-		}
-		searchIndex, err = search.NewMeilisearch(
+		searchIndex, err = search.OpenMeilisearch(
 			ctx,
 			meilisearchURL,
 			cmd.String(fMeilisearchAPIKey),
-			cmd.String(fMeilisearchIndex),
-			indexOpts...,
+			searchIndexName,
+			searchIndexOptions(cmd)...,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("setup search index: %w", err)
@@ -284,6 +312,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		// OAuth server needs privileged access to lookup hive-hosted identities
 		hiveDir,
 		database.WithContext(ctx),
+		kv.Namespace("oauth"),
 		meter,
 		orgStore,
 		"https://"+domain,
@@ -296,7 +325,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if err != nil {
 		return nil, fmt.Errorf("setup oauth server: %w", err)
 	}
-	oauthGC := oauthserver.NewCollector(database.WithContext(ctx), 5*time.Minute)
 
 	serviceAuth := authn.NewServiceAuthMethod(
 		everyoneOrg,
@@ -373,7 +401,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		opensocialStore,
 		emailResolver,
 		oauthServer,
-		oauthGC,
 		serviceAuth,
 		cliqueStore,
 		permStore,

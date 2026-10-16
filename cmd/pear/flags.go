@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 
+	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/urfave/cli/v3"
 )
 
@@ -28,13 +29,13 @@ var (
 	fNangoSecretKey     = "nango_secret_key"
 	fMeilisearchURL     = "meilisearch_url"
 	fMeilisearchAPIKey  = "meilisearch_api_key"
-	fMeilisearchIndex   = "meilisearch_index"
 	fEmbedderURL        = "embedder_url"
 	fEmbedderAPIKey     = "embedder_api_key"
 	fEmbedderModel      = "embedder_model"
 	fEmbedderDimensions = "embedder_dimensions"
 	fSemanticRatio      = "search_semantic_ratio"
 	fSearchMinScore     = "search_min_score"
+	fMCPTextOverrides   = "mcp_text_overrides"
 )
 
 var profiles []string
@@ -163,12 +164,6 @@ func getFlags() []cli.Flag {
 			Sources: getSources(fMeilisearchAPIKey),
 		},
 		&cli.StringFlag{
-			Name:    fMeilisearchIndex,
-			Usage:   "Name of the Meilisearch index of space records; cursors go in <name>_cursors",
-			Value:   "space_records",
-			Sources: getSources(fMeilisearchIndex),
-		},
-		&cli.StringFlag{
 			Name:    fEmbedderURL,
 			Usage:   "OpenAI-compatible embeddings endpoint Meilisearch calls to embed records and queries for hybrid search (e.g. http://localhost:11434/v1/embeddings for Ollama, https://<resource>.openai.azure.com/openai/v1/embeddings for Microsoft Foundry). It must be reachable from the Meilisearch server. If unset, search is keyword only.",
 			Sources: getSources(fEmbedderURL),
@@ -198,6 +193,11 @@ func getFlags() []cli.Flag {
 			Name:    fSearchMinScore,
 			Usage:   "With an embedder, drop hybrid search hits ranked below this score, from 0 to 1. Semantic search ranks every record, so without it unrelated records trail the results. A good value depends on the model. 0 keeps every hit.",
 			Sources: getSources(fSearchMinScore),
+		},
+		&cli.BoolFlag{
+			Name:    fMCPTextOverrides,
+			Usage:   "Development only: let MCP requests reword the server instructions and search tool description with the " + mcpserver.TextOverridesHeader + " header, for integration/mcp-evals.",
+			Sources: getSources(fMCPTextOverrides),
 		},
 	}
 }

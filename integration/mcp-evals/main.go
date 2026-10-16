@@ -10,6 +10,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -37,6 +38,12 @@ type job struct {
 func run() error {
 	setupsPath := flag.String("setups", "setups.json", "setups file")
 	scenariosPath := flag.String("scenarios", "scenarios.json", "scenarios file")
+	variantsPath := flag.String(
+		"variants", "",
+		"variants file (e.g. variants.json): run every setup once per wording of Habitat's "+
+			"instructions and search description; needs pear with --mcp_text_overrides",
+	)
+	onlyVariants := flag.String("variant", "", "comma-separated variant ids to run (default all)")
 	onlySetups := flag.String("setup", "", "comma-separated setup names to run (default all)")
 	onlyScenarios := flag.String(
 		"scenario",
@@ -72,12 +79,31 @@ func run() error {
 	if *outDir == "" {
 		*outDir = filepath.Join("tmp", time.Now().Format("20060102-150405"))
 	}
+	if *variantsPath != "" {
+		variants, err := loadVariants(*variantsPath)
+		if err != nil {
+			return err
+		}
+		variants = filterBy(variants, *onlyVariants, func(v Variant) string { return string(v.ID) })
+		if len(variants) == 0 {
+			return errors.New("nothing to run: 0 variants")
+		}
+		if setups, err = applyVariants(
+			setups, variants, filepath.Join(*outDir, "mcp-configs"),
+		); err != nil {
+			return err
+		}
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	sessionsDir, err := claudeSessionsDir()
+	if err != nil {
+		return err
+	}
 	runner := claudeRunner{
 		bin: *claudeBin, model: *model, maxTurns: *maxTurns, maxBudgetUSD: *maxBudget,
-		timeout: *timeout,
+		timeout: *timeout, sessionsDir: sessionsDir,
 	}
 
 	for _, s := range setups {
@@ -99,7 +125,7 @@ func run() error {
 	slices.SortFunc(results, func(a, b RunResult) int {
 		return cmp.Or(
 			cmp.Compare(a.Setup, b.Setup), cmp.Compare(a.Scenario, b.Scenario),
-			cmp.Compare(a.Run, b.Run),
+			cmp.Compare(a.Run, b.Run), cmp.Compare(a.Turn, b.Turn),
 		)
 	})
 
@@ -115,36 +141,55 @@ func run() error {
 	return ctx.Err()
 }
 
-// runJobs runs jobs with up to concurrency in flight, saving each run's
-// transcript under outDir/transcripts.
+// runJobs runs jobs with up to concurrency in flight, saving each turn's
+// transcript under outDir/transcripts, and scores every turn.
 func runJobs(
 	ctx context.Context, runner claudeRunner, jobs []job, concurrency int, outDir string,
 ) []RunResult {
 	var (
 		mu      sync.Mutex
 		results []RunResult
+		done    int
 		wg      sync.WaitGroup
 	)
 	queue := make(chan job)
 	for range max(concurrency, 1) {
 		wg.Go(func() {
 			for j := range queue {
-				path := filepath.Join(
-					outDir, "transcripts", string(j.setup.Name),
-					fmt.Sprintf("%s-%d.jsonl", j.scenario.ID, j.run),
-				)
-				var r RunResult
-				t, err := runner.run(ctx, j.setup, j.scenario.Prompt, path)
-				if err != nil {
-					r = scoreRunError(j.setup.Name, j.scenario, j.run, err)
-				} else {
-					r = scoreRun(j.setup.Name, j.scenario, j.run, t)
-				}
+				turns := j.scenario.Turns
+				runs := runJob(ctx, runner, j, outDir)
 				mu.Lock()
-				results = append(results, r)
-				fmt.Fprintf(os.Stderr, "[%d/%d] %s %s #%d: %s (first: %s)\n",
-					len(results), len(jobs), r.Setup, r.Scenario, r.Run, r.Outcome,
-					cmp.Or(r.FirstTool, "none"))
+				done++
+				for i, tr := range runs {
+					var r RunResult
+					if tr.err != nil {
+						r = scoreTurnError(
+							j.setup.Name,
+							j.scenario.ID,
+							j.run,
+							i+1,
+							turns[i],
+							tr.err,
+						)
+					} else {
+						r = scoreTurn(
+							j.setup.Name,
+							j.scenario.ID,
+							j.run,
+							i+1,
+							turns[i],
+							tr.transcript,
+						)
+					}
+					results = append(results, r)
+					turn := ""
+					if len(turns) > 1 {
+						turn = fmt.Sprintf(" t%d", r.Turn)
+					}
+					fmt.Fprintf(os.Stderr, "[%d/%d] %s %s #%d%s: %s (first: %s)\n",
+						done, len(jobs), r.Setup, r.Scenario, r.Run, turn, r.Outcome,
+						cmp.Or(r.FirstTool, "none"))
+				}
 				mu.Unlock()
 			}
 		})
@@ -158,6 +203,38 @@ func runJobs(
 	close(queue)
 	wg.Wait()
 	return results
+}
+
+// runJob runs j's scenario once: a single turn on its own, or every turn in
+// one session.
+func runJob(ctx context.Context, runner claudeRunner, j job, outDir string) []turnRun {
+	dir := filepath.Join(outDir, "transcripts", string(j.setup.Name))
+	turns := j.scenario.Turns
+	if len(turns) == 1 {
+		path := filepath.Join(dir, fmt.Sprintf("%s-%d.jsonl", j.scenario.ID, j.run))
+		t, err := runner.run(ctx, j.setup, turns[0].Prompt, path)
+		return []turnRun{{transcript: t, err: err}}
+	}
+	prompts := make([]string, len(turns))
+	for i, turn := range turns {
+		prompts[i] = turn.Prompt
+	}
+	return runner.runConversation(ctx, j.setup, prompts, func(turn int) string {
+		return filepath.Join(dir, fmt.Sprintf("%s-%d-t%d.jsonl", j.scenario.ID, j.run, turn))
+	})
+}
+
+// claudeSessionsDir is where claude saves sessions: projects/ under
+// $CLAUDE_CONFIG_DIR, or ~/.claude by default.
+func claudeSessionsDir() (string, error) {
+	if dir := os.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+		return filepath.Join(dir, "projects"), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".claude", "projects"), nil
 }
 
 func writeResults(outDir string, results []RunResult) error {

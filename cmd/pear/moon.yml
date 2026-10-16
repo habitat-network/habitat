@@ -7,7 +7,11 @@ tasks:
   # Applies pending migrations to the local database; the server doesn't migrate on startup.
   migrate:
     # Runs from the workspace root like the air-run server, so both use the same default SQLite file.
-    script: 'cd ../.. && go run ./cmd/pear migrate'
+    command: go
+    args:
+    - run
+    - ./cmd/pear
+    - migrate
     env: &devEnv
       HABITAT_PORT: '8000'
       HABITAT_DEBUG: 'true'
@@ -22,7 +26,23 @@ tasks:
       HABITAT_SPACE_SIGNING_KEY: 'z42txZeYVsanuqfQUQ4eDQEaKC2X21LjDgVc3MPk9k32BVzd'
       # Served by root:meilisearch, which runs without a master key.
       HABITAT_MEILISEARCH_URL: 'http://localhost:7700'
+      HABITAT_MCP_TEXT_OVERRIDES: 'true'
     options:
+      runFromWorkspaceRoot: true
+      envFile:
+      - /dev.env
+    preset: utility
+  # Runs a pear task against the local database (backfills and other operator-run work):
+  #   moon run pear:run -- <task> [args]
+  run:
+    command: go
+    args:
+    - run
+    - ./cmd/pear
+    - run
+    env: *devEnv
+    options:
+      runFromWorkspaceRoot: true
       envFile:
       - /dev.env
     preset: utility

@@ -6,9 +6,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -27,14 +30,52 @@ const (
 	// accessPageSize is how many documents SetSpaceAccess reads and rewrites
 	// at a time.
 	accessPageSize = 1000
+	// stateRecheckInterval is how often an index opened with
+	// [OpenMeilisearch] rechecks its settings: whether it has the embedder,
+	// and whether it predates the current projection.
+	stateRecheckInterval = 30 * time.Second
+	// projectionVersion versions how records become stored documents. A
+	// change to it, or to [indexSettings], needs `pear run reindex`.
+	projectionVersion = 2
+	// recordSource is the chunk source of a record's own text; a blob's
+	// chunks use [blobSource].
+	recordSource = "r"
 )
 
-// meiliDoc is a [Document] as stored in Meilisearch.
+// ErrLegacyIndex is returned by writes to an index built before the current
+// projection, which a reindex replaces. The indexer retries them, so writes
+// resume once the reindex swaps in a current index.
+var ErrLegacyIndex = errors.New(
+	"search index predates the current projection; run `pear run reindex`")
+
+// Attributes of the fixed document schema. Every collection maps its fields
+// onto these, so a change to what a collection indexes rewrites documents,
+// never index settings.
+var (
+	searchableAttributes = []string{"title", "body", "extra"}
+	// filterableAttributes are the scope, access and chunk fields, and the
+	// typed slots collections map their fields onto.
+	filterableAttributes = []string{
+		"space_owner", "space_type", "space_key", "repo", "collection",
+		"user_readers", "community_role_readers", "public",
+		"parent_id", "rev", "projection", "users", "date", "facets",
+		"num_0", "num_1", "num_2", "num_3", "date_0", "date_1", "date_2", "date_3",
+	}
+	sortableAttributes = []string{
+		"date", "num_0", "num_1", "num_2", "num_3",
+		"date_0", "date_1", "date_2", "date_3", "str_0", "str_1",
+	}
+)
+
+// meiliDoc is one chunk of a [Document] as stored in Meilisearch.
 type meiliDoc struct {
-	// ID is derived from the URI, which has characters Meilisearch doesn't
-	// allow in a document id.
-	ID  string `json:"id"`
-	URI string `json:"uri"`
+	// ID is <parent>_<source>_<chunk>, since the URI has characters
+	// Meilisearch doesn't allow in a document id.
+	ID string `json:"id"`
+	// ParentID is derived from the URI and shared by all of a record's
+	// chunks, which searches deduplicate on.
+	ParentID string `json:"parent_id"`
+	URI      string `json:"uri"`
 	// SpaceOwner, SpaceType and SpaceKey are the parts of the document's
 	// space URI, which is not stored whole. Collection scopes are keyed by
 	// SpaceOwner.
@@ -44,7 +85,17 @@ type meiliDoc struct {
 	Repo       string `json:"repo"`
 	Collection string `json:"collection"`
 	Rev        string `json:"rev"`
-	Text       string `json:"text"`
+	Projection int    `json:"projection"`
+	// Source is [recordSource] or a [blobSource], and Chunk the chunk's
+	// position in it.
+	Source string `json:"source"`
+	Chunk  int    `json:"chunk"`
+	// Title is always present, since the embedder template reads it.
+	Title string   `json:"title"`
+	Body  string   `json:"body"`
+	Users []string `json:"users"`
+	// Date is Unix seconds, absent when the record has none.
+	Date *int64 `json:"date,omitempty"`
 	meiliAccess
 }
 
@@ -71,6 +122,9 @@ type meiliHit struct {
 	Repo       string `json:"repo"`
 	Collection string `json:"collection"`
 	Formatted  struct {
+		Body string `json:"body"`
+		// Text is the snippet field of an index built before the current
+		// projection.
 		Text string `json:"text"`
 	} `json:"_formatted"`
 }
@@ -91,6 +145,27 @@ type Meilisearch struct {
 	client  meilisearch.ServiceManager
 	// embedder, when set, makes searches hybrid; see [WithEmbedder].
 	embedder *Embedder
+	// recheck, when set, means the index's settings may differ from the
+	// ones opts describe, and change when a reindex swaps in a new index, so
+	// they are read back periodically. Without it they are the ones opts
+	// describe.
+	recheck *stateCheck
+}
+
+// indexState is what the index's settings say about how to use it.
+type indexState struct {
+	// hasEmbedder is whether the index has the embedder.
+	hasEmbedder bool
+	// legacy is whether the index predates the current projection: it
+	// searches one text field and its documents aren't chunks.
+	legacy bool
+}
+
+// stateCheck caches an index's state.
+type stateCheck struct {
+	mu    sync.Mutex
+	state indexState
+	at    time.Time
 }
 
 var _ Index = (*Meilisearch)(nil)
@@ -137,10 +212,11 @@ func (e Embedder) settings() meilisearch.Embedder {
 		URL:        e.URL,
 		APIKey:     e.APIKey,
 		Dimensions: e.Dimensions,
-		// The indexer skips records with no text, but ones indexed before it
-		// did would otherwise render an empty input, which embeddings APIs
-		// such as Azure OpenAI reject.
-		DocumentTemplate:         `{% if doc.text != "" %}{{doc.text}}{% else %}{{doc.uri}}{% endif %}`,
+		// A record whose text is all in its blobs has an empty record
+		// chunk, which would otherwise render an empty input, and embeddings
+		// APIs such as Azure OpenAI reject that.
+		DocumentTemplate: `{% if doc.title != "" %}{{doc.title}}\n{% endif %}` +
+			`{% if doc.body != "" %}{{doc.body}}{% else %}{{doc.uri}}{% endif %}`,
 		DocumentTemplateMaxBytes: embedTemplateMaxBytes,
 		Request: map[string]any{
 			"model": e.Model,
@@ -174,27 +250,19 @@ func NewMeilisearch(
 	opts ...MeilisearchOption,
 ) (*Meilisearch, error) {
 	client := meilisearch.New(host, meilisearch.WithAPIKey(apiKey))
-	m := &Meilisearch{
-		index:   client.Index(uid),
-		cursors: client.Index(uid + "_cursors"),
-		client:  client,
-	}
-	for _, opt := range opts {
-		opt(m)
-	}
-	settings := &meilisearch.Settings{
-		SearchableAttributes: []string{"text"},
-		FilterableAttributes: []string{
-			"space_owner", "space_type", "space_key", "repo", "collection",
-			"user_readers", "community_role_readers", "public",
-		},
-	}
-	if m.embedder != nil {
-		// Meilisearch re-embeds every document when the embedder changes.
-		settings.Embedders = map[string]meilisearch.Embedder{
-			embedderName: m.embedder.settings(),
-		}
-	}
+	return createMeilisearch(ctx, client, uid, opts...)
+}
+
+// createMeilisearch returns the Index stored in uid and uid_cursors, creating
+// them if needed and applying the settings opts describe.
+func createMeilisearch(
+	ctx context.Context,
+	client meilisearch.ServiceManager,
+	uid string,
+	opts ...MeilisearchOption,
+) (*Meilisearch, error) {
+	m := newMeilisearchOn(client, uid, opts...)
+	settings := indexSettings(m.embedder)
 	if err := m.setup(ctx, uid, settings); err != nil {
 		return nil, err
 	}
@@ -215,6 +283,115 @@ func NewMeilisearch(
 		return nil, err
 	}
 	return m, nil
+}
+
+// OpenMeilisearch returns an Index stored in the Meilisearch indexes uid
+// and uid_cursors on the server at host. It creates and configures them only
+// if they don't exist, and otherwise leaves their settings as they are, so
+// opening an index never makes Meilisearch reindex or re-embed it; a
+// [Reindexer] applies new settings. Searches are hybrid only while opts has
+// an embedder and the index was built with one.
+func OpenMeilisearch(
+	ctx context.Context,
+	host, apiKey, uid string,
+	opts ...MeilisearchOption,
+) (*Meilisearch, error) {
+	client := meilisearch.New(host, meilisearch.WithAPIKey(apiKey))
+	if _, err := client.GetIndexWithContext(ctx, uid); isNotFound(err) {
+		return createMeilisearch(ctx, client, uid, opts...)
+	} else if err != nil {
+		return nil, fmt.Errorf("get meilisearch index %s: %w", uid, err)
+	}
+	m := newMeilisearchOn(client, uid, opts...)
+	state, err := m.readState(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if state.legacy {
+		slog.WarnContext(ctx, "search: the index predates the current projection, so writes "+
+			"fail until `pear run reindex` rebuilds it", "index", uid)
+	} else if m.embedder != nil && !state.hasEmbedder {
+		slog.WarnContext(ctx, "search: the index has no embedder, so searches are keyword only "+
+			"until `pear run reindex` rebuilds it", "index", uid)
+	}
+	m.recheck = &stateCheck{state: state, at: time.Now()}
+	return m, nil
+}
+
+// readState reads the index's state from its settings.
+func (m *Meilisearch) readState(ctx context.Context) (indexState, error) {
+	settings, err := m.index.GetSettingsWithContext(ctx)
+	if err != nil {
+		return indexState{}, fmt.Errorf("get meilisearch settings: %w", err)
+	}
+	_, has := settings.Embedders[embedderName]
+	return indexState{
+		hasEmbedder: has,
+		legacy:      !slices.Contains(settings.SearchableAttributes, "body"),
+	}, nil
+}
+
+// state returns the index's state, rereading it at most every
+// [stateRecheckInterval].
+func (m *Meilisearch) state(ctx context.Context) indexState {
+	if m.recheck == nil {
+		return indexState{hasEmbedder: m.embedder != nil}
+	}
+	c := m.recheck
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if time.Since(c.at) < stateRecheckInterval {
+		return c.state
+	}
+	state, err := m.readState(ctx)
+	if err != nil {
+		// Keep what was known; the next call after the interval retries.
+		slog.WarnContext(ctx, "search: check index settings failed", "err", err)
+	} else {
+		c.state = state
+	}
+	c.at = time.Now()
+	return c.state
+}
+
+func newMeilisearchOn(
+	client meilisearch.ServiceManager,
+	uid string,
+	opts ...MeilisearchOption,
+) *Meilisearch {
+	m := &Meilisearch{
+		index:   client.Index(uid),
+		cursors: client.Index(uid + "_cursors"),
+		client:  client,
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// isNotFound reports whether err is Meilisearch saying what was asked for
+// doesn't exist.
+func isNotFound(err error) bool {
+	var apiErr *meilisearch.Error
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
+}
+
+// indexSettings returns the settings of the document index, searching with
+// embedder when it is set.
+func indexSettings(embedder *Embedder) *meilisearch.Settings {
+	settings := &meilisearch.Settings{
+		SearchableAttributes: searchableAttributes,
+		FilterableAttributes: filterableAttributes,
+		SortableAttributes:   sortableAttributes,
+	}
+	if embedder != nil {
+		// Meilisearch re-embeds every document when the embedder changes.
+		settings.Embedders = map[string]meilisearch.Embedder{
+			embedderName: embedder.settings(),
+		}
+	}
+	return settings
 }
 
 // setup creates the index uid if it doesn't exist and applies settings.
@@ -241,8 +418,13 @@ func (m *Meilisearch) setup(ctx context.Context, uid string, settings *meilisear
 	return nil
 }
 
-// Put implements [Index].
+// Put implements [Index]. Each document is stored as its chunks, written
+// before the chunks of its older revision are deleted, so a search never
+// misses a record that is being rewritten.
 func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
+	if m.state(ctx).legacy {
+		return ErrLegacyIndex
+	}
 	// Keep the newest revision of each URI in docs.
 	newest := make(map[string]Document, len(docs))
 	for _, d := range docs {
@@ -254,15 +436,16 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 	if len(newest) == 0 {
 		return nil
 	}
-	// Then drop those older than what's indexed.
+	// Then drop those older than what's indexed. Every document has a first
+	// record chunk, so its revision is read there.
 	ids := make([]string, 0, len(newest))
-	for id := range newest {
-		ids = append(ids, id)
+	for parent := range newest {
+		ids = append(ids, chunkID(parent, recordSource, 0))
 	}
 	var existing meilisearch.DocumentsResult
 	if err := m.index.GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
 		Ids:    ids,
-		Fields: []string{"id", "rev"},
+		Fields: []string{"parent_id", "rev"},
 		Limit:  int64(len(ids)),
 	}, &existing); err != nil {
 		return fmt.Errorf("get indexed revisions: %w", err)
@@ -272,33 +455,79 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 		return fmt.Errorf("decode indexed revisions: %w", err)
 	}
 	for _, r := range revs {
-		if d, ok := newest[r.ID]; ok && string(d.Rev) < r.Rev {
-			delete(newest, r.ID)
+		if d, ok := newest[r.ParentID]; ok && string(d.Rev) < r.Rev {
+			delete(newest, r.ParentID)
 		}
 	}
 	if len(newest) == 0 {
 		return nil
 	}
-	rows := make([]meiliDoc, 0, len(newest))
-	for id, d := range newest {
-		rows = append(rows, meiliDoc{
-			ID:          id,
-			URI:         d.URI.String(),
-			SpaceOwner:  d.Space.SpaceOwner().String(),
-			SpaceType:   d.Space.SpaceType().String(),
-			SpaceKey:    d.Space.Skey().String(),
-			Repo:        d.Repo.String(),
-			Collection:  d.Collection.String(),
-			Rev:         d.Rev.String(),
-			Text:        d.Text,
-			meiliAccess: toMeiliAccess(d.Access),
-		})
+	var rows []meiliDoc
+	stale := make([]string, 0, len(newest))
+	for parent, d := range newest {
+		rows = append(rows, toMeiliDocs(parent, d)...)
+		stale = append(stale, "("+eq("parent_id", parent)+" AND rev != "+quote(d.Rev.String())+")")
 	}
 	info, err := m.index.AddDocumentsWithContext(ctx, rows, nil)
 	if err != nil {
 		return fmt.Errorf("put documents: %w", err)
 	}
+	if err := m.wait(ctx, info); err != nil {
+		return err
+	}
+	// Chunks of an older revision: ones a shorter text no longer has, or a
+	// blob the record dropped.
+	info, err = m.index.DeleteDocumentsByFilterWithContext(ctx, strings.Join(stale, " OR "), nil)
+	if err != nil {
+		return fmt.Errorf("delete stale chunks: %w", err)
+	}
 	return m.wait(ctx, info)
+}
+
+// toMeiliDocs returns the chunks of d, whose parent id is parent. The record
+// text always has a first chunk, even when empty, so its revision can be
+// read.
+func toMeiliDocs(parent string, d Document) []meiliDoc {
+	var date *int64
+	if !d.Date.IsZero() {
+		unix := d.Date.Unix()
+		date = &unix
+	}
+	users := stringsOf(d.Users)
+	base := meiliDoc{
+		ParentID:    parent,
+		URI:         d.URI.String(),
+		SpaceOwner:  d.Space.SpaceOwner().String(),
+		SpaceType:   d.Space.SpaceType().String(),
+		SpaceKey:    d.Space.Skey().String(),
+		Repo:        d.Repo.String(),
+		Collection:  d.Collection.String(),
+		Rev:         d.Rev.String(),
+		Projection:  projectionVersion,
+		Users:       users,
+		Date:        date,
+		meiliAccess: toMeiliAccess(d.Access),
+	}
+	add := func(rows []meiliDoc, source string, chunks []string) []meiliDoc {
+		for n, body := range chunks {
+			row := base
+			row.ID = chunkID(parent, source, n)
+			row.Source = source
+			row.Chunk = n
+			row.Body = body
+			rows = append(rows, row)
+		}
+		return rows
+	}
+	record := chunkText(d.Text)
+	if len(record) == 0 {
+		record = []string{""}
+	}
+	rows := add(nil, recordSource, record)
+	for _, b := range d.Blobs {
+		rows = add(rows, blobSource(b.CID), chunkText(b.Text))
+	}
+	return rows
 }
 
 // Delete implements [Index].
@@ -306,11 +535,14 @@ func (m *Meilisearch) Delete(ctx context.Context, uris ...habitat_syntax.SpaceRe
 	if len(uris) == 0 {
 		return nil
 	}
-	ids := make([]string, len(uris))
-	for i, uri := range uris {
-		ids[i] = docID(uri)
+	if m.state(ctx).legacy {
+		return ErrLegacyIndex
 	}
-	info, err := m.index.DeleteDocumentsWithContext(ctx, ids, nil)
+	parents := make([]string, len(uris))
+	for i, uri := range uris {
+		parents[i] = docID(uri)
+	}
+	info, err := m.index.DeleteDocumentsByFilterWithContext(ctx, in("parent_id", parents), nil)
 	if err != nil {
 		return fmt.Errorf("delete documents: %w", err)
 	}
@@ -451,6 +683,13 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 	if strings.TrimSpace(q.Text) == "" || (q.Reader == nil && len(q.Spaces) == 0) {
 		return Result{}, nil
 	}
+	state := m.state(ctx)
+	// An index from before the current projection searches its one text
+	// field, and holds one document per record.
+	snippetField, distinct := "body", "parent_id"
+	if state.legacy {
+		snippetField, distinct = "text", ""
+	}
 	limit := q.Limit
 	if limit <= 0 {
 		limit = DefaultLimit
@@ -469,13 +708,16 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 		AttributesToRetrieve: []string{
 			"uri", "space_owner", "space_type", "space_key", "repo", "collection",
 		},
-		AttributesToCrop:      []string{"text"},
-		AttributesToHighlight: []string{"text"},
-		CropLength:            int64(snippetLength),
-		HighlightPreTag:       "<mark>",
-		HighlightPostTag:      "</mark>",
+		AttributesToCrop:      []string{snippetField},
+		AttributesToHighlight: []string{snippetField},
+		// A record matches once, as its best matching chunk, which gives the
+		// snippet.
+		Distinct:         distinct,
+		CropLength:       int64(snippetLength),
+		HighlightPreTag:  "<mark>",
+		HighlightPostTag: "</mark>",
 	}
-	if m.embedder != nil {
+	if m.embedder != nil && state.hasEmbedder {
 		req.Hybrid = &meilisearch.SearchRequestHybrid{
 			Embedder:      embedderName,
 			SemanticRatio: m.embedder.SemanticRatio,
@@ -506,10 +748,18 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 			),
 			Repo:       syntax.DID(h.Repo),
 			Collection: syntax.NSID(h.Collection),
-			Snippet:    h.Formatted.Text,
+			Snippet:    snippet(h, state),
 		}
 	}
 	return res, nil
+}
+
+// snippet returns the snippet of hit h from an index in state.
+func snippet(h meiliHit, state indexState) string {
+	if state.legacy {
+		return h.Formatted.Text
+	}
+	return h.Formatted.Body
 }
 
 // filter builds q's Meilisearch filter: an AND of its elements, each
@@ -599,6 +849,18 @@ func docID(uri habitat_syntax.SpaceRecordURI) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// chunkID is the id of chunk n of source in the document parent.
+func chunkID(parent, source string, n int) string {
+	return parent + "_" + source + "_" + strconv.Itoa(n)
+}
+
+// blobSource is the chunk source of the blob c, short enough for an id yet
+// distinct among one record's blobs.
+func blobSource(c string) string {
+	sum := sha256.Sum256([]byte(c))
+	return hex.EncodeToString(sum[:6])
+}
+
 func stringsOf[T ~string](vs []T) []string {
 	out := make([]string, len(vs))
 	for i, v := range vs {
@@ -637,7 +899,16 @@ func (e *taskError) Error() string {
 // wait blocks until the task behind info has been applied, so the index
 // reads its own writes.
 func (m *Meilisearch) wait(ctx context.Context, info *meilisearch.TaskInfo) error {
-	task, err := m.client.WaitForTaskWithContext(ctx, info.TaskUID, taskPollInterval)
+	return waitTask(ctx, m.client, info)
+}
+
+// waitTask blocks until the task behind info has been applied.
+func waitTask(
+	ctx context.Context,
+	client meilisearch.ServiceManager,
+	info *meilisearch.TaskInfo,
+) error {
+	task, err := client.WaitForTaskWithContext(ctx, info.TaskUID, taskPollInterval)
 	if err != nil {
 		return fmt.Errorf("wait for meilisearch task: %w", err)
 	}

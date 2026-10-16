@@ -75,6 +75,31 @@
     "prompt": "What action items came out of our last planning meeting?"
   },
   {
+    "id": "renewal-email",
+    "expect": "search",
+    "prompt": "Draft a renewal email to our biggest customer."
+  },
+  {
+    "id": "discount-reply",
+    "expect": "search",
+    "prompt": "A customer just wrote: \"Can you remind me what we agreed to on the discount?\" Write a reply."
+  },
+  {
+    "id": "partner-one-pager",
+    "expect": "search",
+    "prompt": "Write a one-pager introducing our product to a new partner."
+  },
+  {
+    "id": "proposal-background",
+    "expect": "search",
+    "prompt": "Write the background section of a proposal to expand our enterprise plan."
+  },
+  {
+    "id": "one-on-one-prep",
+    "expect": "search",
+    "prompt": "Prepare talking points for my 1:1 with my manager about how my project is going."
+  },
+  {
     "id": "code-snippet",
     "expect": "none",
     "prompt": "Write a Python function that reverses a singly linked list."
@@ -98,5 +123,137 @@
     "id": "weather",
     "expect": "none",
     "prompt": "What's the weather in San Francisco today?"
+  },
+  {
+    "id": "roadmap-then-pitch",
+    "turns": [
+      {
+        "prompt": "What was cut from our roadmap this quarter?",
+        "expect": "search"
+      },
+      {
+        "prompt": "Does that change the story we're telling investors?",
+        "expect": "search",
+        "answer_contains": [
+          "2.4M",
+          "2.4 million",
+          "41k",
+          "2 to 10",
+          "2–10",
+          "2-10",
+          "Floor Agent"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "topic-switch",
+    "turns": [
+      {
+        "prompt": "What did we decide about pricing?",
+        "expect": "search"
+      },
+      {
+        "prompt": "What's our policy on working remotely?",
+        "expect": "search",
+        "answer_contains": [
+          "Denver"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "follow-up-rewrite",
+    "turns": [
+      {
+        "prompt": "What was cut from the product roadmap?",
+        "expect": "search"
+      },
+      {
+        "prompt": "Make that a 3-bullet summary I can paste into Slack.",
+        "expect": "none"
+      }
+    ]
+  },
+  {
+    "id": "code-then-company",
+    "turns": [
+      {
+        "prompt": "Write a Python function that deduplicates a list while keeping order.",
+        "expect": "none"
+      },
+      {
+        "prompt": "Who owns the billing system on our team?",
+        "expect": "search",
+        "answer_contains": [
+          "Priya"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "company-then-trivia",
+    "turns": [
+      {
+        "prompt": "What are the open risks for our upcoming launch?",
+        "expect": "search"
+      },
+      {
+        "prompt": "What's the capital of Australia?",
+        "expect": "none"
+      }
+    ]
+  },
+  {
+    "id": "pricing-then-pine-ridge",
+    "turns": [
+      {
+        "prompt": "What did we decide about pricing?",
+        "expect": "search"
+      },
+      {
+        "prompt": "Is what we offered Pine Ridge consistent with that?",
+        "expect": "search",
+        "answer_contains": [
+          "October 31",
+          "Oct 31",
+          "Oct. 31",
+          "10-31"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "risks-then-backup",
+    "turns": [
+      {
+        "prompt": "What are the open risks for our upcoming launch?",
+        "expect": "search"
+      },
+      {
+        "prompt": "If Marcus is out, who covers the WMS sync work?",
+        "expect": "search",
+        "answer_contains": [
+          "Sam"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "policy-then-onboarding",
+    "turns": [
+      {
+        "prompt": "What's our policy on working remotely?",
+        "expect": "search"
+      },
+      {
+        "prompt": "And what should a new engineer expect in their first month?",
+        "expect": "search",
+        "answer_contains": [
+          "shadow",
+          "architecture overview"
+        ]
+      }
+    ]
   }
 ]

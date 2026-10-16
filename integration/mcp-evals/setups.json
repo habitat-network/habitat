@@ -3,6 +3,22 @@
     "name": "habitat-only",
     "mcp_config": "configs/habitat-only.json",
     "strict": true,
-    "require_tool_prefixes": ["mcp__habitat__search_records"]
+    "require_tool_prefixes": [
+      "mcp__habitat__search_records"
+    ],
+    "require_search_hits": "Kestrel",
+    "disallowed_tools": [
+      "mcp__habitat__Granola_add_note_to_folder",
+      "mcp__habitat__Granola_create_folder",
+      "mcp__habitat__Granola_get_account_info",
+      "mcp__habitat__Granola_get_meeting_attachment",
+      "mcp__habitat__Granola_get_meeting_transcript",
+      "mcp__habitat__Granola_get_meetings",
+      "mcp__habitat__Granola_list_meeting_folders",
+      "mcp__habitat__Granola_list_meetings",
+      "mcp__habitat__Granola_query_granola_meetings",
+      "mcp__habitat__Granola_remove_note_from_folder",
+      "mcp__habitat__Granola_update_folder"
+    ]
   }
 ]

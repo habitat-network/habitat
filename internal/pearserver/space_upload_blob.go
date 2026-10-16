@@ -11,6 +11,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/spaces"
 )
 
 func (p *PearServer) UploadBlob(w http.ResponseWriter, r *http.Request) {
@@ -25,7 +26,7 @@ func (p *PearServer) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
-	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 5<<20))
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, spaces.MaxBlobBytes))
 	var tooLarge *http.MaxBytesError
 	if errors.As(err, &tooLarge) {
 		httpx.WriteError(ctx, w, "BlobTooLarge", "max 5MB", http.StatusRequestEntityTooLarge)

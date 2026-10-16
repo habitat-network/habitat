@@ -5,6 +5,7 @@ import (
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/instance"
+	"github.com/habitat-network/habitat/internal/keyval"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
@@ -30,6 +31,7 @@ func Models() []any {
 		emaildomain.Models(),
 		hive.Models(),
 		instance.Models(),
+		keyval.Models(),
 		login.Models(),
 		notify.Models(),
 		oauthserver.Models(),

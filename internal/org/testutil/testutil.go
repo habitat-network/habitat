@@ -8,6 +8,7 @@ import (
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -38,6 +39,7 @@ func NewTestStore(t *testing.T) org.Store {
 		passwordProvider,
 		fga,
 		org.NewEveryoneOrg("everyone.example.com"),
+		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 	return store

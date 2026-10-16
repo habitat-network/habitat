@@ -651,7 +651,8 @@ func (s *store) ListReposSince(
 		query = query.Where("space_rev > ?", since)
 	}
 	var rows []spaceRepo
-	if err := query.Order("repo ASC").Find(&rows).Error; err != nil {
+	// The lexicon guarantees ascending spaceRev order; clients validate it.
+	if err := query.Order("space_rev ASC, repo ASC").Find(&rows).Error; err != nil {
 		return "", nil, err
 	}
 
