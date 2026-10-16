@@ -28,7 +28,7 @@ func TestHandlesSetsPattern(t *testing.T) {
 	})
 	parent.MatcherFunc(ps.Handles).Handler(ps)
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.space.listSpaces", nil)
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.space.listSpaces", http.NoBody)
 	parent.ServeHTTP(httptest.NewRecorder(), req)
 	require.Equal(t, "/xrpc/network.habitat.space.listSpaces", got)
 }
