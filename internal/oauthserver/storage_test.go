@@ -20,6 +20,7 @@ func TestGetClient(t *testing.T) {
 	store, err := newStore(
 		testutil.NewDB(t, Models()),
 		nil,
+		nil,
 		clientmetadata.NewResolver(),
 		keyval_testutil.New(t),
 	)
@@ -55,6 +56,7 @@ func TestGetClientRedirectUriPortNotMatched(t *testing.T) {
 	store, err := newStore(
 		testutil.NewDB(t, Models()),
 		nil,
+		nil,
 		clientmetadata.NewResolver(),
 		keyval_testutil.New(t),
 	)
@@ -78,7 +80,7 @@ func TestGetClientRedirectUriPortNotMatched(t *testing.T) {
 // subject update, and is gone once deleted.
 func TestStorePARSessionRoundTrip(t *testing.T) {
 	store, err := newStore(
-		testutil.NewDB(t, Models()), nil, clientmetadata.NewResolver(), keyval_testutil.New(t),
+		testutil.NewDB(t, Models()), nil, nil, clientmetadata.NewResolver(), keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 	ctx := t.Context()
@@ -127,7 +129,7 @@ func TestStorePARSessionRoundTrip(t *testing.T) {
 // rotated.
 func TestStoreRefreshTokenSessionRoundTrip(t *testing.T) {
 	store, err := newStore(
-		testutil.NewDB(t, Models()), nil, clientmetadata.NewResolver(), keyval_testutil.New(t),
+		testutil.NewDB(t, Models()), nil, nil, clientmetadata.NewResolver(), keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 	ctx := t.Context()
@@ -167,7 +169,7 @@ func TestStoreRefreshTokenSessionRoundTrip(t *testing.T) {
 // A refresh token session past its expiry reads as missing.
 func TestStoreRefreshTokenSessionExpired(t *testing.T) {
 	store, err := newStore(
-		testutil.NewDB(t, Models()), nil, clientmetadata.NewResolver(), keyval_testutil.New(t),
+		testutil.NewDB(t, Models()), nil, nil, clientmetadata.NewResolver(), keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
 	ctx := t.Context()

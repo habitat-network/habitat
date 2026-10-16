@@ -8,7 +8,7 @@ import {
   findUnauthorizedError,
   startLogin,
 } from "../src/server/habitatClient";
-import { authorize } from "./fakeOAuth";
+import { authorize, lost, refreshed, refreshOrgSession } from "./fakeOAuth";
 
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 
@@ -165,6 +165,84 @@ describe("HabitatClient", () => {
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(UnauthorizedError);
     expect((err as UnauthorizedError).did).toBe("did:plc:member1");
+  });
+
+  describe("JWT bearer refresh", () => {
+    const ORG = "did:web:org.example";
+    const listSpaces = "http://pds.test/xrpc/network.habitat.space.listSpaces";
+    beforeEach(() => {
+      lost.clear();
+      refreshed.clear();
+      refreshOrgSession.mockClear();
+    });
+    afterEach(() => {
+      lost.clear();
+      refreshed.clear();
+    });
+
+    it("mints a session when the DID's can't be restored, then makes the call", async () => {
+      lost.add(ORG);
+      refreshed.add(ORG);
+      server.use(http.get(listSpaces, () => HttpResponse.json({ spaces: [] })));
+      await expect(
+        new HabitatClient(testEnv, ORG).call(
+          "network.habitat.space.listSpaces",
+          "GET",
+          {},
+        ),
+      ).resolves.toEqual({ spaces: [] });
+      expect(refreshOrgSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries a 401 once on the refreshed session", async () => {
+      refreshed.add(ORG);
+      let calls = 0;
+      server.use(
+        http.get(listSpaces, () =>
+          ++calls === 1
+            ? HttpResponse.json({ error: "InvalidToken" }, { status: 401 })
+            : HttpResponse.json({ spaces: [] }),
+        ),
+      );
+      await expect(
+        new HabitatClient(testEnv, ORG).call(
+          "network.habitat.space.listSpaces",
+          "GET",
+          {},
+        ),
+      ).resolves.toEqual({ spaces: [] });
+      expect(calls).toBe(2);
+    });
+
+    it("gives up with UnauthorizedError when the retry is still a 401", async () => {
+      refreshed.add(ORG);
+      let calls = 0;
+      server.use(
+        http.get(listSpaces, () => {
+          calls++;
+          return HttpResponse.json({ error: "InvalidToken" }, { status: 401 });
+        }),
+      );
+      await expect(
+        new HabitatClient(testEnv, ORG).call(
+          "network.habitat.space.listSpaces",
+          "GET",
+          {},
+        ),
+      ).rejects.toBeInstanceOf(UnauthorizedError);
+      expect(calls).toBe(2);
+    });
+
+    it("throws UnauthorizedError for a lost session that can't be refreshed", async () => {
+      lost.add("did:plc:member1");
+      await expect(
+        new HabitatClient(testEnv, "did:plc:member1").call(
+          "network.habitat.space.listSpaces",
+          "GET",
+          {},
+        ),
+      ).rejects.toBeInstanceOf(UnauthorizedError);
+    });
   });
 
   it("uploadBlob throws UnauthorizedError on a 401", async () => {

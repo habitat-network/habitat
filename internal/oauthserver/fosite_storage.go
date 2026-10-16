@@ -27,10 +27,35 @@ var tracer = otel.Tracer("github.com/habitat-network/habitat/internal/oauthserve
 type store struct {
 	db                       *gorm.DB
 	approvedJwtBearerClients ApprovedClientStore
+	appAccess                appAccessChecker
 	clientMeta               *clientmetadata.Resolver
 	// kv holds the short-lived OAuth flow state (pushed authorization requests,
 	// in-flight requests, authorization codes). It must already be namespaced.
 	kv keyval.Store
+}
+
+// appAccessChecker reports whether an org has approved an app (see
+// opensocial.Store.HasAppAccess).
+type appAccessChecker interface {
+	HasAppAccess(ctx context.Context, orgDID syntax.DID, clientID string) (bool, error)
+}
+
+// jwtBearerClientAllowed reports whether issuer may use the JWT bearer grant
+// to act as subject: either it is a builtin client, or subject is an org
+// that has an app access record for it.
+func (s *store) jwtBearerClientAllowed(
+	ctx context.Context,
+	issuer string,
+	subject string,
+) (bool, error) {
+	if s.approvedJwtBearerClients.IsApprovedClient(issuer) {
+		return true, nil
+	}
+	did, err := syntax.ParseDID(subject)
+	if err != nil {
+		return false, nil
+	}
+	return s.appAccess.HasAppAccess(ctx, did, issuer)
 }
 
 // requestRecord is the serialized value of one in-flight OAuth flow: pushed
@@ -151,12 +176,14 @@ type RegisteredClient struct {
 func newStore(
 	db *gorm.DB,
 	approvedJwtBearerClients ApprovedClientStore,
+	appAccess appAccessChecker,
 	clientMeta *clientmetadata.Resolver,
 	kv keyval.Store,
 ) (*store, error) {
 	return &store{
 		db:                       db,
 		approvedJwtBearerClients: approvedJwtBearerClients,
+		appAccess:                appAccess,
 		clientMeta:               clientMeta,
 		kv:                       kv,
 	}, nil
@@ -291,7 +318,8 @@ func (s *store) createRegisteredClient(ctx context.Context, c *RegisteredClient)
 
 // GetPublicKey implements rfc7523.RFC7523KeyStorage. issuer is the "iss"
 // claim of the JWT bearer assertion, expected to be a client ID (client
-// metadata URL) present in the hardcoded jwtBearerAllowedClients allow-list.
+// metadata URL) that is on the builtin allow-list or that the subject org has
+// granted app access to (see jwtBearerClientAllowed).
 func (s *store) GetPublicKey(
 	ctx context.Context,
 	issuer string,
@@ -314,9 +342,13 @@ func (s *store) GetPublicKey(
 func (s *store) GetPublicKeys(
 	ctx context.Context,
 	issuer string,
-	_ string,
+	subject string,
 ) (*jose.JSONWebKeySet, error) {
-	if !s.approvedJwtBearerClients.IsApprovedClient(issuer) {
+	allowed, err := s.jwtBearerClientAllowed(ctx, issuer, subject)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
 		return nil, fosite.ErrNotFound
 	}
 	metadata, err := s.clientMeta.FetchMetadata(ctx, issuer)
@@ -349,10 +381,14 @@ func (s *store) GetPublicKeys(
 func (s *store) GetPublicKeyScopes(
 	ctx context.Context,
 	issuer string,
-	_ string,
+	subject string,
 	_ string,
 ) ([]string, error) {
-	if !s.approvedJwtBearerClients.IsApprovedClient(issuer) {
+	allowed, err := s.jwtBearerClientAllowed(ctx, issuer, subject)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
 		return nil, fosite.ErrNotFound
 	}
 	cl, err := s.GetClient(ctx, issuer)

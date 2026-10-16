@@ -89,6 +89,14 @@ export async function deleteConnectedOrg(db: Db, orgDid: string) {
   await db.delete(connectedOrgs).where(eq(connectedOrgs.orgDid, orgDid));
 }
 
+// disconnectOrg forgets the org entirely: its connection row, so the picker
+// offers it as one to connect again, and its stored OAuth session. Safe to
+// call for an org that is already disconnected.
+export async function disconnectOrg(db: Db, orgDid: string) {
+  await deleteConnectedOrg(db, orgDid);
+  await db.delete(oauthSessions).where(eq(oauthSessions.did, orgDid));
+}
+
 // connectedOrgNames maps each of orgIds this deployment holds a session for
 // to its cached name.
 export async function connectedOrgNames(

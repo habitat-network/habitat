@@ -17,6 +17,7 @@ import {
   docAccess,
   docOrgAccess,
   connectedOrgs,
+  oauthSessions,
   comments,
   commentReplies,
 } from "./schema";
@@ -231,6 +232,25 @@ export async function upsertConnectedOrg(
       target: [connectedOrgs.memberDid, connectedOrgs.orgDid],
       set: { orgName: row.orgName, connectedAt: row.connectedAt },
     });
+}
+
+// isConnectedOrg reports whether any member has connected orgDid, i.e. chalk
+// holds (or held) a session for it.
+export async function isConnectedOrg(db: Db, orgDid: string): Promise<boolean> {
+  const [row] = await db
+    .select({ orgDid: connectedOrgs.orgDid })
+    .from(connectedOrgs)
+    .where(eq(connectedOrgs.orgDid, orgDid))
+    .limit(1);
+  return row !== undefined;
+}
+
+// disconnectOrg forgets the org entirely: every member's connection to it,
+// so the /orgs picker offers it as one to connect again, and its stored
+// OAuth session. Safe to call for an org that is already disconnected.
+export async function disconnectOrg(db: Db, orgDid: string): Promise<void> {
+  await db.delete(connectedOrgs).where(eq(connectedOrgs.orgDid, orgDid));
+  await db.delete(oauthSessions).where(eq(oauthSessions.did, orgDid));
 }
 
 // connectedOrgNames maps each already-connected orgDid (among orgIds) to

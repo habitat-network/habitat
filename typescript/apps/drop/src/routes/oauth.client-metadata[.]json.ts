@@ -7,7 +7,13 @@ import { clientMetadata } from "@/server/oauth";
 export const Route = createFileRoute("/oauth/client-metadata.json")({
   server: {
     handlers: {
-      GET: () => Response.json(clientMetadata(env.DROP_BASE_URL)),
+      GET: () =>
+        Response.json(
+          clientMetadata(
+            env.DROP_BASE_URL,
+            (env as Env & { DROP_ASSERTION_KEY?: string }).DROP_ASSERTION_KEY,
+          ),
+        ),
     },
   },
 });

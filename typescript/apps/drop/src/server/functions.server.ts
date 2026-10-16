@@ -3,7 +3,8 @@ import type { DidString } from "@atproto/syntax";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import type { Agent } from "@atproto/lex";
 import type { OAuthSession } from "@atproto/oauth-client";
-import { createOAuthClient } from "./oauth";
+import { getDb, disconnectOrg } from "@/db";
+import { createOAuthClient, findOrgSessionExpired } from "./oauth";
 import { useAppSession } from "./session";
 import { listMyOrgIds } from "./habitat";
 
@@ -79,6 +80,26 @@ export async function signOutIfUnauthorized(err: unknown): Promise<void> {
   for (let e = err; e instanceof Error; e = e.cause) {
     if (e instanceof MemberUnauthorizedError) await signOut();
   }
+}
+
+// disconnectIfOrgSessionExpired handles err being (or wrapping) an
+// OrgSessionExpiredError: the org's session can't be recovered, so the org
+// is disconnected, dropped as the member's working org if it was, and the
+// member is sent to the org picker, where it shows up as one to connect
+// again. It returns for anything else, which the caller rethrows.
+export async function disconnectIfOrgSessionExpired(
+  env: Env,
+  err: unknown,
+): Promise<void> {
+  const expired = findOrgSessionExpired(err);
+  if (!expired) return;
+  console.error("[drop] disconnecting", expired.orgDid, "after", err);
+  await disconnectOrg(getDb(env), expired.orgDid);
+  const session = await useAppSession();
+  if (session.data.currentOrg === expired.orgDid) {
+    await session.update({ currentOrg: undefined });
+  }
+  throw redirect({ to: "/orgs" });
 }
 
 // signOut clears the session cookie and sends the browser to /login.

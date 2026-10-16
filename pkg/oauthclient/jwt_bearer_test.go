@@ -100,6 +100,19 @@ func setupJWTBearerTestServer(
 	approvedClientIDs ...string,
 ) (srv *oauthserver.OAuthServer, server *httptest.Server) {
 	t.Helper()
+	return setupJWTBearerTestServerWithOrgs(
+		t,
+		opensocial_testutil.NewTestStore(t),
+		approvedClientIDs...,
+	)
+}
+
+func setupJWTBearerTestServerWithOrgs(
+	t *testing.T,
+	orgs *opensocial_testutil.TestStore,
+	approvedClientIDs ...string,
+) (srv *oauthserver.OAuthServer, server *httptest.Server) {
+	t.Helper()
 	db := pear_testutil.NewPearDB(t)
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
@@ -132,7 +145,7 @@ func setupJWTBearerTestServer(
 		jwtBearerTestOrgStore(t),
 		jwtBearerIssuer,
 		oauthserver.NewJWTBearerStore(approvedClientIDs...),
-		opensocial_testutil.NewTestStore(t).Store,
+		orgs.Store,
 		nil,
 	)
 	require.NoError(t, err)
@@ -211,4 +224,38 @@ func TestClient_SendJWTTokenRequest(t *testing.T) {
 		_, err := c.SendJWTTokenRequest(t.Context(), subject.String())
 		require.Error(t, err)
 	})
+}
+
+// TestClient_SendJWTTokenRequestOrgAppAccess covers a client that isn't on
+// the builtin allow-list: it may act as an org only once that org has
+// granted it app access.
+func TestClient_SendJWTTokenRequestOrgAppAccess(t *testing.T) {
+	orgs := opensocial_testutil.NewTestStore(t)
+	orgDID, err := orgs.NewOrg(t.Context(), "acme", "did:web:admin.example")
+	require.NoError(t, err)
+	subject := syntax.DID(orgDID)
+
+	dir := identity.NewMockDirectory()
+	dir.Insert(identity.Identity{
+		DID: subject,
+		Services: map[string]identity.ServiceEndpoint{
+			"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: jwtBearerIssuer},
+		},
+	})
+	client := newJWTBearerTestClient(t)
+	client.Dir = dir
+	_, server := setupJWTBearerTestServerWithOrgs(t, orgs)
+	rt := &jwtBearerRoundTripper{t: t, server: server}
+	client.Client = &http.Client{Transport: rt}
+	client.Resolver.Client = &http.Client{Transport: rt}
+
+	_, err = client.SendJWTTokenRequest(t.Context(), subject.String())
+	require.Error(t, err, "no app access record yet")
+
+	require.NoError(t, orgs.GrantAppAccess(
+		t.Context(), subject, client.Config.ClientID, []string{"atproto"},
+	))
+	sess, err := client.SendJWTTokenRequest(t.Context(), subject.String())
+	require.NoError(t, err)
+	require.Equal(t, subject, sess.AccountDID)
 }

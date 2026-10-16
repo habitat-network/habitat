@@ -52,6 +52,23 @@ pnpm exec wrangler deploy
 `DROP_BASE_URL` must be where the Worker is actually served: it's the OAuth
 client ID's origin and Drop's `did:web` service DID.
 
+### Recovering a lost org session (optional)
+
+If an org's OAuth session is lost or its refresh token expires, Drop can
+mint a new one itself with the RFC 7523 JWT bearer grant instead of having an
+admin reconnect the org. It signs an assertion with a P-256 key of its own,
+and pear checks that against the `jwks` in Drop's client metadata, so:
+
+```bash
+node -e 'const k=require("crypto").generateKeyPairSync("ec",{namedCurve:"P-256"}).privateKey.export({format:"jwk"});console.log(JSON.stringify({...k,kid:"drop-1"}))' \
+  | pnpm exec wrangler secret put DROP_ASSERTION_KEY
+```
+
+and have the org approve Drop (an app access record for its client ID, which
+connecting the org creates). Alternatively add Drop's client ID to pear's
+`--builtin_app` / `HABITAT_BUILTIN_APP` allow-list to trust it for every org. Without the secret Drop
+behaves as before. Every call made as an org is retried once on a fresh session after a 401.
+
 ## Local development
 
 `moon drop:dev` starts pear, Caddy, and the Worker on port 5178

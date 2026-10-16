@@ -150,7 +150,8 @@ type OAuthServer struct {
 // The server is configured with:
 //   - Authorization Code Grant with PKCE
 //   - Refresh Token Grant
-//   - JWT Bearer Grant (RFC 7523) for a hardcoded allow-list of clients
+//   - JWT Bearer Grant (RFC 7523) for a builtin allow-list of clients, and for
+//     any client an org has granted app access (as that org)
 //   - JWT token strategy for access tokens
 //   - Integration with AT Protocol identity directory
 //   - Database storage for OAuth sessions and PDS tokens
@@ -208,7 +209,13 @@ func NewOAuthServer(
 	strategy := compose.NewOAuth2JWTStrategy(func(ctx context.Context) (any, error) {
 		return privateKey, nil
 	}, oauth2.NewHMACSHAStrategy(&hmac.HMACStrategy{Config: config}, config), config)
-	storage, err := newStore(db, approvedJwtBearerClients, clientmetadata.NewResolver(), kv)
+	storage, err := newStore(
+		db,
+		approvedJwtBearerClients,
+		opensocialStore,
+		clientmetadata.NewResolver(),
+		kv,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}

@@ -7,7 +7,13 @@ import { clientMetadata } from "@/server/oauth";
 export const Route = createFileRoute("/oauth/client-metadata.json")({
   server: {
     handlers: {
-      GET: () => Response.json(clientMetadata(env.CHALK_BASE_URL)),
+      GET: () =>
+        Response.json(
+          clientMetadata(
+            env.CHALK_BASE_URL,
+            (env as Env & { CHALK_ASSERTION_KEY?: string }).CHALK_ASSERTION_KEY,
+          ),
+        ),
     },
   },
 });

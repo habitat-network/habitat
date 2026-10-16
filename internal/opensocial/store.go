@@ -533,6 +533,17 @@ func (s *Store) CheckAppAccess(
 	if spaceURI.SpaceType() == MembersSpaceType || spaceURI.SpaceType() == AboutSpaceType {
 		return true, nil
 	}
+	return s.HasAppAccess(ctx, orgDID, clientID)
+}
+
+// HasAppAccess reports whether orgDID has an app access record for
+// clientID, i.e. has approved that app. Unlike CheckAppAccess it applies no
+// per-space-type exemptions.
+func (s *Store) HasAppAccess(
+	ctx context.Context,
+	orgDID syntax.DID,
+	clientID string,
+) (bool, error) {
 	rkey, err := habitat_syntax.AppAccessRkey(clientID)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to get app access rkey", "err", err)

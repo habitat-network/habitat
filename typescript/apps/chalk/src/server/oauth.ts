@@ -3,9 +3,16 @@ import {
   OAuthClient,
   type OAuthClientMetadataInput,
   type RuntimeLock,
+  type Session,
 } from "@atproto/oauth-client";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
-import { getDb } from "../db";
+import {
+  JWT_BEARER_GRANT_TYPE,
+  parseAssertionKey,
+  publicJwk,
+  requestJwtBearerToken,
+} from "internal/jwtBearer";
+import { getDb, isConnectedOrg } from "../db";
 import { DrizzleSessionStore, DrizzleStateStore } from "../db/oauthStores";
 
 // chalk is a plain atproto OAuth client of the Habitat instance, the same way
@@ -40,7 +47,19 @@ export function trimTrailingSlashes(url: string): string {
   return url.slice(0, end);
 }
 
-export function clientMetadata(baseUrl: string): OAuthClientMetadataInput {
+// CHALK_ASSERTION_KEY is an optional wrangler secret: a P-256 private JWK
+// (with a `kid`) as JSON. Its public half is published in the client
+// metadata's `jwks`, and when pear lists chalk's client_id in its
+// --builtin_app allow-list, chalk can sign RFC 7523 JWT bearer assertions
+// with it to mint a fresh session for an org it's connected to (see
+// refreshOrgSession). Unset, chalk behaves as before and a lost org session
+// means reconnecting the org.
+type AssertionEnv = Env & { CHALK_ASSERTION_KEY?: string };
+
+export function clientMetadata(
+  baseUrl: string,
+  assertionKey?: string,
+): OAuthClientMetadataInput {
   const origin = trimTrailingSlashes(baseUrl);
   return {
     client_id: `${origin}${CLIENT_METADATA_PATH}`,
@@ -48,13 +67,21 @@ export function clientMetadata(baseUrl: string): OAuthClientMetadataInput {
     client_uri: origin,
     redirect_uris: [`${origin}${CALLBACK_PATH}`],
     scope: OAUTH_SCOPE,
-    grant_types: ["authorization_code", "refresh_token"],
+    grant_types: [
+      "authorization_code",
+      "refresh_token",
+      ...(assertionKey ? [JWT_BEARER_GRANT_TYPE] : []),
+    ],
     response_types: ["code"],
     // pear treats every atproto client as public (fosite_client.go's
-    // IsPublic), so there's no client secret or keyset to manage.
+    // IsPublic), so there's no client secret to manage; the jwks, when
+    // present, is only what pear verifies JWT bearer assertions against.
     token_endpoint_auth_method: "none",
     application_type: "web",
     dpop_bound_access_tokens: true,
+    ...(assertionKey
+      ? { jwks: { keys: [publicJwk(parseAssertionKey(assertionKey))] } }
+      : {}),
   };
 }
 
@@ -80,7 +107,10 @@ export function createOAuthClient(env: Env): OAuthClient {
   const db = getDb(env);
   return new OAuthClient({
     responseMode: "query",
-    clientMetadata: clientMetadata(env.CHALK_BASE_URL),
+    clientMetadata: clientMetadata(
+      env.CHALK_BASE_URL,
+      (env as AssertionEnv).CHALK_ASSERTION_KEY,
+    ),
     stateStore: new DrizzleStateStore(db, env.CHALK_CREDENTIALS_KEY),
     sessionStore: new DrizzleSessionStore(db, env.CHALK_CREDENTIALS_KEY),
     // Resolve handles and DIDs through the Habitat instance, which also
@@ -99,4 +129,65 @@ export function createOAuthClient(env: Env): OAuthClient {
       requestLock,
     },
   });
+}
+
+// In-flight refreshes by DID, so concurrent callers that all found the
+// session gone share one token request instead of each minting a session.
+const refreshes = new Map<string, Promise<boolean>>();
+
+// refreshOrgSession mints a fresh session for orgDid with the JWT bearer
+// grant and stores it where restore() finds it, replacing whatever was
+// there. It reports whether it did: false when chalk has no assertion key,
+// when orgDid isn't an org a member connected (a member's own lost session
+// means they sign in again — chalk never mints one on its own), or when
+// pear refuses the grant (e.g. chalk isn't on its allow-list).
+export function refreshOrgSession(env: Env, orgDid: string): Promise<boolean> {
+  const inFlight = refreshes.get(orgDid);
+  if (inFlight) return inFlight;
+  const run = mintOrgSession(env, orgDid)
+    .then(() => true)
+    .catch((err: unknown) => {
+      console.error("[chalk] jwt bearer refresh for", orgDid, "failed", err);
+      return false;
+    })
+    .finally(() => refreshes.delete(orgDid));
+  refreshes.set(orgDid, run);
+  return run;
+}
+
+async function mintOrgSession(env: Env, orgDid: string): Promise<void> {
+  const assertionKey = (env as AssertionEnv).CHALK_ASSERTION_KEY;
+  if (!assertionKey) throw new Error("CHALK_ASSERTION_KEY is not set");
+  const db = getDb(env);
+  if (!(await isConnectedOrg(db, orgDid))) {
+    throw new Error(`${orgDid} is not a connected org`);
+  }
+  const tok = await requestJwtBearerToken({
+    habitatUrl: env.CHALK_HABITAT_URL,
+    clientId: clientMetadata(env.CHALK_BASE_URL).client_id!,
+    assertionKey: parseAssertionKey(assertionKey),
+    subject: orgDid,
+    scope: OAUTH_SCOPE,
+  });
+  if (tok.sub !== orgDid) {
+    throw new Error(`jwt bearer grant returned ${tok.sub}, wanted ${orgDid}`);
+  }
+  const session: Session = {
+    dpopKey: await JoseKey.fromJWK(tok.dpopJwk),
+    authMethod: { method: "none" },
+    tokenSet: {
+      iss: tok.issuer,
+      sub: tok.sub as Session["tokenSet"]["sub"],
+      aud: trimTrailingSlashes(env.CHALK_HABITAT_URL),
+      scope: tok.scope as Session["tokenSet"]["scope"],
+      access_token: tok.accessToken,
+      refresh_token: tok.refreshToken,
+      token_type: "DPoP",
+      expires_at: tok.expiresAt,
+    },
+  };
+  await new DrizzleSessionStore(db, env.CHALK_CREDENTIALS_KEY).set(
+    orgDid,
+    session,
+  );
 }

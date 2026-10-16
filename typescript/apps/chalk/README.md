@@ -104,6 +104,23 @@ account subdomain with `wrangler whoami` (Cloudflare dashboard → Workers &
 Pages → your account) or the `GET /accounts/:id/workers/subdomain` API —
 `CHALK_BASE_URL` needs to match wherever it actually ends up.
 
+### Recovering a lost org session (optional)
+
+If an org's OAuth session is lost or its refresh token expires, Chalk can
+mint a new one itself with the RFC 7523 JWT bearer grant instead of having an
+admin reconnect the org. It signs an assertion with a P-256 key of its own,
+and pear checks that against the `jwks` in Chalk's client metadata, so:
+
+```bash
+node -e 'const k=require("crypto").generateKeyPairSync("ec",{namedCurve:"P-256"}).privateKey.export({format:"jwk"});console.log(JSON.stringify({...k,kid:"chalk-1"}))' \
+  | pnpm exec wrangler secret put CHALK_ASSERTION_KEY
+```
+
+and have the org approve Chalk (an app access record for its client ID, which
+connecting the org creates). Alternatively add Chalk's client ID to pear's
+`--builtin_app` / `HABITAT_BUILTIN_APP` allow-list to trust it for every org. Without the secret Chalk
+behaves as before. Only orgs a member has connected are refreshed (a member's own lost session still means signing in again), and calls are retried once on a fresh session after a 401.
+
 ### Local development
 
 `moon chalk:dev` starts pear, Caddy, and the Worker on port 5177
