@@ -181,4 +181,32 @@ describe("useActors", () => {
     expect(result.current("did:plc:any")).toEqual({ did: "did:plc:any" });
     expect(requests).toHaveLength(0);
   });
+
+  it("resolves through a custom source, keeping its cache apart from other sources", async () => {
+    profilesByDid.set(alice.did, alice);
+    const orgAlice: Actor = { ...alice, displayName: "Alice (org)" };
+    const calls: string[][] = [];
+    const orgSource = {
+      key: "org:test",
+      fetchProfiles: async (dids: string[]) => {
+        calls.push(dids);
+        return [orgAlice];
+      },
+    };
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(
+      () => ({
+        org: useActors([alice.did], orgSource),
+        bsky: useActors([alice.did]),
+      }),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result.current.org(alice.did)).toEqual(orgAlice);
+      expect(result.current.bsky(alice.did)).toEqual(alice);
+    });
+    expect(calls).toEqual([[alice.did]]);
+  });
 });

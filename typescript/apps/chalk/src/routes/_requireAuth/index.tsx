@@ -12,7 +12,7 @@ import {
 import { PageHeader } from "@/components/PageHeader";
 import { Route as RequireAuthRoute } from "@/routes/_requireAuth";
 import { listDocs } from "@/server/functions";
-import { useActors } from "internal/hooks";
+import { useChalkActors } from "@/hooks/useChalkActors";
 
 function OwnerCell({ owner }: { owner: Actor }) {
   return (
@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_requireAuth/")({
     const showOwner = !currentOrg;
 
     // No owner column in org mode, so no profiles to look up either.
-    const getOwner = useActors(
+    const getOwner = useChalkActors(
       showOwner ? docs.map((doc) => doc.ownerDid) : [],
     );
 
