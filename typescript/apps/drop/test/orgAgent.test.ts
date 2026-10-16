@@ -174,6 +174,9 @@ describe("orgAgent", () => {
 describe("disconnectOrg", () => {
   it("forgets the org's connection and stored session", async () => {
     const db = getDb(workerEnv);
+    // Earlier tests leave their minted session behind.
+    await db.delete(connectedOrgs);
+    await db.delete(oauthSessions);
     await db.insert(connectedOrgs).values({
       orgDid: ORG,
       name: "Org",
