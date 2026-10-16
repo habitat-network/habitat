@@ -1,8 +1,8 @@
 import { env as workerEnv } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getDb } from "@/db";
-import { oauthSessions } from "@/db/schema";
-import { orgAgent } from "@/server/oauth";
+import { disconnectOrg, getDb } from "@/db";
+import { connectedOrgs, oauthSessions } from "@/db/schema";
+import { OrgSessionExpiredError, orgAgent } from "@/server/oauth";
 
 const ORG = "did:web:org.example";
 const HABITAT = "https://pear.test";
@@ -23,7 +23,13 @@ async function assertionKeyJson(): Promise<string> {
 // endpoint (counting JWT bearer grants, each issuing a numbered access
 // token) and a resource endpoint that only accepts tokens in `valid`.
 function fakePear() {
-  const state = { grants: 0, valid: new Set<string>(), seen: [] as string[] };
+  const state = {
+    grants: 0,
+    valid: new Set<string>(),
+    seen: [] as string[],
+    // Reject every token, fresh ones included.
+    refuseAll: false,
+  };
   const fake = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     if (url.pathname === "/.well-known/oauth-authorization-server") {
@@ -70,7 +76,7 @@ function fakePear() {
       ) ?? "";
     state.seen.push(auth);
     const token = auth.replace(/^DPoP /, "");
-    return state.valid.has(token)
+    return !state.refuseAll && state.valid.has(token)
       ? Response.json({ spaces: [] })
       : Response.json({ error: "InvalidToken" }, { status: 401 });
   };
@@ -134,11 +140,55 @@ describe("orgAgent", () => {
     expect(pear.state.seen).toEqual(["DPoP at1", "DPoP at2"]);
   });
 
-  it("surfaces the original failure when no assertion key is configured", async () => {
+  it("throws OrgSessionExpiredError when the session is gone and no assertion key is configured", async () => {
     const pear = fakePear();
     vi.stubGlobal("fetch", pear.fake);
 
-    await expect(orgAgent(baseEnv, ORG)).rejects.toThrow();
+    const err = await orgAgent(baseEnv, ORG).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(OrgSessionExpiredError);
+    expect((err as OrgSessionExpiredError).orgDid).toBe(ORG);
     expect(pear.state.grants).toBe(0);
+  });
+
+  it("throws OrgSessionExpiredError when pear still answers 401 on the fresh session", async () => {
+    const pear = fakePear();
+    vi.stubGlobal("fetch", pear.fake);
+    const env = {
+      ...baseEnv,
+      DROP_ASSERTION_KEY: await assertionKeyJson(),
+    } as Env;
+
+    const agent = await orgAgent(env, ORG);
+    pear.state.refuseAll = true;
+    const err = await agent
+      .fetchHandler("/xrpc/network.habitat.space.listSpaces", {
+        method: "GET",
+      })
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(OrgSessionExpiredError);
+    expect(pear.state.grants).toBe(2);
+  });
+});
+
+describe("disconnectOrg", () => {
+  it("forgets the org's connection and stored session", async () => {
+    const db = getDb(workerEnv);
+    await db.insert(connectedOrgs).values({
+      orgDid: ORG,
+      name: "Org",
+      connectedBy: "did:plc:admin",
+      connectedAt: 1,
+    });
+    await db
+      .insert(oauthSessions)
+      .values({ did: ORG, value: new Uint8Array([1]), updatedAt: 1 });
+
+    await disconnectOrg(db, ORG);
+
+    expect(await db.select().from(connectedOrgs)).toEqual([]);
+    expect(await db.select().from(oauthSessions)).toEqual([]);
+    // Disconnecting an org that is already gone is fine.
+    await disconnectOrg(db, ORG);
   });
 });

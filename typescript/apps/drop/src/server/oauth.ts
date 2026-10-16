@@ -172,12 +172,38 @@ async function mintOrgSession(env: Env, orgDid: string): Promise<void> {
   );
 }
 
+// OrgSessionExpiredError is thrown by an orgAgent when the org's OAuth
+// session is gone for good: it couldn't be restored, or pear still answers
+// 401 on a freshly minted one, and the JWT bearer grant can't recover it
+// (not configured, or refused). The request middleware (src/start.ts) turns
+// it into disconnecting the org and sending the member to the org picker.
+export class OrgSessionExpiredError extends Error {
+  constructor(
+    readonly orgDid: string,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
+
+// findOrgSessionExpired returns the OrgSessionExpiredError in err's cause
+// chain (xrpc() wraps what a fetch handler throws), if any.
+export function findOrgSessionExpired(
+  err: unknown,
+): OrgSessionExpiredError | undefined {
+  for (let e = err; e instanceof Error; e = e.cause) {
+    if (e instanceof OrgSessionExpiredError) return e;
+  }
+  return undefined;
+}
+
 // orgAgent restores an org's OAuth session as an agent that recovers from
 // losing it: a session that can't be restored (never stored, revoked, or
 // its refresh token expired) is replaced through the JWT bearer grant, and a
 // call pear answers with 401 is retried once on a freshly minted session.
 // Where the grant isn't available (no DROP_ASSERTION_KEY, or pear refuses
-// it) the original failure surfaces unchanged.
+// it) or doesn't help, the failure surfaces as OrgSessionExpiredError.
 export async function orgAgent(env: Env, orgDid: string): Promise<Agent> {
   const restore = () =>
     createOAuthClient(env).restore(orgDid) as Promise<OAuthSession>;
@@ -185,16 +211,29 @@ export async function orgAgent(env: Env, orgDid: string): Promise<Agent> {
   try {
     session = await restore();
   } catch (err) {
-    if (!(await tryRefresh(env, orgDid))) throw err;
+    if (!(await tryRefresh(env, orgDid))) {
+      throw new OrgSessionExpiredError(
+        orgDid,
+        `restoring the OAuth session for ${orgDid} failed`,
+        { cause: err },
+      );
+    }
     session = await restore();
   }
   return {
     did: session.did,
     fetchHandler: async (path, init) => {
-      const res = await session.fetchHandler(path, init);
-      if (res.status !== 401 || !(await tryRefresh(env, orgDid))) return res;
-      session = await restore();
-      return session.fetchHandler(path, init);
+      let res = await session.fetchHandler(path, init);
+      if (res.status !== 401) return res;
+      if (await tryRefresh(env, orgDid)) {
+        session = await restore();
+        res = await session.fetchHandler(path, init);
+        if (res.status !== 401) return res;
+      }
+      throw new OrgSessionExpiredError(
+        orgDid,
+        `${path} failed (401): ${await res.text()}`,
+      );
     },
   };
 }

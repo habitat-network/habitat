@@ -1,8 +1,11 @@
+import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getDb, upsertConnectedOrg } from "../src/db";
+import { connectedOrgs, oauthSessions } from "../src/db/schema";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 
-const sessionData: { did?: string } = {};
+const sessionData: { did?: string; currentOrg?: string } = {};
 vi.mock("../src/server/session", () => ({
   useAppSession: vi.fn(async () => ({
     data: sessionData,
@@ -16,7 +19,7 @@ vi.mock("../src/server/session", () => ({
 }));
 vi.mock("../src/server/oauth", () => import("./fakeOAuth"));
 
-const { requireSession, signOutIfUnauthorized } =
+const { requireSession, signOutIfUnauthorized, disconnectIfOrgUnauthorized } =
   await import("../src/server/functions.server");
 const { UnauthorizedError } = await import("../src/server/habitatClient");
 
@@ -67,6 +70,65 @@ describe("signOutIfUnauthorized", () => {
       signOutIfUnauthorized(new Error("boom")),
     ).resolves.toBeUndefined();
     expect(sessionData.did).toBe("did:plc:member1");
+  });
+});
+
+describe("disconnectIfOrgUnauthorized", () => {
+  const ORG = "did:web:org.example";
+  const db = getDb(env);
+
+  beforeEach(async () => {
+    sessionData.did = "did:plc:member1";
+    sessionData.currentOrg = ORG;
+    await db.delete(connectedOrgs);
+    await db.delete(oauthSessions);
+    await upsertConnectedOrg(db, {
+      memberDid: "did:plc:admin",
+      orgDid: ORG,
+      orgName: "Org",
+    });
+    await db
+      .insert(oauthSessions)
+      .values({ did: ORG, value: new Uint8Array([1]), updatedAt: 1 });
+  });
+
+  it("disconnects the org for everyone and sends the member to /orgs", async () => {
+    const err = new Error("wrapped", {
+      cause: new UnauthorizedError(ORG, "401"),
+    });
+    await expect(disconnectIfOrgUnauthorized(env, err)).rejects.toMatchObject({
+      options: { to: "/orgs" },
+    });
+    expect(await db.select().from(connectedOrgs)).toEqual([]);
+    expect(await db.select().from(oauthSessions)).toEqual([]);
+    expect(sessionData.currentOrg).toBeUndefined();
+    expect(sessionData.did).toBe("did:plc:member1");
+  });
+
+  it("also handles a member whose current org was already disconnected", async () => {
+    await db.delete(connectedOrgs);
+    await expect(
+      disconnectIfOrgUnauthorized(env, new UnauthorizedError(ORG, "401")),
+    ).rejects.toMatchObject({ options: { to: "/orgs" } });
+    expect(sessionData.currentOrg).toBeUndefined();
+  });
+
+  it("leaves a DID that isn't a connected org alone", async () => {
+    sessionData.currentOrg = undefined;
+    await expect(
+      disconnectIfOrgUnauthorized(
+        env,
+        new UnauthorizedError("did:plc:someone-else", "401"),
+      ),
+    ).resolves.toBeUndefined();
+    expect(await db.select().from(connectedOrgs)).toHaveLength(1);
+  });
+
+  it("returns for other errors", async () => {
+    await expect(
+      disconnectIfOrgUnauthorized(env, new Error("boom")),
+    ).resolves.toBeUndefined();
+    expect(sessionData.currentOrg).toBe(ORG);
   });
 });
 

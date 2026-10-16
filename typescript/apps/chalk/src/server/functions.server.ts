@@ -1,5 +1,6 @@
 import { redirect } from "@tanstack/react-router";
 import { SpaceRef, type DidString } from "@atproto/syntax";
+import { disconnectOrg, getDb, isConnectedOrg } from "../db";
 import { useAppSession } from "./session";
 import { findUnauthorizedError, type HabitatClient } from "./habitatClient";
 import { commentsSpaceUri } from "./comments.server";
@@ -152,6 +153,30 @@ export async function signOutIfUnauthorized(err: unknown): Promise<void> {
   if (!session.data.did || session.data.did !== unauthorized.did) return;
   await session.clear();
   throw redirect({ to: "/login" });
+}
+
+// disconnectIfOrgUnauthorized handles err saying pear no longer accepts an
+// org's OAuth session (an UnauthorizedError for an org's DID, which
+// HabitatClient only throws once the JWT bearer refresh couldn't recover
+// it): the org is disconnected for everyone, dropped as the member's
+// current org if it was, and the member is sent to the /orgs picker, where
+// it shows up as one to connect again. It returns for anything else,
+// including the member's own session failing (signOutIfUnauthorized's
+// case); the caller rethrows err then.
+export async function disconnectIfOrgUnauthorized(
+  env: Env,
+  err: unknown,
+): Promise<void> {
+  const unauthorized = findUnauthorizedError(err);
+  if (!unauthorized) return;
+  const session = await useAppSession();
+  const db = getDb(env);
+  const isCurrentOrg = session.data.currentOrg === unauthorized.did;
+  if (!isCurrentOrg && !(await isConnectedOrg(db, unauthorized.did))) return;
+  console.error("[chalk] disconnecting", unauthorized.did, "after", err);
+  await disconnectOrg(db, unauthorized.did);
+  if (isCurrentOrg) await session.update({ currentOrg: undefined });
+  throw redirect({ to: "/orgs" });
 }
 
 // setCurrentOrg updates which org (if any) the member is currently acting
