@@ -20,6 +20,10 @@ import (
 	_ "gocloud.dev/blob/s3blob"
 )
 
+// MaxBlobBytes is the largest blob that can be uploaded, and the largest the
+// MCP blob resource and "get_blob" tool will return.
+const MaxBlobBytes = 5 << 20
+
 // ErrBlobNotFound is returned when a blob with the requested CID is not present
 // in the store.
 var ErrBlobNotFound = errors.New("blob not found")
