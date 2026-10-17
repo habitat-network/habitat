@@ -26,7 +26,6 @@ import (
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/mcpserver"
 	"github.com/habitat-network/habitat/internal/oauthserver"
-	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/log"
@@ -181,27 +180,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		app.OAuthServer.MCPIssuer(),
 		mcpOpts...,
 	)
-	// Server for org management routes
-	orgServer, err := org_server.NewServer(
-		app.OrgStore,
-		app.Validator,
-		app.Domain,
-		app.HiveDir,
-		app.InstanceAdminStore,
-	)
-	if err != nil {
-		return fmt.Errorf("setup org server for domain %q: %w", app.Domain, err)
-	}
-	mux.HandleFunc("/xrpc/network.habitat.org.getMetadata", orgServer.GetMetadata)
-	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
-	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
-	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
-	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
-	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
-	mux.HandleFunc("/xrpc/network.habitat.org.downgradeAdmin", orgServer.DowngradeAdmin)
-	mux.HandleFunc("/xrpc/network.habitat.org.issueInviteToken", orgServer.IssueInviteToken)
-	mux.HandleFunc("/xrpc/network.habitat.org.mintMemberIdentity", orgServer.MintMemberIdentity)
-	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
 
 	// Server for opensocial community routes
 	mux.HandleFunc("/xrpc/network.habitat.emaildomain.createOrg", pearApp.CreateEmailDomainOrg)
