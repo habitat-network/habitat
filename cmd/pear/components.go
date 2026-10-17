@@ -373,7 +373,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if searchIndex != nil {
 		searcher = search.NewSearcher(
 			searchIndex, opensocialStore, spacesStore,
-			search.WithCollections(searchConfigStore),
+			search.WithConfigs(searchConfigStore),
 			search.WithEveryoneOrg(everyoneOrg.DID()),
 		)
 	}

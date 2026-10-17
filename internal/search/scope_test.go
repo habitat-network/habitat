@@ -35,10 +35,19 @@ func (noRecords) GetRecords(
 
 type fakeCollections map[syntax.DID][]syntax.NSID
 
-func (fakeCollections) Defaults() []syntax.NSID { return []syntax.NSID{"com.example.default"} }
-
-func (f fakeCollections) Collections(_ context.Context, org syntax.DID) ([]syntax.NSID, error) {
-	return f[org], nil
+// Configs configures "com.example.default" for every org, and the org's
+// own collections.
+func (f fakeCollections) Configs(
+	_ context.Context,
+	org syntax.DID,
+) (map[syntax.NSID]search.CollectionConfig, error) {
+	configs := map[syntax.NSID]search.CollectionConfig{
+		"com.example.default": search.DefaultConfig(),
+	}
+	for _, c := range f[org] {
+		configs[c] = search.DefaultConfig()
+	}
+	return configs, nil
 }
 
 func TestSearcher_LimitsToConfiguredCollections(t *testing.T) {
@@ -47,7 +56,7 @@ func TestSearcher_LimitsToConfiguredCollections(t *testing.T) {
 	orgB := syntax.DID("did:plc:orgb")
 	idx := &captureIndex{}
 	s := search.NewSearcher(idx, fakeCommunities{}, noRecords{},
-		search.WithCollections(fakeCollections{
+		search.WithConfigs(fakeCollections{
 			orgA: {"com.example.a"},
 			orgB: {"com.example.b"},
 		}))
@@ -114,7 +123,7 @@ func TestSearcher_IncludesEveryoneOrg(t *testing.T) {
 	everyone := syntax.DID("did:web:everyone")
 	idx := &captureIndex{}
 	s := search.NewSearcher(idx, fakeCommunities{}, noRecords{},
-		search.WithCollections(fakeCollections{
+		search.WithConfigs(fakeCollections{
 			orgA:     {"com.example.a"},
 			everyone: {"com.example.e"},
 		}),

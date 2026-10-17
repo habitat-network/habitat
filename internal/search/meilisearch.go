@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -86,17 +88,41 @@ type meiliDoc struct {
 	Collection string `json:"collection"`
 	Rev        string `json:"rev"`
 	Projection int    `json:"projection"`
+	ConfigRev  string `json:"config_rev"`
 	// Source is [recordSource] or a [blobSource], and Chunk the chunk's
 	// position in it.
 	Source string `json:"source"`
 	Chunk  int    `json:"chunk"`
-	// Title is always present, since the embedder template reads it.
-	Title string   `json:"title"`
-	Body  string   `json:"body"`
-	Users []string `json:"users"`
+	// Title is always present, since the embedder template reads it. It is
+	// on each of the record's chunks, and Extra on its first.
+	Title  string   `json:"title"`
+	Body   string   `json:"body"`
+	Extra  string   `json:"extra,omitempty"`
+	Facets []string `json:"facets"`
+	Users  []string `json:"users"`
 	// Date is Unix seconds, absent when the record has none.
 	Date *int64 `json:"date,omitempty"`
+	// Slots holds the values in each [Slot], datetimes as Unix seconds,
+	// stored as top-level fields named by the slot.
+	Slots map[Slot]any `json:"-"`
 	meiliAccess
+}
+
+// MarshalJSON stores d's slots as top-level fields.
+func (d meiliDoc) MarshalJSON() ([]byte, error) {
+	type plain meiliDoc
+	raw, err := json.Marshal(plain(d))
+	if err != nil || len(d.Slots) == 0 {
+		return raw, err
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, err
+	}
+	for slot, v := range d.Slots {
+		fields[string(slot)] = v
+	}
+	return json.Marshal(fields)
 }
 
 // meiliAccess is an [Access] as filterable document fields. Each principal is
@@ -454,9 +480,17 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 	if err := existing.Results.DecodeInto(&revs); err != nil {
 		return fmt.Errorf("decode indexed revisions: %w", err)
 	}
+	// rewritten are the documents indexed at the same revision, such as when
+	// a config change reprojects them.
+	var rewritten []string
 	for _, r := range revs {
-		if d, ok := newest[r.ParentID]; ok && string(d.Rev) < r.Rev {
+		d, ok := newest[r.ParentID]
+		switch {
+		case !ok:
+		case string(d.Rev) < r.Rev:
 			delete(newest, r.ParentID)
+		case string(d.Rev) == r.Rev:
+			rewritten = append(rewritten, r.ParentID)
 		}
 	}
 	if len(newest) == 0 {
@@ -467,6 +501,15 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 	for parent, d := range newest {
 		rows = append(rows, toMeiliDocs(parent, d)...)
 		stale = append(stale, "("+eq("parent_id", parent)+" AND rev != "+quote(d.Rev.String())+")")
+	}
+	// Read before the new chunks land, so that what isn't rewritten is what
+	// they no longer have.
+	leftover, err := m.chunkIDs(ctx, rewritten)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		delete(leftover, row.ID)
 	}
 	info, err := m.index.AddDocumentsWithContext(ctx, rows, nil)
 	if err != nil {
@@ -481,7 +524,48 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 	if err != nil {
 		return fmt.Errorf("delete stale chunks: %w", err)
 	}
+	if err := m.wait(ctx, info); err != nil {
+		return err
+	}
+	// Chunks a same-revision rewrite no longer has, which share its rev.
+	if len(leftover) == 0 {
+		return nil
+	}
+	info, err = m.index.DeleteDocumentsWithContext(ctx, slices.Collect(maps.Keys(leftover)), nil)
+	if err != nil {
+		return fmt.Errorf("delete stale chunks: %w", err)
+	}
 	return m.wait(ctx, info)
+}
+
+// chunkIDs returns the ids of every chunk of the documents parents.
+func (m *Meilisearch) chunkIDs(ctx context.Context, parents []string) (map[string]bool, error) {
+	ids := map[string]bool{}
+	if len(parents) == 0 {
+		return ids, nil
+	}
+	const page = 1000
+	for offset := int64(0); ; offset += page {
+		var res meilisearch.DocumentsResult
+		if err := m.index.GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
+			Filter: in("parent_id", parents),
+			Fields: []string{"id"},
+			Offset: offset,
+			Limit:  page,
+		}, &res); err != nil {
+			return nil, fmt.Errorf("get indexed chunks: %w", err)
+		}
+		var chunks []meiliDoc
+		if err := res.Results.DecodeInto(&chunks); err != nil {
+			return nil, fmt.Errorf("decode indexed chunks: %w", err)
+		}
+		for _, c := range chunks {
+			ids[c.ID] = true
+		}
+		if len(chunks) < page {
+			return ids, nil
+		}
+	}
 }
 
 // toMeiliDocs returns the chunks of d, whose parent id is parent. The record
@@ -494,6 +578,20 @@ func toMeiliDocs(parent string, d Document) []meiliDoc {
 		date = &unix
 	}
 	users := stringsOf(d.Users)
+	slots := map[Slot]any{}
+	for slot, n := range d.Numbers {
+		slots[slot] = n
+	}
+	for slot, t := range d.Datetimes {
+		slots[slot] = t.Unix()
+	}
+	for slot, str := range d.Strings {
+		slots[slot] = str
+	}
+	facets := d.Facets
+	if facets == nil {
+		facets = []string{}
+	}
 	base := meiliDoc{
 		ParentID:    parent,
 		URI:         d.URI.String(),
@@ -504,8 +602,11 @@ func toMeiliDocs(parent string, d Document) []meiliDoc {
 		Collection:  d.Collection.String(),
 		Rev:         d.Rev.String(),
 		Projection:  projectionVersion,
+		ConfigRev:   d.ConfigRev,
+		Facets:      facets,
 		Users:       users,
 		Date:        date,
+		Slots:       slots,
 		meiliAccess: toMeiliAccess(d.Access),
 	}
 	add := func(rows []meiliDoc, source string, chunks []string) []meiliDoc {
@@ -524,6 +625,10 @@ func toMeiliDocs(parent string, d Document) []meiliDoc {
 		record = []string{""}
 	}
 	rows := add(nil, recordSource, record)
+	for i := range rows {
+		rows[i].Title = d.Title
+	}
+	rows[0].Extra = d.Extra
 	for _, b := range d.Blobs {
 		rows = add(rows, blobSource(b.CID), chunkText(b.Text))
 	}

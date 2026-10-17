@@ -10783,6 +10783,34 @@
           }
         }
       },
+      "network.habitat.drop.file": {
+        "type": "object",
+        "required": [
+          "name",
+          "file",
+          "createdAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The file's original name, including its extension.",
+            "maxLength": 1024
+          },
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "description": "The member who uploaded the file. The record itself is written by the org.",
+            "format": "did"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.group.profile": {
         "type": "object",
         "required": [
@@ -11331,6 +11359,119 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/network.habitat.search.config.fieldSource"
+                },
+                {
+                  "$ref": "#/components/schemas/network.habitat.search.config.metadataSource"
+                }
+              ]
+            }
+          },
+          "date": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/network.habitat.search.config.fieldSource"
+              },
+              {
+                "$ref": "#/components/schemas/network.habitat.search.config.metadataSource"
+              }
+            ]
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/network.habitat.search.config.field"
+            }
+          },
+          "blobs": {
+            "type": "boolean",
+            "description": "Whether the text of the blobs a record references is searchable. Defaults to true."
+          }
+        }
+      },
+      "network.habitat.search.config.field": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "A dotted path into the record, with [] for each element of an array, such as tags[].name."
+          },
+          "searchable": {
+            "type": "string",
+            "description": "Makes the field's text searchable, ranked by weight. Normal text is split into chunks.",
+            "enum": [
+              "high",
+              "normal",
+              "low"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "description": "What the field's values are read as for filtering and sorting; values of another type are skipped.",
+            "enum": [
+              "string",
+              "number",
+              "datetime"
+            ]
+          },
+          "filterable": {
+            "type": "boolean"
+          },
+          "sortable": {
+            "type": "boolean"
+          },
+          "slot": {
+            "type": "string",
+            "description": "Where a filterable or sortable number or datetime, or a sortable string, is stored. Fixed once set, and not shared by two fields.",
+            "enum": [
+              "num_0",
+              "num_1",
+              "num_2",
+              "num_3",
+              "date_0",
+              "date_1",
+              "date_2",
+              "date_3",
+              "str_0",
+              "str_1"
+            ]
+          }
+        }
+      },
+      "network.habitat.search.config.fieldSource": {
+        "type": "object",
+        "description": "Values from a path into the record, as field paths.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "network.habitat.search.config.metadataSource": {
+        "type": "object",
+        "description": "A value from the record's metadata rather than its value.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "owner is the DID of the repo the record is in.",
+            "enum": [
+              "owner"
+            ]
           }
         }
       },
@@ -11821,6 +11962,9 @@
     },
     {
       "name": "network.habitat.docs"
+    },
+    {
+      "name": "network.habitat.drop"
     },
     {
       "name": "network.habitat.emaildomain"

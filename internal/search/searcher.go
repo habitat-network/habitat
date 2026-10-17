@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -30,16 +31,6 @@ type RecordGetter interface {
 	) ([]spaces.Record, error)
 }
 
-// CollectionSource says which collections search surfaces.
-// [github.com/habitat-network/habitat/internal/searchconfig.Store] implements
-// it.
-type CollectionSource interface {
-	// Defaults returns the collections included for every space.
-	Defaults() []syntax.NSID
-	// Collections returns the collections org's admins configured.
-	Collections(ctx context.Context, org syntax.DID) ([]syntax.NSID, error)
-}
-
 // Match is one search result: the record as the spaces store holds it now,
 // with the snippet the index matched.
 type Match struct {
@@ -63,19 +54,19 @@ type Searcher struct {
 	index       Index
 	communities CommunitySource
 	records     RecordGetter
-	collections CollectionSource
+	configs     ConfigSource
 	everyone    syntax.DID
 }
 
 // SearcherOption configures a [Searcher].
 type SearcherOption func(*Searcher)
 
-// WithCollections limits results to the collections src surfaces: its
-// defaults, and those the org being searched configured. Queries must then
-// name that org in [Query.Org]. Without it a Searcher returns every
+// WithConfigs limits results to the collections src configures for the org
+// being searched, which are the ones an [Indexer] given src indexes. Queries
+// must then name that org in [Query.Org]. Without it a Searcher returns every
 // collection from every org.
-func WithCollections(src CollectionSource) SearcherOption {
-	return func(s *Searcher) { s.collections = src }
+func WithConfigs(src ConfigSource) SearcherOption {
+	return func(s *Searcher) { s.configs = src }
 }
 
 // WithEveryoneOrg also searches the records of the everyone org, the default
@@ -127,12 +118,12 @@ func (s *Searcher) SearchSpaces(ctx context.Context, q Query) (Page, error) {
 	return s.scoped(ctx, q, false)
 }
 
-// scoped runs q limited to the collections surfaced for q.Org: the defaults
-// plus those its admins configured. A collection filter in q narrows that
+// scoped runs q limited to the collections configured for q.Org. A
+// collection filter in q narrows that
 // further. With includeEveryone, the everyone org's records are searched too,
 // within its own collections.
 func (s *Searcher) scoped(ctx context.Context, q Query, includeEveryone bool) (Page, error) {
-	if s.collections == nil {
+	if s.configs == nil {
 		return s.search(ctx, q)
 	}
 	if q.Org == "" {
@@ -166,18 +157,18 @@ func (s *Searcher) scoped(ctx context.Context, q Query, includeEveryone bool) (P
 	return s.search(ctx, q)
 }
 
-// allowedCollections returns the collections surfaced for org: the defaults
-// plus those its admins configured, narrowed to filter when set.
+// allowedCollections returns the collections configured for org, sorted and
+// narrowed to filter when set.
 func (s *Searcher) allowedCollections(
 	ctx context.Context,
 	org syntax.DID,
 	filter []syntax.NSID,
 ) ([]syntax.NSID, error) {
-	configured, err := s.collections.Collections(ctx, org)
+	configs, err := s.configs.Configs(ctx, org)
 	if err != nil {
-		return nil, fmt.Errorf("list search collections: %w", err)
+		return nil, fmt.Errorf("load search configs: %w", err)
 	}
-	allowed := append(s.collections.Defaults(), configured...)
+	allowed := slices.Sorted(maps.Keys(configs))
 	if len(filter) > 0 {
 		allowed = slices.DeleteFunc(allowed, func(c syntax.NSID) bool {
 			return !slices.Contains(filter, c)

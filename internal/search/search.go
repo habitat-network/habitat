@@ -28,8 +28,23 @@ type Document struct {
 	// Rev is the record's revision. Put ignores a document older than the one
 	// already indexed for its URI, so replaying ops out of order is harmless.
 	Rev syntax.TID
-	// Text is the record's extracted text; see [ExtractText].
-	Text string
+	// ConfigRev is the [CollectionConfig.Rev] the document was projected
+	// with.
+	ConfigRev string
+	// Title, Text and Extra are the record's searchable text, by weight:
+	// [WeightHigh], [WeightNormal] and [WeightLow] fields. Text is chunked.
+	// A collection that configures no fields has all its text in Text; see
+	// [ExtractText].
+	Title string
+	Text  string
+	Extra string
+	// Facets are "<path>=<value>" for each value of a filterable string field.
+	Facets []string
+	// Numbers, Datetimes and Strings are the filterable and sortable fields
+	// stored in each [Slot].
+	Numbers   map[Slot]float64
+	Datetimes map[Slot]time.Time
+	Strings   map[Slot]string
 	// Blobs is the text of the blobs the record references, which is
 	// searched as part of the record.
 	Blobs []BlobText

@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"testing"
@@ -61,7 +62,7 @@ func (f *fakeIndex) Put(_ context.Context, docs ...Document) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, d := range docs {
-		if old, ok := f.docs[d.URI]; !ok || old.Rev < d.Rev {
+		if old, ok := f.docs[d.URI]; !ok || old.Rev <= d.Rev {
 			f.docs[d.URI] = d
 		}
 	}
@@ -186,6 +187,8 @@ type indexerTest struct {
 	perms  perms.Store
 	db     *gorm.DB
 	social *opensocial_testutil.TestStore
+	// configs, when set, is the indexer's [ConfigSource].
+	configs ConfigSource
 }
 
 // setupIndexer returns an indexerTest. Nothing is indexed until the test
@@ -213,7 +216,7 @@ func setupIndexer(t *testing.T) *indexerTest {
 }
 
 func (it *indexerTest) drain(ctx context.Context) {
-	it.x.drain(ctx, it.store, it.perms)
+	it.x.drain(ctx, it.store, it.perms, it.configs)
 }
 
 func put(t *testing.T, store spaces.Store, space habitat_syntax.SpaceURI, rkey, text string) {
@@ -433,7 +436,7 @@ func TestIndexerRunIndexesUntilCancelled(t *testing.T) {
 	put(t, it.store, space, "k1", "before")
 
 	done := make(chan error, 1)
-	go func() { done <- it.x.Run(ctx, it.store, it.perms) }()
+	go func() { done <- it.x.Run(ctx, it.store, it.perms, it.configs) }()
 	it.idx.waitForPut(t)
 	require.Len(t, it.idx.texts(), 1)
 
@@ -549,4 +552,84 @@ func TestTextFromPDF(t *testing.T) {
 	require.Contains(t, textFromPDF(t.Context(), []byte(minimalPDF("hello pdf"))), "hello pdf")
 	require.Empty(t, textFromPDF(t.Context(), []byte("%PDF-1.4 garbage")))
 	require.Empty(t, textFromPDF(t.Context(), nil))
+}
+
+// fakeConfigs is a [ConfigSource] whose configs the test sets.
+type fakeConfigs struct {
+	mu      sync.Mutex
+	configs map[syntax.NSID]CollectionConfig
+}
+
+func (f *fakeConfigs) Configs(
+	context.Context,
+	syntax.DID,
+) (map[syntax.NSID]CollectionConfig, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return maps.Clone(f.configs), nil
+}
+
+func (f *fakeConfigs) set(configs map[syntax.NSID]CollectionConfig) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.configs = configs
+}
+
+func TestIndexerFollowsCollectionConfigs(t *testing.T) {
+	it := setupIndexer(t)
+	ctx := t.Context()
+	configs := &fakeConfigs{configs: map[syntax.NSID]CollectionConfig{testColl: DefaultConfig()}}
+	it.configs = configs
+	members, err := it.store.CreateSpace(ctx, testOrg, opensocial.MembersSpaceType, "self")
+	require.NoError(t, err)
+	space, err := it.store.CreateSpace(ctx, testOrg, testType, "a")
+	require.NoError(t, err)
+	_, _, err = it.store.PutRecord(
+		ctx,
+		space,
+		testRepo,
+		testColl,
+		"k1",
+		spaces_testutil.MustMarshalRecord(
+			t,
+			map[string]any{"title": "Plan", "text": "first draft"},
+		),
+	)
+	require.NoError(t, err)
+	// A collection with no config isn't indexed.
+	_, _, err = it.store.PutRecord(ctx, space, testRepo, "network.habitat.other", "k2",
+		spaces_testutil.MustMarshalRecord(t, map[string]any{"text": "unconfigured"}))
+	require.NoError(t, err)
+	it.drain(ctx)
+	require.Equal(t, map[habitat_syntax.SpaceRecordURI]string{
+		recordURI(space, "k1"): "first draft\nPlan",
+	}, it.idx.texts())
+	require.Equal(t, DefaultConfigRev, it.idx.docs[recordURI(space, "k1")].ConfigRev)
+
+	// The org's configs change with a write to its config records, which
+	// projects its documents again.
+	writeConfig := func() {
+		t.Helper()
+		_, _, err := it.store.PutRecord(ctx, members, testOrg, ConfigCollection,
+			syntax.RecordKey(testColl), spaces_testutil.MustMarshalRecord(t, map[string]any{
+				"updatedAt": time.Now().Format(time.RFC3339Nano),
+			}))
+		require.NoError(t, err)
+	}
+	configs.set(map[syntax.NSID]CollectionConfig{testColl: {
+		Rev:    "r2",
+		Fields: []Field{{Path: "title", Searchable: WeightHigh}},
+	}})
+	writeConfig()
+	it.drain(ctx)
+	d := it.idx.docs[recordURI(space, "k1")]
+	require.Equal(t, "r2", d.ConfigRev)
+	require.Equal(t, "Plan", d.Title)
+	require.Empty(t, d.Text)
+
+	// Removing the collection's config drops its documents.
+	configs.set(map[syntax.NSID]CollectionConfig{})
+	writeConfig()
+	it.drain(ctx)
+	require.Empty(t, it.idx.texts())
 }

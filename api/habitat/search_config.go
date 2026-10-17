@@ -4,15 +4,63 @@ package habitat
 
 import "encoding/json"
 
+// NetworkHabitatSearchConfigField represents a field object
+type NetworkHabitatSearchConfigField struct {
+	LexiconTypeID string `json:"$type"`
+	Filterable    bool   `json:"filterable,omitempty"`
+	Path          string `json:"path"`
+	Searchable    string `json:"searchable,omitempty"`
+	Slot          string `json:"slot,omitempty"`
+	Sortable      bool   `json:"sortable,omitempty"`
+	Type          string `json:"type,omitempty"`
+}
+
+// MarshalJSON sets $type to "network.habitat.search.config#field" before encoding.
+func (t NetworkHabitatSearchConfigField) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "network.habitat.search.config#field"
+	type alias NetworkHabitatSearchConfigField
+	return json.Marshal(alias(t))
+}
+
+// NetworkHabitatSearchConfigFieldSource represents a fieldSource object
+type NetworkHabitatSearchConfigFieldSource struct {
+	LexiconTypeID string `json:"$type"`
+	Path          string `json:"path"`
+}
+
+// MarshalJSON sets $type to "network.habitat.search.config#fieldSource" before encoding.
+func (t NetworkHabitatSearchConfigFieldSource) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "network.habitat.search.config#fieldSource"
+	type alias NetworkHabitatSearchConfigFieldSource
+	return json.Marshal(alias(t))
+}
+
 // NetworkHabitatSearchConfig represents a network.habitat.search.config record
 type NetworkHabitatSearchConfig struct {
-	LexiconTypeID string `json:"$type"`
-	UpdatedAt     string `json:"updatedAt"`
+	LexiconTypeID string                            `json:"$type"`
+	Blobs         bool                              `json:"blobs,omitempty"`
+	Date          interface{}                       `json:"date,omitempty"`
+	Fields        []NetworkHabitatSearchConfigField `json:"fields,omitempty"`
+	UpdatedAt     string                            `json:"updatedAt"`
+	Users         []interface{}                     `json:"users,omitempty"`
 }
 
 // MarshalJSON sets $type to "network.habitat.search.config" before encoding.
 func (t NetworkHabitatSearchConfig) MarshalJSON() ([]byte, error) {
 	t.LexiconTypeID = "network.habitat.search.config"
 	type alias NetworkHabitatSearchConfig
+	return json.Marshal(alias(t))
+}
+
+// NetworkHabitatSearchConfigMetadataSource represents a metadataSource object
+type NetworkHabitatSearchConfigMetadataSource struct {
+	LexiconTypeID string `json:"$type"`
+	Name          string `json:"name"`
+}
+
+// MarshalJSON sets $type to "network.habitat.search.config#metadataSource" before encoding.
+func (t NetworkHabitatSearchConfigMetadataSource) MarshalJSON() ([]byte, error) {
+	t.LexiconTypeID = "network.habitat.search.config#metadataSource"
+	type alias NetworkHabitatSearchConfigMetadataSource
 	return json.Marshal(alias(t))
 }

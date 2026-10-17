@@ -218,7 +218,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	var searcher *search.Searcher
 	if ts.SearchIndex != nil {
 		searcher = search.NewSearcher(
-			ts.SearchIndex, os, ts.SpaceStore, search.WithCollections(ts.SearchConfig),
+			ts.SearchIndex, os, ts.SpaceStore, search.WithConfigs(ts.SearchConfig),
 		)
 	}
 
