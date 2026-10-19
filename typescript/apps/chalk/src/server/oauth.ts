@@ -2,7 +2,6 @@ import { JoseKey } from "@atproto/jwk-jose";
 import {
   OAuthClient,
   type OAuthClientMetadataInput,
-  type RuntimeLock,
 } from "@atproto/oauth-client";
 import { HabitatIdentityResolver } from "@habitat-network/habitat";
 import { getDb } from "../db";
@@ -58,24 +57,6 @@ export function clientMetadata(baseUrl: string): OAuthClientMetadataInput {
   };
 }
 
-// Token refreshes rotate the refresh token, so two concurrent refreshes of
-// the same session would leave one of them holding a revoked token. This
-// lock serializes them within an isolate only — the same trade-off Drop
-// makes (see its oauth.ts): a Worker request and a DocRoom flush in
-// different isolates can still race on a session, and the loser's call
-// fails until the session is re-read.
-const locks = new Map<string, Promise<unknown>>();
-const requestLock: RuntimeLock = async (name, fn) => {
-  const prev = locks.get(name) ?? Promise.resolve();
-  const run = prev.catch(() => {}).then(fn);
-  locks.set(name, run);
-  try {
-    return await run;
-  } finally {
-    if (locks.get(name) === run) locks.delete(name);
-  }
-};
-
 export function createOAuthClient(env: Env): OAuthClient {
   const db = getDb(env);
   return new OAuthClient({
@@ -89,6 +70,15 @@ export function createOAuthClient(env: Env): OAuthClient {
     identityResolver: new HabitatIdentityResolver(env.CHALK_HABITAT_URL),
     fetch: (input, init) => fetch(input, init),
     runtimeImplementation: {
+      // No requestLock on purpose. Refreshes rotate the refresh token (pear
+      // deletes the old one as soon as it's used), and requests, cron passes
+      // and DocRooms run in different isolates, so an in-memory lock can't
+      // stop two of them refreshing the same session at once. With no lock
+      // given, the client still serializes refreshes within an isolate (its
+      // own local lock) and also recovers from a cross-isolate race: on
+      // invalid_grant it waits briefly and re-reads the store, keeping the
+      // token the other isolate just saved. Passing any requestLock turns that
+      // recovery off, and the loser would delete the winner's fresh session.
       createKey: (algs) => JoseKey.generate(algs),
       getRandomValues: (length) =>
         crypto.getRandomValues(new Uint8Array(length)),
@@ -96,7 +86,6 @@ export function createOAuthClient(env: Env): OAuthClient {
         new Uint8Array(
           await crypto.subtle.digest(`SHA-${name.slice(3)}`, data),
         ),
-      requestLock,
     },
   });
 }
