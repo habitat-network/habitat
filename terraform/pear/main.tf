@@ -55,6 +55,7 @@ locals {
     HABITAT_NANGO_SECRET_KEY     = "habitat-nango-secret-key"
     OTEL_EXPORTER_OTLP_HEADERS   = "habitat-otlp-headers"
     HABITAT_MEILISEARCH_API_KEY  = "habitat-meilisearch-key"
+    HABITAT_EMBEDDER_API_KEY     = "azure-embedder-api-key"
   }
 
   plain_env = {
@@ -64,6 +65,8 @@ locals {
     HABITAT_GOOGLE_CLIENT_ID    = "953995456319-667186r9ng84t5m4ibdne3380idub1ha.apps.googleusercontent.com"
     OTEL_EXPORTER_OTLP_ENDPOINT = "https://otlp-gateway-prod-us-west-0.grafana.net/otlp"
     HABITAT_MEILISEARCH_URL     = data.terraform_remote_state.meilisearch.outputs.meilisearch_url
+    HABITAT_EMBEDDER_URL        = "https://habitat-network-dev.openai.azure.com/openai/v1/embeddings"
+    HABITAT_EMBEDDER_DIMENSIONS = "1536"
   }
 }
 
