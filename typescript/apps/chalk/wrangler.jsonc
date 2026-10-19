@@ -51,4 +51,10 @@
     "CHALK_HABITAT_URL": "https://pear.habitat.network",
   },
   "dev": { "port": 5177 },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
+  }
 }

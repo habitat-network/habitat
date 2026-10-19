@@ -26,4 +26,10 @@
     "DROP_HABITAT_URL": "https://pear.habitat.network",
   },
   "dev": { "port": 5178 },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
+  }
 }
