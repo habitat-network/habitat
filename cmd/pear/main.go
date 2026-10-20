@@ -339,6 +339,14 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	}
 	mux.PathPrefix("/ui/").Handler(uiHandler)
 
+	// gorilla/mux only runs middleware for requests that match a route, so an
+	// XRPC method pear has no handler for (e.g. an app's own NSID reached via
+	// Atproto-Proxy) would skip both the CORS and service-proxy middleware: the
+	// browser's preflight gets a bare 404 with no Access-Control-Allow-Origin.
+	// This catch-all, registered last, makes those requests match a route so the
+	// middleware runs; unproxied requests still 404.
+	mux.PathPrefix("/xrpc/").HandlerFunc(http.NotFound)
+
 	startupSpan.End()
 	slog.SetDefault(log.New(log.WithStdout(cmd.Bool(fDebug))))
 
