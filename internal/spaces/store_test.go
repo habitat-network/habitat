@@ -676,7 +676,13 @@ func TestGetRecord_NotFoundSpanNotErrored(t *testing.T) {
 
 	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
 	require.NoError(t, err)
-	_, err = s.GetRecord(t.Context(), uri, owner, syntax.NSID("network.habitat.note"), "nonexistent")
+	_, err = s.GetRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"nonexistent",
+	)
 	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
 
 	var found bool
