@@ -9,10 +9,13 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
+	"gorm.io/gorm"
+
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"gorm.io/gorm"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 var (
@@ -59,7 +62,11 @@ func (s *Store) CreateInvite(
 	orgDID syntax.DID,
 	invitee syntax.DID,
 	roles []string,
-) (Invite, error) {
+) (_ Invite, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.CreateInvite", trace.WithAttributes(
+		telemetry.Org(orgDID), memberAttr(invitee), rolesKey.StringSlice(roles),
+	))
+	defer func() { telemetry.End(span, err) }()
 	existingRoles, err := s.GetUserRoles(ctx, orgDID, invitee)
 	if err != nil {
 		return Invite{}, fmt.Errorf("get user roles: %w", err)
@@ -89,7 +96,11 @@ func (s *Store) CreateInvite(
 
 // ListInvites returns invitee's pending invites across every org on this
 // instance.
-func (s *Store) ListInvites(ctx context.Context, invitee syntax.DID) ([]Invite, error) {
+func (s *Store) ListInvites(ctx context.Context, invitee syntax.DID) (_ []Invite, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.ListInvites", trace.WithAttributes(
+		memberAttr(invitee),
+	))
+	defer func() { telemetry.End(span, err) }()
 	var rows []inviteRow
 	if err := s.db.WithContext(ctx).
 		Where("invitee = ?", invitee).
@@ -100,7 +111,11 @@ func (s *Store) ListInvites(ctx context.Context, invitee syntax.DID) ([]Invite, 
 	return rowsToInvites(rows)
 }
 
-func (s *Store) ListPendingInvites(ctx context.Context, orgDID syntax.DID) ([]Invite, error) {
+func (s *Store) ListPendingInvites(ctx context.Context, orgDID syntax.DID) (_ []Invite, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.ListPendingInvites", trace.WithAttributes(
+		telemetry.Org(orgDID),
+	))
+	defer func() { telemetry.End(span, err) }()
 	var rows []inviteRow
 	if err := s.db.WithContext(ctx).
 		Where("org_id = ?", orgDID).
@@ -123,7 +138,11 @@ func rowsToInvites(rows []inviteRow) ([]Invite, error) {
 	return invites, nil
 }
 
-func (s *Store) RevokeInvite(ctx context.Context, orgDID syntax.DID, id string) error {
+func (s *Store) RevokeInvite(ctx context.Context, orgDID syntax.DID, id string) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.RevokeInvite", trace.WithAttributes(
+		telemetry.Org(orgDID), inviteIDKey.String(id),
+	))
+	defer func() { telemetry.End(span, err) }()
 	result := s.db.WithContext(ctx).
 		Where("org_id = ? AND id = ?", orgDID, id).
 		Delete(&inviteRow{})
@@ -147,7 +166,11 @@ func (s *Store) RequestJoin(
 	ctx context.Context,
 	orgDID syntax.DID,
 	invitee syntax.DID,
-) ([]string, error) {
+) (_ []string, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.RequestJoin", trace.WithAttributes(
+		telemetry.Org(orgDID), memberAttr(invitee),
+	))
+	defer func() { telemetry.End(span, err) }()
 	var roles []string
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		spacesStoreTx := s.spacesStore.WithTx(tx)
