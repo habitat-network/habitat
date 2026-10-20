@@ -66,6 +66,7 @@ locals {
     OTEL_EXPORTER_OTLP_ENDPOINT = "https://otlp-gateway-prod-us-west-0.grafana.net/otlp"
     HABITAT_MEILISEARCH_URL     = data.terraform_remote_state.meilisearch.outputs.meilisearch_url
     HABITAT_EMBEDDER_URL        = "https://habitat-network-dev.openai.azure.com/openai/v1/embeddings"
+    HABITAT_EMBEDDER_MODEL      = "text-embedding-3-small"
     HABITAT_EMBEDDER_DIMENSIONS = "1536"
   }
 }
