@@ -1,8 +1,10 @@
 package testutil
 
 import (
+	"context"
 	"testing"
 
+	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -56,6 +58,9 @@ type TestServer struct {
 	SearchIndex search.Index
 	// SearchConfig stores the collections each org surfaces in search.
 	SearchConfig *searchconfig.Store
+	// BskyProfiles stands in for the public Bluesky appview; by default no DID
+	// has a Bluesky profile.
+	BskyProfiles pearapp.BskyProfileFetcher
 }
 
 func WithValidator(validator authn.RequestValidator) utils.Opt[TestServer] {
@@ -125,6 +130,14 @@ func WithPDSForwarding(f *forwarding.PDSForwarding) utils.Opt[TestServer] {
 func WithDirectory(dir identity.Directory) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.Directory = dir
+	}
+}
+
+// WithBskyProfiles supplies the public Bluesky profiles getProfiles falls back
+// to, keeping tests off the network.
+func WithBskyProfiles(f pearapp.BskyProfileFetcher) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.BskyProfiles = f
 	}
 }
 
@@ -214,6 +227,14 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	require.NoError(t, err)
 	ts.EmailDomainStore = emailDomainStore
 
+	if ts.BskyProfiles == nil {
+		ts.BskyProfiles = func(
+			context.Context, []syntax.DID,
+		) ([]*bsky.ActorDefs_ProfileViewDetailed, error) {
+			return nil, nil
+		}
+	}
+
 	ts.SearchConfig = searchconfig.NewStore(ts.SpaceStore)
 	var searcher *search.Searcher
 	if ts.SearchIndex != nil {
@@ -241,6 +262,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		EmailDomainStore: emailDomainStore,
 		Searcher:         searcher,
 		SearchConfig:     ts.SearchConfig,
+		BskyProfiles:     ts.BskyProfiles,
 	})
 	ts.PermStore = ps
 	return &ts

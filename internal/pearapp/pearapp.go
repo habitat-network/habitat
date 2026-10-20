@@ -5,8 +5,12 @@
 package pearapp
 
 import (
+	"context"
+
+	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gocloud.dev/blob"
 	"gorm.io/gorm"
 
@@ -39,6 +43,13 @@ type InstanceStore interface {
 	instance.AdminStore
 	instance.PolicyStore
 }
+
+// BskyProfileFetcher fetches the public Bluesky profiles of dids; a DID with no
+// Bluesky account is absent from the result.
+type BskyProfileFetcher func(
+	ctx context.Context,
+	dids []syntax.DID,
+) ([]*bsky.ActorDefs_ProfileViewDetailed, error)
 
 // App holds pear's stores and services.
 type App struct {
@@ -80,6 +91,8 @@ type App struct {
 	// Searcher is nil when search (--meilisearch_url) is off.
 	Searcher     *search.Searcher
 	SearchConfig *searchconfig.Store
+	// BskyProfiles is nil to use the public Bluesky appview (utils.FetchProfiles).
+	BskyProfiles BskyProfileFetcher
 }
 
 // New returns an App holding the given stores and services.

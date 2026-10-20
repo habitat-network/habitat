@@ -22,6 +22,7 @@ import (
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // PearServer is the consolidated HTTP server for habitat.
@@ -64,6 +65,9 @@ type PearServer struct {
 
 	// searchConfig stores the collections each org surfaces in search.
 	searchConfig *searchconfig.Store
+
+	// bskyProfiles fetches public Bluesky profiles for getProfiles' fallback.
+	bskyProfiles pearapp.BskyProfileFetcher
 }
 
 // New creates a PearServer with the given dependencies and prepares
@@ -89,6 +93,10 @@ func New(app *pearapp.App) *PearServer {
 		emailDomainStore: app.EmailDomainStore,
 		searcher:         app.Searcher,
 		searchConfig:     app.SearchConfig,
+		bskyProfiles:     app.BskyProfiles,
+	}
+	if ps.bskyProfiles == nil {
+		ps.bskyProfiles = utils.FetchProfiles
 	}
 	ps.registerRoutes()
 	return ps
