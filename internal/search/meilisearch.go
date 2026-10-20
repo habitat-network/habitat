@@ -16,8 +16,12 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/meilisearch/meilisearch-go"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
+	"go.opentelemetry.io/otel/trace"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 // ErrInvalidCursor is returned by Search for a cursor it didn't issue.
@@ -140,6 +144,8 @@ type meiliCursor struct {
 // Meilisearch is an [Index] stored in two Meilisearch indexes: one of
 // documents, and one of repo cursors.
 type Meilisearch struct {
+	// uid is the document index's name, as recorded on spans.
+	uid     string
 	index   meilisearch.IndexManager
 	cursors meilisearch.IndexManager
 	client  meilisearch.ServiceManager
@@ -360,6 +366,7 @@ func newMeilisearchOn(
 	opts ...MeilisearchOption,
 ) *Meilisearch {
 	m := &Meilisearch{
+		uid:     uid,
 		index:   client.Index(uid),
 		cursors: client.Index(uid + "_cursors"),
 		client:  client,
@@ -368,6 +375,23 @@ func newMeilisearchOn(
 		opt(m)
 	}
 	return m
+}
+
+// startSpan starts the client span of operation op on the index, named and
+// attributed per the OpenTelemetry database conventions.
+func (m *Meilisearch) startSpan(
+	ctx context.Context,
+	op string,
+	attrs ...attribute.KeyValue,
+) (context.Context, trace.Span) {
+	return tracer.Start(ctx, op+" "+m.uid,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(append([]attribute.KeyValue{
+			semconv.DBSystemNameKey.String("meilisearch"),
+			semconv.DBOperationName(op),
+			semconv.DBCollectionName(m.uid),
+		}, attrs...)...),
+	)
 }
 
 // isNotFound reports whether err is Meilisearch saying what was asked for
@@ -421,7 +445,13 @@ func (m *Meilisearch) setup(ctx context.Context, uid string, settings *meilisear
 // Put implements [Index]. Each document is stored as its chunks, written
 // before the chunks of its older revision are deleted, so a search never
 // misses a record that is being rewritten.
-func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
+func (m *Meilisearch) Put(ctx context.Context, docs ...Document) (err error) {
+	uris := make([]habitat_syntax.SpaceRecordURI, len(docs))
+	for i, d := range docs {
+		uris[i] = d.URI
+	}
+	ctx, span := m.startSpan(ctx, "put", telemetry.RecordURIs(uris))
+	defer func() { telemetry.End(span, err) }()
 	if m.state(ctx).legacy {
 		return ErrLegacyIndex
 	}
@@ -459,6 +489,7 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 			delete(newest, r.ParentID)
 		}
 	}
+	span.SetAttributes(attribute.Int("habitat.search.superseded", len(docs)-len(newest)))
 	if len(newest) == 0 {
 		return nil
 	}
@@ -468,7 +499,8 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 		rows = append(rows, toMeiliDocs(parent, d)...)
 		stale = append(stale, "("+eq("parent_id", parent)+" AND rev != "+quote(d.Rev.String())+")")
 	}
-	info, err := m.index.AddDocumentsWithContext(ctx, rows, nil)
+	span.SetAttributes(attribute.Int("habitat.search.chunks", len(rows)))
+	info, err := m.index.AddDocumentsWithContext(ctx, rows, taskOptions(ctx))
 	if err != nil {
 		return fmt.Errorf("put documents: %w", err)
 	}
@@ -477,7 +509,8 @@ func (m *Meilisearch) Put(ctx context.Context, docs ...Document) error {
 	}
 	// Chunks of an older revision: ones a shorter text no longer has, or a
 	// blob the record dropped.
-	info, err = m.index.DeleteDocumentsByFilterWithContext(ctx, strings.Join(stale, " OR "), nil)
+	info, err = m.index.DeleteDocumentsByFilterWithContext(
+		ctx, strings.Join(stale, " OR "), taskOptions(ctx))
 	if err != nil {
 		return fmt.Errorf("delete stale chunks: %w", err)
 	}
@@ -531,10 +564,15 @@ func toMeiliDocs(parent string, d Document) []meiliDoc {
 }
 
 // Delete implements [Index].
-func (m *Meilisearch) Delete(ctx context.Context, uris ...habitat_syntax.SpaceRecordURI) error {
+func (m *Meilisearch) Delete(
+	ctx context.Context,
+	uris ...habitat_syntax.SpaceRecordURI,
+) (err error) {
 	if len(uris) == 0 {
 		return nil
 	}
+	ctx, span := m.startSpan(ctx, "delete", telemetry.RecordURIs(uris))
+	defer func() { telemetry.End(span, err) }()
 	if m.state(ctx).legacy {
 		return ErrLegacyIndex
 	}
@@ -542,7 +580,8 @@ func (m *Meilisearch) Delete(ctx context.Context, uris ...habitat_syntax.SpaceRe
 	for i, uri := range uris {
 		parents[i] = docID(uri)
 	}
-	info, err := m.index.DeleteDocumentsByFilterWithContext(ctx, in("parent_id", parents), nil)
+	info, err := m.index.DeleteDocumentsByFilterWithContext(
+		ctx, in("parent_id", parents), taskOptions(ctx))
 	if err != nil {
 		return fmt.Errorf("delete documents: %w", err)
 	}
@@ -550,13 +589,15 @@ func (m *Meilisearch) Delete(ctx context.Context, uris ...habitat_syntax.SpaceRe
 }
 
 // DeleteSpace implements [Index].
-func (m *Meilisearch) DeleteSpace(ctx context.Context, space habitat_syntax.SpaceURI) error {
+func (m *Meilisearch) DeleteSpace(ctx context.Context, space habitat_syntax.SpaceURI) (err error) {
+	ctx, span := m.startSpan(ctx, "delete_space", telemetry.Space(space))
+	defer func() { telemetry.End(span, err) }()
 	// Documents store the parts of their space URI; cursors store it whole.
 	for idx, filter := range map[meilisearch.IndexManager]string{
 		m.index:   spaceFilter(space),
 		m.cursors: eq("space", space.String()),
 	} {
-		info, err := idx.DeleteDocumentsByFilterWithContext(ctx, filter, nil)
+		info, err := idx.DeleteDocumentsByFilterWithContext(ctx, filter, taskOptions(ctx))
 		if err != nil {
 			return fmt.Errorf("delete space documents: %w", err)
 		}
@@ -572,9 +613,11 @@ func (m *Meilisearch) Cursor(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
-) (string, error) {
+) (_ string, err error) {
+	ctx, span := m.startSpan(ctx, "get_cursor", telemetry.Space(space), telemetry.Repo(repo))
+	defer func() { telemetry.End(span, err) }()
 	var c meiliCursor
-	err := m.cursors.GetDocumentWithContext(ctx, cursorID(space, repo), nil, &c)
+	err = m.cursors.GetDocumentWithContext(ctx, cursorID(space, repo), nil, &c)
 	var apiErr *meilisearch.Error
 	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
 		return "", nil
@@ -582,17 +625,21 @@ func (m *Meilisearch) Cursor(
 	if err != nil {
 		return "", fmt.Errorf("get cursor: %w", err)
 	}
+	span.SetAttributes(telemetry.Rev(c.Rev))
 	return c.Rev, nil
 }
 
 // SetCursor implements [Index].
-func (m *Meilisearch) SetCursor(ctx context.Context, cursor RepoCursor) error {
+func (m *Meilisearch) SetCursor(ctx context.Context, cursor RepoCursor) (err error) {
+	ctx, span := m.startSpan(ctx, "set_cursor",
+		telemetry.Space(cursor.Space), telemetry.Repo(cursor.Repo), telemetry.Rev(cursor.Rev))
+	defer func() { telemetry.End(span, err) }()
 	info, err := m.cursors.AddDocumentsWithContext(ctx, []meiliCursor{{
 		ID:    cursorID(cursor.Space, cursor.Repo),
 		Space: cursor.Space.String(),
 		Repo:  cursor.Repo.String(),
 		Rev:   cursor.Rev,
-	}}, nil)
+	}}, taskOptions(ctx))
 	if err != nil {
 		return fmt.Errorf("set cursor: %w", err)
 	}
@@ -600,7 +647,9 @@ func (m *Meilisearch) SetCursor(ctx context.Context, cursor RepoCursor) error {
 }
 
 // Cursors implements [Index].
-func (m *Meilisearch) Cursors(ctx context.Context) ([]RepoCursor, error) {
+func (m *Meilisearch) Cursors(ctx context.Context) (_ []RepoCursor, err error) {
+	ctx, span := m.startSpan(ctx, "list_cursors")
+	defer func() { telemetry.End(span, err) }()
 	var out []RepoCursor
 	for offset := int64(0); ; offset += accessPageSize {
 		var page meilisearch.DocumentsResult
@@ -622,6 +671,7 @@ func (m *Meilisearch) Cursors(ctx context.Context) ([]RepoCursor, error) {
 			})
 		}
 		if len(rows) < accessPageSize {
+			span.SetAttributes(attribute.Int("habitat.repos", len(out)))
 			return out, nil
 		}
 	}
@@ -632,7 +682,14 @@ func (m *Meilisearch) SetSpaceAccess(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 	access Access,
-) error {
+) (err error) {
+	ctx, span := m.startSpan(ctx, "set_space_access",
+		telemetry.Space(space),
+		attribute.Bool("habitat.search.access.public", access.Public),
+		attribute.Int("habitat.search.access.users", len(access.Users)),
+		attribute.Int("habitat.search.access.community_roles", len(access.CommunityRoles)),
+	)
+	defer func() { telemetry.End(span, err) }()
 	fields := toMeiliAccess(access)
 	// Rewriting the access fields doesn't change which documents match the
 	// filter, so paging by offset sees each document once.
@@ -657,7 +714,7 @@ func (m *Meilisearch) SetSpaceAccess(
 		for i, d := range ids {
 			updates[i] = meiliAccessUpdate{ID: d.ID, meiliAccess: fields}
 		}
-		info, err := m.index.UpdateDocumentsWithContext(ctx, updates, nil)
+		info, err := m.index.UpdateDocumentsWithContext(ctx, updates, taskOptions(ctx))
 		if err != nil {
 			return fmt.Errorf("update space access: %w", err)
 		}
@@ -671,10 +728,20 @@ func (m *Meilisearch) SetSpaceAccess(
 }
 
 // Search implements [Index].
-func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
+func (m *Meilisearch) Search(ctx context.Context, q Query) (_ Result, err error) {
+	// The query text is user input, so it stays off the span.
+	ctx, span := m.startSpan(ctx, "search",
+		attribute.Bool("habitat.search.reader", q.Reader != nil),
+		attribute.Int("habitat.search.spaces", len(q.Spaces)),
+		attribute.Int("habitat.search.collections", len(q.Collections)),
+		attribute.Int("habitat.search.also", len(q.Also)),
+	)
+	defer func() { telemetry.End(span, err) }()
+	if q.Org != "" {
+		span.SetAttributes(telemetry.OrgKey.String(q.Org.String()))
+	}
 	offset := 0
 	if q.Cursor != "" {
-		var err error
 		offset, err = strconv.Atoi(q.Cursor)
 		if err != nil || offset < 0 {
 			return Result{}, ErrInvalidCursor
@@ -724,10 +791,20 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 		}
 		req.RankingScoreThreshold = m.embedder.MinScore
 	}
+	span.SetAttributes(
+		attribute.Bool("habitat.search.hybrid", req.Hybrid != nil),
+		attribute.Bool("habitat.search.legacy_index", state.legacy),
+		attribute.Int("habitat.search.offset", offset),
+		attribute.Int("habitat.search.limit", limit),
+	)
 	resp, err := m.index.SearchWithContext(ctx, q.Text, req)
 	if err != nil {
 		return Result{}, fmt.Errorf("search: %w", err)
 	}
+	span.SetAttributes(
+		attribute.Int64("meilisearch.processing_time_ms", resp.ProcessingTimeMs),
+		attribute.Int64("meilisearch.estimated_total_hits", resp.EstimatedTotalHits),
+	)
 	var hits []meiliHit
 	if err := resp.Hits.DecodeInto(&hits); err != nil {
 		return Result{}, fmt.Errorf("decode hits: %w", err)
@@ -737,6 +814,7 @@ func (m *Meilisearch) Search(ctx context.Context, q Query) (Result, error) {
 		hits = hits[:limit]
 		res.Cursor = strconv.Itoa(offset + limit)
 	}
+	span.SetAttributes(attribute.Int("habitat.search.hits", len(hits)))
 	res.Hits = make([]Hit, len(hits))
 	for i, h := range hits {
 		res.Hits[i] = Hit{
@@ -912,6 +990,7 @@ func waitTask(
 	if err != nil {
 		return fmt.Errorf("wait for meilisearch task: %w", err)
 	}
+	recordTask(ctx, task)
 	if task.Status != meilisearch.TaskStatusSucceeded {
 		return &taskError{code: task.Error.Code, message: task.Error.Message}
 	}
