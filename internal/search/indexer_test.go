@@ -420,7 +420,7 @@ func TestIndexerSweepCatchesUp(t *testing.T) {
 
 	// Once caught up, a sweep finds nothing to do.
 	it.x.sweep(ctx, it.store)
-	_, pending := it.x.next()
+	_, _, pending := it.x.next()
 	require.False(t, pending)
 }
 

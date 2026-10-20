@@ -10,12 +10,16 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 // RepoSource is the part of [spaces.Store] the [Indexer] reads records from.
@@ -64,6 +68,9 @@ const (
 	opsPageSize = 100
 	// accessCollection holds a space's community.opensocial.access record.
 	accessCollection = syntax.NSID("community.opensocial.access")
+	// maxJobLinks caps how many queueing spans one job links to, when many
+	// notifications collapse into it.
+	maxJobLinks = 32
 )
 
 // accessCollections are the collections whose records decide who may read a
@@ -90,6 +97,11 @@ var accessCollections = map[syntax.NSID]bool{
 // that sent them. One goroutine, [Indexer.Run], does the indexing: a repo is
 // indexed by one goroutine at a time, so its ops are applied in order, and
 // repeated notifications for a repo that is still pending are collapsed.
+//
+// Each job runs in its own span, linked to the spans that queued it, such as
+// the store write that notified it. A job queued by a single write is also a
+// child of that write's span, so a request's trace continues to its records
+// being indexed; one that several writes collapsed into starts its own trace.
 type Indexer struct {
 	index Index
 	// blobs, when set, supplies the content of blobs records reference; see
@@ -98,7 +110,7 @@ type Indexer struct {
 
 	mu      sync.Mutex
 	order   []job
-	pending map[job]bool
+	pending map[job]*jobState
 	// running counts jobs popped from the queue that haven't finished.
 	running int
 	wake    chan struct{}
@@ -126,6 +138,36 @@ type job struct {
 	repo syntax.DID
 }
 
+// String names the kind, as recorded on spans and metrics.
+func (k jobKind) String() string {
+	switch k {
+	case jobIndexRepo:
+		return "index_repo"
+	case jobRefreshAccess:
+		return "refresh_access"
+	case jobDeleteSpace:
+		return "delete_space"
+	}
+	return "unknown"
+}
+
+// attributes are j's span attributes.
+func (j job) attributes() []attribute.KeyValue {
+	attrs := []attribute.KeyValue{jobKindKey.String(j.kind.String()), telemetry.Space(j.space)}
+	if j.repo != "" {
+		attrs = append(attrs, telemetry.Repo(j.repo))
+	}
+	return attrs
+}
+
+// jobState is what the queue keeps about a pending job.
+type jobState struct {
+	// queued is when the job was first queued.
+	queued time.Time
+	// links are the spans that queued the job, up to [maxJobLinks].
+	links []trace.Link
+}
+
 // IndexerOption configures an [Indexer].
 type IndexerOption func(*Indexer)
 
@@ -134,7 +176,7 @@ type IndexerOption func(*Indexer)
 func NewIndexer(index Index, opts ...IndexerOption) *Indexer {
 	x := &Indexer{
 		index:   index,
-		pending: map[job]bool{},
+		pending: map[job]*jobState{},
 		wake:    make(chan struct{}, 1),
 	}
 	for _, opt := range opts {
@@ -145,7 +187,7 @@ func NewIndexer(index Index, opts ...IndexerOption) *Indexer {
 
 // NotifyWrite implements [spaces.Notifier] by queueing repo to be indexed.
 func (x *Indexer) NotifyWrite(
-	_ context.Context,
+	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
 	_ syntax.TID,
@@ -153,22 +195,34 @@ func (x *Indexer) NotifyWrite(
 	_ syntax.TID,
 	_ syntax.TID,
 ) {
-	x.enqueue(job{kind: jobIndexRepo, space: space, repo: repo})
+	x.enqueue(ctx, job{kind: jobIndexRepo, space: space, repo: repo})
 }
 
 // NotifySpaceDeleted implements [spaces.Notifier] by queueing space's
 // documents to be deleted.
-func (x *Indexer) NotifySpaceDeleted(_ context.Context, space habitat_syntax.SpaceURI) {
-	x.enqueue(job{kind: jobDeleteSpace, space: space})
+func (x *Indexer) NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI) {
+	x.enqueue(ctx, job{kind: jobDeleteSpace, space: space})
 }
 
-func (x *Indexer) enqueue(j job) {
+// enqueue queues j, linking it to the span in ctx, which queued it.
+func (x *Indexer) enqueue(ctx context.Context, j job) {
+	sc := trace.SpanContextFromContext(ctx)
 	x.mu.Lock()
-	if !x.pending[j] {
-		x.pending[j] = true
+	st, collapsed := x.pending[j]
+	if !collapsed {
+		st = &jobState{queued: time.Now()}
+		x.pending[j] = st
 		x.order = append(x.order, j)
 	}
+	if sc.IsValid() && len(st.links) < maxJobLinks {
+		st.links = append(st.links, trace.Link{SpanContext: sc})
+	}
 	x.mu.Unlock()
+	// Mark on the queueing span that indexing follows, and whether this
+	// joined a job already queued, whose span then links back here.
+	trace.SpanFromContext(ctx).AddEvent("search.index.queued", trace.WithAttributes(
+		append(j.attributes(), attribute.Bool("habitat.search.job.collapsed", collapsed))...,
+	))
 	select {
 	case x.wake <- struct{}{}:
 	default:
@@ -177,17 +231,18 @@ func (x *Indexer) enqueue(j job) {
 
 // next pops the oldest pending job. A notification that arrives while the
 // job runs queues it again, so the repo's new ops are picked up after.
-func (x *Indexer) next() (job, bool) {
+func (x *Indexer) next() (job, *jobState, bool) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	if len(x.order) == 0 {
-		return job{}, false
+		return job{}, nil, false
 	}
 	j := x.order[0]
 	x.order = x.order[1:]
+	st := x.pending[j]
 	delete(x.pending, j)
 	x.running++
-	return j, true
+	return j, st, true
 }
 
 // done marks a job popped by next as finished.
@@ -199,9 +254,14 @@ func (x *Indexer) done() {
 
 // idle reports whether no job is queued or running.
 func (x *Indexer) idle() bool {
+	return x.backlog() == 0
+}
+
+// backlog counts the jobs queued or running.
+func (x *Indexer) backlog() int {
 	x.mu.Lock()
 	defer x.mu.Unlock()
-	return len(x.order) == 0 && x.running == 0
+	return len(x.order) + x.running
 }
 
 // CaughtUp reports whether the index holds every repo up to its head and no
@@ -218,10 +278,10 @@ func (x *Indexer) CaughtUp(ctx context.Context, source RepoSource) (bool, error)
 		return false, err
 	}
 	for _, j := range stale {
-		x.enqueue(j)
+		x.enqueue(ctx, j)
 	}
 	for _, space := range deleted {
-		x.enqueue(job{kind: jobDeleteSpace, space: space})
+		x.enqueue(ctx, job{kind: jobDeleteSpace, space: space})
 	}
 	// The queue may have filled while the index was compared, but then the
 	// next check sees it.
@@ -233,6 +293,16 @@ func (x *Indexer) CaughtUp(ctx context.Context, source RepoSource) (bool, error)
 // Indexing errors are logged and retried on the next notification or sweep,
 // so Run only returns ctx's error.
 func (x *Indexer) Run(ctx context.Context, source RepoSource, perms PermSource) error {
+	m := getMetrics()
+	reg, err := m.meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		o.ObserveInt64(m.queueSize, int64(x.backlog()))
+		return nil
+	}, m.queueSize)
+	if err != nil {
+		slog.WarnContext(ctx, "search: register indexer queue gauge failed", "err", err)
+	} else {
+		defer func() { _ = reg.Unregister() }()
+	}
 	ticker := time.NewTicker(sweepInterval)
 	defer ticker.Stop()
 	x.sweep(ctx, source)
@@ -251,31 +321,74 @@ func (x *Indexer) Run(ctx context.Context, source RepoSource, perms PermSource) 
 // drain runs queued jobs until none are left or ctx is done.
 func (x *Indexer) drain(ctx context.Context, source RepoSource, perms PermSource) {
 	for ctx.Err() == nil {
-		j, ok := x.next()
+		j, st, ok := x.next()
 		if !ok {
 			return
 		}
-		var err error
-		switch j.kind {
-		case jobIndexRepo:
-			err = x.indexRepo(ctx, source, perms, j.space, j.repo)
-		case jobRefreshAccess:
-			err = x.refreshAccess(ctx, source, perms, j.space)
-		case jobDeleteSpace:
-			err = x.index.DeleteSpace(ctx, j.space)
-		}
-		x.done()
-		if err != nil {
-			slog.ErrorContext(ctx, "search indexing failed",
-				"space", j.space, "repo", j.repo, "err", err)
-		}
+		x.runJob(ctx, source, perms, j, st)
+	}
+}
+
+// runJob runs j in its own span, following the spans that queued it, and
+// logs its error, which the next notification or sweep retries.
+func (x *Indexer) runJob(
+	ctx context.Context,
+	source RepoSource,
+	perms PermSource,
+	j job,
+	st *jobState,
+) {
+	m := getMetrics()
+	kind := metric.WithAttributes(jobKindKey.String(j.kind.String()))
+	wait := time.Since(st.queued)
+	m.queueWait.Record(ctx, wait.Seconds(), kind)
+
+	opts := []trace.SpanStartOption{
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithLinks(st.links...),
+		trace.WithAttributes(append(j.attributes(),
+			attribute.Float64("habitat.search.queue_wait_s", wait.Seconds()),
+			attribute.Int("habitat.search.job.queued_by", len(st.links)),
+		)...),
+	}
+	if len(st.links) == 1 {
+		// Continue the trace of the one write that queued the job.
+		ctx = trace.ContextWithSpanContext(ctx, st.links[0].SpanContext)
+	} else {
+		opts = append(opts, trace.WithNewRoot())
+	}
+	ctx, span := tracer.Start(ctx, "search.indexer "+j.kind.String(), opts...)
+	defer span.End()
+
+	start := time.Now()
+	var err error
+	switch j.kind {
+	case jobIndexRepo:
+		err = x.indexRepo(ctx, source, perms, j.space, j.repo)
+	case jobRefreshAccess:
+		err = x.refreshAccess(ctx, source, perms, j.space)
+	case jobDeleteSpace:
+		err = x.index.DeleteSpace(ctx, j.space)
+	}
+	x.done()
+	m.jobDuration.Record(ctx, secondsSince(start),
+		metric.WithAttributes(jobKindKey.String(j.kind.String()), outcome(err)))
+	if err != nil {
+		telemetry.RecordError(span, err)
+		slog.ErrorContext(ctx, "search indexing failed",
+			"job", j.kind.String(), "space", j.space, "repo", j.repo,
+			"queue_wait", wait, "err", err)
 	}
 }
 
 // sweep queues every repo the index is behind on, and the deletion of every
-// indexed space that no longer exists.
+// indexed space that no longer exists. It runs in a trace of its own, which
+// the jobs it queues link to.
 func (x *Indexer) sweep(ctx context.Context, source RepoSource) {
+	ctx, span := tracer.Start(ctx, "search.indexer sweep", trace.WithNewRoot())
+	defer span.End()
 	if err := x.queueStale(ctx, source); err != nil {
+		telemetry.RecordError(span, err)
 		slog.ErrorContext(ctx, "search index sweep failed", "err", err)
 	}
 }
@@ -285,11 +398,19 @@ func (x *Indexer) queueStale(ctx context.Context, source RepoSource) error {
 	if err != nil {
 		return err
 	}
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Int("habitat.search.stale_repos", len(stale)),
+		attribute.Int("habitat.search.deleted_spaces", len(deleted)),
+	)
+	if len(stale) > 0 || len(deleted) > 0 {
+		slog.InfoContext(ctx, "search: sweep queued work the index is behind on",
+			"stale_repos", len(stale), "deleted_spaces", len(deleted))
+	}
 	for _, j := range stale {
-		x.enqueue(j)
+		x.enqueue(ctx, j)
 	}
 	for _, space := range deleted {
-		x.enqueue(job{kind: jobDeleteSpace, space: space})
+		x.enqueue(ctx, job{kind: jobDeleteSpace, space: space})
 	}
 	return nil
 }
@@ -437,7 +558,7 @@ func (x *Indexer) queueAccessRefresh(
 		return fmt.Errorf("list dependent spaces: %w", err)
 	}
 	for _, s := range append([]habitat_syntax.SpaceURI{space}, dependents...) {
-		x.enqueue(job{kind: jobRefreshAccess, space: s})
+		x.enqueue(ctx, job{kind: jobRefreshAccess, space: s})
 	}
 	return nil
 }
@@ -528,43 +649,92 @@ func (x *Indexer) apply(
 ) error {
 	var docs []Document
 	var deleted []habitat_syntax.SpaceRecordURI
+	// revs are the revisions written, by operation, for the lag metric.
+	revs := map[string][]string{}
 	for _, op := range ops {
 		if habitat_syntax.ReservedCollections.Contains(op.Collection) {
 			continue
 		}
 		uri := habitat_syntax.ConstructSpaceRecordURI(space, repo, op.Collection, op.Rkey)
-		if op.Value == nil {
-			// A tombstone: the record was deleted.
+		doc, ok := x.document(ctx, uri, op, access)
+		if !ok {
 			deleted = append(deleted, uri)
+			revs["delete"] = append(revs["delete"], op.Rev)
 			continue
 		}
-		text := ExtractText(op.Value)
-		// Blob content is part of the record's document, so it keeps the
-		// record's access and collection and hydrates as the record.
-		blobs := x.blobTexts(ctx, op.Value)
-		if text == "" && len(blobs) == 0 {
-			// Nothing to search or embed, and embeddings APIs reject empty
-			// input. Deleting also drops a version of the record that had text.
-			deleted = append(deleted, uri)
-			continue
-		}
-		docs = append(docs, Document{
-			URI:        uri,
-			Space:      space,
-			Repo:       repo,
-			Collection: op.Collection,
-			Rev:        syntax.TID(op.Rev),
-			Text:       text,
-			Blobs:      blobs,
-			// Collections will choose these through their search config; until
-			// then a record is about its owner, and dated by its own fields.
-			Users:  []syntax.DID{repo},
-			Date:   recordDate(op.Value),
-			Access: *access,
-		})
+		docs = append(docs, doc)
+		revs["put"] = append(revs["put"], op.Rev)
 	}
 	if err := x.index.Put(ctx, docs...); err != nil {
 		return err
 	}
-	return x.index.Delete(ctx, deleted...)
+	if err := x.index.Delete(ctx, deleted...); err != nil {
+		return err
+	}
+	m := getMetrics()
+	for op, rs := range revs {
+		set := metric.WithAttributes(operationKey.String(op))
+		m.records.Add(ctx, int64(len(rs)), set)
+		for _, rev := range rs {
+			// A record is searchable once its page is written, so its lag is
+			// from its revision's timestamp to now.
+			if tid, err := syntax.ParseTID(rev); err == nil {
+				m.indexLag.Record(ctx, secondsSince(tid.Time()), set)
+			}
+		}
+	}
+	slog.DebugContext(ctx, "search: indexed repo page",
+		"space", space, "repo", repo, "put", len(docs), "deleted", len(deleted),
+		"rev", ops[len(ops)-1].Rev)
+	return nil
+}
+
+// document returns the document of op, the record at uri, in its own span
+// so the record's indexing can be found by its URI. It reports false when
+// the record is to be deleted from the index instead.
+func (x *Indexer) document(
+	ctx context.Context,
+	uri habitat_syntax.SpaceRecordURI,
+	op spaces.Record,
+	access *Access,
+) (Document, bool) {
+	ctx, span := tracer.Start(ctx, "search.indexer document", trace.WithAttributes(
+		append(telemetry.Record(uri), telemetry.Rev(op.Rev))...,
+	))
+	defer span.End()
+	if op.Value == nil {
+		// A tombstone: the record was deleted.
+		span.SetAttributes(operationKey.String("delete"))
+		return Document{}, false
+	}
+	text := ExtractText(op.Value)
+	// Blob content is part of the record's document, so it keeps the
+	// record's access and collection and hydrates as the record.
+	blobs := x.blobTexts(ctx, op.Value)
+	span.SetAttributes(
+		attribute.Int("habitat.search.text_bytes", len(text)),
+		attribute.Int("habitat.search.blobs", len(blobs)),
+	)
+	if text == "" && len(blobs) == 0 {
+		// Nothing to search or embed, and embeddings APIs reject empty
+		// input. Deleting also drops a version of the record that had text.
+		span.SetAttributes(operationKey.String("delete"))
+		return Document{}, false
+	}
+	span.SetAttributes(operationKey.String("put"))
+	repo := uri.Repo()
+	return Document{
+		URI:        uri,
+		Space:      uri.SpaceURI(),
+		Repo:       repo,
+		Collection: op.Collection,
+		Rev:        syntax.TID(op.Rev),
+		Text:       text,
+		Blobs:      blobs,
+		// Collections will choose these through their search config; until
+		// then a record is about its owner, and dated by its own fields.
+		Users:  []syntax.DID{repo},
+		Date:   recordDate(op.Value),
+		Access: *access,
+	}, true
 }

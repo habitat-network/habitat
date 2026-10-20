@@ -3,16 +3,20 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os/signal"
 	"syscall"
 
 	"github.com/urfave/cli/v3"
+	"go.opentelemetry.io/otel"
 	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/cmd/pear/migrations"
+	"github.com/habitat-network/habitat/internal/log"
 	"github.com/habitat-network/habitat/internal/perms"
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 func commands() []*cli.Command {
@@ -74,9 +78,21 @@ type taskEnv struct {
 func taskAction(
 	fn func(ctx context.Context, cmd *cli.Command, env taskEnv) error,
 ) cli.ActionFunc {
-	return func(ctx context.Context, cmd *cli.Command) error {
+	return func(ctx context.Context, cmd *cli.Command) (err error) {
 		ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
+
+		// Tasks report traces, metrics and logs like the server, so a task
+		// such as a reindex can be followed while it runs.
+		otelClose, err := telemetry.SetupOpenTelemetry(ctx, "pear")
+		defer func() { _ = otelClose(context.Background()) }()
+		if err != nil {
+			return fmt.Errorf("setup open telemetry for metric/trace/log collection: %w", err)
+		}
+		// Operators watch a task run, so it always logs to stdout too.
+		slog.SetDefault(log.New(log.WithStdout(true)))
+		ctx, span := otel.Tracer("pear/task").Start(ctx, "task "+cmd.Name)
+		defer func() { telemetry.End(span, err) }()
 
 		app, err := setupComponents(ctx, cmd)
 		if err != nil {
