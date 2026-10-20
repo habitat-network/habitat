@@ -853,13 +853,22 @@ func (s *store) GetRecord(
 	ctx, span := tracer.Start(ctx, "spaces.GetRecord", trace.WithAttributes(
 		telemetry.Record(habitat_syntax.ConstructSpaceRecordURI(uri, repo, collection, rkey))...,
 	))
-	defer func() { telemetry.End(span, err) }()
+	defer func() {
+		if errors.Is(err, ErrRecordNotFound) {
+			span.End()
+			return
+		}
+		telemetry.End(span, err)
+	}()
 	var row spaceRecord
 	err = s.db.WithContext(ctx).
 		Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
 			uri, repo, collection, rkey).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// A missing record is an expected outcome (e.g. putRecord checking
+		// whether one exists), not a failure, so the span is not marked errored.
+		span.SetAttributes(attribute.Bool("habitat.record.found", false))
 		return nil, ErrRecordNotFound
 	} else if err != nil {
 		return nil, err

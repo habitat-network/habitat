@@ -351,12 +351,9 @@ func (x *Indexer) runJob(
 			attribute.Int("habitat.search.job.queued_by", len(st.links)),
 		)...),
 	}
-	if len(st.links) == 1 {
-		// Continue the trace of the one write that queued the job.
-		ctx = trace.ContextWithSpanContext(ctx, st.links[0].SpanContext)
-	} else {
-		opts = append(opts, trace.WithNewRoot())
-	}
+	// Indexing runs after the write's response, so it gets a trace of its own
+	// and only links back to the writes that queued it.
+	opts = append(opts, trace.WithNewRoot())
 	ctx, span := tracer.Start(ctx, "search.indexer "+j.kind.String(), opts...)
 	defer span.End()
 

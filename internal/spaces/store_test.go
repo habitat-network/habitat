@@ -14,6 +14,10 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -662,6 +666,33 @@ func TestGetRecord_NotFound(t *testing.T) {
 	coll := syntax.NSID("network.habitat.note")
 	_, err = s.GetRecord(t.Context(), uri, owner, coll, "nonexistent")
 	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+}
+
+// A missing record is an expected outcome, so its span is not marked errored.
+func TestGetRecord_NotFoundSpanNotErrored(t *testing.T) {
+	rec := tracetest.NewSpanRecorder()
+	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec)))
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "test")
+	require.NoError(t, err)
+	_, err = s.GetRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"nonexistent",
+	)
+	require.ErrorIs(t, err, spaces.ErrRecordNotFound)
+
+	var found bool
+	for _, span := range rec.Ended() {
+		if span.Name() == "spaces.GetRecord" {
+			found = true
+			require.NotEqual(t, codes.Error, span.Status().Code)
+		}
+	}
+	require.True(t, found)
 }
 
 func TestGetRecords(t *testing.T) {
