@@ -484,6 +484,11 @@ func TestIndexerIndexesBlobContent(t *testing.T) {
 		upload("text/html", htmlBody),
 		upload("application/json", `{"title":"json words"}`),
 		upload("application/pdf", minimalPDF("pdf words")),
+		upload("text/csv", "name,csvword"),
+		upload("application/yaml", "key: yamlword"),
+		upload("application/xml", "<a><b>xmlword</b></a>"),
+		upload("text/x-python", "# pyword"),
+		upload("application/ld+json", `{"name":"ldword"}`),
 		upload("image/png", "not indexed"),
 	)
 	it.drain(ctx)
@@ -493,6 +498,9 @@ func TestIndexerIndexesBlobContent(t *testing.T) {
 	require.Contains(t, text, "html words")
 	require.Contains(t, text, "json words")
 	require.Contains(t, text, "pdf words")
+	for _, w := range []string{"csvword", "yamlword", "xmlword", "pyword", "ldword"} {
+		require.Contains(t, text, w)
+	}
 	require.NotContains(t, text, "nope")
 	require.NotContains(t, text, ".x{}")
 	require.NotContains(t, text, "not indexed")
