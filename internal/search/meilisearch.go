@@ -17,6 +17,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/meilisearch/meilisearch-go"
 
+	"github.com/habitat-network/habitat/internal/httpx"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -46,7 +47,8 @@ const (
 // projection, which a reindex replaces. The indexer retries them, so writes
 // resume once the reindex swaps in a current index.
 var ErrLegacyIndex = errors.New(
-	"search index predates the current projection; run `pear run reindex`")
+	"search index predates the current projection; run `pear run reindex`",
+)
 
 // Attributes of the fixed document schema. Every collection maps its fields
 // onto these, so a change to what a collection indexes rewrites documents,
@@ -249,7 +251,11 @@ func NewMeilisearch(
 	host, apiKey, uid string,
 	opts ...MeilisearchOption,
 ) (*Meilisearch, error) {
-	client := meilisearch.New(host, meilisearch.WithAPIKey(apiKey))
+	client := meilisearch.New(
+		host,
+		meilisearch.WithAPIKey(apiKey),
+		meilisearch.WithCustomClient(httpx.NewClient()),
+	)
 	return createMeilisearch(ctx, client, uid, opts...)
 }
 
