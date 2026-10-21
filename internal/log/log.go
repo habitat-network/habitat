@@ -8,7 +8,7 @@ import (
 
 	"github.com/lmittmann/tint"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
-	"go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -43,7 +43,7 @@ func New(
 	var logHandlers []slog.Handler
 	logHandlers = append(logHandlers, otelslog.NewHandler(
 		"habitat",
-		otelslog.WithLoggerProvider(global.GetLoggerProvider()),
+		otelslog.WithLoggerProvider(otel.GetLoggerProvider()),
 	))
 	if cfg.stdout {
 		// The OTel handler links records to their span itself; stdout gets
