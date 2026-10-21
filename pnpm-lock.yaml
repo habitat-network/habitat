@@ -431,7 +431,7 @@ importers:
         version: 0.45.4(@cloudflare/workers-types@5.20261008.1)
       effect:
         specifier: ^4.0.2
-        version: 4.0.4
+        version: 4.0.5
       internal:
         specifier: workspace:*
         version: link:../../internal
@@ -558,7 +558,7 @@ importers:
         version: 0.45.4(@cloudflare/workers-types@5.20261008.1)
       effect:
         specifier: ^4.0.2
-        version: 4.0.4
+        version: 4.0.5
       internal:
         specifier: workspace:*
         version: link:../../internal
@@ -770,7 +770,7 @@ importers:
         version: 0.45.4(@cloudflare/workers-types@5.20261008.1)
       effect:
         specifier: ^4.0.2
-        version: 4.0.4
+        version: 4.0.5
       lucide-react:
         specifier: 'catalog:'
         version: 1.34.0(react@19.2.8)
@@ -798,7 +798,7 @@ importers:
     devDependencies:
       '@effect/vitest':
         specifier: ^4.0.2
-        version: 4.0.5(effect@4.0.4)(vitest@5.0.4(@types/node@22.20.5)(jsdom@30.0.1(@noble/hashes@2.3.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))
+        version: 4.0.5(effect@4.0.5)(vitest@5.0.4(@types/node@22.20.5)(jsdom@30.0.1(@noble/hashes@2.3.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))
       '@tailwindcss/typography':
         specifier: 'catalog:'
         version: 0.5.20(tailwindcss@4.3.3)
@@ -6803,8 +6803,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.0.4:
-    resolution: {integrity: sha512-Sr50OeVSC3M5UkoUYUhFf3EULryhGaZZUf6OzDHTvaznOw7HRlxOKdF3/4nvQXHL22StOyMG3Cvo8Bt7xUp+Ng==}
+  effect@4.0.5:
+    resolution: {integrity: sha512-BY4/28NlpOd99yzmV741xbVGmp+1U7tks4oB7F/Png64bTa5tm5eCA6W0RiXsnuLDDoJpjfVSo4Dnq4BZb/89Q==}
 
   ejs@3.1.10:
     resolution: {integrity: sha512-UeJmFfOrAQS8OJWPZ4qtgHyWExa088/MtK5UEyoJGFH67cDEXkZSviOiKRCZ4Xij0zxI3JECgYs3oKx+AizQBA==}
@@ -14096,9 +14096,9 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@effect/vitest@4.0.5(effect@4.0.4)(vitest@5.0.4(@types/node@22.20.5)(jsdom@30.0.1(@noble/hashes@2.3.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))':
+  '@effect/vitest@4.0.5(effect@4.0.5)(vitest@5.0.4(@types/node@22.20.5)(jsdom@30.0.1(@noble/hashes@2.3.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0)))':
     dependencies:
-      effect: 4.0.4
+      effect: 4.0.5
       vitest: 5.0.4(@types/node@22.20.5)(jsdom@30.0.1(@noble/hashes@2.3.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.2.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.101.3)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.0))
 
   '@emnapi/core@1.11.2':
@@ -18014,7 +18014,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.0.4: {}
+  effect@4.0.5: {}
 
   ejs@3.1.10:
     dependencies:
