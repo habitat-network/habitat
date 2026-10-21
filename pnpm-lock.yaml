@@ -689,7 +689,7 @@ importers:
     devDependencies:
       '@atproto-labs/identity-resolver':
         specifier: ^0.4.5
-        version: 0.4.10
+        version: 0.4.11
       msw:
         specifier: ^2.15.0
         version: 2.15.0(@types/node@22.20.5)(typescript@7.0.2)
@@ -704,7 +704,7 @@ importers:
     dependencies:
       '@atproto-labs/identity-resolver':
         specifier: ^0.4.5
-        version: 0.4.10
+        version: 0.4.11
       '@atproto/api':
         specifier: 'catalog:'
         version: 0.0.0-spaces-alpha-20261001173819
@@ -962,12 +962,16 @@ packages:
     resolution: {integrity: sha512-b1fkGd0T1gKz5gi+qpzpDJRsMgXIZ5i6qG7I8EvYUucS9eiaecsSfVvD/T8JxX+GJMpwq8WRu5rvDgj+m48V0Q==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/did-resolver@0.3.10':
-    resolution: {integrity: sha512-SPWOcJG/rsqrp2XQZQe8ctC9Y604mivZfXTrCsXbo7dXeAukYSgljPPa/7yWAlTvCbqUSNKScVEWpdCyel/nFw==}
+  '@atproto-labs/did-resolver@0.3.11':
+    resolution: {integrity: sha512-CeAC6VY3xaXQ8CaOXLz4EOopSvfcQBcuJvX3J5ew2nbf+BM0nes45ZvxUieP5ZlLPXbJborwJh5zDeJcYpwCFQ==}
     engines: {node: '>=22'}
 
   '@atproto-labs/fetch@0.3.6':
     resolution: {integrity: sha512-ro/J/cnqIp4bnSzDl8N3SkruvQcE3Pze+1H70mKdFfyFcdhPr+7O4lggl4VCbhI84Yqgz47c0xC6F/Yl39SxDA==}
+    engines: {node: '>=22'}
+
+  '@atproto-labs/fetch@0.4.0':
+    resolution: {integrity: sha512-9HEcZuCU4nWAzV3XZ7nwbDPdV8tbhICzyYeyE5SPHTPuuKS6C3i5WOdwGP1diCCUaYF3Vadw5ArVlQPtXnn73w==}
     engines: {node: '>=22'}
 
   '@atproto-labs/handle-resolver@0.0.0-spaces-alpha-20261001173819':
@@ -990,8 +994,8 @@ packages:
     resolution: {integrity: sha512-cqGjG8GAVEIzcHyHPyd3DMRCVHUjpVLnu88s6gE8U5nVcAL+hPRRuXHOPSUcbOYjW8EQ6UI8ozYLQ0E7wyGeWg==}
     engines: {node: '>=22'}
 
-  '@atproto-labs/identity-resolver@0.4.10':
-    resolution: {integrity: sha512-deKu7csOsM8lnIRnLa97te6ODIUx0Lm3Srxid/Ix+UYQqFKA0sIpfYmHZduAK7B+aTqiPcHjoA9Y/qpJyzgnMw==}
+  '@atproto-labs/identity-resolver@0.4.11':
+    resolution: {integrity: sha512-6k5hZ05D5HmFu6MDy2/z8z42UxZy6xw3JbvbKxDp5ChSZ/9L2Hv1MeTruruGKK2ATP6sYxx7xcsGaiTmTIHYFw==}
     engines: {node: '>=22'}
 
   '@atproto-labs/pipe@0.2.4':
@@ -11504,9 +11508,9 @@ snapshots:
       '@atproto/did': 0.0.0-spaces-alpha-20261015143509
       zod: 3.25.76
 
-  '@atproto-labs/did-resolver@0.3.10':
+  '@atproto-labs/did-resolver@0.3.11':
     dependencies:
-      '@atproto-labs/fetch': 0.3.6
+      '@atproto-labs/fetch': 0.4.0
       '@atproto-labs/pipe': 0.2.4
       '@atproto-labs/simple-store': 0.5.1
       '@atproto-labs/simple-store-memory': 0.2.6
@@ -11514,6 +11518,10 @@ snapshots:
       zod: 3.25.76
 
   '@atproto-labs/fetch@0.3.6':
+    dependencies:
+      '@atproto-labs/pipe': 0.2.4
+
+  '@atproto-labs/fetch@0.4.0':
     dependencies:
       '@atproto-labs/pipe': 0.2.4
 
@@ -11548,9 +11556,9 @@ snapshots:
       '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20261015143509
       '@atproto-labs/handle-resolver': 0.0.0-spaces-alpha-20261015143509
 
-  '@atproto-labs/identity-resolver@0.4.10':
+  '@atproto-labs/identity-resolver@0.4.11':
     dependencies:
-      '@atproto-labs/did-resolver': 0.3.10
+      '@atproto-labs/did-resolver': 0.3.11
       '@atproto-labs/handle-resolver': 0.4.10
 
   '@atproto-labs/pipe@0.2.4': {}
@@ -11705,7 +11713,7 @@ snapshots:
 
   '@atproto/lex-resolver@0.0.0-spaces-alpha-20261001173819':
     dependencies:
-      '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20261001173819
+      '@atproto-labs/did-resolver': 0.0.0-spaces-alpha-20261015143509
       '@atproto/crypto': 0.0.0-spaces-alpha-20261001173819
       '@atproto/lex-client': 0.0.0-spaces-alpha-20261001173819
       '@atproto/lex-data': 0.0.0-spaces-alpha-20261001173819
