@@ -37,6 +37,7 @@
     "drizzle-orm": "0.45.4",
     "effect": "^4.0.2",
     "internal": "workspace:*",
+    "iron-session": "^9.0.1",
     "lib0": "^0.2.117",
     "lucide-react": "catalog:",
     "posthog-js": "^1.418.10",
