@@ -1,4 +1,5 @@
-import { useSession } from "@tanstack/react-start/server";
+import { getCookie, setCookie } from "@tanstack/react-start/server";
+import { getIronSession } from "iron-session";
 
 export interface DropSessionData {
   // The signed-in member. Their OAuth session lives in D1 (oauth_sessions),
@@ -19,15 +20,36 @@ export async function useAppSession() {
       "DROP_SESSION_SECRET is not set. Set it in .dev.vars (local) or as a wrangler secret before using Drop sessions.",
     );
   }
-  return useSession<DropSessionData>({
-    name: "drop_session",
-    password: secret,
-    maxAge: SESSION_MAX_AGE_SECONDS,
-    cookie: {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: SESSION_MAX_AGE_SECONDS,
+  // Per the TanStack Start auth guide, sessions are encrypted cookies managed
+  // by iron-session, wired to Start's getCookie/setCookie helpers.
+  const session = await getIronSession<DropSessionData>(
+    { read: getCookie, write: setCookie },
+    {
+      cookieName: "drop_session",
+      password: secret,
+      ttl: SESSION_MAX_AGE_SECONDS,
+      cookieOptions: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      },
     },
-  });
+  );
+  // Keep the small { data, update, clear } surface callers already use.
+  return {
+    get data(): DropSessionData {
+      return { did: session.did, currentOrg: session.currentOrg };
+    },
+    async update(patch: Partial<DropSessionData>) {
+      for (const [key, value] of Object.entries(patch)) {
+        // undefined means "unset", as with the old built-in helper.
+        (session as Record<string, unknown>)[key] = value;
+      }
+      await session.save();
+    },
+    async clear() {
+      session.destroy();
+    },
+  };
 }
