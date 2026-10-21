@@ -50,6 +50,6 @@
     "vite": "catalog:",
     "vite-plugin-generate-file": "^0.3.1",
     "vitest": "catalog:",
-    "wrangler": "^4.125.0"
+    "wrangler": "^4.151.0"
   }
 }
