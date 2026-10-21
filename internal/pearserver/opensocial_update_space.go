@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.opentelemetry.io/otel/trace"
+
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 // UpdateOpensocialSpace implements community.opensocial.updateSpace: replaces
@@ -34,6 +37,7 @@ func (p *PearServer) UpdateOpensocialSpace(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	trace.SpanFromContext(ctx).SetAttributes(telemetry.Space(spaceURI))
 	if !p.requireMember(ctx, w, spaceURI.SpaceOwner(), credInfo.Subject) {
 		return
 	}

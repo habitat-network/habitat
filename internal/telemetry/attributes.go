@@ -39,6 +39,11 @@ func EndUser(did syntax.DID) attribute.KeyValue {
 	return semconv.EnduserID(did.String())
 }
 
+// Org is the attribute of an org DID.
+func Org(did syntax.DID) attribute.KeyValue {
+	return OrgKey.String(did.String())
+}
+
 // Space is the attribute of a space URI.
 func Space(uri habitat_syntax.SpaceURI) attribute.KeyValue {
 	return SpaceURIKey.String(uri.String())

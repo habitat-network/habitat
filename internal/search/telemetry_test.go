@@ -73,7 +73,8 @@ func TestIndexerTracesWritesToTheirIndexing(t *testing.T) {
 	space, err := it.store.CreateSpace(t.Context(), testOrg, testType, "traced")
 	require.NoError(t, err)
 
-	// A job queued by one write continues the write's trace.
+	// A job queued by one write runs in a trace of its own, linked to the
+	// write, since indexing happens after the request has been answered.
 	ctx, request := testTracer.Start(t.Context(), "request")
 	putIn(ctx, t, it, space, "k1")
 	request.End()
@@ -84,11 +85,17 @@ func TestIndexerTracesWritesToTheirIndexing(t *testing.T) {
 	require.Len(t, writes, 1)
 	write := writes[0].SpanContext()
 	jobs := endedSpans(rec, "search.indexer index_repo", func(s sdktrace.ReadOnlySpan) bool {
-		return s.SpanContext().TraceID() == write.TraceID()
+		for _, l := range s.Links() {
+			if l.SpanContext.SpanID() == write.SpanID() {
+				return true
+			}
+		}
+		return false
 	})
 	require.Len(t, jobs, 1)
 	job := jobs[0]
-	require.Equal(t, write.SpanID(), job.Parent().SpanID())
+	require.False(t, job.Parent().IsValid())
+	require.NotEqual(t, write.TraceID(), job.SpanContext().TraceID())
 	require.Equal(t, trace.SpanKindConsumer, job.SpanKind())
 	docs := endedSpans(rec, "search.indexer document", aboutRecord(uri))
 	require.Len(t, docs, 1)

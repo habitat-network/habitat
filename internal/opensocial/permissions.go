@@ -10,9 +10,12 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
+	"go.opentelemetry.io/otel/trace"
+
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 const (
@@ -36,7 +39,11 @@ var (
 func (s *Store) GetPermissions(
 	ctx context.Context,
 	orgDID syntax.DID,
-) (opensocial_api.CommunityOpensocialPermissions, error) {
+) (_ opensocial_api.CommunityOpensocialPermissions, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.GetPermissions", trace.WithAttributes(
+		telemetry.Org(orgDID),
+	))
+	defer func() { telemetry.End(span, err) }()
 	permissions, _, err := s.getPermissions(ctx, orgDID)
 	return permissions, err
 }
@@ -98,7 +105,11 @@ func (s *Store) PutPermissions(
 	orgDID syntax.DID,
 	bindings []opensocial_api.CommunityOpensocialPermissionsActionBinding,
 	assignable []opensocial_api.CommunityOpensocialPermissionsAssignableBinding,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.PutPermissions", trace.WithAttributes(
+		telemetry.Org(orgDID),
+	))
+	defer func() { telemetry.End(span, err) }()
 	recordBytes, err := spaces.MarshalRecord(opensocial_api.CommunityOpensocialPermissions{
 		Bindings:   bindings,
 		Assignable: assignable,
@@ -132,7 +143,14 @@ func (s *Store) CheckAction(
 	orgDID syntax.DID,
 	user syntax.DID,
 	action Action,
-) (bool, error) {
+) (ok bool, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.CheckAction", trace.WithAttributes(
+		telemetry.Org(orgDID), memberAttr(user), actionKey.String(string(action)),
+	))
+	defer func() {
+		span.SetAttributes(allowedKey.Bool(ok))
+		telemetry.End(span, err)
+	}()
 	userRoles, err := s.GetUserRoles(ctx, orgDID, user)
 	if err != nil {
 		return false, fmt.Errorf("get user roles: %w", err)
@@ -169,7 +187,14 @@ func (s *Store) AssignableRoles(
 	ctx context.Context,
 	orgDID syntax.DID,
 	user syntax.DID,
-) ([]string, error) {
+) (roles []string, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.AssignableRoles", trace.WithAttributes(
+		telemetry.Org(orgDID), memberAttr(user),
+	))
+	defer func() {
+		span.SetAttributes(rolesKey.StringSlice(roles))
+		telemetry.End(span, err)
+	}()
 	userRoles, err := s.GetUserRoles(ctx, orgDID, user)
 	if err != nil {
 		return nil, fmt.Errorf("get user roles: %w", err)
@@ -209,7 +234,14 @@ func (s *Store) CanAssignRoles(
 	user syntax.DID,
 	currentRoles []string,
 	targetRoles []string,
-) (bool, error) {
+) (ok bool, err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.CanAssignRoles", trace.WithAttributes(
+		telemetry.Org(orgDID), memberAttr(user), rolesKey.StringSlice(targetRoles),
+	))
+	defer func() {
+		span.SetAttributes(allowedKey.Bool(ok))
+		telemetry.End(span, err)
+	}()
 	assignable, err := s.AssignableRoles(ctx, orgDID, user)
 	if err != nil {
 		return false, fmt.Errorf("assignable roles: %w", err)
@@ -234,7 +266,11 @@ func (s *Store) PutRole(
 	rkey syntax.RecordKey,
 	name string,
 	description string,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.PutRole", trace.WithAttributes(
+		telemetry.Org(orgDID), roleKey.String(rkey.String()),
+	))
+	defer func() { telemetry.End(span, err) }()
 	role := opensocial_api.CommunityOpensocialRole{
 		Name:      name,
 		UpdatedAt: time.Now().Format(time.RFC3339),
@@ -265,7 +301,11 @@ func (s *Store) DeleteRole(
 	ctx context.Context,
 	orgDID syntax.DID,
 	rkey syntax.RecordKey,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.DeleteRole", trace.WithAttributes(
+		telemetry.Org(orgDID), roleKey.String(rkey.String()),
+	))
+	defer func() { telemetry.End(span, err) }()
 	if string(rkey) == AdminRoleRkey || string(rkey) == MemberRoleRkey {
 		return ErrCannotDeleteBuiltinRole
 	}
@@ -291,7 +331,11 @@ func (s *Store) EjectMember(
 	ctx context.Context,
 	orgDID syntax.DID,
 	member syntax.DID,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "opensocial.EjectMember", trace.WithAttributes(
+		telemetry.Org(orgDID), memberAttr(member),
+	))
+	defer func() { telemetry.End(span, err) }()
 	membersSpace := habitat_syntax.ConstructSpaceURI(orgDID, MembersSpaceType, "self")
 	if _, err := s.spacesStore.GetRecord(
 		ctx, membersSpace, orgDID, MembershipCollection, syntax.RecordKey(member),
