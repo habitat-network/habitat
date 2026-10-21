@@ -21,6 +21,7 @@ import (
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/spacecommit"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 var tracer = otel.Tracer("spaces/store")
@@ -426,13 +427,20 @@ func (s *store) CreateSpace(
 	authority syntax.DID,
 	spaceType syntax.NSID,
 	skey habitat_syntax.SpaceKey,
-) (habitat_syntax.SpaceURI, error) {
+) (_ habitat_syntax.SpaceURI, err error) {
+	ctx, span := tracer.Start(ctx, "spaces.CreateSpace", trace.WithAttributes(
+		attribute.String("habitat.space.owner", authority.String()),
+		attribute.String("habitat.space.type", spaceType.String()),
+	))
+	defer func() { telemetry.End(span, err) }()
 	if skey == "" {
 		// TODO: should this / does this need to be a TID?
 		skey = habitat_syntax.NewSkey(s.clock.Next())
 	}
 
-	err := s.db.Create(&space{
+	uri := habitat_syntax.ConstructSpaceURI(authority, spaceType, skey)
+	span.SetAttributes(telemetry.Space(uri))
+	err = s.db.WithContext(ctx).Create(&space{
 		Owner: authority,
 		Type:  spaceType,
 		Skey:  skey,
@@ -441,7 +449,7 @@ func (s *store) CreateSpace(
 		return "", ErrSpaceAlreadyExists
 	}
 
-	return habitat_syntax.ConstructSpaceURI(authority, spaceType, skey), nil
+	return uri, nil
 }
 
 func (s *store) ListSpaces(
@@ -681,7 +689,13 @@ func (s *store) RegisterRemoteWrite(
 	repo syntax.DID,
 	rev syntax.TID,
 	hash []byte,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "spaces.RegisterRemoteWrite", trace.WithAttributes(
+		telemetry.Space(uri),
+		telemetry.Repo(repo),
+		telemetry.Rev(rev.String()),
+	))
+	defer func() { telemetry.End(span, err) }()
 	ok, err := s.CheckSpaceExists(ctx, uri)
 	if err != nil {
 		return fmt.Errorf("failed to get space: %w", err)
@@ -719,20 +733,20 @@ func (s *store) PutRecord(
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 	value MarshaledRecord,
-) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
-	ctx, span := tracer.Start(ctx, "PutRecord", trace.WithAttributes(
-		attribute.String("space", spaceURI.String()),
-		attribute.String("repo", repo.String()),
-		attribute.String("collection", collection.String()),
-		attribute.String("rkey", rkey.String()),
+) (_ habitat_syntax.SpaceRecordURI, _ *cid.Cid, err error) {
+	ctx, span := tracer.Start(ctx, "spaces.PutRecord", trace.WithAttributes(
+		telemetry.Space(spaceURI),
+		telemetry.Repo(repo),
+		telemetry.Collection(collection),
 	))
+	defer func() { telemetry.End(span, err) }()
 	ok, err := s.CheckSpaceExists(ctx, spaceURI)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to get space: %w", err)
 	} else if !ok {
 		return "", nil, ErrSpaceNotFound
 	}
-	span.SetAttributes(attribute.Int("cbor_bytes", len(value)))
+	span.SetAttributes(attribute.Int("habitat.record.cbor_bytes", len(value)))
 	// value is already validated and CBOR-encoded by [MarshalRecord]; decode
 	// it back to structured atdata types so the blobs it references can be
 	// extracted for the ref table below.
@@ -817,6 +831,11 @@ func (s *store) PutRecord(
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
+	// The rkey is only known here when the caller left it to the store.
+	span.SetAttributes(append(telemetry.Record(recordURI),
+		telemetry.Rev(newRev.String()),
+		attribute.Bool("habitat.record.unchanged", skipped),
+	)...)
 	if !skipped {
 		// Best-effort: notify registered syncers that this repo advanced.
 		s.notifier.NotifyWrite(ctx, spaceURI, repo, newRev, repoHash, spaceRev, prevSpaceRev)
@@ -830,13 +849,26 @@ func (s *store) GetRecord(
 	repo syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
-) (*Record, error) {
+) (_ *Record, err error) {
+	ctx, span := tracer.Start(ctx, "spaces.GetRecord", trace.WithAttributes(
+		telemetry.Record(habitat_syntax.ConstructSpaceRecordURI(uri, repo, collection, rkey))...,
+	))
+	defer func() {
+		if errors.Is(err, ErrRecordNotFound) {
+			span.End()
+			return
+		}
+		telemetry.End(span, err)
+	}()
 	var row spaceRecord
-	err := s.db.WithContext(ctx).
+	err = s.db.WithContext(ctx).
 		Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
 			uri, repo, collection, rkey).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// A missing record is an expected outcome (e.g. putRecord checking
+		// whether one exists), not a failure, so the span is not marked errored.
+		span.SetAttributes(attribute.Bool("habitat.record.found", false))
 		return nil, ErrRecordNotFound
 	} else if err != nil {
 		return nil, err
@@ -860,10 +892,14 @@ func (s *store) GetRecord(
 func (s *store) GetRecords(
 	ctx context.Context,
 	uris []habitat_syntax.SpaceRecordURI,
-) ([]Record, error) {
+) (_ []Record, err error) {
 	if len(uris) == 0 {
 		return nil, nil
 	}
+	ctx, span := tracer.Start(ctx, "spaces.GetRecords", trace.WithAttributes(
+		telemetry.RecordURIs(uris),
+	))
+	defer func() { telemetry.End(span, err) }()
 
 	conds := make([]string, len(uris))
 	args := make([]any, 0, len(uris)*4)
@@ -877,6 +913,7 @@ func (s *store) GetRecords(
 	if err := s.db.WithContext(ctx).Where(where, args...).Find(&rows).Error; err != nil {
 		return nil, err
 	}
+	span.SetAttributes(attribute.Int("habitat.records.found", len(rows)))
 
 	records := make([]Record, 0, len(rows))
 	for _, row := range rows {
@@ -914,7 +951,15 @@ func (s *store) ListRecords(
 	uri habitat_syntax.SpaceURI,
 	repo syntax.DID,
 	collection *syntax.NSID,
-) ([]Record, error) {
+) (_ []Record, err error) {
+	ctx, span := tracer.Start(ctx, "spaces.ListRecords", trace.WithAttributes(
+		telemetry.Space(uri),
+		telemetry.Repo(repo),
+	))
+	defer func() { telemetry.End(span, err) }()
+	if collection != nil {
+		span.SetAttributes(telemetry.Collection(*collection))
+	}
 	query := s.db.WithContext(ctx).
 		Where("space = ?", uri).
 		Where("repo = ?", repo)
@@ -927,6 +972,7 @@ func (s *store) ListRecords(
 	if err := query.Order("rkey ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
+	span.SetAttributes(attribute.Int("habitat.records.found", len(rows)))
 
 	records := make([]Record, 0, len(rows))
 	for _, row := range rows {
@@ -964,6 +1010,11 @@ func (s *store) RepoSnapshot(
 	uri habitat_syntax.SpaceURI,
 	repo syntax.DID,
 ) (commit *spacecommit.SignedCommit, blocks []recordBlock, err error) {
+	ctx, span := tracer.Start(ctx, "spaces.RepoSnapshot", trace.WithAttributes(
+		telemetry.Space(uri),
+		telemetry.Repo(repo),
+	))
+	defer func() { telemetry.End(span, err) }()
 	var revision string
 	var hash []byte
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -1022,9 +1073,13 @@ func (s *store) RepoSnapshot(
 	return &signed, blocks, nil
 }
 
-func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
+func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (err error) {
+	ctx, span := tracer.Start(ctx, "spaces.DeleteSpace", trace.WithAttributes(
+		telemetry.Space(uri),
+	))
+	defer func() { telemetry.End(span, err) }()
 	// everything after this point is idempotent — use a transaction
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Drop the records for this space
 		if err := tx.
 			Where("space = ?", uri).
@@ -1075,6 +1130,13 @@ func (s *store) ListRepoOps(
 	since string,
 	limit int,
 ) (records []Record, commit *spacecommit.SignedCommit, err error) {
+	ctx, span := tracer.Start(ctx, "spaces.ListRepoOps", trace.WithAttributes(
+		telemetry.Space(uri),
+		telemetry.Repo(repo),
+		attribute.String("habitat.since", since),
+		attribute.Int("habitat.limit", limit),
+	))
+	defer func() { telemetry.End(span, err) }()
 	if limit <= 0 {
 		limit = 100
 	}
@@ -1105,6 +1167,10 @@ func (s *store) ListRepoOps(
 	if err != nil {
 		return nil, nil, fmt.Errorf("list repo ops: %w", err)
 	}
+	span.SetAttributes(
+		attribute.Int("habitat.ops", len(rows)),
+		attribute.String("habitat.head_rev", headRev.String()),
+	)
 
 	records = make([]Record, len(rows))
 	for i, row := range rows {
@@ -1161,7 +1227,9 @@ func (s *store) RepoHead(
 }
 
 // ListRepoHeads implements [Store].
-func (s *store) ListRepoHeads(ctx context.Context) ([]RepoHead, error) {
+func (s *store) ListRepoHeads(ctx context.Context) (_ []RepoHead, err error) {
+	ctx, span := tracer.Start(ctx, "spaces.ListRepoHeads")
+	defer func() { telemetry.End(span, err) }()
 	var heads []RepoHead
 	// Unscoped, so deleted records' tombstones count towards the head.
 	if err := s.db.WithContext(ctx).Unscoped().Model(&spaceRecord{}).
@@ -1170,6 +1238,7 @@ func (s *store) ListRepoHeads(ctx context.Context) ([]RepoHead, error) {
 		Scan(&heads).Error; err != nil {
 		return nil, fmt.Errorf("list repo heads: %w", err)
 	}
+	span.SetAttributes(attribute.Int("habitat.repos", len(heads)))
 	return heads, nil
 }
 
@@ -1199,11 +1268,16 @@ func (s *store) DeleteRecord(
 	repo syntax.DID,
 	collection syntax.NSID,
 	rkey string,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "spaces.DeleteRecord", trace.WithAttributes(
+		telemetry.Record(habitat_syntax.ConstructSpaceRecordURI(
+			uri, repo, collection, syntax.RecordKey(rkey)))...,
+	))
+	defer func() { telemetry.End(span, err) }()
 	var rev syntax.TID
 	var hash []byte
 	var prevSpaceRev, spaceRev syntax.TID
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRepo(tx, uri, repo); err != nil {
 			return err
 		}
@@ -1260,7 +1334,9 @@ func (s *store) DeleteRecord(
 	if err != nil {
 		return err
 	}
+	span.SetAttributes(attribute.Bool("habitat.record.found", rev != ""))
 	if rev != "" {
+		span.SetAttributes(telemetry.Rev(rev.String()))
 		// Best-effort: notify registered syncers that this repo advanced.
 		s.notifier.NotifyWrite(ctx, uri, repo, rev, hash, spaceRev, prevSpaceRev)
 	}
@@ -1360,13 +1436,13 @@ func (s *store) ApplyWrites(
 	spaceURI habitat_syntax.SpaceURI,
 	repo syntax.DID,
 	writes []Write,
-) ([]WriteResult, error) {
-	ctx, span := tracer.Start(ctx, "ApplyWrites", trace.WithAttributes(
-		attribute.String("space", spaceURI.String()),
-		attribute.String("repo", repo.String()),
-		attribute.Int("writes", len(writes)),
+) (_ []WriteResult, err error) {
+	ctx, span := tracer.Start(ctx, "spaces.ApplyWrites", trace.WithAttributes(
+		telemetry.Space(spaceURI),
+		telemetry.Repo(repo),
+		attribute.Int("habitat.writes", len(writes)),
 	))
-	defer span.End()
+	defer func() { telemetry.End(span, err) }()
 	ok, err := s.CheckSpaceExists(ctx, spaceURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get space: %w", err)
@@ -1494,7 +1570,18 @@ func (s *store) ApplyWrites(
 	if err != nil {
 		return nil, fmt.Errorf("apply writes: %w", err)
 	}
+	var uris []habitat_syntax.SpaceRecordURI
+	for _, r := range results {
+		if r.URI != "" {
+			uris = append(uris, r.URI)
+		}
+	}
+	span.SetAttributes(telemetry.RecordURIs(uris))
+	if len(uris) == 1 {
+		span.SetAttributes(telemetry.Record(uris[0])...)
+	}
 	if headRev != "" {
+		span.SetAttributes(telemetry.Rev(headRev.String()))
 		// Best-effort: notify registered syncers that this repo advanced.
 		s.notifier.NotifyWrite(ctx, spaceURI, repo, headRev, headHash, spaceRev, prevSpaceRev)
 	}

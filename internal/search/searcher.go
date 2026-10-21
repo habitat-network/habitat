@@ -5,11 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 // CommunitySource lists a user's opensocial community roles.
@@ -107,24 +112,60 @@ var ErrOrgRequired = errors.New("search requires an org")
 // Search runs q as caller, over every space they may read, narrowed to
 // q.Spaces when set. A space caller can't read finds nothing rather than
 // failing, so it can't be told apart from one with no matches.
-func (s *Searcher) Search(ctx context.Context, caller syntax.DID, q Query) (Page, error) {
+func (s *Searcher) Search(ctx context.Context, caller syntax.DID, q Query) (_ Page, err error) {
+	ctx, done := s.startSearch(ctx, "reader", q, telemetry.EndUser(caller))
+	defer func() { done(err) }()
 	reader, err := s.reader(ctx, caller)
 	if err != nil {
 		return Page{}, err
 	}
 	q.Reader = &reader
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Int("habitat.search.reader.community_roles", len(reader.CommunityRoles)),
+	)
 	return s.scoped(ctx, q, true)
 }
 
 // SearchSpaces runs q over q.Spaces without checking who may read them, for
 // callers that have already authorized them, such as with a space
 // credential.
-func (s *Searcher) SearchSpaces(ctx context.Context, q Query) (Page, error) {
+func (s *Searcher) SearchSpaces(ctx context.Context, q Query) (_ Page, err error) {
+	ctx, done := s.startSearch(ctx, "spaces", q)
+	defer func() { done(err) }()
 	q.Reader = nil
 	if q.Org == "" && len(q.Spaces) == 1 {
 		q.Org = q.Spaces[0].SpaceOwner()
 	}
 	return s.scoped(ctx, q, false)
+}
+
+// startSearch starts the span of a search in mode, and returns the function
+// that ends it and records its duration, given the search's error.
+func (s *Searcher) startSearch(
+	ctx context.Context,
+	mode string,
+	q Query,
+	attrs ...attribute.KeyValue,
+) (context.Context, func(error)) {
+	start := time.Now()
+	attrs = append(attrs,
+		modeKey.String(mode),
+		attribute.Int("habitat.search.spaces", len(q.Spaces)),
+		attribute.Int("habitat.search.limit", q.Limit),
+		attribute.Bool("habitat.search.continued", q.Cursor != ""),
+	)
+	if q.Org != "" {
+		attrs = append(attrs, telemetry.OrgKey.String(q.Org.String()))
+	}
+	if len(q.Spaces) == 1 {
+		attrs = append(attrs, telemetry.Space(q.Spaces[0]))
+	}
+	ctx, span := tracer.Start(ctx, "search.Searcher "+mode, trace.WithAttributes(attrs...))
+	return ctx, func(err error) {
+		getMetrics().query.Record(ctx, secondsSince(start),
+			metric.WithAttributes(modeKey.String(mode), outcome(err)))
+		telemetry.End(span, err)
+	}
 }
 
 // scoped runs q limited to the collections surfaced for q.Org: the defaults
@@ -243,5 +284,10 @@ func (s *Searcher) search(ctx context.Context, q Query) (Page, error) {
 		}
 		page.Matches = append(page.Matches, Match{URI: hit.URI, Record: rec, Snippet: hit.Snippet})
 	}
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Int("habitat.search.hits", len(result.Hits)),
+		attribute.Int("habitat.search.matches", len(page.Matches)),
+		attribute.Int("habitat.search.stale_hits", len(result.Hits)-len(page.Matches)),
+	)
 	return page, nil
 }

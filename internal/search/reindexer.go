@@ -9,7 +9,12 @@ import (
 	"time"
 
 	"github.com/meilisearch/meilisearch-go"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/habitat-network/habitat/internal/telemetry"
 )
 
 // DefaultReindexCheckInterval is how often a [Reindexer] checks whether the
@@ -75,8 +80,18 @@ func NewReindexer(host, apiKey, uid string, opts ...ReindexerOption) *Reindexer 
 
 // Reindex builds the new index from source and perms, swaps it in, and
 // deletes the old one.
-func (r *Reindexer) Reindex(ctx context.Context, source RepoSource, perms PermSource) error {
+func (r *Reindexer) Reindex(
+	ctx context.Context,
+	source RepoSource,
+	perms PermSource,
+) (err error) {
 	next := r.uid + "_next"
+	ctx, span := tracer.Start(ctx, "search.Reindex", trace.WithAttributes(
+		semconv.DBSystemNameKey.String("meilisearch"),
+		semconv.DBCollectionName(r.uid),
+	))
+	defer func() { telemetry.End(span, err) }()
+	start := time.Now()
 	idx, err := createMeilisearch(ctx, r.client, next, r.indexOpts...)
 	if err != nil {
 		return err
@@ -95,7 +110,7 @@ func (r *Reindexer) Reindex(ctx context.Context, source RepoSource, perms PermSo
 			return err
 		}
 	}
-	slog.InfoContext(ctx, "search: reindex done", "index", r.uid)
+	slog.InfoContext(ctx, "search: reindex done", "index", r.uid, "took", time.Since(start))
 	return nil
 }
 
@@ -105,7 +120,9 @@ func (r *Reindexer) build(
 	source RepoSource,
 	perms PermSource,
 	idx *Meilisearch,
-) error {
+) (err error) {
+	ctx, span := tracer.Start(ctx, "search.Reindex build")
+	defer func() { telemetry.End(span, err) }()
 	eg, egCtx := errgroup.WithContext(ctx)
 	x := NewIndexer(idx, r.indexerOpts...)
 	eg.Go(func() error { return x.Run(egCtx, source, perms) })
@@ -126,7 +143,13 @@ func (r *Reindexer) build(
 			if caughtUp {
 				return errCaughtUp
 			}
-			slog.InfoContext(egCtx, "search: waiting for new index to catch up")
+			// The backlog is the reindex's progress: it falls to zero as the
+			// new index catches up.
+			backlog := x.backlog()
+			span.AddEvent("search.reindex.progress",
+				trace.WithAttributes(attribute.Int("habitat.search.backlog", backlog)))
+			slog.InfoContext(egCtx, "search: waiting for new index to catch up",
+				"backlog", backlog)
 		}
 	})
 	if err := eg.Wait(); !errors.Is(err, errCaughtUp) {
@@ -137,7 +160,9 @@ func (r *Reindexer) build(
 
 // swap swaps next and its cursors with the live index and its cursors in one
 // atomic task. Where the live index doesn't exist yet, next is renamed to it.
-func (r *Reindexer) swap(ctx context.Context, next string) error {
+func (r *Reindexer) swap(ctx context.Context, next string) (err error) {
+	ctx, span := tracer.Start(ctx, "search.Reindex swap")
+	defer func() { telemetry.End(span, err) }()
 	var swaps []*meilisearch.SwapIndexesParams
 	for _, uid := range []string{r.uid, r.uid + "_cursors"} {
 		_, err := r.client.GetIndexWithContext(ctx, uid)
@@ -162,7 +187,10 @@ func (r *Reindexer) swap(ctx context.Context, next string) error {
 }
 
 // deleteIndex deletes the index uid, if it exists.
-func (r *Reindexer) deleteIndex(ctx context.Context, uid string) error {
+func (r *Reindexer) deleteIndex(ctx context.Context, uid string) (err error) {
+	ctx, span := tracer.Start(ctx, "search.Reindex delete_index",
+		trace.WithAttributes(semconv.DBCollectionName(uid)))
+	defer func() { telemetry.End(span, err) }()
 	task, err := r.client.DeleteIndexWithContext(ctx, uid)
 	if err != nil {
 		return fmt.Errorf("delete meilisearch index %s: %w", uid, err)
