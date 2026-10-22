@@ -26,6 +26,9 @@ type EncryptedStore interface {
 	PutIfAbsentEncrypted(ctx context.Context, key string, value any, ttl time.Duration) error
 	// ConsumeEncrypted is [Store.Consume] over an encrypted value.
 	ConsumeEncrypted(ctx context.Context, key string, dst any) error
+	// Namespace returns a store bound to ns that encrypts with the same key, as
+	// [Store.Namespace] does for plain stores.
+	Namespace(ns string) EncryptedStore
 }
 
 type encryptedStore struct {
@@ -36,13 +39,18 @@ type encryptedStore struct {
 var _ EncryptedStore = (*encryptedStore)(nil)
 
 // NewEncrypted returns an [EncryptedStore] persisting through store, encrypting
-// every value with key, which must be 32 bytes.
+// every value with key, which must be 32 bytes. Like [New], it returns a root
+// store: consumers are handed a child from Namespace, never the root.
 func NewEncrypted(store Store, key []byte) (EncryptedStore, error) {
 	// Probe the key now so a bad one fails at construction, not on first use.
 	if _, err := encrypt.EncryptCBOR(nil, key); err != nil {
 		return nil, fmt.Errorf("keyval: invalid encryption key: %w", err)
 	}
 	return &encryptedStore{store: store, key: key}, nil
+}
+
+func (s *encryptedStore) Namespace(ns string) EncryptedStore {
+	return &encryptedStore{store: s.store.Namespace(ns), key: s.key}
 }
 
 func (s *encryptedStore) PutEncrypted(

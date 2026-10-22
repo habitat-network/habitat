@@ -39,6 +39,23 @@ func TestEncryptedStoreRoundTrip(t *testing.T) {
 	require.ErrorIs(t, es.GetEncrypted(t.Context(), "k", &got), keyval.ErrNotFound)
 }
 
+func TestEncryptedStoreNamespace(t *testing.T) {
+	kv := testutil.New(t)
+	es, err := keyval.NewEncrypted(kv, encrypt.TestKey)
+	require.NoError(t, err)
+	a, b := es.Namespace("a"), es.Namespace("b")
+
+	require.NoError(t, a.PutEncrypted(t.Context(), "k", secret{N: 1}, time.Minute))
+
+	var got secret
+	require.NoError(t, a.GetEncrypted(t.Context(), "k", &got))
+	require.Equal(t, secret{N: 1}, got)
+	require.ErrorIs(t, b.GetEncrypted(t.Context(), "k", &got), keyval.ErrNotFound)
+	// The child writes into the backing store's namespace.
+	var raw string
+	require.NoError(t, kv.Namespace("a").Get(t.Context(), "k", &raw))
+}
+
 func TestEncryptedStorePutIfAbsent(t *testing.T) {
 	es, err := keyval.NewEncrypted(testutil.New(t), encrypt.TestKey)
 	require.NoError(t, err)
