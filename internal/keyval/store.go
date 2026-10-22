@@ -17,6 +17,19 @@ import (
 // would otherwise panic inside json.Unmarshal.
 var errNilDst = errors.New("keyval: dst must be a non-nil pointer")
 
+// never is the expires_at of an entry stored with [NoExpiry]. A far-future
+// timestamp, rather than NULL, keeps the column NOT NULL and every read's
+// "expires_at > now" filter and the sweeps unchanged.
+var never = time.Date(9999, time.December, 31, 0, 0, 0, 0, time.UTC)
+
+// expiresAt is when an entry written at now with ttl expires.
+func expiresAt(now time.Time, ttl time.Duration) time.Time {
+	if ttl == NoExpiry {
+		return never
+	}
+	return now.Add(ttl)
+}
+
 type store struct {
 	db        *gorm.DB
 	namespace string
@@ -63,7 +76,7 @@ func (s *store) Put(ctx context.Context, key string, value any, ttl time.Duratio
 		Namespace: s.namespace,
 		Key:       key,
 		Value:     raw,
-		ExpiresAt: time.Now().Add(ttl),
+		ExpiresAt: expiresAt(time.Now(), ttl),
 	}).Error
 	if err != nil {
 		return fmt.Errorf("put keyval entry: %w", err)
@@ -94,7 +107,7 @@ func (s *store) PutIfAbsent(
 		Namespace: s.namespace,
 		Key:       key,
 		Value:     raw,
-		ExpiresAt: now.Add(ttl),
+		ExpiresAt: expiresAt(now, ttl),
 	})
 	if res.Error != nil {
 		return fmt.Errorf("put keyval entry if absent: %w", res.Error)

@@ -121,10 +121,11 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	if err != nil {
 		return nil, fmt.Errorf("load PDS encryption key: %w", err)
 	}
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(database.WithContext(ctx), credKey)
+	pdsCredKV, err := keyval.NewEncrypted(kv.Namespace("pds_credentials"), credKey)
 	if err != nil {
-		return nil, fmt.Errorf("setup pds cred store: %w", err)
+		return nil, fmt.Errorf("setup pds cred keyval: %w", err)
 	}
+	pdsCredStore := pdscred.NewPDSCredentialStore(pdsCredKV)
 
 	domain := cmd.String(fDomain)
 	var clientUri string
@@ -215,12 +216,15 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
 	if googleClientID != "" && googleClientSecret != "" {
+		googleCredKV, err := keyval.NewEncrypted(kv.Namespace("google_credentials"), credKey)
+		if err != nil {
+			return nil, fmt.Errorf("setup google cred keyval: %w", err)
+		}
 		googleProvider, err := login.NewGoogleProvider(
 			googleClientID,
 			googleClientSecret,
 			"https://"+domain+"/oauth-callback",
-			database.WithContext(ctx),
-			credKey,
+			googleCredKV,
 			kv.Namespace("login"),
 		)
 		if err != nil {

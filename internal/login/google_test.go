@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
-	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/keyval"
 	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
@@ -22,6 +21,13 @@ import (
 // makeIDToken builds a Google-shaped ID token carrying claims, unsigned
 // (verifyGoogleIDToken only decodes and validates claims; it doesn't check a
 // signature — see its doc comment).
+func googleCredKV(t *testing.T) keyval.EncryptedStore {
+	t.Helper()
+	kv, err := keyval.NewEncrypted(keyval_testutil.New(t), encrypt.TestKey)
+	require.NoError(t, err)
+	return kv
+}
+
 func makeIDToken(t *testing.T, claims googleIDTokenClaims) string {
 	t.Helper()
 	token, err := jwt.NewWithClaims(jwt.SigningMethodNone, claims).
@@ -50,8 +56,7 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 		"client-id",
 		"client-secret",
 		"https://example.com/callback",
-		testutil.NewDB(t, Models()),
-		encrypt.TestKey,
+		googleCredKV(t),
 		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
@@ -77,8 +82,7 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 		clientID,
 		"test-secret",
 		"https://example.com/callback",
-		testutil.NewDB(t, Models()),
-		encrypt.TestKey,
+		googleCredKV(t),
 		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)

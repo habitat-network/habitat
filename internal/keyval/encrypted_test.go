@@ -67,3 +67,18 @@ func TestNewEncryptedRejectsBadKey(t *testing.T) {
 	_, err := keyval.NewEncrypted(testutil.New(t), []byte("short"))
 	require.Error(t, err)
 }
+
+func TestStoreNoExpiry(t *testing.T) {
+	kv := testutil.New(t)
+	es, err := keyval.NewEncrypted(kv, encrypt.TestKey)
+	require.NoError(t, err)
+
+	require.NoError(t, kv.Put(t.Context(), "plain", secret{N: 1}, keyval.NoExpiry))
+	require.NoError(t, es.PutEncrypted(t.Context(), "enc", secret{N: 2}, keyval.NoExpiry))
+
+	var got secret
+	require.NoError(t, kv.Get(t.Context(), "plain", &got))
+	require.Equal(t, secret{N: 1}, got)
+	require.NoError(t, es.GetEncrypted(t.Context(), "enc", &got))
+	require.Equal(t, secret{N: 2}, got)
+}

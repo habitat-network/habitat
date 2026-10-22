@@ -11,7 +11,7 @@ import (
 // EncryptedKV mirrors [KV], except values are encrypted with
 // [encrypt.EncryptCBOR] before they reach the backing store.
 type EncryptedKV interface {
-	// PutEncrypted encrypts value and stores it under key, expiring it ttl from now.
+	// PutEncrypted encrypts value and stores it under key, expiring it ttl from now, or never if ttl is [NoExpiry].
 	PutEncrypted(ctx context.Context, key string, value any, ttl time.Duration) error
 	// GetEncrypted decrypts the value stored under key into dst. It returns
 	// [ErrNotFound] if the key was never written or has expired.
