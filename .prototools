@@ -1,6 +1,6 @@
 proto= "0.62.3"
 go = "1.27.3"
-golangci-lint = "2.13.1"
+golangci-lint = "2.14.0"
 moon = "2.5.6"
 node = "26.7.0"
 pnpm = "11.27.1"

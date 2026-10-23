@@ -7,14 +7,12 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/encrypt"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetDpopClient_Success(t *testing.T) {
-	store, err := NewPDSCredentialStore(testutil.NewDB(t, Models()), encrypt.TestKey)
-	require.NoError(t, err)
+	store := NewPDSCredentialStore(keyval_testutil.NewEncrypted(t))
 
 	// Generate test dpop key
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -47,8 +45,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 }
 
 func TestGetDpopClient_NotFound(t *testing.T) {
-	store, err := NewPDSCredentialStore(testutil.NewDB(t, Models()), encrypt.TestKey)
-	require.NoError(t, err)
+	store := NewPDSCredentialStore(keyval_testutil.NewEncrypted(t))
 
 	credentials, err := store.GetCredentials(t.Context(), syntax.DID("did:plc:nonexistent"))
 	require.Error(t, err)

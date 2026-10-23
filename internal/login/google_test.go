@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
-	"github.com/habitat-network/habitat/internal/db/testutil"
-	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/keyval"
 	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 )
@@ -50,8 +48,7 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 		"client-id",
 		"client-secret",
 		"https://example.com/callback",
-		testutil.NewDB(t, Models()),
-		encrypt.TestKey,
+		keyval_testutil.NewEncrypted(t),
 		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)
@@ -77,8 +74,7 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 		clientID,
 		"test-secret",
 		"https://example.com/callback",
-		testutil.NewDB(t, Models()),
-		encrypt.TestKey,
+		keyval_testutil.NewEncrypted(t),
 		keyval_testutil.New(t),
 	)
 	require.NoError(t, err)

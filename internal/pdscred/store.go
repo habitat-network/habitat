@@ -5,11 +5,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"fmt"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/encrypt"
-	"gorm.io/gorm"
+	"github.com/habitat-network/habitat/internal/keyval"
 )
 
 type PDSCredentialStore interface {
@@ -17,41 +15,22 @@ type PDSCredentialStore interface {
 	GetCredentials(ctx context.Context, did syntax.DID) (*Credentials, error)
 }
 
-func NewPDSCredentialStore(
-	db *gorm.DB,
-	encryptionKey []byte,
-) (PDSCredentialStore, error) {
-	if encryptionKey == nil {
-		return nil, fmt.Errorf("encryption key is required")
-	}
-	return &pdsCredentialStore{
-		db:            db,
-		encryptionKey: encryptionKey,
-	}, nil
+func NewPDSCredentialStore(kv keyval.EncryptedStore) PDSCredentialStore {
+	return &pdsCredentialStore{kv: kv}
 }
 
 type pdsCredentialStore struct {
-	db            *gorm.DB
-	encryptionKey []byte
+	kv keyval.EncryptedStore
 }
 
-// pdsCredentialsModel stores PDS credentials for a user (DID).
-// These credentials are reused across multiple OAuth sessions.
-// Updated on every sign-in.
-type pdsCredentialsModel struct {
-	DID syntax.DID `gorm:"column:did;primarykey"` // DID of the user (primary key)
-
+// storedCredentials is the encrypted value kept per DID. These credentials are
+// reused across multiple OAuth sessions and replaced on every sign-in.
+type storedCredentials struct {
 	// Tokens received from the AT Protocol PDS (via OAuth client)
-	AccessToken  string // Access token from PDS
-	RefreshToken string // Refresh token from PDS
-	TokenType    string
-	Scope        string // Space-separated scopes from PDS
-
-	// DPoP key for proof-of-possession
-	DpopKey []byte // Serialized ECDSA private key
-
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	AccessToken  string
+	RefreshToken string
+	// DpopKey is the serialized ECDSA private key for proof-of-possession.
+	DpopKey []byte
 }
 
 type Credentials struct {
@@ -64,38 +43,17 @@ func (p *pdsCredentialStore) GetCredentials(
 	ctx context.Context,
 	did syntax.DID,
 ) (*Credentials, error) {
-	var creds pdsCredentialsModel
-	err := p.db.WithContext(ctx).Where("did = ?", did).First(&creds).Error
-	if err != nil {
+	var stored storedCredentials
+	if err := p.kv.GetEncrypted(ctx, did.String(), &stored); err != nil {
 		return nil, fmt.Errorf("user credentials not found: %w", err)
 	}
-	// Decrypt the access token
-	var decryptedAccessToken string
-	if err := encrypt.DecryptCBOR(
-		creds.AccessToken,
-		p.encryptionKey,
-		&decryptedAccessToken,
-	); err != nil {
-		return nil, fmt.Errorf("failed to decrypt access token: %w", err)
-	}
-
-	// Decrypt the refresh token
-	var decryptedRefreshToken string
-	if err := encrypt.DecryptCBOR(
-		creds.RefreshToken,
-		p.encryptionKey,
-		&decryptedRefreshToken,
-	); err != nil {
-		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
-	}
-
-	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), creds.DpopKey)
+	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), stored.DpopKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse dpop key: %w", err)
 	}
 	return &Credentials{
-		AccessToken:  decryptedAccessToken,
-		RefreshToken: decryptedRefreshToken,
+		AccessToken:  stored.AccessToken,
+		RefreshToken: stored.RefreshToken,
 		DpopKey:      dpopKey,
 	}, nil
 }
@@ -106,36 +64,16 @@ func (p *pdsCredentialStore) UpsertCredentials(
 	did syntax.DID,
 	tokenInfo *Credentials,
 ) error {
-	// Find or create user credentials
-	userCreds := &pdsCredentialsModel{
-		DID: did,
-	}
-	// Encrypt tokens before storing
-	var err error
-	if userCreds.AccessToken, err = encrypt.EncryptCBOR(
-		tokenInfo.AccessToken,
-		p.encryptionKey,
-	); err != nil {
-		return fmt.Errorf("failed to encrypt access token: %w", err)
-	}
-	if userCreds.RefreshToken, err = encrypt.EncryptCBOR(
-		tokenInfo.RefreshToken,
-		p.encryptionKey,
-	); err != nil {
-		return fmt.Errorf("failed to encrypt refresh token: %w", err)
-	}
-	if userCreds.DpopKey, err = tokenInfo.DpopKey.Bytes(); err != nil {
+	dpopKey, err := tokenInfo.DpopKey.Bytes()
+	if err != nil {
 		return fmt.Errorf("failed to get dpop key bytes: %w", err)
 	}
-	// Save the user credentials (upsert)
-	if err := p.db.WithContext(ctx).Save(&userCreds).Error; err != nil {
+	if err := p.kv.PutEncrypted(ctx, did.String(), storedCredentials{
+		AccessToken:  tokenInfo.AccessToken,
+		RefreshToken: tokenInfo.RefreshToken,
+		DpopKey:      dpopKey,
+	}, keyval.NoExpiry); err != nil {
 		return fmt.Errorf("failed to save user credentials: %w", err)
 	}
 	return nil
-}
-
-// Models returns the GORM models this package persists. Their tables are
-// created by db.Migrate.
-func Models() []any {
-	return []any{&pdsCredentialsModel{}}
 }
