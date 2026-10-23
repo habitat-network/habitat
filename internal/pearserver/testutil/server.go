@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -14,9 +16,13 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/clientmetadata"
 	"github.com/habitat-network/habitat/internal/emaildomain"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/keyval"
+	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
+	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
@@ -54,6 +60,11 @@ type TestServer struct {
 	Directory        identity.Directory
 	// SearchIndex backs searchRecords; search is off when it is nil.
 	SearchIndex search.Index
+	// LLMStore holds each org's LLM connections; its models come from the
+	// factory given to WithLLMModelFactory, by default one that fails.
+	LLMStore *llmgateway.Store
+	// llmModels builds the models LLMStore calls.
+	llmModels llmgateway.ModelFactory
 	// SearchConfig stores the collections each org surfaces in search.
 	SearchConfig *searchconfig.Store
 }
@@ -110,6 +121,14 @@ func WithFGA(fga fgastore.Store) utils.Opt[TestServer] {
 func WithSearchIndex(index search.Index) utils.Opt[TestServer] {
 	return func(o *TestServer) {
 		o.SearchIndex = index
+	}
+}
+
+// WithLLMModelFactory sets the models LLM connections call, so tests don't
+// reach a real provider.
+func WithLLMModelFactory(factory llmgateway.ModelFactory) utils.Opt[TestServer] {
+	return func(o *TestServer) {
+		o.llmModels = factory
 	}
 }
 
@@ -189,6 +208,18 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 	require.NoError(t, err)
 	ts.McpGatewayStore = mcpGatewayStore
 
+	if ts.llmModels == nil {
+		ts.llmModels = func(context.Context, llmgateway.ModelConfig) (llmgateway.Model, error) {
+			return nil, errors.New("no model factory configured")
+		}
+	}
+	kv := keyval_testutil.New(t)
+	creds, err := keyval.NewEncrypted(kv.Namespace(llmgateway.CredentialsNamespace), encrypt.TestKey)
+	require.NoError(t, err)
+	ts.LLMStore = llmgateway.NewStore(
+		ts.SpaceStore, creds, kv.Namespace(llmgateway.CredentialsNamespace), ts.llmModels,
+	)
+
 	if ts.PDSForwarding == nil {
 		// Default forwarding points nowhere; getSession's remote-identity path
 		// forwards to a caller's real PDS, which tests exercise by injecting
@@ -237,6 +268,7 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		NotifyStore:      ts.NotifyStore,
 		ClientMetadata:   clientmetadata.NewResolver(),
 		MCPGatewayStore:  mcpGatewayStore,
+		LLMStore:         ts.LLMStore,
 		PDSForwarding:    ts.PDSForwarding,
 		EmailDomainStore: emailDomainStore,
 		Searcher:         searcher,

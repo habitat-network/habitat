@@ -44,6 +44,7 @@ import { Route as RequireAuthOrgsOrgSettingsBrandingRouteImport } from './routes
 import { Route as RequireAuthOrgsOrgSettingsCapabilitiesRouteImport } from './routes/_requireAuth/orgs/$org/settings/capabilities'
 import { Route as RequireAuthOrgsOrgSettingsMcpRouteImport } from './routes/_requireAuth/orgs/$org/settings/mcp'
 import { Route as RequireAuthOrgsOrgSettingsMembersRouteImport } from './routes/_requireAuth/orgs/$org/settings/members'
+import { Route as RequireAuthOrgsOrgSettingsModelsRouteImport } from './routes/_requireAuth/orgs/$org/settings/models'
 import { Route as RequireAuthOrgsOrgSettingsRolesRouteImport } from './routes/_requireAuth/orgs/$org/settings/roles'
 import { Route as RequireAuthOrgsOrgSettingsSearchRouteImport } from './routes/_requireAuth/orgs/$org/settings/search'
 import { Route as RequireAuthSpacesSpaceOwnerSpaceTypeIndexRouteImport } from './routes/_requireAuth/spaces/$spaceOwner.$spaceType.index'
@@ -245,6 +246,12 @@ const RequireAuthOrgsOrgSettingsMembersRoute =
     path: '/members',
     getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
   } as any)
+const RequireAuthOrgsOrgSettingsModelsRoute =
+  RequireAuthOrgsOrgSettingsModelsRouteImport.update({
+    id: '/models',
+    path: '/models',
+    getParentRoute: () => RequireAuthOrgsOrgSettingsRoute,
+  } as any)
 const RequireAuthOrgsOrgSettingsRolesRoute =
   RequireAuthOrgsOrgSettingsRolesRouteImport.update({
     id: '/roles',
@@ -326,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/orgs/$org/settings/capabilities': typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
   '/orgs/$org/settings/mcp': typeof RequireAuthOrgsOrgSettingsMcpRoute
   '/orgs/$org/settings/members': typeof RequireAuthOrgsOrgSettingsMembersRoute
+  '/orgs/$org/settings/models': typeof RequireAuthOrgsOrgSettingsModelsRoute
   '/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
   '/orgs/$org/settings/search': typeof RequireAuthOrgsOrgSettingsSearchRoute
   '/orgs/$org/settings/': typeof RequireAuthOrgsOrgSettingsIndexRoute
@@ -365,6 +373,7 @@ export interface FileRoutesByTo {
   '/orgs/$org/settings/capabilities': typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
   '/orgs/$org/settings/mcp': typeof RequireAuthOrgsOrgSettingsMcpRoute
   '/orgs/$org/settings/members': typeof RequireAuthOrgsOrgSettingsMembersRoute
+  '/orgs/$org/settings/models': typeof RequireAuthOrgsOrgSettingsModelsRoute
   '/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
   '/orgs/$org/settings/search': typeof RequireAuthOrgsOrgSettingsSearchRoute
   '/orgs/$org/settings': typeof RequireAuthOrgsOrgSettingsIndexRoute
@@ -410,6 +419,7 @@ export interface FileRoutesById {
   '/_requireAuth/orgs/$org/settings/capabilities': typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
   '/_requireAuth/orgs/$org/settings/mcp': typeof RequireAuthOrgsOrgSettingsMcpRoute
   '/_requireAuth/orgs/$org/settings/members': typeof RequireAuthOrgsOrgSettingsMembersRoute
+  '/_requireAuth/orgs/$org/settings/models': typeof RequireAuthOrgsOrgSettingsModelsRoute
   '/_requireAuth/orgs/$org/settings/roles': typeof RequireAuthOrgsOrgSettingsRolesRoute
   '/_requireAuth/orgs/$org/settings/search': typeof RequireAuthOrgsOrgSettingsSearchRoute
   '/_requireAuth/orgs/$org/settings/': typeof RequireAuthOrgsOrgSettingsIndexRoute
@@ -455,6 +465,7 @@ export interface FileRouteTypes {
     | '/orgs/$org/settings/capabilities'
     | '/orgs/$org/settings/mcp'
     | '/orgs/$org/settings/members'
+    | '/orgs/$org/settings/models'
     | '/orgs/$org/settings/roles'
     | '/orgs/$org/settings/search'
     | '/orgs/$org/settings/'
@@ -494,6 +505,7 @@ export interface FileRouteTypes {
     | '/orgs/$org/settings/capabilities'
     | '/orgs/$org/settings/mcp'
     | '/orgs/$org/settings/members'
+    | '/orgs/$org/settings/models'
     | '/orgs/$org/settings/roles'
     | '/orgs/$org/settings/search'
     | '/orgs/$org/settings'
@@ -538,6 +550,7 @@ export interface FileRouteTypes {
     | '/_requireAuth/orgs/$org/settings/capabilities'
     | '/_requireAuth/orgs/$org/settings/mcp'
     | '/_requireAuth/orgs/$org/settings/members'
+    | '/_requireAuth/orgs/$org/settings/models'
     | '/_requireAuth/orgs/$org/settings/roles'
     | '/_requireAuth/orgs/$org/settings/search'
     | '/_requireAuth/orgs/$org/settings/'
@@ -805,6 +818,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthOrgsOrgSettingsMembersRouteImport
       parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
     }
+    '/_requireAuth/orgs/$org/settings/models': {
+      id: '/_requireAuth/orgs/$org/settings/models'
+      path: '/models'
+      fullPath: '/orgs/$org/settings/models'
+      preLoaderRoute: typeof RequireAuthOrgsOrgSettingsModelsRouteImport
+      parentRoute: typeof RequireAuthOrgsOrgSettingsRoute
+    }
     '/_requireAuth/orgs/$org/settings/roles': {
       id: '/_requireAuth/orgs/$org/settings/roles'
       path: '/roles'
@@ -915,6 +935,7 @@ interface RequireAuthOrgsOrgSettingsRouteChildren {
   RequireAuthOrgsOrgSettingsCapabilitiesRoute: typeof RequireAuthOrgsOrgSettingsCapabilitiesRoute
   RequireAuthOrgsOrgSettingsMcpRoute: typeof RequireAuthOrgsOrgSettingsMcpRoute
   RequireAuthOrgsOrgSettingsMembersRoute: typeof RequireAuthOrgsOrgSettingsMembersRoute
+  RequireAuthOrgsOrgSettingsModelsRoute: typeof RequireAuthOrgsOrgSettingsModelsRoute
   RequireAuthOrgsOrgSettingsRolesRoute: typeof RequireAuthOrgsOrgSettingsRolesRoute
   RequireAuthOrgsOrgSettingsSearchRoute: typeof RequireAuthOrgsOrgSettingsSearchRoute
   RequireAuthOrgsOrgSettingsIndexRoute: typeof RequireAuthOrgsOrgSettingsIndexRoute
@@ -931,6 +952,8 @@ const RequireAuthOrgsOrgSettingsRouteChildren: RequireAuthOrgsOrgSettingsRouteCh
     RequireAuthOrgsOrgSettingsMcpRoute: RequireAuthOrgsOrgSettingsMcpRoute,
     RequireAuthOrgsOrgSettingsMembersRoute:
       RequireAuthOrgsOrgSettingsMembersRoute,
+    RequireAuthOrgsOrgSettingsModelsRoute:
+      RequireAuthOrgsOrgSettingsModelsRoute,
     RequireAuthOrgsOrgSettingsRolesRoute: RequireAuthOrgsOrgSettingsRolesRoute,
     RequireAuthOrgsOrgSettingsSearchRoute:
       RequireAuthOrgsOrgSettingsSearchRoute,
