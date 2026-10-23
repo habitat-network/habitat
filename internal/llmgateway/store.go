@@ -424,7 +424,12 @@ func (s *Store) fromRecord(
 
 // putAPIKey stores apiKey for org's connection id, or deletes the stored one
 // if apiKey is empty.
-func (s *Store) putAPIKey(ctx context.Context, org syntax.DID, id syntax.RecordKey, apiKey string) error {
+func (s *Store) putAPIKey(
+	ctx context.Context,
+	org syntax.DID,
+	id syntax.RecordKey,
+	apiKey string,
+) error {
 	key := credentialsKey(org, id)
 	if apiKey == "" {
 		if err := s.rawCreds.Delete(ctx, key); err != nil && !errors.Is(err, keyval.ErrNotFound) {

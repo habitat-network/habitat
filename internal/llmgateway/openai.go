@@ -327,7 +327,10 @@ func (c MessageContent) toLangchain() ([]llms.ContentPart, error) {
 			if part.ImageURL == nil || part.ImageURL.URL == "" {
 				return nil, errors.New("image_url part needs a url")
 			}
-			parts = append(parts, llms.ImageURLWithDetailPart(part.ImageURL.URL, part.ImageURL.Detail))
+			parts = append(
+				parts,
+				llms.ImageURLWithDetailPart(part.ImageURL.URL, part.ImageURL.Detail),
+			)
 		default:
 			return nil, fmt.Errorf("unsupported content part type %q", part.Type)
 		}
@@ -431,7 +434,10 @@ func toolChoice(raw json.RawMessage) (any, error) {
 		} `json:"function"`
 	}
 	if err := json.Unmarshal(raw, &named); err != nil || named.Function.Name == "" {
-		return nil, fmt.Errorf("%w: tool_choice must be a mode or a named function", ErrInvalidChatRequest)
+		return nil, fmt.Errorf(
+			"%w: tool_choice must be a mode or a named function",
+			ErrInvalidChatRequest,
+		)
 	}
 	return llms.ToolChoice{
 		Type:     "function",
@@ -441,7 +447,12 @@ func toolChoice(raw json.RawMessage) (any, error) {
 
 // ChatCompletionFor translates resp to the OpenAI format. id, created and
 // model identify the completion.
-func ChatCompletionFor(resp *llms.ContentResponse, id string, created int64, model string) ChatCompletion {
+func ChatCompletionFor(
+	resp *llms.ContentResponse,
+	id string,
+	created int64,
+	model string,
+) ChatCompletion {
 	completion := ChatCompletion{
 		ID:      id,
 		Object:  "chat.completion",

@@ -68,7 +68,10 @@ func TestChatCompletionRequestRejectsUnsupported(t *testing.T) {
 	_, err := req.LangchainMessages()
 	require.ErrorIs(t, err, llmgateway.ErrInvalidChatRequest)
 
-	require.NoError(t, json.Unmarshal([]byte(`{"messages":[{"role":"wizard","content":"x"}]}`), &req))
+	require.NoError(
+		t,
+		json.Unmarshal([]byte(`{"messages":[{"role":"wizard","content":"x"}]}`), &req),
+	)
 	_, err = req.LangchainMessages()
 	require.ErrorIs(t, err, llmgateway.ErrInvalidChatRequest)
 
@@ -78,15 +81,24 @@ func TestChatCompletionRequestRejectsUnsupported(t *testing.T) {
 }
 
 func TestChatCompletionForNormalizesProviderResponse(t *testing.T) {
-	completion := llmgateway.ChatCompletionFor(&llms.ContentResponse{Choices: []*llms.ContentChoice{{
-		Content:        "hello",
-		StopReason:     "max_tokens",
-		GenerationInfo: map[string]any{"InputTokens": 3, "OutputTokens": 4},
-	}}}, "id1", 5, "gpt")
+	completion := llmgateway.ChatCompletionFor(
+		&llms.ContentResponse{Choices: []*llms.ContentChoice{{
+			Content:        "hello",
+			StopReason:     "max_tokens",
+			GenerationInfo: map[string]any{"InputTokens": 3, "OutputTokens": 4},
+		}}},
+		"id1",
+		5,
+		"gpt",
+	)
 	require.Equal(t, "chat.completion", completion.Object)
 	require.Equal(t, "hello", *completion.Choices[0].Message.Content)
 	require.Equal(t, "length", completion.Choices[0].FinishReason)
-	require.Equal(t, &llmgateway.Usage{PromptTokens: 3, CompletionTokens: 4, TotalTokens: 7}, completion.Usage)
+	require.Equal(
+		t,
+		&llmgateway.Usage{PromptTokens: 3, CompletionTokens: 4, TotalTokens: 7},
+		completion.Usage,
+	)
 
 	// A tool-only reply has null content and finishes with tool_calls.
 	completion = llmgateway.ChatCompletionFor(&llms.ContentResponse{Choices: []*llms.ContentChoice{{

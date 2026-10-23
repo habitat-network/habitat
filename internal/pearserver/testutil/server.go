@@ -214,7 +214,10 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 		}
 	}
 	kv := keyval_testutil.New(t)
-	creds, err := keyval.NewEncrypted(kv.Namespace(llmgateway.CredentialsNamespace), encrypt.TestKey)
+	creds, err := keyval.NewEncrypted(
+		kv.Namespace(llmgateway.CredentialsNamespace),
+		encrypt.TestKey,
+	)
 	require.NoError(t, err)
 	ts.LLMStore = llmgateway.NewStore(
 		ts.SpaceStore, creds, kv.Namespace(llmgateway.CredentialsNamespace), ts.llmModels,

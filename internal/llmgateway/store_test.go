@@ -34,7 +34,10 @@ func newStore(t *testing.T, orgs ...syntax.DID) (*llmgateway.Store, *[]llmgatewa
 		require.NoError(t, err)
 	}
 	kv := keyval_testutil.New(t)
-	creds, err := keyval.NewEncrypted(kv.Namespace(llmgateway.CredentialsNamespace), encrypt.TestKey)
+	creds, err := keyval.NewEncrypted(
+		kv.Namespace(llmgateway.CredentialsNamespace),
+		encrypt.TestKey,
+	)
 	require.NoError(t, err)
 	var built []llmgateway.ModelConfig
 	factory := func(_ context.Context, c llmgateway.ModelConfig) (llmgateway.Model, error) {

@@ -117,7 +117,13 @@ func (p *PearServer) CreateLlmChatCompletion(w http.ResponseWriter, r *http.Requ
 	var req llmgateway.ChatCompletionRequest
 	r.Body = http.MaxBytesReader(w, r.Body, maxChatRequestBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "", "invalid request body: "+err.Error())
+		writeOpenAIError(
+			w,
+			http.StatusBadRequest,
+			"invalid_request_error",
+			"",
+			"invalid request body: "+err.Error(),
+		)
 		return
 	}
 	messages, err := req.LangchainMessages()
@@ -181,7 +187,13 @@ func (p *PearServer) completeChat(
 
 	sse, ok := newSSEWriter(w)
 	if !ok {
-		writeOpenAIError(w, http.StatusInternalServerError, "server_error", "", "streaming unsupported")
+		writeOpenAIError(
+			w,
+			http.StatusInternalServerError,
+			"server_error",
+			"",
+			"streaming unsupported",
+		)
 		return
 	}
 	chunk := func(choices []llmgateway.ChunkChoice, usage *llmgateway.Usage) llmgateway.ChatCompletionChunk {
@@ -254,7 +266,13 @@ func streamCompletion(
 ) {
 	sse, ok := newSSEWriter(w)
 	if !ok {
-		writeOpenAIError(w, http.StatusInternalServerError, "server_error", "", "streaming unsupported")
+		writeOpenAIError(
+			w,
+			http.StatusInternalServerError,
+			"server_error",
+			"",
+			"streaming unsupported",
+		)
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
