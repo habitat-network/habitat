@@ -1,5 +1,7 @@
 package pearserver
 
+import "net/http"
+
 // registerRoutes wires all handlers onto the internal router.
 func (p *PearServer) registerRoutes() {
 	// Spaces
@@ -54,6 +56,16 @@ func (p *PearServer) registerRoutes() {
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.listServers", p.ListServers)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.startAuthorization", p.StartAuthorization)
 	p.router.HandleFunc("/xrpc/network.habitat.mcp.disconnectServer", p.DisconnectServer)
+
+	// LLM connections
+	p.router.HandleFunc("/xrpc/network.habitat.llm.addConnection", p.AddLlmConnection)
+	p.router.HandleFunc("/xrpc/network.habitat.llm.updateConnection", p.UpdateLlmConnection)
+	p.router.HandleFunc("/xrpc/network.habitat.llm.removeConnection", p.RemoveLlmConnection)
+	p.router.HandleFunc("/xrpc/network.habitat.llm.listConnections", p.ListLlmConnections)
+	// The org's OpenAI-compatible API, routed to its connections.
+	p.router.HandleFunc(llmModelsPath, p.ListLlmModels).Methods(http.MethodGet)
+	p.router.HandleFunc(llmChatCompletionsPath, p.CreateLlmChatCompletion).
+		Methods(http.MethodPost)
 
 	// Simplespace
 	p.router.HandleFunc("/xrpc/network.habitat.simplespace.createSpace", p.CreateSpace)

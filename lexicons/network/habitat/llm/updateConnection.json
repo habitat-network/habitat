@@ -1,0 +1,65 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.llm.updateConnection",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Update an org's LLM model connection. Absent fields are left unchanged. Its name and provider can't be changed; remove and re-add it instead. Requires service-auth. Requires the community.configure action.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "org",
+            "id"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community the connection belongs to."
+            },
+            "id": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "model": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "baseUrl": {
+              "type": "string",
+              "format": "uri"
+            },
+            "apiKey": {
+              "type": "string",
+              "description": "A replacement provider API key. Stored encrypted and never returned."
+            },
+            "clearApiKey": {
+              "type": "boolean",
+              "description": "Delete the stored API key. Ignored when apiKey is set."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "connection"
+          ],
+          "properties": {
+            "connection": {
+              "type": "ref",
+              "ref": "network.habitat.llm.defs#connection"
+            }
+          }
+        }
+      }
+    }
+  }
+}
