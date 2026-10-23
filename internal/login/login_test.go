@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/keyval"
 	keyval_testutil "github.com/habitat-network/habitat/internal/keyval/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -18,9 +17,7 @@ import (
 // --- pdsProvider ---
 
 func TestPDSProvider_Authorize(t *testing.T) {
-	credKV, err := keyval.NewEncrypted(keyval_testutil.New(t), encrypt.TestKey)
-	require.NoError(t, err)
-	credStore := pdscred.NewPDSCredentialStore(credKV)
+	credStore := pdscred.NewPDSCredentialStore(keyval_testutil.NewEncrypted(t))
 	clientMetadata := &pdsclient.ClientMetadata{
 		RedirectUris: []string{"https://pds.example.com/authorize"},
 	}
@@ -55,9 +52,7 @@ func TestPDSProvider_Authorize(t *testing.T) {
 }
 
 func TestPDSProvider_Exchange(t *testing.T) {
-	credKV, err := keyval.NewEncrypted(keyval_testutil.New(t), encrypt.TestKey)
-	require.NoError(t, err)
-	credStore := pdscred.NewPDSCredentialStore(credKV)
+	credStore := pdscred.NewPDSCredentialStore(keyval_testutil.NewEncrypted(t))
 	clientMetadata := &pdsclient.ClientMetadata{
 		RedirectUris: []string{"https://pds.example.com/authorize"},
 	}

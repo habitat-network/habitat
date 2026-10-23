@@ -57,8 +57,7 @@ func TestEncryptedStoreNamespace(t *testing.T) {
 }
 
 func TestEncryptedStorePutIfAbsent(t *testing.T) {
-	es, err := keyval.NewEncrypted(testutil.New(t), encrypt.TestKey)
-	require.NoError(t, err)
+	es := testutil.NewEncrypted(t)
 
 	require.NoError(t, es.PutIfAbsentEncrypted(t.Context(), "k", secret{N: 1}, time.Minute))
 	require.ErrorIs(
