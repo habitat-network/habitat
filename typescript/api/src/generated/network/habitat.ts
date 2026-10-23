@@ -3,6 +3,7 @@
  */
 
 export * as admin from './habitat/admin.js'
+export * as brain from './habitat/brain.js'
 export * as clique from './habitat/clique.js'
 export * as collections from './habitat/collections.js'
 export * as docs from './habitat/docs.js'
