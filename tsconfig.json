@@ -18,6 +18,9 @@
       "path": "./typescript/apps/drop"
     },
     {
+      "path": "./typescript/apps/brain"
+    },
+    {
       "path": "./typescript/apps/pear-pages"
     },
     {
