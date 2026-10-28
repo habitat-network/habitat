@@ -13,6 +13,7 @@ import (
 	"github.com/habitat-network/habitat/internal/emaildomain"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/llmgateway"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
@@ -48,6 +49,9 @@ type PearServer struct {
 	simpleStore     *simplespace.Store
 	notifyStore     notify.Store
 	mcpGatewayStore mcpgateway.Store
+
+	// llmStore holds each org's LLM model connections.
+	llmStore *llmgateway.Store
 
 	// clientMeta resolves OAuth client metadata/JWKS for verifying client
 	// attestations on getSpaceCredential.
@@ -85,6 +89,7 @@ func New(app *pearapp.App) *PearServer {
 		notifyStore:      app.NotifyStore,
 		clientMeta:       app.ClientMetadata,
 		mcpGatewayStore:  app.MCPGatewayStore,
+		llmStore:         app.LLMStore,
 		pdsForwarding:    app.PDSForwarding,
 		emailDomainStore: app.EmailDomainStore,
 		searcher:         app.Searcher,

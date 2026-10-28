@@ -3310,6 +3310,489 @@
         }
       }
     },
+    "/network.habitat.llm.addConnection": {
+      "post": {
+        "tags": [
+          "network.habitat.llm"
+        ],
+        "summary": "network.habitat.llm.addConnection",
+        "description": "Add an LLM model connection to the org. Its metadata is written as a network.habitat.llm.connection record, and its API key, if any, is stored encrypted. Requires service-auth. Requires the community.configure action.",
+        "operationId": "network.habitat.llm.addConnection",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "name",
+                  "provider",
+                  "model"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community to add the connection to.",
+                    "format": "did"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Also becomes the connection's record key and the model ID clients request. Letters, digits, dots, hyphens, and underscores only, and must be unique within the org.",
+                    "maxLength": 64
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "provider": {
+                    "type": "string",
+                    "description": "See network.habitat.llm.defs#connection.",
+                    "enum": [
+                      "openai",
+                      "anthropic",
+                      "google",
+                      "ollama"
+                    ]
+                  },
+                  "model": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "baseUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "apiKey": {
+                    "type": "string",
+                    "description": "The provider API key. Stored encrypted and never returned."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "connection"
+                  ],
+                  "properties": {
+                    "connection": {
+                      "$ref": "#/components/schemas/network.habitat.llm.defs.connection"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.llm.listConnections": {
+      "get": {
+        "tags": [
+          "network.habitat.llm"
+        ],
+        "summary": "network.habitat.llm.listConnections",
+        "description": "List the LLM model connections configured for an org. API keys are never returned. Requires service-auth. Callable by any org member.",
+        "operationId": "network.habitat.llm.listConnections",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "org",
+            "in": "query",
+            "description": "DID of the community to list connections for.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "DID of the community to list connections for.",
+              "format": "did"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "connections"
+                  ],
+                  "properties": {
+                    "connections": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.llm.defs.connection"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.llm.removeConnection": {
+      "post": {
+        "tags": [
+          "network.habitat.llm"
+        ],
+        "summary": "network.habitat.llm.removeConnection",
+        "description": "Remove an org's LLM model connection, along with its stored API key. Requires service-auth. Requires the community.configure action.",
+        "operationId": "network.habitat.llm.removeConnection",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the connection belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.llm.updateConnection": {
+      "post": {
+        "tags": [
+          "network.habitat.llm"
+        ],
+        "summary": "network.habitat.llm.updateConnection",
+        "description": "Update an org's LLM model connection. Absent fields are left unchanged. Its name and provider can't be changed; remove and re-add it instead. Requires service-auth. Requires the community.configure action.",
+        "operationId": "network.habitat.llm.updateConnection",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "org",
+                  "id"
+                ],
+                "properties": {
+                  "org": {
+                    "type": "string",
+                    "description": "DID of the community the connection belongs to.",
+                    "format": "did"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "model": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "baseUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "apiKey": {
+                    "type": "string",
+                    "description": "A replacement provider API key. Stored encrypted and never returned."
+                  },
+                  "clearApiKey": {
+                    "type": "boolean",
+                    "description": "Delete the stored API key. Ignored when apiKey is set."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "connection"
+                  ],
+                  "properties": {
+                    "connection": {
+                      "$ref": "#/components/schemas/network.habitat.llm.defs.connection"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.mcp.addServer": {
       "post": {
         "tags": [
@@ -10783,6 +11266,34 @@
           }
         }
       },
+      "network.habitat.drop.file": {
+        "type": "object",
+        "required": [
+          "name",
+          "file",
+          "createdAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The file's original name, including its extension.",
+            "maxLength": 1024
+          },
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "description": "The member who uploaded the file. The record itself is written by the org.",
+            "format": "did"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.group.profile": {
         "type": "object",
         "required": [
@@ -10924,6 +11435,99 @@
           "logoUri": {
             "type": "string",
             "description": "The logo URI of this app."
+          }
+        }
+      },
+      "network.habitat.llm.connection": {
+        "type": "object",
+        "required": [
+          "name",
+          "provider",
+          "model",
+          "updatedAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Also this record's key, and the model ID clients request. Letters, digits, dots, hyphens, and underscores only.",
+            "maxLength": 64
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "provider": {
+            "type": "string",
+            "description": "The provider API pear calls the model through; see network.habitat.llm.defs#connection.",
+            "enum": [
+              "openai",
+              "anthropic",
+              "google",
+              "ollama"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "description": "The provider's identifier for the model, e.g. gpt-4o or claude-sonnet-4-5.",
+            "maxLength": 256
+          },
+          "baseUrl": {
+            "type": "string",
+            "description": "The provider API's base URL, overriding the provider's default. Required for ollama. For openai, any OpenAI-compatible API (e.g. OpenRouter's https://openrouter.ai/api/v1).",
+            "format": "uri"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.llm.defs.connection": {
+        "type": "object",
+        "description": "An LLM model connection configured for an org.",
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "model",
+          "hasApiKey"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The connection's identifier, unique within the org. Equal to name."
+          },
+          "name": {
+            "type": "string",
+            "description": "The model ID clients request through the org's OpenAI-compatible API.",
+            "maxLength": 64
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "provider": {
+            "type": "string",
+            "description": "The provider API pear calls the model through. openai: OpenAI or any OpenAI-compatible API, such as OpenRouter, with baseUrl. anthropic: Anthropic's Messages API. google: the Gemini API. ollama: an Ollama server at baseUrl.",
+            "enum": [
+              "openai",
+              "anthropic",
+              "google",
+              "ollama"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "description": "The provider's identifier for the model.",
+            "maxLength": 256
+          },
+          "baseUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "hasApiKey": {
+            "type": "boolean",
+            "description": "Whether an API key is stored for this connection. The key itself is never returned."
           }
         }
       },
@@ -11823,6 +12427,9 @@
       "name": "network.habitat.docs"
     },
     {
+      "name": "network.habitat.drop"
+    },
+    {
       "name": "network.habitat.emaildomain"
     },
     {
@@ -11839,6 +12446,9 @@
     },
     {
       "name": "network.habitat.listConnectedApps"
+    },
+    {
+      "name": "network.habitat.llm"
     },
     {
       "name": "network.habitat.mcp"
