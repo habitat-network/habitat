@@ -10653,6 +10653,51 @@
           }
         }
       },
+      "network.habitat.brain.message": {
+        "type": "object",
+        "required": [
+          "role",
+          "content",
+          "createdAt"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "Who wrote the message.",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "description": "The message's text.",
+            "maxLength": 100000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.brain.session": {
+        "type": "object",
+        "required": [
+          "title",
+          "createdAt"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The session's title, taken from the first message.",
+            "maxLength": 1024
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.docs.comment": {
         "type": "object",
         "required": [
@@ -10780,6 +10825,34 @@
           "content": {
             "type": "string",
             "description": "The rendered markdown content of the document."
+          }
+        }
+      },
+      "network.habitat.drop.file": {
+        "type": "object",
+        "required": [
+          "name",
+          "file",
+          "createdAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The file's original name, including its extension.",
+            "maxLength": 1024
+          },
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "description": "The member who uploaded the file. The record itself is written by the org.",
+            "format": "did"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -10950,10 +11023,11 @@
           },
           "authType": {
             "type": "string",
-            "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically.",
+            "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically. mcp-oauth: like oauth, each member signs in with their own account via MCP OAuth, but pear runs the flow and stores the credentials itself instead of Nango.",
             "enum": [
               "oauth",
-              "manual"
+              "manual",
+              "mcp-oauth"
             ]
           }
         }
@@ -10992,10 +11066,11 @@
           },
           "authType": {
             "type": "string",
-            "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server. Absent means oauth.",
+            "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server. Absent means oauth. mcp-oauth servers have no nangoKey: pear brokers their OAuth itself.",
             "enum": [
               "oauth",
-              "manual"
+              "manual",
+              "mcp-oauth"
             ]
           },
           "nangoKey": {
@@ -11820,7 +11895,13 @@
       "name": "network.habitat.admin"
     },
     {
+      "name": "network.habitat.brain"
+    },
+    {
       "name": "network.habitat.docs"
+    },
+    {
+      "name": "network.habitat.drop"
     },
     {
       "name": "network.habitat.emaildomain"

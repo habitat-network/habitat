@@ -242,8 +242,9 @@ func (s *store) checkNameFree(ctx context.Context, orgID syntax.DID, id syntax.R
 	return nil
 }
 
-// getOAuth returns orgID's OAuth server id, or ErrManualServer if it's a
-// manual server.
+// getOAuth returns orgID's Nango-brokered OAuth server id, or
+// ErrManualServer if it's a manual server, or ErrUnsupportedAuthType for any
+// other AuthType.
 func (s *store) getOAuth(
 	ctx context.Context,
 	orgID syntax.DID,
@@ -253,10 +254,14 @@ func (s *store) getOAuth(
 	if err != nil {
 		return nil, err
 	}
-	if authTypeOf(server.AuthType) == AuthTypeManual {
+	switch authTypeOf(server.AuthType) {
+	case AuthTypeOAuth:
+		return server, nil
+	case AuthTypeManual:
 		return nil, ErrManualServer
+	default:
+		return nil, ErrUnsupportedAuthType
 	}
-	return server, nil
 }
 
 func (s *store) AddServer(
@@ -337,7 +342,7 @@ func (s *store) RemoveServer(ctx context.Context, orgID syntax.DID, id syntax.Re
 	if err := s.records.RemoveMcpServer(ctx, orgID, id); err != nil {
 		return err
 	}
-	if authTypeOf(server.AuthType) == AuthTypeManual {
+	if authTypeOf(server.AuthType) != AuthTypeOAuth {
 		return nil
 	}
 	if err := s.nango.DeleteIntegration(ctx, server.NangoKey); err != nil {

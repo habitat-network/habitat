@@ -21,9 +21,9 @@ type Main = {
   description?: string
 
   /**
-   * How pear authenticates to the server; see network.habitat.mcp.defs#server. Absent means oauth.
+   * How pear authenticates to the server; see network.habitat.mcp.defs#server. Absent means oauth. mcp-oauth servers have no nangoKey: pear brokers their OAuth itself.
    */
-  authType?: 'oauth' | 'manual' | l.UnknownString
+  authType?: 'oauth' | 'manual' | 'mcp-oauth' | l.UnknownString
 
   /**
    * oauth servers only: the Nango integration's unique_key, globally unique across the whole Nango environment (unlike name, which is only unique within the org).
@@ -49,7 +49,9 @@ const main = /*#__PURE__*/ l.record<'any', Main>(
       /*#__PURE__*/ l.string({ maxLength: 2000 }),
     ),
     authType: /*#__PURE__*/ l.optional(
-      /*#__PURE__*/ l.string<{ knownValues: ['oauth', 'manual'] }>(),
+      /*#__PURE__*/ l.string<{
+        knownValues: ['oauth', 'manual', 'mcp-oauth']
+      }>(),
     ),
     nangoKey: /*#__PURE__*/ l.optional(/*#__PURE__*/ l.string()),
     serverUrl: /*#__PURE__*/ l.optional(

@@ -19,20 +19,32 @@ const (
 	// AuthTypeManual servers are configured once by an org admin with just a
 	// URL and need no auth, so every member shares the same connection.
 	AuthTypeManual AuthType = "manual"
+	// AuthTypeMCPOAuth servers follow the MCP authorization spec like
+	// AuthTypeOAuth, but pear runs the flow and keeps each member's
+	// credentials itself (see internal/mcpauth) instead of Nango.
+	AuthTypeMCPOAuth AuthType = "mcp-oauth"
 )
 
 // authTypeOf returns the AuthType a server record was written with. Records
-// written before authType was recorded are all OAuth.
+// written before authType was recorded are all OAuth, and so is any value this
+// version doesn't know.
 func authTypeOf(authType string) AuthType {
-	if AuthType(authType) == AuthTypeManual {
-		return AuthTypeManual
+	switch t := AuthType(authType); t {
+	case AuthTypeManual, AuthTypeMCPOAuth:
+		return t
+	default:
+		return AuthTypeOAuth
 	}
-	return AuthTypeOAuth
 }
 
 // ErrInvalidAuthType is returned when adding a server with an unknown
 // AuthType.
 var ErrInvalidAuthType = errors.New("auth type must be oauth or manual")
+
+// ErrUnsupportedAuthType is returned by operations that don't handle a
+// server's AuthType yet. AuthTypeMCPOAuth servers can't be added or connected
+// to through this package until internal/mcpauth is wired in.
+var ErrUnsupportedAuthType = errors.New("operation not supported for this mcp server's auth type")
 
 // ErrInvalidServerURL is returned when a manual server's URL isn't an
 // absolute http(s) URL.

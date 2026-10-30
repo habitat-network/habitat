@@ -428,3 +428,45 @@ func TestStoreListManualServersForMember_OnlyMemberOrgs(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, manual)
 }
+
+func TestStoreMCPOAuthServerIsNotNango(t *testing.T) {
+	s, nangoClient, records := newTestStore(t)
+	org := newTestOrg(t, records)
+	member := syntax.DID("did:plc:member")
+
+	// Written directly: AddServer doesn't accept mcp-oauth until
+	// internal/mcpauth is wired in.
+	_, err := records.PutMcpServer(t.Context(), org, &opensocial.McpServer{
+		ID:        "inhouse",
+		Name:      "inhouse",
+		AuthType:  string(AuthTypeMCPOAuth),
+		ServerURL: "https://mcp.example.com/mcp",
+	})
+	require.NoError(t, err)
+
+	servers, err := s.ListServers(t.Context(), org, member)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.Equal(t, AuthTypeMCPOAuth, servers[0].Server.AuthType)
+	require.False(t, servers[0].Connected)
+
+	_, err = s.StartAuthorization(t.Context(), member, org, "inhouse")
+	require.ErrorIs(t, err, ErrUnsupportedAuthType)
+	require.ErrorIs(
+		t,
+		s.DisconnectServer(t.Context(), member, org, "inhouse"),
+		ErrUnsupportedAuthType,
+	)
+
+	// Removing it must not touch Nango, which has no integration for it.
+	require.NoError(t, s.RemoveServer(t.Context(), org, "inhouse"))
+	require.Empty(t, nangoClient.integrations)
+}
+
+func TestAuthTypeOf(t *testing.T) {
+	require.Equal(t, AuthTypeOAuth, authTypeOf(""))
+	require.Equal(t, AuthTypeOAuth, authTypeOf("oauth"))
+	require.Equal(t, AuthTypeOAuth, authTypeOf("something-newer"))
+	require.Equal(t, AuthTypeManual, authTypeOf("manual"))
+	require.Equal(t, AuthTypeMCPOAuth, authTypeOf("mcp-oauth"))
+}

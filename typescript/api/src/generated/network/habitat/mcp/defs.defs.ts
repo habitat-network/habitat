@@ -22,9 +22,9 @@ type Server = {
   description?: string
 
   /**
-   * How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically.
+   * How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically. mcp-oauth: like oauth, each member signs in with their own account via MCP OAuth, but pear runs the flow and stores the credentials itself instead of Nango.
    */
-  authType: 'oauth' | 'manual' | l.UnknownString
+  authType: 'oauth' | 'manual' | 'mcp-oauth' | l.UnknownString
 }
 
 export type { Server }
@@ -39,7 +39,9 @@ const server = /*#__PURE__*/ l.typedObject<Server>(
     description: /*#__PURE__*/ l.optional(
       /*#__PURE__*/ l.string({ maxLength: 2000 }),
     ),
-    authType: /*#__PURE__*/ l.string<{ knownValues: ['oauth', 'manual'] }>(),
+    authType: /*#__PURE__*/ l.string<{
+      knownValues: ['oauth', 'manual', 'mcp-oauth']
+    }>(),
   }),
 )
 

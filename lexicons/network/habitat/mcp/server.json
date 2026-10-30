@@ -26,9 +26,10 @@
             "type": "string",
             "knownValues": [
               "oauth",
-              "manual"
+              "manual",
+              "mcp-oauth"
             ],
-            "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server. Absent means oauth."
+            "description": "How pear authenticates to the server; see network.habitat.mcp.defs#server. Absent means oauth. mcp-oauth servers have no nangoKey: pear brokers their OAuth itself."
           },
           "nangoKey": {
             "type": "string",

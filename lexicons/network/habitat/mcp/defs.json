@@ -27,9 +27,10 @@
           "type": "string",
           "knownValues": [
             "oauth",
-            "manual"
+            "manual",
+            "mcp-oauth"
           ],
-          "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically."
+          "description": "How pear authenticates to the server. oauth: each member signs in with their own account via MCP OAuth (brokered by Nango). manual: the server needs no auth, so an admin configured its URL once for the whole org and every member is connected automatically. mcp-oauth: like oauth, each member signs in with their own account via MCP OAuth, but pear runs the flow and stores the credentials itself instead of Nango."
         }
       }
     }
