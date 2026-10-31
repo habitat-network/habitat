@@ -13,6 +13,7 @@ import {
   TableRow,
   toast,
 } from "internal/components/ui";
+import { UserDisplayName } from "internal";
 import { Download, MoreVertical, Trash2 } from "lucide-react";
 import { formatBytes } from "@/lib/files";
 import { deleteFileByUri, type FileView } from "@/server/functions";
@@ -88,9 +89,11 @@ export function FileTable({
                 </a>
               </TableCell>
               <TableCell className="hidden max-w-56 truncate text-muted-foreground sm:table-cell">
-                {file.uploaderHandle
-                  ? `@${file.uploaderHandle}`
-                  : (file.uploadedBy ?? "—")}
+                {file.uploader ? (
+                  <UserDisplayName actor={file.uploader} />
+                ) : (
+                  "—"
+                )}
               </TableCell>
               <TableCell
                 className="hidden whitespace-nowrap text-muted-foreground md:table-cell"

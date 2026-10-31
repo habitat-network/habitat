@@ -92,6 +92,28 @@ describe("HabitatClient", () => {
     );
   });
 
+  it("sends array GET params as repeated keys", async () => {
+    let request: Request | undefined;
+    server.use(
+      http.get(
+        "http://pds.test/xrpc/network.habitat.opensocial.getProfiles",
+        ({ request: r }) => {
+          request = r;
+          return HttpResponse.json({ profiles: [] });
+        },
+      ),
+    );
+    await new HabitatClient(testEnv, "did:plc:member1").call(
+      "network.habitat.opensocial.getProfiles",
+      "GET",
+      { org: "did:web:org.test", dids: ["did:plc:a", "did:plc:b"] },
+    );
+    expect(new URL(request!.url).searchParams.getAll("dids")).toEqual([
+      "did:plc:a",
+      "did:plc:b",
+    ]);
+  });
+
   it("asDid calls through the other DID's session", async () => {
     let did: string | null = null;
     server.use(

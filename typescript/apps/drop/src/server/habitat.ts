@@ -1,5 +1,6 @@
 import { type Agent, type LexValue, xrpc } from "@atproto/lex";
 import { type DidString, SpaceRef, type SpaceRefString } from "@atproto/syntax";
+import type { Actor } from "internal";
 import { com, community, network } from "api";
 import { FILE_COLLECTION } from "./sink";
 
@@ -50,6 +51,53 @@ export async function fetchOrgName(
   } catch {
     return null;
   }
+}
+
+// PROFILES_PER_REQUEST is getProfiles' per-call cap on dids (its lexicon's
+// maxLength).
+const PROFILES_PER_REQUEST = 100;
+
+// fetchOrgProfiles asks Habitat's network.habitat.opensocial.getProfiles for
+// the profiles of dids as members of org, the way the org's other members
+// see them (a member's own memberProfile, else their public Bluesky one).
+// DIDs that aren't members of org are omitted by the server, so callers must
+// tolerate missing entries.
+//
+// Sent through the member's own PDS with an Atproto-Proxy to the org's
+// Habitat service, which is what serves the opensocial lexicons; the PDS
+// itself knows nothing of them.
+export async function fetchOrgProfiles(
+  agent: Agent,
+  orgDid: DidString,
+  dids: string[],
+): Promise<Actor[]> {
+  const unique = [...new Set(dids)] as DidString[];
+  const proxied: Agent = {
+    fetchHandler: (path, init) => {
+      const headers = new Headers(init.headers);
+      headers.set("atproto-proxy", `${orgDid}#habitat`);
+      return agent.fetchHandler(path, { ...init, headers });
+    },
+  };
+  const chunks: DidString[][] = [];
+  for (let i = 0; i < unique.length; i += PROFILES_PER_REQUEST) {
+    chunks.push(unique.slice(i, i + PROFILES_PER_REQUEST));
+  }
+  const responses = await Promise.all(
+    chunks.map((chunk) =>
+      xrpc(proxied, network.habitat.opensocial.getProfiles.main, {
+        params: { org: orgDid, dids: chunk },
+      }),
+    ),
+  );
+  return responses.flatMap(({ body }) =>
+    body.profiles.map((p) => ({
+      did: p.did,
+      handle: p.handle,
+      displayName: p.displayName,
+      avatar: p.avatarUrl,
+    })),
+  );
 }
 
 // listOrgFileSpaces lists every Drop file space an org owns, so connecting

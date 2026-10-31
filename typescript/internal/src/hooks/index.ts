@@ -1,2 +1,2 @@
 export { useIsMobile } from "./use-mobile";
-export { useActors } from "./useActors";
+export { useActors, type ActorSource } from "./useActors";

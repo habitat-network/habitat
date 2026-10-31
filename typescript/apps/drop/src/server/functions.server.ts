@@ -5,7 +5,8 @@ import type { Agent } from "@atproto/lex";
 import type { OAuthSession } from "@atproto/oauth-client";
 import { createOAuthClient } from "./oauth";
 import { useAppSession } from "./session";
-import { listMyOrgIds } from "./habitat";
+import type { Actor } from "internal";
+import { fetchOrgProfiles, listMyOrgIds } from "./habitat";
 
 // Server-only helpers for functions.ts and the server routes, kept apart for
 // the same reason as chalk's functions.server.ts: a file mixing
@@ -117,5 +118,27 @@ export async function resolveHandle(
     return info.handle === "handle.invalid" ? null : info.handle;
   } catch {
     return null;
+  }
+}
+
+// orgProfiles resolves dids to their profiles as members of orgDid, via
+// Habitat's getProfiles, indexed by did. Best-effort, like resolveHandle:
+// anything it can't resolve (a non-member, or a failed call) is just absent,
+// and callers fall back to the bare DID. A 401 still ends the member's login.
+export async function orgProfiles(
+  env: Env,
+  memberDid: DidString,
+  orgDid: DidString,
+  dids: string[],
+): Promise<Map<string, Actor>> {
+  if (dids.length === 0) return new Map();
+  try {
+    const agent = await memberSession(env, memberDid);
+    const profiles = await fetchOrgProfiles(agent, orgDid, dids);
+    return new Map(profiles.map((p) => [p.did, p]));
+  } catch (err) {
+    await signOutIfUnauthorized(err);
+    console.error("[drop] fetching org profiles", err);
+    return new Map();
   }
 }

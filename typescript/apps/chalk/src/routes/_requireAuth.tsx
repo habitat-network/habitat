@@ -9,7 +9,6 @@ import {
 } from "@tanstack/react-router";
 import {
   AppLayout,
-  getProfile,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
@@ -23,6 +22,7 @@ import {
   createDoc,
   getCaller,
   getCurrentOrg,
+  getProfiles,
   listDocs,
   signOut,
 } from "@/server/functions";
@@ -43,7 +43,9 @@ export const Route = createFileRoute("/_requireAuth")({
       }),
       // The AppLayout footer needs a resolved handle/avatar to show
       // anything besides "Unknown User" — getCaller only gives us the did.
-      getProfile(context.did),
+      getProfiles({ data: { dids: [context.did] } }).then(
+        ([profile]) => profile ?? { did: context.did },
+      ),
       getCurrentOrg(),
     ]);
     return { actor, currentOrg };

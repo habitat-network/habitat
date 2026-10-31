@@ -17,7 +17,7 @@ import {
   type ShareDialogRole,
 } from "internal";
 import { Button, toast } from "internal/components/ui";
-import { useActors } from "internal/hooks";
+import { useChalkActors } from "@/hooks/useChalkActors";
 import { PageHeader } from "@/components/PageHeader";
 import { HelpDialog } from "@/components/HelpDialog";
 import {
@@ -103,7 +103,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       queryKey: accessQueryKey,
       queryFn: () => listDocAccess({ data: { docId: uri } }),
     });
-    const getActor = useActors(access.map((a) => a.did));
+    const getActor = useChalkActors(access.map((a) => a.did));
     const grantees: ShareDialogGrantee[] = useMemo(
       () => access.map((a) => ({ ...getActor(a.did), role: a.role })),
       [access, getActor],
