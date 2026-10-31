@@ -25,6 +25,16 @@ func newOpenSocialServer(t *testing.T, did syntax.DID) *pearserver_testutil.Test
 	return newOpenSocialServerAs(t, nil, did, authn.ValidatorMethodServiceAuth)
 }
 
+// newOpenSocialServerWith is newOpenSocialServer with extra TestServer options.
+func newOpenSocialServerWith(
+	t *testing.T,
+	did syntax.DID,
+	extra ...utils.Opt[pearserver_testutil.TestServer],
+) *pearserver_testutil.TestServer {
+	t.Helper()
+	return newOpenSocialServerAs(t, nil, did, authn.ValidatorMethodServiceAuth, extra...)
+}
+
 // newOpenSocialServerAs returns a TestServer authenticating did with the given
 // auth method, for the endpoints that treat the two differently. When ts is
 // non-nil the returned server shares ts's backing stores, so state written
@@ -34,6 +44,7 @@ func newOpenSocialServerAs(
 	ts *pearserver_testutil.TestServer,
 	did syntax.DID,
 	method authn.ValidatorMethod,
+	extra ...utils.Opt[pearserver_testutil.TestServer],
 ) *pearserver_testutil.TestServer {
 	t.Helper()
 	opts := []utils.Opt[pearserver_testutil.TestServer]{
@@ -52,7 +63,7 @@ func newOpenSocialServerAs(
 			pearserver_testutil.WithNangoClient(ts.NangoClient),
 		)
 	}
-	return pearserver_testutil.NewTestServer(t, opts...)
+	return pearserver_testutil.NewTestServer(t, append(opts, extra...)...)
 }
 
 // newSharedOpenSocialServers returns two TestServers (authenticated as admin

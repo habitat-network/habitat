@@ -1,10 +1,12 @@
 package pearserver_test
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"testing"
 
+	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 
@@ -12,6 +14,7 @@ import (
 	opensocial_api "github.com/habitat-network/habitat/api/opensocial"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
+	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -87,5 +90,42 @@ func TestServer_GetProfiles(t *testing.T) {
 		require.Equal(t, "Hi, I'm Alice", byDID[alice.String()].Bio)
 		_, ok := byDID[notAMember.String()]
 		require.False(t, ok)
+	})
+
+	t.Run("falls back to bluesky for dids unknown to org and hive", func(t *testing.T) {
+		displayName := "Bsky Person"
+		bskyDID := syntax.DID("did:plc:bskyperson")
+		noBskyDID := syntax.DID("did:plc:nobsky")
+		ts := newOpenSocialServerWith(t, admin, pearserver_testutil.WithBskyProfiles(
+			func(
+				_ context.Context, dids []syntax.DID,
+			) ([]*bsky.ActorDefs_ProfileViewDetailed, error) {
+				var out []*bsky.ActorDefs_ProfileViewDetailed
+				for _, did := range dids {
+					if did == bskyDID {
+						out = append(out, &bsky.ActorDefs_ProfileViewDetailed{
+							Did:         did.String(),
+							Handle:      "bsky.example.com",
+							DisplayName: &displayName,
+						})
+					}
+				}
+				return out, nil
+			},
+		))
+		orgDID, err := ts.OpenSocialStore.NewOrg(t.Context(), "acme", admin)
+		require.NoError(t, err)
+
+		var out habitat.NetworkHabitatOpensocialGetProfilesOutput
+		code := client.Query(
+			ts.Server.GetProfiles,
+			url.Values{"org": {orgDID}, "dids": {string(bskyDID), string(noBskyDID)}},
+			&out,
+		)
+		require.Equal(t, http.StatusOK, code)
+		require.Len(t, out.Profiles, 1)
+		require.Equal(t, bskyDID.String(), out.Profiles[0].Did)
+		require.Equal(t, "bsky.example.com", out.Profiles[0].Handle)
+		require.Equal(t, displayName, out.Profiles[0].DisplayName)
 	})
 }
