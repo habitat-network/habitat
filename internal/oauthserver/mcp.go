@@ -215,9 +215,17 @@ func (o *OAuthServer) HandleMCPAuthorize(w http.ResponseWriter, r *http.Request)
 	if c, ok := ar.GetClient().(clientDisplay); ok {
 		clientName = c.displayName()
 	}
+	loginHint := r.Form.Get("login_hint")
+	if remembered, ok := o.loginHint.read(r); loginHint == "" && ok && !asksForAccount(ar) {
+		// Prefill the prompt with whoever last signed in through pear.
+		loginHint = remembered.Handle
+		if loginHint == "" {
+			loginHint = remembered.DID.String()
+		}
+	}
 	page := url.Values{
 		"client_name": {clientName},
-		"login_hint":  {r.Form.Get("login_hint")},
+		"login_hint":  {loginHint},
 	}
 	http.Redirect(w, r, MCPAuthorizePagePath+"?"+page.Encode(), http.StatusSeeOther)
 }

@@ -8,34 +8,35 @@ import (
 )
 
 var (
-	fDebug              = "debug"
-	fDomain             = "domain"
-	fServiceName        = "service_name"
-	fDB                 = "db"
-	fPort               = "port"
-	fHttpsCerts         = "httpscerts"
-	fPdsCredEncryptKey  = "pds_cred_encrypt_key"
-	fSpaceSigningKey    = "space_signing_key"
-	fOauthServerSecret  = "oauth_server_secret"
-	fOauthClientSecret  = "oauth_client_secret"
-	fHiveDomain         = "hive_domain"
-	fGoogleClientID     = "google_client_id"
-	fGoogleClientSecret = "google_client_secret"
-	fPdsOauthClientUri  = "pds_oauth_client_uri"
-	fAdminPassword      = "admin_password"
-	fUiDevProxy         = "ui_dev_proxy"
-	fBuiltinApps        = "builtin_app"
-	fBlobBucket         = "blob_bucket"
-	fNangoSecretKey     = "nango_secret_key"
-	fMeilisearchURL     = "meilisearch_url"
-	fMeilisearchAPIKey  = "meilisearch_api_key"
-	fEmbedderURL        = "embedder_url"
-	fEmbedderAPIKey     = "embedder_api_key"
-	fEmbedderModel      = "embedder_model"
-	fEmbedderDimensions = "embedder_dimensions"
-	fSemanticRatio      = "search_semantic_ratio"
-	fSearchMinScore     = "search_min_score"
-	fMCPTextOverrides   = "mcp_text_overrides"
+	fDebug                 = "debug"
+	fDomain                = "domain"
+	fServiceName           = "service_name"
+	fDB                    = "db"
+	fPort                  = "port"
+	fHttpsCerts            = "httpscerts"
+	fPdsCredEncryptKey     = "pds_cred_encrypt_key"
+	fSpaceSigningKey       = "space_signing_key"
+	fOauthServerSecret     = "oauth_server_secret"
+	fOauthClientSecret     = "oauth_client_secret"
+	fHiveDomain            = "hive_domain"
+	fGoogleClientID        = "google_client_id"
+	fGoogleClientSecret    = "google_client_secret"
+	fPdsOauthClientUri     = "pds_oauth_client_uri"
+	fAdminPassword         = "admin_password"
+	fUiDevProxy            = "ui_dev_proxy"
+	fBuiltinApps           = "builtin_app"
+	fBlobBucket            = "blob_bucket"
+	fNangoSecretKey        = "nango_secret_key"
+	fMeilisearchURL        = "meilisearch_url"
+	fMeilisearchAPIKey     = "meilisearch_api_key"
+	fEmbedderURL           = "embedder_url"
+	fEmbedderAPIKey        = "embedder_api_key"
+	fEmbedderModel         = "embedder_model"
+	fEmbedderDimensions    = "embedder_dimensions"
+	fSemanticRatio         = "search_semantic_ratio"
+	fSearchMinScore        = "search_min_score"
+	fMCPTextOverrides      = "mcp_text_overrides"
+	fLoginHintCookieDomain = "login_hint_cookie_domain"
 )
 
 var profiles []string
@@ -198,6 +199,11 @@ func getFlags() []cli.Flag {
 			Name:    fMCPTextOverrides,
 			Usage:   "Development only: let MCP requests reword the server instructions and search tool description with the " + mcpserver.TextOverridesHeader + " header, for integration/mcp-evals.",
 			Sources: getSources(fMCPTextOverrides),
+		},
+		&cli.StringFlag{
+			Name:    fLoginHintCookieDomain,
+			Usage:   "Parent domain (e.g. habitat.network) to scope the signed-in user's login-hint cookie to, so apps on its subdomains can read it and skip asking for a handle. Must cover --domain. Empty keeps the cookie on pear's own host",
+			Sources: getSources(fLoginHintCookieDomain),
 		},
 	}
 }

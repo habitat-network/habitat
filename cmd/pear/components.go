@@ -321,6 +321,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		),
 		opensocialStore,
 		emailResolver,
+		oauthserver.CookieDomain(cmd.String(fLoginHintCookieDomain)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("setup oauth server: %w", err)

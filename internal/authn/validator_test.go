@@ -57,6 +57,7 @@ func TestValidator(t *testing.T) {
 		nil,
 		os.Store,
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 
