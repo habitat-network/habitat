@@ -395,6 +395,7 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		emailDomainStore,
 		hostKey,
 		notifyStore,
+		notifier,
 		blobBucket,
 		blobStore,
 		spacesStore,

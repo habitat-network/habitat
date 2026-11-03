@@ -242,3 +242,26 @@ export const receiveNotifySpaceDeleted = Effect.fn("receiveNotifySpaceDeleted")(
     );
   },
 );
+
+/**
+ * The HTTP status to answer a notification that failed with `error`. A space
+ * authority retries notifySpaceDeleted on 5xx and gives up on 4xx, so only a
+ * rejected caller (401) or a malformed body (400) is permanent; anything else,
+ * such as a sink or store failure while dropping the space, is a 500 so the
+ * delivery is retried.
+ */
+export const notificationErrorStatus = (error: unknown): 400 | 401 | 500 => {
+  const tag =
+    typeof error === "object" && error !== null && "_tag" in error
+      ? error._tag
+      : undefined;
+  switch (tag) {
+    case "NotificationAuthError":
+      return 401;
+    case "WireDecodeError":
+    case "InvalidSpaceRefError":
+      return 400;
+    default:
+      return 500;
+  }
+};

@@ -356,6 +356,10 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	eg, egCtx := errgroup.WithContext(startupCtx)
+	// Retries the notifySpaceDeleted deliveries that haven't succeeded yet.
+	eg.Go(func() error {
+		return app.Notifier.Run(egCtx, app.SpacesStore)
+	})
 	if app.SearchIndexer != nil {
 		eg.Go(func() error {
 			return app.SearchIndexer.Run(egCtx, app.SpacesStore, app.PermStore)

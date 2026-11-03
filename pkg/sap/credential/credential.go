@@ -8,6 +8,7 @@ package credential
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -126,6 +127,23 @@ type Manager struct {
 
 	mu    sync.Mutex
 	creds map[credKey]spaceCred
+
+	// onSpaceDeleted, when set, is told of a space whose host answered
+	// SpaceDeleted; see OnSpaceDeleted.
+	onSpaceDeleted func(ctx context.Context, space habitat_syntax.SpaceURI)
+}
+
+// ErrSpaceDeleted is returned for a space whose host answered SpaceDeleted
+// when asked for a credential: the space was deleted, and sap may have missed
+// the notifySpaceDeleted that said so.
+var ErrSpaceDeleted = errors.New("space deleted")
+
+// OnSpaceDeleted sets f to be called whenever a credential request finds a
+// space deleted, so the caller can drop its copy as it would on a
+// notifySpaceDeleted. f runs on the minting goroutine and must not block on
+// credentials for the same space. Set it before the manager is used.
+func (m *Manager) OnSpaceDeleted(f func(ctx context.Context, space habitat_syntax.SpaceURI)) {
+	m.onSpaceDeleted = f
 }
 
 // NewManager builds a manager. httpc must not attach any auth of its own —
@@ -229,6 +247,15 @@ func (m *Manager) mint(
 			Space: space.String(), ClientAttestation: attestation,
 		}, &out,
 	); err != nil {
+		// Only the space's own host answers for the space, so its SpaceDeleted
+		// is authoritative. Any other failure says nothing about the space.
+		var apiErr *atclient.APIError
+		if errors.As(err, &apiErr) && apiErr.Name == "SpaceDeleted" {
+			if m.onSpaceDeleted != nil {
+				m.onSpaceDeleted(ctx, space)
+			}
+			return spaceCred{}, fmt.Errorf("get space credential: %w: %w", ErrSpaceDeleted, err)
+		}
 		return spaceCred{}, fmt.Errorf("get space credential: %w", err)
 	}
 	c := spaceCred{token: out.Credential, host: host, expire: credentialExpiry(out.Credential)}
