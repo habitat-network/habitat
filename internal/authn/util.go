@@ -25,7 +25,10 @@ func getBearerToken(r *http.Request) string {
 	if token, ok := strings.CutPrefix(auth, "DPoP "); ok {
 		return token
 	}
-	if token, ok := strings.CutPrefix(auth, httpsig.CredentialScheme+" "); ok {
+	// The space credential scheme is matched case-insensitively, per the
+	// atproto spaces proposal.
+	if scheme, token, ok := strings.Cut(auth, " "); ok &&
+		strings.EqualFold(scheme, httpsig.CredentialScheme) {
 		return token
 	}
 	return strings.TrimPrefix(auth, "Bearer ")

@@ -16,7 +16,6 @@ import (
 	pear_testutil "github.com/habitat-network/habitat/cmd/pear/testutil"
 	sap_testutil "github.com/habitat-network/habitat/pkg/sap/testutil"
 
-	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -374,10 +373,9 @@ func TestSapTrackSpace(t *testing.T) {
 	require.Equal(t, int64(1), repoCount)
 }
 
-// TestSapSpaceCredential verifies SpaceCredential mints, through a session
-// with recorded access to the space, a credential the space's host accepts for
-// a read — here a caller other than the session itself (no DID of its own)
-// reading a record with it.
+// TestSapSpaceCredential verifies sap's credential manager mints, through a
+// session with recorded access to the space, a key-bound credential the
+// space's host accepts for a signed read.
 func TestSapSpaceCredential(t *testing.T) {
 	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
@@ -438,15 +436,10 @@ func TestSapSpaceCredential(t *testing.T) {
 	}))
 	require.NoError(t, s.TrackSpace(t.Context(), space.URI(), author, "sess1"))
 
-	cred, err := s.SpaceCredential(t.Context(), space)
+	client, err := s.credentials.ClientForSpace(t.Context(), space)
 	require.NoError(t, err)
-	require.Equal(t, pear.server.URL, cred.Host)
+	require.Equal(t, pear.server.URL, client.Host)
 
-	client := &atclient.APIClient{
-		Client:  http.DefaultClient,
-		Host:    cred.Host,
-		Headers: http.Header{"Authorization": []string{"Bearer " + cred.Token}},
-	}
 	var out habitat.NetworkHabitatSpaceGetRecordOutput
 	require.NoError(t, client.Get(t.Context(), "network.habitat.space.getRecord", map[string]any{
 		"space":      space.URI().String(),

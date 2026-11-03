@@ -24,7 +24,6 @@ const (
 	ValidatorMethodOAuth
 	ValidatorMethodServiceAuth
 	ValidatorMethodSpaceCredential
-	ValidatorMethodDelegationToken
 )
 
 // String names the method, as recorded on request spans.
@@ -36,8 +35,6 @@ func (m ValidatorMethod) String() string {
 		return "service_auth"
 	case ValidatorMethodSpaceCredential:
 		return "space_credential"
-	case ValidatorMethodDelegationToken:
-		return "delegation_token"
 	}
 	return "none"
 }
@@ -59,7 +56,6 @@ type validator struct {
 	oauth           Method
 	serviceAuth     Method
 	spaceCredential *SpaceCredentialAuthMethod
-	delegationToken *DelegationTokenAuthMethod
 	srv             SpaceRoleValidator
 }
 
@@ -67,14 +63,12 @@ func NewValidator(
 	oauth Method,
 	serviceAuth Method,
 	spaceCredential *SpaceCredentialAuthMethod,
-	delegationToken *DelegationTokenAuthMethod,
 	srv SpaceRoleValidator,
 ) *validator {
 	return &validator{
 		oauth:           oauth,
 		serviceAuth:     serviceAuth,
 		spaceCredential: spaceCredential,
-		delegationToken: delegationToken,
 		srv:             srv,
 	}
 }
@@ -117,8 +111,6 @@ func (rv *EndpointOptions) getMethod(method ValidatorMethod) Method {
 		return rv.v.serviceAuth
 	case ValidatorMethodSpaceCredential:
 		return rv.v.spaceCredential
-	case ValidatorMethodDelegationToken:
-		return rv.v.delegationToken
 	}
 	return nil
 }

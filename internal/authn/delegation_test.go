@@ -1,8 +1,6 @@
 package authn_test
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -78,10 +76,10 @@ func WithHostKey(key atcrypto.PrivateKey) Option {
 	}
 }
 
-// newTestDelegator builds a DelegationTokenAuthMethod backed by a fresh
+// newTestDelegator builds a DelegationTokenVerifier backed by a fresh
 // perms.Store, letting individual tests override the directory, permission
 // store, or host key.
-func newTestDelegator(t *testing.T, opts ...Option) *authn.DelegationTokenAuthMethod {
+func newTestDelegator(t *testing.T, opts ...Option) *authn.DelegationTokenVerifier {
 	t.Helper()
 	store, _ := newTestPermsStore(t)
 	options := &testDelegatorOptions{
@@ -91,10 +89,10 @@ func newTestDelegator(t *testing.T, opts ...Option) *authn.DelegationTokenAuthMe
 	for _, o := range opts {
 		o(options)
 	}
-	return authn.NewDelegationTokenAuthMethod(options.dir, options.srv, options.hostKey)
+	return authn.NewDelegationTokenVerifier(options.dir, options.srv, options.hostKey)
 }
 
-func TestDelegationAuthMethod(t *testing.T) {
+func TestDelegationTokenVerifier(t *testing.T) {
 	userKey, _ := atcrypto.GeneratePrivateKeyK256()
 	userPubKey, _ := userKey.PublicKey()
 	dir := identity.NewMockDirectory()
@@ -105,13 +103,6 @@ func TestDelegationAuthMethod(t *testing.T) {
 	space := habitat_syntax.SpaceURI("at://did:web:space-owner.com/space/com.test.space/abc")
 	user := syntax.DID("did:web:pear.com")
 
-	t.Run("can handle", func(t *testing.T) {
-		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
-		require.NoError(t, err)
-		r := newAuthenticatedRequest(token)
-		require.True(t, newTestDelegator(t, WithDirectory(dir)).CanHandle(r))
-	})
-
 	t.Run("has permission", func(t *testing.T) {
 		store, sp := newTestPermsStore(t)
 		newTestSpace(t, sp, space)
@@ -119,25 +110,17 @@ func TestDelegationAuthMethod(t *testing.T) {
 		require.NoError(t, err)
 		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
 		require.NoError(t, err)
-		r := newAuthenticatedRequest(token)
-		credInfo, ok := newTestDelegator(t, WithDirectory(dir), WithSpaceRoleValidator(store)).
-			Validate(httptest.NewRecorder(), r)
-		require.True(t, ok)
-		require.Equal(
-			t, credInfo,
-			&authn.CredentialInfo{
-				Space:  space,
-				Method: authn.ValidatorMethodDelegationToken,
-			},
-		)
+		issuer, err := newTestDelegator(t, WithDirectory(dir), WithSpaceRoleValidator(store)).
+			Verify(t.Context(), token, space)
+		require.NoError(t, err)
+		require.Equal(t, user, issuer)
 	})
 
 	t.Run("no permission", func(t *testing.T) {
 		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
 		require.NoError(t, err)
-		r := newAuthenticatedRequest(token)
-		_, ok := newTestDelegator(t, WithDirectory(dir)).Validate(httptest.NewRecorder(), r)
-		require.False(t, ok)
+		_, err = newTestDelegator(t, WithDirectory(dir)).Verify(t.Context(), token, space)
+		require.ErrorIs(t, err, authn.ErrUserNotAuthorized)
 	})
 
 	t.Run("host key has permission", func(t *testing.T) {
@@ -148,53 +131,52 @@ func TestDelegationAuthMethod(t *testing.T) {
 		require.NoError(t, err)
 		token, err := utils.DelegationToken(hostKey, user, "#habitat", space)
 		require.NoError(t, err)
-		r := newAuthenticatedRequest(token)
-		credInfo, ok := newTestDelegator(
+		issuer, err := newTestDelegator(
 			t,
 			WithDirectory(dir),
 			WithSpaceRoleValidator(store),
 			WithHostKey(hostKey),
-		).Validate(httptest.NewRecorder(), r)
-		require.True(t, ok)
-		require.Equal(
-			t, credInfo,
-			&authn.CredentialInfo{
-				Space:  space,
-				Method: authn.ValidatorMethodDelegationToken,
-			},
-		)
+		).Verify(t.Context(), token, space)
+		require.NoError(t, err)
+		require.Equal(t, user, issuer)
 	})
 
 	t.Run("host key no permission", func(t *testing.T) {
 		hostKey, _ := atcrypto.GeneratePrivateKeyK256()
 		token, err := utils.DelegationToken(hostKey, user, "#habitat", space)
 		require.NoError(t, err)
-		r := newAuthenticatedRequest(token)
-		_, ok := newTestDelegator(t, WithDirectory(dir), WithHostKey(hostKey)).
-			Validate(httptest.NewRecorder(), r)
-		require.False(t, ok)
+		_, err = newTestDelegator(t, WithDirectory(dir), WithHostKey(hostKey)).
+			Verify(t.Context(), token, space)
+		require.ErrorIs(t, err, authn.ErrUserNotAuthorized)
 	})
 
-	t.Run("no token", func(t *testing.T) {
-		_, ok := newTestDelegator(t, WithDirectory(dir)).Validate(
-			httptest.NewRecorder(),
-			httptest.NewRequest("GET", "/", http.NoBody),
-		)
-		require.False(t, ok)
+	t.Run("malformed token", func(t *testing.T) {
+		_, err := newTestDelegator(t, WithDirectory(dir)).Verify(t.Context(), "not-a-jwt", space)
+		require.ErrorIs(t, err, authn.ErrInvalidDelegationToken)
 	})
 
 	t.Run("invalid signature", func(t *testing.T) {
 		otherKey, _ := atcrypto.GeneratePrivateKeyK256()
-		store, sp := newTestPermsStore(t)
-		newTestSpace(t, sp, space)
-		_, err := store.SetUserRelation(t.Context(), user, space, habitat_syntax.SpaceRoleReader)
-		require.NoError(t, err)
 		token, err := utils.DelegationToken(otherKey, user, "#atproto", space)
 		require.NoError(t, err)
-		r := newAuthenticatedRequest(token)
-		credInfo, ok := newTestDelegator(t, WithDirectory(dir), WithSpaceRoleValidator(store)).
-			Validate(httptest.NewRecorder(), r)
-		require.False(t, ok)
-		require.Nil(t, credInfo)
+		_, err = newTestDelegator(t, WithDirectory(dir)).Verify(t.Context(), token, space)
+		require.ErrorIs(t, err, authn.ErrInvalidDelegationToken)
+	})
+
+	t.Run("other space", func(t *testing.T) {
+		token, err := utils.DelegationToken(userKey, user, "#atproto", space)
+		require.NoError(t, err)
+		_, err = newTestDelegator(t, WithDirectory(dir)).Verify(
+			t.Context(), token,
+			habitat_syntax.SpaceURI("at://did:web:space-owner.com/space/com.test.space/other"),
+		)
+		require.ErrorIs(t, err, authn.ErrInvalidDelegationToken)
+	})
+
+	t.Run("space credential is not a delegation token", func(t *testing.T) {
+		token, err := utils.SpaceCredential(userKey, "#atproto", space)
+		require.NoError(t, err)
+		_, err = newTestDelegator(t, WithDirectory(dir)).Verify(t.Context(), token, space)
+		require.ErrorIs(t, err, authn.ErrInvalidDelegationToken)
 	})
 }

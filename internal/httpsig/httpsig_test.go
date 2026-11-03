@@ -3,6 +3,7 @@ package httpsig_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -13,7 +14,7 @@ import (
 
 func newRequest() *http.Request {
 	r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-	r.Header.Set("Authorization", "Atproto-Space token")
+	r.Header.Set("Authorization", "Atproto-Space-Credential token")
 	r.Header.Set(httpsig.AudienceHeader, "did:web:host.example")
 	return r
 }
@@ -27,32 +28,44 @@ func TestSignVerify(t *testing.T) {
 
 	t.Run("round trip", func(t *testing.T) {
 		r := newRequest()
-		require.False(t, httpsig.HasSignature(r))
 		require.NoError(t, httpsig.Sign(r, key, comps...))
-		require.True(t, httpsig.HasSignature(r))
-		got, err := httpsig.Verify(r, comps...)
-		require.NoError(t, err)
-		require.Equal(t, pub.DIDKey(), got)
+		require.Equal(
+			t,
+			`atproto-space-credential=("authorization" "atproto-space-audience");tag="atproto-space-credential"`,
+			r.Header.Get("Signature-Input"),
+		)
+		require.NoError(t, httpsig.VerifyBound(r, pub.DIDKey(), comps...))
 	})
 
 	t.Run("tampered audience", func(t *testing.T) {
 		r := newRequest()
 		require.NoError(t, httpsig.Sign(r, key, comps...))
 		r.Header.Set(httpsig.AudienceHeader, "did:web:evil.example")
-		_, err := httpsig.Verify(r, comps...)
+		err := httpsig.VerifyBound(r, pub.DIDKey(), comps...)
 		require.ErrorIs(t, err, httpsig.ErrInvalidSignature)
 	})
 
 	t.Run("wrong components", func(t *testing.T) {
 		r := newRequest()
 		require.NoError(t, httpsig.Sign(r, key, "authorization"))
-		_, err := httpsig.Verify(r, comps...)
+		err := httpsig.VerifyBound(r, pub.DIDKey(), comps...)
 		require.ErrorIs(t, err, httpsig.ErrInvalidSignature)
 	})
 
 	t.Run("missing signature", func(t *testing.T) {
-		_, err := httpsig.Verify(newRequest(), comps...)
+		err := httpsig.VerifyBound(newRequest(), pub.DIDKey(), comps...)
 		require.ErrorIs(t, err, httpsig.ErrNoSignature)
+	})
+
+	t.Run("other key", func(t *testing.T) {
+		other, err := atcrypto.GeneratePrivateKeyP256()
+		require.NoError(t, err)
+		otherPub, err := other.PublicKey()
+		require.NoError(t, err)
+		r := newRequest()
+		require.NoError(t, httpsig.Sign(r, key, comps...))
+		err = httpsig.VerifyBound(r, otherPub.DIDKey(), comps...)
+		require.ErrorIs(t, err, httpsig.ErrInvalidSignature)
 	})
 
 	t.Run("k256 key rejected", func(t *testing.T) {
@@ -62,72 +75,89 @@ func TestSignVerify(t *testing.T) {
 	})
 }
 
-// Headers produced by @atproto/space's createSpaceSigHeaders, the reference
-// client: unpadded base64, and no keyid on a credential-use signature (the
-// key is the credential's cnf.kid).
+// Headers produced by @atproto/space@0.0.0-spaces-alpha-20261029171913's
+// createSpaceSigHeaders, the reference client: padded base64, a tag, and no
+// keyid (the key is the credential's cnf.kid).
 const (
-	refKey      = "did:key:zDnaejNzg9pNn2yebVfDMg9vUT3jUtZrGSsg6ym4jdRrcVvb4"
-	refExchange = `atproto-space=:jAI1IlrX8im5H1Tvb7BZHIrR5XE7P1O6/s/LjD//pZRq8G4NPyF+Lbgx5/rZ24HZAvVp/I56yfRSIGj4pA02bA:`
-	refUse      = `atproto-space=:C5HzzP2/JNfzALGEhg/PKHfvZZtT3qL53ayMJ9AeJw1CaKN6eqyS80MQlJ6SWwZ8ZtBXBgaj0Jf2ewscUSOshg:`
+	refKey   = "did:key:zDnaeaU83PGTU2SxCaKFboswW4VGLLq7rMSaqsnYcq9dYbMP8"
+	refInput = `atproto-space-credential=("authorization" "atproto-space-audience");tag="atproto-space-credential"`
+	refSig   = `atproto-space-credential=:7HBAwkylzezrImiRmrJ4CU3fygMclaoqJ7M+NxXoH20pvXQRx5M4S3r9YVqsvPtg/590ZrVast5L0XWUoKNcXw==:`
 )
 
 func TestVerifyReferenceClient(t *testing.T) {
-	exchange := func() *http.Request {
-		r := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
-		r.Header.Set("Authorization", "Bearer deleg.token.x")
-		r.Header.Set("Signature-Input", `atproto-space=("authorization");keyid="`+refKey+`"`)
-		r.Header.Set("Signature", refExchange)
-		return r
-	}
+	comps := []string{"authorization", "atproto-space-audience"}
 	use := func() *http.Request {
 		r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		r.Header.Set("Authorization", "Atproto-Space cred.token.y")
+		r.Header.Set("Authorization", "Atproto-Space-Credential cred.token.y")
 		r.Header.Set(httpsig.AudienceHeader, "did:plc:repoowner")
-		r.Header.Set("Signature-Input", `atproto-space=("authorization" "atproto-space-audience")`)
-		r.Header.Set("Signature", refUse)
+		r.Header.Set("Signature-Input", refInput)
+		r.Header.Set("Signature", refSig)
 		return r
 	}
-	comps := []string{"authorization", "atproto-space-audience"}
 
-	t.Run("exchange", func(t *testing.T) {
-		got, err := httpsig.Verify(exchange(), "authorization")
-		require.NoError(t, err)
-		require.Equal(t, refKey, got)
-	})
-
-	t.Run("credential use without keyid", func(t *testing.T) {
+	t.Run("accepted", func(t *testing.T) {
 		require.NoError(t, httpsig.VerifyBound(use(), refKey, comps...))
 	})
 
-	t.Run("credential use needs a keyid to name the signer", func(t *testing.T) {
-		_, err := httpsig.Verify(use(), comps...)
-		require.ErrorIs(t, err, httpsig.ErrInvalidSignature)
+	t.Run("unpadded base64", func(t *testing.T) {
+		r := use()
+		r.Header.Set("Signature", strings.Replace(refSig, "==:", ":", 1))
+		require.NoError(t, httpsig.VerifyBound(r, refKey, comps...))
 	})
 
-	t.Run("credential use by another key", func(t *testing.T) {
-		other, err := atcrypto.GeneratePrivateKeyP256()
-		require.NoError(t, err)
-		pub, err := other.PublicKey()
-		require.NoError(t, err)
-		err = httpsig.VerifyBound(use(), pub.DIDKey(), comps...)
-		require.ErrorIs(t, err, httpsig.ErrInvalidSignature)
+	t.Run("alongside other signatures", func(t *testing.T) {
+		r := use()
+		r.Header.Set("Signature-Input", `sig1=("@method");keyid="x", `+refInput)
+		r.Header.Set("Signature", `sig1=:AAAA:, `+refSig)
+		require.NoError(t, httpsig.VerifyBound(r, refKey, comps...))
 	})
 
-	t.Run("keyid that disagrees with the bound key", func(t *testing.T) {
-		r := exchange()
-		err := httpsig.VerifyBound(r, "did:key:zDnaOther", "authorization")
-		require.ErrorIs(t, err, httpsig.ErrInvalidSignature)
+	t.Run("matching keyid", func(t *testing.T) {
+		// keyid is part of the signed parameters, so adding it breaks this
+		// signature; it's checked against the bound key before that.
+		r := use()
+		r.Header.Set("Signature-Input", refInput+`;keyid="did:key:zDnaOther"`)
+		err := httpsig.VerifyBound(r, refKey, comps...)
+		require.ErrorContains(t, err, "keyid does not match")
+	})
+
+	t.Run("missing tag", func(t *testing.T) {
+		r := use()
+		r.Header.Set("Signature-Input", strings.TrimSuffix(refInput, `;tag="atproto-space-credential"`))
+		err := httpsig.VerifyBound(r, refKey, comps...)
+		require.ErrorContains(t, err, "tag")
+	})
+
+	t.Run("wrong tag", func(t *testing.T) {
+		r := use()
+		r.Header.Set("Signature-Input", strings.Replace(refInput, `tag="atproto-space-credential"`, `tag="other"`, 1))
+		err := httpsig.VerifyBound(r, refKey, comps...)
+		require.ErrorContains(t, err, "tag")
+	})
+
+	t.Run("wrong alg", func(t *testing.T) {
+		r := use()
+		r.Header.Set("Signature-Input", refInput+`;alg="rsa-pss-sha512"`)
+		err := httpsig.VerifyBound(r, refKey, comps...)
+		require.ErrorContains(t, err, "algorithm")
+	})
+
+	t.Run("old label", func(t *testing.T) {
+		r := use()
+		r.Header.Set("Signature-Input", `atproto-space=("authorization" "atproto-space-audience")`)
+		r.Header.Set("Signature", strings.Replace(refSig, "atproto-space-credential=", "atproto-space=", 1))
+		err := httpsig.VerifyBound(r, refKey, comps...)
+		require.ErrorIs(t, err, httpsig.ErrNoSignature)
 	})
 }
 
-func TestVerifyBoundRoundTrip(t *testing.T) {
-	key, err := atcrypto.GeneratePrivateKeyP256()
+func TestIsP256DIDKey(t *testing.T) {
+	require.True(t, httpsig.IsP256DIDKey(refKey))
+	k256, err := atcrypto.GeneratePrivateKeyK256()
 	require.NoError(t, err)
-	pub, err := key.PublicKey()
+	pub, err := k256.PublicKey()
 	require.NoError(t, err)
-	comps := []string{"authorization", "atproto-space-audience"}
-
-	r := newRequest()
-	require.NoError(t, httpsig.Sign(r, key, comps...))
-	require.NoError(t, httpsig.VerifyBound(r, pub.DIDKey(), comps...))
+	require.False(t, httpsig.IsP256DIDKey(pub.DIDKey()))
+	require.False(t, httpsig.IsP256DIDKey("did:key:zDnaNotAKey"))
+	require.False(t, httpsig.IsP256DIDKey(""))
 }

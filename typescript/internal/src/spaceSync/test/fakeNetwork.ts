@@ -10,7 +10,8 @@ import {
   serializeRecord,
   serializeRepo,
   spaceHostAud,
-  verifySpaceSignature,
+  isP256DidKey,
+  verifyCredentialSig,
   verifySpaceToken,
 } from "@atproto/space";
 import {
@@ -317,14 +318,16 @@ export class FakeNetwork {
     return { ...commit, rev: repo.rev };
   }
 
-  /** Verifies `Atproto-Space` credential + HTTP signature. Returns an error response, or undefined if authorized. */
+  /** Verifies `Atproto-Space-Credential` credential + HTTP signature. Returns an error response, or undefined if authorized. */
   private async authorize(
     request: Request,
     space: FakeSpace,
     audience: string,
   ): Promise<Response | undefined> {
     const headers = Object.fromEntries(request.headers);
-    const token = headers.authorization?.match(/^Atproto-Space (.+)$/)?.[1];
+    const token = headers.authorization?.match(
+      /^Atproto-Space-Credential (.+)$/i,
+    )?.[1];
     if (!token) return xrpcError(401, "AuthMissing");
     if (headers["atproto-space-audience"] !== audience)
       return xrpcError(401, "BadAudience");
@@ -346,7 +349,7 @@ export class FakeNetwork {
     }
     if (space.revokedJtis.has(jti)) return xrpcError(401, "CredentialRevoked");
     try {
-      await verifySpaceSignature(headers, kid);
+      await verifyCredentialSig(headers, kid);
     } catch {
       return xrpcError(401, "BadSignature");
     }
@@ -374,15 +377,22 @@ export class FakeNetwork {
       http.post(
         "*/xrpc/com.atproto.space.getSpaceCredential",
         async ({ request }) => {
-          const body = (await request.json()) as { space?: string };
+          const body = (await request.json()) as {
+            space?: string;
+            credentialKid?: string;
+            delegationToken?: string;
+          };
           const space = this.spaceFor(body.space ?? null);
           if (space instanceof Response) return space;
           if (new URL(request.url).origin !== space.authority.pds)
             return xrpcError(400, "WrongHost");
-          const headers = Object.fromEntries(request.headers);
-          const delegation = headers.authorization?.match(/^Bearer (.+)$/)?.[1];
-          if (!delegation) return xrpcError(401, "InvalidDelegationToken");
-          let keyId: DidString;
+          const keyId = body.credentialKid;
+          if (!keyId || !isP256DidKey(keyId))
+            return xrpcError(400, "InvalidRequest");
+          // No fake space is public: without a delegation token, answer as
+          // if the space didn't exist.
+          const delegation = body.delegationToken;
+          if (!delegation) return xrpcError(400, "SpaceNotFound");
           try {
             const token = await verifySpaceToken("delegation", delegation, {
               getSigningKey: (iss) => this.accounts.get(iss)!.keypair.did(),
@@ -391,7 +401,6 @@ export class FakeNetwork {
             });
             if (space.deniedUsers.has(token.payload.iss))
               return xrpcError(403, "UserNotAuthorized");
-            keyId = await verifySpaceSignature(headers);
           } catch {
             return xrpcError(400, "InvalidDelegationToken");
           }

@@ -23,13 +23,12 @@ describe("FakeNetwork", () => {
       `${alice.pds}/xrpc/com.atproto.space.getSpaceCredential`,
       {
         method: "POST",
-        headers: {
-          ...(await createSpaceSigHeaders(key, {
-            authorization: `Bearer ${delegation}`,
-          })),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ space: space.id }),
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          space: space.id,
+          credentialKid: key.did(),
+          delegationToken: delegation,
+        }),
       },
     );
     expect(credRes.status).toBe(200);
@@ -40,7 +39,7 @@ describe("FakeNetwork", () => {
     url.searchParams.set("repo", bob.did);
     const repoRes = await fetch(url, {
       headers: await createSpaceSigHeaders(key, {
-        authorization: `Atproto-Space ${credential}`,
+        authorization: `Atproto-Space-Credential ${credential}`,
         audience: bob.did as DidString,
       }),
     });
@@ -68,13 +67,12 @@ describe("FakeNetwork", () => {
     const { credential } = (await (
       await fetch(`${alice.pds}/xrpc/com.atproto.space.getSpaceCredential`, {
         method: "POST",
-        headers: {
-          ...(await createSpaceSigHeaders(key, {
-            authorization: `Bearer ${delegation}`,
-          })),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ space: space.id }),
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          space: space.id,
+          credentialKid: key.did(),
+          delegationToken: delegation,
+        }),
       })
     ).json()) as { credential: string };
     const url = new URL(`${alice.pds}/xrpc/com.atproto.space.listRepoOps`);
@@ -82,10 +80,30 @@ describe("FakeNetwork", () => {
     url.searchParams.set("repo", alice.did);
     const res = await fetch(url, {
       headers: await createSpaceSigHeaders(key, {
-        authorization: `Atproto-Space ${credential}`,
+        authorization: `Atproto-Space-Credential ${credential}`,
         audience: "did:plc:someoneelseaaaaaaaaaaaaa" as DidString,
       }),
     });
     expect(res.status).toBe(401);
+  });
+
+  it("answers SpaceNotFound for a credential request without a delegation token", async () => {
+    const net = new FakeNetwork();
+    server.use(...net.handlers);
+    const alice = await net.createAccount("alice");
+    const space = net.createSpace(alice);
+    const key = await P256Keypair.create();
+    const res = await fetch(
+      `${alice.pds}/xrpc/com.atproto.space.getSpaceCredential`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ space: space.id, credentialKid: key.did() }),
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toBe(
+      "SpaceNotFound",
+    );
   });
 });

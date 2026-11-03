@@ -1,11 +1,8 @@
 package pearserver_test
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
@@ -16,12 +13,12 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	clientmetadata_testutil "github.com/habitat-network/habitat/internal/clientmetadata/testutil"
-	"github.com/habitat-network/habitat/internal/httpsig"
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	"github.com/habitat-network/habitat/internal/opensocial"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // grantAppAccess makes orgDID an opensocial org (by creating its members
@@ -60,6 +57,30 @@ func grantAppAccess(
 	require.NoError(t, err)
 }
 
+// credentialKid returns a fresh P-256 did:key to bind a credential to.
+func credentialKid(t *testing.T) string {
+	t.Helper()
+	key, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	pub, err := key.PublicKey()
+	require.NoError(t, err)
+	return pub.DIDKey()
+}
+
+// delegationToken mints a delegation token for space, acting for user, signed
+// by the test server's host key.
+func delegationToken(
+	t *testing.T,
+	ts *pearserver_testutil.TestServer,
+	user syntax.DID,
+	space habitat_syntax.SpaceURI,
+) string {
+	t.Helper()
+	token, err := utils.DelegationToken(ts.HostKey, user, "#habitat", space)
+	require.NoError(t, err)
+	return token
+}
+
 func TestServer_GetSpaceCredential(t *testing.T) {
 	t.Run("open space", func(t *testing.T) {
 		ts := pearserver_testutil.NewTestServer(t)
@@ -67,56 +88,94 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 		uri, err := ts.SpaceStore.CreateSpace(t.Context(), owner, groupTp, "test")
 		require.NoError(t, err)
 
-		t.Run("no attestation is accepted", func(t *testing.T) {
-			var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
-			code := httpx_testutil.NewTestXRPCClient(t).Procedure(
-				ts.Server.GetSpaceCredential,
-				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{Space: uri.String()},
-				&out,
+		request := func(in habitat.NetworkHabitatSpaceGetSpaceCredentialInput, out any) int {
+			return httpx_testutil.NewTestXRPCClient(t).Procedure(
+				ts.Server.GetSpaceCredential, in, out,
 			)
+		}
+
+		t.Run("credential is bound to credentialKid", func(t *testing.T) {
+			kid := credentialKid(t)
+			var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
+			code := request(habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
+				Space:           uri.String(),
+				CredentialKid:   kid,
+				DelegationToken: delegationToken(t, ts, owner, uri),
+			}, &out)
 			require.Equal(t, http.StatusOK, code)
-			require.NotEmpty(t, out.Credential)
-		})
-
-		t.Run("signed request yields a key-bound credential", func(t *testing.T) {
-			key, err := atcrypto.GeneratePrivateKeyP256()
-			require.NoError(t, err)
-			pub, err := key.PublicKey()
-			require.NoError(t, err)
-			body, err := json.Marshal(
-				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{Space: uri.String()},
-			)
-			require.NoError(t, err)
-			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-			req.Header.Set("Authorization", "Bearer delegation")
-			require.NoError(t, httpsig.Sign(req, key, "authorization"))
-
-			w := httptest.NewRecorder()
-			ts.Server.GetSpaceCredential(w, req)
-			require.Equal(t, http.StatusOK, w.Code)
-			var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
-			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
 			claims := jwt.MapClaims{}
-			_, _, err = jwt.NewParser().ParseUnverified(out.Credential, claims)
+			_, _, err := jwt.NewParser().ParseUnverified(out.Credential, claims)
 			require.NoError(t, err)
-			require.Equal(t, map[string]any{"kid": pub.DIDKey()}, claims["cnf"])
+			require.Equal(t, map[string]any{"kid": kid}, claims["cnf"])
 		})
 
-		t.Run("bad signature is rejected", func(t *testing.T) {
-			key, err := atcrypto.GeneratePrivateKeyP256()
-			require.NoError(t, err)
-			body, err := json.Marshal(
-				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{Space: uri.String()},
-			)
-			require.NoError(t, err)
-			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-			req.Header.Set("Authorization", "Bearer delegation")
-			require.NoError(t, httpsig.Sign(req, key, "authorization"))
-			req.Header.Set("Authorization", "Bearer other")
+		t.Run("missing credentialKid is rejected", func(t *testing.T) {
+			var apiErr atclient.ErrorBody
+			code := request(habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
+				Space:           uri.String(),
+				DelegationToken: delegationToken(t, ts, owner, uri),
+			}, &apiErr)
+			require.Equal(t, http.StatusBadRequest, code)
+			require.Equal(t, "InvalidRequest", apiErr.Name)
+		})
 
-			w := httptest.NewRecorder()
-			ts.Server.GetSpaceCredential(w, req)
-			require.Equal(t, http.StatusBadRequest, w.Code)
+		t.Run("non-P-256 credentialKid is rejected", func(t *testing.T) {
+			k256, err := atcrypto.GeneratePrivateKeyK256()
+			require.NoError(t, err)
+			pub, err := k256.PublicKey()
+			require.NoError(t, err)
+			var apiErr atclient.ErrorBody
+			code := request(habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
+				Space:           uri.String(),
+				CredentialKid:   pub.DIDKey(),
+				DelegationToken: delegationToken(t, ts, owner, uri),
+			}, &apiErr)
+			require.Equal(t, http.StatusBadRequest, code)
+			require.Equal(t, "InvalidRequest", apiErr.Name)
+		})
+
+		t.Run("no delegation token answers SpaceNotFound", func(t *testing.T) {
+			// Habitat has no public spaces.
+			var apiErr atclient.ErrorBody
+			code := request(habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
+				Space: uri.String(), CredentialKid: credentialKid(t),
+			}, &apiErr)
+			require.Equal(t, http.StatusBadRequest, code)
+			require.Equal(t, "SpaceNotFound", apiErr.Name)
+		})
+
+		t.Run("bad delegation token is rejected", func(t *testing.T) {
+			var apiErr atclient.ErrorBody
+			code := request(habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
+				Space:           uri.String(),
+				CredentialKid:   credentialKid(t),
+				DelegationToken: "not-a-jwt",
+			}, &apiErr)
+			require.Equal(t, http.StatusBadRequest, code)
+			require.Equal(t, "InvalidDelegationToken", apiErr.Name)
+		})
+
+		t.Run("delegation token for another space is rejected", func(t *testing.T) {
+			other := habitat_syntax.ConstructSpaceURI(owner, groupTp, "other")
+			var apiErr atclient.ErrorBody
+			code := request(habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
+				Space:           uri.String(),
+				CredentialKid:   credentialKid(t),
+				DelegationToken: delegationToken(t, ts, owner, other),
+			}, &apiErr)
+			require.Equal(t, http.StatusBadRequest, code)
+			require.Equal(t, "InvalidDelegationToken", apiErr.Name)
+		})
+
+		t.Run("user without access is rejected", func(t *testing.T) {
+			var apiErr atclient.ErrorBody
+			code := request(habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
+				Space:           uri.String(),
+				CredentialKid:   credentialKid(t),
+				DelegationToken: delegationToken(t, ts, "did:web:stranger.example", uri),
+			}, &apiErr)
+			require.Equal(t, http.StatusBadRequest, code)
+			require.Equal(t, "UserNotAuthorized", apiErr.Name)
 		})
 
 		t.Run("valid attestation is accepted", func(t *testing.T) {
@@ -134,7 +193,10 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 			code := httpx_testutil.NewTestXRPCClient(t).Procedure(
 				ts.Server.GetSpaceCredential,
 				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
-					Space: uri.String(), ClientAttestation: attestation,
+					Space:             uri.String(),
+					CredentialKid:     credentialKid(t),
+					DelegationToken:   delegationToken(t, ts, owner, uri),
+					ClientAttestation: attestation,
 				},
 				&out,
 			)
@@ -160,7 +222,11 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 			var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
 			code := httpx_testutil.NewTestXRPCClient(t).Procedure(
 				ts.Server.GetSpaceCredential,
-				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{Space: uri.String()},
+				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
+					Space:           uri.String(),
+					CredentialKid:   credentialKid(t),
+					DelegationToken: delegationToken(t, ts, org, uri),
+				},
 				&out,
 			)
 			require.Equal(t, http.StatusOK, code)
@@ -180,7 +246,10 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 			code := httpx_testutil.NewTestXRPCClient(t).Procedure(
 				ts.Server.GetSpaceCredential,
 				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
-					Space: uri.String(), ClientAttestation: attestation,
+					Space:             uri.String(),
+					CredentialKid:     credentialKid(t),
+					DelegationToken:   delegationToken(t, ts, org, uri),
+					ClientAttestation: attestation,
 				},
 				&out,
 			)
@@ -202,7 +271,10 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 			code := httpx_testutil.NewTestXRPCClient(t).Procedure(
 				ts.Server.GetSpaceCredential,
 				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
-					Space: uri.String(), ClientAttestation: attestation,
+					Space:             uri.String(),
+					CredentialKid:     credentialKid(t),
+					DelegationToken:   delegationToken(t, ts, org, uri),
+					ClientAttestation: attestation,
 				},
 				&apiErr,
 			)
@@ -215,7 +287,10 @@ func TestServer_GetSpaceCredential(t *testing.T) {
 			code := httpx_testutil.NewTestXRPCClient(t).Procedure(
 				ts.Server.GetSpaceCredential,
 				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
-					Space: uri.String(), ClientAttestation: "not-a-jwt",
+					Space:             uri.String(),
+					CredentialKid:     credentialKid(t),
+					DelegationToken:   delegationToken(t, ts, org, uri),
+					ClientAttestation: "not-a-jwt",
 				},
 				&apiErr,
 			)

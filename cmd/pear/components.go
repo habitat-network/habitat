@@ -344,7 +344,6 @@ func setupComponents(ctx context.Context, cmd *cli.Command) (*pearapp.App, error
 		oauthServer,
 		serviceAuth,
 		spaceCredential,
-		authn.NewDelegationTokenAuthMethod(hiveDir, permStore, hostKey),
 		permStore,
 	)
 

@@ -2,11 +2,7 @@ import type { SpaceRef, SpaceRefString } from "@atproto/syntax";
 import { P256Keypair } from "@atproto/crypto";
 import { type XrpcFailure, XrpcResponseError, xrpcSafe } from "@atproto/lex";
 import { com } from "api";
-import {
-  createSpaceSigHeaders,
-  parseSpaceToken,
-  spaceHostAud,
-} from "@atproto/space";
+import { parseSpaceToken, spaceHostAud } from "@atproto/space";
 import {
   Cache,
   Clock,
@@ -133,16 +129,18 @@ export class Credentials extends Context.Service<
         const attestation = delegation.attestation
           ? yield* delegation.attestation(space, spaceHostAud(authority))
           : undefined;
-        // A new keypair per credential, per the proposal.
+        // A new keypair per credential, per the proposal. The request carries
+        // no auth headers: the key to bind the credential to (credentialKid)
+        // and the delegation token travel in the body.
         const key = yield* Effect.promise(() => P256Keypair.create());
-        const agent = signedAgent(host.spaceHost, () =>
-          createSpaceSigHeaders(key, { authorization: `Bearer ${token}` }),
-        );
+        const agent = signedAgent(host.spaceHost, async () => ({}));
         const result = yield* Effect.tryPromise({
           try: (signal) =>
             xrpcSafe(agent, com.atproto.space.getSpaceCredential.main, {
               body: {
                 space,
+                credentialKid: key.did(),
+                delegationToken: token,
                 ...(attestation ? { clientAttestation: attestation } : {}),
               },
               signal,

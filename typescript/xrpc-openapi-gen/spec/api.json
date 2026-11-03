@@ -8830,7 +8830,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getSpaceCredential",
-        "description": "Exchange a delegation token for a space credential. Called on the space authority, with the delegation token as the request's authorization token. The resulting space credential reads repos across the space. Requires a delegation token, plus a client attestation when the space gates on app identity.",
+        "description": "Request a space credential. Called on the space authority. A delegation token is required when the space gates on the user. A client attestation is required when the space gates on app identity. A space that requires neither offers public access. The resulting space credential reads repos across the space.",
         "operationId": "network.habitat.space.getSpaceCredential",
         "security": [
           {
@@ -8844,13 +8844,22 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "space"
+                  "space",
+                  "credentialKid"
                 ],
                 "properties": {
                   "space": {
                     "type": "string",
                     "description": "Reference to the space.",
                     "format": "at-uri"
+                  },
+                  "credentialKid": {
+                    "type": "string",
+                    "description": "P-256 did:key to bind the credential to. Each request using the credential is signed by this key."
+                  },
+                  "delegationToken": {
+                    "type": "string",
+                    "description": "Optional delegation token establishing the user being acted for. Required only when the space gates on the user."
                   },
                   "clientAttestation": {
                     "type": "string",
@@ -10653,6 +10662,51 @@
           }
         }
       },
+      "network.habitat.brain.message": {
+        "type": "object",
+        "required": [
+          "role",
+          "content",
+          "createdAt"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "Who wrote the message.",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "description": "The message's text.",
+            "maxLength": 100000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.brain.session": {
+        "type": "object",
+        "required": [
+          "title",
+          "createdAt"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The session's title, taken from the first message.",
+            "maxLength": 1024
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.docs.comment": {
         "type": "object",
         "required": [
@@ -10780,6 +10834,34 @@
           "content": {
             "type": "string",
             "description": "The rendered markdown content of the document."
+          }
+        }
+      },
+      "network.habitat.drop.file": {
+        "type": "object",
+        "required": [
+          "name",
+          "file",
+          "createdAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The file's original name, including its extension.",
+            "maxLength": 1024
+          },
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "description": "The member who uploaded the file. The record itself is written by the org.",
+            "format": "did"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -11820,7 +11902,13 @@
       "name": "network.habitat.admin"
     },
     {
+      "name": "network.habitat.brain"
+    },
+    {
       "name": "network.habitat.docs"
+    },
+    {
+      "name": "network.habitat.drop"
     },
     {
       "name": "network.habitat.emaildomain"
