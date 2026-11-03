@@ -256,11 +256,13 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to get host public key: %w", err)
 	}
 	mux.Handle("/.well-known/did.json", did.NewHandler(
+		// The host resolves like any other space authority: #atproto signs
+		// its space credentials and #atproto_pds is where its spaces are served.
 		did.Web(app.Domain).
-			ATProtoSpaceKey(hostPublicKey.Multibase()).
+			AtprotoKey(hostPublicKey.Multibase()).
 			HabitatKey(hostPublicKey.Multibase()).
 			Habitat("https://"+app.Domain).
-			ATProtoSpaceHost("https://"+app.Domain).
+			ATProtoPDS("https://"+app.Domain).
 			Build(),
 	))
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {

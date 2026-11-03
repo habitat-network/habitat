@@ -54,9 +54,11 @@ const (
 	MaxSpaceCredentialTTL = 60 * time.Minute
 )
 
+// SpaceCredential mints a space credential issued by the space owner. Per the
+// spaces alpha, a space authority resolves like any other account, so the
+// credential is always signed with the owner's #atproto key.
 func SpaceCredential(
 	privateKey atcrypto.PrivateKey,
-	kid string,
 	space habitat_syntax.SpaceURI,
 	opts ...SpaceCredentialOpt,
 ) (string, error) {
@@ -77,7 +79,7 @@ func SpaceCredential(
 		Claims: claims,
 		Header: map[string]any{
 			"typ": "atproto-space-credential+jwt",
-			"kid": kid,
+			"kid": "#atproto",
 			"alg": "ES256K",
 		},
 	}).SignedString(privateKey)
@@ -94,7 +96,7 @@ func DelegationToken(
 		Claims: jwt.MapClaims{
 			"iss": iss,
 			"sub": space.String(),
-			"aud": space.SpaceOwner().String() + "#atproto_space",
+			"aud": space.SpaceOwner().String() + "#atproto_pds",
 			"iat": time.Now().Unix(),
 			"exp": time.Now().Add(time.Minute).Unix(),
 			"jti": RandomNonce(16),

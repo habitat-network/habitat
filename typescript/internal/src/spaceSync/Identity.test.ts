@@ -44,61 +44,18 @@ const docWith = async (
 };
 
 describe("identityFromDoc", () => {
-  it.effect("falls back to the PDS when there is no #atproto_space_host", () =>
+  it.effect("resolves the space host from #atproto_pds", () =>
     Effect.gen(function* () {
       const doc = yield* Effect.promise(() => docWith());
-      const id = yield* identityFromDoc(DID, doc);
-      expect(id.pds).toBe("https://pds.test");
-      expect(id.spaceHost).toBe("https://pds.test");
-      expect(id.signingKey).toMatch(/^did:key:z/);
+      const id = identityFromDoc(DID, doc);
+      expect(yield* requirePds(id)).toBe("https://pds.test");
+      expect(yield* requireVerificationKey(id)).toMatch(/^did:key:z/);
     }),
   );
 
-  it.effect("uses a declared #atproto_space_host", () =>
-    Effect.gen(function* () {
-      const base = yield* Effect.promise(() => docWith());
-      const doc = {
-        ...base,
-        service: [
-          ...(base.service ?? []),
-          {
-            id: "#atproto_space_host",
-            type: "AtprotoSpaceHost",
-            serviceEndpoint: "https://spaces.test",
-          },
-        ],
-      } as DidDocument;
-      expect((yield* identityFromDoc(DID, doc)).spaceHost).toBe(
-        "https://spaces.test",
-      );
-    }),
-  );
-
-  it.effect(
-    "errors instead of falling back when #atproto_space_host is malformed",
-    () =>
-      Effect.gen(function* () {
-        const base = yield* Effect.promise(() => docWith());
-        const doc = {
-          ...base,
-          service: [
-            ...(base.service ?? []),
-            {
-              id: "#atproto_space_host",
-              type: "Wrong",
-              serviceEndpoint: "https://spaces.test",
-            },
-          ],
-        } as DidDocument;
-        const exit = yield* Effect.exit(identityFromDoc(DID, doc));
-        expect(Exit.isFailure(exit)).toBe(true);
-      }),
-  );
-});
-
-describe("identityFromDoc for a bare space authority", () => {
-  // The shape of a pear instance DID: space entries only, no #atproto_pds or #atproto.
-  const authorityDoc = async (): Promise<DidDocument> => {
+  // The shape of a DID doc from before the spaces alpha simplified the DID
+  // doc keys: a dedicated space key and space host, no #atproto entries.
+  const legacyAuthorityDoc = async (): Promise<DidDocument> => {
     const key = await Secp256k1Keypair.create();
     return {
       id: DID,
@@ -120,58 +77,18 @@ describe("identityFromDoc for a bare space authority", () => {
     } as DidDocument;
   };
 
-  it.effect("resolves from #atproto_space_host and #atproto_space alone", () =>
+  it.effect("ignores #atproto_space_host and #atproto_space", () =>
     Effect.gen(function* () {
-      const id = yield* identityFromDoc(
+      const id = identityFromDoc(
         DID,
-        yield* Effect.promise(authorityDoc),
+        yield* Effect.promise(legacyAuthorityDoc),
       );
-      expect(id.spaceHost).toBe("https://spaces.test");
-      expect(id.spaceKey).toMatch(/^did:key:z/);
       expect(id.pds).toBeUndefined();
       expect(id.signingKey).toBeUndefined();
-      expect(yield* requireVerificationKey(id)).toBe(id.spaceKey);
       expect(Exit.isFailure(yield* Effect.exit(requirePds(id)))).toBe(true);
-    }),
-  );
-
-  it.effect("errors when #atproto_space is present but malformed", () =>
-    Effect.gen(function* () {
-      const base = yield* Effect.promise(authorityDoc);
-      const doc = {
-        ...base,
-        verificationMethod: [
-          {
-            id: `${DID}#atproto_space`,
-            type: "Multikey",
-            controller: DID,
-          },
-        ],
-      } as DidDocument;
       expect(
-        Exit.isFailure(yield* Effect.exit(identityFromDoc(DID, doc))),
+        Exit.isFailure(yield* Effect.exit(requireVerificationKey(id))),
       ).toBe(true);
-    }),
-  );
-
-  it.effect("errors when there is neither a space host nor a PDS", () =>
-    Effect.gen(function* () {
-      const base = yield* Effect.promise(authorityDoc);
-      const doc = { ...base, service: [] } as DidDocument;
-      expect(
-        Exit.isFailure(yield* Effect.exit(identityFromDoc(DID, doc))),
-      ).toBe(true);
-    }),
-  );
-
-  it.effect("prefers #atproto over a missing #atproto_space", () =>
-    Effect.gen(function* () {
-      const id = yield* identityFromDoc(
-        DID,
-        yield* Effect.promise(() => docWith()),
-      );
-      expect(id.spaceKey).toBeUndefined();
-      expect(yield* requireVerificationKey(id)).toBe(id.signingKey);
     }),
   );
 });

@@ -53,7 +53,7 @@ func VerifyAttestation(
 	raw string,
 	spaceOwner syntax.DID,
 ) (string, error) {
-	wantAud := spaceOwner.String() + "#atproto_space_host"
+	wantAud := spaceOwner.String() + "#atproto_pds"
 
 	claims := &attestationClaims{}
 	token, err := jwt.ParseWithClaims(

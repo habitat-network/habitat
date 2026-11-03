@@ -1,7 +1,3 @@
-import {
-  getServiceEndpoint,
-  getVerificationMaterial,
-} from "@atproto/common-web";
 import type { DidString } from "@atproto/syntax";
 import {
   DOC_PATH,
@@ -11,7 +7,6 @@ import {
   IdResolver,
   PoorlyFormattedDidError,
   UnsupportedDidWebPathError,
-  getDidKeyFromMultibase,
   getKey,
   getPds,
 } from "@atproto/identity";
@@ -27,72 +22,31 @@ import { fetchNoRedirect } from "./wire";
 export interface ResolvedIdentity {
   readonly did: DidString;
   /**
-   * Repo host for this DID's space repos (`#atproto_pds`). Absent for a bare
-   * space authority that only publishes `#atproto_space_host`.
+   * Repo host for this DID's space repos (`#atproto_pds`). A space authority
+   * resolves like any other account, so this is also its space host.
    */
   readonly pds?: string;
-  /** `#atproto` signing key as a did:key. Verifies commits and service auth. */
+  /**
+   * `#atproto` signing key as a did:key. Verifies commits, service auth and,
+   * for a space authority, the credentials it issues.
+   */
   readonly signingKey?: string;
-  /** `#atproto_space` key as a did:key, when the authority publishes one. */
-  readonly spaceKey?: string;
-  /** Space host when this DID is a space authority (`#atproto_space_host`, else the PDS). */
-  readonly spaceHost: string;
 }
 
-const hasEntry = (
-  entries: ReadonlyArray<{ readonly id: string }> | undefined,
-  did: DidString,
-  fragment: string,
-): boolean =>
-  (entries ?? []).some(
-    (entry) => entry.id === fragment || entry.id === `${did}${fragment}`,
-  );
-
 /**
- * Applies the proposal's fallback rules: a missing #atproto_space_host falls back
- * to #atproto_pds, but a present-and-malformed one is an error. Every entry is
- * optional on its own: a space authority may publish only the space entries, so
- * a caller that needs the PDS or the `#atproto` key checks for it at the point of use
- * (see `requirePds` and `requireVerificationKey`).
+ * Every entry is optional on its own, so a caller that needs the PDS or the
+ * `#atproto` key checks for it at the point of use (see `requirePds` and
+ * `requireVerificationKey`).
  */
-export const identityFromDoc = Effect.fnUntraced(function* (
+export const identityFromDoc = (
   did: DidString,
   doc: DidDocument,
-): Effect.fn.Return<ResolvedIdentity, IdentityError> {
-  const pds = getPds(doc);
-  const signingKey = getKey(doc);
-  let spaceKey: string | undefined;
-  if (hasEntry(doc.verificationMethod, did, "#atproto_space")) {
-    const material = getVerificationMaterial(doc, "atproto_space");
-    spaceKey = material && getDidKeyFromMultibase(material);
-    if (!spaceKey)
-      return yield* new IdentityError({
-        did,
-        message: "malformed #atproto_space key",
-      });
-  }
-  let spaceHost = pds;
-  if (hasEntry(doc.service, did, "#atproto_space_host")) {
-    const endpoint = getServiceEndpoint(doc, {
-      id: "#atproto_space_host",
-      type: "AtprotoSpaceHost",
-    });
-    if (!endpoint)
-      return yield* new IdentityError({
-        did,
-        message: "malformed #atproto_space_host service",
-      });
-    spaceHost = endpoint;
-  }
-  if (!spaceHost)
-    return yield* new IdentityError({
-      did,
-      message: "missing #atproto_space_host and #atproto_pds services",
-    });
-  return { did, pds, signingKey, spaceKey, spaceHost };
-});
+): ResolvedIdentity => ({ did, pds: getPds(doc), signingKey: getKey(doc) });
 
-/** The DID's repo host, for fetching its space repos. */
+/**
+ * The DID's repo host, for fetching its space repos, and its space host when
+ * it is a space authority.
+ */
 export const requirePds = (
   identity: ResolvedIdentity,
 ): Effect.Effect<string, IdentityError> =>
@@ -105,23 +59,18 @@ export const requirePds = (
         }),
       );
 
-/**
- * The key a DID signs with: `#atproto`, else the authority's `#atproto_space`
- * key. Checks commits and service auth.
- */
+/** The key a DID signs with (`#atproto`). Checks commits and service auth. */
 export const requireVerificationKey = (
   identity: ResolvedIdentity,
-): Effect.Effect<string, IdentityError> => {
-  const key = identity.signingKey ?? identity.spaceKey;
-  return key
-    ? Effect.succeed(key)
+): Effect.Effect<string, IdentityError> =>
+  identity.signingKey
+    ? Effect.succeed(identity.signingKey)
     : Effect.fail(
         new IdentityError({
           did: identity.did,
           message: "missing #atproto signing key",
         }),
       );
-};
 
 /** Matches the library's own default. */
 const DID_TIMEOUT_MS = 3000;
@@ -222,7 +171,7 @@ export class Identity extends Context.Service<
                 did,
                 message: `could not resolve: ${errorMessage(error)}`,
               }),
-          }).pipe(Effect.flatMap((doc) => identityFromDoc(did, doc))),
+          }).pipe(Effect.map((doc) => identityFromDoc(did, doc))),
         {
           capacity: 10_000,
           // Never cache failures: a transient PLC outage must not stick for 10 minutes.
