@@ -521,7 +521,9 @@ func TestVerifierSignerWebAuthorIgnoresAtprotoSpace(t *testing.T) {
 	require.NoError(t, err)
 
 	authorDID := syntax.DID("did:web:pear.example.com")
-	ident := did.New(authorDID).VerificationMethod("atproto_space", "Multikey", pub.Multibase()).Build()
+	ident := did.New(authorDID).
+		VerificationMethod("atproto_space", "Multikey", pub.Multibase()).
+		Build()
 
 	dir := identity.NewMockDirectory()
 	dir.Insert(*ident)
@@ -575,7 +577,9 @@ func TestVerifierSignerExternalAuthorIgnoresLegacyEntries(t *testing.T) {
 		ATProtoPDS("https://host.example.com").
 		Service("atproto_space_host", "AtprotoSpaceHost", "https://other.example.com").
 		Build()
-	hostIdent := did.New(hostDID).VerificationMethod("atproto_space", "Multikey", pub.Multibase()).Build()
+	hostIdent := did.New(hostDID).
+		VerificationMethod("atproto_space", "Multikey", pub.Multibase()).
+		Build()
 
 	dir := identity.NewMockDirectory()
 	dir.Insert(*ownerIdent)
