@@ -11,13 +11,14 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/ipld/go-car"
 	"github.com/stretchr/testify/require"
 
 	httpx_testutil "github.com/habitat-network/habitat/internal/httpx/testutil"
 	pearserver_testutil "github.com/habitat-network/habitat/internal/pearserver/testutil"
 	"github.com/habitat-network/habitat/internal/spacecommit"
+	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
+	"github.com/habitat-network/habitat/internal/star"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -25,7 +26,7 @@ func TestServer_GetRepo(t *testing.T) {
 	ts := pearserver_testutil.NewTestServer(t)
 	store := ts.SpaceStore
 
-	t.Run("returns a host-signed CAR repo", func(t *testing.T) {
+	t.Run("returns a host-signed STAR repo", func(t *testing.T) {
 		pub, err := ts.HostKey.PublicKey()
 		require.NoError(t, err)
 
@@ -52,29 +53,21 @@ func TestServer_GetRepo(t *testing.T) {
 		ts.Server.GetRepo(w, req)
 
 		require.Equal(t, http.StatusOK, w.Code)
-		require.Equal(t, "application/vnd.ipld.car", w.Header().Get("Content-Type"))
+		require.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
 
-		reader, err := car.NewCarReader(bytes.NewReader(w.Body.Bytes()))
+		reader, err := star.NewReader(bytes.NewReader(w.Body.Bytes()), 0)
 		require.NoError(t, err)
-		require.Len(t, reader.Header.Roots, 2)
-		commitCID := reader.Header.Roots[0]
-
-		var commitBlock []byte
-		for {
-			blk, err := reader.Next()
-			if err == io.EOF {
-				break
-			}
-			require.NoError(t, err)
-			if blk.Cid() == commitCID {
-				commitBlock = blk.RawData()
-			}
-		}
-		require.NotEmpty(t, commitBlock)
-
-		commit, err := atdata.UnmarshalCBOR(commitBlock)
-		require.NoError(t, err)
+		commit := reader.Meta
+		require.Equal(t, spaces.RepoStarType, commit["$type"])
 		require.Equal(t, int64(spacecommit.Version), commit["ver"])
+		require.Equal(t, owner.String(), commit["repo"])
+		require.Equal(t, uri.String(), commit["space"])
+
+		path, _, err := reader.Next()
+		require.NoError(t, err)
+		require.Equal(t, "network.habitat.note/k1", string(path))
+		_, _, err = reader.Next()
+		require.ErrorIs(t, err, io.EOF)
 
 		rev, ok := commit["rev"].(string)
 		require.True(t, ok)
@@ -82,7 +75,7 @@ func TestServer_GetRepo(t *testing.T) {
 		require.True(t, ok)
 		sig, ok := commit["sig"].(atdata.Bytes)
 		require.True(t, ok)
-		hash, ok := commit["hash"].(atdata.Bytes)
+		hash, ok := commit["data"].(atdata.Bytes)
 		require.True(t, ok)
 
 		// External author (did:plc:owner) → host-signed, so verify with the host key.

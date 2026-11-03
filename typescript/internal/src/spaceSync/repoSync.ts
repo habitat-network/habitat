@@ -6,7 +6,7 @@ import {
   type VerifiedRecord,
   serializeRecord,
   verifyCommit,
-  verifyRepoCar,
+  readRepoStar,
 } from "@atproto/space";
 import type {
   DidString,
@@ -108,13 +108,15 @@ export class RepoSync extends Context.Service<
        * Deliver a batch, then persist the repo state. apply may be interrupted (the
        * sink rolls back); once it returns, putRepo always runs so sink and store stay
        * in step. A crash between the two replays the batch (at-least-once).
+       * `state` is read once apply returns, so it can depend on records the sink
+       * drained.
        */
-      const commitBatch = (batch: RepoBatch, state: RepoState) =>
+      const commitBatch = (batch: RepoBatch, state: () => RepoState) =>
         Effect.uninterruptibleMask((restore) =>
           (batch._tag === "Ops" && batch.changes.length === 0
             ? Effect.void
             : restore(sink.apply(batch))
-          ).pipe(Effect.andThen(store.putRepo(state))),
+          ).pipe(Effect.andThen(Effect.suspend(() => store.putRepo(state())))),
         );
 
       /**
@@ -282,12 +284,12 @@ export class RepoSync extends Context.Service<
           rev: finalCommit.rev,
           changes: [...changes.values()],
         };
-        yield* commitBatch(batch, {
+        yield* commitBatch(batch, () => ({
           space,
           did,
           rev: finalCommit.rev,
           ltHash: state.setHash.state(),
-        });
+        }));
         return batch.changes.length === 0
           ? Option.none<SyncEvent>()
           : Option.some<SyncEvent>(batch);
@@ -303,24 +305,28 @@ export class RepoSync extends Context.Service<
         const syncError = (message: string, cause?: unknown) =>
           new RepoSyncError({ space, did, message, cause });
 
-        const download = Effect.fnUntraced(function* (signingKey: string) {
-          const car = yield* client
+        // The key is unused until the commit is authenticated (see below).
+        const download = Effect.fnUntraced(function* (_signingKey: string) {
+          const star = yield* client
             .getRepo(ref, did)
             .pipe(
               Effect.catchTag("XrpcError", (e) =>
                 Effect.fail(repoCallFailed(space, did, e)),
               ),
             );
-          // Verifies the commit and that the index matches its hash; records are checked as they stream.
+          // Parses the commit; records are folded into a set hash as they stream and
+          // checked against the commit's data once the archive ends.
+          // TODO(shared-secret MACs): readRepoStar does not authenticate the commit;
+          // switch to verifyRepoStar with the request's shared secret and the
+          // Atproto-Space-Mac response header.
           const verified = yield* Effect.acquireRelease(
             Effect.tryPromise({
-              try: () =>
-                verifyRepoCar(car, { space, author: did, didKey: signingKey }),
+              try: () => readRepoStar(star),
               catch: (error) =>
                 new RepoVerificationError({
                   space,
                   did,
-                  message: `repo CAR failed verification: ${errorMessage(error)}`,
+                  message: `repo STAR failed verification: ${errorMessage(error)}`,
                 }),
             }),
             (repo) => Effect.promise(() => repo[Symbol.asyncDispose]()),
@@ -335,6 +341,10 @@ export class RepoSync extends Context.Service<
             return yield* syncError(
               `repo host served an older snapshot (${rev} < ${localRev})`,
             );
+          // The archive carries no set hash state, so rebuild it from the records as
+          // the sink drains them; the archive fails the stream if they don't match
+          // the commit.
+          const setHash = new RepoCommit();
           const records = Stream.fromAsyncIterable<
             VerifiedRecord,
             RepoVerificationError
@@ -346,10 +356,21 @@ export class RepoSync extends Context.Service<
                 did,
                 message: errorMessage(error),
               }),
+          ).pipe(
+            Stream.tap((record) =>
+              Effect.sync(() =>
+                setHash.add(record.collection, record.rkey, record.cid),
+              ),
+            ),
           );
           yield* commitBatch(
             { _tag: "Reset", space, did, rev, records },
-            { space, did, rev, ltHash: verified.repo.setHash.state() },
+            () => ({
+              space,
+              did,
+              rev,
+              ltHash: setHash.setHash.state(),
+            }),
           );
           return Option.some<SyncEvent>({ _tag: "Reset", space, did, rev });
         }, Effect.scoped);

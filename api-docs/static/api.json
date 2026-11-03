@@ -8703,7 +8703,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getRepo",
-        "description": "Download an account's permissioned repo within a space as a CAR file, for full-state recovery. The CAR declares two roots in order: the signed commit, then a DRISL (DAG-CBOR) index mapping '{collection}/{rkey}' to record CID. Record blocks follow in lexicographic order. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        "description": "Download an account's permissioned repo within a space as a STAR file, for full-state recovery. The archive's metadata is the repo's commit; each key/value pair is a record path ('{collection}/{rkey}') and the record's DRISL encoding, in strict lexicographic order of the path. Blobs are not included and are fetched separately via getBlob. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
         "operationId": "network.habitat.space.getRepo",
         "security": [
           {
@@ -8732,23 +8732,13 @@
               "description": "The DID of the account whose repo to download.",
               "format": "did"
             }
-          },
-          {
-            "name": "excludeValues",
-            "in": "query",
-            "description": "If true, omit the record blocks and return only the commit and index roots. The index is still fully authenticated by folding its entries into a set hash and comparing against the commit, so a syncer can diff it against a local copy and fetch just the records it lacks. Note the resulting CAR declares two roots and carries no non-root blocks.",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "If true, omit the record blocks and return only the commit and index roots. The index is still fully authenticated by folding its entries into a set hash and comparing against the commit, so a syncer can diff it against a local copy and fetch just the records it lacks. Note the resulting CAR declares two roots and carries no non-root blocks."
-            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
-              "application/vnd.ipld.car": {}
+              "application/octet-stream": {}
             }
           },
           "400": {
@@ -10653,6 +10643,51 @@
           }
         }
       },
+      "network.habitat.brain.message": {
+        "type": "object",
+        "required": [
+          "role",
+          "content",
+          "createdAt"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "Who wrote the message.",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "description": "The message's text.",
+            "maxLength": 100000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.brain.session": {
+        "type": "object",
+        "required": [
+          "title",
+          "createdAt"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The session's title, taken from the first message.",
+            "maxLength": 1024
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.docs.comment": {
         "type": "object",
         "required": [
@@ -10780,6 +10815,34 @@
           "content": {
             "type": "string",
             "description": "The rendered markdown content of the document."
+          }
+        }
+      },
+      "network.habitat.drop.file": {
+        "type": "object",
+        "required": [
+          "name",
+          "file",
+          "createdAt"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The file's original name, including its extension.",
+            "maxLength": 1024
+          },
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "description": "The member who uploaded the file. The record itself is written by the org.",
+            "format": "did"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -11820,7 +11883,13 @@
       "name": "network.habitat.admin"
     },
     {
+      "name": "network.habitat.brain"
+    },
+    {
       "name": "network.habitat.docs"
+    },
+    {
+      "name": "network.habitat.drop"
     },
     {
       "name": "network.habitat.emaildomain"

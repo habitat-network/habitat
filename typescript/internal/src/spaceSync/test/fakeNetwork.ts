@@ -23,7 +23,7 @@ import {
 import { type HttpHandler, HttpResponse, http } from "msw";
 
 // In-memory stand-in for a PLC directory, a space host and repo hosts. Every
-// signature, credential and CAR uses the real @atproto/space code, so tests
+// signature, credential and STAR uses the real @atproto/space code, so tests
 // exercise real verification.
 
 export const PLC_URL = "https://plc.test";
@@ -66,7 +66,7 @@ const json = (value: unknown) =>
 /**
  * `ReadableStream.from` is not in this repo's TS lib surface (lib: ES2024, DOM),
  * so bridge the async iterable by hand. Cancelling the body closes the iterator,
- * which is what lets a client abort a download mid-CAR.
+ * which is what lets a client abort a download mid-archive.
  */
 const streamFrom = (
   source: AsyncIterable<Uint8Array>,
@@ -547,9 +547,13 @@ export class FakeNetwork {
         const hostError = space.repoHostErrors.get(did);
         if (hostError) return xrpcError(400, hostError);
         const commit = await this.signCommit(space, did, { corrupt: false });
-        const car = serializeRepo(commit, repo.records.values());
-        return new HttpResponse(streamFrom(car), {
-          headers: { "content-type": "application/vnd.ipld.car" },
+        // A STAR archive requires its records in strict path order.
+        const records = [...repo.records.entries()]
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([, record]) => record);
+        const star = serializeRepo(commit, records);
+        return new HttpResponse(streamFrom(star), {
+          headers: { "content-type": "application/octet-stream" },
         });
       }),
     ];
