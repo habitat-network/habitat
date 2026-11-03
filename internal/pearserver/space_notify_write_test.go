@@ -32,7 +32,7 @@ func TestServer_NotifyWrite(t *testing.T) {
 			ts.Server.NotifyWrite,
 			habitat.NetworkHabitatSpaceNotifyWriteInput{
 				Space: uri.String(), Repo: "did:plc:owner",
-				Rev: "3lrev", Hash: atdata.Bytes("some-digest-bytes-xx"),
+				Rev: "3lrev", Data: atdata.Bytes("some-digest-bytes-xx"),
 			},
 			&out,
 		)
@@ -53,7 +53,7 @@ func TestServer_NotifyWrite(t *testing.T) {
 			ts.Server.NotifyWrite,
 			habitat.NetworkHabitatSpaceNotifyWriteInput{
 				Space: uri.String(), Repo: "did:plc:alice",
-				Rev: "3lrev", Hash: atdata.Bytes("digest"),
+				Rev: "3lrev", Data: atdata.Bytes("digest"),
 			},
 			&out,
 		)
@@ -68,7 +68,7 @@ func TestServer_NotifyWrite(t *testing.T) {
 			ts.Server.NotifyWrite,
 			habitat.NetworkHabitatSpaceNotifyWriteInput{
 				Space: missing.String(), Repo: "did:plc:owner",
-				Rev: "3lrev", Hash: atdata.Bytes("digest"),
+				Rev: "3lrev", Data: atdata.Bytes("digest"),
 			},
 			&out,
 		)

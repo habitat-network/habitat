@@ -99,7 +99,7 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 			require.Equal(t, space.String(), d.in.Space)
 			require.Equal(t, repo.String(), d.in.Repo)
 			require.Equal(t, "3lrev", d.in.Rev)
-			require.Equal(t, []byte{0x01, 0x02}, []byte(d.in.Hash))
+			require.Equal(t, []byte{0x01, 0x02}, []byte(d.in.Data))
 			require.Equal(t, "3lspacerev2", d.in.SpaceRev)
 			require.Equal(t, "3lspacerev1", d.in.PrevSpaceRev)
 		case <-time.After(2 * time.Second):

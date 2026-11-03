@@ -80,80 +80,45 @@ func TestCommitBytesFieldBadType(t *testing.T) {
 	require.Contains(t, err.Error(), "not a bytes field")
 }
 
-func TestDecodeSignedCommit(t *testing.T) {
+func TestDecodeCommit(t *testing.T) {
 	t.Parallel()
 
 	hash := []byte{0xaa, 0xbb}
 	m := map[string]any{
-		"ver":  int64(spacecommit.Version),
-		"rev":  "3kzl6abcde02k",
-		"data": atdata.Bytes(hash),
+		"ver":   int64(spacecommit.Version),
+		"repo":  "did:plc:alice",
+		"space": "at://did:plc:owner/space/network.habitat.space/s1",
+		"rev":   "3kzl6abcde02k",
+		"data":  atdata.Bytes(hash),
 	}
-	c, err := decodeSignedCommit(m)
+	c, err := decodeCommit(m)
 	require.NoError(t, err)
-	require.Equal(t, spacecommit.Version, c.Ver)
-	require.Equal(t, "3kzl6abcde02k", c.Rev)
-	require.Equal(t, hash, c.Hash)
-	require.Nil(t, c.Ikm)
-	require.Nil(t, c.Mac)
-	require.Nil(t, c.Sig)
-	require.False(t, c.HabitatSigned)
+	require.Equal(t, spacecommit.Commit{
+		Ver:   spacecommit.Version,
+		Repo:  "did:plc:alice",
+		Space: "at://did:plc:owner/space/network.habitat.space/s1",
+		Rev:   "3kzl6abcde02k",
+		Data:  hash,
+	}, c)
 }
 
-func TestDecodeSignedCommitMissingData(t *testing.T) {
+func TestDecodeCommitErrors(t *testing.T) {
 	t.Parallel()
 
-	m := map[string]any{
-		"ver": int64(spacecommit.Version),
-		"rev": "3kzl6abcde02k",
+	for name, tc := range map[string]struct {
+		meta map[string]any
+		want string
+	}{
+		"missing data": {map[string]any{"ver": int64(1), "rev": "3kzl6abcde02k"}, "missing data"},
+		"bad ver":      {map[string]any{"ver": "notanumber", "rev": "3kzl6abcde02k"}, "ver is not an integer"},
+		"bad rev":      {map[string]any{"ver": int64(1), "rev": int64(42)}, "rev is not a string"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, err := decodeCommit(tc.meta)
+			require.ErrorContains(t, err, tc.want)
+		})
 	}
-	_, err := decodeSignedCommit(m)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "missing data")
-}
-
-func TestDecodeSignedCommitBadVer(t *testing.T) {
-	t.Parallel()
-
-	m := map[string]any{
-		"ver": "notanumber",
-		"rev": "3kzl6abcde02k",
-	}
-	_, err := decodeSignedCommit(m)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "ver is not an integer")
-}
-
-func TestDecodeSignedCommitBadRev(t *testing.T) {
-	t.Parallel()
-
-	m := map[string]any{
-		"ver": int64(spacecommit.Version),
-		"rev": int64(42),
-	}
-	_, err := decodeSignedCommit(m)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "rev is not a string")
-}
-
-func TestDecodeSignedCommitWithOptionalFields(t *testing.T) {
-	t.Parallel()
-
-	m := map[string]any{
-		"ver":           int64(spacecommit.Version),
-		"rev":           "3kzl6abcde02k",
-		"data":          atdata.Bytes([]byte{0xaa}),
-		"ikm":           atdata.Bytes([]byte{0x01}),
-		"mac":           atdata.Bytes([]byte{0x02}),
-		"sig":           atdata.Bytes([]byte{0x03}),
-		"habitatSigned": true,
-	}
-	c, err := decodeSignedCommit(m)
-	require.NoError(t, err)
-	require.Equal(t, []byte{0x01}, c.Ikm)
-	require.Equal(t, []byte{0x02}, c.Mac)
-	require.Equal(t, []byte{0x03}, c.Sig)
-	require.True(t, c.HabitatSigned)
 }
 
 // starRecord is one record to put in a test archive.
@@ -237,7 +202,7 @@ func TestParseRepoStar(t *testing.T) {
 	got, err := parseRepoStar(bytes.NewReader(writeTestStar(t, meta, records)), testSpace, testRepo)
 	require.NoError(t, err)
 	require.Equal(t, "3kzl6abcde02k", got.Commit.Rev)
-	require.Equal(t, []byte(meta["data"].(atdata.Bytes)), got.Commit.Hash)
+	require.Equal(t, []byte(meta["data"].(atdata.Bytes)), got.Commit.Data)
 	require.Len(t, got.Records, 2)
 	require.Equal(t, syntax.NSID("network.habitat.a"), got.Records[0].Collection)
 	require.Equal(t, syntax.RecordKey("long-rkey"), got.Records[0].Rkey)
@@ -249,7 +214,7 @@ func TestParseRepoStar(t *testing.T) {
 	for _, rec := range got.Records {
 		lt.Add(spacecommit.RecordElement(rec.Collection, rec.Rkey, rec.Cid.String()))
 	}
-	require.Equal(t, got.Commit.Hash, lt.Sum())
+	require.Equal(t, got.Commit.Data, lt.Sum())
 }
 
 func TestParseRepoStarErrors(t *testing.T) {

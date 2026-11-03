@@ -26,9 +26,9 @@ type recoveredRecord struct {
 }
 
 // recoveredRepo is the parsed content of a getRepo STAR archive: the repo's
-// signed head commit and its current record set.
+// head commit and its current record set.
 type recoveredRepo struct {
-	Commit  spacecommit.SignedCommit
+	Commit  spacecommit.Commit
 	Records []recoveredRecord
 }
 
@@ -40,7 +40,7 @@ const (
 )
 
 // parseRepoStar reads a getRepo STAR archive, mirroring the host's
-// SerializeRepoStar: the metadata is the repo's signed commit, typed by the
+// SerializeRepoStar: the metadata is the repo's commit, typed by the
 // atproto-space-repo profile, followed by one "{collection}/{rkey}" → DRISL
 // record pair per record in strict bytewise order of the path. space and repo
 // are what was requested; the commit must name them.
@@ -62,7 +62,7 @@ func parseRepoStar(
 	if got, _ := sr.Meta["space"].(string); got != space.String() {
 		return recoveredRepo{}, fmt.Errorf("commit is for space %q, want %q", got, space)
 	}
-	commit, err := decodeSignedCommit(sr.Meta)
+	commit, err := decodeCommit(sr.Meta)
 	if err != nil {
 		return recoveredRepo{}, err
 	}
@@ -122,50 +122,33 @@ func splitRecordPath(path string) (syntax.NSID, syntax.RecordKey, error) {
 	return collection, rkey, nil
 }
 
-// decodeSignedCommit decodes the signed commit carried as a getRepo archive's
-// metadata: the profile's ver, rev and data (the commit's set hash), plus the
-// ikm, mac, sig and habitatSigned fields of
-// network.habitat.space.defs#signedCommit.
-func decodeSignedCommit(m map[string]any) (spacecommit.SignedCommit, error) {
+// decodeCommit decodes the commit carried as a getRepo archive's metadata:
+// the profile's ver, repo, space, rev and data (the commit's set hash). Its MAC
+// is in the response's Atproto-Space-Mac header, not the metadata.
+func decodeCommit(m map[string]any) (spacecommit.Commit, error) {
 	ver, ok := m["ver"].(int64)
 	if !ok {
-		return spacecommit.SignedCommit{}, fmt.Errorf("signed commit ver is not an integer")
+		return spacecommit.Commit{}, fmt.Errorf("commit ver is not an integer")
 	}
 	rev, ok := m["rev"].(string)
 	if !ok {
-		return spacecommit.SignedCommit{}, fmt.Errorf("signed commit rev is not a string")
+		return spacecommit.Commit{}, fmt.Errorf("commit rev is not a string")
 	}
-	hash, err := commitBytesField(m, "data")
+	repo, _ := m["repo"].(string)
+	space, _ := m["space"].(string)
+	data, err := commitBytesField(m, "data")
 	if err != nil {
-		return spacecommit.SignedCommit{}, err
+		return spacecommit.Commit{}, err
 	}
-	if len(hash) == 0 {
-		return spacecommit.SignedCommit{}, fmt.Errorf("signed commit missing data")
+	if len(data) == 0 {
+		return spacecommit.Commit{}, fmt.Errorf("commit missing data")
 	}
-	// ikm/mac/sig are only needed for signature verification (a follow-up); a
-	// commit that omits them is still usable for hash verification.
-	ikm, err := commitBytesField(m, "ikm")
-	if err != nil {
-		return spacecommit.SignedCommit{}, err
-	}
-	mac, err := commitBytesField(m, "mac")
-	if err != nil {
-		return spacecommit.SignedCommit{}, err
-	}
-	sig, err := commitBytesField(m, "sig")
-	if err != nil {
-		return spacecommit.SignedCommit{}, err
-	}
-	// habitatSigned is optional; a commit that omits it decodes to false.
-	habitatSigned, _ := m["habitatSigned"].(bool)
-	return spacecommit.SignedCommit{
-		Ver:           int(ver),
-		Hash:          hash,
-		Ikm:           ikm,
-		Mac:           mac,
-		Sig:           sig,
-		Rev:           rev,
-		HabitatSigned: habitatSigned,
+	return spacecommit.Commit{
+		Ver:   int(ver),
+		Repo:  syntax.DID(repo),
+		Space: habitat_syntax.SpaceURI(space),
+		Rev:   rev,
+		Data:  data,
 	}, nil
 }
 
@@ -178,6 +161,6 @@ func commitBytesField(m map[string]any, key string) ([]byte, error) {
 	case atdata.Bytes:
 		return []byte(v), nil
 	default:
-		return nil, fmt.Errorf("signed commit %q is not a bytes field", key)
+		return nil, fmt.Errorf("commit %q is not a bytes field", key)
 	}
 }

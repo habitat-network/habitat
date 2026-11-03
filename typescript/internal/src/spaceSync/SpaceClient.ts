@@ -11,7 +11,16 @@ import {
   xrpc,
 } from "@atproto/lex";
 import type { DidString, SpaceRef } from "@atproto/syntax";
-import { createSpaceSigHeaders } from "@atproto/space";
+import {
+  COMMIT_MAC_TYPE,
+  MAC_HEADER,
+  type MacType,
+  WANT_MAC_HEADER,
+  createSpaceSigHeaders,
+  encapsulate,
+  formatWantMacHeader,
+  parseMacHeader,
+} from "@atproto/space";
 import { com } from "api";
 import {
   Context,
@@ -26,7 +35,7 @@ import {
 import { SpaceSyncConfig } from "./config";
 import { Credentials } from "./Credentials";
 import { CredentialError, XrpcError, errorMessage } from "./errors";
-import { Identity, requirePds } from "./Identity";
+import { Identity, type ResolvedIdentity, requirePds } from "./Identity";
 import { failureStatus, signedAgent } from "./wire";
 
 export type SpaceCallError = XrpcError | CredentialError;
@@ -38,7 +47,48 @@ interface Target {
   readonly audience: DidString;
   /** "repo" → audience's PDS; "space" → audience's space host. */
   readonly hostOf: "repo" | "space";
+  /**
+   * Set on a MAC-bearing repo call: the request carries an
+   * Atproto-Space-Want-Mac key share and the response's MAC is keyed by the
+   * shared secret it negotiates.
+   */
+  readonly macType?: MacType;
 }
+
+/**
+ * What a MAC-bearing response is authenticated by: the request's shared secret
+ * and the response's Atproto-Space-Mac, absent when the response carried none
+ * (or a malformed one). Verification is the caller's job.
+ */
+export interface ResponseMac {
+  readonly sharedSecret: Uint8Array;
+  readonly mac: Uint8Array | undefined;
+}
+
+/**
+ * The did:web a host serving at `endpoint` publishes its own keys under.
+ * did:web encodes a port's colon as %3A.
+ */
+export const hostDid = (endpoint: string): DidString =>
+  `did:web:${encodeURIComponent(new URL(endpoint).host)}` as DidString;
+
+const sameHost = (a: string | undefined, b: string): boolean => {
+  if (!a) return false;
+  try {
+    return new URL(a).host.toLowerCase() === new URL(b).host.toLowerCase();
+  } catch {
+    return false;
+  }
+};
+
+/** The response's MAC of `type`, or undefined if it is missing or malformed. */
+const responseMac = (headers: Headers, type: MacType) => {
+  try {
+    return parseMacHeader(headers.get(MAC_HEADER) ?? undefined, type);
+  } catch {
+    return undefined;
+  }
+};
 
 const isTransient = (error: SpaceCallError): boolean =>
   error._tag === "XrpcError" ? error.transient : error.reason === "Transport";
@@ -60,13 +110,34 @@ export class SpaceClient extends Context.Service<
       since: string | undefined,
       cursor?: string,
     ) => Effect.Effect<
-      com.atproto.space.listRepoOps.$OutputBody,
+      {
+        readonly body: com.atproto.space.listRepoOps.$OutputBody;
+        /** Authenticates `body.commit`; set whenever the page has one. */
+        readonly mac: ResponseMac | undefined;
+      },
       SpaceCallError
     >;
     readonly getRepo: (
       space: SpaceRef,
       repo: DidString,
-    ) => Effect.Effect<AsyncIterable<Uint8Array>, SpaceCallError, Scope.Scope>;
+    ) => Effect.Effect<
+      {
+        readonly star: AsyncIterable<Uint8Array>;
+        /** Authenticates the archive's commit. */
+        readonly mac: ResponseMac;
+      },
+      SpaceCallError,
+      Scope.Scope
+    >;
+    /**
+     * Re-resolve the KEM key a repo's MACs are keyed by, after one failed to
+     * verify (the key may have rotated). True if the key changed, so a retry
+     * can succeed.
+     */
+    readonly refreshKem: (
+      space: SpaceRef,
+      repo: DidString,
+    ) => Effect.Effect<boolean, SpaceCallError>;
     /** Fetches a blob and checks its bytes against `cid`. */
     readonly getBlob: (
       space: SpaceRef,
@@ -84,46 +155,110 @@ export class SpaceClient extends Context.Service<
 
       const space = com.atproto.space;
 
+      const identityError = (
+        target: Target,
+        message: string,
+        transient = true,
+      ) =>
+        new XrpcError({
+          method: target.method.nsid,
+          status: 0,
+          error: "IdentityError",
+          message,
+          transient,
+        });
+
+      /**
+       * The KEM key a request about `resolved`'s repo at `host` is keyed by:
+       * the author's `#atproto_kem` when the host is their PDS, else the
+       * host's own, published in its did:web document. Habitat hosts space
+       * repos for authors whose identity lives on a PDS it does not control,
+       * and so whose DID document it cannot publish a key in; it keys their
+       * MACs with its own KEM key.
+       */
+      const kemKeyFor = (
+        target: Target,
+        resolved: ResolvedIdentity,
+        host: string,
+        lookup: (did: DidString) => Effect.Effect<ResolvedIdentity, unknown>,
+      ): Effect.Effect<string, XrpcError> =>
+        Effect.gen(function* () {
+          const owner = sameHost(resolved.pds, host)
+            ? resolved
+            : yield* lookup(hostDid(host)).pipe(
+                Effect.mapError((e) =>
+                  identityError(target, `host kem key: ${errorMessage(e)}`),
+                ),
+              );
+          if (!owner.kemKey)
+            return yield* identityError(
+              target,
+              `${owner.did} publishes no #atproto_kem key`,
+              false,
+            );
+          return owner.kemKey;
+        });
+
+      /** The host a target's request goes to, given its audience's identity. */
+      const hostFor = (target: Target, resolved: ResolvedIdentity) => {
+        // The authority's own repo lives on its space host when it has no
+        // PDS: a single service is both repo host and space host.
+        const ownRepo =
+          !resolved.pds && target.audience === target.space.spaceDid;
+        return target.hostOf === "repo" && !ownRepo
+          ? requirePds(resolved).pipe(
+              Effect.mapError((e) => identityError(target, e.message)),
+            )
+          : Effect.succeed(resolved.spaceHost);
+      };
+
       /**
        * One signed request to the target's host. `run` throws an xrpc failure
        * (as `xrpc` and `XrpcResponse.fromFetchResponse` do) on an error response.
+       * For a MAC-bearing target it is handed the Want-Mac header to send, and
+       * the request's shared secret is returned beside its result.
        */
       const attempt = <A>(
         target: Target,
-        run: (agent: Agent, signal: AbortSignal) => Promise<A>,
-      ): Effect.Effect<A, SpaceCallError> =>
+        run: (
+          agent: Agent,
+          signal: AbortSignal,
+          headers: Record<string, string>,
+        ) => Promise<A>,
+      ): Effect.Effect<
+        { readonly result: A; readonly sharedSecret: Uint8Array | undefined },
+        SpaceCallError
+      > =>
         Effect.gen(function* () {
-          const resolved = yield* identity.resolve(target.audience).pipe(
-            Effect.mapError(
-              (e) =>
-                new XrpcError({
-                  method: target.method.nsid,
-                  status: 0,
-                  error: "IdentityError",
-                  message: e.message,
-                  transient: true,
-                }),
-            ),
-          );
-          // The authority's own repo lives on its space host when it has no
-          // PDS: a single service is both repo host and space host.
-          const ownRepo =
-            !resolved.pds && target.audience === target.space.spaceDid;
-          const host =
-            target.hostOf === "repo" && !ownRepo
-              ? yield* requirePds(resolved).pipe(
-                  Effect.mapError(
-                    (e) =>
-                      new XrpcError({
-                        method: target.method.nsid,
-                        status: 0,
-                        error: "IdentityError",
-                        message: e.message,
-                        transient: true,
-                      }),
-                  ),
-                )
-              : resolved.spaceHost;
+          const resolved = yield* identity
+            .resolve(target.audience)
+            .pipe(Effect.mapError((e) => identityError(target, e.message)));
+          const host = yield* hostFor(target, resolved);
+          // A fresh key share for every request, retries included.
+          let sharedSecret: Uint8Array | undefined;
+          const headers: Record<string, string> = {};
+          if (target.macType) {
+            const kemKey = yield* kemKeyFor(
+              target,
+              resolved,
+              host,
+              identity.resolve,
+            );
+            const encapsulation = yield* Effect.tryPromise({
+              try: () => encapsulate(kemKey),
+              catch: (e) =>
+                identityError(
+                  target,
+                  `invalid #atproto_kem key: ${errorMessage(e)}`,
+                  false,
+                ),
+            });
+            sharedSecret = encapsulation.sharedSecret;
+            headers[WANT_MAC_HEADER] = formatWantMacHeader(
+              target.macType,
+              encapsulation.keyShare,
+            );
+          }
           const credential = yield* credentials.get(target.space);
           const agent = signedAgent(host, () =>
             createSpaceSigHeaders(credential.key, {
@@ -131,8 +266,8 @@ export class SpaceClient extends Context.Service<
               audience: target.audience,
             }),
           );
-          return yield* Effect.tryPromise({
-            try: (signal) => run(agent, signal),
+          const result = yield* Effect.tryPromise({
+            try: (signal) => run(agent, signal, headers),
             catch: (cause): SpaceCallError => {
               const failure = asXrpcFailure(target.method, cause);
               // Only the authority's space host speaks for the space. A repo
@@ -168,21 +303,71 @@ export class SpaceClient extends Context.Service<
                 ),
             }),
           );
+          return { result, sharedSecret };
         });
+
+      /**
+       * Re-resolve the repo's identity and its host's, so the next request
+       * sees a rotated KEM key. True if the KEM key changed.
+       */
+      const refreshKem = Effect.fnUntraced(function* (
+        ref: SpaceRef,
+        repo: DidString,
+      ) {
+        const target: Target = {
+          space: ref,
+          method: space.listRepoOps.main,
+          audience: repo,
+          hostOf: "repo",
+          macType: COMMIT_MAC_TYPE,
+        };
+        const keyOf = (
+          lookup: (did: DidString) => Effect.Effect<ResolvedIdentity, unknown>,
+        ) =>
+          lookup(repo).pipe(
+            Effect.mapError((e) => identityError(target, errorMessage(e))),
+            Effect.flatMap((resolved) =>
+              hostFor(target, resolved).pipe(
+                Effect.flatMap((host) =>
+                  kemKeyFor(target, resolved, host, lookup),
+                ),
+              ),
+            ),
+            Effect.option,
+          );
+        const before = yield* keyOf(identity.resolve);
+        const after = yield* keyOf(identity.refresh);
+        return (
+          Option.isSome(after) &&
+          (Option.isNone(before) || before.value !== after.value)
+        );
+      });
 
       const call = <A>(
         target: Target,
-        run: (agent: Agent, signal: AbortSignal) => Promise<A>,
+        run: (
+          agent: Agent,
+          signal: AbortSignal,
+          headers: Record<string, string>,
+        ) => Promise<A>,
       ) =>
         attempt(target, run).pipe(
-          // A rejected credential is re-minted and the call retried once.
-          Effect.catchTag("XrpcError", (e) =>
-            e.error === "JwtExpired" || e.error === "CredentialRevoked"
-              ? credentials
-                  .invalidate(target.space)
-                  .pipe(Effect.flatMap(() => attempt(target, run)))
-              : Effect.fail(e),
-          ),
+          Effect.catchTag("XrpcError", (e) => {
+            // A rejected credential is re-minted and the call retried once.
+            if (e.error === "JwtExpired" || e.error === "CredentialRevoked")
+              return credentials
+                .invalidate(target.space)
+                .pipe(Effect.flatMap(() => attempt(target, run)));
+            // A refused key share may follow a KEM key rotation: re-resolve
+            // and retry once if the key changed.
+            if (e.error === "BadSpaceMac" && target.macType)
+              return refreshKem(target.space, target.audience).pipe(
+                Effect.flatMap((changed) =>
+                  changed ? attempt(target, run) : Effect.fail(e),
+                ),
+              );
+            return Effect.fail(e);
+          }),
           Effect.retry({
             schedule: Schedule.exponential(config.requestRetryBase).pipe(
               Schedule.jittered,
@@ -218,7 +403,7 @@ export class SpaceClient extends Context.Service<
               signal,
             }),
         );
-        return res.body;
+        return res.result.body;
       });
 
       const registerNotify = Effect.fnUntraced(function* (
@@ -234,7 +419,7 @@ export class SpaceClient extends Context.Service<
               signal,
             }),
         );
-        const expiresAt = DateTime.make(res.body.expiresAt);
+        const expiresAt = DateTime.make(res.result.body.expiresAt);
         if (Option.isNone(expiresAt))
           return yield* invalidResponse(method, 200, "unparseable expiresAt");
         return { expiresAt: DateTime.toEpochMillis(expiresAt.value) };
@@ -247,9 +432,15 @@ export class SpaceClient extends Context.Service<
         cursor?: string,
       ) {
         const method = space.listRepoOps.main;
-        const res = yield* call(
-          { space: ref, method, audience: repo, hostOf: "repo" },
-          (agent, signal) =>
+        const { result, sharedSecret } = yield* call(
+          {
+            space: ref,
+            method,
+            audience: repo,
+            hostOf: "repo",
+            macType: COMMIT_MAC_TYPE,
+          },
+          (agent, signal, headers) =>
             xrpc(agent, method, {
               params: {
                 space: ref.toString(),
@@ -258,10 +449,19 @@ export class SpaceClient extends Context.Service<
                 cursor,
                 limit: 1000,
               },
+              headers,
               signal,
             }),
         );
-        return res.body;
+        // Only a page carrying the commit carries a MAC.
+        const mac =
+          result.body.commit && sharedSecret
+            ? {
+                sharedSecret,
+                mac: responseMac(result.headers, COMMIT_MAC_TYPE),
+              }
+            : undefined;
+        return { body: result.body, mac };
       });
 
       /**
@@ -304,8 +504,14 @@ export class SpaceClient extends Context.Service<
         const method = space.getRepo.main;
         return Effect.acquireRelease(
           call(
-            { space: ref, method, audience: repo, hostOf: "repo" },
-            async (agent, signal) => {
+            {
+              space: ref,
+              method,
+              audience: repo,
+              hostOf: "repo",
+              macType: COMMIT_MAC_TYPE,
+            },
+            async (agent, signal, macHeaders) => {
               const params = method.parameters.toURLSearchParams({
                 space: ref.toString(),
                 repo,
@@ -315,7 +521,7 @@ export class SpaceClient extends Context.Service<
                 {
                   method: "GET",
                   signal,
-                  headers: { accept: method.output.encoding },
+                  headers: { ...macHeaders, accept: method.output.encoding },
                 },
               );
               // Throws the parsed xrpc error for 4xx/5xx responses.
@@ -327,12 +533,18 @@ export class SpaceClient extends Context.Service<
           // interruption). Deliberately not awaited: a cancel can wait on the
           // other side indefinitely (a tee()'d body only settles once every
           // branch is cancelled), and closing the scope must not hang on it.
-          (res) =>
+          ({ result: res }) =>
             Effect.sync(() => void res.body?.cancel().catch(() => undefined)),
         ).pipe(
-          Effect.flatMap((res) =>
-            res.body
-              ? Effect.succeed(Stream.toAsyncIterable(starStream(res.body)))
+          Effect.flatMap(({ result: res, sharedSecret }) =>
+            res.body && sharedSecret
+              ? Effect.succeed({
+                  star: Stream.toAsyncIterable(starStream(res.body)),
+                  mac: {
+                    sharedSecret,
+                    mac: responseMac(res.headers, COMMIT_MAC_TYPE),
+                  },
+                })
               : Effect.fail(invalidResponse(method, res.status, "empty body")),
           ),
         );
@@ -361,17 +573,17 @@ export class SpaceClient extends Context.Service<
               signal,
             }),
         );
-        const bytes = res.body;
+        const bytes = res.result.body;
         // The repo host is untrusted transport: the blob must hash to its CID.
         const matches = yield* Effect.tryPromise({
           try: () => isCidForBytes(expected, bytes),
           catch: (error) =>
-            invalidResponse(method, res.status, errorMessage(error)),
+            invalidResponse(method, res.result.status, errorMessage(error)),
         });
         if (!matches)
           return yield* invalidResponse(
             method,
-            res.status,
+            res.result.status,
             "blob does not match its cid",
           );
         return bytes;
@@ -383,6 +595,7 @@ export class SpaceClient extends Context.Service<
         listRepoOps,
         getRepo,
         getBlob,
+        refreshKem,
       });
     }),
   );

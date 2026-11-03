@@ -19,8 +19,8 @@ export const $params = /*#__PURE__*/ l.params({
 export type $Params = l.InferOutput<typeof $params>
 
 export const $output = /*#__PURE__*/ l.jsonPayload({
-  commit: /*#__PURE__*/ l.ref<SpaceDefs.SignedCommit>(
-    (() => SpaceDefs.signedCommit) as any,
+  commit: /*#__PURE__*/ l.ref<SpaceDefs.Commit>(
+    (() => SpaceDefs.commit) as any,
   ),
 })
 
@@ -30,8 +30,9 @@ export type $OutputBody<B = l.BinaryData> = l.InferPayloadBody<
   B
 >
 
-/** Get the current signed commit for an account's permissioned repo within a space. Served by a repo host. Throws RepoNotFound when the account holds no repo in the space, including the case of a member that has never written to it. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). */
+/** Get the current commit for an account's permissioned repo within a space. Served by a repo host. When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the commit's MAC is returned in the Atproto-Space-Mac response header. Throws RepoNotFound when the account holds no repo in the space, including the case of a member that has never written to it. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). */
 const main = /*#__PURE__*/ l.query($nsid, $params, $output, [
+  'BadSpaceMac',
   'SpaceNotFound',
   'RepoNotFound',
   'RepoTakendown',

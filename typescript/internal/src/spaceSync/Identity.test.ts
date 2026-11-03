@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { it } from "@effect/vitest";
 import type { IdentityResolver } from "@atproto-labs/identity-resolver";
-import { Secp256k1Keypair } from "@atproto/crypto";
+import { P256Keypair, Secp256k1Keypair } from "@atproto/crypto";
 import type { DidDocument } from "@atproto/identity";
 import { Effect, Exit, Layer } from "effect";
 import { HttpResponse, http } from "msw";
@@ -93,6 +93,60 @@ describe("identityFromDoc", () => {
         const exit = yield* Effect.exit(identityFromDoc(DID, doc));
         expect(Exit.isFailure(exit)).toBe(true);
       }),
+  );
+});
+
+describe("identityFromDoc #atproto_kem", () => {
+  const kemMethod = async () => {
+    const key = await P256Keypair.create();
+    return {
+      key,
+      method: {
+        id: `${DID}#atproto_kem`,
+        type: "Multikey",
+        controller: DID,
+        publicKeyMultibase: key.did().slice("did:key:".length),
+      },
+    };
+  };
+
+  it.effect("resolves a published #atproto_kem key", () =>
+    Effect.gen(function* () {
+      const base = yield* Effect.promise(() => docWith());
+      const { key, method } = yield* Effect.promise(kemMethod);
+      const doc = {
+        ...base,
+        verificationMethod: [...(base.verificationMethod ?? []), method],
+      } as DidDocument;
+      const id = yield* identityFromDoc(DID, doc);
+      expect(id.kemKey).toBe(key.did());
+    }),
+  );
+
+  it.effect("leaves kemKey unset when none is published", () =>
+    Effect.gen(function* () {
+      const id = yield* identityFromDoc(
+        DID,
+        yield* Effect.promise(() => docWith()),
+      );
+      expect(id.kemKey).toBeUndefined();
+    }),
+  );
+
+  it.effect("errors when #atproto_kem is present but malformed", () =>
+    Effect.gen(function* () {
+      const base = yield* Effect.promise(() => docWith());
+      const doc = {
+        ...base,
+        verificationMethod: [
+          ...(base.verificationMethod ?? []),
+          { id: `${DID}#atproto_kem`, type: "Multikey", controller: DID },
+        ],
+      } as DidDocument;
+      expect(
+        Exit.isFailure(yield* Effect.exit(identityFromDoc(DID, doc))),
+      ).toBe(true);
+    }),
   );
 });
 

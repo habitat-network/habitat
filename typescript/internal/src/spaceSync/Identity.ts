@@ -35,6 +35,11 @@ export interface ResolvedIdentity {
   readonly signingKey?: string;
   /** `#atproto_space` key as a did:key, when the authority publishes one. */
   readonly spaceKey?: string;
+  /**
+   * `#atproto_kem` key as a did:key: the key a syncer encapsulates each
+   * request's MAC secret against (see `SpaceClient`).
+   */
+  readonly kemKey?: string;
   /** Space host when this DID is a space authority (`#atproto_space_host`, else the PDS). */
   readonly spaceHost: string;
 }
@@ -71,6 +76,16 @@ export const identityFromDoc = Effect.fnUntraced(function* (
         message: "malformed #atproto_space key",
       });
   }
+  let kemKey: string | undefined;
+  if (hasEntry(doc.verificationMethod, did, "#atproto_kem")) {
+    const material = getVerificationMaterial(doc, "atproto_kem");
+    kemKey = material && getDidKeyFromMultibase(material);
+    if (!kemKey)
+      return yield* new IdentityError({
+        did,
+        message: "malformed #atproto_kem key",
+      });
+  }
   let spaceHost = pds;
   if (hasEntry(doc.service, did, "#atproto_space_host")) {
     const endpoint = getServiceEndpoint(doc, {
@@ -89,7 +104,7 @@ export const identityFromDoc = Effect.fnUntraced(function* (
       did,
       message: "missing #atproto_space_host and #atproto_pds services",
     });
-  return { did, pds, signingKey, spaceKey, spaceHost };
+  return { did, pds, signingKey, spaceKey, kemKey, spaceHost };
 });
 
 /** The DID's repo host, for fetching its space repos. */

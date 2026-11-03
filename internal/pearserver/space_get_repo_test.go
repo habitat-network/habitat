@@ -26,10 +26,7 @@ func TestServer_GetRepo(t *testing.T) {
 	ts := pearserver_testutil.NewTestServer(t)
 	store := ts.SpaceStore
 
-	t.Run("returns a host-signed STAR repo", func(t *testing.T) {
-		pub, err := ts.HostKey.PublicKey()
-		require.NoError(t, err)
-
+	t.Run("returns a STAR repo", func(t *testing.T) {
 		uri, err := store.CreateSpace(t.Context(), org, groupTp, "test")
 		require.NoError(t, err)
 
@@ -69,18 +66,13 @@ func TestServer_GetRepo(t *testing.T) {
 		_, _, err = reader.Next()
 		require.ErrorIs(t, err, io.EOF)
 
-		rev, ok := commit["rev"].(string)
-		require.True(t, ok)
-		ikm, ok := commit["ikm"].(atdata.Bytes)
-		require.True(t, ok)
-		sig, ok := commit["sig"].(atdata.Bytes)
+		_, ok := commit["rev"].(string)
 		require.True(t, ok)
 		hash, ok := commit["data"].(atdata.Bytes)
 		require.True(t, ok)
-
-		// External author (did:plc:owner) → host-signed, so verify with the host key.
-		ctxBytes := spacecommit.Ctx(uri, owner, rev, ikm)
-		require.NoError(t, pub.HashAndVerify(ctxBytes, sig))
+		// The commit carries no signature: it is authenticated by the
+		// response MAC (see TestServer_SpaceMACs).
+		require.NotContains(t, commit, "sig")
 
 		_, wantHash, found, err := store.RepoHead(t.Context(), uri, owner)
 		require.NoError(t, err)

@@ -21,6 +21,7 @@ import (
 	"github.com/habitat-network/habitat/internal/search"
 	"github.com/habitat-network/habitat/internal/searchconfig"
 	"github.com/habitat-network/habitat/internal/simplespace"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
@@ -38,8 +39,11 @@ type PearServer struct {
 	// registerNotify accepts, to find the endpoint to deliver to.
 	dir identity.Directory
 
-	hive      hive.Hive
-	hostKey   atcrypto.PrivateKey
+	hive    hive.Hive
+	hostKey atcrypto.PrivateKey
+	// kemKeys derives the per-request shared secrets that commit and record
+	// MACs are keyed by.
+	kemKeys   *spacecommit.KEMKeys
 	blobStore spaces.BlobStore
 
 	spacesStore     spaces.Store
@@ -77,6 +81,7 @@ func New(app *pearapp.App) *PearServer {
 		dir:              app.DefaultDir,
 		hive:             app.Hive,
 		hostKey:          app.HostKey,
+		kemKeys:          spacecommit.NewKEMKeys(app.HostKEMKey, app.Hive),
 		blobStore:        app.BlobStore,
 		spacesStore:      app.SpacesStore,
 		opensocialStore:  app.OpensocialStore,

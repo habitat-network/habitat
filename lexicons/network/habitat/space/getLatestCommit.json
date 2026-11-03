@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "query",
-      "description": "Get the current signed commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+      "description": "Get the current commit for an account's permissioned repo within a space. Served by a repo host. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services). When called with a space credential, the caller must send an Atproto-Space-Want-Mac header, and the commit's MAC is returned in the Atproto-Space-Mac response header.",
       "parameters": {
         "type": "params",
         "required": ["space", "repo"],
@@ -28,8 +28,8 @@
           "properties": {
             "commit": {
               "type": "ref",
-              "ref": "network.habitat.space.defs#signedCommit",
-              "description": "The account's current signed commit."
+              "ref": "network.habitat.space.defs#commit",
+              "description": "The account's current commit."
             }
           }
         },
@@ -40,7 +40,11 @@
         { "name": "RepoNotFound" },
         { "name": "RepoTakendown" },
         { "name": "RepoSuspended" },
-        { "name": "RepoDeactivated" }
+        { "name": "RepoDeactivated" },
+        {
+          "name": "BadSpaceMac",
+          "description": "The Atproto-Space-Want-Mac header is missing or malformed, names an unsupported type or version, or carries an invalid key share."
+        }
       ]
     }
   }

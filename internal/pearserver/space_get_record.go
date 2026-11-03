@@ -10,6 +10,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/httpx"
+	"github.com/habitat-network/habitat/internal/spacecommit"
 	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -25,7 +26,7 @@ func (p *PearServer) GetRecord(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_, ok = p.validator.Request(
+	cred, ok := p.validator.Request(
 		authn.WithMethods(
 			authn.ValidatorMethodOAuth,
 			authn.ValidatorMethodServiceAuth,
@@ -49,6 +50,10 @@ func (p *PearServer) GetRecord(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	mac, ok := p.requestMAC(w, r, cred, repo, spacecommit.RecordMACType)
+	if !ok {
+		return
+	}
 	rec, err := p.spacesStore.GetRecord(ctx, spaceURI, repo, collection, rkey)
 	if errors.Is(err, spaces.ErrRecordNotFound) {
 		httpx.WriteRecordNotFound(ctx, w, err)
@@ -57,9 +62,13 @@ func (p *PearServer) GetRecord(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("get record: %w", err))
 		return
 	}
+	uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, collection, rec.Rkey).String()
+	if err := mac.setRecord(w, uri, rec.Cid); err != nil {
+		httpx.WriteServerError(ctx, w, err)
+		return
+	}
 	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceGetRecordOutput{
-		Uri: habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, collection, rec.Rkey).
-			String(),
+		Uri:   uri,
 		Cid:   rec.Cid.String(),
 		Value: rec.Value,
 	})

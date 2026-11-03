@@ -54,6 +54,12 @@ func (b *Builder) AtprotoKey(multibase string) *Builder {
 	return b.VerificationMethod("atproto", "Multikey", multibase)
 }
 
+// ATProtoKEMKey registers the P-256 key that space commit MACs are keyed
+// against as a Multikey verification method at <did>#atproto_kem.
+func (b *Builder) ATProtoKEMKey(multibase string) *Builder {
+	return b.VerificationMethod("atproto_kem", "Multikey", multibase)
+}
+
 func (b *Builder) ATProtoSpaceKey(multibase string) *Builder {
 	return b.VerificationMethod("atproto_space", "Multikey", multibase)
 }

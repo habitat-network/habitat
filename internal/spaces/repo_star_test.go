@@ -35,16 +35,8 @@ func testRecordBlock(
 	return recordBlock{Collection: coll, Rkey: rkey, Cid: c, Bytes: raw}
 }
 
-func testCommit() spacecommit.SignedCommit {
-	return spacecommit.SignedCommit{
-		Ver:           spacecommit.Version,
-		Hash:          make([]byte, 32),
-		Ikm:           make([]byte, 32),
-		Mac:           make([]byte, 32),
-		Sig:           []byte("signature"),
-		Rev:           "3kabcdefghij2",
-		HabitatSigned: true,
-	}
+func testCommit() spacecommit.Commit {
+	return spacecommit.New(testStarSpace, testStarRepo, "3kabcdefghij2", make([]byte, 32))
 }
 
 // readStarPairs reads an archive back, returning its metadata and its pairs as
@@ -86,8 +78,8 @@ func TestSerializeRepoStar(t *testing.T) {
 	require.Equal(t, testStarSpace.String(), meta["space"])
 	require.Equal(t, "3kabcdefghij2", meta["rev"])
 	require.Equal(t, atdata.Bytes(make([]byte, 32)), meta["data"])
-	require.Equal(t, atdata.Bytes("signature"), meta["sig"])
-	require.Equal(t, true, meta["habitatSigned"])
+	// The metadata is exactly the profile's commit: the MAC travels in a header.
+	require.Len(t, meta, 6)
 
 	require.Equal(t, []string{"network.habitat.note/a-key", "network.habitat.post/b-key"}, keys)
 	require.Equal(t, [][]byte{a.Bytes, b.Bytes}, values)
@@ -128,22 +120,4 @@ func TestSerializeRepoStar_DuplicatePath(t *testing.T) {
 	rec := testRecordBlock(t, "network.habitat.a", "k", map[string]any{"n": 1})
 	_, err := SerializeRepoStar(testStarSpace, testStarRepo, testCommit(), []recordBlock{rec, rec})
 	require.ErrorContains(t, err, "duplicate record path")
-}
-
-// TestSerializeRepoStar_HashOnlyCommit verifies a commit without ikm, sig or
-// mac still yields a readable archive: the empty fields are omitted.
-func TestSerializeRepoStar_HashOnlyCommit(t *testing.T) {
-	t.Parallel()
-
-	commit := spacecommit.SignedCommit{
-		Ver:  spacecommit.Version,
-		Hash: make([]byte, 32),
-		Rev:  "3kabcdefghij2",
-	}
-	archive, err := SerializeRepoStar(testStarSpace, testStarRepo, commit, nil)
-	require.NoError(t, err)
-	meta, _, _ := readStarPairs(t, archive)
-	require.NotContains(t, meta, "ikm")
-	require.NotContains(t, meta, "sig")
-	require.NotContains(t, meta, "mac")
 }

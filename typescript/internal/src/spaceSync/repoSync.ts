@@ -1,12 +1,12 @@
 /// <reference lib="esnext.disposable" />
 import { type Cid, parseCid } from "@atproto/lex";
 import {
+  type Commit,
   RepoCommit,
-  type SignedCommit,
   type VerifiedRecord,
   serializeRecord,
   verifyCommit,
-  readRepoStar,
+  verifyRepoStar,
 } from "@atproto/space";
 import type {
   DidString,
@@ -28,8 +28,7 @@ import {
   type XrpcError,
   errorMessage,
 } from "./errors";
-import { Identity, requireVerificationKey } from "./Identity";
-import { SpaceClient } from "./SpaceClient";
+import { type ResponseMac, SpaceClient } from "./SpaceClient";
 import { SyncSink } from "./SyncSink";
 import { SyncStore } from "./SyncStore";
 import type {
@@ -100,7 +99,6 @@ export class RepoSync extends Context.Service<
     Effect.gen(function* () {
       const config = yield* SpaceSyncConfig;
       const client = yield* SpaceClient;
-      const identity = yield* Identity;
       const store = yield* SyncStore;
       const sink = yield* SyncSink;
 
@@ -119,35 +117,6 @@ export class RepoSync extends Context.Service<
           ).pipe(Effect.andThen(Effect.suspend(() => store.putRepo(state())))),
         );
 
-      /**
-       * Run a signature check with the DID's cached key, and once more with a freshly
-       * resolved key if that fails and the key changed (rotation).
-       */
-      const checkWithFreshKey = Effect.fnUntraced(
-        function* (
-          _space: SpaceRefString,
-          did: DidString,
-          check: (signingKey: string) => Promise<boolean>,
-        ) {
-          const run = (key: string) =>
-            Effect.promise(() => check(key).catch(() => false));
-          const signingKey = yield* identity
-            .resolve(did)
-            .pipe(Effect.flatMap(requireVerificationKey));
-          if (yield* run(signingKey)) return true;
-          const freshKey = yield* identity
-            .refresh(did)
-            .pipe(Effect.flatMap(requireVerificationKey));
-          return freshKey !== signingKey && (yield* run(freshKey));
-        },
-        (effect, space, did) =>
-          Effect.mapError(
-            effect,
-            (e) =>
-              new RepoVerificationError({ space, did, message: e.message }),
-          ),
-      );
-
       const incremental = Effect.fnUntraced(function* (
         ref: SpaceRef,
         listed: ListedRepo,
@@ -162,30 +131,33 @@ export class RepoSync extends Context.Service<
         const changes = new Map<string, Change>();
         const seenCursors = new Set<string>();
         let opCount = 0;
-        let commit: com.atproto.space.defs.SignedCommit | undefined;
+        let commit: com.atproto.space.defs.Commit | undefined;
+        let commitMac: ResponseMac | undefined;
 
         // One element per listRepoOps page; a repeated cursor would page forever.
         const pages = Stream.paginate(
           undefined as string | undefined,
           (cursor) =>
             client.listRepoOps(ref, did, local.rev, cursor).pipe(
-              Effect.flatMap((page) => {
-                if (page.cursor !== undefined) {
-                  if (seenCursors.has(page.cursor))
+              Effect.flatMap((response) => {
+                const cursor = response.body.cursor;
+                if (cursor !== undefined) {
+                  if (seenCursors.has(cursor))
                     return Effect.fail(
                       verificationError("listRepoOps cursor repeated"),
                     );
-                  seenCursors.add(page.cursor);
+                  seenCursors.add(cursor);
                 }
                 return Effect.succeed([
-                  [page],
-                  Option.fromNullishOr(page.cursor),
+                  [response],
+                  Option.fromNullishOr(cursor),
                 ] as const);
               }),
             ),
         );
-        yield* Stream.runForEach(pages, (page) =>
+        yield* Stream.runForEach(pages, (response) =>
           Effect.gen(function* () {
+            const { body: page, mac } = response;
             opCount += page.ops.length;
             // Bounds memory and stops a host from paging forever; getRepo is the fallback.
             if (opCount > config.maxIncrementalOps)
@@ -225,7 +197,10 @@ export class RepoSync extends Context.Service<
                 value: cid ? op.value : undefined,
               });
             }
-            commit = page.commit ?? commit;
+            if (page.commit) {
+              commit = page.commit;
+              commitMac = mac;
+            }
           }),
         );
 
@@ -236,16 +211,25 @@ export class RepoSync extends Context.Service<
           return yield* verificationError(
             `unsupported commit version ${commit.ver}`,
           );
-        const finalCommit: SignedCommit = { ...commit, ver: 1 };
-        const valid = yield* checkWithFreshKey(space, did, (key) =>
-          verifyCommit(
-            finalCommit,
-            { space, author: did, rev: finalCommit.rev },
-            key,
-          ),
-        );
-        if (!valid)
-          return yield* verificationError("commit signature or MAC is invalid");
+        const finalCommit = { ...commit, ver: 1 } as Commit;
+        // The commit is authenticated by its page's MAC, under the secret
+        // negotiated for that one request.
+        const valid =
+          commitMac?.mac !== undefined &&
+          verifyCommit(finalCommit, {
+            space,
+            repo: did,
+            sharedSecret: commitMac.sharedSecret,
+            mac: commitMac.mac,
+          });
+        if (!valid) {
+          // The KEM key may have rotated: re-resolve it so the getRepo this
+          // falls back to negotiates against the current one.
+          yield* client
+            .refreshKem(ref, did)
+            .pipe(Effect.catchTag("XrpcError", () => Effect.void));
+          return yield* verificationError("commit MAC is missing or invalid");
+        }
         if (!state.matches(finalCommit))
           return yield* verificationError("set hash does not match commit");
         if (finalCommit.rev < listed.repoRev)
@@ -305,23 +289,33 @@ export class RepoSync extends Context.Service<
         const syncError = (message: string, cause?: unknown) =>
           new RepoSyncError({ space, did, message, cause });
 
-        // The key is unused until the commit is authenticated (see below).
-        const download = Effect.fnUntraced(function* (_signingKey: string) {
-          const star = yield* client
+        const download = Effect.fnUntraced(function* () {
+          const { star, mac } = yield* client
             .getRepo(ref, did)
             .pipe(
               Effect.catchTag("XrpcError", (e) =>
                 Effect.fail(repoCallFailed(space, did, e)),
               ),
             );
-          // Parses the commit; records are folded into a set hash as they stream and
-          // checked against the commit's data once the archive ends.
-          // TODO(shared-secret MACs): readRepoStar does not authenticate the commit;
-          // switch to verifyRepoStar with the request's shared secret and the
-          // Atproto-Space-Mac response header.
+          if (!mac.mac)
+            return yield* new RepoVerificationError({
+              space,
+              did,
+              message: "repo STAR response carried no MAC",
+            });
+          const responseMac = mac.mac;
+          // Authenticates the commit by the response's MAC; records are folded
+          // into a set hash as they stream and checked against the commit's
+          // data once the archive ends.
           const verified = yield* Effect.acquireRelease(
             Effect.tryPromise({
-              try: () => readRepoStar(star),
+              try: () =>
+                verifyRepoStar(star, {
+                  space,
+                  repo: did,
+                  sharedSecret: mac.sharedSecret,
+                  mac: responseMac,
+                }),
               catch: (error) =>
                 new RepoVerificationError({
                   space,
@@ -336,7 +330,7 @@ export class RepoSync extends Context.Service<
             return yield* syncError(
               `repo host is behind (${rev} < ${listed.repoRev})`,
             );
-          // A validly signed but older snapshot would roll the sink back.
+          // An authentic but older snapshot would roll the sink back.
           if (localRev !== undefined && rev < localRev)
             return yield* syncError(
               `repo host served an older snapshot (${rev} < ${localRev})`,
@@ -375,24 +369,22 @@ export class RepoSync extends Context.Service<
           return Option.some<SyncEvent>({ _tag: "Reset", space, did, rev });
         }, Effect.scoped);
 
-        const signingKey = yield* identity.resolve(did).pipe(
-          Effect.flatMap(requireVerificationKey),
-          Effect.mapError((e) => syncError(e.message, e)),
-        );
-        return yield* download(signingKey).pipe(
-          // The key may have rotated: retry once with a fresh one if it changed.
+        return yield* download().pipe(
+          // The KEM key may have rotated: retry once if a fresh resolution
+          // changed it.
           Effect.catchTag("RepoVerificationError", (first) =>
-            identity.refresh(did).pipe(
-              Effect.flatMap(requireVerificationKey),
-              Effect.mapError((e) => syncError(e.message, e)),
-              Effect.flatMap((freshKey) =>
-                freshKey === signingKey
-                  ? Effect.fail(syncError(first.message, first))
-                  : download(freshKey).pipe(
+            client.refreshKem(ref, did).pipe(
+              Effect.catchTag("XrpcError", (e) =>
+                Effect.fail(syncError(e.message, e)),
+              ),
+              Effect.flatMap((changed) =>
+                changed
+                  ? download().pipe(
                       Effect.catchTag("RepoVerificationError", (e) =>
                         Effect.fail(syncError(e.message, e)),
                       ),
-                    ),
+                    )
+                  : Effect.fail(syncError(first.message, first)),
               ),
             ),
           ),

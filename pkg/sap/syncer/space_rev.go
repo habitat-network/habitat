@@ -217,7 +217,7 @@ func (e *Engine) listSince(
 			rev = r.Rev
 		}
 		if _, err := e.observeHead(
-			ctx, space, syntax.DID(r.Did), syntax.TID(rev), r.Hash,
+			ctx, space, syntax.DID(r.Did), syntax.TID(rev), r.Data,
 		); err != nil {
 			return "", err
 		}

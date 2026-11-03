@@ -74,6 +74,11 @@ type ident struct {
 	// Key management
 	SigningPublicKey     string
 	SigningPrivateKeyEnc string
+	// KEM key for space commit MACs, published as the DID doc's #atproto_kem.
+	// Dedicated, not the signing key. Empty for identities minted before KEM
+	// keys existed until they are backfilled (see store.ensureKEMKey).
+	KEMPublicKey     string
+	KEMPrivateKeyEnc string
 
 	// Automatically managed by gorm
 	CreatedAt time.Time
