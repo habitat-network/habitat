@@ -62,7 +62,11 @@ type loginHintCookie struct {
 	now    func() time.Time
 }
 
-func newLoginHintCookie(secret []byte, domain CookieDomain, issuer string) (*loginHintCookie, error) {
+func newLoginHintCookie(
+	secret []byte,
+	domain CookieDomain,
+	issuer string,
+) (*loginHintCookie, error) {
 	if domain != "" {
 		// A browser drops a Set-Cookie whose Domain doesn't cover the host
 		// that sent it, so catch the misconfiguration at startup rather than

@@ -24,7 +24,11 @@ import (
 )
 
 func TestLoginHintCookieRoundTrip(t *testing.T) {
-	c, err := newLoginHintCookie([]byte("secret"), ".Habitat.Example", "https://pear.habitat.example")
+	c, err := newLoginHintCookie(
+		[]byte("secret"),
+		".Habitat.Example",
+		"https://pear.habitat.example",
+	)
 	require.NoError(t, err)
 	did := syntax.DID("did:web:example.did.com")
 
@@ -93,7 +97,11 @@ func TestLoginHintCookieRejectsDomainNotCoveringIssuer(t *testing.T) {
 	// A suffix match must be on a label boundary.
 	_, err = newLoginHintCookie([]byte("secret"), "tat.example", "https://pear.habitat.example")
 	require.Error(t, err)
-	_, err = newLoginHintCookie([]byte("secret"), "pear.habitat.example", "https://pear.habitat.example")
+	_, err = newLoginHintCookie(
+		[]byte("secret"),
+		"pear.habitat.example",
+		"https://pear.habitat.example",
+	)
 	require.NoError(t, err)
 }
 
@@ -159,7 +167,10 @@ func TestOAuthServerRemembersLogin(t *testing.T) {
 		Endpoint:    oauth2.Endpoint{AuthURL: server.URL + "/authorize"},
 	}
 	authorizeURL := func(extra string) string {
-		return config.AuthCodeURL("test-state", oauth2.S256ChallengeOption(oauth2.GenerateVerifier())) + extra
+		return config.AuthCodeURL(
+			"test-state",
+			oauth2.S256ChallengeOption(oauth2.GenerateVerifier()),
+		) + extra
 	}
 
 	jar, err := cookiejar.New(nil)
@@ -194,7 +205,12 @@ func TestOAuthServerRemembersLogin(t *testing.T) {
 		return resp.Header.Get("Location")
 	}
 
-	require.NotEqual(t, disambiguationPath, firstHop(""), "remembered login should skip the handle prompt")
+	require.NotEqual(
+		t,
+		disambiguationPath,
+		firstHop(""),
+		"remembered login should skip the handle prompt",
+	)
 	require.Equal(t, disambiguationPath, firstHop("&prompt=select_account"))
 
 	resp, err = client.Post(server.URL+"/forget", "", http.NoBody)
