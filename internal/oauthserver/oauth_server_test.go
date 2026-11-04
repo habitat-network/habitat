@@ -75,6 +75,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
 			nil,
+			"",
 		)
 		require.Error(t, err)
 	})
@@ -100,6 +101,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 
@@ -202,6 +204,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 
@@ -314,6 +317,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
+		"",
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 
@@ -531,6 +535,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
+		"",
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 
@@ -670,6 +675,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 
@@ -873,6 +879,7 @@ func TestValidate(t *testing.T) {
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
 			nil,
+			"",
 		)
 		require.NoError(t, srvErr)
 		return s, p
@@ -992,6 +999,7 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			NewJWTBearerStore(),
 			testOpensocialStore(t),
 			nil,
+			"",
 		)
 		require.NoError(t, srvErr)
 		return s, p
@@ -1100,6 +1108,7 @@ func runIndigoClientAppFlow(t *testing.T, config func(clientAppURL string) oauth
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 
@@ -1273,6 +1282,7 @@ func TestHandleAuthorizeDisambiguation(t *testing.T) {
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 
@@ -1398,6 +1408,7 @@ func TestHandleOpensocialSignInE2E(t *testing.T) {
 		NewJWTBearerStore(),
 		opensocialStore,
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 
@@ -1545,6 +1556,7 @@ func TestHandleOpensocialRejectsNonAdmin(t *testing.T) {
 		NewJWTBearerStore(),
 		opensocialStore,
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 
@@ -1648,6 +1660,7 @@ func TestListConnectedAppsSkipsUnresolvableClients(t *testing.T) {
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 
@@ -1751,6 +1764,7 @@ func TestHandleOpensocialSurvivesNestedFlow(t *testing.T) {
 		NewJWTBearerStore(),
 		opensocialStore,
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 

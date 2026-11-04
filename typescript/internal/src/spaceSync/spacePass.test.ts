@@ -243,14 +243,17 @@ describe("SpacePass.run", () => {
         const alice = yield* Effect.promise(() => net.createAccount("alice"));
         const space = net.createSpace(alice);
         yield* track(space);
-        const before = Date.now();
         for (let i = 0; i < 5; i++)
           yield* recordPassFailure(space.id, new Error("nope"));
+        // The last failure computed nextDueAt from a clock read before this
+        // one, so measuring from here bounds it by the cap however slow the
+        // five writes above were.
+        const after = Date.now();
         const state = yield* stateOf(space);
         expect(state.failures).toBe(5);
         expect(state.lastError).toBe("nope");
         // test config: base 50ms, cap 200ms
-        expect(state.nextDueAt - before).toBeLessThanOrEqual(200 + 50);
+        expect(state.nextDueAt - after).toBeLessThanOrEqual(200);
       }),
     ),
   );

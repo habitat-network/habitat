@@ -50,6 +50,9 @@ type requestRecord struct {
 	State               string `json:"state"` // the client's own OAuth state param
 	ResponseType        string `json:"response_type"`
 	ResponseMode        string `json:"response_mode"`
+	// Prompt is the client's OIDC prompt param; prompt=login/select_account
+	// stops a remembered login from skipping the account prompt.
+	Prompt string `json:"prompt,omitempty"`
 }
 
 // toAuthorizeRequest rebuilds the fosite.AuthorizeRequest this row was stored
@@ -77,6 +80,7 @@ func (r *requestRecord) toAuthorizeRequest(client fosite.Client) *fosite.Authori
 			Form: url.Values{
 				"code_challenge":        {r.CodeChallenge},
 				"code_challenge_method": {r.CodeChallengeMethod},
+				"prompt":                {r.Prompt},
 			},
 			RequestedAt: time.Now().UTC(),
 		},
@@ -95,6 +99,7 @@ func requestRecordFrom(requester fosite.Requester) requestRecord {
 		State:               form.Get("state"),
 		ResponseType:        form.Get("response_type"),
 		ResponseMode:        form.Get("response_mode"),
+		Prompt:              form.Get("prompt"),
 		Subject:             requester.GetSession().GetSubject(),
 	}
 }
