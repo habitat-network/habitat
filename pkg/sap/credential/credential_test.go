@@ -196,6 +196,42 @@ func TestManagerCredential(t *testing.T) {
 	require.Equal(t, Credential{Token: "space-cred", Host: srv.URL}, cred)
 }
 
+// TestManagerReportsDeletedSpace verifies a host answering SpaceDeleted is
+// reported through OnSpaceDeleted and ErrSpaceDeleted, and that any other
+// failure says nothing about the space.
+func TestManagerReportsDeletedSpace(t *testing.T) {
+	errName := "SpaceDeleted"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": errName})
+	}))
+	t.Cleanup(srv.Close)
+
+	owner := syntax.DID("did:web:org")
+	space := habitat_syntax.SpaceURI("at://did:web:org/space/network.habitat.group/s1")
+	m := NewManager(
+		dirWithSpaceHost(owner, srv.URL),
+		http.DefaultClient,
+		stubDelegator{},
+		testAttester(t, "https://sap.example.com"),
+	)
+	var reported []habitat_syntax.SpaceURI
+	m.OnSpaceDeleted(func(_ context.Context, s habitat_syntax.SpaceURI) {
+		reported = append(reported, s)
+	})
+
+	_, err := m.Credential(t.Context(), space)
+	require.ErrorIs(t, err, ErrSpaceDeleted)
+	require.Equal(t, []habitat_syntax.SpaceURI{space}, reported)
+
+	errName = "NotAuthorized"
+	_, err = m.Credential(t.Context(), space)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrSpaceDeleted)
+	require.Len(t, reported, 1)
+}
+
 // TestManagerAttachesClientAttestation verifies mint signs a
 // getSpaceCredential request's clientAttestation with a JWT that a real
 // space authority (clientmetadata's verifier) actually accepts.

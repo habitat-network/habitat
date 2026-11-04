@@ -29,6 +29,18 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	// A deleted space answers SpaceDeleted before any authorization, so a
+	// syncer that missed the notifySpaceDeleted learns of it when it renews:
+	// the deletion revoked every member, so it would otherwise only learn that
+	// it is no longer one.
+	deleted, err := p.spacesStore.IsSpaceDeleted(ctx, spaceURI)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check space deleted: %w", err))
+		return
+	} else if deleted {
+		httpx.WriteError(ctx, w, "SpaceDeleted", "space was deleted", http.StatusBadRequest)
+		return
+	}
 	if _, ok = p.validator.Request(
 		authn.WithMethods(authn.ValidatorMethodDelegationToken),
 		authn.WithSpace(spaceURI, habitat_syntax.SpaceRoleReader),

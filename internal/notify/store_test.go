@@ -223,3 +223,75 @@ func TestStoreKeysDistinctAudiencesOnSameEndpoint(t *testing.T) {
 	// Same address, reached by two independent registrations.
 	require.Equal(t, regs[0].Endpoint, regs[1].Endpoint)
 }
+
+func TestStoreSpaceDeletedDeliveries(t *testing.T) {
+	s := newTestStore(t)
+	future := time.Now().Add(time.Hour)
+	later := future.Add(time.Hour)
+	regs := []Registration{
+		// One audience registered twice is delivered to once, under its
+		// longest-lived registration.
+		{
+			Space: space, Audience: "did:web:a#svc", Endpoint: "https://a",
+			Namespace: NamespaceAtproto, ExpiresAt: future,
+		},
+		{
+			Space: space, Repo: repo, Audience: "did:web:a#svc", Endpoint: "https://a",
+			Namespace: NamespaceAtproto, ExpiresAt: later,
+		},
+		{
+			Space: space, Audience: "https://b", Endpoint: "https://b",
+			Namespace: NamespaceHabitat, ExpiresAt: future,
+		},
+	}
+	pending, err := s.QueueSpaceDeleted(t.Context(), space, regs, 100)
+	require.NoError(t, err)
+	require.Len(t, pending, 2)
+
+	due, err := s.DueSpaceDeleted(t.Context(), 99, 10)
+	require.NoError(t, err)
+	require.Empty(t, due)
+	due, err = s.DueSpaceDeleted(t.Context(), 100, 10)
+	require.NoError(t, err)
+	require.Len(t, due, 2)
+	byAudience := map[string]PendingDeletion{}
+	for _, p := range due {
+		byAudience[p.Audience] = p
+	}
+	require.Equal(t, NamespaceAtproto, byAudience["did:web:a#svc"].Namespace)
+	require.WithinDuration(t, later, byAudience["did:web:a#svc"].ExpiresAt, time.Second)
+	require.Equal(t, "https://b", byAudience["https://b"].Endpoint)
+
+	// Only the first of two workers holding the same read wins the claim.
+	a := byAudience["did:web:a#svc"]
+	ok, err := s.RescheduleSpaceDeleted(t.Context(), a, a.Attempts, 200)
+	require.NoError(t, err)
+	require.True(t, ok)
+	ok, err = s.RescheduleSpaceDeleted(t.Context(), a, a.Attempts, 300)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	// A stale clear leaves the claimed row alone; a current one drops it.
+	require.NoError(t, s.ClearSpaceDeleted(t.Context(), a))
+	due, err = s.DueSpaceDeleted(t.Context(), 200, 10)
+	require.NoError(t, err)
+	require.Len(t, due, 2)
+	a.RetryAt = 200
+	require.NoError(t, s.ClearSpaceDeleted(t.Context(), a))
+	due, err = s.DueSpaceDeleted(t.Context(), 200, 10)
+	require.NoError(t, err)
+	require.Len(t, due, 1)
+
+	// Deleting the space again re-queues from the first attempt.
+	b := due[0]
+	ok, err = s.RescheduleSpaceDeleted(t.Context(), b, 3, 150)
+	require.NoError(t, err)
+	require.True(t, ok)
+	_, err = s.QueueSpaceDeleted(t.Context(), space, regs[2:], 120)
+	require.NoError(t, err)
+	due, err = s.DueSpaceDeleted(t.Context(), 200, 10)
+	require.NoError(t, err)
+	require.Len(t, due, 1)
+	require.Equal(t, 0, due[0].Attempts)
+	require.Equal(t, int64(120), due[0].RetryAt)
+}

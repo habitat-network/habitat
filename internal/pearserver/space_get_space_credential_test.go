@@ -61,6 +61,33 @@ func grantAppAccess(
 }
 
 func TestServer_GetSpaceCredential(t *testing.T) {
+	t.Run("deleted space answers SpaceDeleted", func(t *testing.T) {
+		ts := pearserver_testutil.NewTestServer(t)
+		uri, err := ts.SpaceStore.CreateSpace(t.Context(), owner, groupTp, "deleted")
+		require.NoError(t, err)
+		require.NoError(t, ts.SpaceStore.DeleteSpace(t.Context(), uri))
+
+		// With or without a delegation token, before any authorization.
+		for _, auth := range []string{"", "Bearer delegation"} {
+			body, err := json.Marshal(
+				habitat.NetworkHabitatSpaceGetSpaceCredentialInput{Space: uri.String()},
+			)
+			require.NoError(t, err)
+			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+			if auth != "" {
+				req.Header.Set("Authorization", auth)
+			}
+			w := httptest.NewRecorder()
+			ts.Server.GetSpaceCredential(w, req)
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			var out struct {
+				Error string `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+			require.Equal(t, "SpaceDeleted", out.Error)
+		}
+	})
+
 	t.Run("open space", func(t *testing.T) {
 		ts := pearserver_testutil.NewTestServer(t)
 		// owner is not an opensocial org, so no attestation is required.

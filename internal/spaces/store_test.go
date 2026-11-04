@@ -964,6 +964,39 @@ func TestDeleteSpace(t *testing.T) {
 	require.Len(t, records, 0)
 }
 
+func TestDeleteSpace_TombstoneUntilRecreated(t *testing.T) {
+	s := spaces_testutil.NewTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgID, groupType, "tombstone")
+	require.NoError(t, err)
+	deleted, err := s.IsSpaceDeleted(t.Context(), uri)
+	require.NoError(t, err)
+	require.False(t, deleted, "a live space is not deleted")
+
+	require.NoError(t, s.DeleteSpace(t.Context(), uri))
+	deleted, err = s.IsSpaceDeleted(t.Context(), uri)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	// Recreating it under the same type and skey makes it a new space.
+	_, err = s.CreateSpace(t.Context(), orgID, groupType, "tombstone")
+	require.NoError(t, err)
+	deleted, err = s.IsSpaceDeleted(t.Context(), uri)
+	require.NoError(t, err)
+	require.False(t, deleted)
+
+	// And deleting it again leaves a fresh tombstone.
+	require.NoError(t, s.DeleteSpace(t.Context(), uri))
+	deleted, err = s.IsSpaceDeleted(t.Context(), uri)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	never := habitat_syntax.ConstructSpaceURI(orgID, groupType, "never")
+	deleted, err = s.IsSpaceDeleted(t.Context(), never)
+	require.NoError(t, err)
+	require.False(t, deleted, "a space that never existed is not deleted")
+}
+
 func TestDeleteSpace_NonExistent(t *testing.T) {
 	s := spaces_testutil.NewTestStore(t)
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")

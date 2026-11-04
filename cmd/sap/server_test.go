@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/did"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/pkg/oauthclient"
 	"github.com/habitat-network/habitat/pkg/sap"
 	sap_testutil "github.com/habitat-network/habitat/pkg/sap/testutil"
@@ -464,6 +465,63 @@ func TestHandleNotifyWriteRejectsMissingOrInvalidAuth(t *testing.T) {
 	w = httptest.NewRecorder()
 	srv.handleNotifyWrite(w, req)
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// TestHandleNotifySpaceDeleted covers sap's notifySpaceDeleted receiver: only
+// the space's authority may delete it, and a repeated delivery for a space sap
+// no longer tracks still succeeds, so the authority stops retrying.
+func TestHandleNotifySpaceDeleted(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	owner := syntax.DID("did:plc:owner")
+	other := syntax.DID("did:plc:other")
+	keys := map[syntax.DID]atcrypto.PrivateKey{}
+	dir := identity.NewMockDirectory()
+	for _, did := range []syntax.DID{owner, other} {
+		priv, err := atcrypto.GeneratePrivateKeyP256()
+		require.NoError(t, err)
+		pub, err := priv.PublicKey()
+		require.NoError(t, err)
+		keys[did] = priv
+		dir.Insert(identity.Identity{
+			DID: did,
+			Keys: map[string]identity.VerificationMethod{
+				"atproto": {Type: "Multikey", PublicKeyMultibase: pub.Multibase()},
+			},
+		})
+	}
+	srv.notifyValidator.Dir = dir
+
+	body, err := json.Marshal(map[string]string{
+		"space": "at://did:plc:owner/space/network.habitat.docs/abc",
+	})
+	require.NoError(t, err)
+	deliver := func(auth string) int {
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/xrpc/network.habitat.space.notifySpaceDeleted",
+			bytes.NewReader(body),
+		)
+		if auth != "" {
+			req.Header.Set("Authorization", auth)
+		}
+		w := httptest.NewRecorder()
+		srv.handleNotifySpaceDeleted(w, req)
+		return w.Code
+	}
+	token := func(iss syntax.DID) string {
+		lxm := syntax.NSID("network.habitat.space.notifySpaceDeleted")
+		tok, err := utils.ServiceAuthToken(keys[iss], iss, testService, &lxm, nil)
+		require.NoError(t, err)
+		return "Bearer " + tok
+	}
+
+	require.Equal(t, http.StatusUnauthorized, deliver(""))
+	require.Equal(t, http.StatusUnauthorized, deliver("Bearer not-a-real-jwt"))
+	require.Equal(t, http.StatusForbidden, deliver(token(other)))
+	require.Equal(t, http.StatusOK, deliver(token(owner)))
+	require.Equal(t, http.StatusOK, deliver(token(owner)), "repeat deliveries succeed")
 }
 
 // TestHandleDIDDoc pins the document a space host resolves sap's service

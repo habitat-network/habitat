@@ -182,7 +182,7 @@ func New(config Config) (*Sap, error) {
 		crawlInterval = time.Hour
 	}
 
-	return &Sap{
+	s := &Sap{
 		db:            config.DB,
 		sessions:      sessions,
 		credentials:   credentials,
@@ -192,7 +192,19 @@ func New(config Config) (*Sap, error) {
 		outbox:        ob,
 		crawlInterval: crawlInterval,
 		tracer:        tracer,
-	}, nil
+	}
+	// A credential renewal answered SpaceDeleted means the space is gone even
+	// if its notifySpaceDeleted never arrived, so drop it the same way. In the
+	// background: the renewal may be part of a sync of that very space.
+	credentials.OnSpaceDeleted(func(ctx context.Context, space habitat_syntax.SpaceURI) {
+		go func() {
+			ctx := context.WithoutCancel(ctx)
+			if err := s.NotifySpaceDeleted(ctx, space.URI()); err != nil {
+				slog.ErrorContext(ctx, "drop deleted space", "err", err, "space", space)
+			}
+		}()
+	})
+	return s, nil
 }
 
 // Start runs the background loops (sync engine, crawl resumption and periodic
