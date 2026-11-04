@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.llm.listConnections",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List the LLM model connections configured for an org. API keys are never returned. Requires service-auth. Callable by any org member.",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "org"
+        ],
+        "properties": {
+          "org": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the community to list connections for."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "connections"
+          ],
+          "properties": {
+            "connections": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "network.habitat.llm.defs#connection"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

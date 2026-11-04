@@ -1,0 +1,75 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.llm.addConnection",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Add an LLM model connection to the org. Its metadata is written as a network.habitat.llm.connection record, and its API key, if any, is stored encrypted. Requires service-auth. Requires the community.configure action.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "org",
+            "name",
+            "provider",
+            "model"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "format": "did",
+              "description": "DID of the community to add the connection to."
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Also becomes the connection's record key and the model ID clients request. Letters, digits, dots, hyphens, and underscores only, and must be unique within the org."
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "provider": {
+              "type": "string",
+              "knownValues": [
+                "openai",
+                "anthropic",
+                "google",
+                "ollama"
+              ],
+              "description": "See network.habitat.llm.defs#connection."
+            },
+            "model": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "baseUrl": {
+              "type": "string",
+              "format": "uri"
+            },
+            "apiKey": {
+              "type": "string",
+              "description": "The provider API key. Stored encrypted and never returned."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "connection"
+          ],
+          "properties": {
+            "connection": {
+              "type": "ref",
+              "ref": "network.habitat.llm.defs#connection"
+            }
+          }
+        }
+      }
+    }
+  }
+}
