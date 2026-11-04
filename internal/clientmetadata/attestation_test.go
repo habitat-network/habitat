@@ -41,7 +41,10 @@ func TestVerifyAttestationRejects(t *testing.T) {
 			c.Subject = "https://other.example.com/client-metadata.json"
 		},
 		"wrong aud": func(c *jwt.RegisteredClaims, _ map[string]any) {
-			c.Audience = jwt.ClaimStrings{"did:plc:someone-else#atproto_space_host"}
+			c.Audience = jwt.ClaimStrings{"did:plc:someone-else#atproto_pds"}
+		},
+		"legacy space host aud": func(c *jwt.RegisteredClaims, _ map[string]any) {
+			c.Audience = jwt.ClaimStrings{testSpaceOwner.String() + "#atproto_space_host"}
 		},
 		"expired": func(c *jwt.RegisteredClaims, _ map[string]any) {
 			c.IssuedAt = jwt.NewNumericDate(time.Now().Add(-time.Hour))

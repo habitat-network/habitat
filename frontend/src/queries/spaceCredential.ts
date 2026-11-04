@@ -13,9 +13,8 @@ export interface SpaceCredential {
   // The signed space credential, presented to `host` under the
   // Atproto-Space-Credential scheme with a request signature.
   credential: string;
-  // The space authority's host, resolved from its DID document (the
-  // atproto_space_host service, falling back to its PDS) — see
-  // internal/utils.SpaceHostEndpoint on the Go side for the same rule. Every
+  // The space authority's host, resolved from its DID document: like any
+  // other account, its atproto_pds service. Every
   // com.atproto.space.* read for this space is served here, per
   // bluesky-social/proposals#0016.
   host: string;

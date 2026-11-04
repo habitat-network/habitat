@@ -1,6 +1,7 @@
 package syncer
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -9,12 +10,14 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
-	car "github.com/ipld/go-car"
+	"github.com/multiformats/go-multihash"
 
 	"github.com/habitat-network/habitat/internal/spacecommit"
+	"github.com/habitat-network/habitat/internal/star"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
-// recoveredRecord is a single record read from a com.atproto.space.getRepo CAR.
+// recoveredRecord is a single record read from a getRepo STAR archive.
 type recoveredRecord struct {
 	Collection syntax.NSID
 	Rkey       syntax.RecordKey
@@ -22,78 +25,72 @@ type recoveredRecord struct {
 	Value      map[string]any
 }
 
-// recoveredRepo is the parsed content of a com.atproto.space.getRepo CAR: the
-// repo's signed head commit and its current record set.
+// recoveredRepo is the parsed content of a getRepo STAR archive: the repo's
+// signed head commit and its current record set.
 type recoveredRepo struct {
 	Commit  spacecommit.SignedCommit
 	Records []recoveredRecord
 }
 
-// parseRepoCAR reads a com.atproto.space.getRepo CAR, mirroring the host's
-// SerializeRepoCAR: two roots in order — the signed commit, then the DRISL
-// index (a map of "{collection}/{rkey}" → record CID-link) — followed by the
-// record blocks. It returns the signed commit and the decoded records.
-func parseRepoCAR(r io.Reader) (recoveredRepo, error) {
-	cr, err := car.NewCarReader(r)
+const (
+	// repoStarType is the STAR profile of a getRepo archive.
+	repoStarType = "atproto-space-repo"
+	// maxRecordSize caps a record's DRISL encoding, as the profile does.
+	maxRecordSize = 1024 * 1024
+)
+
+// parseRepoStar reads a getRepo STAR archive, mirroring the host's
+// SerializeRepoStar: the metadata is the repo's signed commit, typed by the
+// atproto-space-repo profile, followed by one "{collection}/{rkey}" → DRISL
+// record pair per record in strict bytewise order of the path. space and repo
+// are what was requested; the commit must name them.
+func parseRepoStar(
+	r io.Reader,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (recoveredRepo, error) {
+	sr, err := star.NewReader(r, maxRecordSize)
 	if err != nil {
-		return recoveredRepo{}, fmt.Errorf("read car header: %w", err)
+		return recoveredRepo{}, fmt.Errorf("read star header: %w", err)
 	}
-	if len(cr.Header.Roots) != 2 {
-		return recoveredRepo{}, fmt.Errorf("expected 2 car roots, got %d", len(cr.Header.Roots))
+	if t := sr.Meta["$type"]; t != repoStarType {
+		return recoveredRepo{}, fmt.Errorf("unexpected star profile %v", t)
 	}
-	commitCID := cr.Header.Roots[0]
-	indexCID := cr.Header.Roots[1]
-
-	blocks := make(map[cid.Cid][]byte)
-	for {
-		blk, err := cr.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return recoveredRepo{}, fmt.Errorf("read car block: %w", err)
-		}
-		blocks[blk.Cid()] = blk.RawData()
+	if got, _ := sr.Meta["repo"].(string); got != repo.String() {
+		return recoveredRepo{}, fmt.Errorf("commit is for repo %q, want %q", got, repo)
 	}
-
-	commitBytes, ok := blocks[commitCID]
-	if !ok {
-		return recoveredRepo{}, fmt.Errorf("commit block %s missing from car", commitCID)
+	if got, _ := sr.Meta["space"].(string); got != space.String() {
+		return recoveredRepo{}, fmt.Errorf("commit is for space %q, want %q", got, space)
 	}
-	commit, err := decodeSignedCommit(commitBytes)
+	commit, err := decodeSignedCommit(sr.Meta)
 	if err != nil {
 		return recoveredRepo{}, err
 	}
 
-	indexBytes, ok := blocks[indexCID]
-	if !ok {
-		return recoveredRepo{}, fmt.Errorf("index block %s missing from car", indexCID)
-	}
-	index, err := atdata.UnmarshalCBOR(indexBytes)
-	if err != nil {
-		return recoveredRepo{}, fmt.Errorf("decode repo index: %w", err)
-	}
-
-	records := make([]recoveredRecord, 0, len(index))
-	for path, link := range index {
-		cl, ok := link.(atdata.CIDLink)
-		if !ok {
-			return recoveredRepo{}, fmt.Errorf("index entry %q is not a cid-link", path)
+	var records []recoveredRecord
+	var prev []byte
+	for {
+		key, value, err := sr.Next()
+		if errors.Is(err, io.EOF) {
+			break
 		}
-		recCID := cl.CID()
+		if err != nil {
+			return recoveredRepo{}, fmt.Errorf("read star pair: %w", err)
+		}
+		path := string(key)
+		if prev != nil && bytes.Compare(key, prev) <= 0 {
+			return recoveredRepo{}, fmt.Errorf("records out of order at %q", path)
+		}
+		prev = key
 		collection, rkey, err := splitRecordPath(path)
 		if err != nil {
 			return recoveredRepo{}, err
 		}
-		recBytes, ok := blocks[recCID]
-		if !ok {
-			return recoveredRepo{}, fmt.Errorf(
-				"record block %s for %q missing from car",
-				recCID,
-				path,
-			)
+		recCID, err := cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256).Sum(value)
+		if err != nil {
+			return recoveredRepo{}, fmt.Errorf("compute cid of %q: %w", path, err)
 		}
-		value, err := atdata.UnmarshalCBOR(recBytes)
+		decoded, err := atdata.UnmarshalCBOR(value)
 		if err != nil {
 			return recoveredRepo{}, fmt.Errorf("decode record %q: %w", path, err)
 		}
@@ -101,13 +98,13 @@ func parseRepoCAR(r io.Reader) (recoveredRepo, error) {
 			Collection: collection,
 			Rkey:       rkey,
 			Cid:        recCID,
-			Value:      value,
+			Value:      decoded,
 		})
 	}
 	return recoveredRepo{Commit: commit, Records: records}, nil
 }
 
-// splitRecordPath splits a "{collection}/{rkey}" repo index path. Neither an
+// splitRecordPath splits a "{collection}/{rkey}" record path. Neither an
 // NSID collection nor a record key contains a slash, so the first separates them.
 func splitRecordPath(path string) (syntax.NSID, syntax.RecordKey, error) {
 	collStr, rkeyStr, ok := strings.Cut(path, "/")
@@ -125,13 +122,11 @@ func splitRecordPath(path string) (syntax.NSID, syntax.RecordKey, error) {
 	return collection, rkey, nil
 }
 
-// decodeSignedCommit decodes the CAR's signed-commit block, the DAG-CBOR
-// encoding of network.habitat.space.defs#signedCommit.
-func decodeSignedCommit(b []byte) (spacecommit.SignedCommit, error) {
-	m, err := atdata.UnmarshalCBOR(b)
-	if err != nil {
-		return spacecommit.SignedCommit{}, fmt.Errorf("decode signed commit: %w", err)
-	}
+// decodeSignedCommit decodes the signed commit carried as a getRepo archive's
+// metadata: the profile's ver, rev and data (the commit's set hash), plus the
+// ikm, mac, sig and habitatSigned fields of
+// network.habitat.space.defs#signedCommit.
+func decodeSignedCommit(m map[string]any) (spacecommit.SignedCommit, error) {
 	ver, ok := m["ver"].(int64)
 	if !ok {
 		return spacecommit.SignedCommit{}, fmt.Errorf("signed commit ver is not an integer")
@@ -140,12 +135,12 @@ func decodeSignedCommit(b []byte) (spacecommit.SignedCommit, error) {
 	if !ok {
 		return spacecommit.SignedCommit{}, fmt.Errorf("signed commit rev is not a string")
 	}
-	hash, err := commitBytesField(m, "hash")
+	hash, err := commitBytesField(m, "data")
 	if err != nil {
 		return spacecommit.SignedCommit{}, err
 	}
 	if len(hash) == 0 {
-		return spacecommit.SignedCommit{}, fmt.Errorf("signed commit missing hash")
+		return spacecommit.SignedCommit{}, fmt.Errorf("signed commit missing data")
 	}
 	// ikm/mac/sig are only needed for signature verification (a follow-up); a
 	// commit that omits them is still usable for hash verification.

@@ -31,7 +31,7 @@ func TestValidator(t *testing.T) {
 	require.NoError(t, err)
 	hostPubKey, err := hostKey.PublicKey()
 	require.NoError(t, err)
-	dir.Insert(*did.Web("alice").ATProtoSpaceKey(hostPubKey.Multibase()).Build())
+	dir.Insert(*did.Web("alice").AtprotoKey(hostPubKey.Multibase()).Build())
 	db := pear_testutil.NewPearDB(t)
 
 	fga, err := fgastore.NewMemory(t.Context())
@@ -72,7 +72,6 @@ func TestValidator(t *testing.T) {
 	t.Run("space credential", func(t *testing.T) {
 		token, err := utils.SpaceCredential(
 			hostKey,
-			"#atproto_space",
 			"at://did:web:alice/space/test.space.type/abc",
 		)
 		require.NoError(t, err)

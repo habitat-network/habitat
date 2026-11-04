@@ -2,7 +2,7 @@
 // Repos are discovered via Track (backfill crawl or notifications) and advance
 // through a small state machine: pending/error repos are synced incrementally
 // with listRepoOps and verified against the host's signed commit; repos whose
-// verification fails are marked desynced and rebuilt from a full getRepo CAR
+// verification fails are marked desynced and rebuilt from a full getRepo STAR
 // snapshot. Synced records are handed to an Emitter (the outbox).
 package syncer
 
@@ -76,7 +76,7 @@ type Emitter interface {
 type job struct {
 	Space habitat_syntax.SpaceURI
 	DID   syntax.DID
-	// Recover routes the job to a full getRepo CAR rebuild instead of an
+	// Recover routes the job to a full getRepo STAR rebuild instead of an
 	// incremental listRepoOps sync.
 	Recover bool
 }
@@ -307,7 +307,7 @@ func (e *Engine) dispatch(ctx context.Context) {
 		"state IN ('pending', 'error')",
 		"CASE state WHEN 'pending' THEN 1 WHEN 'error' THEN 2 END",
 		false)
-	// Rebuild desynced repos from a full getRepo CAR snapshot.
+	// Rebuild desynced repos from a full getRepo STAR snapshot.
 	total += e.claimAndQueue(ctx, span, "state = 'desynced'", "space", true)
 	span.SetAttributes(attribute.Int("sap.jobs_claimed", total))
 }

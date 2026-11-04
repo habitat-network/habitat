@@ -8,6 +8,7 @@ package credential
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -25,7 +26,6 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/httpsig"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // renewalLead is how far before a credential's expiry it is renewed. Hosts
@@ -101,6 +101,23 @@ type Manager struct {
 
 	mu    sync.Mutex
 	creds map[habitat_syntax.SpaceURI]spaceCred
+
+	// onSpaceDeleted, when set, is told of a space whose host answered
+	// SpaceDeleted; see OnSpaceDeleted.
+	onSpaceDeleted func(ctx context.Context, space habitat_syntax.SpaceURI)
+}
+
+// ErrSpaceDeleted is returned for a space whose host answered SpaceDeleted
+// when asked for a credential: the space was deleted, and sap may have missed
+// the notifySpaceDeleted that said so.
+var ErrSpaceDeleted = errors.New("space deleted")
+
+// OnSpaceDeleted sets f to be called whenever a credential request finds a
+// space deleted, so the caller can drop its copy as it would on a
+// notifySpaceDeleted. f runs on the minting goroutine and must not block on
+// credentials for the same space. Set it before the manager is used.
+func (m *Manager) OnSpaceDeleted(f func(ctx context.Context, space habitat_syntax.SpaceURI)) {
+	m.onSpaceDeleted = f
 }
 
 // NewManager builds a manager. httpc must not attach any auth of its own —
@@ -175,7 +192,7 @@ func (m *Manager) mint(
 		return spaceCred{}, fmt.Errorf("get delegation token: %w", err)
 	}
 	attestation, err := m.attester.NewClientAssertion(
-		space.SpaceOwner().String() + "#atproto_space_host",
+		space.SpaceOwner().String() + "#atproto_pds",
 	)
 	if err != nil {
 		return spaceCred{}, fmt.Errorf("sign client attestation: %w", err)
@@ -201,6 +218,15 @@ func (m *Manager) mint(
 			ClientAttestation: attestation,
 		}, &out,
 	); err != nil {
+		// Only the space's own host answers for the space, so its SpaceDeleted
+		// is authoritative. Any other failure says nothing about the space.
+		var apiErr *atclient.APIError
+		if errors.As(err, &apiErr) && apiErr.Name == "SpaceDeleted" {
+			if m.onSpaceDeleted != nil {
+				m.onSpaceDeleted(ctx, space)
+			}
+			return spaceCred{}, fmt.Errorf("get space credential: %w: %w", ErrSpaceDeleted, err)
+		}
 		return spaceCred{}, fmt.Errorf("get space credential: %w", err)
 	}
 	c := spaceCred{token: out.Credential, host: host, expire: credentialExpiry(out.Credential)}
@@ -277,9 +303,11 @@ func (m *Manager) hostForSpace(ctx context.Context, space habitat_syntax.SpaceUR
 	if err != nil {
 		return "", fmt.Errorf("lookup space owner %s: %w", owner, err)
 	}
-	host := utils.SpaceHostEndpoint(ident)
+	// A space authority resolves like any other account: its PDS is the
+	// space host.
+	host := ident.PDSEndpoint()
 	if host == "" {
-		return "", fmt.Errorf("space owner %s has no space host service", owner)
+		return "", fmt.Errorf("space owner %s has no atproto_pds service", owner)
 	}
 	return host, nil
 }

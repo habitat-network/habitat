@@ -16,7 +16,7 @@ import {
 } from "effect";
 import { SpaceSyncConfig } from "./config";
 import { CredentialError, errorMessage } from "./errors";
-import { Identity } from "./Identity";
+import { Identity, requirePds } from "./Identity";
 import { signedAgent } from "./wire";
 
 export interface SpaceCredential {
@@ -115,7 +115,9 @@ export class Credentials extends Context.Service<
         id: space,
       }: SpaceKey) {
         const authority = ref.spaceDid;
+        // The space host is the authority's PDS, like any other account.
         const host = yield* identity.resolve(authority).pipe(
+          Effect.flatMap(requirePds),
           Effect.mapError(
             (e) =>
               new CredentialError({
@@ -133,7 +135,7 @@ export class Credentials extends Context.Service<
         // no auth headers: the key to bind the credential to (credentialKid)
         // and the delegation token travel in the body.
         const key = yield* Effect.promise(() => P256Keypair.create());
-        const agent = signedAgent(host.spaceHost, async () => ({}));
+        const agent = signedAgent(host, async () => ({}));
         const result = yield* Effect.tryPromise({
           try: (signal) =>
             xrpcSafe(agent, com.atproto.space.getSpaceCredential.main, {

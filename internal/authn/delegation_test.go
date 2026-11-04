@@ -174,7 +174,7 @@ func TestDelegationTokenVerifier(t *testing.T) {
 	})
 
 	t.Run("space credential is not a delegation token", func(t *testing.T) {
-		token, err := utils.SpaceCredential(userKey, "#atproto", space)
+		token, err := utils.SpaceCredential(userKey, space)
 		require.NoError(t, err)
 		_, err = newTestDelegator(t, WithDirectory(dir)).Verify(t.Context(), token, space)
 		require.ErrorIs(t, err, authn.ErrInvalidDelegationToken)

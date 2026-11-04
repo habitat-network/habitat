@@ -441,14 +441,14 @@ func TestEngineRecoverRepoNonOK(t *testing.T) {
 	require.Contains(t, r.ErrorMsg, "getRepo")
 }
 
-// TestEngineRecoverRepoInvalidCAR covers the path where the response body is
-// not a valid CAR.
-func TestEngineRecoverRepoInvalidCAR(t *testing.T) {
+// TestEngineRecoverRepoInvalidStar covers the path where the response body is
+// not a valid STAR archive.
+func TestEngineRecoverRepoInvalidStar(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		_, _ = w.Write([]byte("not a car"))
+		_, _ = w.Write([]byte("not a star archive"))
 	}))
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
@@ -470,7 +470,7 @@ func TestEngineRecoverRepoInvalidCAR(t *testing.T) {
 	var r repo
 	require.NoError(t, db.First(&r, "did = ?", "did:plc:alice").Error)
 	require.Equal(t, stateDesynced, r.State)
-	require.Contains(t, r.ErrorMsg, "parse repo car")
+	require.Contains(t, r.ErrorMsg, "parse repo star")
 }
 
 type failClients struct{}
@@ -509,11 +509,10 @@ func TestVerifierSignerWebAuthor(t *testing.T) {
 	require.Equal(t, pub.Multibase(), got.Multibase())
 }
 
-// TestVerifierSignerWebAuthorFallsBackToAtprotoSpace covers a did:web author
-// whose identity, like the pear host's own "everyone org" identity (built by
-// cmd/pear/main.go with ATProtoSpaceKey/HabitatKey, not AtprotoKey),
-// publishes no "#atproto" verification method — only "#atproto_space".
-func TestVerifierSignerWebAuthorFallsBackToAtprotoSpace(t *testing.T) {
+// TestVerifierSignerWebAuthorIgnoresAtprotoSpace covers a did:web author that
+// still publishes only the dropped "#atproto_space" key: since the spaces
+// alpha, "#atproto" is the only key commits are verified against.
+func TestVerifierSignerWebAuthorIgnoresAtprotoSpace(t *testing.T) {
 	t.Parallel()
 
 	priv, err := atcrypto.GeneratePrivateKeyK256()
@@ -522,16 +521,17 @@ func TestVerifierSignerWebAuthorFallsBackToAtprotoSpace(t *testing.T) {
 	require.NoError(t, err)
 
 	authorDID := syntax.DID("did:web:pear.example.com")
-	ident := did.New(authorDID).ATProtoSpaceKey(pub.Multibase()).Build()
+	ident := did.New(authorDID).
+		VerificationMethod("atproto_space", "Multikey", pub.Multibase()).
+		Build()
 
 	dir := identity.NewMockDirectory()
 	dir.Insert(*ident)
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
-	got, err := v.signer(t.Context(), space, authorDID, false)
-	require.NoError(t, err)
-	require.Equal(t, pub.Multibase(), got.Multibase())
+	_, err = v.signer(t.Context(), space, authorDID, false)
+	require.ErrorContains(t, err, "author signing key")
 }
 
 // TestVerifierSignerExternalAuthor covers the signer path for external
@@ -546,8 +546,8 @@ func TestVerifierSignerExternalAuthor(t *testing.T) {
 
 	spaceOwner := syntax.DID("did:plc:owner")
 	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
-	hostIdent := did.New(hostDID).ATProtoSpaceKey(pub.Multibase()).Build()
+	ownerIdent := did.New(spaceOwner).ATProtoPDS("https://host.example.com").Build()
+	hostIdent := did.New(hostDID).AtprotoKey(pub.Multibase()).Build()
 
 	dir := identity.NewMockDirectory()
 	dir.Insert(*ownerIdent)
@@ -560,10 +560,10 @@ func TestVerifierSignerExternalAuthor(t *testing.T) {
 	require.Equal(t, pub.Multibase(), got.Multibase())
 }
 
-// TestVerifierSignerExternalAuthorFallsBackToAtproto covers the proposal's
-// fallback rule: a host that publishes no "#atproto_space" verification
-// method is resolved through its "#atproto" key instead.
-func TestVerifierSignerExternalAuthorFallsBackToAtproto(t *testing.T) {
+// TestVerifierSignerExternalAuthorIgnoresLegacyEntries covers a space owner
+// and host still publishing the dropped "#atproto_space_host" service and
+// "#atproto_space" key: neither is consulted any more.
+func TestVerifierSignerExternalAuthorIgnoresLegacyEntries(t *testing.T) {
 	t.Parallel()
 
 	priv, err := atcrypto.GeneratePrivateKeyK256()
@@ -573,8 +573,13 @@ func TestVerifierSignerExternalAuthorFallsBackToAtproto(t *testing.T) {
 
 	spaceOwner := syntax.DID("did:plc:owner")
 	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
-	hostIdent := did.New(hostDID).AtprotoKey(pub.Multibase()).Build()
+	ownerIdent := did.New(spaceOwner).
+		ATProtoPDS("https://host.example.com").
+		Service("atproto_space_host", "AtprotoSpaceHost", "https://other.example.com").
+		Build()
+	hostIdent := did.New(hostDID).
+		VerificationMethod("atproto_space", "Multikey", pub.Multibase()).
+		Build()
 
 	dir := identity.NewMockDirectory()
 	dir.Insert(*ownerIdent)
@@ -582,9 +587,8 @@ func TestVerifierSignerExternalAuthorFallsBackToAtproto(t *testing.T) {
 	v := NewVerifier(dir)
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 
-	got, err := v.signer(t.Context(), space, "did:plc:external", true)
-	require.NoError(t, err)
-	require.Equal(t, pub.Multibase(), got.Multibase())
+	_, err = v.signer(t.Context(), space, "did:plc:external", true)
+	require.ErrorContains(t, err, "host signing key")
 }
 
 // TestVerifierSignerAuthorLookupError covers the error path when author
@@ -634,7 +638,7 @@ func TestVerifierSignerExternalOwnerLookupError(t *testing.T) {
 }
 
 // TestVerifierSignerExternalNoHabitatService covers the error path when the
-// space owner has no atproto_space_host service endpoint.
+// space owner has no atproto_pds service endpoint.
 func TestVerifierSignerExternalNoHabitatService(t *testing.T) {
 	t.Parallel()
 
@@ -648,7 +652,7 @@ func TestVerifierSignerExternalNoHabitatService(t *testing.T) {
 
 	_, err := v.signer(t.Context(), space, "did:plc:external", true)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "no atproto_space_host service")
+	require.Contains(t, err.Error(), "no atproto_pds service")
 }
 
 // TestVerifierSignerExternalHostLookupError covers the error path when the
@@ -657,7 +661,7 @@ func TestVerifierSignerExternalHostLookupError(t *testing.T) {
 	t.Parallel()
 
 	spaceOwner := syntax.DID("did:plc:owner")
-	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
+	ownerIdent := did.New(spaceOwner).ATProtoPDS("https://host.example.com").Build()
 
 	dir := identity.NewMockDirectory()
 	dir.Insert(*ownerIdent)
@@ -670,13 +674,13 @@ func TestVerifierSignerExternalHostLookupError(t *testing.T) {
 }
 
 // TestVerifierSignerExternalHostNoKey covers the error path when the host
-// has no atproto_space/atproto verification method.
+// has no atproto verification method.
 func TestVerifierSignerExternalHostNoKey(t *testing.T) {
 	t.Parallel()
 
 	spaceOwner := syntax.DID("did:plc:owner")
 	hostDID := syntax.DID("did:web:host.example.com")
-	ownerIdent := did.New(spaceOwner).ATProtoSpaceHost("https://host.example.com").Build()
+	ownerIdent := did.New(spaceOwner).ATProtoPDS("https://host.example.com").Build()
 	hostIdent := did.New(hostDID).Build()
 
 	dir := identity.NewMockDirectory()
@@ -894,18 +898,18 @@ func TestEngineRunProcessesPendingRepo(t *testing.T) {
 	require.Equal(t, stateActive, r.State)
 }
 
-// TestEngineRecoverRepoVerifyError covers the path where the CAR is valid
+// TestEngineRecoverRepoVerifyError covers the path where the archive is valid
 // but the commit verification fails with a non-ErrInvalidCommit error.
 func TestEngineRecoverRepoVerifyError(t *testing.T) {
 	t.Parallel()
 
-	carBytes := buildMinimalCAR(t)
+	starBytes := buildMinimalStar(t, testSpace, testRepo)
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		_, _ = w.Write(carBytes)
+		_, _ = w.Write(starBytes)
 	}))
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
@@ -933,17 +937,17 @@ func TestEngineRecoverRepoVerifyError(t *testing.T) {
 }
 
 // TestEngineRecoverRepoSuccess covers the happy path of recoverRepo: a valid
-// CAR is fetched, the hash matches, records are emitted, and the repo settles active.
+// archive is fetched, the hash matches, records are emitted, and the repo settles active.
 func TestEngineRecoverRepoSuccess(t *testing.T) {
 	t.Parallel()
 
-	carBytes := buildMinimalCAR(t)
+	starBytes := buildMinimalStar(t, testSpace, testRepo)
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
-		_, _ = w.Write(carBytes)
+		_, _ = w.Write(starBytes)
 	}))
 	t.Cleanup(srv.Close)
 	base, _ := url.Parse(srv.URL)
@@ -1224,24 +1228,24 @@ func TestEngineRecoverByDiffEmitsDeleteTombstone(t *testing.T) {
 	require.Equal(t, map[string]string{"network.habitat.test/k1": "bafyaaa"}, index)
 }
 
-// TestEngineRecoverFromCAREmitsDeleteTombstone pins that full-snapshot
-// recovery also tombstones a record sap's index holds but the recovered CAR
+// TestEngineRecoverFromStarEmitsDeleteTombstone pins that full-snapshot
+// recovery also tombstones a record sap's index holds but the recovered archive
 // no longer does, not just recoverByDiff's narrow path. recoverRepo reaches
-// the CAR path here because the narrow-diff endpoints 404, the same way a
+// the STAR path here because the narrow-diff endpoints 404, the same way a
 // failed narrow recovery falls back to it in production.
-func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
+func TestEngineRecoverFromStarEmitsDeleteTombstone(t *testing.T) {
 	t.Parallel()
 
 	space := habitat_syntax.SpaceURI("at://did:plc:owner/space/network.habitat.space/s1")
 	repoDID := syntax.DID("did:plc:alice")
-	car := buildMinimalCAR(t) // holds exactly network.habitat.test/rec1
+	archive := buildMinimalStar(t, testSpace, testRepo) // holds exactly network.habitat.test/rec1
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(
 		"/xrpc/network.habitat.space.getRepo",
 		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/vnd.ipld.car")
-			_, _ = w.Write(car)
+			w.Header().Set("Content-Type", "application/octet-stream")
+			_, _ = w.Write(archive)
 		},
 	)
 	srv := httptest.NewServer(mux)
@@ -1249,7 +1253,7 @@ func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
 
 	e, emitter, db := newTestEngine(t, srv.URL)
 	require.NoError(t, e.Track(t.Context(), space, repoDID))
-	// sap's index holds rec1 (still present in the CAR) and rec2 (deleted
+	// sap's index holds rec1 (still present in the archive) and rec2 (deleted
 	// since sap last synced).
 	require.NoError(t, indexRecord(t.Context(), db, space, repoDID,
 		"network.habitat.test", "rec1", "bafyaaa"))
@@ -1274,7 +1278,7 @@ func TestEngineRecoverFromCAREmitsDeleteTombstone(t *testing.T) {
 // TestEngineRecoverRepoUsesHabitatNsid pins that full recovery calls the
 // host's network.habitat.space.getRepo endpoint (com.atproto.space.getRepo
 // does not exist on the host). The repo holds no local index, so recoverRepo
-// must take the full-CAR path rather than the narrow diff.
+// must take the full-STAR path rather than the narrow diff.
 func TestEngineRecoverRepoUsesHabitatNsid(t *testing.T) {
 	t.Parallel()
 

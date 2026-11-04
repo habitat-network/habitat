@@ -26,12 +26,12 @@ import (
 )
 
 // dirWithSpaceHost builds an identity.MockDirectory with a single identity
-// whose atproto_space_host service points at host.
+// whose atproto_pds service (its space host) points at host.
 func dirWithSpaceHost(did syntax.DID, host string) *identity.MockDirectory {
 	dir := identity.NewMockDirectory()
 	dir.Insert(identity.Identity{
 		DID:      did,
-		Services: map[string]identity.ServiceEndpoint{"atproto_space_host": {URL: host}},
+		Services: map[string]identity.ServiceEndpoint{"atproto_pds": {URL: host}},
 	})
 	return dir
 }

@@ -29,6 +29,18 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	// A deleted space answers SpaceDeleted before any authorization, so a
+	// syncer that missed the notifySpaceDeleted learns of it when it renews:
+	// the deletion revoked every member, so it would otherwise only learn that
+	// it is no longer one.
+	deleted, err := p.spacesStore.IsSpaceDeleted(ctx, spaceURI)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check space deleted: %w", err))
+		return
+	} else if deleted {
+		httpx.WriteError(ctx, w, "SpaceDeleted", "space was deleted", http.StatusBadRequest)
+		return
+	}
 	// The credential is bound to credentialKid: every request presenting it
 	// must be signed by that key.
 	if !httpsig.IsP256DIDKey(input.CredentialKid) {
@@ -61,17 +73,17 @@ func (p *PearServer) GetSpaceCredential(w http.ResponseWriter, r *http.Request) 
 	if !p.verifyClientAttestation(ctx, w, spaceURI, input.ClientAttestation) {
 		return
 	}
-	kid := "#atproto"
 	privKey, err := p.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
 	if errors.Is(err, identity.ErrDIDNotFound) {
+		// Spaces owned by the pear host itself are signed with the host key,
+		// which the host's DID document publishes as #atproto.
 		privKey = p.hostKey
-		kid = "#atproto_space"
 	} else if err != nil {
 		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
 		return
 	}
 	token, err := utils.SpaceCredential(
-		privKey, kid, spaceURI, utils.WithConfirmationKey(input.CredentialKid),
+		privKey, spaceURI, utils.WithConfirmationKey(input.CredentialKid),
 	)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign token: %w", err))

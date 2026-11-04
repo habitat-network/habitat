@@ -43,7 +43,7 @@ export interface SpaceSyncOptions {
   readonly requestRetries: number;
   /** Deadline for one request to return its response headers. */
   readonly requestTimeout: Duration.Duration;
-  /** Max gap between chunks of a streamed getRepo CAR. */
+  /** Max gap between chunks of a streamed getRepo STAR archive. */
   readonly streamIdleTimeout: Duration.Duration;
   /** Ops one incremental sync will buffer before falling back to getRepo. */
   readonly maxIncrementalOps: number;
