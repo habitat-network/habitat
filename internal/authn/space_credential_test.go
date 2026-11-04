@@ -175,7 +175,7 @@ func TestSpaceCredentialAuthMethod_KeyBinding(t *testing.T) {
 
 	signed := func(key atcrypto.PrivateKey, audience string) *http.Request {
 		r := httptest.NewRequest("GET", "/", http.NoBody)
-		r.Header.Set("Authorization", "Atproto-Space "+bound)
+		r.Header.Set("Authorization", "atproto-space-credential "+bound)
 		r.Header.Set(httpsig.AudienceHeader, audience)
 		require.NoError(t, httpsig.Sign(r, key, "authorization", "atproto-space-audience"))
 		return r

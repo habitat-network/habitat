@@ -17,6 +17,7 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/mcpgateway"
 	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/opensocial"
@@ -232,9 +233,11 @@ func NewTestServer(t *testing.T, opts ...utils.Opt[TestServer]) *TestServer {
 
 	// Only the fields PearServer reads; the rest of pear's App isn't needed here.
 	ts.Server = pearserver.New(&pearapp.App{
-		Domain:           "pear.example.com",
-		Validator:        ts.Validator,
-		DefaultDir:       ts.Directory,
+		Domain:     "pear.example.com",
+		Validator:  ts.Validator,
+		DefaultDir: ts.Directory,
+		// Like pear's own, resolving managed identities through the hive first.
+		HiveDir:          habitat_identity.NewWrappedDirectory(ts.Hive, ts.Directory),
 		Hive:             ts.Hive,
 		HostKey:          ts.HostKey,
 		HostKEMKey:       ts.HostKEMKey,

@@ -61,31 +61,20 @@ type spaceCred struct {
 	expire time.Time
 }
 
-// credKey identifies a cached credential: bound credentials are tied to the
-// manager's signing key and usable only through ClientForSpace; unbound ones
-// are bearer credentials handed to callers that read the host themselves.
-type credKey struct {
-	space habitat_syntax.SpaceURI
-	bound bool
-}
-
-// signingTransport signs every outgoing request per RFC 9421 with key,
-// covering components. For credential use it also sets the
-// Atproto-Space-Audience header, which the signature covers.
+// signingTransport signs every outgoing request per RFC 9421 with key, over
+// its credential and the Atproto-Space-Audience header, which it sets to
+// audience.
 type signingTransport struct {
-	base       http.RoundTripper
-	key        atcrypto.PrivateKey
-	audience   syntax.DID // empty when the request doesn't carry an audience
-	components []string
+	base     http.RoundTripper
+	key      atcrypto.PrivateKey
+	audience syntax.DID
 }
 
 func (t signingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// RoundTrippers must not modify the caller's request.
 	req = req.Clone(req.Context())
-	if t.audience != "" {
-		req.Header.Set(httpsig.AudienceHeader, t.audience.String())
-	}
-	if err := httpsig.Sign(req, t.key, t.components...); err != nil {
+	req.Header.Set(httpsig.AudienceHeader, t.audience.String())
+	if err := httpsig.Sign(req, t.key, "authorization", "atproto-space-audience"); err != nil {
 		return nil, fmt.Errorf("sign request: %w", err)
 	}
 	base := t.base
@@ -95,37 +84,23 @@ func (t signingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return base.RoundTrip(req)
 }
 
-// signedClient returns a copy of httpc whose requests are signed by key.
-func signedClient(
-	httpc *http.Client,
-	key atcrypto.PrivateKey,
-	audience syntax.DID,
-	components ...string,
-) *http.Client {
-	c := *httpc
-	c.Transport = signingTransport{
-		base: httpc.Transport, key: key, audience: audience, components: components,
-	}
-	return &c
-}
-
 // Manager mints and caches space credentials, one per space, each scoped to
 // that space's own host. Credentials are minted lazily on first use, shared
 // across callers via singleflight, and renewed just before they expire.
-// Credentials used through ClientForSpace are bound to a P-256 key the manager
-// generates at startup (cnf.kid) and each request is signed per RFC 9421.
+// Every credential is bound to a P-256 key the manager generates on first use
+// (cnf.kid), and each request presenting one is signed per RFC 9421.
 type Manager struct {
 	dir      Directory           // resolves a space's own host
 	httpc    *http.Client        // for the credential exchange and repo-host reads
 	deleg    Delegator           // mints delegation tokens
 	attester *oauth.ClientConfig // signs client attestations; must be a confidential client
 	keyOnce  sync.Once
-	key      atcrypto.PrivateKey // P-256 key bound credentials are tied to (cnf.kid)
+	key      atcrypto.PrivateKey // P-256 key credentials are bound to (cnf.kid)
 	keyErr   error
 	sf       singleflight.Group
 
 	mu    sync.Mutex
-	creds map[credKey]spaceCred
+	creds map[habitat_syntax.SpaceURI]spaceCred
 
 	// onSpaceDeleted, when set, is told of a space whose host answered
 	// SpaceDeleted; see OnSpaceDeleted.
@@ -146,8 +121,8 @@ func (m *Manager) OnSpaceDeleted(f func(ctx context.Context, space habitat_synta
 }
 
 // NewManager builds a manager. httpc must not attach any auth of its own —
-// the manager sets each request's Authorization header itself, first to the
-// delegation token and then to the minted space credential. attester signs
+// the manager sends the delegation token in getSpaceCredential's body and
+// sets each later request's Authorization header to the minted credential. attester signs
 // getSpaceCredential's client attestation with the same confidential-client
 // key it already publishes at its own client-metadata.json; it must be
 // confidential (a configured client secret) — sap always runs as one.
@@ -162,7 +137,7 @@ func NewManager(
 		httpc:    httpc,
 		deleg:    deleg,
 		attester: attester,
-		creds:    make(map[credKey]spaceCred),
+		creds:    make(map[habitat_syntax.SpaceURI]spaceCred),
 	}
 }
 
@@ -183,17 +158,15 @@ func (m *Manager) signingKey() (atcrypto.PrivateKey, error) {
 func (m *Manager) credential(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
-	bound bool,
 ) (spaceCred, error) {
-	k := credKey{space: space, bound: bound}
 	m.mu.Lock()
-	c, ok := m.creds[k]
+	c, ok := m.creds[space]
 	m.mu.Unlock()
 	if ok && time.Until(c.expire) > renewalLead {
 		return c, nil
 	}
-	v, err, _ := m.sf.Do(fmt.Sprint(k), func() (any, error) {
-		return m.mint(ctx, space, bound)
+	v, err, _ := m.sf.Do(space.String(), func() (any, error) {
+		return m.mint(ctx, space)
 	})
 	if err != nil {
 		return spaceCred{}, err
@@ -202,13 +175,13 @@ func (m *Manager) credential(
 }
 
 // mint resolves the space's own host, exchanges a fresh delegation token for
-// a space credential there, and caches the pair. The host mints short-lived
-// credentials (10 minutes by default); renewing just before the credential's
-// exp (see renewalLead) keeps them from going stale.
+// a space credential bound to the manager's key there, and caches the pair.
+// The host mints short-lived credentials (10 minutes by default); renewing
+// just before the credential's exp (see renewalLead) keeps them from going
+// stale.
 func (m *Manager) mint(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
-	bound bool,
 ) (spaceCred, error) {
 	host, err := m.hostForSpace(ctx, space)
 	if err != nil {
@@ -224,26 +197,25 @@ func (m *Manager) mint(
 	if err != nil {
 		return spaceCred{}, fmt.Errorf("sign client attestation: %w", err)
 	}
-	httpc := m.httpc
-	if bound {
-		// Signing the delegation token proves we hold the key the credential
-		// will be bound to.
-		key, err := m.signingKey()
-		if err != nil {
-			return spaceCred{}, err
-		}
-		httpc = signedClient(m.httpc, key, "", "authorization")
+	key, err := m.signingKey()
+	if err != nil {
+		return spaceCred{}, err
 	}
-	client := &atclient.APIClient{
-		Client:  httpc,
-		Host:    host,
-		Headers: http.Header{"Authorization": []string{"Bearer " + delegation}},
+	pub, err := key.PublicKey()
+	if err != nil {
+		return spaceCred{}, fmt.Errorf("get credential binding key: %w", err)
 	}
+	// The request carries no auth of its own: the delegation token and the
+	// key to bind the credential to (credentialKid) travel in the body.
+	client := &atclient.APIClient{Client: m.httpc, Host: host}
 	var out habitat.NetworkHabitatSpaceGetSpaceCredentialOutput
 	if err := client.Post(
 		ctx, "network.habitat.space.getSpaceCredential",
 		habitat.NetworkHabitatSpaceGetSpaceCredentialInput{
-			Space: space.String(), ClientAttestation: attestation,
+			Space:             space.String(),
+			CredentialKid:     pub.DIDKey(),
+			DelegationToken:   delegation,
+			ClientAttestation: attestation,
 		}, &out,
 	); err != nil {
 		// Only the space's own host answers for the space, so its SpaceDeleted
@@ -259,7 +231,7 @@ func (m *Manager) mint(
 	}
 	c := spaceCred{token: out.Credential, host: host, expire: credentialExpiry(out.Credential)}
 	m.mu.Lock()
-	m.creds[credKey{space: space, bound: bound}] = c
+	m.creds[space] = c
 	m.mu.Unlock()
 	return c, nil
 }
@@ -297,7 +269,7 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	stale := strings.TrimPrefix(req.Header.Get("Authorization"), httpsig.CredentialScheme+" ")
 	t.m.invalidate(t.space, stale)
-	c, err := t.m.credential(req.Context(), t.space, true)
+	c, err := t.m.credential(req.Context(), t.space)
 	if err != nil || c.token == stale {
 		return resp, nil
 	}
@@ -313,13 +285,12 @@ func (t *refreshTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	return t.next.RoundTrip(retry)
 }
 
-// invalidate evicts space's cached bound credential if it is still token.
+// invalidate evicts space's cached credential if it is still token.
 func (m *Manager) invalidate(space habitat_syntax.SpaceURI, token string) {
-	k := credKey{space: space, bound: true}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.creds[k].token == token {
-		delete(m.creds, k)
+	if m.creds[space].token == token {
+		delete(m.creds, space)
 	}
 }
 
@@ -345,29 +316,7 @@ func (m *Manager) hostForSpace(ctx context.Context, space habitat_syntax.SpaceUR
 func (m *Manager) DropSpace(space habitat_syntax.SpaceURI) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.creds, credKey{space: space, bound: true})
-	delete(m.creds, credKey{space: space, bound: false})
-}
-
-// Credential is an unbound (bearer) space credential and the space host it is
-// valid against.
-type Credential struct {
-	Token string
-	Host  string
-}
-
-// Credential returns a valid unbound space credential for space, for a caller
-// that reads the space's host itself rather than through ClientForSpace: it
-// has no access to the manager's signing key, so it can't use a bound one.
-func (m *Manager) Credential(
-	ctx context.Context,
-	space habitat_syntax.SpaceURI,
-) (Credential, error) {
-	c, err := m.credential(ctx, space, false)
-	if err != nil {
-		return Credential{}, err
-	}
-	return Credential{Token: c.token, Host: c.host}, nil
+	delete(m.creds, space)
 }
 
 // ClientForSpace returns an atproto API client that reads space at its own
@@ -379,7 +328,7 @@ func (m *Manager) ClientForSpace(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 ) (*atclient.APIClient, error) {
-	c, err := m.credential(ctx, space, true)
+	c, err := m.credential(ctx, space)
 	if err != nil {
 		return nil, err
 	}
@@ -389,11 +338,9 @@ func (m *Manager) ClientForSpace(
 	}
 	// The refresh transport sits above the signing one so a retried request,
 	// carrying a new credential, is signed again.
-	signed := signedClient(
-		m.httpc, key, space.SpaceOwner(), "authorization", "atproto-space-audience",
-	)
+	signed := signingTransport{base: m.httpc.Transport, key: key, audience: space.SpaceOwner()}
 	httpc := *m.httpc
-	httpc.Transport = &refreshTransport{m: m, space: space, next: signed.Transport}
+	httpc.Transport = &refreshTransport{m: m, space: space, next: signed}
 	return &atclient.APIClient{
 		Client: &httpc,
 		Host:   c.host,

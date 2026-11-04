@@ -66,7 +66,6 @@ func TestValidator(t *testing.T) {
 		oauth,
 		nil,
 		authn.NewSpaceCredentialAuthMethod(dir),
-		authn.NewDelegationTokenAuthMethod(dir, ps, hostKey),
 		ps,
 	)
 
@@ -95,10 +94,7 @@ func TestValidator(t *testing.T) {
 			r := httptest.NewRequest("GET", "/", http.NoBody)
 			r.Header.Set("Authorization", "Bearer "+token)
 			cred, ok := v.Request(
-				authn.WithMethods(
-					authn.ValidatorMethodDelegationToken,
-					authn.ValidatorMethodSpaceCredential,
-				),
+				authn.WithMethods(authn.ValidatorMethodSpaceCredential),
 				authn.WithSpace(
 					"at://did:web:alice/space/test.space.type/abcd",
 					habitat_syntax.SpaceRoleReader,
