@@ -45,6 +45,7 @@ func TestNormalizeLoopbackRedirect(t *testing.T) {
 		NewJWTBearerStore(),
 		testOpensocialStore(t),
 		nil,
+		"",
 	)
 	require.NoError(t, err)
 
