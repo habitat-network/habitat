@@ -95,7 +95,7 @@ func TestReader_Malformed(t *testing.T) {
 			archive: cat(header, []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01}),
 			atNext:  true,
 		},
-		{name: "truncated varint", archive: append(append([]byte{}, header...), 0x81), atNext: true},
+		{name: "truncated varint", archive: cat(header, []byte{0x81}), atNext: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

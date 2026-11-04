@@ -68,7 +68,12 @@ func TestSerializeRepoStar(t *testing.T) {
 	a := testRecordBlock(t, collA, "a-key", map[string]any{"text": "first"})
 	b := testRecordBlock(t, collB, "b-key", map[string]any{"text": "second"})
 
-	archive, err := SerializeRepoStar(testStarSpace, testStarRepo, testCommit(), []recordBlock{b, a})
+	archive, err := SerializeRepoStar(
+		testStarSpace,
+		testStarRepo,
+		testCommit(),
+		[]recordBlock{b, a},
+	)
 	require.NoError(t, err)
 
 	meta, keys, values := readStarPairs(t, archive)
